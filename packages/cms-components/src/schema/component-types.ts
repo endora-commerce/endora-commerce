@@ -7,7 +7,7 @@ import type {
   ResponsiveProp,
   Shadow,
   SpacingValue,
-} from '@b2b/page-builder-core';
+} from '@endora-commerce/page-builder-core';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 export type ButtonTarget = '_self' | '_blank';

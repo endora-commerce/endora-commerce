@@ -20,8 +20,8 @@ import {
   replaceEmailRowInData,
   type EmailRowLayoutPresetId,
   type EmailRowProps,
-} from '@b2b/email-components';
-import { usePageBuilderPuck } from '@b2b/page-builder-core/editor';
+} from '@endora-commerce/email-components';
+import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor';
 import { useActionBarTarget } from '@/modules/cms/components/action-bar-target';
 import { QuickTooltip, wrapQuickTooltip } from '@/modules/cms/components/QuickTooltip';
 

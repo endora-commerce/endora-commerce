@@ -29,7 +29,7 @@
  * accepts an address folds it as its first act — and a helper is what lets the
  * eleven of them share one spelling of "the same address".
  *
- * It lives in `@b2b/contracts` rather than inside `customer_accounts` because
+ * It lives in `@endora-commerce/contracts` rather than inside `customer_accounts` because
  * `organizations` writes an invitation row keyed by the same address and has to
  * fold it the same way; a module may not import another module's internals, and
  * a second private copy is exactly how `foldDiacritics` came to have six.

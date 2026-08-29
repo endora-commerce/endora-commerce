@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { CatalogProductFilter, ProductSelectionRule } from '@b2b/contracts';
+import type { CatalogProductFilter, ProductSelectionRule } from '@endora-commerce/contracts';
 import {
   collectSelectionCategoryIds,
   compileSelectionRule,
   UnknownSelectionFieldError,
   type SelectionCandidate,
   type SelectionCompileContext,
-} from '../../../src/modules/product_feeds/services/selection-rule-compiler.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/selection-rule-compiler.js';
 
 /**
  * Feature 067 / T061 — the selection-rule compiler (FR-025, FR-029).

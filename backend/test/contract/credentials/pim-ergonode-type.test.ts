@@ -49,7 +49,27 @@ describe('Ergonode credential type [contract]', () => {
   it('is registered at boot by the module that owns it, not by a composition root', () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = join(here, '..', '..', '..', 'src');
-    const backend = readFileSync(join(src, 'modules', 'pim_ergonode', 'backend.ts'), 'utf8');
+    // `pim_ergonode` is a package (feature 080, T040b), so its composition file
+    // is the `./backend` subpath's entry point rather than `src/modules/<id>/
+    // backend.ts`. This path is built from segments, which is why no import
+    // rewrite saw it during the move — it went red here, on a `readFileSync`,
+    // rather than in a specifier the type-checker reads.
+    const backend = readFileSync(
+      join(
+        here,
+        '..',
+        '..',
+        '..',
+        '..',
+        'packages',
+        'modules',
+        'pim_ergonode',
+        'src',
+        'backend',
+        'index.ts',
+      ),
+      'utf8',
+    );
     expect(backend).toContain('ergonodeConfigurationType');
     expect(backend).toContain('ctx.onBoot(');
     for (const root of [
@@ -61,7 +81,11 @@ describe('Ergonode credential type [contract]', () => {
   });
 
   it('GET /types offers pim_ergonode with the ergonode provider and its two fields', async () => {
-    const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/credentials/types', ...ADMIN });
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/credentials/types',
+      ...ADMIN,
+    });
     expect(res.statusCode).toBe(200);
 
     const types = res.json().types as {
@@ -96,7 +120,11 @@ describe('Ergonode credential type [contract]', () => {
     expect(created.statusCode).toBe(201);
     expect(created.body).not.toContain(API_KEY);
 
-    const read = await h.app.inject({ method: 'GET', url: `/api/v1/admin/credentials/${CODE}`, ...ADMIN });
+    const read = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/credentials/${CODE}`,
+      ...ADMIN,
+    });
     expect(read.statusCode).toBe(200);
     expect(read.body).not.toContain(API_KEY);
 

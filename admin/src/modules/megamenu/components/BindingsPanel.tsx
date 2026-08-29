@@ -4,7 +4,7 @@ import type {
   MegamenuBinding,
   SalesChannelDetail,
   SalesChannelSummary,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

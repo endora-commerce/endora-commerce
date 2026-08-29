@@ -1,10 +1,12 @@
+import { Asset } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
+
 
 /**
  * T056 / T067 — Contract test: soft-delete + restore + reference protection.

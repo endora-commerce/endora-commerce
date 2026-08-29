@@ -1,0 +1,85 @@
+{
+  "$comment": [
+    "What the package-schema acceptance criterion answers on this tree, per assertion (D-110).",
+    "A two-way ratchet: the CI job fails when a run disagrees with this file in either direction.",
+    "A1 … A9 are `pass` since T046, which is the transition this file was written for: it stops",
+    "being the record of a gap and becomes the guard against regressions. An accidental *red* now",
+    "fails the job exactly as an accidental green did — and the green is still the one worth being",
+    "careful about, because a change that quietly satisfied an assertion without going through the",
+    "composition would show up here as drift rather than as a pass nobody looked at.",
+    "Move an entry only in the merge request that earned the move, and never to make a pipeline",
+    "pass.",
+    "T031 moved A5 to `pass` (an installed package now reaches `resolvedManifestEntries()` and",
+    "both composition roots) and corrected A6's and A7's reasons, which had both read `Follows",
+    "A5` and stopped being true the moment A5 did.",
+    "T033 moved A1, A2, A3 and A4 to `pass` — the whole schema half. A package's migrations and",
+    "entities now reach the ORM through the async seam in `src/db/configured-migrations.ts` and",
+    "`src/db/configured-entities.ts`.",
+    "T032 moved no status and rewrote A5's reason: the assertion now measures the bundles through",
+    "`reconcileBundles` and `translation_bundles` rather than reading the files itself, which is",
+    "what its own recorded reason named as still missing. A reason that has stopped being true is",
+    "drift this file cannot detect — only the status is compared — so it is corrected by hand in",
+    "the merge request that made it false, exactly as T031 did for A6 and A7.",
+    "T033a/T036 moved no status and rewrote A7's reason, which its own change falsified.",
+    "D-157.6(b) narrows the first-boot reconciler's insert population to core plus overlay, so no",
+    "boot will ever converge a package and A7's row has exactly one author, `install`.",
+    "T053(c) added A10 — a tenth, and the only one it recorded `fail`. It is not a schema assertion:",
+    "it asks whether the overlay pattern's one customisation seam reaches an owner that has become",
+    "a package, which needed no new harness because this one already packs, installs and composes",
+    "one. It is red on a single cause, named in its entry, and the entry is the deliverable: the",
+    "question stops being open and starts being measured on every merge request.",
+    "T046 moved A6 and A7 to `pass`. Neither needed the mechanism its own recorded reason named:",
+    "what both needed was for the probe to run the sequence an operator runs. `install` is a",
+    "package's only author — of its `module_registrations` row since D-157.6(b), and of its",
+    "settings rows through step 2 of the same operation — and no phase installed. Both reasons are",
+    "rewritten below to say what the pass now means.",
+    "T059 moved A10 to `pass`, and it is the one entry whose *question* moved rather than whose",
+    "answer did. D-176's decoration drain removed the ordering accident A10 had measured, and the",
+    "owner then ruled the capability: a per-deployment overlay may not decorate a registration an",
+    "installed package owns. So the assertion asserts the refusal with its reason — a `fail` said",
+    "\"this is broken\" where the tree's position is \"this is not offered yet\". All ten assertions",
+    "now pass, which makes this file a pure regression guard in both directions."
+  ],
+  "assertions": {
+    "A1": {
+      "status": "pass",
+      "reason": "Earned by T033 (P3 option A). The committed migration registry is still a walk of `backend/src` and still contributes no package entry — that is D-119's answer and it does not move. What moved is that the *configured* order is no longer the committed registry: `src/db/configured-migrations.ts` became an async factory that merges it with every installed package's `./migrations` export, tagged `origin: 'external'` so a stranger's stamp cannot join the frozen historical prefix. The probe reports the package's class applied alongside 158 core migrations."
+    },
+    "A2": {
+      "status": "pass",
+      "reason": "Follows A1, and is kept separate from it on purpose: the table exists because the migration body ran."
+    },
+    "A3": {
+      "status": "pass",
+      "reason": "The tenant column and the named index are both in `information_schema` as the package's migration declared them — `organization_id uuid` nullable, `acceptance_probe_rows_organization_id_index`. This is the assertion that distinguishes a migration that ran from a row in `mikro_orm_migrations` standing in for one."
+    },
+    "A4": {
+      "status": "pass",
+      "reason": "Earned by T033. The source-text probe still cannot see a compiled decorator and never will, so the committed entity registry is unchanged; `src/db/configured-entities.ts` merges it at runtime with the entity classes each package's `./backend` export declares. `em.find(AcceptanceProbeRow, {})` returns against the host's own metadata."
+    },
+    "A5": {
+      "status": "pass",
+      "reason": "Earned by T031 (P1) and **completed by T032 (P2)**, which moved no status and changed what the pass means. `loadPackageModuleEntries` (`src/packages/`) enumerates the instance's `node_modules`, keeps every package carrying `endora.type === \"module\"` whose install does not link out of the tree it was found under, and both composition roots now call `composeModules([...MODULES, ...overlay, ...packages], …)`. `resolvedManifestEntries()` merges the same discovery, so the module has an identity, its permission is grantable and the palette action resolves in `en` and `pl`. `filePath` is the resolved `package.json`, because `dirname(filePath)` is how the i18n reconciler and the orchestrator find a module's assets and the compiled root export's directory holds no `i18n/`. T032 replaced the assertion's own `loadModuleBundles` read with the platform's path: it runs `reconcileBundles` over the whole resolved set and then reads the action keys back out of `getMergedBundleForLanguage`, which is what the Admin SPA and the command palette serve from. The previous wording recorded exactly this as still outstanding. A package whose bundles the reconciler cannot reach now fails A5 with its `i18n/` sitting in `node_modules`, which is the case the old read could not distinguish from a pass."
+    },
+    "A6": {
+      "status": "pass",
+      "reason": "Earned by T046, and by a phase rather than by a mechanism. The recorded reason named two causes; the first had been superseded and the second was the whole of it. (1) `composition.ts` reconciling settings from bare-core `REGISTERED_MANIFESTS` is a real defect and is fixed here — the population is now `deploymentShippedEntries(resolvedRegistry)`, the same core-plus-overlay split D-157.6(b) ruled for the first-boot presence insert and the same function, not a second copy of the origin test — but it is **not** what moves this assertion, which was measured: with that fix in and the probe's phases reverted, the run still answers 7 pass / 2 fail. It bites on an **overlay** module, whose presence is converged at boot and which therefore has no `install` to author its settings; `example_overlay` declares an activation control and had no row for it. A package is deliberately still excluded from the boot reconcile: since D-157.6(b) `install` is its only author, and reconciling a stranger's manifest at boot would let a `SettingCodeConflict` in something an operator merely `pnpm add`ed abort the platform's start. (2) The probe read the row before anything had composed or installed. It now runs `boot` — one `composeApp()`, which converges `module_registrations` for what this build ships, so the package's `auth` dependency is installed and the package itself is asserted still absent — and then `install`, in the shape `scripts/install.ts` builds it. The activation Setting exists, `gate-off` flips it and the route answers 503 `MODULE_DISABLED`, `gate-on` flips it back and the route answers again. The operator-axis behaviour behind this pass is held by `test/integration/_lifecycle/package-activation-setting.integration.test.ts`, without a tarball: the row is created at the manifest default, `disable`→`enable` preserves the operator's choice and soft `uninstall`→`install` resets it to the default, for an entry the platform classifies as a package."
+    },
+    "A7": {
+      "status": "pass",
+      "reason": "Earned by T046, and by nothing of its own: every part of the revert was already settled and the blocker was upstream. Its migration count was settled by T033 (`revertMigrationsFor` takes an injected `MigrationOwnership`, `composition.ts` supplies the merged one, and the empty case refuses rather than warning). Its row has exactly one author, `install`, since D-157.6(b), and T036 taught the CLI to name a package id. What was missing was the call: `uninstall` short-circuited on `already-uninstalled` because no `module_registrations` row for `acceptance_probe` existed, and the probe reached `install` through no phase at all. It now does, and the hard uninstall reverts exactly one migration, drops `acceptance_probe_rows` and leaves the 158 core migrations alone. One thing did change in the uninstall phase itself: its registry was built from an identity map written before `lifecycleParticipant` existed, so the field was silently dropped and the hard uninstall removed the package's schema while leaving its translation bundles and palette actions behind — the one case D-159 §7 records as having no other cure. The entries are handed over unmapped now, the way `composition.ts` hands its own registry over."
+    },
+    "A8": {
+      "status": "pass",
+      "reason": "Passes today, and must: it measures the harness, not the platform. The tarball install resolves entirely inside the throwaway instance. An A8 that could not pass before Wave 3 would be an assertion nobody could trust after it."
+    },
+    "A9": {
+      "status": "pass",
+      "reason": "Passes today, and must, for the same reason: A8 refuses the same package consumed by link from inside this repository. If A9 ever fails, A8 has stopped being able to say no and every other assertion is worth less."
+    },
+    "A10": {
+      "status": "pass",
+      "reason": "**Green, and it is the refusal that is green — the question moved, not the answer** (T059, D-176). T053(c) recorded this red on a measured cause: `composeApp` calls `composeModules([...MODULES, ...overlayModuleEntries, ...packageModuleEntries], …)`, registration ran in array order with no topological pass, so a deployment's overlay module reached `ctx.di.decorate` before the package whose name it wraps had registered, `container.hasRegistration('acceptanceProbeGreeter')` was false, and the refusal took the whole composition down. That was an accident of an array literal rather than a decision, and the measurement that isolated it was the swap: with the two arrays swapped and nothing else changed, A10 answered `pass`, the overlay's wrap delegating into the package's own implementation. D-176 removed the accident rather than the array — `ctx.di.decorate` enqueues and `composeModules` drains the queue after the last module has registered, so registration order decides nothing and `hasRegistration` keeps its one honest meaning, a name nothing in the composition ever registers. The owner then ruled the capability the drain would otherwise have granted in silence: **a per-deployment overlay may not decorate a registration an installed package owns**, because a package's `exports` map publishes `registerModule`, its entities, its migrations and `./ports`, and a container name it registers internally is published by none of them — so the wrap would be written against a name the package never offered and may rename in a patch release, with feature 057's `tsc` contract gate unable to transfer (there is no `*.interface.ts`, so the compiler would hold the deployment to a `dist/*.d.ts` that moves under `pnpm update`). This phase therefore asserts the refusal **with its reason**: the platform answers `PackageDecorationNotOfferedError` naming `acceptance_overlay`, `acceptance_probe` and `acceptanceProbeGreeter`, saying *not offered yet* rather than *forbidden*, and naming the exit — a package declaring which of its registrations are decoratable, `./ports` being the natural home, where a shape change costs a major bump. The phase keeps all four verdicts (!967): the ruled refusal is the only `pass`, while a refusal for another reason, an absent registration, a wrap that applied, and a composition that succeeded with the registration present and **nothing wrapping it and no exception announcing it** are each a distinct `fail` — that last one being the verdict no error message can ever produce, and the shape a silently dropped decoration would take. What this phase does not measure is held without a tarball by `test/overlay/overlay-decoration-seam.test.ts` (T-A: an overlay wraps core; T-A′: the same module without the derived marking is refused; T-A″: the same module over a package owner is refused with this error) and by `test/unit/kernel/decoration-drain.test.ts`."
+    }
+  }
+}

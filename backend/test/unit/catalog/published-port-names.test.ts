@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { CustomFieldDefinitionReadPort } from '@b2b/contracts';
+import type { CustomFieldDefinitionReadPort } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
@@ -8,12 +8,12 @@ import type { KernelContainer } from '../../../src/kernel/container.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import type { ModuleContext } from '../../../src/kernel/index.js';
-import { registerModule as registerCatalog } from '../../../src/modules/catalog/backend.js';
-import type { CatalogAttributeReadService } from '../../../src/modules/catalog/services/catalog-attribute-read.service.js';
+import { registerModule as registerCatalog } from '../../../../packages/modules/catalog/src/backend/index.js';
+import type { CatalogAttributeReadService } from '../../../../packages/modules/catalog/src/backend/services/catalog-attribute-read.service.js';
 import {
   presenceAwareBulkRecorder,
   type BulkNotificationPort,
-} from '../../../src/modules/catalog/services/bulk-operation.service.js';
+} from '../../../../packages/modules/catalog/src/backend/services/bulk-operation.service.js';
 
 /**
  * Issue #209 — `catalog` resolves the container names its owners *publish*.
@@ -61,6 +61,10 @@ function readPortRecording(name: string, calls: string[]): CustomFieldDefinition
     listForEntityFresh: async () => {
       calls.push(`${name}:fresh`);
       return [];
+    },
+    getById: async () => {
+      calls.push(`${name}:byId`);
+      return null;
     },
   };
 }

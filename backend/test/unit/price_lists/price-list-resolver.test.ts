@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { RuleCriterionType } from '@b2b/contracts';
+import type { RuleCriterionType } from '@endora-commerce/contracts';
 import {
   pickPriorityChain,
   tieBreak,
   type PriceListCandidate,
-} from '../../../src/modules/price_lists/services/price-list-resolver.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/price-list-resolver.js';
 
 function makeCandidate(
   id: string,

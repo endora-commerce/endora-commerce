@@ -129,10 +129,15 @@ services:
       retries: 12
 
   # One-shot: apply DB migrations before the API starts. Exits 0 on success.
+  #
+  # Built output, like the API itself (feature 080, D-165). The interpreted
+  # spelling — `pnpm exec tsx src/db/migrate.ts up` — is what stood here, and a
+  # migrate job running a different build of the application from the one about
+  # to serve requests is the half-built state that ruling exists to close.
   backend-migrate:
     image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
     container_name: endora-commerce-backend-migrate
-    command: ['pnpm', 'exec', 'tsx', 'src/db/migrate.ts', 'up']
+    command: ['node', 'dist/db/migrate.js', 'up']
     environment: *backend-env
     networks:
       - internal
@@ -239,7 +244,7 @@ services:
   # override themselves, at the moment they mean it (see deploy/README.md):
   #   docker compose --env-file .env -f compose.prod.yml run --rm \
   #     -e ALLOW_DEV_SEED_IN_PRODUCTION=true backend \
-  #     pnpm exec tsx src/seeds/dev-catalog-seed.ts
+  #     node dist/seeds/dev-catalog-seed.js
 
 networks:
   # Stack-private network for all services (DB/cache/search + apps talk here).

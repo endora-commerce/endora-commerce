@@ -1,10 +1,12 @@
+import { Cart } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+
 
 /**
  * T063 / T065 happy-path coverage for the three conversion endpoints.

@@ -357,6 +357,166 @@ export interface PriceOrganization {
   customerGroupId?: string | null;
 }
 
+/**
+ * Container name: `pricingService`. Owner: `price_lists`.
+ *
+ * The slice a **listing ordering** asks for (feature 086): the catalogue in
+ * resolved-unit-price order, for one viewer, one chunk at a time.
+ *
+ * A slice of the same container `ListingPricePort` and `LinePricePort` are
+ * slices of, rather than a second registration, and that is the design decision
+ * here. `catalog` already resolves `pricingService` and already acknowledges the
+ * edge; a second port over the same relation would be the second implementation
+ * of the resolution chain arriving by another door — the failure
+ * `listingPriceFrom` was extracted to end (issue #132, four listing paths
+ * rendering a figure no price list supported).
+ *
+ * ## What the ordering is
+ *
+ * For each product in scope the row is the resolution the card renders at
+ * quantity 1: the sale partition when it wins, else the base partition, from the
+ * highest-priority applicable price list that has a quantity-1 bracket in the
+ * response currency. "Applicable" and "highest-priority" mean exactly what
+ * `resolveListingPrices` means by them, including the FR-031 fall-through to the
+ * next candidate when a list has no usable bracket. That is a **contract
+ * obligation, not an implementation note**: the provider's own test asserts,
+ * product by product, that this port lists exactly what resolving every product
+ * with `resolveListingPrices` and sorting the amounts lists.
+ *
+ * The order is **total**: `(amount, productId)` ascending for `'asc'`, both
+ * descending for `'desc'`, so a keyset walk can neither repeat nor skip.
+ *
+ * ## What is not in the relation
+ *
+ * A product no candidate list prices has **no row** here. It is not returned
+ * with a null amount and it is not returned last. The caller learns the priced
+ * stream is over from `exhausted` and composes the unpriced tail itself, from
+ * data it owns — "there is no price for this viewer" is `catalog`'s question to
+ * answer about `catalog`'s products, and a placeholder row would be this
+ * provider making a listing decision it cannot see the consequences of.
+ *
+ * ## What this port does **not** do
+ *
+ * It does not filter by sales channel, product visibility, organisation
+ * allow-list, product status, archival, soft-deletion, category or attribute
+ * value. Those are `catalog`'s facts about `catalog`'s rows, in `catalog`'s
+ * tables, and `price_lists` may not name them — `check:module-boundary` reads a
+ * table identifier out of a SQL statement and out of a knex builder, not only
+ * out of an import specifier (D-87), so "it is only raw SQL" is not an escape.
+ *
+ * **The consequence, stated so it cannot be forgotten:** a chunk from this port
+ * may name products the viewer must never see. The caller MUST intersect every
+ * chunk with its own visibility and channel predicates **before** any row
+ * reaches a page, a cursor, a count or a log line.
+ *
+ * **Owner off:** the seam fails closed, exactly as {@link ListingPricePort}'s
+ * does — the port gate throws and the call answers 503 `MODULE_DISABLED`. A
+ * listing that invented an ordering would be worse than one that refuses, and a
+ * consumer must not wrap a call to it in a bare `catch`
+ * (`check:port-catches`): swallowing `ModuleDisabledError` would turn a
+ * fail-closed seam into a sort control that silently does nothing.
+ */
+export interface ListingPriceOrderPort {
+  orderByUnitPrice(input: ListingPriceOrderQuery): Promise<ListingPriceOrderChunk>;
+
+  /**
+   * Which of `productIds` the viewer's candidate lists price at quantity 1.
+   *
+   * It exists for one purpose: so the caller can compose the unpriced tail
+   * without asking "is this priced?" one product at a time. It is a set
+   * membership answer, not a price.
+   */
+  pricedProductIds(input: {
+    context: ListingPriceViewerContext;
+    productIds: readonly string[];
+  }): Promise<ReadonlySet<string>>;
+
+  /**
+   * The display mode a page resolves to for this viewer with **no product in
+   * hand** — the Organization → Settings tail of the FR-039 chain, with the
+   * per-product and per-category steps deliberately absent.
+   *
+   * Feature 086 / FR-016 needs it: a price ordering or a price range is refused
+   * where the page may not show prices at all, and `none` is the supported
+   * "hide prices until login" configuration. The condition is page-level on
+   * purpose — a single product overridden to `none` keeps its position rather
+   * than withdrawing the control, or the control would appear and disappear as
+   * a buyer walks the catalogue.
+   *
+   * It is on this port rather than on a fourth one because it answers a
+   * question about the same viewer, on the same container, behind the same
+   * gate: a caller that may not order by price may not be told the ordering is
+   * unavailable by a port that is itself unreachable.
+   */
+  pageDisplayMode(input: { context: ListingPriceViewerContext }): Promise<DisplayMode>;
+}
+
+/** Who the ordering is resolved for — the rule dimensions, and nothing else. */
+export interface ListingPriceViewerContext {
+  salesChannel: { id: string; defaultCurrency: string };
+  currencyCode?: string;
+  /** The buying organisation, when the viewer has one. `null` is the anonymous case. */
+  organization?: PriceOrganization | null;
+  /** Feature 040 — a customer's direct group overrides the organisation's. */
+  customerGroupId?: string | null;
+}
+
+export interface ListingPriceOrderQuery {
+  context: ListingPriceViewerContext;
+  direction: 'asc' | 'desc';
+  /** Keyset resume point; `null` starts at the extreme of `direction`. */
+  after: ListingPriceOrderCursor | null;
+  /** How many rows the caller wants back. The provider MAY return fewer. */
+  limit: number;
+  /**
+   * Opaque product ids the ordering is restricted to. `undefined` means the
+   * whole catalogue; an empty array means nothing and answers an empty,
+   * exhausted chunk.
+   *
+   * The provider does not interpret the ids, does not know why they were chosen
+   * and does not check that they exist. It exists so a caller that has already
+   * narrowed the catalogue — by category tree, or by a relevance-matched set —
+   * can have the ordering run over that narrowing instead of over everything.
+   *
+   * **It is not a visibility mechanism.** A caller that omits it gets the whole
+   * priced catalogue ordered, including products the viewer may not see.
+   */
+  restrictToProductIds?: readonly string[] | undefined;
+  /** Inclusive bounds on the resolved amount, as decimal strings. */
+  amountRange?: { min?: string; max?: string } | undefined;
+}
+
+export interface ListingPriceOrderCursor {
+  amount: string;
+  productId: string;
+}
+
+export interface ListingPriceOrderRow {
+  productId: string;
+  /** Decimal string, verbatim from `numeric(14,4)`. Never a number on this path. */
+  amount: string;
+  currency: string;
+  priceListId: string;
+  isSale: boolean;
+}
+
+export interface ListingPriceOrderChunk {
+  rows: ListingPriceOrderRow[];
+  /**
+   * `true` when the provider reached the end of the priced relation for this
+   * query. The caller uses it to move to the unpriced tail; it is NOT inferable
+   * from a short `rows`, because the provider may stop early on its own scan
+   * bound.
+   */
+  exhausted: boolean;
+  /**
+   * How many source rows the provider read to produce `rows`. The caller
+   * subtracts it from its own page budget, so FR-019's bound is enforced across
+   * chunks rather than per chunk.
+   */
+  sourceRowsRead: number;
+}
+
 /** What a resolved line price is, once the whole chain has run. */
 export interface LinePriceResult {
   /** Decimal string — it lands verbatim on the cart line and then the order. */

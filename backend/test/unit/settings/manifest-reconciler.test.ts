@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import {
   BreakingChangeRejected,
@@ -10,7 +10,7 @@ import {
 } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
-import { settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 
 /**
  * T021 — Reconciler unit tests against the real test DB (Constitution

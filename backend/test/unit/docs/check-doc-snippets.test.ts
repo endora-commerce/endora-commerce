@@ -7,7 +7,9 @@ import {
   checkDocument,
   discoverCitingDocuments,
   DOCUMENT_ROOTS,
+  markdownDocuments,
   REPO_ROOT,
+  vacuousDocumentPopulation,
 } from '../../../scripts/check-doc-snippets.js';
 
 /**
@@ -136,5 +138,72 @@ describe('discoverCitingDocuments', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * The floor under the walk (feature 080, T010).
+ *
+ * This check's population is the documents, not the module tree, so re-rooting
+ * it onto the resolved module list would have been wrong — a cited file that
+ * moved is a finding here, not a silent green. The shortfall it *can* suffer is
+ * one of its own roots going missing while the other carries the walk, which is
+ * issue #215's shape one level over: measured when this landed, `docs/docs`
+ * held 92 of the 943 markdown files and one of the seven citing documents, so
+ * losing it left a run that reported six documents checked and exited 0.
+ *
+ * Every case below enters as a **tree on disk**, walked by the real walker: the
+ * question is which root a file came from, and only the walk can answer that.
+ */
+describe('the document-root floor', () => {
+  function tree(build: (root: string) => void): string[] {
+    const root = mkdtempSync(join(tmpdir(), 'endora-doc-roots-'));
+    try {
+      build(root);
+      return markdownDocuments(root);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  const page = (root: string, relative: string): void => {
+    const full = join(root, relative);
+    mkdirSync(join(full, '..'), { recursive: true });
+    writeFileSync(full, '# Page\n', 'utf8');
+  };
+
+  it('refuses a walk that read one root and not the other', () => {
+    const walked = tree((root) => {
+      page(root, join('specs', '080-f4-real-scope', 'tasks.md'));
+    });
+    // The discrimination: the walk is not empty, so the old guard —
+    // `documents.length === 0` — is green on exactly this tree.
+    expect(walked.length).toBeGreaterThan(0);
+    const reason = vacuousDocumentPopulation(walked);
+    expect(reason).not.toBeNull();
+    expect(reason).toContain('docs/docs');
+    expect(reason).not.toContain('specs,');
+  });
+
+  it('refuses the other direction too, and names the root that went missing', () => {
+    const walked = tree((root) => {
+      page(root, join('docs', 'docs', 'architecture', 'kernel.md'));
+    });
+    const reason = vacuousDocumentPopulation(walked);
+    expect(reason).toContain('specs');
+    expect(reason).not.toContain('docs/docs');
+  });
+
+  it('says nothing about a tree where every declared root contributed', () => {
+    const walked = tree((root) => {
+      page(root, join('specs', '080-f4-real-scope', 'tasks.md'));
+      page(root, join('docs', 'docs', 'architecture', 'kernel.md'));
+    });
+    expect(vacuousDocumentPopulation(walked)).toBeNull();
+  });
+
+  it('reads the real tree, so the floor is not vacuous on it either', () => {
+    expect(vacuousDocumentPopulation(markdownDocuments())).toBeNull();
+    expect(DOCUMENT_ROOTS.length).toBeGreaterThan(1);
   });
 });

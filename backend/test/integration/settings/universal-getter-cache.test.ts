@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

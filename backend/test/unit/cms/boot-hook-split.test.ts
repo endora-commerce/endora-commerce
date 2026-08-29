@@ -1,14 +1,14 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { EventBus } from '../../../src/events/bus.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
-import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
+import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
 
 /**
  * Issue #146 / D-68 — `cms`' boot hook was **mixed**, exactly like `blog`'s.
@@ -31,7 +31,12 @@ const reconcile = vi.fn(async () => undefined);
 // The module under test is `backend.ts`, not the CMS engine: the plugin is
 // stubbed so the boot hooks meet a handle whose `reconcile` records whether it
 // was called, with no Redis client and no Postgres connection built.
-vi.mock('../../../src/modules/cms/plugin.js', () => ({
+// A `vi.mock` specifier is a module path a rewrite of import specifiers does
+// not see, and a mock that stops applying is silent in the direction that
+// matters: the off-state assertion still passed, because the probe returns
+// before the plugin is reached, and only the on-state one met the real
+// reconciler against a stub EntityManager (feature 080, T040b).
+vi.mock('../../../../packages/modules/cms/src/backend/plugin.js', () => ({
   cmsModule: () => ({
     handle: {
       reconcile,
@@ -55,7 +60,7 @@ interface Composed {
 }
 
 async function composeCms(): Promise<Composed> {
-  const { registerModule } = await import('../../../src/modules/cms/backend.js');
+  const { registerModule } = await import('../../../../packages/modules/cms/src/backend/index.js');
   const container = createRootContainer();
   const assetReferenceRegistry = new AssetReferenceRegistry();
   // `languages` owns this one and is not composed here, so the root supplies

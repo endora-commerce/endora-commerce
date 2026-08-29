@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { CustomFieldDefinitionDto, SupportedEntityType } from '@b2b/contracts';
+import type { CustomFieldDefinitionDto, SupportedEntityType } from '@endora-commerce/contracts';
 
 export interface CustomFieldValuesPanelProps {
   entityType: SupportedEntityType;

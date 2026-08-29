@@ -1,20 +1,29 @@
+import { Cart, CartItem } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+
+
+
 import { cartWritePortOf, ordersNeighbourPorts } from '../../helpers/orders-neighbour-ports.js';
-import { OrderReorderService } from '../../../src/modules/orders/services/order-reorder-service.js';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+
+import { OrderReorderService } from '../../../../packages/modules/orders/dist/backend/services/order-reorder-service.js';
+
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+
+import { CustomerAccount } from '../../helpers/package-entities.js';
+import { Order, OrderItem } from '../../helpers/package-entities.js';
+
 
 /**
  * Feature 038 (US6) — reorder rebuilds the cart from a past order, gated by

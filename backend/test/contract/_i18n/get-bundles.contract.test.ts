@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { GetBundlesResponseSchema } from '@b2b/contracts';
+import { GetBundlesResponseSchema } from '@endora-commerce/contracts';
 
 /**
  * T032 / FR-008, FR-010 — `GET /api/v1/admin/i18n/bundles?language=…`

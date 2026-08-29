@@ -1,16 +1,16 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { SALES_CHANNEL_AUDIT_ACTIONS } from '@b2b/contracts';
+import { SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { SalesChannelAttributionRegistry } from '../../../src/modules/sales_channels/services/sales-channel-attribution-registry.js';
-import { SalesChannelsService } from '../../../src/modules/sales_channels/services/sales-channels.service.js';
+import { SalesChannelAttributionRegistry } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channel-attribution-registry.js';
+import { SalesChannelsService } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
 import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 
 /**
  * T048 — Audit-trail coverage (FR-019).
@@ -44,13 +44,13 @@ describe('audit trail coverage (T048)', () => {
       // `is_default = false` than juggling cross-test state.
       await em.persistAndFlush(
         em.create(
-          (await import('../../../src/modules/languages/entities/language.entity.js')).Language,
+          (await import('../../helpers/package-entities.js')).Language,
           { code: 'en-T048', label: 'English (T048)', isDefault: false, isActive: true, sortOrder: 99 },
         ),
       );
       await em.persistAndFlush(
         em.create(
-          (await import('../../../src/modules/currencies/entities/currency.entity.js')).Currency,
+          (await import('../../helpers/package-entities.js')).Currency,
           {
             code: 'XEU',
             label: 'Euro (T048)',

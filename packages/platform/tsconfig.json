@@ -1,0 +1,34 @@
+{
+  // Type-check configuration. `tsconfig.base.json`'s `paths` block is active here, so
+  // `@endora-commerce/contracts` resolves at its *source* and this package type-checks
+  // against the branch it is on (issue #255). `noEmit` is set for that reason: with
+  // `paths` active an emit would land beside another package's source. The emitting
+  // configuration is `tsconfig.build.json`.
+  //
+  // `rootDir` is deliberately **absent** here and set only in the build config. With
+  // `paths` active, `@endora-commerce/contracts` resolves to `packages/contracts/src`,
+  // which is outside any `rootDir` this package could name — that is TS6059, the exact
+  // trap the two-config split exists to make unreachable.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  // The platform's five directories live here. They were compiled out of `backend/src`
+  // until the relocation: the package emitted `backend/src/{kernel,http,tenancy,commands,
+  // events}` a second time, the application ran the originals, and the two shared no
+  // runtime value — so `instanceof HttpError` was `false` across the boundary and a
+  // packaged module's entity classes were a second `SalesChannel` the ORM refused
+  // (host-package.md §3.5). One tree ends that: `backend` reaches these files through
+  // re-export shims at their old paths, an installed package through the `exports` map,
+  // and both land on `dist/`.
+  "include": ["src/**/*"],
+  // A co-located test would be compiled into `dist` and would import `vitest`, a
+  // devDependency — an unresolvable specifier in every consumer's install. There are
+  // none today (the two that stood in these directories moved to `backend/test/unit`
+  // with the relocation, where the harness's ambient declarations already are); the
+  // patterns stay so that adding one is a test that does not run rather than a package
+  // that does not install.
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+}

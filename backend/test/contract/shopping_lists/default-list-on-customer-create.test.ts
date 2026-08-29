@@ -5,8 +5,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { ShoppingList } from '../../../src/modules/shopping_lists/entities/shopping-list.entity.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { ShoppingList, type ShoppingListRow } from '../../helpers/package-entities.js';
 
 /**
  * Eager default-list provisioning — creating an org-attached customer (here via
@@ -43,7 +43,7 @@ describe('Default shopping list — eager provisioning on customer create', () =
 
     // The event handler runs fire-and-forget (no ambient bus scope around the
     // request), so poll briefly for the provisioned list.
-    let list: ShoppingList | null = null;
+    let list: ShoppingListRow | null = null;
     for (let attempt = 0; attempt < 40 && !list; attempt += 1) {
       list = await withSystemScope('test poll', () =>
         h.em().findOne(ShoppingList, {

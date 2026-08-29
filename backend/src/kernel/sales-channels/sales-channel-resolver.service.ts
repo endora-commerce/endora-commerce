@@ -1,147 +1,22 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { NoSystemDefaultChannel } from './no-system-default-channel.error.js';
-import { SalesChannel } from './sales-channel.entity.js';
-import type {
-  SalesChannelsCache} from './sales-channels-cache.js';
-import {
-  toCachedChannel,
-  type CachedChannel,
-} from './sales-channels-cache.js';
-
 /**
- * SalesChannelResolverService — feature 005 / T014.
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * Lookup helper used by the resolver Fastify middleware (T015) and by
- * any other consumer that needs to map a code to a channel. Reads
- * exclusively from {@link SalesChannelsCache}; on a miss, hits Postgres
- * once and primes the cache (positive or "not found" sentinel).
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * Also owns:
- *   - the host-based mapping parsed from `SALES_CHANNEL_HOST_MAP`
- *   - the system-default channel lookup (used as the storefront /
- *     integration fallback per FR-013)
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-
-export interface ResolverError {
-  kind: 'unknown_sales_channel' | 'inactive_sales_channel';
-  code: string;
-}
-
-export class SalesChannelResolverService {
-  private readonly hostMap: Map<string, string>;
-
-  constructor(
-    private readonly emFactory: () => EntityManager,
-    private readonly cache: SalesChannelsCache,
-  ) {
-    this.hostMap = parseHostMap(process.env['SALES_CHANNEL_HOST_MAP'] ?? '');
-  }
-
-  /** Lookup by code; returns null when the code is unknown. */
-  async getByCode(code: string): Promise<CachedChannel | null> {
-    const cached = await this.cache.get(code);
-    if (cached.hit) return cached.value;
-
-    const em = this.emFactory();
-    const channel = await em.findOne(SalesChannel, { code });
-    if (channel === null) {
-      await this.cache.setNotFound(code);
-      return null;
-    }
-    const view = toCachedChannel(channel);
-    await this.cache.set(code, view);
-    return view;
-  }
-
-  /**
-   * Feature 062 — lookup by id (bound api keys pin their channel by id, not
-   * code). Primes the code-keyed cache on hit so subsequent explicit-signal
-   * resolutions of the same channel are warm. Returns null when unknown.
-   */
-  async getById(id: string): Promise<CachedChannel | null> {
-    const em = this.emFactory();
-    const channel = await em.findOne(SalesChannel, { id });
-    if (channel === null) return null;
-    const view = toCachedChannel(channel);
-    await this.cache.set(view.code, view);
-    return view;
-  }
-
-  /**
-   * Resolve a code to an *active* channel. Returns one of:
-   *   - { ok: true, channel }
-   *   - { ok: false, error: 'unknown_sales_channel' }
-   *   - { ok: false, error: 'inactive_sales_channel' }
-   *
-   * Used by the middleware after it has picked a code from the request.
-   */
-  async resolveActive(
-    code: string,
-  ): Promise<
-    | { ok: true; channel: CachedChannel }
-    | { ok: false; error: ResolverError['kind']; code: string }
-  > {
-    const channel = await this.getByCode(code);
-    if (channel === null) return { ok: false, error: 'unknown_sales_channel', code };
-    if (!channel.active) return { ok: false, error: 'inactive_sales_channel', code };
-    return { ok: true, channel };
-  }
-
-  /**
-   * The system-default channel; the storefront / integration fallback, and the
-   * answer to "which channel, when nobody said".
-   *
-   * **Never `null`** (feature 072, D-48). Exactly one row holds the flag on any
-   * booted deployment: the boot reconciler inserts or promotes one on every
-   * serving path, a partial unique index forbids a second, and the CRUD service
-   * refuses every delete, deactivate and `active:false` that would take it
-   * away. The nullable signature this replaces described an unreachable state,
-   * and a branch that cannot be taken but is typed as if it can is a branch
-   * every author must invent a value for — four of them did, spelling it
-   * `'default'`, the nil UUID, a `randomUUID()` and a silent switch to the
-   * platform-wide settings tier.
-   *
-   * @throws NoSystemDefaultChannel when the registry has no flagged row, which
-   * means composition has not run the reconciler yet.
-   */
-  async getSystemDefault(): Promise<CachedChannel> {
-    const em = this.emFactory();
-    const channel = await em.findOne(SalesChannel, { systemDefault: true });
-    if (channel === null) throw new NoSystemDefaultChannel();
-    const view = toCachedChannel(channel);
-    // Make the system-default channel cheap to find on the next call too.
-    await this.cache.set(view.code, view);
-    return view;
-  }
-
-  /** Look up a channel code from the host header using the env-configured map. */
-  resolveHost(host: string | undefined): string | null {
-    if (!host) return null;
-    // Normalise — ioredis-style hosts may carry `:port`.
-    const bare = host.split(':')[0]!.toLowerCase();
-    return this.hostMap.get(bare) ?? null;
-  }
-}
-
-/**
- * Parse `SALES_CHANNEL_HOST_MAP`. Format:
- *
- *     "host=channelCode,host=channelCode"
- *
- * Whitespace and trailing commas are tolerated; empty input → empty map.
- * Hosts are lowercased; unparseable entries are silently skipped.
- */
-export function parseHostMap(raw: string): Map<string, string> {
-  const map = new Map<string, string>();
-  if (!raw.trim()) return map;
-  for (const entry of raw.split(',')) {
-    const trimmed = entry.trim();
-    if (trimmed === '') continue;
-    const eq = trimmed.indexOf('=');
-    if (eq <= 0 || eq === trimmed.length - 1) continue;
-    const host = trimmed.slice(0, eq).trim().toLowerCase();
-    const code = trimmed.slice(eq + 1).trim();
-    if (host && code) map.set(host, code);
-  }
-  return map;
-}
+export * from '../../../../packages/platform/dist/kernel/sales-channels/sales-channel-resolver.service.js';

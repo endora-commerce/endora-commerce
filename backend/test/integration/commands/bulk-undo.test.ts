@@ -8,10 +8,10 @@ import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.
 import {
   CatalogAdminService,
   type CatalogEventBus,
-} from '../../../src/modules/catalog/services/catalog-admin.service.js';
-import { CatalogBulkUpdateService } from '../../../src/modules/catalog/services/catalog-bulk-update.service.js';
-import { BulkOperationService } from '../../../src/modules/catalog/services/bulk-operation.service.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+} from '../../../../packages/modules/catalog/dist/backend/services/catalog-admin.service.js';
+import { CatalogBulkUpdateService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-bulk-update.service.js';
+import { BulkOperationService } from '../../../../packages/modules/catalog/dist/backend/services/bulk-operation.service.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from '../../helpers/seed-catalog.js';
 import {
   setupBackendServer,
@@ -66,7 +66,7 @@ describe('bulk-edit undo (feature 054, US2) [real DB]', () => {
     const opId = await runBulk([SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID], { status: 'inactive' });
 
     const op = await orm.em.fork().findOne(
-      (await import('../../../src/modules/catalog/entities/bulk-operation.entity.js')).BulkOperation,
+      (await import('../../helpers/package-entities.js')).BulkOperation,
       { id: opId },
     );
     expect(op?.reversible).toBe(true);
@@ -113,7 +113,7 @@ describe('bulk-edit undo (feature 054, US2) [real DB]', () => {
   it('does not offer undo for a non-reversible edit (category bridge touched)', async () => {
     const opId = await runBulk([SEED_PRODUCT_102_ID], { categoryIds: [] });
     const op = await orm.em.fork().findOne(
-      (await import('../../../src/modules/catalog/entities/bulk-operation.entity.js')).BulkOperation,
+      (await import('../../helpers/package-entities.js')).BulkOperation,
       { id: opId },
     );
     expect(op?.reversible).toBe(false);

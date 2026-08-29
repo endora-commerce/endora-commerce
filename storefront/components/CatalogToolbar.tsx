@@ -2,6 +2,8 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useMemo, useTransition, type ChangeEvent, type ReactNode } from 'react';
+import type { ProductListSort } from '@endora-commerce/contracts';
+import { tForLocale } from '../lib/i18n/messages';
 
 /**
  * Optional mobile-only Filters trigger (the `MobileFilterSheet` element)
@@ -24,13 +26,35 @@ import { useMemo, useTransition, type ChangeEvent, type ReactNode } from 'react'
  */
 export function CatalogToolbar(props: {
   shown: number;
-  sort: 'relevance' | '-createdAt' | 'name' | '-name';
+  sort: ProductListSort;
   limit: 24 | 48 | 96;
   view: 'grid' | 'list';
   baseQuery: Record<string, string>;
+  locale: string;
+  /**
+   * Feature 086 / FR-023 — whether this page may be ordered by price at all,
+   * as the **server** answered it on this response.
+   *
+   * Never inferred here: a non-public sales channel publishes no prices and
+   * `pricing.unauthenticated_display_mode = none` hides them until login, and a
+   * storefront that guessed would guess wrong on exactly the deployments that
+   * care. Offering an ordering the API refuses is a worse defect than offering
+   * none, so `false` is the answer for an older backend that sends no
+   * capability at all.
+   */
+  priceOrdering: boolean;
+  /**
+   * FR-024 — the note rendered under the toolbar whenever a price ordering or a
+   * price range is active: the figures are unit prices, and quantity discounts
+   * and promotions are applied in the cart. It is true of every listing card,
+   * and it is shown *here* because this is where the buyer is looking at the
+   * ordering rather than at a help page.
+   */
+  priceControlsActive: boolean;
   /** Feature 044 / US2 — mobile Filters trigger rendered at the toolbar start. */
   filtersSlot?: ReactNode;
 }): ReactNode {
+  const t = tForLocale(props.locale);
   const router = useRouter();
   const pathname = usePathname() ?? '/catalog';
   const [pending, startTransition] = useTransition();
@@ -64,6 +88,7 @@ export function CatalogToolbar(props: {
   };
 
   return (
+    <>
     <div
       className="mb-[14px] flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-surface px-[16px] py-[12px] max-md:sticky max-md:top-[108px] max-md:z-20 max-md:px-[12px] max-md:py-[8px]"
       aria-busy={pending ? 'true' : undefined}
@@ -91,6 +116,16 @@ export function CatalogToolbar(props: {
           <option value="-createdAt">Najnowsze</option>
           <option value="name">Nazwa A–Z</option>
           <option value="-name">Nazwa Z–A</option>
+          {props.priceOrdering ? (
+            <option key="price" value="price">
+              {t('catalog.sort.priceAsc')}
+            </option>
+          ) : null}
+          {props.priceOrdering ? (
+            <option key="-price" value="-price">
+              {t('catalog.sort.priceDesc')}
+            </option>
+          ) : null}
         </select>
         <select
           className="industria-select max-md:hidden"
@@ -139,6 +174,10 @@ export function CatalogToolbar(props: {
         </div>
       </div>
     </div>
+    {props.priceControlsActive ? (
+      <p className="mb-[14px] text-[12px] text-muted">{t('catalog.price.unitNote')}</p>
+    ) : null}
+    </>
   );
 }
 

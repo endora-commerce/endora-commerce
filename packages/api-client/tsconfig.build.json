@@ -1,0 +1,19 @@
+{
+  // Emit configuration — see `packages/contracts/tsconfig.build.json` for why the
+  // type-check config and the emit config are two files. In short: `rootDir` plus an
+  // active `paths` block emits a sibling package's output beside that sibling's source
+  // and still exits 2, so emit is only ever enabled where `paths` is empty.
+  //
+  // With `paths` cleared, `@endora-commerce/contracts` resolves through its `exports` map to
+  // `packages/contracts/dist/index.d.ts`. That file has to exist first, which is what
+  // makes `pnpm -r run build`'s topological order load-bearing rather than incidental.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    "noEmitOnError": true
+  },
+  // See `packages/contracts/tsconfig.build.json` — tests type-check but are not published.
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+}

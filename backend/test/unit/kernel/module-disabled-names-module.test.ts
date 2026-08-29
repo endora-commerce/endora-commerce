@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES, moduleDisabledDetailsSchema } from '@b2b/contracts';
+import { ERROR_CODES, moduleDisabledDetailsSchema } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 /**

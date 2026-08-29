@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import type { ApplicationRule } from '@b2b/contracts';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import type { ApplicationRule } from '@endora-commerce/contracts';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
-import { DefaultPriceListMigrator } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { Category } from '../../helpers/package-entities.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { DefaultPriceListMigrator } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
@@ -229,8 +229,7 @@ describe('Feature 011 / US4 — rule normalisation + target validation (T051)', 
         undefined,
         neighbourReadPorts(() => db.em()),
       );
-      const { DEFAULT_PRICE_LIST_ID } =
-        await import('../../../src/modules/price_lists/services/default-price-list-migration.js');
+      const { DEFAULT_PRICE_LIST_ID } = await import('@endora-commerce/mod-price-lists/backend');
       const rule: ApplicationRule = {
         kind: 'criterion',
         type: 'salesChannel',

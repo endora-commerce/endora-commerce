@@ -23,12 +23,12 @@ import type {
   OrderReadPort,
   OrderRecord,
   ShippingAdapter,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
-import { ShipmentService } from '../../../src/modules/shipments/services/shipment-service.js';
-import type { ShippingEventBus } from '../../../src/modules/shipments/services/events.js';
-import type { Shipment } from '../../../src/modules/shipments/entities/shipment.entity.js';
+import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
+import { ShipmentService } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
+import type { ShippingEventBus } from '../../../../packages/modules/shipments/src/backend/services/events.js';
+import type { Shipment } from '../../../../packages/modules/shipments/src/backend/entities/shipment.entity.js';
 
 const ORDER_ID = 'dddddddd-0000-4000-8000-000000000001';
 const METHOD_ID = 'dddddddd-0000-4000-8000-000000000002';

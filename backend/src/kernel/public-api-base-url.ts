@@ -1,103 +1,22 @@
 /**
- * The public origin of this backend — one reader, and one production refusal
- * (issue #218).
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * Every payment-gateway callback URL (Tpay `notification`, PayU `notifyUrl`,
- * Autopay ITN/ISTN), every public product-feed URL and every newsletter
- * confirmation link is `<this origin>` plus an `/api/v1/...` path. Eight sites
- * used to read `PUBLIC_API_BASE_URL` directly and each invented
- * `http://localhost:3001` when it was unset, so a production deployment that
- * had never heard of the variable handed the gateway a callback nothing on the
- * internet can reach: no payment was ever confirmed, and nothing logged or
- * refused. A value whose absence produces a wrong-but-plausible URL is worse
- * than one that refuses — the argument `SESSION_COOKIE_SECRET` already wins in
- * `src/index.ts`.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * **Three spellings, one meaning.** `BACKEND_PUBLIC_URL` is what
- * `deploy/compose.prod.yml` has always derived from `API_DOMAIN`;
- * `API_PUBLIC_URL` is the second choice `tpay` / `payu` / `autopay` carry; and
- * `PUBLIC_API_BASE_URL` is the one the eight sites read. They named the same
- * thing and the templates set the wrong one, which is the whole defect. Reading
- * all three here is also what keeps the refusal from taking down a deployment
- * that is configured today: the shipped compose file supplies
- * `BACKEND_PUBLIC_URL`, so what this refuses is a production boot with *no*
- * public origin at all.
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
  *
- * Kept in the kernel rather than in a module because the refusal happens at the
- * top of `composeApp()`, before a module exists to own it, and because five
- * modules read the value.
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-
-/**
- * The spellings of the public API origin, in precedence order.
- *
- * `PUBLIC_API_BASE_URL` leads because it is the name every call site, every
- * module README and the deployment checklist already document; the other two
- * are accepted so an already-configured deployment is not asked to rename a
- * variable to keep booting.
- */
-const ORIGIN_VARIABLES = ['PUBLIC_API_BASE_URL', 'BACKEND_PUBLIC_URL', 'API_PUBLIC_URL'] as const;
-
-const REFUSAL_MESSAGE =
-  'PUBLIC_API_BASE_URL is not set and NODE_ENV=production. It is the origin every ' +
-  'payment-gateway callback URL, public product-feed URL and newsletter confirmation link is ' +
-  'built on, so defaulting it to http://localhost:3001 would hand the gateway a callback it ' +
-  'cannot reach and no payment would ever be confirmed. Set PUBLIC_API_BASE_URL (or ' +
-  'BACKEND_PUBLIC_URL) to the public https origin of this API — deploy/compose.prod.yml ' +
-  'derives both from API_DOMAIN.';
-
-/** Refusal to boot a production backend that has no public origin. */
-export class PublicApiBaseUrlNotConfiguredError extends Error {
-  constructor() {
-    super(REFUSAL_MESSAGE);
-    this.name = 'PublicApiBaseUrlNotConfiguredError';
-  }
-}
-
-/**
- * The explicitly configured public origin, or `null`.
- *
- * Never invents one — the callers that use this rather than
- * {@link resolvePublicApiBaseUrl} are the ones that answer "is an origin
- * configured?" (the Autopay admin screen renders a relative ITN path and a
- * `publicApiBaseConfigured: false` flag) or that would rather emit nothing than
- * something unreachable (a product-feed image URL).
- *
- * Trailing slashes are stripped because every call site concatenates a path.
- */
-export function configuredPublicApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string | null {
-  for (const name of ORIGIN_VARIABLES) {
-    const raw = env[name]?.trim();
-    if (raw !== undefined && raw !== '') return raw.replace(/\/+$/, '');
-  }
-  return null;
-}
-
-/**
- * Refuse a production process that has no public origin.
- *
- * Called at the top of `composeApp()`, before the ORM, Redis or any module
- * exists, so both deployment entry points (`src/index.ts` and `src/worker.ts`)
- * inherit it from the one root they share and the operator sees the message
- * instead of a stack trace from whichever call site would have built the first
- * wrong URL.
- */
-export function assertPublicApiBaseUrlConfigured(env: NodeJS.ProcessEnv = process.env): void {
-  if (env['NODE_ENV'] === 'production' && configuredPublicApiBaseUrl(env) === null) {
-    throw new PublicApiBaseUrlNotConfiguredError();
-  }
-}
-
-/**
- * The public origin a URL should be built on.
- *
- * Outside production it falls back to this process's own local origin, which is
- * what a developer running `pnpm run dev` means. In production it throws rather
- * than returning that fallback.
- */
-export function resolvePublicApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
-  const configured = configuredPublicApiBaseUrl(env);
-  if (configured !== null) return configured;
-  assertPublicApiBaseUrlConfigured(env);
-  return `http://localhost:${env['PORT'] ?? '3001'}`;
-}
+export * from '../../../packages/platform/dist/kernel/public-api-base-url.js';

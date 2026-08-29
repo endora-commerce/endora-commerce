@@ -1,0 +1,28 @@
+{
+  // Emit configuration — the only configuration in this package allowed to write files.
+  //
+  // `tsconfig.json` is the type-check half: it keeps `tsconfig.base.json`'s `paths`
+  // block, which maps every `@endora-commerce/*` specifier at a sibling package's *source*, and it
+  // carries `noEmit: true` so it can never produce an artefact. This file is the mirror
+  // image — `paths` is cleared, so a sibling resolves through its own `exports` map to
+  // its built `.d.ts`, and emit is switched back on.
+  //
+  // The split is structural, not stylistic. `rootDir` with an active `paths` block is
+  // the TS6059 trap: `tsc` reports the sibling's source as outside `rootDir`, exits 2,
+  // and emits that sibling's `.js`/`.d.ts` *beside its source* anyway. `dist/` is
+  // git-ignored, so the same accident landing at its configured destination would leave
+  // no trace at all. Emit therefore lives only where `paths` is empty.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    // A compile that failed must ship nothing (feature 080, R11). Without this a
+    // diagnostic is not a stop — the artefacts are written before the exit code is.
+    "noEmitOnError": true
+  },
+  // Test files still type-check — they are in `tsconfig.json`'s `include` — but they are
+  // never published. A compiled `*.test.js` under `dist` imports `vitest`, a
+  // devDependency, so it would be an unresolvable specifier in every consumer's install.
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+}

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { PRODUCT_FEED_SETTING_CODES } from '@b2b/contracts';
+import { PRODUCT_FEED_SETTING_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -10,12 +10,10 @@ import {
   ScriptedTaxonomyFetcher,
 } from '../../helpers/taxonomy-fixtures.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { FeedTaxonomy } from '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
-import { FeedTaxonomyMapping } from '../../../src/modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
-import { FeedTemplate } from '../../../src/modules/product_feeds/entities/feed-template.entity.js';
+import { Category } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { FeedTaxonomy, FeedTaxonomyMapping, FeedTemplate } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 Phase 11 / T126 — promotion is the only thing that changes what a

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import { slugify as slugifyText, type CmsPageDetail } from '@b2b/contracts';
+import { slugify as slugifyText, type CmsPageDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,7 +50,7 @@ const blankForm: FormState = {
  * `latwy-poradnik`), within the 180-character limit the CMS slug validation
  * regex enforces.
  *
- * `slugify` from `@b2b/contracts`, **imported, never re-implemented** (issue
+ * `slugify` from `@endora-commerce/contracts`, **imported, never re-implemented** (issue
  * #245) — aliased because this wrapper keeps the local name the JSX reads. This
  * site's chain was already correct: it and `BlockEditor` were the only two of
  * eight that cut to length *before* stripping the trailing separator, so

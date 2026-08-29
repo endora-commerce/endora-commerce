@@ -1,76 +1,74 @@
-import {
-  Activity,
-  Archive,
-  Box,
-  CircleDollarSign,
-  Edit,
-  Plus,
-  Tag,
-  Truck,
-  Upload,
-  type LucideIcon,
-} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { resolveIcon } from '@/lib/admin-actions/icon-map';
 
 /**
- * Feature 024 — pure mapping from a Recent-Activity action token to the
- * lucide-react icon + the i18n key used to render its verb.
+ * Feature 024, rewritten by feature 080's T042j (D-163.1).
  *
- * Kept as a pure data table so it is trivial to unit-test (one entry per
- * token in the server-side allowlist) and trivial to extend when a new
- * token lands. Unknown tokens fall through to the `UNKNOWN_RENDERING`
- * fallback so a future audit-token shipped before the catalog updates
- * still renders without crashing the card (spec FR-024).
+ * **This file used to be one of the four hand-maintained action tables.**
+ * `ACTIVITY_RENDERING` was a 22-entry map from an audit token to a lucide
+ * import and an i18n key under the `core` scope, and it was the fourth copy of
+ * a list the server kept three of. Two consequences, both measured rather than
+ * predicted:
+ *
+ *  - `prompt_action.execute` was in the server's allow-list and its prefix map
+ *    and absent from here, so every prompt-assistant row on the dashboard drew
+ *    the unknown-verb fallback — for as long as feature 043 had shipped;
+ *  - a module the SPA was not built with could not be in it at all, so a
+ *    packaged module's row was unrenderable even once the server learned to
+ *    return it.
+ *
+ * The rendering now travels **on the item**: the server reads the declaring
+ * module's `recentActivity` manifest export and puts its `icon` and its
+ * module-namespace-relative `labelKey` on every row. So the icon comes from the
+ * one `icon-map.ts` this app already has — a closed allowlist a package cannot
+ * escape — and the verb is resolved in the declaring module's own i18n
+ * namespace, which is where a package ships its translations.
+ *
+ * There is nothing left here to add an entry to, which is the point.
  */
 
 export interface ActivityRendering {
   icon: LucideIcon;
-  /** i18n key under scope `core`, e.g. `home.activity.verb.product.create`. */
+  /** Scope for the verb lookup: the declaring module's i18n namespace. */
+  scope: string;
+  /** Key within that scope, e.g. `activity.verb.product.create`. */
   verbKey: string;
-  module: 'catalog' | 'inventory' | 'price_lists';
 }
 
-export const ACTIVITY_RENDERING: Record<string, ActivityRendering> = {
-  // ----- catalog -----
-  'product.create': { icon: Plus, verbKey: 'home.activity.verb.product.create', module: 'catalog' },
-  'product.update': { icon: Edit, verbKey: 'home.activity.verb.product.update', module: 'catalog' },
-  'product.archive': { icon: Archive, verbKey: 'home.activity.verb.product.archive', module: 'catalog' },
-  'product.unarchive': { icon: Box, verbKey: 'home.activity.verb.product.unarchive', module: 'catalog' },
-  'product.bulk_update': { icon: Edit, verbKey: 'home.activity.verb.product.bulk_update', module: 'catalog' },
-  // ----- inventory -----
-  'warehouse.create': { icon: Truck, verbKey: 'home.activity.verb.warehouse.create', module: 'inventory' },
-  'warehouse.update': { icon: Edit, verbKey: 'home.activity.verb.warehouse.update', module: 'inventory' },
-  'warehouse.deactivate': { icon: Archive, verbKey: 'home.activity.verb.warehouse.deactivate', module: 'inventory' },
-  'warehouse.reactivate': { icon: Truck, verbKey: 'home.activity.verb.warehouse.reactivate', module: 'inventory' },
-  'stock_level.adjust': { icon: Box, verbKey: 'home.activity.verb.stock_level.adjust', module: 'inventory' },
-  'stock_level.bulk_import': { icon: Upload, verbKey: 'home.activity.verb.stock_level.bulk_import', module: 'inventory' },
-  'low_stock_threshold.create': { icon: Tag, verbKey: 'home.activity.verb.low_stock_threshold.create', module: 'inventory' },
-  'low_stock_threshold.update': { icon: Edit, verbKey: 'home.activity.verb.low_stock_threshold.update', module: 'inventory' },
-  'low_stock_threshold.delete': { icon: Archive, verbKey: 'home.activity.verb.low_stock_threshold.delete', module: 'inventory' },
-  // ----- price lists -----
-  'price_list.create': { icon: CircleDollarSign, verbKey: 'home.activity.verb.price_list.create', module: 'price_lists' },
-  'price_list.update': { icon: Edit, verbKey: 'home.activity.verb.price_list.update', module: 'price_lists' },
-  'price_list.activate': { icon: CircleDollarSign, verbKey: 'home.activity.verb.price_list.activate', module: 'price_lists' },
-  'price_list.draftify': { icon: Edit, verbKey: 'home.activity.verb.price_list.draftify', module: 'price_lists' },
-  'price_list.duplicate': { icon: Plus, verbKey: 'home.activity.verb.price_list.duplicate', module: 'price_lists' },
-  'price_list.expire': { icon: Archive, verbKey: 'home.activity.verb.price_list.expire', module: 'price_lists' },
-  'price_list.products_replace': { icon: Edit, verbKey: 'home.activity.verb.price_list.products_replace', module: 'price_lists' },
-  'price_list.bracket_update': { icon: CircleDollarSign, verbKey: 'home.activity.verb.price_list.bracket_update', module: 'price_lists' },
+/**
+ * The one rendering this app still owns: a row whose declaration it could not
+ * read.
+ *
+ * It is reachable only across a version skew — a server that stopped declaring
+ * a token between the fetch and the render — and it is kept because a card that
+ * throws on one unknown row is worse than one that says less about it. The verb
+ * is `core`'s, because there is no module to ask.
+ */
+export const UNKNOWN_RENDERING: ActivityRendering = {
+  icon: resolveIcon('Activity'),
+  scope: 'core',
+  verbKey: 'home.activity.verb.unknown',
 };
 
-export const UNKNOWN_RENDERING: ActivityRendering = {
-  icon: Activity,
-  verbKey: 'home.activity.verb.unknown',
-  module: 'catalog',
-};
+/** What the server said to render for this row. */
+export interface ActivityRenderingSource {
+  module: string;
+  icon: string;
+  labelKey: string;
+}
 
 /**
- * Resolve the icon + verb-i18n-key for an action token. Falls through to
- * UNKNOWN_RENDERING when the token is not in the static catalog, so the
- * UI never crashes if a future audit emission is unknown to the admin
- * (FR-024).
+ * Resolve the icon + the (scope, key) pair for one row.
+ *
+ * `resolveIcon` already falls back to a generic glyph for a name this build
+ * does not know, so an icon is never a reason to drop a row. A missing
+ * `labelKey` or `module` is: without either there is nothing to look the verb
+ * up under, and the placeholder the i18n resolver would render
+ * (`.` + an empty key) is worse than the honest fallback.
  */
-export function renderActivity(action: string): ActivityRendering {
-  return ACTIVITY_RENDERING[action] ?? UNKNOWN_RENDERING;
+export function renderActivity(row: ActivityRenderingSource): ActivityRendering {
+  if (!row.labelKey || !row.module) return UNKNOWN_RENDERING;
+  return { icon: resolveIcon(row.icon), scope: row.module, verbKey: row.labelKey };
 }
 
 /**

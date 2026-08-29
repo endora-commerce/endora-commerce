@@ -1,7 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { PriceList } from '../../src/modules/price_lists/entities/price-list.entity.js';
-import { PriceListProduct } from '../../src/modules/price_lists/entities/price-list-product.entity.js';
-import { PriceListPriceBracket } from '../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
+import { PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
 import type { BackendServerHandle } from './test-server.js';
 import {
   SEED_PRODUCT_101_ID,

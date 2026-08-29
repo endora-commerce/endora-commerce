@@ -13,6 +13,7 @@ import { z } from 'zod';
 import {
   productSummarySchema,
   type ProductAudience,
+  type ProductListSort,
   type ProductSummary,
 } from './catalog.js';
 import { displayModeSchema } from './price-lists.js';
@@ -224,7 +225,15 @@ export interface SearchListProductsParams {
   q?: string | undefined;
   limit: number;
   cursor?: string | undefined;
-  sort?: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  /**
+   * Feature 086 widened this to the catalogue's own sort union so the two
+   * backends keep sharing one input type. The two price members can never
+   * reach this backend — `catalog/routes.public.ts` routes a price ordering to
+   * Postgres before it chooses Meilisearch — and `buildSort` answers `[]` for
+   * them, because returning a sort expression for a field the document does not
+   * carry would be a trap for the next author.
+   */
+  sort?: ProductListSort | undefined;
   categorySlug?: string | undefined;
   attributeFilters?: Record<string, string[]> | undefined;
 }

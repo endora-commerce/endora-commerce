@@ -46,7 +46,7 @@ substitutes at send time.
 
 The transactional (and newsletter) editors share `EmailEditorPane`:
 
-- Email-safe Puck palette from `@b2b/email-components` (no CMS breakpoints /
+- Email-safe Puck palette from `@endora-commerce/email-components` (no CMS breakpoints /
   responsive stacking). **Row** opens a column-layout picker (1–6 columns) like
   CMS; columns use a fixed table at send time and the CMS 12-col grid on the
   canvas. **Column** is not listed in the palette (only inside Row). **Table** is
@@ -75,7 +75,7 @@ The transactional (and newsletter) editors share `EmailEditorPane`:
 
 ## Rendering
 
-Rendering is performed **server-side** by the first-party `@b2b/email-components`
+Rendering is performed **server-side** by the first-party `@endora-commerce/email-components`
 package (React-free): the Puck content tree is walked and emitted as
 table-based, inline-styled, email-client-safe HTML plus a plain-text
 alternative. The admin editor reuses the same email-safe component palette.

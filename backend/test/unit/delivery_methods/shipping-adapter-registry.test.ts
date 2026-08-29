@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ShippingAdapter } from '@b2b/contracts';
-import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
+import type { ShippingAdapter } from '@endora-commerce/contracts';
+import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
 
 /**
  * T011 (Foundational) — the in-memory shipping adapter registry: register /

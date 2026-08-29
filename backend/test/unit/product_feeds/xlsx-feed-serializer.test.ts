@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import exceljs from 'exceljs';
 import type { Readable } from 'node:stream';
-import { XlsxFeedSerializer } from '../../../src/modules/product_feeds/services/serializers/xlsx-feed-serializer.js';
-import { createFeedReadable } from '../../../src/modules/product_feeds/services/serializers/feed-stream.js';
-import type { FeedItemField } from '../../../src/modules/product_feeds/services/serializers/serializer.interface.js';
+import { XlsxFeedSerializer } from '../../../../packages/modules/product_feeds/src/backend/services/serializers/xlsx-feed-serializer.js';
+import { createFeedReadable } from '../../../../packages/modules/product_feeds/src/backend/services/serializers/feed-stream.js';
+import type { FeedItemField } from '../../../../packages/modules/product_feeds/src/backend/services/serializers/serializer.interface.js';
 
 /**
  * The XLSX serializer is the first that owns its own sink, so the guarantees

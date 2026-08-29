@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CacheNamespacesResponseSchema,
   ClearCacheResultSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 import {
   setupBackendServer,

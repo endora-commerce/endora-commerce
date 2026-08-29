@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SessionService } from '../../../src/modules/auth/services/session-service.js';
-import { Session } from '../../../src/modules/auth/entities/session.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { SessionService } from '@endora-commerce/mod-auth/backend';
+import { Session } from '../../helpers/package-entities.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
+import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 
 /**
  * Integration test for SessionService.destroyAllForCustomer (feature 040,
@@ -39,7 +40,10 @@ describe('SessionService.destroyAllForCustomer', () => {
   });
 
   async function makeCustomer(email: string): Promise<string> {
+    // D-178 — `customer_accounts.organization_id` is NOT NULL.
+    const org = await seedAdHocOrganization(em, 'Session Org');
     const c = em.create(CustomerAccount, {
+      organizationId: org.id,
       email,
       passwordHash: 'x'.repeat(32),
       firstName: 'Test',

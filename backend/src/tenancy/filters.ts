@@ -1,51 +1,22 @@
-import { getTenantContext, MissingTenantContextError } from './tenant-context.js';
-
 /**
- * MikroORM global-filter definitions for the tenant guard (feature 050).
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * The `cond` functions read the ambient `TenantContext` DIRECTLY from
- * AsyncLocalStorage at query time (not from `setFilterParams`). This makes the
- * filter fork-independent: it applies correctly on the request-scoped EM, on
- * `em.transactional` sub-forks, and on any other fork — because the store is
- * read when the query runs, inside the caller's async context. A query executed
- * with no ambient context throws `MissingTenantContextError` (fail-closed).
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * The filters are attached (default-on, `args: false`) by the classification
- * decorators in `org-scoped.decorator.ts`.
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-
-export const ORG_FILTER = 'org';
-export const CUSTOMER_FILTER = 'customerAccount';
-
-/** `where` fragment applied to `@OrgScoped` entities on their `organizationId`. */
-export function orgFilterCond(): Record<string, unknown> {
-  const ctx = getTenantContext();
-  if (!ctx) throw new MissingTenantContextError(`filter '${ORG_FILTER}'`);
-  switch (ctx.mode) {
-    case 'all':
-    case 'system':
-      return {};
-    case 'single-org':
-      return { organizationId: ctx.organizationId ?? null };
-    case 'allowed-set':
-      return { organizationId: { $in: [...(ctx.allowedOrganizationIds ?? [])] } };
-  }
-}
-
-/** `where` fragment applied to `@CustomerScoped` entities on their `customerAccountId`. */
-export function customerFilterCond(): Record<string, unknown> {
-  const ctx = getTenantContext();
-  if (!ctx) throw new MissingTenantContextError(`filter '${CUSTOMER_FILTER}'`);
-  switch (ctx.mode) {
-    case 'all':
-    case 'system':
-      return {};
-    case 'single-org':
-      return { customerAccountId: ctx.customerAccountId ?? null };
-    case 'allowed-set':
-      // An org-scoped admin cannot be expressed as a customer-account predicate
-      // (customer-scoped entities carry no org column); such rows are reached via
-      // transitive scoping where needed. See research.md §R4/R7.
-      return {};
-  }
-}
+export * from '../../../packages/platform/dist/tenancy/filters.js';

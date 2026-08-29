@@ -1,10 +1,12 @@
+import { Cart } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+
 
 /**
  * T033 (feature 027 US1 / FR-032) — `last_activity_at` bookkeeping.

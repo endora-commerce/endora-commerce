@@ -73,7 +73,7 @@ channel nobody configured.
 
 **Why.** `NEXT_PUBLIC_DEFAULT_LOCALE` is baked from the CI variable `DEFAULT_LOCALE`
 (`.gitlab-ci.yml:646`). It must name a row in the `languages` table. The migration
-`backend/src/modules/languages/migrations/20260425T161557_languages_currencies_init.ts` seeds
+`packages/modules/languages/src/migrations/20260425T161557_languages_currencies_init.ts` seeds
 exactly two languages — `en-US` (default) and `pl-PL` — because those were the demo's choice,
 not this client's.
 
@@ -115,11 +115,11 @@ both failed silently. Issue #218 changed both, in different ways:
   fall back to `http://localhost:3001`, so the platform handed the gateway a callback nothing
   on the internet can reach and no payment was ever confirmed. `compose.prod.yml` now derives
   it from `API_DOMAIN` alongside `BACKEND_PUBLIC_URL`, and the backend **refuses to boot** when
-  `NODE_ENV=production` and neither is set (`backend/src/kernel/public-api-base-url.ts`, called
+  `NODE_ENV=production` and neither is set (`packages/platform/src/kernel/public-api-base-url.ts`, called
   first thing in `composeApp()`). Nothing to fill in — but if the backend exits at boot naming
   this variable, `API_DOMAIN` is what is missing.
 - `REVALIDATE_SECRET` is the shared secret the backend presents to the storefront's
-  `/api/revalidate` endpoint after a content write (`backend/src/modules/catalog/backend.ts`,
+  `/api/revalidate` endpoint after a content write (`packages/modules/catalog/src/backend/index.ts`,
   plus the analytics and marketing modules). Unset, the revalidator is a silent no-op and the
   storefront endpoint answers 401: content changes do not appear until the fetch cache expires
   on its own. It is now in `deploy/.env.prod.example` and handed to **both** the backend and the
@@ -215,7 +215,7 @@ wildcard `*` permission. Everything else is the client's own design.
 ```bash
 cd /opt/b2b
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
-  pnpm exec tsx src/modules/admin_users/scripts/create-admin.ts \
+  pnpm exec tsx src/cli.ts admin_users create \
   --email=… --password=… --first-name=… --last-name=…
 ```
 
@@ -318,7 +318,7 @@ half that proves the boundary moved, not just widened.
 
 **Why.** The MFA module is active by default, but every capability inside it ships **off**:
 `mfa.admin.totp_enabled` and `mfa.admin.totp_enforced` both default to `false`
-(`backend/src/modules/mfa/manifest.ts:37-51`). A deployment that changes nothing has
+(`packages/modules/mfa/src/manifest.ts:37-51`). A deployment that changes nothing has
 password-only admin access on a public domain.
 
 **Do (operator + engineer).** Set `MFA_SECRET_ENCRYPTION_KEY` (B1), then allow admin 2FA,
@@ -335,7 +335,7 @@ refused once enforcement is on.
 ### E1. Walk `/platform/modules` and decide each one
 
 **Why.** Principle XVII makes a module's presence the conjunction of platform availability and
-the operator's activation choice — and the second axis has a default. Of the 65 core modules, 23
+the operator's activation choice — and the second axis has a default. Of the core modules, 23
 declare themselves non-deactivatable and the rest ship an operator activation control; **every
 one of those controls defaults to on.** Nothing about a fresh install expresses what this client
 bought.
@@ -482,10 +482,12 @@ search returns nothing and no error.
 
 ```bash
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
-  pnpm exec tsx src/modules/search/scripts/reindex.ts
+  pnpm exec tsx src/cli.ts search reindex
 ```
 
-(the same script the `search:reindex` package script runs). See `docs/docs/modules/search.md`.
+(the same invocation the `search:reindex` package script makes — `src/cli.ts` is the host
+binary that runs the commands modules declare in their `manifest.ts`; `--list` prints every
+one this instance offers). See `docs/docs/modules/search.md`.
 
 **Verify.** Search for a product you know exists and find it; compare the indexed document count
 against the product count.

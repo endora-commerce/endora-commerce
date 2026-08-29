@@ -23,6 +23,14 @@ export type MessageKey =
   | 'catalog.filters'
   | 'catalog.empty'
   | 'catalog.loadMore'
+  | 'catalog.sort.priceAsc'
+  | 'catalog.sort.priceDesc'
+  | 'catalog.price.heading'
+  | 'catalog.price.min'
+  | 'catalog.price.max'
+  | 'catalog.price.apply'
+  | 'catalog.price.clear'
+  | 'catalog.price.unitNote'
   | 'product.outOfStock'
   | 'product.requestQuote'
   | 'product.addToCart'
@@ -84,6 +92,60 @@ export type MessageKey =
   | 'checkout.failure.cartKept'
   | 'checkout.failure.tryAgain'
   | 'checkout.failure.backToCart'
+  // Issue #287 — the failure page's second reader: a buyer whose order exists
+  // and whose payment did not settle. The keys above stay for the buyer whose
+  // order was never created, whose cart really is intact.
+  | 'checkout.paymentFailure.title.failed'
+  | 'checkout.paymentFailure.title.cancelled'
+  | 'checkout.paymentFailure.orderPlacedPrefix'
+  | 'checkout.paymentFailure.orderPlacedSuffix'
+  | 'checkout.paymentFailure.failedBody'
+  | 'checkout.paymentFailure.cancelledBody'
+  | 'checkout.paymentFailure.payAgain'
+  | 'checkout.paymentFailure.retryHint'
+  | 'checkout.paymentFailure.noRetryHint'
+  | 'checkout.paymentFailure.viewOrder'
+  | 'checkout.paymentFailure.allOrders'
+  // Issue #287 — the webhook race: back from the gateway, confirmation not yet
+  // in. Neither success nor failure is true yet, so neither is said.
+  | 'checkout.paymentPending.title'
+  | 'checkout.paymentPending.orderNumberPrefix'
+  | 'checkout.paymentPending.placed'
+  | 'checkout.paymentPending.stillWaiting'
+  | 'checkout.paymentPending.checkAgain'
+  | 'checkout.paymentPending.viewOrder'
+  // Issue #264 — paying an order again after the first attempt did not go
+  // through. Shown on the order page, which is where a buyer looks for it.
+  | 'order.payment.retry.cta'
+  | 'order.payment.retry.hint'
+  | 'order.payment.retry.inProgress'
+  | 'order.payment.retry.failed'
+  // Feature 085 — the buyer cancelling an order they placed, offered exactly
+  // when the platform says they may.
+  | 'order.cancel.cta'
+  | 'order.cancel.hint'
+  | 'order.cancel.failed'
+  // What the buyer is told when checkout can offer no delivery method at all.
+  // One sentence for two causes — a shop that has configured none, and a
+  // platform whose `delivery_methods` module an operator switched off — for the
+  // same reason its payment twin below has one: a buyer cannot act on the
+  // difference, and the platform's module topology is not checkout copy.
+  | 'checkout.delivery.none'
+  // What the buyer is told when checkout can offer no payment method at all.
+  // One sentence for two causes — a shop that has configured none, and a
+  // platform whose payment capability an operator switched off — because a
+  // buyer cannot act on the difference and the platform's module topology is
+  // not checkout copy. The operator's side of that distinction belongs in the
+  // deactivation-consequence dialog, not here.
+  | 'checkout.payment.none'
+  // The checkout error boundary. Deliberately *not* the sentence above: it is
+  // shown when checkout genuinely failed, and saying "no payment method" there
+  // would dress a bug up as a product state.
+  | 'checkout.error.title'
+  | 'checkout.error.body'
+  | 'checkout.error.retry'
+  | 'checkout.error.backToCart'
+  | 'checkout.error.referencePrefix'
   | 'checkout.coupon.label'
   | 'checkout.coupon.apply'
   | 'checkout.coupon.appliedPrefix'
@@ -104,6 +166,18 @@ export type MessageKey =
   | 'checkout.address.billingCompanyHint'
   | 'checkout.address.companyName'
   | 'checkout.address.taxId'
+  | 'checkout.shipping.title'
+  | 'checkout.shipping.empty'
+  | 'checkout.shipping.free'
+  | 'checkout.dhlParcel.postalCode'
+  | 'checkout.dhlParcel.postalPlaceholder'
+  | 'checkout.dhlParcel.findNearby'
+  | 'checkout.dhlParcel.searching'
+  | 'checkout.dhlParcel.postalRequired'
+  | 'checkout.dhlParcel.noneFound'
+  | 'checkout.dhlParcel.loadFailed'
+  | 'checkout.dhlParcel.pointsLegend'
+  | 'checkout.dhlParcel.pointFallback'
   // Feature 063 — TPay checkout / pay step.
   | 'tpay.redirect.notice'
   | 'tpay.pay.title'
@@ -189,6 +263,14 @@ export type MessageKey =
   | 'payu.wallet.appleUnavailable'
   // Feature 067 — Autopay checkout (redirect paywall).
   | 'autopay.redirect.notice'
+  // Feature 086 — PayPal checkout / pay step.
+  | 'paypal.redirect.notice'
+  | 'paypal.pay.title'
+  | 'paypal.pay.subtitle'
+  | 'paypal.pay.loading'
+  | 'paypal.pay.processing'
+  | 'paypal.pay.failure'
+  | 'paypal.pay.missingClientId'
   // Feature 068 — InPost Parcel Locker Geowidget at checkout.
   | 'inpost.locker.free'
   | 'inpost.locker.regionLabel'
@@ -230,7 +312,14 @@ export type MessageKey =
   // rather than leaving the reader to discover it.
   | 'compare.shared.pricesYours'
   | 'compare.shared.pricesChannel'
-  | 'compare.shared.hiddenProducts';
+  | 'compare.shared.hiddenProducts'
+  // Issue #274 — every payment gateway returns the buyer to the order page.
+  // The page says why they are back; the order's own payment status decides
+  // whether it says anything at all.
+  | 'orders.paymentReturn.returned'
+  | 'orders.paymentReturn.cancelled'
+  | 'orders.paymentReturn.failed'
+  | 'orders.actionFailed';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -246,6 +335,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'catalog.filters': 'Filters',
     'catalog.empty': 'No products match your filters.',
     'catalog.loadMore': 'Load more',
+    'catalog.sort.priceAsc': 'Price: lowest first',
+    'catalog.sort.priceDesc': 'Price: highest first',
+    'catalog.price.heading': 'Price',
+    'catalog.price.min': 'From',
+    'catalog.price.max': 'To',
+    'catalog.price.apply': 'Apply price range',
+    'catalog.price.clear': 'Clear price range',
+    'catalog.price.unitNote':
+      'Prices shown are your unit prices. Quantity discounts and promotions are applied in the cart.',
     'product.outOfStock': 'Out of stock',
     'product.requestQuote': 'Request a quote',
     'product.addToCart': 'Add to cart',
@@ -311,6 +409,50 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Your cart is unchanged — nothing was charged and no order was created.',
     'checkout.failure.tryAgain': 'Try again',
     'checkout.failure.backToCart': 'Back to cart',
+    // Issue #287 — the buyer whose order exists.
+    'checkout.paymentFailure.title.failed': 'Your payment did not go through',
+    'checkout.paymentFailure.title.cancelled': 'Your payment was not completed',
+    'checkout.paymentFailure.orderPlacedPrefix': 'Your order ',
+    'checkout.paymentFailure.orderPlacedSuffix':
+      ' has been placed and is waiting to be paid. Nothing has been charged.',
+    'checkout.paymentFailure.failedBody': 'The payment provider did not accept this payment.',
+    'checkout.paymentFailure.cancelledBody':
+      'The payment was left before it was finished, so nothing was charged.',
+    'checkout.paymentFailure.payAgain': 'Pay for this order again',
+    'checkout.paymentFailure.retryHint':
+      'You can start the payment again for this same order.',
+    'checkout.paymentFailure.noRetryHint':
+      'This order cannot be paid online at the moment. Open it to see what to do next.',
+    'checkout.paymentFailure.viewOrder': 'View order details',
+    'checkout.paymentFailure.allOrders': 'All orders',
+    'checkout.paymentPending.title': 'We are confirming your payment',
+    'checkout.paymentPending.orderNumberPrefix': 'Your order number is ',
+    'checkout.paymentPending.placed':
+      'Your order is placed. Nothing more is needed from you — we are waiting for the payment provider to confirm the payment, which usually takes a few seconds.',
+    'checkout.paymentPending.stillWaiting':
+      'This is taking longer than usual. We will e-mail you as soon as the payment is confirmed, and the order page always shows where it stands.',
+    'checkout.paymentPending.checkAgain': 'Check again',
+    'checkout.paymentPending.viewOrder': 'View order details',
+    'order.payment.retry.cta': 'Pay again',
+    'order.payment.retry.hint':
+      'Your payment did not go through. Nothing has been charged — you can pay for this order again.',
+    'order.payment.retry.inProgress':
+      'A payment is already in progress for this order. Finish it on the payment page or wait for it to time out before starting a new one.',
+    'order.payment.retry.failed': 'We could not start the payment. Please try again in a moment.',
+    'order.cancel.cta': 'Cancel this order',
+    'order.cancel.hint':
+      'You have not paid for this order yet and we have not started on it, so you can still cancel it. The goods it reserves go straight back on the shelf.',
+    'order.cancel.failed': 'We could not cancel this order. Please contact us and we will help.',
+    'checkout.delivery.none':
+      'No delivery method is available for your account on this sales channel.',
+    'checkout.payment.none':
+      'No payment method is available for your account on this sales channel.',
+    'checkout.error.title': 'We could not load checkout',
+    'checkout.error.body':
+      'Something went wrong on our side. Your cart is untouched and nothing has been ordered or charged — please try again in a moment.',
+    'checkout.error.retry': 'Try again',
+    'checkout.error.backToCart': 'Back to cart',
+    'checkout.error.referencePrefix': 'Reference: ',
     'checkout.coupon.label': 'Coupon code (optional)',
     'checkout.coupon.apply': 'Apply',
     'checkout.coupon.appliedPrefix': 'Coupon ',
@@ -332,6 +474,19 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Defaults to your organization. Override for this order if needed.',
     'checkout.address.companyName': 'Company name',
     'checkout.address.taxId': 'Tax ID (NIP)',
+    'checkout.shipping.title': 'Delivery method',
+    'checkout.shipping.empty':
+      'No delivery method is available for your account on this sales channel.',
+    'checkout.shipping.free': 'free',
+    'checkout.dhlParcel.postalCode': 'Postal code',
+    'checkout.dhlParcel.postalPlaceholder': '00-000',
+    'checkout.dhlParcel.findNearby': 'Find nearby points',
+    'checkout.dhlParcel.searching': 'Searching…',
+    'checkout.dhlParcel.postalRequired': 'Enter a postal code to search DHL pickup points.',
+    'checkout.dhlParcel.noneFound': 'No pickup points found for this postal code.',
+    'checkout.dhlParcel.loadFailed': 'Could not load pickup points right now.',
+    'checkout.dhlParcel.pointsLegend': 'Pickup points',
+    'checkout.dhlParcel.pointFallback': 'DHL pickup point',
     // Feature 063 — TPay.
     'tpay.redirect.notice':
       'After you click “Place order”, you’ll be redirected to TPay to complete your payment securely.',
@@ -431,6 +586,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     // Feature 067 — Autopay.
     'autopay.redirect.notice':
       'After you click “Place order”, you’ll be redirected to Autopay to complete your payment securely.',
+    // Feature 086 — PayPal.
+    'paypal.redirect.notice':
+      'After you click “Place order”, you’ll be redirected to PayPal to complete your payment securely.',
+    'paypal.pay.title': 'Complete your payment',
+    'paypal.pay.subtitle': 'Pay with PayPal to finish the order.',
+    'paypal.pay.loading': 'Loading PayPal…',
+    'paypal.pay.processing': 'Processing payment…',
+    'paypal.pay.failure': 'Payment failed. Please try again.',
+    'paypal.pay.missingClientId': 'PayPal is not configured for this store.',
     // Feature 068 — InPost locker Geowidget.
     'inpost.locker.free': 'free',
     'inpost.locker.regionLabel': 'InPost Parcel Locker selection',
@@ -477,6 +641,13 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Prices shown are this store’s standard prices. Sign in to see the prices agreed for your organisation.',
     'compare.shared.hiddenProducts':
       'Some products in this comparison are not available to your account and are not shown here.',
+    'orders.paymentReturn.returned':
+      'You are back from the payment provider. Your order is placed; we are still waiting for the payment to be confirmed, and this page shows the result as soon as it arrives.',
+    'orders.paymentReturn.cancelled':
+      'You have not paid yet. Your order is placed and is waiting for payment — nothing has been charged.',
+    'orders.paymentReturn.failed':
+      'Your payment did not go through. Your order is placed and is still waiting for payment, so you can try again.',
+    'orders.actionFailed': 'We could not complete that action.',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -491,6 +662,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'catalog.filters': 'Filtry',
     'catalog.empty': 'Zaden produkt nie pasuje do filtrow.',
     'catalog.loadMore': 'Pokaz wiecej',
+    'catalog.sort.priceAsc': 'Cena: od najniższej',
+    'catalog.sort.priceDesc': 'Cena: od najwyższej',
+    'catalog.price.heading': 'Cena',
+    'catalog.price.min': 'Od',
+    'catalog.price.max': 'Do',
+    'catalog.price.apply': 'Zastosuj zakres cen',
+    'catalog.price.clear': 'Wyczyść zakres cen',
+    'catalog.price.unitNote':
+      'Pokazane ceny to Twoje ceny jednostkowe. Rabaty ilościowe i promocje naliczamy w koszyku.',
     'product.outOfStock': 'Brak w magazynie',
     'product.requestQuote': 'Zapytaj o oferte',
     'product.addToCart': 'Dodaj do koszyka',
@@ -556,6 +736,50 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Twoj koszyk pozostal bez zmian — nic nie zostalo obciazone, zamowienie nie zostalo utworzone.',
     'checkout.failure.tryAgain': 'Sprobuj ponownie',
     'checkout.failure.backToCart': 'Wroc do koszyka',
+    // Issue #287 — the buyer whose order exists.
+    'checkout.paymentFailure.title.failed': 'Płatność nie doszła do skutku',
+    'checkout.paymentFailure.title.cancelled': 'Płatność nie została dokończona',
+    'checkout.paymentFailure.orderPlacedPrefix': 'Twoje zamówienie ',
+    'checkout.paymentFailure.orderPlacedSuffix':
+      ' zostało złożone i czeka na opłacenie. Nic nie zostało obciążone.',
+    'checkout.paymentFailure.failedBody': 'Operator płatności nie przyjął tej płatności.',
+    'checkout.paymentFailure.cancelledBody':
+      'Płatność została przerwana przed jej dokończeniem, więc nic nie zostało obciążone.',
+    'checkout.paymentFailure.payAgain': 'Zapłać ponownie za to zamówienie',
+    'checkout.paymentFailure.retryHint':
+      'Możesz ponownie rozpocząć płatność za to samo zamówienie.',
+    'checkout.paymentFailure.noRetryHint':
+      'Tego zamówienia nie można teraz opłacić online. Otwórz je, aby zobaczyć, co dalej.',
+    'checkout.paymentFailure.viewOrder': 'Zobacz szczegóły zamówienia',
+    'checkout.paymentFailure.allOrders': 'Wszystkie zamówienia',
+    'checkout.paymentPending.title': 'Potwierdzamy Twoją płatność',
+    'checkout.paymentPending.orderNumberPrefix': 'Numer Twojego zamówienia to ',
+    'checkout.paymentPending.placed':
+      'Twoje zamówienie zostało złożone. Nie musisz nic więcej robić — czekamy na potwierdzenie płatności od operatora, co zwykle trwa kilka sekund.',
+    'checkout.paymentPending.stillWaiting':
+      'Trwa to dłużej niż zwykle. Wyślemy e-mail, gdy tylko płatność zostanie potwierdzona; aktualny stan zawsze widać na stronie zamówienia.',
+    'checkout.paymentPending.checkAgain': 'Sprawdź ponownie',
+    'checkout.paymentPending.viewOrder': 'Zobacz szczegóły zamówienia',
+    'order.payment.retry.cta': 'Zaplac ponownie',
+    'order.payment.retry.hint':
+      'Platnosc nie doszla do skutku. Nic nie zostalo obciazone — mozesz oplacic to zamowienie ponownie.',
+    'order.payment.retry.inProgress':
+      'Dla tego zamowienia trwa juz platnosc. Dokoncz ja na stronie platnosci albo poczekaj, az wygasnie, zanim rozpoczniesz nowa.',
+    'order.payment.retry.failed': 'Nie udalo sie rozpoczac platnosci. Sprobuj ponownie za chwile.',
+    'order.cancel.cta': 'Anuluj zamowienie',
+    'order.cancel.hint':
+      'To zamowienie nie zostalo jeszcze oplacone i nie zaczelismy go realizowac, wiec mozesz je anulowac. Zarezerwowany towar wroci od razu na stan.',
+    'order.cancel.failed': 'Nie udalo sie anulowac tego zamowienia. Skontaktuj sie z nami, pomozemy.',
+    'checkout.delivery.none':
+      'Brak dostępnych metod dostawy dla Twojego konta w tym kanale sprzedaży.',
+    'checkout.payment.none':
+      'Brak dostępnych metod płatności dla Twojego konta w tym kanale sprzedaży.',
+    'checkout.error.title': 'Nie udało się wczytać kasy',
+    'checkout.error.body':
+      'Coś poszło nie tak po naszej stronie. Twój koszyk pozostaje nienaruszony, nic nie zostało zamówione ani obciążone — spróbuj ponownie za chwilę.',
+    'checkout.error.retry': 'Spróbuj ponownie',
+    'checkout.error.backToCart': 'Wróć do koszyka',
+    'checkout.error.referencePrefix': 'Numer referencyjny: ',
     'checkout.coupon.label': 'Kod kuponu (opcjonalnie)',
     'checkout.coupon.apply': 'Zastosuj',
     'checkout.coupon.appliedPrefix': 'Kupon ',
@@ -577,6 +801,19 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Domyslnie dane Twojej organizacji. Mozesz je nadpisac dla tego zamowienia.',
     'checkout.address.companyName': 'Nazwa firmy',
     'checkout.address.taxId': 'NIP',
+    'checkout.shipping.title': 'Metoda dostawy',
+    'checkout.shipping.empty':
+      'Brak metody dostawy dostępnej dla Twojego konta w tym kanale sprzedaży.',
+    'checkout.shipping.free': 'bezpłatnie',
+    'checkout.dhlParcel.postalCode': 'Kod pocztowy',
+    'checkout.dhlParcel.postalPlaceholder': '00-000',
+    'checkout.dhlParcel.findNearby': 'Znajdź punkty w okolicy',
+    'checkout.dhlParcel.searching': 'Szukam…',
+    'checkout.dhlParcel.postalRequired': 'Podaj kod pocztowy, aby wyszukać punkty DHL.',
+    'checkout.dhlParcel.noneFound': 'Brak punktów odbioru dla tego kodu pocztowego.',
+    'checkout.dhlParcel.loadFailed': 'Nie udało się wczytać punktów odbioru.',
+    'checkout.dhlParcel.pointsLegend': 'Punkty odbioru',
+    'checkout.dhlParcel.pointFallback': 'Punkt DHL',
     // Feature 063 — TPay.
     'tpay.redirect.notice':
       'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do TPay, aby bezpiecznie dokończyć płatność.',
@@ -676,6 +913,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     // Feature 067 — Autopay.
     'autopay.redirect.notice':
       'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do Autopay, aby bezpiecznie dokończyć płatność.',
+    // Feature 086 — PayPal.
+    'paypal.redirect.notice':
+      'Po kliknięciu „Złóż zamówienie” zostaniesz przekierowany do PayPal, aby bezpiecznie dokończyć płatność.',
+    'paypal.pay.title': 'Dokończ płatność',
+    'paypal.pay.subtitle': 'Zapłać przez PayPal, aby zakończyć zamówienie.',
+    'paypal.pay.loading': 'Ładowanie PayPal…',
+    'paypal.pay.processing': 'Przetwarzanie płatności…',
+    'paypal.pay.failure': 'Płatność nie powiodła się. Spróbuj ponownie.',
+    'paypal.pay.missingClientId': 'PayPal nie jest skonfigurowany dla tego sklepu.',
     // Feature 068 — InPost Paczkomat Geowidget.
     'inpost.locker.free': 'bezpłatnie',
     'inpost.locker.regionLabel': 'Wybór Paczkomatu InPost',
@@ -722,6 +968,13 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
       'Pokazane ceny to ceny standardowe tego sklepu. Zaloguj się, aby zobaczyć ceny uzgodnione dla Twojej organizacji.',
     'compare.shared.hiddenProducts':
       'Część produktów z tego zestawienia nie jest dostępna dla Twojego konta i nie jest tutaj pokazana.',
+    'orders.paymentReturn.returned':
+      'Wracasz od operatora płatności. Twoje zamówienie zostało złożone; czekamy jeszcze na potwierdzenie płatności — wynik pojawi się na tej stronie, gdy tylko dotrze.',
+    'orders.paymentReturn.cancelled':
+      'Płatność nie została jeszcze wykonana. Twoje zamówienie zostało złożone i czeka na opłacenie — nic nie zostało obciążone.',
+    'orders.paymentReturn.failed':
+      'Płatność nie doszła do skutku. Twoje zamówienie zostało złożone i nadal czeka na opłacenie, więc możesz spróbować ponownie.',
+    'orders.actionFailed': 'Nie udało się wykonać tej operacji.',
   },
 };
 

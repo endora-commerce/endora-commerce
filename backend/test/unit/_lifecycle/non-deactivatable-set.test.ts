@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * The three-way classification of every shipped module — feature 074, Phase 1.
@@ -120,9 +120,9 @@ describe('the classification partitions the discovered manifest set (FR-007, SC-
     expect(classified).toEqual(allIds);
   });
 
-  it('is 23 core + 42 operator-controlled + 1 structurally unswitchable', () => {
+  it('is 23 core + 44 operator-controlled + 1 structurally unswitchable', () => {
     expect(CORE_MODULES).toHaveLength(23);
-    expect(controlIds).toHaveLength(42);
+    expect(controlIds).toHaveLength(44);
     expect(STRUCTURALLY_UNSWITCHABLE).toHaveLength(1);
     expect(CORE_MODULES.length + controlIds.length + STRUCTURALLY_UNSWITCHABLE.length).toBe(
       manifests.length,

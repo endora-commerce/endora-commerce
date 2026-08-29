@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import type { LinkedInStorefrontConfig } from '@b2b/contracts';
+import type { LinkedInStorefrontConfig } from '@endora-commerce/contracts';
 import { readConsent, subscribeConsent } from '../../lib/analytics/consent';
 import { configureLinkedIn, isLinkedInConfigured, loadInsightTag } from '../../lib/analytics/linkedin/tag';
 

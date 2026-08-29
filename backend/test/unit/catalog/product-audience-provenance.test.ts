@@ -1,7 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
+import { join } from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
 import {
   loadRegisteredModuleIds,
   modulesWithoutSources,
@@ -65,21 +66,29 @@ const AUDIENCE_KEYS = ['organizationId', 'authenticated'] as const;
  */
 const SANCTIONED_AUDIENCE_SOURCES: ReadonlyMap<string, string> = new Map([
   [
-    'src/http/product-audience.ts',
+    // The platform's, since the relocation — `backend/src/http/product-audience.ts`
+    // is a re-export shim and builds nothing.
+    'packages/platform/src/http/product-audience.ts',
     'the resolver itself — reads `request.actor` and is the source every route uses',
   ],
   [
-    'src/modules/carts/services/cart-service.ts',
+    // Repository-relative for the same reason as the two entries below: `carts`
+    // is a module package since T040b's fourth batch.
+    'packages/modules/carts/src/backend/services/cart-service.ts',
     '`cartAudience` — a cart operation carries its own actor (`{ customer?, anonymousToken? }`) ' +
       'rather than a request, because the same service answers the merge and conversion paths',
   ],
   [
-    'src/modules/quote_requests/services/rfq-service.ts',
+    // Repository-relative since feature 080's T040b moved `quote_requests` into
+    // `packages/modules/`; the walk follows the module root, so the key does too.
+    'packages/modules/quote_requests/src/backend/services/rfq-service.ts',
     '`rfqAudience` — an RFQ line is scoped by the `CustomerContext` the quote request is filed ' +
       'under, which is the organisation the allow-list has to name',
   ],
   [
-    'src/modules/shopping_lists/services/shopping-list-service.ts',
+    // Repository-relative for the same reason as the entry above: `shopping_lists`
+    // is a module package since T040b's second batch.
+    'packages/modules/shopping_lists/src/backend/services/shopping-list-service.ts',
     'the saved-list add, scoped by the `CustomerContext` that owns the list',
   ],
 ]);
@@ -132,8 +141,6 @@ export function findAudienceConstructions(
   return found;
 }
 
-const BACKEND_ROOT = new URL('../../../', import.meta.url).pathname;
-
 async function walkSources(dir: string): Promise<string[]> {
   const out: string[] = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -144,28 +151,31 @@ async function walkSources(dir: string): Promise<string[]> {
   return out;
 }
 
-const toPosix = (path: string): string => path.split(sep).join('/');
-
 describe('a ProductAudience comes from the request, not from a call site', () => {
   it('reports no construction outside the sanctioned sources, and no stale entry', async () => {
-    const srcRoot = join(BACKEND_ROOT, 'src');
-    const paths = await walkSources(srcRoot);
+    // Every root a module's source can live in, derived (feature 080, T040a):
+    // the application's own tree plus each module that has become a workspace
+    // package. The layout also says where the generated index is, which is what
+    // this walk's expectation comes from.
+    const layout = await resolveModuleLayout();
+    const paths = (await Promise.all(layout.sourceRoots.map(walkSources))).flat();
 
     // "Did the walk read the module tree, or a residue of it?" (issue #215).
     // The expected population is derived from the generated manifest index on
     // every run rather than written down, so a moved or half-moved module tree
     // is an error instead of a shorter, greener list.
-    const registered = await loadRegisteredModuleIds(srcRoot);
+    const registered = await loadRegisteredModuleIds(layout.manifestIndexPath);
     expect(registered.length, 'the manifest index registers no module').toBeGreaterThan(0);
     const missing = modulesWithoutSources({
       registered,
-      files: paths.map((p) => toPosix(relative(BACKEND_ROOT, p))),
+      files: paths,
+      moduleIdOf: layout.moduleIdOfPath,
     });
     expect(missing, 'registered modules that contributed no source to the walk').toEqual([]);
 
     const files = await Promise.all(
       paths.map(async (path) => ({
-        path: toPosix(relative(BACKEND_ROOT, path)),
+        path: layout.displayOf(path),
         source: await readFile(path, 'utf8'),
       })),
     );

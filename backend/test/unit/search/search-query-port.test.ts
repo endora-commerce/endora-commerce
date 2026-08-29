@@ -3,9 +3,9 @@ import {
   ANONYMOUS_PRODUCT_AUDIENCE,
   type SearchListResult,
   type SearchQueryContext,
-} from '@b2b/contracts';
-import { createSearchQueryPort } from '../../../src/modules/search/services/search-query-port.js';
-import { SearchBackendUnavailable } from '../../../src/modules/search/services/search-query.service.js';
+} from '@endora-commerce/contracts';
+import { createSearchQueryPort } from '../../../../packages/modules/search/src/backend/services/search-query-port.js';
+import { SearchBackendUnavailable } from '../../../../packages/modules/search/src/backend/services/search-query.service.js';
 
 /**
  * `searchQueryPort` answers "the index was unreachable" in its return type

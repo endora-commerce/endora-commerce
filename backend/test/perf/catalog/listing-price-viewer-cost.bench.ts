@@ -1,20 +1,18 @@
 import type { Knex } from '@mikro-orm/postgresql';
+import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
@@ -55,6 +53,32 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
  * page no longer depends on the LRU absorbing a per-card loop, so a cache the
  * personalisation empties is a cache the page can afford to miss.
  *
+ * Re-measured the same day on the same box, after issue #263 hoisted the last
+ * three per-card reads — the gallery, the legacy `product_assets` fallback and
+ * the category-slug join — to the page:
+ *
+ * | viewer    | cold          | warm | p50    | p95    |
+ * | --------- | ------------- | ---- | ------ | ------ |
+ * | anonymous | 14 / 61.9 ms  | 11   | 19.4ms | 22.0ms |
+ * | signed-in | 15 / 32.1 ms  | 15   | 21.0ms | 22.4ms |
+ *
+ * Those three were 150 of the 158 statements the warm anonymous page cost, and
+ * the personalisation's four became three — the organisation row and the extra
+ * list, with nothing per-card left for the third to be spent on.
+ *
+ * **What this corpus cannot measure.** Its products carry no gallery, no
+ * `product_assets` row and no category assignment, so all three of those reads
+ * come back empty: both `assets.findByIds` calls short-circuit on an empty id
+ * list and are never issued, and the price-list resolution skips its
+ * category-override lookup. That is the whole of the difference between the 11
+ * warm statements above and the 14 the same page costs over a corpus whose
+ * cards have rows. A per-asset loop re-opened inside `resolvePrimaryAssetUrls`
+ * costs this page **nothing** and passes here (measured: 11 warm, unchanged,
+ * while the same regression took the other page from 14 to 87). The numbers
+ * here are the pricing ones and stay the pricing ones;
+ * `listing-card-reads-cost.bench.ts` is where a card's own reads are measured,
+ * over `rich-listing-corpus.ts`.
+ *
  * Skipped unless `PERF_RUN=true`, like every other bench here.
  */
 
@@ -65,10 +89,16 @@ const iterations = Number(process.env['PERF_ITERATIONS'] ?? '20');
  * The ceiling for a **cold signed-in** page, in statements. The anonymous cold
  * page is the reference; a personalised one may not cost a different order of
  * magnitude, which is precisely the claim "the loop was the expensive part"
- * makes. Generous on purpose — this is a regression tripwire for a re-introduced
- * per-card resolution, not a budget to tune.
+ * makes. A regression tripwire for a re-introduced per-card resolution, not a
+ * budget to tune.
+ *
+ * It was 400 while the page cost 162, which left it unable to trip for the very
+ * thing it names: re-opening one of the three per-card reads issue #263 hoisted
+ * would have cost 50 statements on this page and passed. 60 keeps generous
+ * headroom over the measured 15 and still fails on a single re-opened loop —
+ * and the count is a constant, so a larger `PERF_PAGE_SIZE` does not raise it.
  */
-const coldStatementCeiling = Number(process.env['PERF_SIGNED_IN_COLD_STATEMENTS'] ?? '400');
+const coldStatementCeiling = Number(process.env['PERF_SIGNED_IN_COLD_STATEMENTS'] ?? '60');
 const shouldRun = process.env['PERF_RUN'] === 'true';
 
 const ORG_LIST_ID = '00000000-0000-4000-8000-00000000e001';

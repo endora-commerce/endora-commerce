@@ -1,0 +1,139 @@
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import { NEWSLETTER_SETTING_CODES } from '@endora-commerce/contracts';
+
+/**
+ * Newsletter module (feature 048). Owns the subscriber list, tags, custom
+ * fields, campaigns, linear automations, reusable email-safe blocks, the
+ * bulk-sending provider (SMTP / Amazon SES via nodemailer), and engagement
+ * tracking. Bulk delivery is independent of the transactional-email transport.
+ * The SMTP connection + credentials come from a reusable `email_adapter`
+ * credential configuration referenced by `newsletter.email_credentials`
+ * (feature 058); when unset, dispatch uses the console (dev) sink.
+ */
+export const newsletterSettingsManifest = defineModuleSettingsManifest({
+  moduleCode: 'newsletter',
+  groups: [{ code: 'newsletter', name: 'Newsletter' }],
+  settings: [
+    {
+      // Feature 073 — the operator's activation control. Platform-wide.
+      code: 'newsletter.enabled',
+      name: 'Newsletter enabled',
+      description:
+        'Switches the newsletter on or off: the storefront signup and confirmation links, the admin subscriber, campaign and automation screens, and bulk dispatch. Nothing is dropped — subscribers, their consent history, campaigns and stats stay in the database, and a campaign left mid-send resumes where it stopped.',
+      groupCode: 'newsletter',
+      valueType: 'boolean',
+      defaultValue: true,
+    },
+    {
+      code: NEWSLETTER_SETTING_CODES.OPT_IN_MODE,
+      name: 'Opt-in mode',
+      description: 'Single (immediate) or double (confirmation email) opt-in. Scopable per sales channel.',
+      groupCode: 'newsletter',
+      valueType: 'string',
+      enumOptions: ['single', 'double'],
+      defaultValue: 'double',
+    },
+    {
+      code: NEWSLETTER_SETTING_CODES.CONFIRM_TTL_HOURS,
+      name: 'Confirmation link TTL (hours)',
+      description: 'How long a double opt-in confirmation link stays valid before the pending subscriber expires.',
+      groupCode: 'newsletter',
+      valueType: 'number',
+      defaultValue: 168,
+    },
+    {
+      code: NEWSLETTER_SETTING_CODES.EMAIL_CREDENTIALS,
+      name: 'Email credentials',
+      description:
+        'Reference a reusable Email adapter credential configuration (Credentials screen) providing the SMTP host/port/security/username/password. Required to send real mail; when empty, newsletter dispatch uses the console (dev) sink.',
+      groupCode: 'newsletter',
+      valueType: 'credential_ref',
+      configurationType: 'email_adapter',
+      defaultValue: '',
+    },
+    {
+      code: NEWSLETTER_SETTING_CODES.SENDER_FROM_EMAIL,
+      name: 'Sender email',
+      description: 'Verified From address for newsletter mail.',
+      groupCode: 'newsletter',
+      valueType: 'string',
+      defaultValue: '',
+      hidden: true,
+    },
+    {
+      code: NEWSLETTER_SETTING_CODES.SENDER_FROM_NAME,
+      name: 'Sender name',
+      description: 'Display name shown in the From header.',
+      groupCode: 'newsletter',
+      valueType: 'string',
+      defaultValue: '',
+      hidden: true,
+    },
+    {
+      code: NEWSLETTER_SETTING_CODES.RATE_LIMIT_PER_SECOND,
+      name: 'Send rate limit (per second)',
+      description: 'Maximum messages dispatched per second (provider throttle).',
+      groupCode: 'newsletter',
+      valueType: 'number',
+      defaultValue: 14,
+      hidden: true,
+    },
+  ],
+});
+
+export const manifest = defineModuleManifest({
+  id: 'newsletter',
+  name: 'Newsletter',
+  description:
+    'Own-infrastructure newsletter: subscribers with tags + custom fields, campaigns, linear automations, email-safe templates and variables, engagement stats, and a configurable bulk-sending provider.',
+  version: '1.0.0',
+  // `cms` owns `cmsBlockSeedPort`, the seam this module's registration-consent
+  // block is kept in place through (feature 075 / D-87). Declared here rather
+  // than withheld as non-binding because the edge is binding in the direction
+  // that matters to an operator: the consent label the storefront renders on
+  // the registration form *is* that block, and a `newsletter` with no consent
+  // text to show is not a reduced newsletter but a form that cannot lawfully
+  // collect the consent.
+  dependencies: [
+    'audit_logs',
+    'auth',
+    'cms',
+    'credentials',
+    'customers',
+    'email',
+    'sales_channels',
+    'settings',
+  ],
+  settings: newsletterSettingsManifest,
+  activation: { settingCode: 'newsletter.enabled', default: true },
+  i18n: { bundlesDir: 'i18n' },
+  permissions: [
+    { code: 'newsletter:read', label: 'View newsletter' },
+    {
+      code: 'newsletter:write',
+      label: 'Manage newsletter subscribers, campaigns, automations, and provider',
+    },
+  ],
+  actions: [
+    {
+      id: 'open-newsletter',
+      labelKey: 'actions.openNewsletter.label',
+      descriptionKey: 'actions.openNewsletter.description',
+      icon: 'Inbox',
+      targetRoute: '/newsletter/subscribers',
+      requiredPermission: 'newsletter:read',
+      keywords: ['newsletter', 'campaign', 'subscribers', 'marketing', 'automation'],
+      weight: 230,
+    },
+    {
+      id: 'new-newsletter-campaign',
+      labelKey: 'actions.newCampaign.label',
+      descriptionKey: 'actions.newCampaign.description',
+      icon: 'Plus',
+      targetRoute: '/newsletter/campaigns/new',
+      requiredPermission: 'newsletter:write',
+      keywords: ['newsletter', 'campaign', 'new', 'create', 'send'],
+      weight: 231,
+    },
+  ],
+});

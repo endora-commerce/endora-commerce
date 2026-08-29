@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { MegamenuReferenceRegistry } from '../../../src/modules/megamenu/services/megamenu-reference-registry.js';
+import { MegamenuReferenceRegistry } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-reference-registry.js';
 
 /**
  * T013 — MegamenuReferenceRegistry. Verifies the four scanners against a

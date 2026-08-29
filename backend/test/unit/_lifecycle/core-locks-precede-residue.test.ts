@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * The ordering constraint of feature 074, turned into a standing invariant —

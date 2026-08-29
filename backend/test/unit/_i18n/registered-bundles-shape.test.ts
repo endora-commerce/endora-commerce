@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   BundleLoadError,
   loadModuleBundles,
-} from '../../../src/modules/_i18n/services/bundle-loader.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+} from '@endora-commerce/mod-i18n/backend';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * Regression guard — every on-disk bundle shipped by a registered module

@@ -1,11 +1,14 @@
+import { CartItem } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+
 
 /**
  * T061 — Convert RFQ to order — integration.

@@ -1,14 +1,14 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { RegisterOrganizationRequest } from '@b2b/contracts';
+import type { RegisterOrganizationRequest } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
-import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
-import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
-import { RegistrationService } from '../../../src/modules/organizations/services/registration-service.js';
+import { RegistrationService } from '../../../../packages/modules/organizations/src/backend/services/registration-service.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
+import { Country } from '../../helpers/package-entities.js';
 
 describe('Organizations dictionary boundary', () => {
   let db: TestDb;

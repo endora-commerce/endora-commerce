@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { PaymentEmailRendererPort, ShippingEmailRendererPort } from '@b2b/contracts';
-import { buildOrderConfirmationEmail } from '../../../src/modules/orders/email-templates/order-confirmation.js';
+import type { PaymentEmailRendererPort, ShippingEmailRendererPort } from '@endora-commerce/contracts';
+import { buildOrderConfirmationEmail } from '../../../../packages/modules/orders/src/backend/email-templates/order-confirmation.js';
 import {
   noCarrierShippingLineRenderer,
   noGatewayPaymentLineRenderer,
-} from '../../../src/modules/orders/email-templates/adapter-line-baselines.js';
+} from '../../../../packages/modules/orders/src/backend/email-templates/adapter-line-baselines.js';
 import {
   registerShippingEmailRenderer,
   resolveShippingEmailRenderer,
-} from '../../../src/modules/shipments/services/shipping-email-renderer.js';
+} from '../../../../packages/modules/shipments/src/backend/services/shipping-email-renderer.js';
 
 /**
  * T049 (US6) — the order-confirmation e-mail renders the delivery line through

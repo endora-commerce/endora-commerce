@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../helpers/test-server.js';
-import { Product } from '../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../helpers/package-entities.js';
 
 /**
  * Catalog list perf harness (T241 / FR-131).

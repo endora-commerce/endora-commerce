@@ -5,9 +5,9 @@ import { createRootContainer, registerValues } from '../../../src/kernel/contain
 import { composeModules } from '../../../src/kernel/compose.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
-import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
+import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
 
 /**
  * Issue #146 / D-68 — `blog`'s boot hook was **mixed**, and one probe at the top
@@ -33,10 +33,10 @@ import { LanguageReferenceRegistry } from '../../../src/modules/languages/servic
 const seedDefaultCategory = vi.fn(async () => undefined);
 const seedBlogRoles = vi.fn(async () => undefined);
 
-vi.mock('../../../src/modules/blog/services/seed-default-category.js', () => ({
+vi.mock('../../../../packages/modules/blog/src/backend/services/seed-default-category.js', () => ({
   seedDefaultCategory: (...args: unknown[]) => seedDefaultCategory(...(args as [])),
 }));
-vi.mock('../../../src/modules/blog/services/seed-roles.js', () => ({
+vi.mock('../../../../packages/modules/blog/src/backend/services/seed-roles.js', () => ({
   seedBlogRoles: (...args: unknown[]) => seedBlogRoles(...(args as [])),
 }));
 
@@ -49,7 +49,7 @@ interface Composed {
 }
 
 async function composeBlog(): Promise<Composed> {
-  const { registerModule } = await import('../../../src/modules/blog/backend.js');
+  const { registerModule } = await import('../../../../packages/modules/blog/src/backend/index.js');
   const container = createRootContainer();
   const assetReferenceRegistry = new AssetReferenceRegistry();
   // What the hooks reach, and nothing more: no database connection, no Redis

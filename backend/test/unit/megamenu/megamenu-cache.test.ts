@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import {
   MegamenuCache,
   MEGAMENU_CACHE_KEY_PREFIX,
-} from '../../../src/modules/megamenu/services/megamenu-cache.js';
-import type { ResolvedMegamenu } from '@b2b/contracts';
+} from '../../../../packages/modules/megamenu/src/backend/services/megamenu-cache.js';
+import type { ResolvedMegamenu } from '@endora-commerce/contracts';
 
 const REDIS_URL = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
 

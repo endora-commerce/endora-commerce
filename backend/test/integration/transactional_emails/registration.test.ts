@@ -1,17 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { TransactionalEmail } from '../../../src/modules/transactional_emails/entities/transactional-email.entity.js';
-import { TransactionalEmailContent } from '../../../src/modules/transactional_emails/entities/transactional-email-content.entity.js';
 import {
   TransactionalEmailReconciler,
   TransactionalEmailCodeCollision,
-} from '../../../src/modules/transactional_emails/services/manifest-reconciler.js';
-import { EmailDefaultsRegistry } from '../../../src/modules/transactional_emails/services/email-defaults-registry.js';
+} from '../../../../packages/modules/transactional_emails/src/backend/services/manifest-reconciler.js';
+import { EmailDefaultsRegistry } from '../../../../packages/modules/transactional_emails/src/backend/services/email-defaults-registry.js';
+import { TransactionalEmail, TransactionalEmailContent } from '../../helpers/package-entities.js';
 
 const CODE = 'test_registered_email';
 
@@ -57,7 +56,7 @@ describe('transactional emails — registration + prune (US5)', () => {
     // manifests are not passed here, so they would be pruned — guard by passing
     // them through alongside (use the registered set + ours).
     const { REGISTERED_MANIFESTS } = await import(
-      '../../../src/modules/_lifecycle/registered-manifests.js'
+      '../../../src/lifecycle/registered-manifests.js'
     );
     const base = REGISTERED_MANIFESTS.map((e) => e.manifest);
 

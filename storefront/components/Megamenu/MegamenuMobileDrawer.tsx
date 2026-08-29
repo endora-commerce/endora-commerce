@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Fragment, useState, type ReactNode } from 'react';
-import type { ResolvedMegamenu, ResolvedMenuItem } from '@b2b/contracts';
+import type { ResolvedMegamenu, ResolvedMenuItem } from '@endora-commerce/contracts';
 import { MenuAsset } from './MenuAsset';
 import { MenuButton } from './MenuButton';
 import { MenuCmsBlockEmbed } from './MenuCmsBlockEmbed';

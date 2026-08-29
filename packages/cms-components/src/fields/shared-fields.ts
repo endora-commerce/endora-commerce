@@ -6,7 +6,7 @@ import {
   DEFAULT_BORDER,
   DEFAULT_SPACING,
   PB_RESPONSIVE_METADATA,
-} from '@b2b/page-builder-core';
+} from '@endora-commerce/page-builder-core';
 
 export const BOX_MARGIN_FIELD = createSpacingField({ label: 'Outer spacing' });
 export const BOX_PADDING_FIELD = createSpacingField({ label: 'Inner spacing' });

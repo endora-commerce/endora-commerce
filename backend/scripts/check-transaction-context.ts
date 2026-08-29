@@ -67,14 +67,14 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { isGetKnexCall, sqlTableAccesses } from './lib/sql-tables.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
 /**
  * Connection-level statements inside a transaction that may stay that way, with
@@ -356,11 +356,14 @@ export function checkTransactionContext(
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
+  // Both roots, derived (feature 080, T040a): the application's source tree and
+  // every module that has become a workspace package.
+  const layout = await requireModuleLayout('[transaction-context]');
+  const files = layout.sourceRoots.flatMap((root) => walk(root));
 
   const sources = new Map<string, string>();
   for (const file of files) {
-    sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
+    sources.set(layout.keyOf(file), readFileSync(file, 'utf8'));
   }
 
   // Every transaction this check judges is in a module service, and `src/`
@@ -369,8 +372,9 @@ async function main(): Promise<void> {
   // so it tracks the module list rather than restating it.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[transaction-context]',
-    srcRoot: SRC_ROOT,
-    files: [...sources.keys()],
+    manifestIndexPath: layout.manifestIndexPath,
+    files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   const result = checkTransactionContext({ sources });

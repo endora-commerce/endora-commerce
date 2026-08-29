@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildInvoiceLines } from '../../../src/modules/invoices/services/invoice-line-builder.js';
+import { buildInvoiceLines } from '../../../../packages/modules/invoices/src/backend/services/invoice-line-builder.js';
 
 describe('buildInvoiceLines — VAT summary & reconciliation', () => {
   it('computes gross from net per line and reconciles totals (single rate)', () => {

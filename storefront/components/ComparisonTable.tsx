@@ -5,7 +5,7 @@ import type {
   ComparisonOwnerView,
   ComparisonAttributeRow,
   ComparisonDisplayMode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   ComparisonApiError,
   deleteMyComparison,

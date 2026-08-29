@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   organizationSubtreeResponseSchema,
   organizationAncestorsResponseSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 
 /**
  * Feature 056 US1 — organization tree HTTP contract (T008).

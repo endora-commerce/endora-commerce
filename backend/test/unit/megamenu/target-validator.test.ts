@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES, type MegamenuItem } from '@b2b/contracts';
+import { ERROR_CODES, type MegamenuItem } from '@endora-commerce/contracts';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import {
   validateTarget,
   type TargetValidatorDeps,
-} from '../../../src/modules/megamenu/services/target-validator.js';
+} from '../../../../packages/modules/megamenu/src/backend/services/target-validator.js';
 
 const stubDeps = (overrides: Partial<TargetValidatorDeps> = {}): TargetValidatorDeps => ({
   categoryExists: async () => true,

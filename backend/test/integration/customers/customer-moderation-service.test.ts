@@ -1,21 +1,22 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
+import { Organization } from '../../helpers/package-entities.js';
+import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SessionService } from '../../../src/modules/auth/services/session-service.js';
-import { createAuthSessionPort } from '../../../src/modules/auth/services/session-port.js';
+import { SessionService } from '@endora-commerce/mod-auth/backend';
+import { createAuthSessionPort } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { CustomerAuthService } from '../../../src/modules/customer_accounts/services/customer-auth-service.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import { CustomerAuthService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-auth-service.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import {
   CustomerAuthorityService,
   type SalesRepVisibility,
-} from '../../../src/modules/customers/services/customer-authority-service.js';
-import { CustomerModerationService } from '../../../src/modules/customers/services/customer-moderation-service.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
-import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
+} from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
+import { CustomerModerationService } from '../../../../packages/modules/customers/src/backend/services/customer-moderation-service.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
+import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { customerAccountLifecycleWriteFor } from '../../helpers/customer-account-ports.js';
 
 /**
@@ -70,7 +71,7 @@ describe('CustomerModerationService', () => {
   function makeService(canSee: boolean): CustomerModerationService {
     const visibility: SalesRepVisibility = { canSeeOrganization: async () => canSee };
     return new CustomerModerationService(
-      new CustomerAccountReadService(() => em),
+      new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer')),
       customerAccountLifecycleWriteFor(() => em, audit),
       new CustomerAuthorityService(visibility),
       sessions,
@@ -81,6 +82,9 @@ describe('CustomerModerationService', () => {
     over: Partial<CustomerAccount> = {},
   ): Promise<CustomerAccount> {
     const c = em.create(CustomerAccount, {
+      // D-178 — `organization_id` is NOT NULL, so the default is an
+      // organisation of this fixture's own rather than none.
+      organizationId: over.organizationId ?? (await makeOrg()),
       email: `mod-${Date.now()}-${Math.floor(performance.now())}@example.test`,
       passwordHash: await hashPassword('a-very-strong-pass'),
       firstName: 'Mod',
@@ -150,9 +154,19 @@ describe('CustomerModerationService', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
-  it('any salesperson may block a standalone (org-less) customer', async () => {
-    const svc = makeService(false); // no assignment, but customer is org-less
-    const customer = await makeCustomer({ organizationId: null });
+  // D-178 — there is no org-less customer any more. The rule this case exists
+  // for survives through a different mechanism: a **personal** organisation can
+  // never carry a sales-rep assignment, so `canSeeOrganization`'s
+  // unassigned-org fallback answers `true` for every salesperson. The fixture
+  // therefore stands the customer in an organisation with no assigned rep,
+  // which is what a personal one always is.
+  it('any salesperson may block a customer in an organisation with no assigned rep', async () => {
+    // `canSeeOrganization` is the stub, and it is what carries the
+    // unassigned-org fallback in production: `SalesRepAssignmentService` answers
+    // `true` for an organisation with no assigned rep, which a personal one
+    // always is because it refuses assignments outright.
+    const svc = makeService(true);
+    const customer = await makeCustomer();
     const blocked = await svc.block({
       targetCustomerAccountId: customer.id,
       actor: { adminUserId: '00000000-0000-4000-8000-00000000a003', isPlatformAdmin: false },

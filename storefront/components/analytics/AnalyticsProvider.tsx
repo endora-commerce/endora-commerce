@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, type ReactNode } from 'react';
-import type { GaStorefrontConfig } from '@b2b/contracts';
+import type { GaStorefrontConfig } from '@endora-commerce/contracts';
 import { configureGa } from '../../lib/analytics/gtag';
 import { emitButtonClick } from '../../lib/analytics/collector';
 import { installEnhancedMeasurement } from '../../lib/analytics/enhancedMeasurement';

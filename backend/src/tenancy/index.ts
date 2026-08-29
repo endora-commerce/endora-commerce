@@ -1,51 +1,20 @@
 /**
- * Tenant guard core layer (feature 050 — Systemic Organization Tenant Scoping).
- * Peer of `events/`, `http/`, `db/`. See specs/050-org-tenant-scoping/.
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
+ *
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
+ *
+ * This file is a published subpath's own entry point, so the shim names the
+ * subpath: `@endora-commerce/platform/tenancy`, exactly as a packaged module does.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-export {
-  type TenantContext,
-  type TenantScopeMode,
-  type TenantActor,
-  type TenantImpersonation,
-  MissingTenantContextError,
-  getTenantContext,
-  runWithTenantContext,
-  runInTenantContext,
-  runWithoutTenantContext,
-  enterTenantContext,
-} from './tenant-context.js';
-export {
-  resolveTenantContext,
-  systemTenantContext,
-  orgPinnedTenantContext,
-  type TenantActorInput,
-  type CustomerActorInput,
-  type AdminActorInput,
-  type AdminScopeInput,
-} from './resolve-tenant-context.js';
-export { forkScopedEm } from './scoped-em.js';
-export {
-  OrgScoped,
-  CustomerScoped,
-  GlobalEntity,
-  TransitivelyScoped,
-  RuleScoped,
-  tenantClassifications,
-  type ScopeClass,
-  type ClassificationMeta,
-} from './org-scoped.decorator.js';
-export {
-  withSystemScope,
-  withOrgScope,
-  setEscapeHatchAuditSink,
-  type EscapeHatchAuditRecord,
-  type EscapeHatchAuditSink,
-} from './escape-hatch.js';
-export {
-  orgConstraintFor,
-  orgScopeWhere,
-  isOrgInScope,
-  ruleVisibleForScope,
-  type OrgConstraint,
-} from './derived-scope.js';
-export { ORG_FILTER, CUSTOMER_FILTER } from './filters.js';
+export * from '@endora-commerce/platform/tenancy';

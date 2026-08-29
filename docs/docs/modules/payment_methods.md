@@ -10,15 +10,30 @@ checkout. Each `PaymentMethod` row is backed by a registered **adapter**
 
 ## Public surface
 
-Admin routes are gated by `catalog:read` (list) / `catalog:write` (mutations).
+Admin routes are gated by `payment_methods:read` (reads) and
+`payment_methods:write` (mutations) — the module's own codes since 2026-08-28.
+They were `catalog:read` / `catalog:write` until then, which meant whoever could
+edit a product could also decide how the shop takes money. A role that was
+relying on the catalogue codes for this screen has to be granted the new ones on
+`/admin-roles`; nothing grants them automatically, deliberately.
 
-| Verb + Path | Audience | Purpose |
-| --- | --- | --- |
-| `GET /api/v1/payment-methods` | anon | Eligible methods for the storefront checkout (active ∩ org allow-list ∩ registered adapter ∩ `validateUseOnStorefront`) |
-| `GET /api/v1/admin/payment-methods` | admin | Full config (active + inactive) incl. `adapter`, `additionalPrice`, `statusOn*`, sales channels |
-| `GET /api/v1/admin/order-statuses` | admin | Order-status options for the `statusOn*` selectors |
-| `PUT /api/v1/admin/payment-methods/:code` | admin | Upsert by code; `adapter` defaults to `kind`, `statusOn*` validated against the order-status registry |
-| `DELETE /api/v1/admin/payment-methods/:id` | admin | Delete — blocked (409) when a `Payment` references the method; set it `inactive` instead |
+`GET /api/v1/admin/order-statuses` is the one exception, and it is an any-of
+rather than a widening: the route is registered here but read by two editors —
+this module's screen and the `delivery_methods` one — so it accepts either
+module's read code. The second member was `catalog:read` while
+`delivery_methods` still borrowed the catalogue's authority; it became
+`delivery_methods:read` when that module minted its own pair, so no catalogue
+holder reaches the shared list any more.
+
+| Verb + Path | Audience | Gate | Purpose |
+| --- | --- | --- | --- |
+| `GET /api/v1/payment-methods` | anon | — | Eligible methods for the storefront checkout (active ∩ org allow-list ∩ registered adapter ∩ `validateUseOnStorefront`) |
+| `GET /api/v1/admin/payment-methods` | admin | `payment_methods:read` | Full config (active + inactive) incl. `adapter`, `additionalPrice`, `statusOn*`, sales channels |
+| `GET /api/v1/admin/payment-methods/adapters` | admin | `payment_methods:read` | Registered adapter keys, for the admin adapter picker |
+| `GET /api/v1/admin/order-statuses` | admin | `payment_methods:read` **or** `delivery_methods:read` | Order-status options for the `statusOn*` selectors, here and on the delivery-method screen |
+| `PUT /api/v1/admin/payment-methods/:code` | admin | `payment_methods:write` | Upsert by code; `adapter` defaults to `kind`, `statusOn*` validated against the order-status registry |
+| `PATCH /api/v1/admin/payment-methods/:id/status` | admin | `payment_methods:write` | Availability alone (feature 076, D-82) — the one write the four gateway screens link to |
+| `DELETE /api/v1/admin/payment-methods/:id` | admin | `payment_methods:write` | Delete — blocked (409) when a `Payment` references the method; set it `inactive` instead |
 
 ## Entities
 
@@ -40,7 +55,7 @@ condition. The bundled `bank_transfer`, `pickup`, `credit_limit`, and
 
 ### The contract
 
-`PaymentAdapter` (from `@b2b/contracts`) carries:
+`PaymentAdapter` (from `@endora-commerce/contracts`) carries:
 
 - `adapterKey` — stable id; matches `payment_methods.adapter`.
 - `type` — one of `bank_transfer | pickup | credit_limit | gateway`.

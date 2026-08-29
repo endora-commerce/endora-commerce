@@ -3,13 +3,22 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  barrelExports,
   checkLockClaims,
   classifyLockClaims,
   collectArtifacts,
+  contractsCoverage,
   findLockClaims,
   flatten,
   vacuousReason,
 } from '../../../scripts/check-lock-claims.js';
+import {
+  CONTRACT_DIRECTORY,
+  createLockClaimsFixture,
+  FIXTURE_LOCKED,
+  FIXTURE_SWITCHABLE,
+  reportsClaimInAPublishedContract,
+} from '../../helpers/lock-claims-check-fixture.js';
 import type { ManifestActivationInput } from '../../../scripts/lib/switchable-modules.js';
 
 /**
@@ -172,23 +181,33 @@ describe('the plumbing that keeps a green honest', () => {
 
   it('finds the artefacts it declares, and nothing outside them', () => {
     const files = collectArtifacts({
-      srcRoot: new URL('../../../src/', import.meta.url).pathname,
+      moduleRoots: [
+        new URL('../../../src/modules/', import.meta.url).pathname,
+        new URL('../../../src/apps/', import.meta.url).pathname,
+      ],
       scriptsRoot: new URL('../../../scripts/', import.meta.url).pathname,
+      contractsRoot: new URL('../../../../packages/contracts/src/', import.meta.url).pathname,
     });
     expect(files.length).toBeGreaterThan(0);
     expect(files.some((f) => f.includes('/ledgers/cross-module-imports/'))).toBe(true);
     expect(files.some((f) => f.endsWith('/manifest.ts'))).toBe(true);
     expect(files.some((f) => f.includes('check-entry-presence.ts'))).toBe(true);
+    // Issue #279 — a published port's doc block is where an "owner off"
+    // paragraph is written, and it was outside the population.
+    expect(files.some((f) => f.endsWith('/packages/contracts/src/orders.ts'))).toBe(true);
     // A module service is not a reason-carrying artefact.
     expect(files.some((f) => f.endsWith('/order-service.ts'))).toBe(false);
+    // Neither is a test beside a contract, nor an emitted declaration.
+    expect(files.some((f) => f.endsWith('.test.ts') || f.endsWith('.d.ts'))).toBe(false);
   });
 
   it('exits 2 rather than green when there is no artefact to read', () => {
     const empty = mkdtempSync(join(tmpdir(), 'lock-claims-'));
     try {
       const files = collectArtifacts({
-        srcRoot: join(empty, 'src'),
+        moduleRoots: [join(empty, 'src/modules')],
         scriptsRoot: join(empty, 'scripts'),
+        contractsRoot: join(empty, 'packages/contracts/src'),
       });
       expect(files).toEqual([]);
       expect(vacuousReason(files, MANIFESTS)).toMatch(/no reason-carrying artefacts/);
@@ -226,5 +245,151 @@ describe('the plumbing that keeps a green honest', () => {
     );
     expect(claims).toHaveLength(1);
     expect(classifyLockClaims(claims, new Set())).toHaveLength(1);
+  });
+});
+
+/**
+ * Issue #279 — the source the check could not see.
+ *
+ * A published port's doc block in `packages/contracts/src` is where its "when
+ * the owner is switched off" paragraph belongs, written by the module that owns
+ * the port about the module that owns it. That is the sentence this check
+ * refuses, and the package was outside the population: a false switchability
+ * claim there passed silently, and the guard rested on the author being careful.
+ *
+ * Every proof below enters as a **tree on disk**, spawned the way CI spawns the
+ * check. The proofs above enter at `checkLockClaims`, which takes the source map
+ * `collectArtifacts` produced — they are green whether or not the contracts
+ * package is in it, so none of them can protect this.
+ */
+describe('a claim written in a published contract (issue #279)', () => {
+  it('reports a switchability claim about a locked module, against the contract file', () => {
+    // The Phase B shape: the hedged paragraph was written on judgement, and
+    // this is the alternative that would have shipped.
+    expect(
+      reportsClaimInAPublishedContract(
+        [
+          '/**',
+          ' * The orders read port.',
+          ' *',
+          ` * Owner off: \`${FIXTURE_LOCKED}\` is switchable, so every caller of this port`,
+          ' * has to handle the 503 `MODULE_DISABLED` envelope.',
+          ' */',
+          'export interface OrdersReadPort {',
+          '  read(): Promise<string>;',
+          '}',
+          '',
+        ].join('\n'),
+        'stale-switchable-claim',
+      ),
+    ).toBe(1);
+  });
+
+  it('reports a lock claim about a module that has an activation control', () => {
+    // The converse direction, in the same file class: a contract that reasons
+    // "the owner cannot be switched off, so this port is always there".
+    expect(
+      reportsClaimInAPublishedContract(
+        `// \`${FIXTURE_SWITCHABLE}\` is always present, so this port needs no absent case.\n` +
+          'export interface AlwaysThere { read(): void }\n',
+        'stale-lock-claim',
+      ),
+    ).toBe(1);
+  });
+
+  it('exits 0 over the same tree when the contract agrees with the manifests', () => {
+    // The control. Without it the two reds above show the check failing over a
+    // staged tree, not failing *because of the claim* in the staged contract.
+    const fixture = createLockClaimsFixture();
+    try {
+      fixture.writeContract(
+        'orders-port.ts',
+        `// \`${FIXTURE_SWITCHABLE}\` is switchable, so this port fails closed.\n` +
+          'export interface OrdersReadPort { read(): void }\n',
+      );
+      fixture.writeBarrel("export * from './published.js';\nexport * from './orders-port.js';\n");
+      const result = fixture.run();
+      expect(result.status, result.output).toBe(0);
+      // And it read the contract rather than skipping it: two claims, both
+      // agreeing. A green over a file nobody opened is the defect, not the pass.
+      expect(result.output).toContain('claims=2 violations=0');
+      expect(result.output).toContain('contracts-barrel:2/2');
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('names the finding by its repository path, not by a walk out of backend/', () => {
+    const fixture = createLockClaimsFixture();
+    try {
+      fixture.writeContract(
+        'orders-port.ts',
+        `// \`${FIXTURE_LOCKED}\` is switchable.\nexport interface P { read(): void }\n`,
+      );
+      fixture.writeBarrel("export * from './published.js';\nexport * from './orders-port.js';\n");
+      const result = fixture.run();
+      expect(result.status, result.output).toBe(1);
+      expect(result.output).toContain(`${CONTRACT_DIRECTORY}/orders-port.ts`);
+      expect(result.output).not.toContain(`../${CONTRACT_DIRECTORY}`);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+});
+
+describe('the contracts walk cannot come back short and read as clean (issue #279)', () => {
+  it('exits 2 when a file the barrel re-exports is not in the walk', () => {
+    // #215's shape for the new source: the walk is not empty — the ledgers,
+    // the checks and the manifests all survive — it is simply missing the
+    // package whose claims this widening exists to read.
+    const fixture = createLockClaimsFixture();
+    try {
+      fixture.removeContract('published.ts');
+      const result = fixture.run();
+      expect(result.status, result.output).toBe(2);
+      expect(result.output).toContain('`contracts-barrel`');
+      // The discrimination: the walk was non-empty, so an emptiness test would
+      // have called this run clean.
+      expect(result.output).toMatch(/opened [1-9]\d* file\(s\)/);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('exits 2 when the barrel declares nothing — a package that moved, not a clean one', () => {
+    const fixture = createLockClaimsFixture();
+    try {
+      fixture.writeBarrel('export const NOTHING = 1;\n');
+      const result = fixture.run();
+      expect(result.status, result.output).toBe(2);
+      expect(result.output).toContain('expects nothing');
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('derives the expectation from the barrel, in both re-export shapes', () => {
+    // `index.ts` publishes most contracts with `export *` and a few with a
+    // named list; a derivation that read only the first would expect fewer
+    // files than the package has and never notice the rest going missing.
+    expect(
+      barrelExports(
+        [
+          "export * from './orders.js';",
+          "export type { CmsPage } from './cms.js';",
+          "export { productSchema } from './catalog.js';",
+          "import { z } from 'zod';",
+        ].join('\n'),
+      ),
+    ).toEqual(['catalog.ts', 'cms.ts', 'orders.ts']);
+  });
+
+  it('counts what the walk covered of what the barrel declared', () => {
+    expect(
+      contractsCoverage({
+        barrel: "export * from './orders.js';\nexport * from './catalog.js';",
+        files: ['orders.ts', 'unpublished-helper.ts'],
+      }),
+    ).toEqual({ source: 'contracts-barrel', expected: 2, covered: 1 });
   });
 });

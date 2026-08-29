@@ -69,36 +69,3 @@ export async function changePassword(
     sessionCookie,
   });
 }
-
-export interface TwoFactorEnrolment {
-  secret: string;
-  otpauthUri: string;
-  backupCodes: string[];
-}
-
-export async function enableTwoFactor(sessionCookie: string): Promise<TwoFactorEnrolment> {
-  const result = await apiMutate<TwoFactorEnrolment>({
-    method: 'POST',
-    path: '/api/v1/me/two-factor/enable',
-    sessionCookie,
-  });
-  return result.data!;
-}
-
-export async function confirmTwoFactor(sessionCookie: string, code: string): Promise<void> {
-  await apiMutate<null>({
-    method: 'POST',
-    path: '/api/v1/me/two-factor/confirm',
-    body: { code },
-    sessionCookie,
-  });
-}
-
-export async function disableTwoFactor(sessionCookie: string, code: string): Promise<void> {
-  await apiMutate<null>({
-    method: 'POST',
-    path: '/api/v1/me/two-factor/disable',
-    body: { code },
-    sessionCookie,
-  });
-}

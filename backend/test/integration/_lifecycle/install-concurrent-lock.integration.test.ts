@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
-import { defineModuleManifest } from '@b2b/contracts';
+import { Redis } from 'ioredis';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
+import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { LOCK_KEY } from '../../../src/modules/_lifecycle/services/lock.js';
-import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+import { LOCK_KEY } from '../../../src/lifecycle/services/lock.js';
+import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 
 /**
  * Integration test for SC-007 / FR-022 — two concurrent install
@@ -64,6 +64,7 @@ describe('Module install — concurrent lock (integration)', () => {
         ],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const makeOrchestrator = (): ModuleLifecycleOrchestrator =>

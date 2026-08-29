@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { NumberingSeries } from '@b2b/contracts';
+import type { NumberingSeries } from '@endora-commerce/contracts';
 import {
   findNumberPatternCollisions,
   patternSequenceDefect,
-} from '../../../src/modules/invoices/services/invoice-number-collisions.js';
-import { DEFAULT_PATTERNS, effectivePattern } from '../../../src/modules/invoices/services/invoice-number-generator.js';
+} from '../../../../packages/modules/invoices/src/backend/services/invoice-number-collisions.js';
+import { DEFAULT_PATTERNS, effectivePattern } from '../../../../packages/modules/invoices/src/backend/services/invoice-number-generator.js';
 
 /**
  * D-95.1 — a collision is an intersection of *rendered sets*, decided by a

@@ -5,8 +5,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { manifest as customersManifest } from '../../../src/modules/customers/manifest.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { manifest as customersManifest } from '../../../../packages/modules/customers/src/manifest.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**
@@ -43,8 +43,23 @@ describe('Admin customer detail actions (US5)', () => {
     return (await h.em().findOne(CustomerAccount, { email }))!.id;
   }
 
-  it('assigns and unassigns an organization', async () => {
+  /**
+   * D-178 U1 — the detach operation moves the customer to their own personal
+   * organisation instead of nulling the column.
+   *
+   * The last line asserted `toBeNull()` until D-178, which is what the shipped
+   * button produced: a first-class operator workflow whose only possible outcome
+   * was an account that could not place an order, submit an RFQ or read an
+   * address. The operator's intent is unchanged and so is the route, the
+   * permission and the audit verb; the destination is a real tenant now.
+   */
+  it('assigns a customer to an organization and detaches them back to their own', async () => {
     const id = await newCustomer();
+    // Registration already put this account in its own personal organisation,
+    // so the detach has somewhere to go back to.
+    const personalOrganizationId = (await h.em().findOne(CustomerAccount, { id }))!.organizationId;
+    expect(personalOrganizationId).not.toBe(TEST_ORGANIZATION_ID);
+
     const assign = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/customers/${id}/organization`,
@@ -52,15 +67,23 @@ describe('Admin customer detail actions (US5)', () => {
       payload: { organizationId: TEST_ORGANIZATION_ID },
     });
     expect(assign.statusCode).toBe(200);
-    expect((assign.json() as { data: { organizationId: string | null } }).data.organizationId).toBe(TEST_ORGANIZATION_ID);
+    expect((assign.json() as { data: { organizationId: string } }).data.organizationId).toBe(TEST_ORGANIZATION_ID);
 
-    const unassign = await h.app.inject({
+    const detach = await h.app.inject({
       method: 'DELETE',
       url: `/api/v1/admin/customers/${id}/organization`,
       cookies: admin,
     });
-    expect(unassign.statusCode).toBe(200);
-    expect((unassign.json() as { data: { organizationId: string | null } }).data.organizationId).toBeNull();
+    expect(detach.statusCode).toBe(200);
+    // Their own organisation, and the one they already had — the provisioning is
+    // idempotent by account id, so no second personal organisation is created.
+    expect((detach.json() as { data: { organizationId: string } }).data.organizationId).toBe(
+      personalOrganizationId,
+    );
+
+    h.em().clear();
+    const reloaded = await h.em().findOne(CustomerAccount, { id });
+    expect(reloaded!.organizationId).toBe(personalOrganizationId);
   });
 
   it('adds and lists addresses for the customer', async () => {

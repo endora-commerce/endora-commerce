@@ -1,12 +1,15 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
-import { defineModuleManifest } from '@b2b/contracts';
+import { Redis } from 'ioredis';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
+import { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
+import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 
 /**
  * Integration test for FR-011 scoped migration revert (US2).
@@ -59,6 +62,7 @@ describe('Module uninstall — hard reverts only target module migrations (integ
         ['fixture_scoped', { manifest, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const em = db.em();
@@ -80,12 +84,22 @@ describe('Module uninstall — hard reverts only target module migrations (integ
       em: () => db.em(),
       auditLog: new AuditLogService(() => db.em()),
       registry,
+      // Feature 080 (T033): the ownership seam covers this fixture module and
+      // says it owns nothing — which is the branch this test is about. Left
+      // out, the orchestrator would answer for core alone, find no
+      // `fixture_scoped` in it and **refuse**, which is the other branch and
+      // the right answer to a different question.
+      migrationOwnership: migrationOwnershipOf(MIGRATION_REGISTRY, [
+        'core',
+        'fixture_scoped',
+        ...REGISTERED_MANIFESTS.map((entry) => entry.manifest.id),
+      ]),
     });
 
     const result = await orchestrator.uninstall('fixture_scoped', { hard: true });
-    // No registry entry declares `fixture_scoped` as its owning module, so
-    // `revertMigrationsFor` returns [] and logs a warning. Other modules'
-    // migrations are unaffected (the migrator was never asked to revert them).
+    // `fixture_scoped` is covered and owns no migration, so the revert is a
+    // logged no-op. Other modules' migrations are unaffected (the migrator was
+    // never asked to revert them).
     expect(result.revertedMigrations).toEqual([]);
     // Migrations belonging to `dictionaries` and `_lifecycle` MUST NOT appear.
     for (const name of result.revertedMigrations) {

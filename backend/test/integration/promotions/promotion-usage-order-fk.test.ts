@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Migration20260818T081251PromotionsPromotionUsageOrderFk } from '../../../src/modules/promotions/migrations/20260818T081251_promotions_promotion_usage_order_fk.js';
+import { Migration20260818T081251PromotionsPromotionUsageOrderFk } from '../../../../packages/modules/promotions/src/migrations/20260818T081251_promotions_promotion_usage_order_fk.js';
 
 /**
  * `promotion_usages_order_fk` (D-94.1, site 3 of the co-transactional family).

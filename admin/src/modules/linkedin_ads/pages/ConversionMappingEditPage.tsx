@@ -5,7 +5,7 @@ import {
   type LinkedInConversionMapping,
   type LinkedInTriggerAction,
   type SalesChannelSummary,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';

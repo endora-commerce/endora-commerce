@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const MANIFEST_INDEX = '../../../src/modules/_lifecycle/manifest-index.generated.js';
+const MANIFEST_INDEX = '../../../src/manifest-index.generated.js';
 const ORM_CONFIG = '../../../src/db/mikro-orm.config.js';
 
-type ManifestIndex = typeof import('../../../src/modules/_lifecycle/manifest-index.generated.js');
+type ManifestIndex = typeof import('../../../src/manifest-index.generated.js');
 
 /**
  * The boot-time reader of the `module-cycle` diagnostic — feature 081, the
@@ -44,7 +44,7 @@ function cycleWarnings(): string[] {
 
 describe('the ORM config reports a dependency cycle at boot', () => {
   it('says nothing about the migration order for the committed manifests', async () => {
-    await import(ORM_CONFIG);
+    await (await import(ORM_CONFIG)).default();
 
     expect(cycleWarnings()).toEqual([]);
   });
@@ -71,7 +71,7 @@ describe('the ORM config reports a dependency cycle at boot', () => {
       };
     });
 
-    await import(ORM_CONFIG);
+    await (await import(ORM_CONFIG)).default();
 
     const warnings = cycleWarnings();
     expect(warnings).toHaveLength(1);
@@ -102,17 +102,17 @@ describe('the ORM config reports a dependency cycle at boot', () => {
       };
     });
 
-    const cycled = await import(ORM_CONFIG);
+    const cycled = await (await import(ORM_CONFIG)).default();
     vi.doUnmock(MANIFEST_INDEX);
     vi.resetModules();
-    const clean = await import(ORM_CONFIG);
+    const clean = await (await import(ORM_CONFIG)).default();
 
-    const names = (config: { default: { migrations?: { migrationsList?: unknown } } }): string[] =>
-      ((config.default.migrations?.migrationsList ?? []) as Array<{ name: string }>).map(
+    const names = (config: { migrations?: { migrationsList?: unknown } }): string[] =>
+      ((config.migrations?.migrationsList ?? []) as Array<{ name: string }>).map(
         (migration) => migration.name,
       );
 
-    expect(names(cycled as never)).toHaveLength(names(clean as never).length);
-    expect(new Set(names(cycled as never))).toEqual(new Set(names(clean as never)));
+    expect(names(cycled)).toHaveLength(names(clean).length);
+    expect(new Set(names(cycled))).toEqual(new Set(names(clean)));
   });
 });

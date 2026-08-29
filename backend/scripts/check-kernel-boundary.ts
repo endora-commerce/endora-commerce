@@ -128,12 +128,11 @@ import {
   type ModulePopulationCoverage,
 } from './lib/module-population.js';
 import { reportReadSize } from './lib/read-size.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 
 const RELATION_DECORATORS = new Set(['ManyToOne', 'OneToMany', 'OneToOne', 'ManyToMany']);
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
-const SRC_ROOT = join(BACKEND_ROOT, 'src');
-const KERNEL_ROOT = join(SRC_ROOT, 'kernel');
 
 /**
  * The platform roots rule B walks (D-53): the kernel and the three peers it
@@ -142,9 +141,19 @@ const KERNEL_ROOT = join(SRC_ROOT, 'kernel');
 export const PLATFORM_ROOTS = ['kernel', 'http', 'events', 'tenancy'] as const;
 export type PlatformRoot = (typeof PLATFORM_ROOTS)[number];
 
-/** Which platform root owns `file`, or `null` for anything outside all four. */
-export function platformRootOf(file: string): PlatformRoot | null {
-  return PLATFORM_ROOTS.find((root) => file.includes(`/src/${root}/`)) ?? null;
+/**
+ * Which platform root owns `file`, or `null` for anything outside all four.
+ *
+ * `platformRoot` is the directory holding them and is passed in rather than
+ * matched by name (the relocation). It used to be a `/src/<root>/` substring
+ * test, which after the move matched two trees: the platform's own sources in
+ * `@endora-commerce/platform`, and the re-export shims left at the old
+ * `backend/src/<root>/` paths. Reading the shims as platform files is not a
+ * missed finding but a wrong one — every shim names the package's build output,
+ * so rule B saw 63 outward imports where the platform has 25.
+ */
+export function platformRootOf(file: string, platformRoot: string): PlatformRoot | null {
+  return PLATFORM_ROOTS.find((root) => file.startsWith(`${join(platformRoot, root)}/`)) ?? null;
 }
 
 /**
@@ -403,10 +412,14 @@ function resolveSpecifier(file: string, specifier: string): string {
  * The target is **not** gated on existing on disk: a platform file importing a
  * path that no longer exists must fail loudly, not pass silently.
  */
-export function analyzePlatformImports(source: string, file: string): PlatformImportFinding[] {
-  const root = platformRootOf(file);
+export function analyzePlatformImports(
+  source: string,
+  file: string,
+  platformRoot: string,
+): PlatformImportFinding[] {
+  const root = platformRootOf(file, platformRoot);
   if (!root) return [];
-  const ownRoot = join(SRC_ROOT, root);
+  const ownRoot = join(platformRoot, root);
 
   return namedSpecifiers(source, file).flatMap((specifier) => {
     if (!specifier.text.startsWith('.')) return [];
@@ -447,7 +460,7 @@ export function analyzePlatformImports(source: string, file: string): PlatformIm
  * survivor was `kernel/ports/organizations.ts` type-importing the `Organization`
  * entity, escalated rather than fixed because both available answers were
  * D-32-scale; D-55 settled it with a structural `OrganizationSnapshot` typed on
- * `@b2b/contracts`' existing status union, at a cost of one file. The name stays
+ * `@endora-commerce/contracts`' existing status union, at a cost of one file. The name stays
  * `KERNEL_…` because the kernel is what the ledger protects, but rule B's roots
  * are all four platform roots, so a peer's debt would be keyed here too.
  * `test/unit/kernel/boundary-check.test.ts` pins it empty, so an entry cannot
@@ -455,9 +468,20 @@ export function analyzePlatformImports(source: string, file: string): PlatformIm
  */
 export const KERNEL_MODULE_IMPORTS_TO_DRAIN: Readonly<Record<string, string>> = {};
 
-/** `src/kernel/ports/provide.ts` — the key's file half, stable across an unrelated edit. */
+/**
+ * `src/kernel/ports/provide.ts` — the key's file half, stable across an
+ * unrelated edit.
+ *
+ * Two bases since the relocation, in the idiom of `layout.displayOf`: a file
+ * inside `backend/` keeps its `src/…` spelling, and the platform's own sources
+ * — which are `@endora-commerce/platform`'s and outside it — are named relative
+ * to the repository. Without the second base an absolute path from one
+ * developer's checkout would go into a ledger key and into every message.
+ */
 function backendRelative(file: string): string {
-  return file.startsWith(`${BACKEND_ROOT}/`) ? file.slice(BACKEND_ROOT.length + 1) : file;
+  if (file.startsWith(`${BACKEND_ROOT}/`)) return file.slice(BACKEND_ROOT.length + 1);
+  const repoRoot = join(BACKEND_ROOT, '..');
+  return file.startsWith(`${repoRoot}/`) ? file.slice(repoRoot.length + 1) : file;
 }
 
 export function importFindingKey(finding: {
@@ -605,22 +629,40 @@ function walkKernel(dir: string, out: string[] = []): string[] {
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = collectSources(SRC_ROOT);
+  // Rule A's population is both roots, derived (feature 080, T040a); rules B
+  // and C stay inside the application, because the platform roots are the
+  // application's own and a package is never one of them.
+  const layout = await requireModuleLayout('[kernel-boundary]');
+  const files = layout.sourceRoots.flatMap((root) => collectSources(root));
   const relationFiles = files.filter((f) => RELATION_DECORATOR_HINT.test(readFileSync(f, 'utf8')));
   const findings = relationFiles.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
   const violations = findings.filter((f) => isViolation(f) && !isPending(f));
   const pending = findings.filter((f) => isViolation(f) && isPending(f));
   const stale = stalePending(findings);
-  const rel = (p: string): string => p.replace(`${SRC_ROOT}/`, 'src/');
+  const rel = layout.displayOf;
 
-  const platformFiles = PLATFORM_ROOTS.flatMap((root) => walkKernel(join(SRC_ROOT, root)));
-  const outward = platformFiles.flatMap((f) => analyzePlatformImports(readFileSync(f, 'utf8'), f));
+  // Rules B and C walk the platform's own sources, wherever the workspace says
+  // they are. `null` is a stop and not an empty population: the whole of rules B
+  // and C is the platform, so a run without it would report `violations=0` over
+  // nothing (issue #113).
+  const platformRoot = layout.platformRoot;
+  if (platformRoot === null) {
+    console.error(
+      '[kernel-boundary] no workspace member declares `endora.type: "platform"` — rules B ' +
+        'and C have no population, and a pass over none is not a pass',
+    );
+    process.exit(2);
+  }
+  const platformFiles = PLATFORM_ROOTS.flatMap((root) => walkKernel(join(platformRoot, root)));
+  const outward = platformFiles.flatMap((f) =>
+    analyzePlatformImports(readFileSync(f, 'utf8'), f, platformRoot),
+  );
   const intoModules = outward.filter(isImportViolation);
   const importViolations = intoModules.filter((f) => !isDraining(f));
   const draining = intoModules.filter(isDraining);
 
   const closure = analyzeClosure({
-    roots: walkKernel(KERNEL_ROOT),
+    roots: walkKernel(join(platformRoot, 'kernel')),
     read: (file) => (existsSync(file) ? readFileSync(file, 'utf8') : null),
   });
   const closureViolations = closure.violations.filter((v) => !isDraining(v));
@@ -639,7 +681,7 @@ async function main(): Promise<void> {
     for (const f of intoModules) {
       const tag = isDraining(f) ? 'draining ' : 'FORBIDDEN';
       console.log(
-        `${tag} ${platformRootOf(f.file)} → ${f.targetOwner}: ` +
+        `${tag} ${platformRootOf(f.file, platformRoot)} → ${f.targetOwner}: ` +
           `${rel(f.file)}:${f.line} ${f.specifier}`,
       );
     }
@@ -668,14 +710,20 @@ async function main(): Promise<void> {
   if (files.length === 0) vacuous.push('no sources under src/ (rule A)');
   else {
     try {
-      const population = { registered: await loadRegisteredModuleIds(SRC_ROOT), files };
+      const population = {
+        registered: await loadRegisteredModuleIds(layout.manifestIndexPath),
+        files,
+        moduleIdOf: layout.moduleIdOfPath,
+      };
       const reason = vacuousModulePopulation(population);
       if (reason !== null) vacuous.push(`${reason} (rule A)`);
       // Kept for the read line below, so the corroboration this already
       // enforces is also disclosed on a run that passes it (issue #244).
       coverage = modulePopulationCoverage(population);
     } catch (error: unknown) {
-      vacuous.push(`the module index under ${SRC_ROOT} could not be read: ${String(error)}`);
+      vacuous.push(
+        `the module index at ${layout.manifestIndexPath} could not be read: ${String(error)}`,
+      );
     }
   }
   if (platformFiles.length === 0) vacuous.push('no files under the platform roots (rule B)');

@@ -13,8 +13,8 @@ import {
   responsiveTextAlignClass,
   textAlignDataAttrs,
   withHideOn,
-} from '@b2b/page-builder-core';
-import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
+} from '@endora-commerce/page-builder-core';
+import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type { ImageProps, ImageWidthMode } from '../schema/component-types.js';
 import { imageUsesCustomWidth, shouldShowImageCustomWidthField } from './image-fields.js';
 import { BoxStyled } from './box-styles.js';

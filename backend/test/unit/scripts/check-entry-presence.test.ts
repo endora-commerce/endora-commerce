@@ -15,6 +15,7 @@ import {
   loadLockedOwners,
   lockedOwners,
 } from '../../../scripts/lib/switchable-modules.js';
+import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * The entry-presence rule's own test (issues #126 and #146).
@@ -408,7 +409,7 @@ describe('checkEntryPresence — the two-way ratchet', () => {
     // would leave a deployment that had `invoices` off during the upgrade with
     // invoice numbers of a different shape.
     expect(Object.keys(BOOT_HOOKS_WITHOUT_PRESENCE)).toEqual([
-      'modules/invoices/backend.ts:onBoot#3:ctx.onBoot',
+      'packages/modules/invoices/src/backend/index.ts:onBoot#3:ctx.onBoot',
     ]);
     for (const reason of Object.values(BOOT_HOOKS_WITHOUT_PRESENCE)) {
       expect(reason.length).toBeGreaterThan(80);
@@ -417,38 +418,100 @@ describe('checkEntryPresence — the two-way ratchet', () => {
 });
 
 describe('the tree itself', () => {
-  const srcRoot = (): string =>
-    join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', 'src');
+  /**
+   * The whole tree, keyed the way a real run keys it.
+   *
+   * It used to be `readTree(<backend>/src)`, which read 65 of the 66 registered
+   * modules the day the first one became a workspace package (feature 080,
+   * T040b) — a walk that comes back short while every assertion under it still
+   * passes, which is issue #215 inside a test. `layout.sourceRoots` and
+   * `layout.keyOf` are the same two the CLI uses, so this file and the run it
+   * stands for cannot come to disagree about which files exist.
+   */
+  const treeSources = async (): Promise<Map<string, string>> => {
+    const layout = await resolveModuleLayout();
+    const sources = new Map<string, string>();
+    for (const root of layout.sourceRoots) {
+      for (const [key, text] of readTree(root)) {
+        sources.set(layout.keyOf(join(root, key)), text);
+      }
+    }
+    return sources;
+  };
+
+  /**
+   * The one file of a module that carries `marker`.
+   *
+   * Named by module and by what it says rather than by path: `blog`'s entry
+   * point was `modules/blog/backend.ts` and is now
+   * `packages/modules/blog/src/backend/index.ts`, and there are 64 more moves
+   * behind it. Exactly one file must match, so a marker that has spread to two
+   * files fails here rather than quietly proving whichever sorted first.
+   */
+  const fileOf = async (
+    sources: ReadonlyMap<string, string>,
+    moduleId: string,
+    ...markers: readonly string[]
+  ): Promise<string> => {
+    const layout = await resolveModuleLayout();
+    const matches = [...sources]
+      .filter(
+        ([key, text]) =>
+          markers.every((marker) => text.includes(marker)) &&
+          layout.moduleIdOfPath(layout.absolutePathOf(key)) === moduleId,
+      )
+      .map(([key]) => key);
+    expect(
+      matches,
+      `no single file of '${moduleId}' contains all of ${markers.join(', ')}`,
+    ).toHaveLength(1);
+    return matches[0]!;
+  };
 
   it('has no ungated entry point left, and no stale ledger entry', async () => {
-    const sources = readTree(srcRoot());
+    const sources = await treeSources();
     expect(sources.size, 'no sources found — a vacuous pass').toBeGreaterThan(100);
-    const lockedModules = await loadLockedOwners(srcRoot());
+    // The index is located rather than joined onto a source root (feature 080,
+    // T040a), so this reads the same file the CLI reads whichever root the
+    // modules are under.
+    const lockedModules = await loadLockedOwners((await resolveModuleLayout()).manifestIndexPath);
     expect(lockedModules.size, 'no module read as locked — the manifests did not load').toBeGreaterThan(
       0,
     );
-    const result = checkEntryPresence({ sources, lockedModules }, ENTRY_PRESENCE_LEDGER);
+    // The same third input the CLI passes (feature 080, T040b): without it
+    // `_lifecycle`'s files attribute to no module and its ledgered lease
+    // heartbeat reads as stale — a red that says the timer is gone when the
+    // timer is exactly where it was.
+    const result = checkEntryPresence(
+      {
+        sources,
+        lockedModules,
+        hostResidentModules: (await resolveModuleLayout()).hostResidentModules,
+      },
+      ENTRY_PRESENCE_LEDGER,
+    );
     expect(result.violations.map((v) => `${v.file}:${v.line} ${v.finding}`)).toEqual([]);
     expect(result.stale).toEqual([]);
   });
 
-  it('still sees the sweeps and the boot hooks the rule was written for', () => {
-    const sources = readTree(srcRoot());
+  it('still sees the sweeps and the boot hooks the rule was written for', async () => {
+    const sources = await treeSources();
     // Blank the presence decision out of each and the check must find it again:
     // proof that every compliant site is compliant, not merely unseen. The last
     // five are D-68's population — three of them repaired in the MR that added
     // this ratchet, two of them (`blog`, `cms`) only after their mixed hook was
     // split, which is why the split is what this list is measuring.
-    for (const [file, moduleId] of [
-      ['modules/price_lists/plugin.ts', 'price_lists'],
-      ['modules/ksef/plugin.ts', 'ksef'],
-      ['modules/search/plugin.ts', 'search'],
-      ['modules/blog/backend.ts', 'blog'],
-      ['modules/cms/backend.ts', 'cms'],
-      ['modules/inventory/backend.ts', 'inventory'],
-      ['modules/pim_ergonode/backend.ts', 'pim_ergonode'],
-      ['modules/product_feeds/backend.ts', 'product_feeds'],
+    for (const moduleId of [
+      'price_lists',
+      'ksef',
+      'search',
+      'blog',
+      'cms',
+      'inventory',
+      'pim_ergonode',
+      'product_feeds',
     ] as const) {
+      const file = await fileOf(sources, moduleId, `effectiveState.isPresent('${moduleId}')`);
       const text = sources.get(file);
       expect(text, `${file} is not in the tree`).toBeDefined();
       const blanked = (text as string).replaceAll(
@@ -461,15 +524,18 @@ describe('the tree itself', () => {
     }
   });
 
-  it('keeps the two asset-reference contributions out of the probed half', () => {
-    const sources = readTree(srcRoot());
+  it('keeps the two asset-reference contributions out of the probed half', async () => {
+    const sources = await treeSources();
     // The other direction of the split, and the one a wrong repair breaks: the
     // hook that registers the scanner must still be a *contribution* — nothing
     // this check reports, and nothing anybody is told to probe.
-    for (const [file, register] of [
-      ['modules/blog/backend.ts', 'registerBlogAssetReferences('],
-      ['modules/cms/backend.ts', 'registerCmsAssetReferences('],
+    for (const [moduleId, register] of [
+      ['blog', 'registerBlogAssetReferences('],
+      ['cms', 'registerCmsAssetReferences('],
     ] as const) {
+      // Two markers, because the module also **declares** the function: the
+      // site this is about is the boot hook that calls it.
+      const file = await fileOf(sources, moduleId, register, 'ctx.onBoot(');
       const text = sources.get(file) as string;
       expect(text, `${file} no longer registers its asset references`).toContain(register);
       const hook = text.slice(text.indexOf(register));

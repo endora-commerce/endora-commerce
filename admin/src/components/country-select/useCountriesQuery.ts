@@ -12,7 +12,7 @@
 // regardless of their dictionary access.
 
 import { useEffect, useState } from 'react';
-import type { DictionaryRegistryResponse, ResolvedCountry } from '@b2b/contracts';
+import type { DictionaryRegistryResponse, ResolvedCountry } from '@endora-commerce/contracts';
 import { apiClient } from '@/lib/api-client';
 
 const cache = new Map<string, Promise<ResolvedCountry[]>>();

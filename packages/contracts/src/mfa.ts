@@ -1,4 +1,4 @@
-// @b2b/contracts — MFA module (feature 042).
+// @endora-commerce/contracts — MFA module (feature 042).
 //
 // Source-of-truth Zod schemas for the MFA boundary: TOTP enrolment/verification,
 // the two-step login result, federated sign-in, and admin reset/enforcement.
@@ -266,4 +266,48 @@ export type MfaActiveEnrolmentCounts = z.infer<typeof mfaActiveEnrolmentCountsSc
 export interface MfaEnrolmentCountPort {
   /** Subjects with an `active` (confirmed) TOTP enrolment, right now. */
   countActiveEnrolments(): Promise<MfaActiveEnrolmentCounts>;
+}
+
+/**
+ * Container name: `mfaEnrolmentStatePort`. Owner: `mfa`.
+ *
+ * Which of these subjects hold an **active** (confirmed) second factor, right
+ * now. It is the source `twoFactorEnabled` is derived from on every response
+ * that carries it — the admin user list and `/api/v1/admin/me`, the admin
+ * customer detail, the organisation member panels, and the buyer's own
+ * `GET /api/v1/me/customer`.
+ *
+ * Both identity stores hold a `two_factor_confirmed_at` column and **neither
+ * has ever had a writer**, so the field derived from it was a provably
+ * constant `false`: an operator, and a buyer reading their own account page,
+ * were told "no second factor" about someone who had enrolled an hour earlier.
+ * The live state is `mfa_enrolments`, which is this module's table, so this is
+ * the only honest source.
+ *
+ * **Batched, not per row.** The callers are list surfaces; a per-row port would
+ * put one query per admin user behind `/admin-users`. `subjectIds` is answered
+ * as a subset, so a caller builds a `Set` and asks it per row.
+ *
+ * The record is `string[]` and never an entity: `MfaEnrolment` carries the
+ * encrypted TOTP secret, its IV and its auth tag, and no consumer of this port
+ * has any business holding those.
+ *
+ * **When `mfa` is absent this port is not resolved at all.** The gate on the
+ * registration would refuse, and a 503 is the wrong answer for an admin list —
+ * so both consumers decide presence with `effectiveState.isPresent('mfa')`
+ * first and report `false`, which is not a fallback but the truth: with the
+ * module off, no sign-in asks for a second factor, so no account is protected
+ * by one. See the `degrades-without` entries in `admin_users`' and
+ * `customer_accounts`' manifests for the sentence an operator is shown.
+ */
+export interface MfaEnrolmentStatePort {
+  /**
+   * The subset of `subjectIds` with an `active` enrolment of `subjectType`.
+   * Order is not significant and an empty input answers an empty array without
+   * touching the database.
+   */
+  activeSubjectIds(
+    subjectType: MfaSubjectType,
+    subjectIds: readonly string[],
+  ): Promise<string[]>;
 }

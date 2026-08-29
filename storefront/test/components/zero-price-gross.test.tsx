@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import type { ProductSummary } from '@b2b/contracts';
+import type { ProductSummary } from '@endora-commerce/contracts';
 import { ProductRow } from '../../components/ProductRow';
 import { ProductCard } from '../../components/ProductCard';
 

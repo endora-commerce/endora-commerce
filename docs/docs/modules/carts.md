@@ -102,7 +102,7 @@ Role gate: `CustomerAccount.role === 'organization_admin'` for every
   `recomputed_*` columns).
 - `CartAuditEntry` (typed per-cart feed; indexed on `(cart_id, occurred_at
   DESC)`). Every state transition also lands a row in the existing
-  `audit_log_entries` table via `AuditLogService` for the platform-wide
+  `audit_log_entries` table via `AuditPort` for the platform-wide
   audit timeline.
 
 ## Settings (feature 027)
@@ -190,8 +190,12 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
   follow-up.
 - **Abandonment scheduler** — the worker is constructed in production
   composition but not yet wired to a cron / BullMQ schedule. The ops CLI
-  `pnpm --filter backend run cart:abandonment-sweep` runs one tick by hand;
-  see `backend/src/modules/carts/scripts/abandonment-sweep.ts`.
+  `pnpm --filter backend run cart:abandonment-sweep` runs one tick by hand.
+  It is a manifest-declared command the host runs, so it sweeps through the
+  composition's own `cartAbandonmentWorker` — see
+  `backend/src/modules/carts/cli/abandonment-sweep.ts` for the body and the
+  `cliCommands` export in `backend/src/modules/carts/manifest.ts` for the
+  declaration.
 
 ## Audit retention
 
@@ -220,7 +224,7 @@ Retention policy (feature 027):
   scheduled job that prunes carts, customer accounts, or organizations
   for storage hygiene MUST either skip `cart_audit_entries` or archive
   it first. Reviewers: add this table to the exclusion list in
-  `backend/src/modules/audit_logs/retention-policy.ts` when that policy
+  `packages/modules/audit_logs/src/backend/retention-policy.ts` when that policy
   is introduced.
 - **The platform-wide `audit_log_entries` table follows the audit_logs
   module's retention policy** (controlled outside this feature). The

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { CmsColorPaletteEntry, PutCmsColorPaletteRequest } from '@b2b/contracts';
-import { ColorPaletteProvider as PbColorPaletteProvider } from '@b2b/page-builder-core/client';
+import type { CmsColorPaletteEntry, PutCmsColorPaletteRequest } from '@endora-commerce/contracts';
+import { ColorPaletteProvider as PbColorPaletteProvider } from '@endora-commerce/page-builder-core/client';
 import { cmsClient } from '../api/cms-client';
 import { ColorPaletteModal } from './ColorPaletteModal';
 

@@ -1,14 +1,14 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { seedSuspendedOrganization } from '../../helpers/seed-commerce.js';
-import { TranslationBundle } from '../../../src/modules/_i18n/entities/translation-bundle.entity.js';
+import { TranslationBundle } from '../../helpers/package-entities.js';
 
 /**
  * T099 — `POST /orders` on a suspended Organization must be refused with 423.
@@ -45,7 +45,7 @@ import { TranslationBundle } from '../../../src/modules/_i18n/entities/translati
 
 const I18N_MODULE_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../src/modules/_i18n',
+  '../../../../packages/modules/_i18n',
 );
 
 describe('POST /api/v1/orders — suspended Organization', () => {

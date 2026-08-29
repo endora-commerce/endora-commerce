@@ -8,7 +8,7 @@ import {
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 
 /**
  * Feature 024 / T005-T008 — Integration tests against a real PostgreSQL

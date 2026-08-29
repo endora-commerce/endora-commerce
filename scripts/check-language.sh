@@ -47,9 +47,8 @@ cd "$REPO_ROOT"
 
 # shellcheck source=scripts/lib/read-size.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/read-size.sh"
-
-# Where the expected population comes from in full mode (issue #244).
-manifest_index="backend/src/modules/_lifecycle/manifest-index.generated.ts"
+# shellcheck source=scripts/lib/module-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/module-root.sh"
 
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -70,6 +69,51 @@ if ! command -v git >/dev/null 2>&1 || ! git rev-parse --is-inside-work-tree >/d
 fi
 if ! command -v perl >/dev/null 2>&1; then
   red "✗ check-language needs perl (it blanks cited terms before testing the prose)."
+  exit 2
+fi
+
+# Where the expected population comes from in full mode (issue #244), and where
+# this run's own source is — **resolved, not spelled**. This script used to
+# write `backend/src/modules/_lifecycle/manifest-index.generated.ts` here while
+# its sibling `check-naming.sh` resolved the same file (feature 080, T012), so a
+# moved module tree left it refusing to run for a layout change it should
+# follow. They are one job and one pair of modes; they derive the root the same
+# way, and both prune a checkout nested inside this one — see
+# `lib/module-root.sh` for why the discriminator is the `.git` entry and what it
+# cannot see.
+module_root_resolve_nested_checkouts
+index_status=0
+manifest_index="$(module_root_manifest_index)" || index_status=$?
+if [ "$index_status" -ne 0 ]; then
+  case "$index_status" in
+    2)
+      red "✗ check-language found more than one generated manifest index:"
+      printf '%s\n' "$manifest_index" | sed 's/^/    /'
+      red "  Each names a different module tree, so the expected population would be one"
+      red "  tree's while the listing is the repository's. Refusing to guess."
+      ;;
+    *)
+      red "✗ check-language found no generated manifest index in this repository, so it"
+      red "  cannot derive the population its listing is reconciled against."
+      red "  Refusing to report a vacuous pass."
+      ;;
+  esac
+  exit 2
+fi
+
+# The modules themselves, one directory each (feature 080, T040a). The
+# reconciliation below asks whether the listing produced a file for every one of
+# them, and a module that has become a workspace package is under no root the
+# application owns — so the expectation is the resolved directories rather than
+# a root the index used to imply.
+module_dirs=()
+while IFS= read -r module_dir; do
+  [ -n "$module_dir" ] && module_dirs+=("$module_dir")
+done < <(module_root_module_directories "$manifest_index" || true)
+if [ "${#module_dirs[@]}" -eq 0 ]; then
+  red "✗ check-language resolved no module directory from $manifest_index, so it cannot"
+  red "  derive the population its listing is reconciled against."
+  red "  Refusing to report a vacuous pass."
   exit 2
 fi
 
@@ -147,7 +191,25 @@ prose_scanner='
   # Paths arrive as bytes and are opened as bytes; the prose is decoded per
   # file, so a path is never re-encoded on its way to open().
   binmode(STDIN, ":raw");
-  binmode(STDOUT, ":encoding(UTF-8)");
+  # STDOUT is raw and the report is encoded by hand, one line at a time.
+  #
+  # `binmode(STDOUT, ":encoding(UTF-8)")` would be the obvious spelling and it
+  # cannot be used: the layer loads `PerlIO`, which lives in the Debian
+  # `perl-modules` package, and the only perl in `node:22.17-slim` — the image
+  # every backend CI job runs — is the Essential `perl-base`. The scanner aborted
+  # at BEGIN there, every non-zero exit was read as a finding, and ten cases went
+  # red in CI while passing on every developer machine. `quality:static` never
+  # saw it because `apt-get install git` pulls the modules package in as a
+  # dependency, which is a supply nothing declared and one
+  # `--no-install-recommends` away from disappearing. `utf8::encode` is core, it
+  # produces the same bytes the layer produced, and it needs nothing installed.
+  binmode(STDOUT, ":raw");
+
+  sub emit {
+    my ($text) = @_;
+    utf8::encode($text);
+    print $text;
+  }
 
   my $label = $kind eq "docs"
     ? "Non-English characters in docs file"
@@ -257,20 +319,38 @@ prose_scanner='
 
     next unless @hits;
     $found = 1;
-    print "\033[31m\x{2717} $label $path:\033[0m\n";
-    printf("    %s:%s\n", $_->[0], $_->[1]) for @hits;
+    emit("\033[31m\x{2717} $label $path:\033[0m\n");
+    emit(sprintf("    %s:%s\n", $_->[0], $_->[1])) for @hits;
   }
   exit($found ? 1 : 0);
 '
 
 # Runs the scanner over a file list. $1 is the kind, the rest are the paths.
 # Returns 0 when every one of them is clean, 1 when any is not.
+#
+# **Those are the only two answers, and anything else exits 2** (issue #244, on
+# the scan rather than on the listing). Every non-zero status used to become
+# `fail=1`, so a scanner that never started was reported as a language
+# violation: a verdict from a scan that did not happen, printed under a `read:`
+# line naming the files it would have read. That is not hypothetical — a perl
+# with no `PerlIO` aborted at BEGIN and this check reported findings it had not
+# found, on a clean tree, in every backend CI job. The listing floors above
+# refuse a population that came back short; this refuses one that was never
+# looked at.
 scan_prose() {
   local kind="$1"
   shift
   [ "$#" -gt 0 ] || return 0
+  local status=0
   printf '%s\n' "$@" \
-    | perl -CA -e "$prose_scanner" -- "$kind" "$pattern" "$optout_marker" "${proper_nouns[@]}"
+    | perl -CA -e "$prose_scanner" -- "$kind" "$pattern" "$optout_marker" "${proper_nouns[@]}" \
+    || status=$?
+  if [ "$status" -gt 1 ]; then
+    red "✗ check-language's prose scanner did not run (perl exited $status), so the $kind scan"
+    red "  reached none of its ${#} file(s) and produced no verdict. Refusing to report one."
+    exit 2
+  fi
+  return "$status"
 }
 
 # Which listing is actually in use. `--diff` degrades to a full scan when the
@@ -282,13 +362,25 @@ else
   listing="full"
 fi
 
+# A nested checkout's sources are another commit's, and a finding in one is
+# reported against a path no merge request on this branch can change. `git
+# ls-files --others` answers for a nested work tree with a single directory
+# entry while its gitfile resolves, and file by file once the gitdir has been
+# swept — so this filter is the difference between a few phantom entries in the
+# count and a whole second tree scanned as if it were ours. It reads as
+# unnecessary on the machine it was written on, where an untracked
+# `.git/info/exclude` rule already hides `.claude/worktrees`; that rule is
+# local, no clone carries it, and it covers one path name rather than the
+# property.
 if [[ "$listing" == "diff" ]]; then
   mapfile -t candidate_files < <(
-    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${exceptions[@]}" 2>/dev/null || true
+    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${exceptions[@]}" 2>/dev/null \
+      | module_root_drop_nested_checkouts || true
   )
 else
   mapfile -t candidate_files < <(
-    git ls-files --cached --others --exclude-standard -- "${exceptions[@]}" 2>/dev/null || true
+    git ls-files --cached --others --exclude-standard -- "${exceptions[@]}" 2>/dev/null \
+      | module_root_drop_nested_checkouts || true
   )
 fi
 
@@ -320,11 +412,13 @@ docs_globs=(
 
 if [[ "$listing" == "diff" ]]; then
   mapfile -t docs_files < <(
-    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${docs_globs[@]}" 2>/dev/null || true
+    git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${docs_globs[@]}" 2>/dev/null \
+      | module_root_drop_nested_checkouts || true
   )
 else
   mapfile -t docs_files < <(
-    git ls-files --cached --others --exclude-standard -- "${docs_globs[@]}" 2>/dev/null || true
+    git ls-files --cached --others --exclude-standard -- "${docs_globs[@]}" 2>/dev/null \
+      | module_root_drop_nested_checkouts || true
   )
 fi
 
@@ -346,9 +440,10 @@ fi
 # there is no expectation to derive.
 if [[ "$listing" == "full" ]]; then
   if ! language_coverage="$(printf '%s\n' "${tracked[@]}" \
-    | read_size_module_coverage "$manifest_index")"; then
-    red "✗ check-language could not read the manifest index at $manifest_index — the"
-    red "  expected population is derived from it. Refusing to report a vacuous pass."
+    | read_size_module_coverage "$(printf '%s\n' "${module_dirs[@]}")")"; then
+    red "✗ check-language could not reconcile the listing against the modules resolved"
+    red "  from $manifest_index — the expected population is derived from them."
+    red "  Refusing to report a vacuous pass."
     exit 2
   fi
   read_size_report '[language]' "$(( ${#tracked[@]} + ${#docs_files[@]} ))" - \

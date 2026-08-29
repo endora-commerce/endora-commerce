@@ -1,7 +1,7 @@
 // Client-side PWA helpers (feature 046). Talk to same-origin Next route handlers
 // (`/pwa/config`, `/pwa/subscriptions`) which proxy to the backend.
 
-import type { PwaPublicConfig } from '@b2b/contracts';
+import type { PwaPublicConfig } from '@endora-commerce/contracts';
 
 export async function getPwaConfig(): Promise<PwaPublicConfig | null> {
   try {

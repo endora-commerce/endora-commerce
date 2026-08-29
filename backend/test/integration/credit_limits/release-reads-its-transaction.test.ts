@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { Organization } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
@@ -6,12 +7,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
-import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
-import { CreditLimitReservation } from '../../../src/modules/credit_limits/entities/credit-limit-reservation.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
+import { CreditLimit, CreditLimitReservation } from '../../helpers/package-entities.js';
 import { EventBus } from '../../../src/events/bus.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * `releaseByOrder` reports the credit its own transaction has just freed
@@ -106,6 +105,7 @@ describe('credit-limit release reads its own transaction (issue #207)', () => {
     const reservation = em.create(CreditLimitReservation, {
       creditLimitId,
       orderId,
+      reservingOrganizationId: organizationId,
       amount: '400.00',
       currency: 'PLN',
       status: 'active',
@@ -128,6 +128,7 @@ describe('credit-limit release reads its own transaction (issue #207)', () => {
     em.create(CreditLimitReservation, {
       creditLimitId,
       orderId: keptOrderId,
+      reservingOrganizationId: organizationId,
       amount: '250.00',
       currency: 'PLN',
       status: 'active',
@@ -135,6 +136,7 @@ describe('credit-limit release reads its own transaction (issue #207)', () => {
     em.create(CreditLimitReservation, {
       creditLimitId,
       orderId: releasedOrderId,
+      reservingOrganizationId: organizationId,
       amount: '100.00',
       currency: 'PLN',
       status: 'active',

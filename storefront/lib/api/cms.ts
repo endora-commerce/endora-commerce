@@ -1,4 +1,4 @@
-import type { CmsPage, CmsResolvedBlock, CmsResolvedHook, CmsResolvedPage } from '@b2b/contracts';
+import type { CmsPage, CmsResolvedBlock, CmsResolvedHook, CmsResolvedPage } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 
 /**

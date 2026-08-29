@@ -8,9 +8,11 @@ Per-user language preference for the Admin UI plus a module-scoped translation p
 lets every backend module ship its own bundle of translated strings. Polish and English are
 shipped at launch; English is the platform-wide fallback. Feature 019.
 
-The subsystem itself lives at `backend/src/modules/_i18n/` (platform-internal — leading
-underscore, alongside `auth` / `_lifecycle`). The admin SPA's runtime lives at
-`admin/src/i18n/`.
+The subsystem itself is the workspace package `@endora-commerce/mod-i18n`, at
+`packages/modules/_i18n/` (platform-internal — leading underscore, which the npm name drops).
+Its translation bundles sit at the package root, `packages/modules/_i18n/i18n/`, because the
+platform anchors a module's `bundlesDir` to the module's own directory and a package's own
+directory is where its `package.json` is. The admin SPA's runtime lives at `admin/src/i18n/`.
 
 ## How a user changes their language
 
@@ -41,7 +43,7 @@ The session-bootstrap response (`GET /api/v1/admin/me`) carries `preferredLangua
 
    ```typescript
    // backend/src/modules/<my_module>/manifest.ts
-   import { defineModuleManifest } from '@b2b/contracts';
+   import { defineModuleManifest } from '@endora-commerce/contracts';
 
    export const manifest = defineModuleManifest({
      id: 'my_module',
@@ -82,7 +84,7 @@ The session-bootstrap response (`GET /api/v1/admin/me`) carries `preferredLangua
 
 ### Rules and constraints
 
-- The supported set is currently `['en', 'pl']` (closed enum in `@b2b/contracts/src/admin-i18n.ts`).
+- The supported set is currently `['en', 'pl']` (closed enum in `@endora-commerce/contracts/src/admin-i18n.ts`).
 - Files for unsupported languages are rejected at install time.
 - A module that ships any bundle MUST ship `en.json` (English is the platform-wide fallback).
   A Polish bundle is encouraged but optional — ship it in the same PR as the English file.
@@ -138,7 +140,7 @@ hard-uninstall hook is the cleanup mechanism, not `ON DELETE CASCADE`.
 
 Adding `de` (or any other BCP-47 code) is treated as a separate feature because the cost is
 mostly translation work, not engineering. The schema change is one line in
-`@b2b/contracts/src/admin-i18n.ts`:
+`@endora-commerce/contracts/src/admin-i18n.ts`:
 
 ```typescript
 export const SupportedAdminLanguageSchema = z.enum(['en', 'pl', 'de']);

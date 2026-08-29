@@ -15,7 +15,19 @@ export interface RecentActivityItem {
   id: string;
   actedAt: string;
   action: string;
-  module: 'catalog' | 'inventory' | 'price_lists';
+  /**
+   * The module that declared this action token.
+   *
+   * A plain string since feature 080's T042j: it was a union of three core
+   * module ids, one of four hand-maintained tables D-163.1 retired, and a
+   * closed union is exactly why a packaged module's row could not appear on
+   * this card. It doubles as the i18n scope the verb is resolved in.
+   */
+  module: string;
+  /** Icon name from the platform's closed allowlist; see `icon-map.ts`. */
+  icon: string;
+  /** Verb key, relative to `module`'s i18n namespace. */
+  labelKey: string;
   actorDisplayName: string;
   actorKind: 'admin' | 'system';
   targetType: string;

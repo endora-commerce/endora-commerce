@@ -1,13 +1,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
-import { defineModuleManifest } from '@b2b/contracts';
+import { Redis } from 'ioredis';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import type { LifecycleError } from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
+import type { LifecycleError } from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 
 /**
  * Integration test for FR-007 edge — installing a disabled module
@@ -51,6 +51,7 @@ describe('Module install — rejects when target is disabled (integration)', () 
         ['fixture_disabled', { manifest, filePath: '<test>' }],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     // Seed as disabled.

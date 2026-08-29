@@ -1,14 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { NewsletterTokenHelper } from '../../../src/modules/newsletter/services/token.helper.js';
-import { NewsletterOptInService } from '../../../src/modules/newsletter/services/opt-in.service.js';
-import { NewsletterContentService } from '../../../src/modules/newsletter/services/content.service.js';
-import { NewsletterAutomationService } from '../../../src/modules/newsletter/services/automation.service.js';
-import { InMemoryNewsletterProvider } from '../../../src/modules/newsletter/services/provider/console-provider.js';
+import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
+import { NewsletterOptInService } from '../../../../packages/modules/newsletter/src/backend/services/opt-in.service.js';
+import { NewsletterContentService } from '../../../../packages/modules/newsletter/src/backend/services/content.service.js';
+import { NewsletterAutomationService } from '../../../../packages/modules/newsletter/src/backend/services/automation.service.js';
+import { InMemoryNewsletterProvider } from '../../../../packages/modules/newsletter/src/backend/services/provider/console-provider.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
-import { NewsletterAutomationRun } from '../../../src/modules/newsletter/entities/newsletter-automation-run.entity.js';
-import type { AutomationStep } from '@b2b/contracts';
+import type { AutomationStep } from '@endora-commerce/contracts';
+import { NewsletterAutomationRun, NewsletterSubscriber } from '../../helpers/package-entities.js';
 
 function tree(text: string): Record<string, unknown> {
   return { root: { props: {} }, content: [{ type: 'EmailText', props: { id: 't', text } }], zones: {} };

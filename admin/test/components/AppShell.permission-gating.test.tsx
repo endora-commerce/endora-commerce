@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { ModulePresence } from '@b2b/contracts';
+import type { ModulePresence } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 
@@ -94,6 +94,9 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.comparisons',
   'appShell.nav.organizations',
   'appShell.nav.priceLists',
+  'appShell.nav.paymentMethods',
+  'appShell.nav.deliveryMethods',
+  'appShell.nav.taxes',
 ]);
 
 const { AppShell } = await import('../../src/components/AppShell');
@@ -164,6 +167,86 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
 
     renderShell(['customers:read']);
     expect(sidebarHrefs()).toContain('/organizations');
+  });
+
+  /**
+   * `payment_methods` took its own codes on 2026-08-28. The sidebar entry and
+   * the Navigate row are two literals nothing derives — `check:action-route-
+   * permissions` reads the manifest action and the backend route and no file in
+   * this application — so the code they carry is checked here or nowhere. A
+   * catalogue editor is the role the old gate handed the screen to, which makes
+   * it the discriminating negative rather than an arbitrary one.
+   */
+  it('hides /payment-methods from a catalogue editor', async () => {
+    renderShell(['catalog:read', 'catalog:write']);
+    expect(sidebarHrefs()).not.toContain('/payment-methods');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.paymentMethods')),
+    ).toBe(false);
+  });
+
+  it('shows /payment-methods to a role holding payment_methods:read', async () => {
+    renderShell(['payment_methods:read']);
+    expect(sidebarHrefs()).toContain('/payment-methods');
+    // …and only that one. The two method screens sit next to each other and
+    // used to carry one code between them, so the discriminating assertion is
+    // that the neighbour stays hidden. One render per case on purpose:
+    // `renderShell` mounts a second shell beside the first rather than
+    // replacing it, so a `not.toContain` after two renders reads both.
+    expect(sidebarHrefs()).not.toContain('/delivery-methods');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.paymentMethods')),
+    ).toBe(true);
+  });
+
+  /**
+   * `delivery_methods` took its own codes on 2026-08-28, on the same terms and
+   * for the same reason.
+   */
+  it('hides /delivery-methods from a catalogue editor', async () => {
+    renderShell(['catalog:read', 'catalog:write']);
+    expect(sidebarHrefs()).not.toContain('/delivery-methods');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.deliveryMethods')),
+    ).toBe(false);
+  });
+
+  it('shows /delivery-methods to a role holding delivery_methods:read', async () => {
+    renderShell(['delivery_methods:read']);
+    expect(sidebarHrefs()).toContain('/delivery-methods');
+    expect(sidebarHrefs()).not.toContain('/payment-methods');
+    expect(
+      (await openPaletteItems()).some((t) => t.includes('appShell.nav.deliveryMethods')),
+    ).toBe(true);
+  });
+
+  /**
+   * `taxes` took its own codes on 2026-08-28, the last of the four the sweep in
+   * `specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 classified
+   * as defective — and the only one whose sidebar entry carried a **write**
+   * code, because every one of its four routes did.
+   *
+   * So the negative here is not the catalogue *reader* the three predecessors
+   * used: `catalog:read` never opened this screen. It is the catalogue
+   * **editor**, which did, and which now must not.
+   *
+   * The sidebar is asserted alone because there is nothing else to assert:
+   * `taxes` contributes no `PALETTE_ITEMS` Navigate row and no manifest action,
+   * so the ⌘K palette has never offered this screen at all. That is a
+   * Principle XVI gap and it is reported rather than repaired here — adding a
+   * discovery surface is not this merge request's subject, and a palette row
+   * added now would carry the code without ever having carried the wrong one.
+   */
+  it('hides /taxes from a catalogue editor', () => {
+    renderShell(['catalog:read', 'catalog:write']);
+    expect(sidebarHrefs()).not.toContain('/taxes');
+  });
+
+  it('shows /taxes to a role holding taxes:read', () => {
+    renderShell(['taxes:read']);
+    expect(sidebarHrefs()).toContain('/taxes');
+    // The read half alone opens the screen; the write half is what the screen's
+    // own editing affordances are gated on, not its entry.
   });
 
   it('leaves an ungated shell surface alone', async () => {

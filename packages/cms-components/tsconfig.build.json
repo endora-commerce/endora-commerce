@@ -1,0 +1,16 @@
+{
+  // Emit configuration — see `packages/contracts/tsconfig.build.json` for why the
+  // type-check config and the emit config are two files.
+  //
+  // With `paths` cleared, `@endora-commerce/page-builder-core` resolves through its `exports` map
+  // to `packages/page-builder-core/dist/*.d.ts`, so that package must be built first.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    "noEmitOnError": true
+  },
+  // See `packages/contracts/tsconfig.build.json` — tests type-check but are not published.
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+}

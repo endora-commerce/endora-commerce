@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   addOrderComment,
+  cancelMyOrder,
   cloneOrderToQuote,
   getMyOrder,
   listOrderComments,
@@ -10,12 +11,19 @@ import {
   resolveOrderStatusLabel,
   type OrderComment,
 } from '../../../../lib/api/orders';
+import { retryOrderPayment } from '../../../../lib/api/payments';
+import { offersCancellation } from '../../../../lib/order-cancel';
+import { offersPaymentRetry, paymentRetryDestination } from '../../../../lib/payment-retry';
 import { getReturnable } from '../../../../lib/api/returns';
 import { listMyOrderInvoices, invoiceDownloadUrl } from '../../../../lib/api/invoices';
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { formatMoney } from '../../../../lib/i18n/money';
+import { tForLocale } from '../../../../lib/i18n/messages';
+import { resolvePaymentReturnNotice } from '../../../../lib/orders/payment-return-notice';
+import { PurchaseTracker } from '../../../../components/analytics/EcommerceTrackers';
+import { purchaseTrackingPayload } from '../../../../lib/analytics/purchase-eligibility';
 
 /**
  * Order confirmation page (T158). Renders the order the buyer just placed
@@ -26,11 +34,26 @@ import { formatMoney } from '../../../../lib/i18n/money';
 
 export default async function OrderConfirmationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  /**
+   * `error` is written by every server action on this page. It had been
+   * written and never read — the page took no `searchParams` at all — so a
+   * reorder or a comment that failed redirected the buyer back to a page that
+   * said nothing. Issue #264 needed the same channel for a refused payment.
+   *
+   * Issue #274 then made this page where every payment gateway returns the
+   * buyer, so it also reads why they are back (`payment`).
+   *
+   * Kept optional: Next.js always passes it to a page, but the fallback costs
+   * nothing and the destructure cannot throw on a caller that does not.
+   */
+  searchParams?: Promise<{ payment?: string; error?: string }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   const { id } = await params;
+  const { payment: paymentReturn, error: actionError } = (await searchParams) ?? {};
   if (!session) redirect(`/login?next=/orders/${id}`);
 
   let order;
@@ -56,9 +79,47 @@ export default async function OrderConfirmationPage({
   }
 
   const { locale } = await getServerContext();
+  const t = tForLocale(locale);
+  const paymentNotice = resolvePaymentReturnNotice(paymentReturn, order.paymentStatus);
+  /**
+   * The GA4 `purchase` conversion for this order (issue #277).
+   *
+   * Issue #274 made this page where every gateway returns the buyer, and it
+   * rendered no tracker — so from that change until this one, a PayU or
+   * Autopay buyer completed a payment and was counted nowhere. The eligibility
+   * rule is the one `/checkout/success` applies, reused rather than restated:
+   * a gateway order counts once its payment is confirmed, an order settled out
+   * of band counts at placement, and a refunded or failed one never counts.
+   *
+   * Not gated on `?payment=`, deliberately. That marker says a gateway sent
+   * the buyer here, and a buyer who closed the tab mid-redirect and opened the
+   * order from their list an hour later arrives without it — the conversion is
+   * no less real. What stops this from counting the same order on every visit
+   * is the platform's claim, which the tracker spends before it fires and
+   * which was never opened for any order placed before this existed.
+   */
+  const purchase = purchaseTrackingPayload(order);
   // Terminal orders close commenting; a pending payment surfaces a Pay CTA.
   const isTerminal = order.status === 'completed' || order.status === 'cancelled';
+  // Deliberately narrow, and it stays narrow after feature 085 widened the two
+  // predicates below it: this is the "we are waiting for your money" hint, and
+  // an order whose payment was declined gets the stronger retry hint instead —
+  // `failed` is only ever written by the gateway settlement ingress, so such an
+  // order is always a gateway order and `canRetryPayment` is always true for
+  // it. Widening this would print both.
   const awaitingPayment = !isTerminal && order.paymentStatus === 'awaiting_payment';
+  // Issue #264 — deliberately not gated on `isTerminal`. It was written when
+  // the settlement ingress applied a `status_on_failure` seeded `cancelled`
+  // everywhere, so a declined card left a terminal-looking order the buyer
+  // still owed money on. Feature 085 holds such an order at `on_hold` instead,
+  // which is not terminal — but the decision is unchanged, because the server
+  // owns it and the storefront must not re-derive a lifecycle rule. See
+  // `lib/payment-retry.ts`.
+  const canRetryPayment = offersPaymentRetry(order);
+  // Feature 085 (US3) — read, never derived. The rule needs the configured
+  // status graph and the payment method's configured failure status, so the
+  // platform decides it and sends the answer; see `lib/order-cancel.ts`.
+  const canCancel = offersCancellation(order);
 
   // Surface a return/complaint entry point directly on the order — only when the
   // order is actually eligible (entered a completing status, items still
@@ -81,16 +142,51 @@ export default async function OrderConfirmationPage({
 
   return (
     <div className="b2b-auth max-w-[720px]">
+      {/* Feature 049 — GA4 purchase (no-op unless Enhanced Ecommerce is on). */}
+      {purchase ? <PurchaseTracker order={purchase} orderId={order.id} /> : null}
       <h1>Thank you — order placed</h1>
       <p className="b2b-auth__success">
         Order <strong>{order.businessId}</strong> has been received.
       </p>
+
+      {actionError && actionError.trim().length > 0 ? (
+        <p role="alert" className="b2b-auth__error">
+          {actionError}
+        </p>
+      ) : null}
+
+      {paymentNotice ? <p className="b2b-auth__hint">{t(paymentNotice)}</p> : null}
 
       {order.nextAction?.kind === 'awaiting_transfer' ? (
         <p>
           Pay by bank transfer using the reference printed on the proforma invoice we&apos;ll
           email shortly. We&apos;ll update the order once the payment clears.
         </p>
+      ) : null}
+
+      {canRetryPayment ? (
+        <div className="mb-6">
+          <p className="b2b-auth__hint">{t('order.payment.retry.hint')}</p>
+          <form action={retryPaymentAction} className="mt-2 inline">
+            <input type="hidden" name="id" value={order.id} />
+            <input type="hidden" name="code" value={order.paymentMethod.code} />
+            <button type="submit" className="btn btn--primary btn--sm">
+              {t('order.payment.retry.cta')}
+            </button>
+          </form>
+        </div>
+      ) : null}
+
+      {canCancel ? (
+        <div className="mb-6">
+          <p className="b2b-auth__hint">{t('order.cancel.hint')}</p>
+          <form action={cancelOrderAction} className="mt-2 inline">
+            <input type="hidden" name="id" value={order.id} />
+            <button type="submit" className="btn btn--outline btn--sm">
+              {t('order.cancel.cta')}
+            </button>
+          </form>
+        </div>
       ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -300,6 +396,63 @@ async function reorderAction(formData: FormData): Promise<void> {
     redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
   }
   redirect(target);
+}
+
+/**
+ * Pay this order again (issue #264).
+ *
+ * The redirect target is computed inside the `try` and taken outside it:
+ * `redirect()` works by throwing, so calling it in the `try` would be caught by
+ * the very handler meant for API failures.
+ */
+async function retryPaymentAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const id = (formData.get('id') as string) ?? '';
+  const code = (formData.get('code') as string) ?? '';
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
+
+  let target: string;
+  try {
+    const result = await retryOrderPayment(session, id);
+    target =
+      paymentRetryDestination(id, result, code) ??
+      `/orders/${id}?error=${encodeURIComponent(
+        result.opened ? t('order.payment.retry.failed') : t('order.payment.retry.inProgress'),
+      )}`;
+  } catch (err) {
+    const message =
+      err instanceof StorefrontApiError ? err.message : t('order.payment.retry.failed');
+    target = `/orders/${id}?error=${encodeURIComponent(message)}`;
+  }
+  redirect(target);
+}
+
+/**
+ * Cancel this order (feature 085, US3).
+ *
+ * The buyer **cancels** — the owner's ruling is that there is no approval step
+ * and no pending state — so this is one call and a reload of the same page,
+ * which then shows the order cancelled and no longer offers the control. A
+ * refusal comes back through the page's own `?error=` channel; the server owns
+ * the sentence, because the server owns the rule.
+ */
+async function cancelOrderAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) redirect('/login');
+  const id = (formData.get('id') as string) ?? '';
+  const { locale } = await getServerContext();
+  const t = tForLocale(locale);
+  try {
+    await cancelMyOrder(session, id);
+  } catch (err) {
+    const message = err instanceof StorefrontApiError ? err.message : t('order.cancel.failed');
+    redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+  }
+  redirect(`/orders/${id}`);
 }
 
 async function reorderToQuoteAction(formData: FormData): Promise<void> {

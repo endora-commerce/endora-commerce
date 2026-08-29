@@ -5,7 +5,7 @@ import { createRootContainer, registerValues } from '../../../src/kernel/contain
 import { composeModules } from '../../../src/kernel/compose.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * Issue #147 — the `product_feeds` boot reconcile decides presence before it works.
@@ -40,12 +40,19 @@ const reconcileSchedules = vi.fn(async () => ({ upserted: 0, removed: 0 }));
 // The module under test is `backend.ts`, not the feed engine: the plugin is
 // stubbed so the boot hook meets a handle whose three reconciles record whether
 // they were called, and no queue, Redis client or Postgres connection is built.
-vi.mock('../../../src/modules/product_feeds/plugin.js', () => ({
+vi.mock('../../../../packages/modules/product_feeds/src/backend/plugin.js', () => ({
   productFeedsModule: () => ({
     handle: { reconcileTemplates, reconcileTaxonomies, reconcileSchedules },
     plugin: async () => undefined,
   }),
 }));
+
+// Named statically. `vi.mock` is hoisted above every import in this file, so
+// the stub above is in place either way — and a dynamic import names no
+// binding, which takes the whole import graph of the file it reaches. This
+// test composes its own container out of `registerModule` and hands the ORM
+// nothing, so the source copy is the only copy in this process.
+import { registerModule } from '../../../../packages/modules/product_feeds/src/backend/index.js';
 
 const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
 
@@ -55,7 +62,6 @@ interface Composed {
 }
 
 async function composeProductFeeds(): Promise<Composed> {
-  const { registerModule } = await import('../../../src/modules/product_feeds/backend.js');
   const container = createRootContainer();
   const registeredConfigurationTypes: string[] = [];
   // What the two hooks reach, and nothing more.

@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 026 US2 — Customer↔Organization membership shapes.
@@ -93,32 +93,21 @@ describe('Customer↔Organization membership shapes (feature 026 US2)', () => {
     expect(orgForA?.id).toBe(orgForB?.id);
   });
 
-  it('allows a Customer account with no Organization (nullable column)', async () => {
+  it('refuses a Customer account with no Organization (D-178 — the column is NOT NULL)', async () => {
     const em = h.em();
     const password = await hashPassword('TestPassword12345');
-    const guestCustomer = em.create(CustomerAccount, {
-      organizationId: null,
-      email: `solo+${Date.now()}@us2-test.local`,
-      passwordHash: password,
-      firstName: 'Solo',
-      lastName: 'Buyer',
-      role: 'regular_user',
-    });
-    await em.persistAndFlush(guestCustomer);
-
-    em.clear();
-
-    const reloaded = await em.findOneOrFail(CustomerAccount, { id: guestCustomer.id });
-    // MikroORM with `forceUndefined: true` (the project's global config)
-    // surfaces NULL columns as `undefined` on the entity. Either is "no
-    // Organization attached" from the application's perspective.
-    expect(reloaded.organizationId == null).toBe(true);
-
-    // The OrganizationContextService should NOT be invoked for a no-org
-    // customer — but if it is (with null), it returns null gracefully via
-    // `loadEffectiveOrganization`. Verify that contract.
-    // (We don't pass null to loadEffectiveOrganization here; we just
-    //  document that the entity column accepts null.)
-    expect(reloaded.role).toBe('regular_user');
+    // Feature 026 US2 relaxed this column and this case asserted the relaxation.
+    // D-178 reversed it: an individual is backed by a personal organisation, so
+    // there is no account without a tenant and the column is what refuses one.
+    // The refusal has to be measured at the database, because MikroORM applies
+    // its tenant filter to SELECT / UPDATE / DELETE and not to INSERT — nothing
+    // in the guard can see this statement.
+    await expect(
+      em.execute(
+        'insert into customer_accounts (id, organization_id, email, password_hash, first_name, last_name, role) ' +
+          'values (gen_random_uuid(), null, ?, ?, ?, ?, ?)',
+        [`solo+${Date.now()}@us2-test.local`, password, 'Solo', 'Buyer', 'regular_user'],
+      ),
+    ).rejects.toThrow(/not-null|not null/i);
   });
 });

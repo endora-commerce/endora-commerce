@@ -11,44 +11,88 @@
  * fails it too. Delete this file when the last entry goes; an empty shard is refused,
  * because a done signal that says nothing is not one.
  *
- * The shard exists because of issue #187: all four reaches below are knex query builders,
- * which name their table as a call argument, so neither the import predicate nor D-87's
- * statement path could see them. They are not new couplings — they are couplings the check
- * could not see, and three of the four sit beside a `catalogCategoryReadPort` call that
- * already asks `catalog` the next question.
+ * Where a file reaches one target more than once, the entry is `{ sites, reason }` and the
+ * number is checked both ways (issue #267); a plain string means one. The key does not
+ * change with the count — that is what keeps it stable across a move inside the file.
+ *
+ * **Three of the four issue-#187 reaches are gone.** All three read
+ * `product_categories`, and all three sat beside a `catalogCategoryReadPort` call that was
+ * already asking the owner the *next* question — so retiring them needed nothing published:
+ * `listAssignmentsForProducts` has answered "which categories are these products in?" since
+ * D-87, and the three sites now ask it. What is left is the one reach in the shard that a
+ * batch read cannot retire, because it is not a lookup at all.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/inventory/routes.ts:sql:catalog/product_categories':
-    'Issue #187 seed — the availability route reads `catalog`\'s `product_categories` with ' +
-    '`knex(\'product_categories\').where(\'product_id\', …)` to find the categories a ' +
-    'product belongs to, and then hands the ids straight to `catalogCategories.findByIds`. ' +
-    'The port is already resolved on the line below the builder and `catalog` is already ' +
-    'declared in this module\'s manifest; what is missing is the first half of the ' +
-    'question. Retired by: `catalogCategoryReadPort` answering "which categories does this ' +
-    'product belong to?" itself, so the join table stays inside its owner.',
-  'modules/inventory/services/stock-level-service.ts:sql:catalog/product_categories':
-    'Issue #187 seed — the same read as the route\'s, twice: the stock list and the ' +
-    'low-stock report each page `catalog`\'s `product_categories` with ' +
-    '`knex(\'product_categories\').whereIn(\'product_id\', …)` and then resolve the ' +
-    'category rows through `catalogCategories.findByIds`. Retired by: the batch form of ' +
-    'the same port method the route needs — "the category ids of these products" — so both ' +
-    'sites lose the builder together.',
-  'modules/inventory/services/stock-level-service.ts:sql:catalog/products':
-    'Issue #187 seed — the stock list pages with `knex({ p: \'products\' }).innerJoin({ ' +
-    'sl: \'stock_levels\' }, …)`, joining `catalog`\'s `products` to this module\'s ' +
-    '`stock_levels` so the SKU/name search and the low/out filters are pushed into SQL ' +
-    'rather than post-filtered in JS (the comment above the query says exactly that). It ' +
-    'is the one reach in this shard with a performance reason, and the aliasing object ' +
-    'form is why the D-94 grep missed it. Retired by: `catalog` publishing the paged ' +
-    'product-id read this list needs (search term plus id filter, ordered), leaving the ' +
-    'stock join to run over ids `catalog` returned.',
-  'modules/inventory/services/warehouse-channel-reconciler.ts:sql:kernel/sales_channels':
-    'Issue #187 seed — the boot reconciler lists every channel with ' +
-    '`knex<ChannelRow>(\'sales_channels\').select(\'id\')` before backfilling the default ' +
-    'warehouse assignment each one is missing. The kernel owns `sales_channels`, and this ' +
-    'is the only place in the module that reads it without the resolver. Retired by: the ' +
-    'kernel\'s sales-channel service listing the channels, which is the same accessor ' +
-    'Principle XII names for every other channel read.',
+  'packages/modules/inventory/src/backend/services/stock-level-service.ts:sql:catalog/products':
+    'Issue #187 seed — the admin stock roster paginates with ' +
+    '`knex({ p: \'products\' }).innerJoin({ sl: \'stock_levels\' }, …)`, joining `catalog`\'s ' +
+    '`products` to this module\'s `stock_levels`. It is the one reach in this shard that is ' +
+    'not a lookup, and the aliasing object form is why the D-94 grep missed it. **What it ' +
+    'couples is five columns** — `products.id`, `.sku`, `.name`, `.manage_stock` and ' +
+    '`.low_stock_threshold` — which is the largest column coupling left in the whole ' +
+    'ledger and the honest measure of the debt: a rename of any one of them in `catalog` ' +
+    'breaks this file with nothing at build time to warn either side.\n\n' +
+    '**Read again for the T077 SQL sweep, and the seed\'s retiring condition does not hold.** ' +
+    'It proposed "`catalog` publishing the paged product-id read this list needs". There is ' +
+    'no such read, because the thing being pushed into SQL is not a *read* — it is a ' +
+    '**predicate whose two operands have different owners**: ' +
+    '`HAVING "p"."manage_stock" IS NOT FALSE AND COALESCE(SUM("sl"."on_hand"), 0) <= 0`, and ' +
+    'the low variant comparing that same aggregate against `"p"."low_stock_threshold"`. One ' +
+    'operand is this module\'s aggregate over its own rows, the other is a column of the ' +
+    'owner\'s, and they are compared once per group. No port signature carries a per-row ' +
+    'comparison between two owners\' columns; a port that returned the columns so the caller ' +
+    'could do the comparing is the join with an extra hop, and a port that took the aggregate ' +
+    'so the owner could do it is this module shipping its rows into someone else\'s query. ' +
+    'That is the design finding, and it is why forcing a port here would be worse than the ' +
+    'reach.\n\n' +
+    '**Read a third time for feature 080\'s SQL-reach sweep, which retired the ' +
+    '`admin_actions` member of this family, and the comparison is what the earlier readings ' +
+    'were missing.** That one joined the kernel\'s `module_registrations` to ask "is this ' +
+    'module installed here", and it retired with nothing published, because **the owner ' +
+    'already held the answer** — one field on a projection the consumer was already reading ' +
+    'the neighbouring axis from. Here the owner holds the *operands* and nobody holds the ' +
+    'answer: the predicate is this module\'s, over a value only this module can compute. ' +
+    'That is the difference between a reach that is an oversight and a reach that is a ' +
+    'design, and it is the test to apply to the next one rather than the perf argument ' +
+    'below.\n\n' +
+    '**The second half of the usual case for a port is unreachable here, which the earlier ' +
+    'readings did not say and which changes the balance.** A published port buys two ' +
+    'things: the columns stop crossing, and the consumer gets a 503 `MODULE_DISABLED` seam ' +
+    'when the owner is switched off. The second is worth nothing at this site by ' +
+    'construction — `catalog` declares `activation.nonDeactivatable`, so there is no ' +
+    'absent state for the gate to answer for and `check:port-catches` would classify any ' +
+    'gate built here `OWNER LOCKED` on that derivation. (`inventory` itself is switchable, ' +
+    '`inventory.enabled`; the lock is the owner\'s.) So the conversion would buy the column ' +
+    'decoupling alone, against the cost priced below — which is what makes that cost ' +
+    'decisive rather than merely arguable.\n\n' +
+    '**The search term is a second, independent obstacle, and it was not noticed before.** ' +
+    'The `q` filter is `LOWER("p"."name"::text) LIKE ?` — and `Product.name` is JSONB ' +
+    '(`Record<string, string>`, one entry per language). Cast to text it matches every ' +
+    'language\'s value, the language codes and the JSON punctuation alike. That is an ' +
+    'implementation accident, not a contract, so `catalog` publishing "search products by ' +
+    'sku, name or id" either publishes the accident or quietly changes what the operator\'s ' +
+    'search box matches. Whichever it is, it is a product decision about the search, not a ' +
+    'boundary repair. It is filed as its own entry in `specs/deferred-defects.md` ' +
+    '("The admin product search matches language codes and JSON punctuation"), which names ' +
+    'this conversion as the thing it blocks — so the two artefacts point at each other and ' +
+    'neither can be drained without the other being read.\n\n' +
+    '**One exit does exist and is priced here rather than left to be rediscovered.** Group ' +
+    '`stock_levels` alone (`product_id`, `SUM(on_hand)`, `MAX(updated_at)` — all this ' +
+    'module\'s), ask `catalog` for the governance facts of the candidates, then filter, order ' +
+    'and page in memory. **Correctness is preserved exactly**, which the seed reason denied: ' +
+    'the filter runs over the complete candidate set before `total` is counted and before the ' +
+    'page is cut, so the count an operator is shown keeps matching the list under it, and the ' +
+    'ordering column is this module\'s. What it costs is that the two filtered paths stop ' +
+    'stopping at `LIMIT` and load one row per tracked product. Worth knowing before pricing ' +
+    'that as prohibitive: `listLandingKpis`, forty lines up in this same file, already does ' +
+    'exactly that unconditionally — every `stock_levels` group plus `findByIds` over all of ' +
+    'them — on the screen this roster is reached from. Re-measured for feature 080 and still ' +
+    'true, line for line. So it is a cost this surface already carries, which is as much an ' +
+    'argument for repairing that method as for taking this exit.\n\n' +
+    'Retired by: `catalog`\'s owner choosing between that exit and a published product search ' +
+    'with a stated matching rule. The seed said "feature 086 holds that module while this ' +
+    'shard is drained"; that hold has lifted — the viewer-price listing work merged — so what ' +
+    'is left is the design call above and not a scheduling one.',
 };

@@ -1,7 +1,8 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * Descriptors are contributed by the module that owns them (feature 072, T143a).
@@ -25,6 +26,15 @@ import { describe, expect, it } from 'vitest';
  *    *constructed* rather than merely registered. Same hole, one step larger —
  *    the root's instance is not gated by anything, so it kept answering with
  *    its module switched off.
+ *
+ * **Where a module keeps its `registerModule` is resolved, never spelled**
+ * (feature 080, T040b). The three assertions over `CONTRIBUTIONS` and
+ * `CLUSTER_SIX` read `src/modules/<owner>/backend.ts` literally, so the first
+ * of those owners to become a package took them out with `ENOENT` — loud, but
+ * it is the same derived-fact-written-down shape as `moduleFiles()` below, and
+ * the loudness is an accident of `readFileSync`: a reader that answered `''`
+ * would have passed. They go through `backendSourceOf`, which throws on a
+ * module it cannot place.
  *
  * Source-level assertions, for the reason `harness-parity.test.ts` gives: the
  * property is a property of the *wiring*, and booting both roots to compare
@@ -131,7 +141,7 @@ const CLUSTER_SIX: ReadonlyArray<{
 
 describe('T143a — module-owned descriptors are contributed by their module', () => {
   it.each(CONTRIBUTIONS)('$owner makes the $call contribution itself', ({ call, owner }) => {
-    expect(flat(read(`src/modules/${owner}/backend.ts`))).toContain(flat(call));
+    expect(flat(backendSourceOf(owner))).toContain(flat(call));
   });
 
   it.each(CONTRIBUTIONS)('no composition root makes the $call contribution', ({ call }) => {
@@ -147,14 +157,14 @@ describe('T143a — module-owned descriptors are contributed by their module', (
     // pushes from `ctx.onBoot`, which runs after every module has registered
     // and before any request is served.
     for (const owner of new Set(CONTRIBUTIONS.map((entry) => entry.owner))) {
-      expect(read(`src/modules/${owner}/backend.ts`)).toContain('ctx.onBoot(');
+      expect(backendSourceOf(owner)).toContain('ctx.onBoot(');
     }
   });
 });
 
 describe('T143a cluster 6 — module-owned machinery is built by its module', () => {
   it.each(CLUSTER_SIX)('$owner builds $what itself', ({ owner, inBackend }) => {
-    expect(flat(read(`src/modules/${owner}/backend.ts`))).toContain(flat(inBackend));
+    expect(flat(backendSourceOf(owner))).toContain(flat(inBackend));
   });
 
   it.each(CLUSTER_SIX)('no composition root builds $what', ({ what, notInRoot }) => {
@@ -178,36 +188,62 @@ describe('T143a cluster 6 — module-owned machinery is built by its module', ()
  *
  * The scope is a port now. This is the assertion that keeps it one.
  */
-const modulesRoot = `${backendRoot}src/modules`;
+/**
+ * Where a module's sources are, derived rather than spelled (feature 080, T040a).
+ *
+ * This used to be `backendRoot + 'src/modules'`, and both assertions below read
+ * it. That is issue #215's shape one layer in: `quote_requests` became a module
+ * package (T040b), so a walk of `src/modules` stopped seeing it — the offender
+ * sweep would have reported clean about a tree it no longer covered, and the
+ * second assertion read a path that is not there. The layout is the same
+ * derivation every check uses, so a module that moves is followed instead of
+ * dropped.
+ */
+const layout = await requireModuleLayout('[module-owned-contributions]');
 
 function moduleFiles(): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {
     for (const name of readdirSync(dir)) {
+      if (name === 'node_modules' || name === 'dist') continue;
       const full = join(dir, name);
       if (statSync(full).isDirectory()) walk(full);
       else if (name.endsWith('.ts')) out.push(full);
     }
   };
-  walk(modulesRoot);
+  for (const root of layout.moduleWalkRoots) walk(root);
   return out;
+}
+
+/** A module's `registerModule` source, wherever the module lives. */
+function backendSourceOf(moduleId: string): string {
+  const dir = layout.moduleDirectoryOf(moduleId);
+  if (dir === null) throw new Error(`[module-owned-contributions] no such module: ${moduleId}`);
+  // Two places a module keeps it: `backend.ts` in the application's tree, and
+  // `src/backend/index.ts` in a package. A module that has neither is a module
+  // this assertion cannot make, so it throws rather than reading '' and passing.
+  for (const candidate of [join(dir, 'backend.ts'), join(dir, 'src', 'backend', 'index.ts')]) {
+    if (existsSync(candidate)) return readFileSync(candidate, 'utf8');
+  }
+  throw new Error(
+    `[module-owned-contributions] ${moduleId} has no backend entry point under ${dir}`,
+  );
 }
 
 describe('issue #108 — the sales-rep scope is built once, by organizations', () => {
   it('no module but organizations constructs SalesRepAssignmentService', () => {
+    const ownerDir = layout.moduleDirectoryOf('organizations')!;
     const offenders = moduleFiles().filter(
       (file) =>
-        !file.startsWith(join(modulesRoot, 'organizations')) &&
+        !file.startsWith(`${ownerDir}/`) &&
         flat(readFileSync(file, 'utf8')).includes(flat('new SalesRepAssignmentService(')),
     );
-    expect(offenders.map((f) => f.slice(backendRoot.length))).toEqual([]);
+    expect(offenders.map((f) => layout.displayOf(f))).toEqual([]);
   });
 
   it('customers and quote_requests resolve the port instead', () => {
     for (const owner of ['customers', 'quote_requests']) {
-      expect(read(`src/modules/${owner}/backend.ts`)).toContain(
-        "'organizationSalesRepScopePort'",
-      );
+      expect(backendSourceOf(owner)).toContain("'organizationSalesRepScopePort'");
     }
   });
 });

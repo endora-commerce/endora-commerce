@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import { dictionaryReadPortsFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
-import { TranslationService } from '../../../src/modules/dictionaries/services/translation-service.js';
+import { TranslationService } from '../../../../packages/modules/dictionaries/src/backend/services/translation-service.js';
 
 describe('TranslationService — polymorphic parent invariant', () => {
   let db: TestDb;

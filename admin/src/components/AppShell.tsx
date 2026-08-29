@@ -70,7 +70,7 @@ import { resolveIcon } from '@/lib/admin-actions/icon-map';
 import { getPromptCapability, listUnseenPromptRequests } from '@/lib/prompt-actions/api';
 import { PromptModePanel } from './prompt-actions/PromptModePanel';
 import { SpeechToTextButton } from './SpeechToTextButton';
-import type { PromptActionRequestDto } from '@b2b/contracts';
+import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 
 interface NavItem extends GatedSurface {
   to: string;
@@ -205,9 +205,9 @@ const NAV: NavSection[] = [
       { to: '/price-lists', labelKey: 'appShell.nav.priceLists', icon: CircleDollarSign, requiredPermission: 'price_lists:read', module: 'price_lists' },
       { to: '/promotions', labelKey: 'appShell.nav.promotions', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
       { to: '/promotion-rules', labelKey: 'appShell.nav.promotionRules', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
-      { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'catalog:write', module: 'taxes' },
-      { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'catalog:read', module: 'delivery_methods' },
-      { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard, requiredPermission: 'catalog:read', module: 'payment_methods' },
+      { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'taxes:read', module: 'taxes' },
+      { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'delivery_methods:read', module: 'delivery_methods' },
+      { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard, requiredPermission: 'payment_methods:read', module: 'payment_methods' },
       // Carrier / payment gateway settings are reached as integrations from the
       // Delivery methods / Payment methods pages (not top-level sidebar).
     ],
@@ -703,6 +703,11 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.deliveryMethods', href: null },
   ] },
+  { test: /^\/delivery-methods\/dhl-parcel\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
+    { labelKey: 'appShell.nav.dhlParcel', href: null },
+  ] },
   { test: /^\/settings\/inpost\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
@@ -731,6 +736,11 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
     { labelKey: 'appShell.nav.autopay', href: null },
+  ] },
+  { test: /^\/settings\/paypal\/?$/, build: () => [
+    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
+    { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
+    { labelKey: 'appShell.nav.paypal', href: null },
   ] },
   { test: /^\/organizations\/?$/, build: () => [
     { labelKey: 'appShell.section.customers', href: '/organizations' },
@@ -1036,8 +1046,13 @@ function matchesQuery(needle: string, ...haystacks: string[]): boolean {
  *
  *  - `/inventory` and `/warehouses` are gated by `orders:read`, not by anything
  *    named after inventory (`inventory/routes.admin.ts:103,183`);
- *  - `/payment-methods` and `/delivery-methods` by `catalog:read`
- *    (`payment_methods/routes.ts:108`, `delivery_methods/routes.ts:97`);
+ *  - `/payment-methods` by `payment_methods:read` and `/delivery-methods` by
+ *    `delivery_methods:read`, each its owner's own code since 2026-08-28. They
+ *    look like a pair and are not one: the codes are separate, they are granted
+ *    separately, and neither is `catalog:read`, which is what both said until
+ *    the two modules stopped borrowing the catalogue's authority
+ *    (`packages/modules/payment_methods/src/backend/routes.ts:125`,
+ *    `packages/modules/delivery_methods/src/backend/routes.ts:106`);
  *  - `/api-keys` and `/webhooks` by one shared `integrations:manage`
  *    (`api_keys/routes.ts:20`, `webhooks/routes.ts:21`);
  *  - `/dictionary` and its audit view by `dictionary.write` — the module
@@ -1084,8 +1099,8 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży', requiredPermission: 'sales_channels:read' , module: 'sales_channels' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.paymentMethods', sub: 'appShell.palette.sub.paymentMethods', icon: CreditCard, to: '/payment-methods', keywords: 'payment methods pay gateway checkout metody płatności płatności bramka', requiredPermission: 'catalog:read' , module: 'payment_methods' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.deliveryMethods', sub: 'appShell.palette.sub.deliveryMethods', icon: Truck, to: '/delivery-methods', keywords: 'delivery shipping methods courier metody dostawy wysyłka kurier', requiredPermission: 'catalog:read' , module: 'delivery_methods' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.paymentMethods', sub: 'appShell.palette.sub.paymentMethods', icon: CreditCard, to: '/payment-methods', keywords: 'payment methods pay gateway checkout metody płatności płatności bramka', requiredPermission: 'payment_methods:read' , module: 'payment_methods' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.deliveryMethods', sub: 'appShell.palette.sub.deliveryMethods', icon: Truck, to: '/delivery-methods', keywords: 'delivery shipping methods courier metody dostawy wysyłka kurier', requiredPermission: 'delivery_methods:read' , module: 'delivery_methods' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja', requiredPermission: 'settings:read' , module: 'settings' },
@@ -1260,7 +1275,7 @@ export function AppShell(): ReactNode {
             // Feature 019 / 021 — section labels go through useTranslation('core').
             // The empty-labelKey "main" cluster keeps no label; every other
             // group resolves its declared `labelKey`. Polish strings live
-            // in backend/src/modules/_i18n/i18n/pl.json under the same key.
+            // in packages/modules/_i18n/i18n/pl.json under the same key.
             const translatedLabel = section.labelKey ? t(section.labelKey) : '';
             // In rail mode the section reduces to one icon (the first
             // visible item's icon). Hover or click reveals a popover

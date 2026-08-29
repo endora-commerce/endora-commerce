@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import { slugify as sharedSlugify } from '@b2b/contracts';
+import { slugify as sharedSlugify } from '@endora-commerce/contracts';
 import type {
   FeedDeliveryAttempt,
   FeedDeliveryConfig,
@@ -16,13 +16,13 @@ import type {
   ProductSelectionRule,
   TaxonomyProviderCode,
   UpsertFeedDeliveryRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Admin API client for the Product Feed module (feature 067).
  *
  * A thin wrapper over `/api/v1/admin/product-feeds/**`. Two shapes are
- * module-local rather than imported from `@b2b/contracts`:
+ * module-local rather than imported from `@endora-commerce/contracts`:
  *
  *  - `IssuedFeedToken` — the plaintext link, returned exactly once on create
  *    and on rotate and never readable afterwards (FR-046). It is deliberately
@@ -473,7 +473,7 @@ export const productFeedsClient = {
 /**
  * Kebab-cases a feed name into a slug candidate, the way the operator expects.
  *
- * The generator is `slugify` from `@b2b/contracts`, **imported, never
+ * The generator is `slugify` from `@endora-commerce/contracts`, **imported, never
  * re-implemented** (issues #239, #245). !753 repaired the fold here by
  * composing `lib/text-normalization.ts`; issue #245 found seven more copies of
  * the same four-line chain and moved the whole thing — fold, collapse, cut,
@@ -515,7 +515,7 @@ export function slugify(value: string): string {
  * no delivery routes at all, and the screen has to render that as "unavailable"
  * rather than as a broken tab.
  *
- * The DTO types come from `@b2b/contracts` — every secret on them is already a
+ * The DTO types come from `@endora-commerce/contracts` — every secret on them is already a
  * boolean, so there is nothing here to be careful about beyond not inventing a
  * field the server does not send.
  */

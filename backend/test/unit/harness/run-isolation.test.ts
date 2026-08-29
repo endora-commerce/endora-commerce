@@ -2,15 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
+  TEMPLATE_DIGEST_LENGTH,
   TEST_DATABASE_NAME_PATTERN,
+  formatTemplateProvenance,
   isolationMode,
   keepRunDatabase,
   parseRunDatabaseName,
+  parseTemplateDatabaseName,
+  parseTemplateProvenance,
   redisUrlWithDatabase,
   runDatabaseName,
   sharedDatabaseReason,
+  staleTemplates,
   strandedRunDatabases,
   templateDatabaseName,
+  templateDigest,
   templateDrift,
   withDatabase,
 } from '../../run-isolation.js';
@@ -39,7 +45,7 @@ describe('run-isolation — generated database names', () => {
   });
 
   it('produces a template name the existing guard accepts', () => {
-    const name = templateDatabaseName(BASE);
+    const name = templateDatabaseName(BASE, 'a1b2c3d4e5f6');
     expect(name).toMatch(TEST_DATABASE_NAME_PATTERN);
     expect(name).toMatch(SEED_GUARD_PATTERN);
     expect(name).not.toBe(BASE);
@@ -50,7 +56,7 @@ describe('run-isolation — generated database names', () => {
     // produce `b2b_r_...`, which the guard would reject anyway — the point is
     // that the refusal happens where the name is made.
     expect(() => runDatabaseName('b2b', AT, 'a1b2c3')).toThrow(/test database/i);
-    expect(() => templateDatabaseName('b2b')).toThrow(/test database/i);
+    expect(() => templateDatabaseName('b2b', 'a1b2c3d4e5f6')).toThrow(/test database/i);
   });
 
   it('refuses a base that would overflow the 63-byte identifier limit', () => {
@@ -250,5 +256,176 @@ describe('run-isolation — the migration template a run is cloned from', () => 
   it('says which template it is judging, so the log line stands alone', () => {
     const drift = templateDrift(['MigrationZ'], EXPECTED, 'b2b_test_tpl');
     expect(drift?.message).toContain('b2b_test_tpl');
+  });
+});
+
+describe('run-isolation — the identity of a migration template (issue #289)', () => {
+  const SOURCES = [
+    { path: 'src/db/migrations/20260101T000000_core_init.ts', sha256: 'a'.repeat(64) },
+    { path: 'test/template-seed.ts', sha256: 'b'.repeat(64) },
+  ] as const;
+  const INPUTS = { migrations: ['MigrationA', 'MigrationB'], sources: SOURCES } as const;
+
+  it('is the same for two worktrees holding the same migration set', () => {
+    expect(templateDigest(INPUTS)).toBe(templateDigest({ ...INPUTS }));
+    expect(templateDigest(INPUTS)).toHaveLength(TEMPLATE_DIGEST_LENGTH);
+  });
+
+  it('changes when the set changes', () => {
+    expect(templateDigest({ ...INPUTS, migrations: ['MigrationA'] })).not.toBe(
+      templateDigest(INPUTS),
+    );
+  });
+
+  it('changes when the order changes, which a manifest dependency can do on its own', () => {
+    expect(templateDigest({ ...INPUTS, migrations: ['MigrationB', 'MigrationA'] })).not.toBe(
+      templateDigest(INPUTS),
+    );
+  });
+
+  it("changes when a migration's content changes under an unchanged name", () => {
+    // Issue #289's actual defect: two branches carrying the same migration
+    // class with different SQL. Names alone cannot see it, and the template
+    // built from one of them was cloned by the other.
+    const edited = [{ ...SOURCES[0], sha256: 'c'.repeat(64) }, SOURCES[1]];
+    expect(templateDigest({ ...INPUTS, sources: edited })).not.toBe(templateDigest(INPUTS));
+  });
+
+  it('changes when what seeds the template changes, migrations untouched', () => {
+    const edited = [SOURCES[0], { ...SOURCES[1], sha256: 'd'.repeat(64) }];
+    expect(templateDigest({ ...INPUTS, sources: edited })).not.toBe(templateDigest(INPUTS));
+  });
+
+  it('refuses to name a template it cannot describe, rather than naming one anyway', () => {
+    // A digest over nothing is a name every empty input agrees on — which is
+    // exactly the shared template of unknown provenance this issue is about.
+    expect(() => templateDigest({ migrations: [], sources: SOURCES })).toThrow(/no migration/i);
+    expect(() => templateDigest({ migrations: ['MigrationA'], sources: [] })).toThrow(/no source/i);
+  });
+});
+
+describe('run-isolation — template names carry their identity', () => {
+  const DIGEST = 'a1b2c3d4e5f6';
+
+  it('produces a name the existing test-database guard accepts', () => {
+    const name = templateDatabaseName(BASE, DIGEST);
+    expect(name).toMatch(TEST_DATABASE_NAME_PATTERN);
+    expect(name).toMatch(SEED_GUARD_PATTERN);
+    expect(name).toContain(DIGEST);
+    expect(name.length).toBeLessThanOrEqual(63);
+  });
+
+  it('gives two different migration sets two different databases', () => {
+    expect(templateDatabaseName(BASE, DIGEST)).not.toBe(templateDatabaseName(BASE, 'f6e5d4c3b2a1'));
+  });
+
+  it('refuses a digest that is not one this module produced', () => {
+    expect(() => templateDatabaseName(BASE, 'not-hex-here')).toThrow(/digest/i);
+    expect(() => templateDatabaseName(BASE, 'a1b2')).toThrow(/digest/i);
+  });
+
+  it('round-trips the digest out of the name', () => {
+    expect(parseTemplateDatabaseName(BASE, templateDatabaseName(BASE, DIGEST))?.digest).toBe(
+      DIGEST,
+    );
+  });
+
+  it('does not recognise a database this harness did not name a template', () => {
+    for (const foreign of [
+      'b2b_test',
+      'b2b',
+      // The pre-#289 template. It is deliberately outside the sweep: an
+      // invocation running older code is still cloning it mid-run.
+      'b2b_test_tpl',
+      runDatabaseName(BASE, AT, 'a1b2c3'),
+      'b2b_other_test_tpl_a1b2c3d4e5f6',
+    ]) {
+      expect(parseTemplateDatabaseName(BASE, foreign)).toBeUndefined();
+    }
+  });
+});
+
+describe('run-isolation — what a template says about itself', () => {
+  const provenance = {
+    digest: 'a1b2c3d4e5f6',
+    migrations: 157,
+    lastUsedAt: new Date('2026-08-21T09:00:00.000Z'),
+  };
+
+  it('round-trips through the comment the database carries', () => {
+    expect(parseTemplateProvenance(formatTemplateProvenance(provenance))).toEqual(provenance);
+  });
+
+  it('reads nothing out of a database that never said anything', () => {
+    // A template whose provenance cannot be established is exactly issue #289.
+    // Every one of these must read as "unknown", so the caller rebuilds.
+    for (const comment of [undefined, null, '', 'some human left a note here', 'b2b-test-template v0 digest=a1b2c3d4e5f6']) {
+      expect(parseTemplateProvenance(comment)).toBeUndefined();
+    }
+  });
+});
+
+describe('run-isolation — sweeping templates no branch uses any more', () => {
+  const now = new Date('2026-08-21T12:00:00.000Z');
+  const hoursAgo = (h: number): Date => new Date(now.getTime() - h * 3600_000);
+  const mine = templateDatabaseName(BASE, '00000000000a');
+  const cold = templateDatabaseName(BASE, '00000000000b');
+  const warm = templateDatabaseName(BASE, '00000000000c');
+  const busy = templateDatabaseName(BASE, '00000000000d');
+  const unreadable = templateDatabaseName(BASE, '00000000000e');
+
+  const lastUsed = new Map([
+    [mine, hoursAgo(0)],
+    [cold, hoursAgo(48)],
+    [warm, hoursAgo(2)],
+    [busy, hoursAgo(48)],
+  ]);
+
+  it('drops a template no invocation has used for a day, and nothing else', () => {
+    expect(
+      staleTemplates({
+        base: BASE,
+        names: [mine, cold, warm, busy, 'b2b_test', 'b2b_test_tpl', 'b2b'],
+        busy: new Set([busy]),
+        keep: mine,
+        lastUsed,
+        now,
+        maxAgeMs: 24 * 3600_000,
+        limit: 25,
+      }),
+    ).toEqual([cold]);
+  });
+
+  it('drops one that cannot say when it was last used, which is one nothing can trust', () => {
+    expect(
+      staleTemplates({
+        base: BASE,
+        names: [mine, unreadable],
+        busy: new Set(),
+        keep: mine,
+        lastUsed,
+        now,
+        maxAgeMs: 24 * 3600_000,
+        limit: 25,
+      }),
+    ).toEqual([unreadable]);
+  });
+
+  it('caps how many it drops in one invocation', () => {
+    const names = Array.from({ length: 40 }, (_, i) =>
+      templateDatabaseName(BASE, i.toString(16).padStart(12, '0')),
+    );
+    expect(
+      staleTemplates({
+        base: BASE,
+        names,
+        busy: new Set(),
+        keep: '',
+        lastUsed: new Map(),
+        now,
+        maxAgeMs: 24 * 3600_000,
+        limit: 25,
+      }),
+    ).toHaveLength(25);
   });
 });

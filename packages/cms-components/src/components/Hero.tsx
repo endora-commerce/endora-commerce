@@ -12,8 +12,8 @@ import {
   withHideOn,
   type SpacingValue,
   type ResponsiveProp,
-} from '@b2b/page-builder-core';
-import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
+} from '@endora-commerce/page-builder-core';
+import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type { ButtonVariant, HeroProps } from '../schema/component-types.js';
 import { useViewportBreakpointTier } from '../hooks/use-viewport-breakpoint-tier.js';
 import { BoxStyled } from './box-styles.js';

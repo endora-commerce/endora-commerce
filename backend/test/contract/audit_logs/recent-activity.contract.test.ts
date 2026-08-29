@@ -6,7 +6,9 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { RECENT_ACTIVITY_ACTIONS } from '../../../src/modules/audit_logs/action-catalog.js';
+import { KnownIconNameSchema } from '@endora-commerce/contracts';
+import { RecentActivityCatalog } from '../../../../packages/modules/audit_logs/src/backend/services/recent-activity-catalog.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 /**
@@ -14,15 +16,27 @@ import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.
  * `GET /api/v1/admin/audit-log/recent-activity`.
  *
  * Validates: response shape (Zod) + `limit` clamping + ordering + scope
- * (rows outside the allowlist must NOT surface) + privacy (no IP /
+ * (rows outside the eligible set must NOT surface) + privacy (no IP /
  * user-agent / request-id / raw stateBefore/After leaks to the card).
+ *
+ * **The expected token and module sets are derived here too** (feature 080,
+ * T042j / D-163.1), from the same manifests the server derives them from. This
+ * file used to import the host's hand-written `RECENT_ACTIVITY_ACTIONS` and
+ * hard-code `['catalog', 'inventory', 'price_lists']` — a third and fourth copy
+ * of two of the four tables D-163 named, and the reason a contract test could
+ * agree with a server that emitted a `module` value neither of them listed.
  */
+
+const CATALOG = new RecentActivityCatalog(REGISTERED_MANIFESTS);
+const ELIGIBLE_ACTIONS = CATALOG.actions();
 
 const itemSchema = z.object({
   id: z.string().uuid(),
   actedAt: z.string(),
-  action: z.enum(RECENT_ACTIVITY_ACTIONS as unknown as [string, ...string[]]),
-  module: z.enum(['catalog', 'inventory', 'price_lists']),
+  action: z.enum(ELIGIBLE_ACTIONS as [string, ...string[]]),
+  module: z.enum(CATALOG.moduleIds() as [string, ...string[]]),
+  icon: KnownIconNameSchema,
+  labelKey: z.string().min(1),
   actorDisplayName: z.string().min(1),
   actorKind: z.enum(['admin', 'system']),
   targetType: z.string().min(1),
@@ -54,9 +68,9 @@ describe('GET /api/v1/admin/audit-log/recent-activity', () => {
       payload: { attributeValues: { internal_sku_notes: 'recent-activity-trigger' } },
       cookies: { b2b_session: 'stub-admin-session' },
     });
-    // Seed one out-of-scope row directly to confirm the allowlist filter.
-    // 'setting.update' is a real audit token from feature 004 but is NOT
-    // in the dashboard's allowlist.
+    // Seed one out-of-scope row directly to confirm the eligibility filter.
+    // 'setting.update' is a real audit token from feature 004 that no module
+    // declares as recent-activity-eligible.
     await h.auditLogService.record({
       action: 'setting.update',
       objectType: 'setting',
@@ -119,7 +133,7 @@ describe('GET /api/v1/admin/audit-log/recent-activity', () => {
     expect([401, 403]).toContain(res.statusCode);
   });
 
-  it('filters out audit rows whose action is not in the dashboard allowlist', async () => {
+  it('filters out audit rows no module declares as dashboard-eligible', async () => {
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/admin/audit-log/recent-activity?limit=12',
@@ -132,8 +146,32 @@ describe('GET /api/v1/admin/audit-log/recent-activity', () => {
     // …but the curated endpoint must not return it.
     expect(body.data.find((r) => r.targetId === 'out-of-scope-test')).toBeUndefined();
     for (const row of body.data) {
-      expect(RECENT_ACTIVITY_ACTIONS as unknown as string[]).toContain(row.action);
+      expect(ELIGIBLE_ACTIONS).toContain(row.action);
     }
+  });
+
+  /**
+   * The drift D-163 named, asserted where it was invisible.
+   *
+   * `prompt_action.execute` was in the server allow-list and in the prefix map
+   * and absent from the route's `module` enum and from the admin's rendering
+   * table. This asserts it at all four derivation points at once, and it is red
+   * on the pre-T042j tree for the two it was missing from — the response
+   * schema's `module` enum did not carry `prompt_actions`, so a real
+   * prompt-assistant row failed `responseSchema` here.
+   */
+  it('carries prompt_action.execute through every derived table', () => {
+    expect(ELIGIBLE_ACTIONS).toContain('prompt_action.execute');
+    expect(CATALOG.moduleIds()).toContain('prompt_actions');
+    const descriptor = CATALOG.descriptorFor('prompt_action.execute');
+    expect(descriptor?.moduleId).toBe('prompt_actions');
+    // The admin's fourth table: the icon and the verb key travel on the item,
+    // so an action a module declares can never be renderable in one place and
+    // unknown in another.
+    expect(KnownIconNameSchema.safeParse(descriptor?.icon).success).toBe(true);
+    expect(descriptor?.labelKey).toBe('activity.verb.prompt_action.execute');
+    expect(itemSchema.shape.module.safeParse('prompt_actions').success).toBe(true);
+    expect(itemSchema.shape.action.safeParse('prompt_action.execute').success).toBe(true);
   });
 
   it('never leaks sensitive request metadata or raw state blobs', async () => {

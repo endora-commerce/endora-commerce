@@ -4,7 +4,7 @@ import {
   gaStorefrontConfigSchema,
   gaCustomEventResponseSchema,
   GOOGLE_ANALYTICS_SETTING_CODES,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

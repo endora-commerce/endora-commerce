@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import {
   ModuleLifecycleOrchestrator,
   LifecycleError,
-} from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
-import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+} from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
+import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 import { orderMigrations, BASELINE_THROUGH } from '../../../src/db/migration-order.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**
  * The install-time reader of the `module-cycle` diagnostic — feature 081
@@ -137,7 +137,12 @@ function buildRegistry(
     });
   }
   const graph = new ModuleDepGraph([...map.values()].map((e) => e.manifest));
-  return { modules: map as never, graph };
+  // `participants: []` is the deliberate answer, not an omission: this
+  // fixture registry enumerates its modules and none of them keeps a
+  // projection of the manifest set (feature 080, T036a / D-159). A
+  // registry that could not answer would say `null`, and the orchestrator
+  // refuses an install over that rather than reconciling nothing quietly.
+  return { modules: map as never, graph, participants: [] };
 }
 
 function buildOrchestrator(opts: { registry: LoadedManifestRegistry; installed?: string[] }) {

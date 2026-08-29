@@ -5,7 +5,7 @@ import type {
   ComparisonAttributeRow,
   ComparisonDisplayMode,
   ComparisonSharedView,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ComparisonApiError, getSharedComparison } from '../lib/api/comparisons';
 import { tForLocale } from '../lib/i18n/messages';
 

@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '../../../src/events/bus.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { composeModules } from '../../../src/kernel/compose.js';
-import { manifest as blogManifest } from '../../../src/modules/blog/manifest.js';
-import * as blogBackend from '../../../src/modules/blog/backend.js';
+import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
+import * as blogBackend from '../../../../packages/modules/blog/src/backend/index.js';
 
 /**
  * Registration is lazy; composition is not (feature 072, T044 / FR-021).

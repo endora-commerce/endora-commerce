@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table';
 import { StatusTransitionGraph } from '@/modules/orders/StatusTransitionGraph';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { ReturnStatusDto, ReturnTransitionDto } from '@b2b/contracts';
+import type { ReturnStatusDto, ReturnTransitionDto } from '@endora-commerce/contracts';
 
 /** Resolve the admin-facing label: default name → English → first → code. */
 function statusLabel(s: ReturnStatusDto): string {

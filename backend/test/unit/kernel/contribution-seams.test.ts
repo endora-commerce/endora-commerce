@@ -1,23 +1,24 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { ConfigurationTypeDescriptor } from '@b2b/contracts';
-import { orderStatusSchema } from '@b2b/contracts';
+import type { ConfigurationTypeDescriptor } from '@endora-commerce/contracts';
+import { orderStatusSchema } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { CONTRIBUTION_POLICY_STATED } from '../../../scripts/check-port-dependencies.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { ConfigurationTypeRegistry } from '../../../src/modules/credentials/services/configuration-type-registry.js';
-import { EnumOrderStatusRegistry as PaymentOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
-import { EnumOrderStatusRegistry as ShippingOrderStatusRegistry } from '../../../src/modules/delivery_methods/services/order-status-registry.port.js';
-import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
-import { CmsReferenceRegistry } from '../../../src/modules/cms/services/cms-reference-registry.js';
-import { EmailDefaultsRegistry } from '../../../src/modules/transactional_emails/services/email-defaults-registry.js';
-import { registerCmsAssetReferences } from '../../../src/modules/cms/services/asset-references.js';
-import { registerCatalogAssetReferences } from '../../../src/modules/catalog/services/asset-references.js';
-import { registerBlogAssetReferences } from '../../../src/modules/blog/services/blog-asset-references.js';
-import { registerMegamenuAssetReferences } from '../../../src/modules/megamenu/services/asset-references.js';
-import { registerMegamenuCmsReferences } from '../../../src/modules/megamenu/services/cms-references.js';
-import type { MegamenuReferenceRegistry } from '../../../src/modules/megamenu/services/megamenu-reference-registry.js';
+import { ConfigurationTypeRegistry } from '../../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
+import { EnumOrderStatusRegistry as PaymentOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
+import { EnumOrderStatusRegistry as ShippingOrderStatusRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/order-status-registry.port.js';
+import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
+import { CmsReferenceRegistry } from '../../../../packages/modules/cms/src/backend/services/cms-reference-registry.js';
+import { EmailDefaultsRegistry } from '../../../../packages/modules/transactional_emails/src/backend/services/email-defaults-registry.js';
+import { registerCmsAssetReferences } from '../../../../packages/modules/cms/src/backend/services/asset-references.js';
+import { registerCatalogAssetReferences } from '../../../../packages/modules/catalog/src/backend/services/asset-references.js';
+import { registerBlogAssetReferences } from '../../../../packages/modules/blog/src/backend/services/blog-asset-references.js';
+import { registerMegamenuAssetReferences } from '../../../../packages/modules/megamenu/src/backend/services/asset-references.js';
+import { registerMegamenuCmsReferences } from '../../../../packages/modules/megamenu/src/backend/services/cms-references.js';
+import type { MegamenuReferenceRegistry } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-reference-registry.js';
 
 /**
  * The contribution seam (feature 072, D-39).
@@ -47,10 +48,35 @@ import type { MegamenuReferenceRegistry } from '../../../src/modules/megamenu/se
  *     without changing the stated policy fails here.
  */
 
-const backendRoot = fileURLToPath(new URL('../../../', import.meta.url));
+/**
+ * Where a module's sources are is **resolved, not spelled** (feature 080,
+ * T040a): a module is a directory under the application's source root or a
+ * workspace member declaring `endora: { type: 'module', id }`, and this file
+ * reads six modules' sources off disk, four of which are packages today.
+ */
+const layout = await requireModuleLayout('[contribution-seams]');
+
+/** A file inside a module, wherever that module lives. */
+function moduleFile(moduleId: string, ...segments: readonly string[]): string {
+  const dir = layout.moduleDirectoryOf(moduleId);
+  if (dir === null) throw new Error(`[contribution-seams] no such module: ${moduleId}`);
+  // Two layouts, and a module with neither is a module this file cannot make
+  // its assertion about — so it throws rather than reading '' and passing.
+  for (const candidate of [join(dir, ...segments), join(dir, 'src', 'backend', ...segments)]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(
+    `[contribution-seams] ${moduleId} has no ${segments.join('/')} under ${dir}`,
+  );
+}
 
 function backendSource(moduleId: string): string {
-  return readFileSync(`${backendRoot}src/modules/${moduleId}/backend.ts`, 'utf8');
+  const dir = layout.moduleDirectoryOf(moduleId);
+  if (dir === null) throw new Error(`[contribution-seams] no such module: ${moduleId}`);
+  for (const candidate of [join(dir, 'backend.ts'), join(dir, 'src', 'backend', 'index.ts')]) {
+    if (existsSync(candidate)) return readFileSync(candidate, 'utf8');
+  }
+  throw new Error(`[contribution-seams] ${moduleId} has no backend entry point under ${dir}`);
 }
 
 /** Whitespace-insensitive, so a reformat is not a wiring change. */
@@ -159,7 +185,7 @@ const IMPORTED_SEAMS: ReadonlyArray<{ readonly owner: string; readonly name: str
 describe('the imported contribution seams carry the presence probe', () => {
   it.each(IMPORTED_SEAMS)('$owner wires $name to the kernel effective state', ({ owner, name }) => {
     const source = readFileSync(
-      `${backendRoot}src/modules/${owner}/services/registry-singleton.ts`,
+      moduleFile(owner, 'services', 'registry-singleton.ts'),
       'utf8',
     );
     expect(source).toContain(`export const ${name}`);
@@ -239,7 +265,7 @@ describe('ConfigurationTypeRegistry — an absent contributor’s type is skippe
     // to "say nothing", so a perfect skip skips nothing in production unless the
     // one instance the platform composes is handed the real presence.
     const source = readFileSync(
-      `${backendRoot}src/modules/credentials/services/registry-singleton.ts`,
+      moduleFile('credentials', 'services', 'registry-singleton.ts'),
       'utf8',
     );
     expect(source).toContain('export const configurationTypeRegistry');

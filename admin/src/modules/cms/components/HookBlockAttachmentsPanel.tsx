@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, GripVertical, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { TouchReorderButtons } from '@/components/TouchReorderButtons';
-import type { CmsBlockSummary, CmsHookDetail, CmsHookSummary } from '@b2b/contracts';
+import type { CmsBlockSummary, CmsHookDetail, CmsHookSummary } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

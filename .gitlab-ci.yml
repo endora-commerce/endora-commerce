@@ -9,6 +9,26 @@
 #
 # build + deploy run on the default branch only; deploy is a MANUAL gate.
 #
+# Every job that executes repository code runs `pnpm run build:packages` after the
+# install — every one, with no exception. Since feature 080 (T042) the packages under
+# `packages/` resolve through their own `exports` maps at `./dist`, so an unbuilt
+# workspace is an unresolvable `@endora-commerce/*` specifier rather than a slightly
+# stale one; and since the platform relocation (!908) all of
+# `backend/src/{kernel,http,tenancy,commands,events}` re-exports from
+# `packages/platform/dist`, so an unbuilt workspace is a repository in which almost
+# nothing resolves at all.
+# `release:changeset` used to be listed here as the one node job without the step, on
+# the ground that it "runs the changesets CLI and imports nothing of ours". That was
+# true when it was written and false by the time it mattered — the job had grown
+# `check:release-intent` and `test:release-gate`, both of which are ours — and the
+# sentence went on standing because nothing read it. `test/unit/ci/toolchain-supply.test.ts`
+# is the same statement as a predicate over this file: a job whose script runs a workspace
+# filter and whose `before_script` does not build fails by name. Do not re-open the
+# exception in a comment; if a job genuinely needs one, it needs one in that test.
+# Ruling R12 — a build script only a developer ever runs is configuration, not a build;
+# `outDir` had been configured in all five packages since they were created and had never
+# been executed, which is how a `rootDir` defect sat latent in three of them.
+#
 # Required CI/CD variables (Settings → CI/CD → Variables):
 #   Build/runtime (public, baked into the frontend bundles at build time):
 #     API_DOMAIN              e.g. api.example.com
@@ -44,9 +64,37 @@ variables:
 quality:
   stage: quality
   image: node:22.17-slim
+  variables:
+    # `tsc --noEmit` over this monorepo needs a bigger heap than Node gives
+    # itself on the dedicated runner, and the reason is not the tree's size —
+    # it is that the job container now HAS a memory limit. Node sizes its
+    # default old-space from what it believes is available; an unlimited
+    # container showed it the host's 7.9 GB, a 3 GB one shows it 3 GB, and
+    # `tsc` died at 1.53 GB (pipeline 11605, exit 134).
+    #
+    # **Per job, not global.** It was set globally first, on the argument that
+    # five Node jobs carried no heap and fixing only the one that failed first
+    # is a fix for the accident of ordering. The argument was right about the
+    # risk; the remedy was wrong, because `NODE_OPTIONS` reaches **every**
+    # process, including each of `vitest.unit.config.ts`'s four forks, and a
+    # single-process job and a forked pool want opposite things from one
+    # number.
+    #
+    # **Correction to what the commit that moved it said**: the global setting
+    # did **not** cause `test:backend:unit`'s exit 137. MR !951's pipeline runs
+    # on a base that predates it — no global `NODE_OPTIONS` anywhere — and that
+    # job exited 137 there too. The fork pool exceeds 3 GB either way, and this
+    # config's own comment says why: 299 files in one process reach V8's 4 GB
+    # default, which is what four forks exist to bound, and the suite is now
+    # 447 files. That job has most likely always wanted more than 3 GB; nothing
+    # limited it before, so nobody measured it. **The container limit did not
+    # cause that failure, it made it visible — which is what it is for**, and
+    # the fix is the runner's `memory`, not this file.
+    NODE_OPTIONS: --max-old-space-size=2048
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     - pnpm -r run typecheck
     - pnpm -r run lint
@@ -140,6 +188,25 @@ quality:
     # is a question about its callers. `CONNECTION_LEVEL_SQL_IN_TRANSACTIONS` is an
     # empty two-way ratchet.
     - pnpm --filter backend run check:transaction-context
+    # Feature 080, T061 — a module package's process singletons exist once. The
+    # platform composes a package through its published artefact ('dist', via the
+    # bare specifier); a filesystem path into the same package's source evaluates
+    # it a second time. T040c measured that for the platform's five directories —
+    # 59 runtime values, none shared, and `instanceof HttpError` false across the
+    # boundary — and D-160.6 wrote the rule down about entity classes, where the
+    # failure is a loud lookup miss. A duplicated module-scope **value** fails
+    # silently instead: the second copy is simply empty. It happened in two
+    # consecutive packaging batches — `paymentAdapterRegistry` in batch one, and
+    # in batch two a second, empty `ShippingAdapterRegistry` that made a
+    # switched-off carrier module read as *present*, because the adapter was never
+    # found and the shipment path took its "no carrier configured" branch. Neither
+    # was visible to `tsc`, to any other check, or to `test:unit:fast`. The rule is
+    # a conjunction of two derived facts — both copies in one process, and the
+    # platform composed the reached object — so the correct reaches (a unit test
+    # over a stub EntityManager) are cleared by derivation rather than ledgered.
+    # `WHOLE_FILE_REACHES_ALLOWED` is the two-way ledger for the reaches that name
+    # no binding.
+    - pnpm --filter backend run check:singleton-identity
     # Issue #126 / #146 — an entry point nothing can catch a throw from decides
     # presence before it works. Routes, workers and subscribers each have a seam;
     # a timer a module starts in its own plugin body had none, and `price_lists`
@@ -263,6 +330,35 @@ quality:
     # Per-deployment builds add `DEPLOYMENT=<name>` and run this same check plus
     # the DB-backed suite (see the overlay matrix note above `test:backend`).
     - pnpm --filter backend run overlay:check
+    # Feature 080 (T043) — the release-intent gate below cannot silently stop
+    # asking. `release:changeset` is the changesets CLI's own command, so there
+    # is nothing of ours in it to keep correct — and that was the stated reason
+    # it needed no check, which is backwards: the CLI is right, and what decides
+    # whether it is *looking* is `.changeset/config.json`. Measured, with a
+    # branch that changes `packages/` and carries no changeset: at
+    # `privatePackages.version: true` the gate exits 1, at `false` — the
+    # `@changesets/config@4` default — it exits 0 with an empty release plan,
+    # and with the block deleted it exits 0 too. Four lines of apparent
+    # boilerplate, and nothing in the tree read them. It runs HERE rather than
+    # in `release:changeset` deliberately: `quality` has no `changes:` filter,
+    # so it also runs on the merge request whose only diff is that file, which
+    # matches no rung of `.backend-test-rules`.
+    - pnpm --filter backend run check:release-intent
+    # D-160.8 — a module reaches the platform only through what the platform
+    # publishes. `host-package.md` §1 classifies all 53 platform files a module
+    # reaches as published API, accidental reach or should-be-a-port, three
+    # delivered rows build on that classification, and nothing enforced it:
+    # `check:module-boundary` is module→module, `check:kernel-boundary` is ORM
+    # relations, and the `exports` map enforces nothing for the modules still in
+    # `backend/src`, which is all of them. The verdict is per **symbol** of a
+    # named file — !883 measured sixteen symbols of published files that no
+    # module takes and that are deliberately unpublished — and it is read out of
+    # the directory barrels, the same source `published-surface.test.ts` holds to
+    # §1.3, so the two cannot disagree.
+    # `UNPUBLISHED_PLATFORM_REACHES` is a two-way draining ledger over the
+    # reaches standing today; every entry names the paragraph that classified it
+    # and the event that retires it.
+    - pnpm --filter backend run check:platform-surface
   cache:
     key:
       files:
@@ -308,6 +404,131 @@ quality:static:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # ---------------------------------------------------------------------------
+# Release intent — a merge request that changes a workspace package under
+# `packages/` must say what it means for the people who consume that package
+# (D-107). `changeset status --since=<ref>` is the changesets CLI's own answer
+# to that question, so there is no script of ours here to keep correct.
+#
+# It is a merge-request gate only. On the default branch the comparison is the
+# branch against itself: no changed packages, so a pass there would measure
+# nothing.
+#
+# Two things this job has to get right, because both fail silently otherwise:
+#
+#   1. The base ref must exist. GitLab clones shallow, so `origin/master` is
+#      usually absent — and `changeset status` against a ref it cannot resolve
+#      is not a pass, it is a question nobody asked. GIT_DEPTH: 0 plus an
+#      explicit fetch gets the ref; the guard below exits 2 when it still is
+#      not there, matching the repository's rule that a green may never mean
+#      "did not look".
+#   2. `git` is load-bearing and node:22.17-slim does not ship it — same
+#      reasoning as quality:static above.
+#
+# What it does NOT check, stated so nobody reads more into a green: the CLI
+# asks "did any versionable package change while the branch carries zero
+# changesets", not "is there a changeset for each package that changed". A
+# branch touching two packages satisfies it with one file. Reviewers close
+# that gap; the gate closes the one that is mechanical. Nor can it see the
+# config it runs under — `check:release-intent` in the `quality` job does that,
+# and a `privatePackages.version` of `false` makes the command below exit 0
+# over a branch that changed a package and carries no changeset.
+#
+# **And it decides "which package changed" by directory**, which is right only
+# while a package's sources are its own directory. `@endora-commerce/platform`
+# compiles `backend/src`, so the CLI reports nothing for a commit editing the
+# code it publishes and reports a violation for one editing its README — the
+# gate inverted with respect to what it protects (D-162). The second command
+# below closes that edge, deriving each versionable package's real sources from
+# its own `tsconfig.build.json`. It runs here rather than in `quality` because
+# it needs a diff, and this is the job that has git and the target branch.
+#
+# **A release branch is the one branch this gate would otherwise refuse for
+# doing its job.** `pnpm run version:packages` consumes the pending changesets,
+# so the resulting merge request changes every bumped `packages/*/package.json`
+# and carries zero changeset files — which is, to the CLI, precisely the shape
+# it exists to fail. Measured: exit 1, "Some packages have been changed but no
+# changesets were found". The discriminator below is the **diff**, not a branch
+# name: a branch that deletes changeset files and adds none has consumed them,
+# and nothing else in this repository does that. On such a branch the question
+# is inverted rather than skipped — a release that bumped no version is the
+# `changeset version` no-op arriving through the other door, and it is refused
+# here for the same reason `version-packages.mjs` refuses it locally.
+# ---------------------------------------------------------------------------
+release:changeset:
+  stage: quality
+  image: node:22.17-slim
+  variables:
+    # Full history: `changeset status` diffs against the merge base, which a
+    # shallow clone does not contain.
+    GIT_DEPTH: 0
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    # This job used to be the one node job without a build, on the ground —
+    # written in the header above — that it "imports no `@endora-commerce/*`
+    # package". That stopped being true when `check:release-intent` and
+    # `test:release-gate` were added to the script below, and nothing noticed,
+    # because the exception was a sentence rather than a predicate: the job went
+    # red with `Failed to load url ../../../packages/platform/dist/tenancy/
+    # tenant-context.js`. `test/unit/ci/toolchain-supply.test.ts` is the
+    # predicate now — a job that runs a workspace script and does not build
+    # first fails there, by name.
+    - pnpm run build:packages
+  script:
+    - |
+      base="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-$CI_DEFAULT_BRANCH}"
+      git fetch --quiet --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || true
+      if ! git rev-parse --verify --quiet "origin/$base^{commit}" > /dev/null; then
+        echo "release:changeset — cannot resolve origin/$base; refusing to report a pass measured against nothing." >&2
+        exit 2
+      fi
+      if ! git merge-base "origin/$base" HEAD > /dev/null 2>&1; then
+        echo "release:changeset — no merge base between HEAD and origin/$base; refusing to report a pass measured against nothing." >&2
+        exit 2
+      fi
+      consumed=$(git diff --no-renames --diff-filter=D --name-only "origin/$base...HEAD" -- '.changeset/*.md' | grep -viE '/readme\.md$' || true)
+      written=$(git diff --no-renames --diff-filter=A --name-only "origin/$base...HEAD" -- '.changeset/*.md' | grep -viE '/readme\.md$' || true)
+      if [ -n "$consumed" ] && [ -z "$written" ]; then
+        echo "release:changeset — this branch deletes changeset files and adds none, so it is a release branch; asking whether it released anything instead."
+        echo "$consumed" | sed 's/^/  consumed: /'
+        if git diff -U0 "origin/$base...HEAD" -- '*/package.json' | grep -qE '^\+[[:space:]]*"version"[[:space:]]*:'; then
+          git diff -U0 "origin/$base...HEAD" -- '*/package.json' | grep -E '^\+[[:space:]]*"version"[[:space:]]*:' | sed 's/^/  released: /'
+          exit 0
+        fi
+        echo "release:changeset — it consumed the changesets above and moved no package version. That is what \`changeset version\` does when \`.changeset/config.json\` cannot see the packages: it exits 0, reports success and bumps nothing. Run \`pnpm --filter backend run check:release-intent\`." >&2
+        exit 1
+      fi
+      pnpm exec changeset status --since="origin/$base"
+      # D-162 — the edge the command above structurally cannot see. It
+      # attributes a changed file to a package by the package **directory**,
+      # and `@endora-commerce/platform` compiles `backend/src`, which is in
+      # `ignore`. So the gate waives a changeset for the files that reach a
+      # consumer and demands one for the files that do not. The population is
+      # derived from each versionable package's own `tsconfig.build.json`;
+      # this mode lives here rather than in `quality` because it needs git.
+      pnpm --filter backend run check:release-intent -- --since "origin/$base"
+    # Feature 080 (T043) — the gate above, measured over real branches, against
+    # a real target branch. `node:22.17-slim` ships no git, so this job installs
+    # it, as `test:backend:unit` does; the release-branch discriminator IS a
+    # `git diff`, so the fake `git ls-files` in
+    # `test/helpers/shell-check-fixture.ts` would prove only the fake. It
+    # reaches no service, which is why this job still needs no containers — but
+    # it does import repository code, so it builds the packages like every other
+    # node job. `check-release-intent.test.ts` fails in the unit suite if this
+    # line goes away, so the file cannot become one nothing runs.
+    - pnpm --filter backend run test:release-gate
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# ---------------------------------------------------------------------------
 # Test — split three ways, to keep MR wall-clock low while staying a required
 # gate: the DB-backed backend suite (sharded, `test:backend`), the service-less
 # backend unit run (`test:backend:unit`, issue #211) and the frontend/contract
@@ -334,6 +555,15 @@ quality:static:
         - pnpm-lock.yaml
         - tsconfig.base.json
         - .gitlab-ci.yml
+        # Feature 080 (T043) — `test/unit/release/changeset-flow.test.ts` spawns
+        # the real changesets CLI over this repository's own manifests and this
+        # file, and it is the only thing that measures what the release flow
+        # does rather than what its config says. Without this entry an MR whose
+        # only diff is `.changeset/config.json` matches no rung: not rung 1, and
+        # not rung 2 either, since it is not `*.md`. The changeset *files* are
+        # deliberately not here — a documentation MR carrying one empty
+        # changeset would otherwise pull in the whole backend suite.
+        - .changeset/config.json
     # 2 — nothing on that list changed and the diff IS documentation. Ten of the
     #     last sixty merges to master touched nothing outside `docs/`, `specs/`
     #     and `*.md`, and each one ran the whole backend suite. This skips them
@@ -407,6 +637,7 @@ test:backend:deployment:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     # The artefacts must be deterministic with the variable set — that is the
     # half of issue #120's ruling this family never had.
@@ -439,32 +670,83 @@ test:backend:deployment:
 # postgres/redis/meilisearch services, and `vitest --shard` splits the test files
 # between them.
 #
-# NOTE: the speedup is bounded by the runner's `concurrent` setting — N shards
-# only run at once if the runner can execute N jobs concurrently. With
-# concurrent=1 the shards queue and you gain nothing (and pay per-shard setup).
-# Sized for a 4 vCPU / 8 GB runner with `concurrent = 2`.
+# Memory: ONE SHARD AT A TIME while this runner is shared, which is what
+# `resource_group` below is for (issue #199, second cause). This block used to
+# say the shard's own retained heap was the wall — "~10 MB per test file, past
+# 1.5 GB at ~130 files" — and to offer two levers, more shards and a bigger
+# `--max-old-space-size`. Every part of that was measured on the runner and none
+# of it survived.
 #
-# Memory: the singleFork worker accumulates ~10 MB of retained heap PER test
-# file (each file rebuilds the whole module graph and the fork never fully
-# reclaims it). At ~130 files/shard that climbs past 1.5 GB and the worker is
-# OOM-killed by the host (silent "Worker exited unexpectedly") or — once the
-# NODE_OPTIONS cap below is in force — dies with an explicit "heap out of
-# memory". Two levers keep each shard in budget:
-#   1. parallel=5 → fewer files/shard, so peak heap drops. With concurrent=2
-#      the shards run in waves, so peak CONCURRENT host memory is still just
-#      2 live shards + their 3 services each.
-#   2. --max-old-space-size=2048 caps each shard's V8 old-space. Inside the
-#      docker executor Node otherwise sees the host's 8 GB and lets the heap
-#      grow unbounded; capping forces earlier GC and turns any remaining
-#      overflow into an actionable heap error instead of a silent SIGKILL.
-#      2 live shards × 2 GB + the 3 services (~1.5 GB) stays well under 8 GB.
-#      Bumped 1536 → 2048 after the suite grew past a marginal ~1.6 GB peak.
-# The proper long-term fix is to plug the per-file leak in the test harness;
-# until then, add shards / raise the cap as the suite grows.
+# **The shard does not climb.** Peak fork RSS is reached at file ~40 of 269 and
+# is flat for the remaining 229: 1.86 GB at the 2048 cap. `heapUsed` peaks near
+# 700 MB against a 2 GB old-space, so the V8 cap is never approached and
+# `test/heap-headroom.ts` never warns. More shards therefore buy nothing — a
+# 40-file shard reaches the same peak — and the per-file leak !915 left unplugged
+# is not measurable across a full shard.
+#
+# **What kills it is the host, and the host is shared.** The job container has no
+# memory limit of its own (`memory.max: max`), and after a failure its cgroup
+# reports `oom 0, oom_kill 1` — a process of this cgroup killed by an OOM killer
+# that was not this cgroup's own limit. Run ALONE the same shard completes all
+# 269 files with `oom_kill 0` and leaves the host 3.7 GB free; run as a
+# concurrent pair the host's MemAvailable collapses from 3.7 GB to under 500 MB
+# and returns the instant the fork dies. Two things share this machine with the
+# suite: `endora-commerce-runner-1` and `-2` are two registrations on ONE box
+# (same `system ID`, same docker host in both job logs), 4 vCPU and MemTotal
+# 7 926 360 kB — and that box also carries another project's live Magento 2 test
+# server. A neighbour with a large and *variable* footprint is why the failure
+# was nondeterministic: shard 4 is simply the largest fork at the moment the host
+# runs out (1730 MB at file 40, against 1668, 1627, 1609 and 1501 for the other
+# four), so it is the one the kernel picks.
+#
+# **`resource_group` is necessary and, on this box, not sufficient — and that
+# retired a sentence that stood here.** It read "`--max-old-space-size=2048`
+# stays. Serialised there is no contention for it to relieve", and it was a
+# reasonable inference the very next pipeline refuted: with the shards
+# serialised, shard 4 still died, at file 251 of 269, with `oom_kill 1`. The
+# inference was wrong because `resource_group` serialises *this project's* jobs
+# and can see nothing else on the machine — not the second registration taking
+# another project's work, and not the neighbour. It is kept anyway: it took shard
+# 4 from 40 of 269 files to 251, and the cost is stated where it will be
+# questioned — the five shards serialise, so this stage goes from three waves
+# (~75 min) to five runs (~120 min). Reconsider it when the runner is no longer
+# shared; do not delete it now to make the pipeline faster.
+#
+# **What one job actually costs, which is the figure to size a machine against.**
+# Measured across a whole 269-file shard, every container of the job read from
+# its own cgroup (`anon`, because page cache is reclaimable under pressure and
+# anonymous memory is not):
+#
+#     job container   2396 MB      services  202 MB      WHOLE JOB  2521 MB
+#                                  (postgres 51, redis 15, meilisearch 183)
+#
+# The services are worth stating because they are easy to over-estimate: their
+# `docker stats` figure is 737 MB, but 535 MB of that is reclaimable page cache.
+# On a dedicated 8 GB machine (~7.7 GB usable) two concurrent jobs are 5.0 GB
+# plus the OS, docker and the runner — it fits with about 2 GB to spare, so the
+# concurrency should come back, driven from the runner's own `concurrent`
+# setting rather than from here: the constraint is physical memory, which is a
+# property of the machine and not of this repository.
+#
+# **`--max-old-space-size=2048` stays, and now for a measured reason rather than
+# the inference above.** 1024 was measured over the same full shard, back to
+# back: it saves 429 MB of the job's 2521 (17%), costs 14% of the wall clock
+# (2319 s -> 2643 s), and takes the files lost to the 30 s `hookTimeout` from one
+# to three — `setupBackendServer` boots the whole platform in a `beforeAll`, and
+# a heap that collects harder boots slower. A cap that turns green files red is
+# not a saving. What 2048 is FOR is unchanged and is not the host: it is what
+# makes a genuine heap exhaustion arrive as a named error instead of a SIGKILL,
+# and with a live set near 600 MB it leaves the headroom guard's 80% warning line
+# (1638 MB) a wide margin that 1024 would cut to ~220 MB.
 test:backend:
   stage: test
   image: node:22.17-slim
   parallel: 5
+  # One shard at a time while the runner host is shared — see the Memory block
+  # above. It is not a performance oversight; reconsider it when the suite has a
+  # machine to itself, and drive the concurrency from the runner's `concurrent`
+  # setting rather than from here.
+  resource_group: backend-suite
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -473,9 +755,11 @@ test:backend:
     - name: getmeili/meilisearch:v1.11
       alias: meilisearch
   variables:
-    # Per-shard V8 heap cap — see the "Memory" note above the job. Safety net
-    # under the 8 GB host with concurrent=2 shards; forces early GC so an
-    # overflow surfaces as a heap error, not a silent OOM-kill.
+    # Per-shard V8 heap cap — see the "Memory" note above the job. It is not
+    # what keeps this job inside the host (`resource_group` is); it is what
+    # makes a genuine heap exhaustion arrive as a named error rather than as a
+    # SIGKILL. Measured peak live set: ~600 MB. 1024 was measured and rejected
+    # there, with the numbers.
     NODE_OPTIONS: --max-old-space-size=2048
     POSTGRES_USER: b2b
     POSTGRES_PASSWORD: b2b
@@ -500,8 +784,13 @@ test:backend:
     MEILISEARCH_URL: http://meilisearch:7700
     MEILISEARCH_API_KEY: devMasterKeyChangeMe
   before_script:
+    # This suite includes `test/unit`, so it has the same git dependency as
+    # `test:backend:unit` below — see the note above that job.
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     # `exec vitest` (not `run test --`) — pnpm leaks the literal `--` into the
     # script args, which makes vitest ignore --shard and run the whole suite.
@@ -529,13 +818,30 @@ test:backend:
 # The 16 excluded files still run in `test:backend` above, so this is a split of
 # jobs, not of coverage. `needs: []` starts the job at pipeline creation instead
 # of after the `quality` stage — the whole value here is an answer in minutes.
+# `git` is a dependency of this suite, and it took a day to find out because
+# nothing said so. `node:22.17-slim` ships none, and the suite spawns it three
+# ways: `test/unit/release/changeset-flow.test.ts` runs the real changesets CLI
+# (which shells out to git and exits 1 on `spawn git ENOENT`), and
+# `test/unit/scripts/check-read-size.test.ts` spawns `check-naming.sh` and
+# `check-language.sh` over the real tree, whose file list is `git ls-files` —
+# both exit 2 without it rather than report a verdict over a list they could not
+# get. Ten of the resulting failures read `expected 1 to be 0` and none of them
+# mentioned git. `test/unit/ci/toolchain.test.ts` is the one that does now: it
+# fails first, in one sentence, if this line is ever dropped.
+#
+# The fixture runs in `shell-checks.test.ts` fake git on `PATH`
+# (`test/helpers/shell-check-fixture.ts`) and are unaffected either way — that
+# fake is not evidence the suite needs no git, which is how this went unnoticed.
 test:backend:unit:
   stage: test
   image: node:22.17-slim
   needs: []
   before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     - pnpm --filter backend run test:unit:fast
   cache:
@@ -546,6 +852,123 @@ test:backend:unit:
       - .pnpm-store
   rules: !reference [.backend-test-rules, rules]
 
+# ---------------------------------------------------------------------------
+# The acceptance criterion for "a package can ship schema" (feature 080, D-110).
+#
+# It builds a synthetic third-party module into a tarball, installs it into a
+# throwaway directory OUTSIDE the checkout, and asks this platform whether the
+# package's entity and migration reached a real PostgreSQL database. The whole
+# point is to leave the monorepo: a moved directory is still inside the walked
+# tree, still inside relative-specifier range, and pnpm links a workspace member
+# into `node_modules` — so every rehearsal that stays inside passes and proves
+# nothing (contract `specs/080-f4-real-scope/contracts/package-schema-acceptance.md`).
+#
+# **It exists as a job because a criterion nobody runs is the failure this file
+# already made once**: the `DEPLOYMENT` matrix was described in a comment for
+# two features and added by nobody, so a `backend.ts`-only overlay module could
+# crash composition with a green pipeline (see `test:backend:deployment`). The
+# trigger list below is therefore the set of inputs that can change the answer,
+# not a guess: the composer that emits both registries, the registries
+# themselves, the migration order, the packaging manifests, the criterion's own
+# sources, and the lockfile/workspace files that decide how anything resolves.
+#
+# **Red today, and enforced as a ratchet rather than as a failure.** A package
+# genuinely cannot ship schema until Wave 3 lands, so seven of the nine
+# assertions fail. `--against-expectation` compares the run to
+# `backend/acceptance/expected-state.json` and fails on drift in EITHER
+# direction — a newly-red A8 fails, and so does a newly-green A1 that nobody
+# recorded. Failing on the red instead would block every merge request that adds
+# a migration, and an `allow_failure: true` would be a job whose colour nobody
+# reads. When Wave 3 lands, that file becomes all-`pass` in the merge request
+# that earns it and this job becomes an ordinary regression gate.
+#
+# All three services are here although today's run only reaches PostgreSQL: the
+# two lifecycle assertions compose the whole application, and the first merge
+# request that makes them reachable must not also have to discover that this job
+# cannot boot one.
+# ---------------------------------------------------------------------------
+acceptance:package-schema:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    # The runner DROPS and re-creates this database on every run, so its name
+    # must satisfy the disposable-name convention `(^|_)test(_|$)` — the same
+    # judgement `test/global-setup.ts` and the dev-seed guard make. It refuses
+    # to touch anything else, which is what keeps a mistyped DSN from being a
+    # data-loss incident.
+    ACCEPTANCE_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_acceptance_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    PUBLIC_API_BASE_URL: http://localhost:3001
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+  script:
+    - pnpm --filter backend run acceptance:package-schema:ci
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        # The composer emits both registries; a change to its walk, its
+        # `@Entity(` probe or its specifier rule is a change to the answer.
+        - backend/scripts/generate-composer.ts
+        - backend/src/db/migrations-registry.generated.ts
+        - backend/src/db/entities-registry.generated.ts
+        - backend/src/db/configured-migrations.ts
+        # Execution order (feature 081): a package's chain slots in at its
+        # module's topological position.
+        - backend/src/db/migration-order.ts
+        - backend/src/db/mikro-orm.config.ts
+        # Packaging manifests — every `package.json` in the tree, plus the two
+        # files that decide what pnpm considers a workspace member. A package
+        # accidentally becoming one is precisely the trap A8 refuses.
+        - '**/package.json'
+        - pnpm-workspace.yaml
+        - pnpm-lock.yaml
+        # Discovery and composition: the seam a package plugs into.
+        - backend/src/composition.ts
+        - backend/src/overlay/**/*
+        # The lifecycle subsystem: host-owned since feature 080's T040b
+        # (D-160.11), so it is `src/lifecycle/` rather than a module directory,
+        # and the manifest index it used to hold is at the source root
+        # (D-160.3).
+        - backend/src/lifecycle/**/*
+        - backend/src/manifest-index.generated.ts
+        - backend/src/manifest-locations.ts
+        # The deployments themselves, not only the machinery that loads them.
+        # `src/overlay/**` is the loader; `src/apps/**` is what it loads, and a
+        # criterion that asserts a deployment's behaviour has to run when that
+        # deployment changes. Found by feature 080's T053(c) (!967), which added
+        # an assertion over a deployment and would not have run on a merge
+        # request that edited only it — the job would have stayed green by not
+        # being asked.
+        - backend/src/apps/**/*
+        # The criterion itself.
+        - backend/acceptance/**/*
+        - backend/scripts/acceptance/**/*
+        - .gitlab-ci.yml
+
 # Frontend + contracts: jsdom / pure-node, no external services. Cheap enough to
 # run on every pipeline without sharding or scoping.
 test:frontend:
@@ -554,6 +977,7 @@ test:frontend:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     - pnpm --filter '!backend' run test
   cache:
@@ -617,6 +1041,7 @@ perf:backend:
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
+    - pnpm run build:packages
   script:
     # `test/perf/carts/abandonment-sweep.bench.ts` runs on both schedules again
     # (issue #152). It was excluded because it could not finish: the sweep did
@@ -652,6 +1077,82 @@ perf:backend:
       allow_failure: true
 
 # ---------------------------------------------------------------------------
+# The boot gate — the built image is booted, and asserted to be the platform the
+# source describes (feature 080, D-165 step F).
+#
+# **This job is the condition of D-165, not a follow-up to it.** That ruling moves
+# production off `tsx src/index.ts` and onto `node dist/index.js`, and two defects
+# were *reproduced* on the half-built compiled path — not predicted:
+#
+#   * 45 of 45 modules installing no translations while the boot reported
+#     `installed=0 skipped=21 failed=0`. Green.
+#   * every overlay module vanishing, with no error and no warning.
+#
+# Nothing else in this pipeline can see either. `quality` type-checks the source
+# tree; `test:backend` runs vitest against the source tree; `test:backend:deployment`
+# composes overlays from the source tree. In every one of them the tree is the
+# source tree, and both defects are properties of the *built* one. So the gate
+# builds the image, migrates a throwaway database, boots it and asks the running
+# platform three questions — see `scripts/boot-gate.sh`, which carries the whole
+# reasoning.
+#
+# **It also runs itself red, in every pipeline.** `--with-negatives` derives two
+# images from the one under test — one with every `.json`/`.txt` removed from the
+# built tree (exactly a build without `copy-runtime-assets`), one with the
+# deployment's overlay directory removed — boots each, and requires the matching
+# finding. A boot gate that has never been red is a boot gate nobody has tested,
+# and the first of those two is why the assertion is arithmetic rather than
+# `installed > 0`: with the assets gone, the six modules that are packages carry
+# their bundles inside `node_modules` and still install, so `installed=6` is a
+# cheerful non-zero over a platform whose other 39 modules serve raw keys.
+#
+# **What it costs, stated so the scoping can be argued.** Three boots at ~25 s
+# each plus the image build, which on this runner is the same build `build:backend`
+# already does on the default branch. The rules below are `acceptance:package-schema`'s
+# shape: always on the default branch, and on a merge request that touches anything
+# the built image is made of. A merge request that changes only `admin/` or
+# `storefront/` does not pay it.
+#
+# **dind, and no published port.** The application container runs inside the dind
+# daemon, so a `-p` publish lands on the daemon's host and not on this job's — the
+# gate therefore speaks HTTP from a throwaway container on its own docker network,
+# using the image's own node. That is also why this job needs nothing installed:
+# `docker:27` plus `bash`, and the gate's judgement is `scripts/lib/boot-gate-assert.sh`.
+boot-gate:
+  stage: test
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    # Same plain-2375 arrangement as `.build-base` below; both sides must agree.
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ''
+  before_script:
+    # `docker:27` is alpine and ships `ash`. The gate is bash, like every other
+    # shell script in this repository.
+    - apk add --no-cache bash
+  script:
+    - bash scripts/boot-gate.sh --with-negatives
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        # What the image is built from.
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - tsconfig.base.json
+        - backend/Dockerfile
+        - .dockerignore
+        - scripts/collect-workspace-manifests.sh
+        # The gate itself, and the compose file whose commands it mirrors.
+        - scripts/boot-gate.sh
+        - scripts/lib/boot-gate-assert.sh
+        - deploy/compose.prod.yml
+        - .gitlab-ci.yml
+
+# ---------------------------------------------------------------------------
 # Build — Docker images → GitLab Container Registry
 # ---------------------------------------------------------------------------
 .build-base:
@@ -670,6 +1171,18 @@ perf:backend:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  # Memory, and the same fact about this host that serialises `test:backend`.
+  # The three image builds share one stage and used to run concurrently: two of
+  # them are frontend builds (Vite and Next), each of which holds the whole
+  # module graph in one process, and the runner is 4 vCPU on a box that also
+  # carries another project. Pipeline 11938 died `cannot allocate memory` in
+  # `build:admin` **and** `build:storefront` at once, which is the shape a
+  # concurrency limit fixes and a heap flag does not — the OOM is the host's,
+  # not V8's, so `--max-old-space-size` would only move which fork the kernel
+  # picks. Serialising costs wall clock on a stage that already only runs on
+  # `master`. Revisit from the runner's own `concurrent` setting once the suite
+  # has a machine to itself, not from here.
+  resource_group: image-builds
 
 build:backend:
   extends: .build-base
@@ -694,6 +1207,22 @@ build:storefront:
 
 build:admin:
   extends: .build-base
+  # `admin`'s `build` script is `vite build` and deliberately does **not** run
+  # `tsc --noEmit`. `storefront`'s never did; `admin` was the outlier.
+  #
+  # Two reasons, and the second is the one that matters. The type-check is
+  # already `quality`'s, an earlier stage that gates this one, so running it
+  # again here is duplication. And the image build's context is not this
+  # repository: `admin/Dockerfile` copies the manifests, `tsconfig.base.json`,
+  # `packages/` and `admin/` — not the repository root's `scripts/`. So a
+  # type-check inside the image checks a *different tree* than the one CI
+  # verified, and the first thing it found was a test file legitimately
+  # importing `scripts/tailwind-source-scan.ts` (feature 080, T044): green in
+  # every local run and in `quality`, red only here (pipeline 11613).
+  #
+  # A check that reads a truncated copy of the tree is worse than no check
+  # there, because its red says "your code is broken" when it means "my copy
+  # is short".
   script:
     - docker build -f admin/Dockerfile
       --build-arg VITE_API_BASE_URL="https://$API_DOMAIN"

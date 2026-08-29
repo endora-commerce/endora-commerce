@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { CurrencyService } from '../../../src/modules/currencies/services/currency-service.js';
+import { CurrencyService } from '../../../../packages/modules/currencies/src/backend/services/currency-service.js';
 import { runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 
 

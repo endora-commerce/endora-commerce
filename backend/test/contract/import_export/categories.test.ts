@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
+import { Category } from '../../helpers/package-entities.js';
 
 /**
  * T240 — categories import creates new rows and updates existing ones,

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { defineModuleSettingsManifest, ERROR_CODES } from '@b2b/contracts';
+import { defineModuleSettingsManifest, ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, type ReactElement, type ReactNode } from 'react';
-import { PageBuilderComponentOverlay } from '@b2b/page-builder-core/editor';
+import { PageBuilderComponentOverlay } from '@endora-commerce/page-builder-core/editor';
 import {
   getHoverActionBarTarget,
   getSelectedActionBarTarget,

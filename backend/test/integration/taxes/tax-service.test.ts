@@ -4,8 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { TaxService } from '../../../src/modules/taxes/services/tax-service.js';
-import { Tax } from '../../../src/modules/taxes/entities/tax.entity.js';
+import { TaxService } from '../../../../packages/modules/taxes/src/backend/services/tax-service.js';
+import { Tax } from '../../helpers/package-entities.js';
 
 /**
  * T131 — TaxService resolution:

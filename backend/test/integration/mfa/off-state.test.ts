@@ -7,9 +7,9 @@ import {
 } from '../../helpers/test-server.js';
 import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { MfaEnrolment } from '../../../src/modules/mfa/entities/mfa-enrolment.entity.js';
-import { PasswordResetToken } from '../../../src/modules/customer_accounts/entities/password-reset-token.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { PasswordResetToken } from '../../helpers/package-entities.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
+import { MfaEnrolment } from '../../helpers/package-entities.js';
 
 /**
  * `mfa` off-state — Constitution XVII item 6, feature 042 FR-033, D-96.

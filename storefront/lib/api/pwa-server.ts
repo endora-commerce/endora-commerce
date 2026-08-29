@@ -3,7 +3,7 @@
 // defaults when the backend is unreachable, so the storefront stays a working
 // website even without PWA config (graceful degradation, US1 scenario 3).
 
-import type { PwaPublicConfig } from '@b2b/contracts';
+import type { PwaPublicConfig } from '@endora-commerce/contracts';
 
 const DEFAULT_CONFIG: PwaPublicConfig = {
   appName: process.env['NEXT_PUBLIC_APP_NAME'] ?? 'B2B Platform',

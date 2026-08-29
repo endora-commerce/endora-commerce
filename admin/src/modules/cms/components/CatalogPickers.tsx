@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { Field } from '@measured/puck';
-import { PB_DATA_METADATA } from '@b2b/page-builder-core';
+import { PB_DATA_METADATA } from '@endora-commerce/page-builder-core';
 import { ChevronDown, ChevronRight, Search, X } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';

@@ -1,4 +1,4 @@
-import { META_DISABLED_CONFIG, type MetaStorefrontConfig } from '@b2b/contracts';
+import { META_DISABLED_CONFIG, type MetaStorefrontConfig } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 
 /**

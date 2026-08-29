@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createDeliveryProcessor } from '../../../src/modules/webhooks/services/webhook-delivery-worker.js';
-import type { WebhookJobData } from '../../../src/modules/webhooks/services/webhook-queue.js';
+import { createDeliveryProcessor } from '../../../../packages/modules/webhooks/src/backend/services/webhook-delivery-worker.js';
+import type { WebhookJobData } from '../../../../packages/modules/webhooks/src/backend/services/webhook-queue.js';
 
 /**
  * T222 — A receiver returning non-2xx makes the processor throw, which is

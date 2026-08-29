@@ -6,14 +6,14 @@ import type {
   DeliveryMethodReadPort,
   OrganizationRestrictionPort,
   PaymentMethodReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { customerAddressesOrAbsent } from '../../../src/modules/quick_order/backend.js';
+import { customerAddressesOrAbsent } from '../../../../packages/modules/quick_order/src/backend/index.js';
 import {
   DefaultPreferenceService,
   type DefaultPreferenceCollaborators,
-} from '../../../src/modules/quick_order/services/default-preference-service.js';
+} from '../../../../packages/modules/quick_order/src/backend/services/default-preference-service.js';
 
 /**
  * Issue #216 — what a stored ordering default resolves to when the module that

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { FilterDefinition } from '@b2b/contracts';
+import type { FilterDefinition } from '@endora-commerce/contracts';
 import { tForLocale } from '../lib/i18n/messages';
 
 /**
@@ -27,9 +27,19 @@ export function FilterPanel(props: {
    * and the sticky/border chrome are suppressed to avoid a double control.
    */
   variant?: 'sidebar' | 'sheet';
+  /**
+   * Feature 086 / FR-023 — whether this page may be narrowed by price, as the
+   * **server** answered it on the listing response. The panel renders no range
+   * control when it may not; it never infers the answer from the display mode,
+   * which it cannot see.
+   */
+  priceRange?: boolean;
+  /** The bounds currently applied, so the inputs round-trip through the URL. */
+  selectedPriceRange?: { min?: number | undefined; max?: number | undefined };
 }): ReactNode {
   const t = tForLocale(props.locale);
-  if (props.filters.length === 0) return null;
+  const showPriceRange = props.priceRange === true;
+  if (props.filters.length === 0 && !showPriceRange) return null;
 
   const inSheet = props.variant === 'sheet';
   const activeChips = collectActiveChips(props.filters, props.selected);
@@ -53,9 +63,14 @@ export function FilterPanel(props: {
       </div>
 
       <form action="" method="GET">
-        {Object.entries(props.baseQuery).map(([k, v]) => (
-          <input key={k} type="hidden" name={k} value={v} />
-        ))}
+        {Object.entries(props.baseQuery)
+          // The two price bounds have real inputs below when the control is
+          // shown; replaying them as hidden fields too would submit each name
+          // twice and let the stale value win.
+          .filter(([k]) => !(showPriceRange && (k === 'minPrice' || k === 'maxPrice')))
+          .map(([k, v]) => (
+            <input key={k} type="hidden" name={k} value={v} />
+          ))}
 
         {activeChips.length > 0 ? (
           <div className="pt-0">
@@ -83,6 +98,42 @@ export function FilterPanel(props: {
                   </Link>
                 </span>
               ))}
+            </div>
+          </div>
+        ) : null}
+
+        {showPriceRange ? (
+          <div className="border-t border-line py-[14px]">
+            <h4 className="mb-[10px] text-[12px] font-medium uppercase tracking-[0.06em] text-muted">
+              {t('catalog.price.heading')}
+            </h4>
+            <div className="flex items-center gap-2">
+              <label className="flex flex-1 items-center gap-1 text-[12px] text-fg-soft">
+                <span className="w-[26px] shrink-0">{t('catalog.price.min')}</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  name="minPrice"
+                  aria-label={t('catalog.price.min')}
+                  defaultValue={props.selectedPriceRange?.min ?? ''}
+                  className="w-full rounded-sm border border-line bg-surface px-[8px] py-[5px] font-mono text-[12px]"
+                />
+              </label>
+              <label className="flex flex-1 items-center gap-1 text-[12px] text-fg-soft">
+                <span className="w-[26px] shrink-0">{t('catalog.price.max')}</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  name="maxPrice"
+                  aria-label={t('catalog.price.max')}
+                  defaultValue={props.selectedPriceRange?.max ?? ''}
+                  className="w-full rounded-sm border border-line bg-surface px-[8px] py-[5px] font-mono text-[12px]"
+                />
+              </label>
             </div>
           </div>
         ) : null}

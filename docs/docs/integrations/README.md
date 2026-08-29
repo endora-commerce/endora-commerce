@@ -23,7 +23,7 @@ backend module under `backend/src/modules/`:
 
 The live OpenAPI document at `GET /api/v1/_openapi.json` is the source of
 truth for every endpoint described here. Schemas are generated from the Zod
-contracts in `@b2b/contracts`.
+contracts in `@endora-commerce/contracts`.
 
 ## Authenticating with an API key
 
@@ -131,7 +131,7 @@ Every delivery is a `POST` to the configured `url` with these headers:
 | `X-Webhook-Signature-256` | Lower-case hex HMAC-SHA-256 of the raw body, keyed with the subscription secret. |
 | `X-Webhook-Attempt` | 1-based attempt counter for this delivery. |
 
-The body is the event payload as defined in `@b2b/contracts`. A `2xx`
+The body is the event payload as defined in `@endora-commerce/contracts`. A `2xx`
 response confirms receipt. Anything else (or a timeout > 10 s) is treated as
 a failure and triggers a retry.
 
@@ -177,7 +177,7 @@ not guaranteed across event types.
 ### Available events
 
 The catalogue of stable events is the exhaustive list of strings emitted by
-the in-process event bus and bridged to webhooks (`backend/src/events/`).
+the in-process event bus and bridged to webhooks (`packages/platform/src/events/`).
 US-relevant examples:
 
 - `product.created.v1`, `product.updated.v1`, `product.archived.v1`

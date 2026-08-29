@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { ModulePresence } from '@b2b/contracts';
+import type { ModulePresence } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 

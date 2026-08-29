@@ -3,20 +3,38 @@ import { describe, expect, it } from 'vitest';
 import type {
   CatalogAttributeReadPort,
   CatalogAttributeView,
+  CatalogGalleryPort,
   CatalogProductReadPort,
   CatalogProductRecord,
   CustomerAccountReadPort,
   CustomerAccountRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import { ComparableAttributeProjection } from '../../../src/modules/comparisons/services/comparable-attribute-projection.js';
-import { ComparisonAdminService } from '../../../src/modules/comparisons/services/comparison-admin.service.js';
+import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
+import { ComparableAttributeProjection } from '../../../../packages/modules/comparisons/src/backend/services/comparable-attribute-projection.js';
+import { ComparisonAdminService } from '../../../../packages/modules/comparisons/src/backend/services/comparison-admin.service.js';
 import {
   ComparisonService,
   ProductNotFoundError,
   type ComparisonOwner,
-} from '../../../src/modules/comparisons/services/comparison-service.js';
-import { ShareTokenGenerator } from '../../../src/modules/comparisons/services/share-token-generator.js';
+} from '../../../../packages/modules/comparisons/src/backend/services/comparison-service.js';
+import { ShareTokenGenerator } from '../../../../packages/modules/comparisons/src/backend/services/share-token-generator.js';
+
+/**
+ * Issue #259 — `addProduct` narrows to the channel it was handed, through the
+ * kernel bridge accessor. These cases never reach that call (the product is
+ * absent, or the exercise is a read), so a port that throws on every method is
+ * the assertion that they do not.
+ */
+const refusingChannelMembership = new Proxy(
+  {},
+  {
+    get: (_target, property) => () => {
+      throw new Error(`comparisons unexpectedly called the channel bridge.${String(property)}`);
+    },
+  },
+) as SalesChannelMembershipPort;
+
 
 /**
  * Feature 075, Phase C — `comparisons` asks `catalog` and `customer_accounts`
@@ -68,7 +86,7 @@ function productRecord(id: string): CatalogProductRecord {
 function accountRecord(id: string, email: string): CustomerAccountRecord {
   return {
     id,
-    organizationId: null,
+    organizationId: 'org-1',
     email,
     firstName: 'Ada',
     lastName: 'Lovelace',
@@ -118,6 +136,17 @@ const settingsStub = {
   get: async () => 4,
 } as unknown as SettingsService;
 
+/**
+ * Feature 075 / D-87 — `catalog`'s gallery port. These cases are about
+ * entitlement and prices, so a port that answers "no base image" for every
+ * requested id is all they need from it; the map holding one entry per
+ * requested id is the part of the contract the view indexes on.
+ */
+const imagelessGallery = {
+  baseImageUrls: async (ids: readonly string[]) =>
+    new Map<string, string | null>(ids.map((id) => [id, null])),
+} as unknown as CatalogGalleryPort;
+
 const attributePortStub: CatalogAttributeReadPort = {
   listAll: async () => [],
   getByIdOrKey: async () => null,
@@ -151,6 +180,8 @@ describe('comparisons — catalog rows arrive over catalogProductReadPort', () =
       new ComparableAttributeProjection(),
       new ShareTokenGenerator(),
       catalogProducts,
+      refusingChannelMembership,
+      imagelessGallery,
       settingsStub,
       attributePortStub,
     );
@@ -191,6 +222,8 @@ describe('comparisons — catalog rows arrive over catalogProductReadPort', () =
       new ComparableAttributeProjection(),
       new ShareTokenGenerator(),
       catalogProducts,
+      refusingChannelMembership,
+      imagelessGallery,
       settingsStub,
       attributePortStub,
       { resolveListingPrices: async () => new Map() },

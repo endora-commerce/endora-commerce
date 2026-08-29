@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { feedTemplateDocumentSchema } from '@b2b/contracts';
+import { feedTemplateDocumentSchema } from '@endora-commerce/contracts';
 import {
   buildTemplateDocument,
   serializeTemplateDocument,
   templateDocumentFilename,
-} from '../../../src/modules/product_feeds/services/feed-template-io.service.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/feed-template-io.service.js';
 
 /**
  * Feature 067 / T094 — the template portability document (FR-012, FR-013).

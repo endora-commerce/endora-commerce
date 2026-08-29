@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { BlogIndexResponse } from '@b2b/contracts';
+import type { BlogIndexResponse } from '@endora-commerce/contracts';
 import { CategoryTile } from './CategoryTile';
 import { PostCard } from './PostCard';
 

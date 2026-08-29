@@ -23,11 +23,11 @@ import { describe, expect, it } from 'vitest';
  */
 
 const uninstallSource = readFileSync(
-  fileURLToPath(new URL('../../../src/modules/_lifecycle/scripts/uninstall.ts', import.meta.url)),
+  fileURLToPath(new URL('../../../src/lifecycle/scripts/uninstall.ts', import.meta.url)),
   'utf8',
 );
 const disableSource = readFileSync(
-  fileURLToPath(new URL('../../../src/modules/_lifecycle/scripts/disable.ts', import.meta.url)),
+  fileURLToPath(new URL('../../../src/lifecycle/scripts/disable.ts', import.meta.url)),
   'utf8',
 );
 

@@ -1,4 +1,4 @@
-import { LINKEDIN_DISABLED_CONFIG, type LinkedInStorefrontConfig } from '@b2b/contracts';
+import { LINKEDIN_DISABLED_CONFIG, type LinkedInStorefrontConfig } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 
 /**

@@ -15,7 +15,7 @@ import type {
   PushAudienceCriterionNode,
   PushAudienceCriterionType,
   PushAudienceGroupNode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { normalize } from '@/lib/text-normalization';
 
@@ -49,7 +49,7 @@ interface PickerCache {
 
 /**
  * PushAudienceRuleBuilder — recursive editor over the AST defined in
- * `@b2b/contracts/pwa#PushAudienceRule`. It reuses the same Rule Builder UX as
+ * `@endora-commerce/contracts/pwa#PushAudienceRule`. It reuses the same Rule Builder UX as
  * the price-list `ApplicationRuleBuilder`, scoped to push targeting criteria
  * (Sales Channel, Customer Group, Organization, Customer List).
  *

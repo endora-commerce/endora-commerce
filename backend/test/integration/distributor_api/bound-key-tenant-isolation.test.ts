@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -7,8 +8,7 @@ import {
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { resolveTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
 import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 /**
  * Feature 062 / Phase 1 — Principle XI proof for the bound-key pipeline: the

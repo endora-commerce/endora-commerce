@@ -2,7 +2,7 @@ import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../src/db/mikro-orm.config.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { assertServicesAvailable } from '../declared-services.js';
-import { BASE_DATABASE_URL_ENV } from '../run-isolation.js';
+import { BASE_DATABASE_URL_ENV, TEMPLATE_DATABASE_ENV } from '../run-isolation.js';
 import { cloneTemplateForCaller, dropRunDatabase } from '../run-isolation-provision.js';
 
 /**
@@ -61,10 +61,19 @@ export interface TestDb {
 export async function setupTestDb(): Promise<TestDb> {
   // Issue #211 — see the note in `setupBackendServer`; same seam, same reason.
   assertServicesAvailable('setupTestDb');
-  return openTestDb(mikroOrmConfig);
+  return openTestDb(await mikroOrmConfig());
 }
 
-async function openTestDb(config: typeof mikroOrmConfig): Promise<TestDb> {
+/**
+ * `Awaited<ReturnType<…>>` rather than `typeof mikroOrmConfig`: the config is
+ * an async factory since feature 080's T033, because an installed extension
+ * package's entities and migrations are discovered at runtime (D-119/D-155).
+ * The annotation follows the value the caller awaits, so the two spellings
+ * cannot drift.
+ */
+type MikroOrmConfig = Awaited<ReturnType<typeof mikroOrmConfig>>;
+
+async function openTestDb(config: MikroOrmConfig): Promise<TestDb> {
   const orm = await MikroORM.init(config);
   let activeEm: EntityManager | undefined;
 
@@ -142,9 +151,11 @@ async function openTestDb(config: typeof mikroOrmConfig): Promise<TestDb> {
 export async function setupMigratorTestDb(): Promise<TestDb> {
   assertServicesAvailable('setupMigratorTestDb');
   const baseUrl = process.env[BASE_DATABASE_URL_ENV];
-  if (!baseUrl) {
+  const template = process.env[TEMPLATE_DATABASE_ENV];
+  if (!baseUrl || !template) {
     process.stdout.write(
-      `[test-db] ${BASE_DATABASE_URL_ENV} is not set, so this invocation has no template to ` +
+      `[test-db] ${BASE_DATABASE_URL_ENV}/${TEMPLATE_DATABASE_ENV} are not set, so this ` +
+        `invocation has no template to ` +
         `clone — a migrator-driving file is running against the shared database, and a ` +
         `migration sequence that fails here will take the rest of the run with it.\n`,
     );
@@ -168,8 +179,8 @@ export async function setupMigratorTestDb(): Promise<TestDb> {
     };
   }
 
-  const clone = await cloneTemplateForCaller(baseUrl);
-  const db = await openTestDb({ ...mikroOrmConfig, clientUrl: clone.url });
+  const clone = await cloneTemplateForCaller(baseUrl, template);
+  const db = await openTestDb({ ...(await mikroOrmConfig()), clientUrl: clone.url });
   const closeOrm = db.close;
   return {
     ...db,

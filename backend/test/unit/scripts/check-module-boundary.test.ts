@@ -8,6 +8,7 @@ import {
   checkModuleBoundary,
   collectModuleFiles,
   collectSchemaFiles,
+  schemaKeyOf,
   declaredEntryType,
   findCrossModuleSql,
   generatedExemptionIssues,
@@ -15,13 +16,26 @@ import {
   keyOf,
   ledgerDirectory,
   loadLedgerShards,
+  modulePackageDirectories,
   permanentEntryIssue,
+  reasonOf,
+  recordedSites,
   shardShapeIssue,
   sourcesOf,
   vacuousReason,
   type LedgerEntry,
   type LedgerShard,
 } from '../../../scripts/check-module-boundary.js';
+import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
+import {
+  runtimeExportsOfEmittedModule,
+  type SourceReader,
+} from '../../../scripts/lib/emitted-exports.js';
+import {
+  modulePackageSurfaces,
+  UnreadableSubpathError,
+  type ModulePackageSurfaces,
+} from '../../../scripts/lib/module-package-subpaths.js';
 
 /**
  * The module-boundary rule's own test (feature 075, FR-001…FR-005, FR-020…FR-028).
@@ -199,6 +213,383 @@ describe('analyzeSource — resolution, at both nesting depths', () => {
   });
 });
 
+/**
+ * The module packages this repository would have to know about for a bare
+ * specifier to reach a module — npm name to manifest id, which is the direction
+ * D-142 makes meaningful: the npm name is npm's namespace and the manifest id is
+ * identity of record, so nothing here may be derived from the name's spelling.
+ *
+ * `@endora-commerce/mod-blog-extra` is in the fixture for the reason both
+ * nesting depths are: the documented 2.2× undercount came from a prefix match,
+ * and `startsWith` over a package name repeats it one namespace up.
+ */
+const MODULE_PACKAGES: ReadonlyMap<string, string> = new Map([
+  ['@endora-commerce/mod-blog', 'blog'],
+  ['@endora-commerce/mod-blog-extra', 'loyalty'],
+  ['@vendor/quotes', 'quote_requests'],
+]);
+
+describe('analyzeSource — a module package is still a module (feature 080)', () => {
+  // !910 moved `blog` out of `backend/src/modules` and this check's header still
+  // said "there is no `@endora-commerce/mod-*` package yet, so a bare specifier
+  // cannot reach a module". Measured on that tree: `organizations` importing the
+  // `BlogPost` entity as `@endora-commerce/mod-blog/backend` left
+  // `reaches=25 violations=0`, byte-identical to the run without it. A ledgered
+  // edge rewritten into a package specifier does not become legal — it becomes
+  // invisible, and the two-way ledger then reports the entry that described it
+  // as stale, which asks the author to delete the record of a debt nobody paid.
+  it('sees a module package specifier as a reach into the module it declares', () => {
+    const found = analyzeSource(
+      "import { BlogPost } from '@endora-commerce/mod-blog/backend';",
+      'modules/organizations/routes.sales-reps.ts',
+      MODULE_PACKAGES,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      moduleId: 'organizations',
+      target: 'blog',
+      targetPath: 'backend',
+      kind: 'value-import',
+      overlay: false,
+    });
+  });
+
+  it('keys the target by the declared module id, not by the npm name', () => {
+    // D-142: the manifest id is identity of record. A ledger key spelled with
+    // the npm name would not be the key the same edge had as a relative import,
+    // so the shard entry would not survive the move it is meant to outlive.
+    const found = analyzeSource(
+      "import { QuoteRequest } from '@vendor/quotes/backend';",
+      'modules/organizations/routes.sales-reps.ts',
+      MODULE_PACKAGES,
+    );
+    expect(found.map((f) => f.target)).toEqual(['quote_requests']);
+  });
+
+  it('gives the package root specifier the same empty target path a directory reach gets', () => {
+    const found = analyzeSource(
+      "import manifest from '@endora-commerce/mod-blog';",
+      'modules/orders/services/order-service.ts',
+      MODULE_PACKAGES,
+    );
+    expect(found.map((f) => f.targetPath)).toEqual(['']);
+  });
+
+  it('reads every specifier shape, not only the static import', () => {
+    const found = analyzeSource(
+      'async load() { await import("@endora-commerce/mod-blog/backend"); }',
+      'modules/orders/services/order-service.ts',
+      MODULE_PACKAGES,
+    );
+    expect(found.map((f) => f.kind)).toEqual(['dynamic-import']);
+  });
+
+  it('does not flag a packaged module importing itself by its own npm name', () => {
+    // A package's own sources are keyed repo-relative and attributed by the
+    // `modules/<id>/` segment (D-141), so this is the self-import case the
+    // directory comparison already answers for the application tree.
+    expect(
+      analyzeSource(
+        "import { BlogPost } from '@endora-commerce/mod-blog/backend';",
+        'packages/modules/blog/src/backend/routes.admin.ts',
+        MODULE_PACKAGES,
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not match a package whose name merely prefixes another package name', () => {
+    const found = analyzeSource(
+      "import { Reward } from '@endora-commerce/mod-blog-extra/backend';",
+      'modules/orders/services/order-service.ts',
+      MODULE_PACKAGES,
+    );
+    // `loyalty`, the module `-extra` actually declares — never `blog`, which a
+    // `startsWith` over the shorter name would answer.
+    expect(found.map((f) => f.target)).toEqual(['loyalty']);
+  });
+
+  it('ignores a module package specifier when no package declares that module', () => {
+    // The default is today's tree with no module package installed, and it must
+    // stay the behaviour that shipped: the map is the only authority.
+    expect(
+      analyzeSource(
+        "import { BlogPost } from '@endora-commerce/mod-blog/backend';",
+        'modules/orders/services/order-service.ts',
+      ),
+    ).toEqual([]);
+  });
+});
+
+/**
+ * D-171 — contract surface is not a reach.
+ *
+ * T050 (!928) gave a module package a type-only `./ports` subpath so that an
+ * `EntityManager`-taking port interface has a home, and this check went on
+ * counting a reach into it exactly as it counts one into `./backend`. So
+ * publishing the interface gave it a supported name and did **not** retire the
+ * consumer's ledger entry, which is what D-169 says the conversion removes.
+ *
+ * The rule is one sentence — *a subpath is contract surface iff the module it
+ * resolves to exports no runtime binding* — and every fixture below enters as a
+ * **real `package.json` and a real emitted module** (issue #130). A proof that
+ * handed the analysis a ready-made verdict would prove the `continue` and leave
+ * the two parts that decide it — the `exports` resolution and the emitted-module
+ * read — unexercised, and those are the whole of the mechanism.
+ */
+const PACKAGE_DIR = '/w/packages/modules/quotes';
+
+/** A reader over an in-memory file map, so a fixture enters at the top. */
+function mapReader(files: Readonly<Record<string, string>>): SourceReader {
+  return {
+    exists: (path) => Object.prototype.hasOwnProperty.call(files, path),
+    read: (path) => {
+      const text = files[path];
+      if (text === undefined) throw new Error(`[d171-fixture] no such file: ${path}`);
+      return text;
+    },
+  };
+}
+
+/**
+ * The real module-package manifest shape, in a fixture.
+ *
+ * The subpath set is the one `packages/modules/quote_requests/package.json`
+ * ships — root, `./backend`, `./migrations`, `./package.json` — plus the
+ * `./ports` T050 added and two shapes that have to fail differently:
+ * `./unbuilt`, whose target does not exist, and `./types-only`, which declares a
+ * `types` condition and no runtime one.
+ */
+const PACKAGE_MANIFEST = JSON.stringify({
+  name: '@vendor/quotes',
+  private: true,
+  type: 'module',
+  endora: { type: 'module', id: 'quote_requests' },
+  exports: {
+    '.': { types: './dist/manifest.d.ts', default: './dist/manifest.js' },
+    './backend': { types: './dist/backend/index.d.ts', default: './dist/backend/index.js' },
+    './migrations': {
+      types: './dist/migrations/index.d.ts',
+      default: './dist/migrations/index.js',
+    },
+    './ports': { types: './dist/ports/index.d.ts', default: './dist/ports/index.js' },
+    './unbuilt': { types: './dist/unbuilt/index.d.ts', default: './dist/unbuilt/index.js' },
+    './types-only': { types: './dist/types-only/index.d.ts' },
+    './i18n/*': './i18n/*',
+    './package.json': './package.json',
+  },
+});
+
+/** What `tsc` emits for a module that declares nothing but types. */
+const TYPE_ONLY_EMIT = 'export {};\n';
+
+function packageFiles(portsEmit: string = TYPE_ONLY_EMIT): Record<string, string> {
+  return {
+    [`${PACKAGE_DIR}/package.json`]: PACKAGE_MANIFEST,
+    // What the real barrels compile to: the root exports the manifest,
+    // `./backend` its composition entry point and its entities array, and
+    // `./migrations` the array plus every migration class by name.
+    [`${PACKAGE_DIR}/dist/manifest.js`]: 'export const manifest = { id: "quote_requests" };\n',
+    [`${PACKAGE_DIR}/dist/backend/index.js`]:
+      'export function registerModule(ctx) {}\nexport const entities = [];\n',
+    [`${PACKAGE_DIR}/dist/migrations/index.js`]:
+      'export const migrations = [];\nexport { Migration20260810T101010QuoteRequestsInit } from "./20260810T101010_quote_requests_init.js";\n',
+    [`${PACKAGE_DIR}/dist/ports/index.js`]: portsEmit,
+  };
+}
+
+function surfacesOver(files: Readonly<Record<string, string>>): ModulePackageSurfaces {
+  return modulePackageSurfaces(new Map([['@vendor/quotes', PACKAGE_DIR]]), mapReader(files));
+}
+
+/** One consumer file, judged with a real surfaces reader over the fixture package. */
+function reaches(
+  specifier: string,
+  files: Readonly<Record<string, string>> = packageFiles(),
+): ReturnType<typeof analyzeSource> {
+  return analyzeSource(
+    `import type { X } from '${specifier}';`,
+    ORDER_SERVICE,
+    MODULE_PACKAGES,
+    surfacesOver(files),
+  );
+}
+
+describe('analyzeSource — contract surface is not a reach (D-171)', () => {
+  it('does not count a reach into a subpath whose emitted module exports nothing', () => {
+    // The whole point: `./ports` emits `export {};`, so the specifier names a
+    // key the owner declared rather than a file in the owner's private tree.
+    expect(reaches('@vendor/quotes/ports')).toEqual([]);
+  });
+
+  it('counts it again the moment a runtime binding appears on that subpath', () => {
+    // Fails closed, and in the same run T050's guard goes red — the fixture is
+    // the emitted text, so the exemption evaporates because the measurement
+    // changed and not because anything was edited here.
+    const withAConst = packageFiles("export const QUOTE_PORT_NAME = 'quoteApplyPort';\n");
+    const found = reaches('@vendor/quotes/ports', withAConst);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ target: 'quote_requests', targetPath: 'ports' });
+    // The discrimination, in one assertion: the same specifier, the same
+    // consumer, one byte of emitted JavaScript apart.
+    expect(reaches('@vendor/quotes/ports', packageFiles())).toEqual([]);
+  });
+
+  it('still counts `./backend`, `./migrations` and the package root', () => {
+    for (const [specifier, targetPath] of [
+      ['@vendor/quotes/backend', 'backend'],
+      ['@vendor/quotes/migrations', 'migrations'],
+      ['@vendor/quotes', ''],
+    ] as const) {
+      expect(
+        reaches(specifier).map((f) => f.targetPath),
+        specifier,
+      ).toEqual([targetPath]);
+    }
+  });
+
+  it('counts a subpath the package does not declare', () => {
+    // Fail-closed in the other direction: an exemption is granted by a
+    // measurement of a declared subpath, never by the absence of one.
+    expect(reaches('@vendor/quotes/services/quote-service.js')).toHaveLength(1);
+  });
+
+  it('counts a wildcard subpath, which names no single emitted module', () => {
+    expect(reaches('@vendor/quotes/i18n/en.json')).toHaveLength(1);
+  });
+
+  it('counts `./package.json`, rather than reading JSON as a module that exports nothing', () => {
+    // A declared subpath whose target is not JavaScript. Parsed as a module it
+    // holds no export, which would make it contract surface by a wrong reading.
+    expect(reaches('@vendor/quotes/package.json')).toHaveLength(1);
+  });
+
+  it('refuses a declared subpath whose emitted module is not there', () => {
+    // Issue #113's shape: a file the check cannot read must never become an
+    // exemption. `./unbuilt` is declared and its target does not exist, which is
+    // what an unbuilt `dist` looks like from here.
+    expect(() => reaches('@vendor/quotes/unbuilt')).toThrow(UnreadableSubpathError);
+    expect(() => reaches('@vendor/quotes/unbuilt')).toThrow(/does not exist/);
+  });
+
+  it('refuses a subpath that declares `types` and no runtime condition', () => {
+    // The broken shape D-169's own test names: it type-checks and then answers
+    // `ERR_PACKAGE_PATH_NOT_EXPORTED` to every consumer whose toolchain emits
+    // the import. There is no emitted module to measure, so it is not a subpath
+    // that publishes nothing.
+    expect(() => reaches('@vendor/quotes/types-only')).toThrow(UnreadableSubpathError);
+    expect(() => reaches('@vendor/quotes/types-only')).toThrow(/no runtime condition/);
+  });
+
+  it('refuses a package directory holding no readable manifest', () => {
+    const files = packageFiles();
+    delete files[`${PACKAGE_DIR}/package.json`];
+    expect(() => reaches('@vendor/quotes/ports', files)).toThrow(UnreadableSubpathError);
+  });
+
+  it('still counts a relative reach into another module — there is no subpath to exempt', () => {
+    // "Retire by reclassification" is structurally unavailable:
+    // `resolveModulePackage` answers `null` for any specifier starting with `.`,
+    // so an unconverted reach has nothing for the exemption to apply to.
+    // Reaching the exempt state takes three separable edits, each in the diff:
+    // package the owner, publish the interface, rewrite the specifier.
+    const found = analyzeSource(
+      "import type { CreditLimitPort } from '../../credit_limits/services/credit-limit-port.js';",
+      ORDER_SERVICE,
+      MODULE_PACKAGES,
+      surfacesOver(packageFiles()),
+    );
+    expect(found.map((f) => f.target)).toEqual(['credit_limits']);
+  });
+
+  it('still counts a relative `services/ports/` file — `surfaceOf` is not the exemption', () => {
+    // `surfaceOf` answers `'port'` for any path holding a `ports` segment, a
+    // private file included. It is right for choosing a remedy sentence and
+    // wrong as a boundary decision, so the exemption must not run through it.
+    const found = analyzeSource(
+      "import type { Thing } from '../../catalog/services/ports/catalog-port.js';",
+      ORDER_SERVICE,
+      MODULE_PACKAGES,
+      surfacesOver(packageFiles()),
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ target: 'catalog', surface: 'port' });
+  });
+
+  it('is the same fact T050 guard measures, off the same emitted module', () => {
+    // Not two derivations of one population: the check and the guard both read
+    // `runtimeExportsOfEmittedModule`, so a subpath that has stopped being
+    // type-only is a reach here and a `runtime-export` finding there, from one
+    // measurement of one file.
+    const emitted = `${PACKAGE_DIR}/dist/ports/index.js`;
+    const withAConst = packageFiles("export const QUOTE_PORT_NAME = 'quoteApplyPort';\n");
+    expect(runtimeExportsOfEmittedModule(emitted, mapReader(packageFiles()))).toEqual([]);
+    expect(runtimeExportsOfEmittedModule(emitted, mapReader(withAConst))).toEqual([
+      'QUOTE_PORT_NAME',
+    ]);
+  });
+});
+
+/**
+ * The real packages, classified by the same reader the CLI builds.
+ *
+ * The fixtures above are what can go red; this is what says the shapes they
+ * model are the shapes this repository ships.
+ *
+ * **This assertion used to read `expect(exempt).toEqual([])`**, and its comment
+ * said why: when D-171 landed no module package published a `./ports`, so
+ * nothing on the tree was exempt and a run that started exempting something was
+ * a run whose summary line had moved. That premise expired with the first
+ * package to publish one (`@endora-commerce/mod-credit-limits`, feature 080
+ * T040b). What replaces it is not a bigger expected set — that would be a
+ * derived fact written down (D-100), one line per package forever. It is the
+ * two things an empty-set assertion was buying and can no longer buy:
+ *
+ *  * the population is real and **both verdicts occur on it**, so neither
+ *    branch of the classifier is being asserted over nothing; and
+ *  * the one package this repository knows publishes a port interface that
+ *    cannot live in `packages/contracts` lands on the exempt side, while its
+ *    `./backend` and `./migrations` — which export `registerModule`,
+ *    `entities` and `migrations` — do not.
+ *
+ * The *predicate* itself is asserted next door, over a fixture whose emitted
+ * module the test writes: `is the same fact T050 guard measures`. That is where
+ * a `const` on a `./ports` has to flip the answer, because here it could only
+ * be compared against the same reader that produced it.
+ */
+describe('D-171 over the module packages this checkout really has', () => {
+  it('exempts a declared subpath exactly when its emitted module exports no runtime binding', async () => {
+    const layout = await resolveModuleLayout();
+    const directories = modulePackageDirectories(layout);
+    expect(directories.size).toBeGreaterThan(0);
+    const surfaces = modulePackageSurfaces(directories);
+
+    const exempt: string[] = [];
+    const counted: string[] = [];
+    for (const [name, directory] of directories) {
+      const manifest: unknown = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
+      const entries = (manifest as { exports?: Record<string, unknown> }).exports ?? {};
+      const subpaths = Object.keys(entries).map((key) => (key === '.' ? '' : key.slice(2)));
+      expect(subpaths.length, name).toBeGreaterThan(0);
+      for (const subpath of subpaths) {
+        // A throw is the refusal, and it must not happen over a built tree.
+        const surface = surfaces.surfaceOfSubpath(name, subpath);
+        (surface.kind === 'contract' ? exempt : counted).push(`${name}/${subpath}`);
+      }
+    }
+
+    // The population is not empty, and the exemption is not vacuous.
+    expect(counted.length).toBeGreaterThan(0);
+    expect(exempt.length, 'no subpath on this tree is exempt — the reconciliation below asserts nothing').toBeGreaterThan(0);
+
+    // Named rather than enumerated: this package is the reason the subpath
+    // exists, so it is the one case whose verdict is a statement about the
+    // design and not about how many packages happen to ship today.
+    expect(exempt).toContain('@endora-commerce/mod-credit-limits/ports');
+    expect(counted).toContain('@endora-commerce/mod-credit-limits/backend');
+    expect(counted).toContain('@endora-commerce/mod-credit-limits/migrations');
+  });
+});
+
 describe('analyzeSource — what it must not flag', () => {
   it('ignores a specifier resolving inside the importing module', () => {
     expect(
@@ -215,13 +606,18 @@ describe('analyzeSource — what it must not flag', () => {
     }
   });
 
-  it('ignores bare package specifiers', () => {
+  it('ignores a bare specifier no module package declares — including a sibling workspace package', () => {
+    // `@endora-commerce/contracts` and `@endora-commerce/platform` share a
+    // namespace with every module package and are not modules, so the
+    // discrimination cannot be the scope: it is the `endora` block, read from
+    // each member's own manifest.
     const source = [
       "import { z } from 'zod';",
-      "import { orderSchema } from '@b2b/contracts';",
+      "import { orderSchema } from '@endora-commerce/contracts';",
+      "import { HttpError } from '@endora-commerce/platform/http';",
       "import { EntityManager } from '@mikro-orm/postgresql';",
     ].join('\n');
-    expect(analyzeSource(source, ORDER_SERVICE)).toEqual([]);
+    expect(analyzeSource(source, ORDER_SERVICE, MODULE_PACKAGES)).toEqual([]);
   });
 
   it('ignores a file that belongs to no module', () => {
@@ -239,7 +635,7 @@ describe('analyzeSource — what it must not flag', () => {
     expect(
       analyzeSource(
         "import { manifest } from '../catalog/manifest.js';",
-        'modules/_lifecycle/manifest-index.generated.ts',
+        'manifest-index.generated.ts',
       ),
     ).toEqual([]);
   });
@@ -647,9 +1043,10 @@ describe('the table→owner map — two sources, and the entity wins', () => {
   });
 });
 
-// Six of the seven. The seventh — a shard declaring an entry type of its own
-// (issue #217) — needs a file rather than a record, so it has its own block at
-// the end of this file.
+// Six of the eight. The count (issue #267) has its own block below, because its
+// fixtures need a file that reaches its target more than once; the eighth — a
+// shard declaring an entry type of its own (issue #217) — needs a file rather
+// than a record, so it has its own block at the end of this file.
 describe('checkModuleBoundary — the six ways the ledger fails', () => {
   const CROSS = "import { Product } from '../../catalog/entities/product.entity.js';";
   const key = `${ORDER_SERVICE}:${PRODUCT}`;
@@ -794,6 +1191,144 @@ describe('checkModuleBoundary — the six ways the ledger fails', () => {
   });
 });
 
+/**
+ * The count on an entry (issue #267).
+ *
+ * The ledger key is `(file, target)`, which answers "is this file already known
+ * to reach that target" and not "how much" — so the **Nth** reach of a shape a
+ * file already carries lands against an unchanged ledger. MR !793 added two
+ * `product_categories` statements to two files that each already had an entry
+ * for that table: `sql` rose 52 -> 54, `stale` and `violations` stayed 0, and
+ * nothing asked anybody why.
+ *
+ * So the fixtures here are **files that reach one target twice**, entering as
+ * source text like every other proof in this file: a fixture handing the
+ * comparison a ready-made count would prove the arithmetic and nothing above it
+ * — the walk that produces the number is the part that has to be exercised.
+ */
+describe('checkModuleBoundary — the count on an entry (issue #267)', () => {
+  const key = `${ORDER_SERVICE}:${PRODUCT}`;
+  const REASON = 'F3 Phase C — orders reads the product entity directly.';
+
+  /** One file, one target, two reaches: a type import and a dynamic one. */
+  const TWICE = [
+    "import type { Product } from '../../catalog/entities/product.entity.js';",
+    'export class OrderService {',
+    "  async load() { return import('../../catalog/entities/product.entity.js'); }",
+    '}',
+  ].join('\n');
+
+  const ONCE = "import { Product } from '../../catalog/entities/product.entity.js';";
+
+  it('reads an omitted count as one, so the 60 single-reach entries stay sentences', () => {
+    const result = checkModuleBoundary({ sources: tree(ONCE) }, [shard('orders', { [key]: REASON })]);
+    expect(result.countIssues).toEqual([]);
+    expect(result.violations).toEqual([]);
+  });
+
+  it('fails an entry recording fewer reaches than the walk found', () => {
+    // The gap itself: the file grew a second reach and the entry did not move.
+    const result = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: REASON }),
+    ]);
+    expect(result.violations).toEqual([]);
+    expect(result.stale).toEqual([]);
+    expect(result.countIssues).toHaveLength(1);
+    expect(result.countIssues[0]).toContain('records 1, the walk found 2 (+1)');
+  });
+
+  it('fails an entry recording more reaches than the walk found', () => {
+    // The stale direction, one granularity down: a number left standing after
+    // the reaches under it went. Every other ledger in this tree ratchets both
+    // ways, and a count that only ever rose would licence exactly that.
+    const result = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: { sites: 3, reason: REASON } }),
+    ]);
+    expect(result.countIssues).toHaveLength(1);
+    expect(result.countIssues[0]).toContain('records 3, the walk found 2 (-1)');
+  });
+
+  it('passes when the recorded count is what the walk found', () => {
+    const result = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: { sites: 2, reason: REASON } }),
+    ]);
+    expect(result.countIssues).toEqual([]);
+    expect(result.violations).toEqual([]);
+    expect(result.stale).toEqual([]);
+    expect(result.ledgered).toHaveLength(2);
+  });
+
+  it('refuses a count that is not a positive integer', () => {
+    // A shard is loaded through a dynamic import, so `tsc` never sees it — the
+    // same reason the permanence flag is checked structurally. A count that
+    // cannot be compared with the walk is worse than none: it reads as a
+    // recorded number and answers nothing.
+    for (const sites of [0, -1, 1.5, 'two' as unknown as number]) {
+      const result = checkModuleBoundary({ sources: tree(TWICE) }, [
+        shard('orders', { [key]: { sites, reason: REASON } }),
+      ]);
+      expect(result.countIssues, `sites: ${String(sites)}`).toHaveLength(1);
+      expect(result.countIssues[0]).toContain('a site count is a positive integer');
+    }
+  });
+
+  it('leaves an entry that describes no reach at all to the stale rule', () => {
+    // Reporting it twice would name one defect two ways, and the name it
+    // already has is the one the shards' own headers use.
+    const result = checkModuleBoundary({ sources: tree('export class OrderService {}') }, [
+      shard('orders', { [key]: { sites: 2, reason: REASON } }),
+    ]);
+    expect(result.stale).toEqual([key]);
+    expect(result.countIssues).toEqual([]);
+  });
+
+  it('holds a permanent entry to the count on the same terms', () => {
+    // Permanence answers "why does this edge stand", never "why does it stand
+    // twice": a co-transactional seam that grows a second statement is worth
+    // the question a draining one's growth gets.
+    const permanent = {
+      permanent: true,
+      reason: 'A foreign key makes the seam co-transactional.',
+      retiredBy: 'F4 gives `catalog` a package entry point that exports this seam.',
+    } as const;
+    const grown = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: permanent }),
+    ]);
+    expect(grown.permanentIssues).toEqual([]);
+    expect(grown.countIssues).toHaveLength(1);
+    expect(grown.countIssues[0]).toContain('records 1, the walk found 2 (+1)');
+
+    const recorded = checkModuleBoundary({ sources: tree(TWICE) }, [
+      shard('orders', { [key]: { ...permanent, sites: 2 } }),
+    ]);
+    expect(recorded.countIssues).toEqual([]);
+    expect(recorded.permanentKeys).toEqual([key]);
+  });
+
+  it('counts the two predicates under one key, as the key already merged them', () => {
+    // A statement and a builder over one table in one file are one entry
+    // (issue #187) — and therefore two sites, which is the number the entry has
+    // to record.
+    const source = [
+      "await em.getConnection().execute(`select id from products where id = ?`, [id]);",
+      "await em.getKnex()('products').where('id', id);",
+    ].join('\n');
+    const sources = new Map([
+      ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
+      ['modules/catalog/entities/product.entity.ts', "@Entity({ tableName: 'products' })\nexport class Product {}"],
+      ['modules/orders/services/order-service.ts', source],
+      ['db/migrations/20260101T000000_core_init.ts', 'this.addSql(`create table "order_items" ()`);'],
+    ]);
+    const sqlKey = `${ORDER_SERVICE}:sql:catalog/products`;
+    const result = checkModuleBoundary({ sources, schema: sources }, [
+      shard('orders', { [sqlKey]: { sites: 2, reason: REASON } }),
+    ]);
+    expect(result.violations).toEqual([]);
+    expect(result.countIssues).toEqual([]);
+    expect(result.ledgered).toHaveLength(2);
+  });
+});
+
 describe('checkModuleBoundary — refusing a vacuous pass (FR-021)', () => {
   const READ_SOMETHING = {
     moduleFiles: ['modules/orders/a.ts', 'modules/catalog/b.ts'],
@@ -872,9 +1407,10 @@ describe('the generated-file exemption is checked both ways', () => {
 
 describe('the tree itself', () => {
   it('has every cross-module reach ledgered, in its own shard', async () => {
+    const layout = await resolveModuleLayout();
     const shards = await loadLedgerShards(ledgerDirectory());
-    const sources = sourcesOf(collectModuleFiles());
-    const schema = sourcesOf(collectSchemaFiles());
+    const sources = sourcesOf(collectModuleFiles(layout.moduleWalkRoots), layout.keyOf);
+    const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
     expect(sources.size, 'no module sources found — a vacuous pass').toBeGreaterThan(1000);
     expect(schema.size, 'no schema sources found — a vacuous pass').toBeGreaterThan(sources.size);
 
@@ -889,15 +1425,22 @@ describe('the tree itself', () => {
     expect(result.orphanShards).toEqual([]);
     expect(result.misfiledEntries).toEqual([]);
     expect(result.permanentIssues).toEqual([]);
+    expect(result.countIssues).toEqual([]);
     expect(result.shardShapeIssues).toEqual([]);
   });
 
-  it('scans the same files the CLI scans, and the walk is the shared one', () => {
+  it('scans the same files the CLI scans, and the walk is the shared one', async () => {
     // Both callers agree on the scan scope by construction rather than by two
-    // similar walks — `check-container-imports.ts`' precedent.
-    const files = collectModuleFiles();
-    const srcRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', 'src');
-    expect(files.length).toBe(countTypeScriptFiles(join(srcRoot, 'modules')) + countTypeScriptFiles(join(srcRoot, 'apps')));
+    // similar walks — `check-container-imports.ts`' precedent. Since feature
+    // 080's T040a the roots are resolved rather than spelled, so the count is
+    // taken over the roots the layout answered with and a module that has left
+    // `src/modules` is in both halves or in neither.
+    const layout = await resolveModuleLayout();
+    const files = collectModuleFiles(layout.moduleWalkRoots);
+    expect(layout.moduleWalkRoots.length).toBeGreaterThan(0);
+    expect(files.length).toBe(
+      layout.moduleWalkRoots.reduce((total, root) => total + countTypeScriptFiles(root), 0),
+    );
   });
 });
 
@@ -930,21 +1473,46 @@ describe('the ledger shards on disk', () => {
           // (D-77): it is not waiting for a merge request, so it has to name
           // what *would* retire it, and the sweep is not an answer.
           expect(permanentEntryIssue(key, entry), where).toBeNull();
-          continue;
         }
-        expect(entry.length, where).toBeGreaterThan(20);
+        // Whichever of the three forms it takes, an entry carries a sentence
+        // and a count that can be compared with the walk (issue #267).
+        expect(reasonOf(entry).length, where).toBeGreaterThan(20);
+        expect(recordedSites(entry), where).not.toBeNull();
       }
     }
   });
 
-  it('is a directory of module-named files and nothing else', () => {
+  it('records a count only where the file reaches its target more than once', async () => {
+    // The field is omittable, and the reason it may be is measured: 60 of the
+    // 68 keys standing when it landed cover exactly one reach. An entry
+    // spelling `sites: 1` says what omitting it says, so the two spellings
+    // would drift apart on their own.
+    //
+    // **The floor is the ledger, not the counted subset**, and that correction
+    // was forced by feature 080's T048: converting `orders`' two `inventory`
+    // entity reaches into one port interface retired the last two keys in the
+    // tree that carried a count, so a `counted.length > 0` floor started
+    // failing on a tree in which every remaining reach is single-site — which
+    // is the end state this ledger is draining towards, not a defect. What that
+    // floor was protecting against is a run that read no shard at all, and that
+    // is what is asserted here instead. The field's own two-way rule keeps its
+    // red proofs above, over fixtures, where a tree with no multi-site entry
+    // cannot make them vacuous.
+    const shards = await loadLedgerShards(ledgerDirectory());
+    const allEntries = shards.flatMap((loaded) => Object.entries(loaded.entries));
+    expect(allEntries.length, 'no ledger entry read — a vacuous pass').toBeGreaterThan(0);
+    const counted = allEntries
+      .filter(([, entry]) => typeof entry !== 'string' && entry.sites !== undefined)
+      .map(([key, entry]) => [key, recordedSites(entry)] as const);
+    for (const [key, sites] of counted) expect(sites, key).toBeGreaterThan(1);
+  });
+
+  it('is a directory of module-named files and nothing else', async () => {
+    const layout = await resolveModuleLayout();
     const names = readdirSync(ledgerDirectory());
     expect(names.filter((name) => !name.endsWith('.ts'))).toEqual([]);
     const modules = new Set(
-      collectModuleFiles()
-        .map((file) => file.slice(file.indexOf('/src/') + '/src/'.length))
-        .map((file) => file.split('/'))
-        .map((segments) => (segments[0] === 'apps' ? segments[3] : segments[1])),
+      collectModuleFiles(layout.moduleWalkRoots).map((file) => layout.moduleIdOfPath(file)),
     );
     expect(names.map((name) => name.replace(/\.ts$/, '')).filter((id) => !modules.has(id))).toEqual(
       [],

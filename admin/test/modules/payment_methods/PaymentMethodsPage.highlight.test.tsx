@@ -57,8 +57,18 @@ vi.mock('@/modules/payment_methods/api/payment-methods-client', () => ({
   },
 }));
 
+/**
+ * Permissive since the screen took a gate of its own (2026-08-28): the page
+ * returns a refusal notice unless the operator holds `payment_methods:read`,
+ * and this file is about `?highlight=` focus rather than about authority. The
+ * stub used to deny everything, which was enough while the only codes it
+ * decided were the five gateway integration cards — those stay hidden here,
+ * because `hasPermission` still answers `false` for anything but the read code.
+ * The gate itself is
+ * `PaymentMethodsPage.permission-gating.test.tsx`.
+ */
 vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: () => false }),
+  useAuth: () => ({ hasPermission: (code: string) => code === 'payment_methods:read' }),
 }));
 
 const KEYS = [

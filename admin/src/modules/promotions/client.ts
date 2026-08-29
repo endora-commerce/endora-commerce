@@ -6,7 +6,7 @@ import type {
   PromotionRuleRecord,
   PromotionStatsGroupBy,
   PromotionUsageStats,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Feature 045 — admin API client for the promotions engine.

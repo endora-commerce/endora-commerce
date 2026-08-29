@@ -1,18 +1,17 @@
 import { randomBytes } from 'node:crypto';
+import { AdminUser } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FEED_DELIVERY_REDACTED } from '@b2b/contracts';
+import { FEED_DELIVERY_REDACTED } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { FeedDelivery } from '../../../src/modules/product_feeds/entities/feed-delivery.entity.js';
-import { CredentialConfiguration } from '../../../src/modules/credentials/entities/credential-configuration.entity.js';
+import { CredentialConfiguration, FeedDelivery } from '../../helpers/package-entities.js';
 
 /**
  * Feature 070 — the delivery configuration contract (FR-100, FR-101, FR-107,

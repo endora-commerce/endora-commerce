@@ -1,4 +1,4 @@
-import type { ResolvedMegamenu } from '@b2b/contracts';
+import type { ResolvedMegamenu } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 
 /**

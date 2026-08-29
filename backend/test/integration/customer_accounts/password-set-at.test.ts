@@ -3,15 +3,15 @@ import type {
   CustomerAccountMemberWritePort,
   CustomerPasswordResetPort,
   CustomerPasswordStatePort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { manifest as customersManifest } from '../../../src/modules/customers/manifest.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { manifest as customersManifest } from '../../../../packages/modules/customers/src/manifest.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 

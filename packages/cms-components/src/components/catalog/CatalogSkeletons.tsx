@@ -1,4 +1,4 @@
-import { normalizeResponsive } from '@b2b/page-builder-core';
+import { normalizeResponsive } from '@endora-commerce/page-builder-core';
 import type { CSSProperties, ReactElement } from 'react';
 
 export function ProductCardSkeleton(): ReactElement {

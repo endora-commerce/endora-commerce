@@ -1,10 +1,12 @@
+import { CartAuditEntry } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CartAuditEntry } from '../../../src/modules/carts/entities/cart-audit-entry.entity.js';
+
 
 /**
  * Feature 027 §T035 — `CartService` emits typed audit rows on every

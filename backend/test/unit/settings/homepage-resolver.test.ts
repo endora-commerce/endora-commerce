@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HomepageResolver } from '../../../src/modules/settings/services/homepage-resolver.js';
+import { HomepageResolver } from '../../../../packages/modules/settings/src/backend/services/homepage-resolver.js';
 import type { SettingsService, SettingsReadResult } from '../../../src/kernel/settings/settings.service.js';
 
 const CHANNEL_ID = '11111111-2222-3333-4444-555555555555';

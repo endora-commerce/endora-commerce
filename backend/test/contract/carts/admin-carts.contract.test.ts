@@ -1,12 +1,14 @@
+import { Cart, CartItem } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+
 
 /**
  * T108-T111 (feature 027 US6) — Admin platform-wide carts surface.

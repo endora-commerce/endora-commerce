@@ -1,9 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { BulkProgressSnapshot } from '@b2b/contracts';
+import type { BulkProgressSnapshot } from '@endora-commerce/contracts';
 import { CONTRIBUTION_POLICY_STATED } from '../../../scripts/check-port-dependencies.js';
-import { PromptActionBulkProgressRegistry } from '../../../src/modules/prompt_actions/services/bulk-progress-registry.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+import { PromptActionBulkProgressRegistry } from '../../../../packages/modules/prompt_actions/src/backend/services/bulk-progress-registry.js';
 
 /**
  * `PromptActionBulkProgressRegistry` — D-72 point 4, and D-76.
@@ -27,7 +28,18 @@ import { PromptActionBulkProgressRegistry } from '../../../src/modules/prompt_ac
  * below are about *what comes back* rather than about what was written where.
  */
 
-const backendRoot = fileURLToPath(new URL('../../../', import.meta.url));
+
+const layout = await requireModuleLayout('[bulk-progress-registry]');
+
+/** A module's `registerModule` source file, in either layout. */
+function backendEntryPointOf(moduleId: string): string {
+  const dir = layout.moduleDirectoryOf(moduleId);
+  if (dir === null) throw new Error(`[bulk-progress-registry] no such module: ${moduleId}`);
+  for (const candidate of [join(dir, 'backend.ts'), join(dir, 'src', 'backend', 'index.ts')]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(`[bulk-progress-registry] ${moduleId} has no backend entry point under ${dir}`);
+}
 
 const snapshot = (overrides: Partial<BulkProgressSnapshot> = {}): BulkProgressSnapshot => ({
   total: 3,
@@ -132,7 +144,12 @@ describe('PromptActionBulkProgressRegistry', () => {
     // unless the one instance the platform composes is handed the real
     // presence. And it must stay `ctx.di.register` — a `providePort` here would
     // 503 a contributor's boot hook when the assistant itself is switched off.
-    const source = readFileSync(`${backendRoot}src/modules/prompt_actions/backend.ts`, 'utf8');
+    // Where this module keeps its `registerModule` is resolved, not spelled
+    // (feature 080, T040b): `prompt_actions` is a package, so the file is its
+    // `./backend` entry point rather than `src/modules/<id>/backend.ts`, and a
+    // reader that answered `''` for a module it could not place would pass
+    // every assertion below.
+    const source = readFileSync(backendEntryPointOf('prompt_actions'), 'utf8');
     expect(source).toContain('promptActionBulkProgressRegistry: ctx');
     expect(source.replace(/\s+/g, '')).toContain(
       'newPromptActionBulkProgressRegistry((moduleId)=>effectiveState.isPresent(moduleId))',

@@ -6,7 +6,7 @@ import type {
   PwaAdminConfig,
   PwaDisplayMode,
   SalesChannelSummary,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';

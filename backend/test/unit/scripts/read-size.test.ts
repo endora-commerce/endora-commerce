@@ -34,13 +34,20 @@ import { readSizeBounds, READ_SIZE_SLACK } from '../../helpers/check-read-sizes.
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
-/** Runs a snippet against the sourced shell helper; returns status + output. */
-function bash(snippet: string): { status: number; output: string } {
+/**
+ * Runs a snippet against the sourced shell helper; returns status + output.
+ *
+ * `cwd` is the repository root because that is where both callers run it from:
+ * `check-naming.sh` and `check-language.sh` `cd "$REPO_ROOT"` before sourcing
+ * anything, and the module coverage below relates an index path to a listing
+ * that `git ls-files` emits relative to that directory.
+ */
+function bash(snippet: string, cwd: string = REPO_ROOT): { status: number; output: string } {
   try {
     const output = execFileSync(
       'bash',
       ['-c', `source "${REPO_ROOT}scripts/lib/read-size.sh"\n${snippet}`],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd },
     );
     return { status: 0, output };
   } catch (error: unknown) {
@@ -230,25 +237,33 @@ describe('the shell half refuses the same three shapes', () => {
     expect(output).toContain('covered 3 of the 65');
   });
 
-  it('derives the expectation from the manifest index rather than a number', () => {
-    // Enters at the top: a file list on stdin and the real index, which is what
-    // a run hands it. A fixture that passed `covered/expected` straight in would
-    // prove the formatting and leave the derivation — the part #215 is about —
-    // unexercised.
-    const index = `${REPO_ROOT}backend/src/modules/_lifecycle/manifest-index.generated.ts`;
+  it('derives the expectation from the module directories rather than a number', () => {
+    // Enters at the top: a file list on stdin and the directories a run
+    // resolved, which is what a run hands it. A fixture that passed
+    // `covered/expected` straight in would prove the formatting and leave the
+    // derivation — the part #215 is about — unexercised.
     const { output } = bash(
       `printf 'backend/src/modules/blog/backend.ts\\nbackend/src/kernel/x.ts\\n' | ` +
-        `read_size_module_coverage '${index}'`,
+        "read_size_module_coverage \"$(printf 'backend/src/modules/blog\\nbackend/src/modules/cms\\n')\"",
     );
-    const [covered, expected] = output.trim().split('/').map(Number);
-    expect(covered).toBe(1);
-    expect(expected).toBeGreaterThan(60);
+    expect(output.trim()).toBe('1/2');
   });
 
-  it('fails rather than answering when the index is not there', () => {
-    const { status } = bash(
-      "printf 'x\\n' | read_size_module_coverage /nowhere/manifest-index.generated.ts",
+  it('counts a module that has left the application tree (feature 080, T040a)', () => {
+    // The directories are a **list** now, and the reason is this case: a module
+    // that has become a workspace package is under no root the application
+    // owns, so a coverage keyed on one root answers `0/1` for a repository
+    // whose only fault is that the move is half done — the very shortfall this
+    // reconciliation exists to refuse, reported against a tree that is fine.
+    const { output } = bash(
+      `printf 'packages/modules/blog/src/backend.ts\\nbackend/src/kernel/x.ts\\n' | ` +
+        "read_size_module_coverage \"$(printf 'packages/modules/blog\\n')\"",
     );
+    expect(output.trim()).toBe('1/1');
+  });
+
+  it('fails rather than answering when no directory was resolved', () => {
+    const { status } = bash("printf 'x\\n' | read_size_module_coverage ''");
     expect(status).not.toBe(0);
   });
 });

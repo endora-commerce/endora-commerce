@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { PaymentMethodSummary } from '../../lib/api/methods';
 import { resolvePaymentMethodRenderer } from '../../lib/payment-renderers/registry';
+import { tForLocale } from '../../lib/i18n/messages';
 import {
   filterPaymentMethodsForApplePaySupport,
   isApplePayAvailable,
@@ -17,6 +18,12 @@ import {
  * Apple Pay (`payu_apple_pay` / `stripe_apple_pay`) is
  * omitted unless the browser exposes a usable `ApplePaySession` (Safari /
  * Apple devices).
+ *
+ * The empty state is one sentence for two causes — a shop that configured no
+ * method, and a platform whose `payment_methods` or `payments` module an
+ * operator switched off. `listPaymentMethods` degrades the module refusal to an
+ * empty list precisely so both arrive here, because a buyer cannot act on the
+ * difference between them.
  */
 export function PaymentMethods({
   methods,
@@ -39,6 +46,8 @@ export function PaymentMethods({
     setVisibleMethods(filterPaymentMethodsForApplePaySupport(methods, isApplePayAvailable()));
   }, [methods]);
 
+  const t = tForLocale(locale ?? 'en-US');
+
   const preferredIdx = preferredId
     ? visibleMethods.findIndex((m) => m.id === preferredId)
     : -1;
@@ -48,9 +57,7 @@ export function PaymentMethods({
     <fieldset className="b2b-auth__form border-0 p-0">
       <legend className="font-semibold">Payment method</legend>
       {visibleMethods.length === 0 ? (
-        <p className="muted">
-          No payment method is available for your account on this sales channel.
-        </p>
+        <p className="muted">{t('checkout.payment.none')}</p>
       ) : (
         visibleMethods.map((m, i) => {
           const Renderer = resolvePaymentMethodRenderer(m.rendererKey);

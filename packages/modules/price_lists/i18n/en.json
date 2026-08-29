@@ -1,0 +1,10 @@
+{
+  "activity.verb.price_list.activate": "activated price list",
+  "activity.verb.price_list.bracket_update": "updated price bracket on",
+  "activity.verb.price_list.create": "created price list",
+  "activity.verb.price_list.draftify": "moved price list to draft",
+  "activity.verb.price_list.duplicate": "duplicated price list",
+  "activity.verb.price_list.expire": "expired price list",
+  "activity.verb.price_list.products_replace": "replaced products on price list",
+  "activity.verb.price_list.update": "updated price list"
+}

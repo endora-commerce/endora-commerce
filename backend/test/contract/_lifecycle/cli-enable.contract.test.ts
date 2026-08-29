@@ -8,7 +8,7 @@ const exec = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const script = resolve(
   here,
-  '../../../src/modules/_lifecycle/scripts/enable.ts',
+  '../../../src/lifecycle/scripts/enable.ts',
 );
 
 async function run(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {

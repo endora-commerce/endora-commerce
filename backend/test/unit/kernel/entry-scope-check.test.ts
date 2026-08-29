@@ -7,13 +7,15 @@ import {
   fileLevelKind,
   findEntrySites,
   keyOf,
-  relative,
   staleAllowances,
   violationsOf,
   NO_SCOPE_NEEDED,
+  type EntryConstruct,
+  type EntryKind,
   type EntrySite,
 } from '../../../scripts/check-entry-scope.js';
 import { findUngatedEntries } from '../../../scripts/check-entry-presence.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * The entry-scope check (feature 072, T037; rewritten per-site for issue #237).
@@ -29,6 +31,22 @@ import { findUngatedEntries } from '../../../scripts/check-entry-presence.js';
  */
 
 const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+/** Where each module's sources really are — resolved, never spelled (T040a). */
+const MODULE_LAYOUT = await requireModuleLayout('[entry-scope-check]');
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+
+/**
+ * How a real run spells a walked file — `layout.displayOf`'s two bases, written
+ * out here because these fixtures call the analysis directly.
+ *
+ * The module-scoped {@link relative} default finds the last `/src/` and slices,
+ * which answers `src/kernel/container.ts` for a file that now lives in
+ * `packages/platform/src/kernel/`. That is the application's spelling for a
+ * package's file, and it is the spelling of the *shim* — two files under one
+ * key, in a ledger keyed on paths.
+ */
+const displayOf = (file: string): string =>
+  file.startsWith(BACKEND_ROOT) ? file.slice(BACKEND_ROOT.length) : file.slice(REPO_ROOT.length);
 const CLI = '/repo/backend/src/modules/search/scripts/reindex.ts';
 const SERVICE = '/repo/backend/src/modules/search/services/indexer.ts';
 
@@ -297,9 +315,18 @@ describe('the real tree', () => {
   const declared = new Set(
     declaredProgramEntryPoints(readFileSync(join(BACKEND_ROOT, 'package.json'), 'utf8')),
   );
+  /**
+   * A path is resolved against `backend/` when it names one of the
+   * application's files and against the repository when it names the platform's
+   * — the two bases `layout.displayOf` gives a real run, and the reason a key
+   * for a platform file is spelled `packages/platform/src/…` since the
+   * relocation.
+   */
+  const absoluteOf = (path: string): string =>
+    path.startsWith('packages/') ? join(BACKEND_ROOT, '..', path) : join(BACKEND_ROOT, path);
   const sitesIn = (path: string): EntrySite[] => {
-    const absolute = join(BACKEND_ROOT, path);
-    return findEntrySites(absolute, readFileSync(absolute, 'utf8'), declared);
+    const absolute = absoluteOf(path);
+    return findEntrySites(absolute, readFileSync(absolute, 'utf8'), declared, displayOf);
   };
 
   it('declares the dev seed as a program this check has to see', () => {
@@ -316,7 +343,7 @@ describe('the real tree', () => {
   });
 
   it('reports both of registry-cache.ts\'s sites, and would have caught issue #235', () => {
-    const path = 'src/kernel/lifecycle/registry-cache.ts';
+    const path = 'packages/platform/src/kernel/lifecycle/registry-cache.ts';
     const sites = sitesIn(path);
     expect(sites.map((s) => s.kind)).toEqual(['message', 'interval']);
     expect(sites.every((s) => s.scoped)).toBe(true);
@@ -324,14 +351,14 @@ describe('the real tree', () => {
     // Put the file back the way it was: the pub/sub handler refreshing from the
     // database with no scope, the degraded-mode timer wrapped correctly 130
     // lines below. The file-level check reported that `scoped`.
-    const source = readFileSync(join(BACKEND_ROOT, path), 'utf8');
+    const source = readFileSync(absoluteOf(path), 'utf8');
     const before235 = source.replace(
       /enterSystemScope\(\s*'_lifecycle: registry refresh on state-change notification'/,
       "notAScopeAtAll('_lifecycle: registry refresh on state-change notification'",
     );
     expect(before235, 'the site this replacement targets has moved').not.toBe(source);
 
-    const regressed = findEntrySites(join(BACKEND_ROOT, path), before235, declared);
+    const regressed = findEntrySites(absoluteOf(path), before235, declared, displayOf);
     expect(regressed.map((s) => `${s.kind}:${s.scoped}`)).toEqual(['message:false', 'interval:true']);
     expect(violationsOf(regressed).map((s) => s.kind)).toEqual(['message']);
   });
@@ -341,8 +368,8 @@ describe('the real tree', () => {
     // constructs no `Worker` and starts no timer. The file-classifying check had
     // nowhere to put it, so `process.once(SIGINT/SIGTERM, …)` was outside its
     // population entirely — not exempt, not reported, absent.
-    const path = 'src/kernel/container.ts';
-    expect(fileLevelKind(join(BACKEND_ROOT, path), declared)).toBeNull();
+    const path = 'packages/platform/src/kernel/container.ts';
+    expect(fileLevelKind(absoluteOf(path), declared, displayOf)).toBeNull();
     const sites = sitesIn(path);
     expect(sites.map((s) => s.kind)).toEqual(['process']);
     expect(sites[0]?.scheduler).toBe('installShutdownDisposal');
@@ -352,7 +379,13 @@ describe('the real tree', () => {
   it('gives every worker in the queue-consumer roots its own site', () => {
     // Three `new Worker(...)` in one file: under the file-level population these
     // were one answer, and the second and third were vouched for by the first.
-    const sites = sitesIn('src/modules/newsletter/services/queues/newsletter-queues.ts');
+    // The path follows the module (feature 080, T040b): `newsletter` is a
+    // package, and `absoluteOf` already resolves a `packages/` path against the
+    // repository rather than against `backend/` — the same two bases a real run
+    // gets from `layout.displayOf`.
+    const sites = sitesIn(
+      'packages/modules/newsletter/src/backend/services/queues/newsletter-queues.ts',
+    );
     expect(sites).toHaveLength(3);
     expect(sites.every((s) => s.kind === 'worker' && s.scoped)).toBe(true);
     expect(new Set(sites.map(keyOf)).size).toBe(3);
@@ -360,37 +393,62 @@ describe('the real tree', () => {
 });
 
 describe('the ledger ratchet', () => {
-  const site = (file: string, scoped: boolean, scheduler = '<file>'): EntrySite => ({
-    file,
-    kind: 'cli',
-    construct: 'cli',
-    scheduler,
-    line: 1,
-    scoped,
-  });
-  const LEDGERED = 'src/modules/settings/scripts/modules-install.ts';
+  const site = (
+    file: string,
+    scoped: boolean,
+    scheduler = '<file>',
+    kind: EntryKind = 'cli',
+    construct: EntryConstruct = 'cli',
+  ): EntrySite => ({ file, kind, construct, scheduler, line: 1, scoped });
+
+  // **Derived from the ledger, never written down.** These two cases used to
+  // name `settings`' `modules-install.ts` shim, and they went red the day that
+  // shim was legitimately deleted (feature 080, T053(d)) — the entry retired,
+  // and two tests that were about the *ratchet* failed because they were about
+  // one entry. A test keyed on a real ledger row is a hostage to that row.
+  //
+  // Taking the first entry and re-deriving its three parts keeps them exercising
+  // the key derivation, which is what they are for. An empty ledger fails them
+  // loudly rather than passing vacuously, which is the right direction: this
+  // ratchet has never been empty and its emptying would be a finding.
+  const LEDGER_KEY = Object.keys(NO_SCOPE_NEEDED)[0];
+  if (LEDGER_KEY === undefined) throw new Error('NO_SCOPE_NEEDED is empty — the ratchet has nothing to ratchet');
+  const [LEDGERED, LEDGERED_SCHEDULER, LEDGERED_CONSTRUCT] = LEDGER_KEY.split(':') as [
+    string,
+    string,
+    string,
+  ];
+  // The cast is safe by construction rather than by assertion: every key in the
+  // ledger is produced by `keyOf`, so its third segment is a construct spelling.
+  const ledgeredSite = (scoped: boolean): EntrySite =>
+    site(LEDGERED, scoped, LEDGERED_SCHEDULER, 'interval', LEDGERED_CONSTRUCT as EntryConstruct);
 
   it('reports an unscoped site that is not ledgered', () => {
     expect(violationsOf([site('src/modules/search/scripts/reindex.ts', false)])).toHaveLength(1);
   });
 
   it('does not report a ledgered one', () => {
-    expect(violationsOf([site(LEDGERED, false)])).toEqual([]);
+    expect(violationsOf([ledgeredSite(false)])).toEqual([]);
   });
 
   it('reports a ledger entry whose site has since been scoped', () => {
-    expect(staleAllowances([site(LEDGERED, true)])).toContain(`${LEDGERED}:<file>:cli`);
+    expect(staleAllowances([ledgeredSite(true)])).toContain(LEDGER_KEY);
   });
 
   it('keys a ledger entry by file, scheduler and construct — never by line', () => {
     expect(keyOf(site('src/worker.ts', false, 'main'))).toBe('src/worker.ts:main:cli');
   });
 
-  it('spells every key the way `relative` reports a walked file', () => {
+  it('spells every key the way the walk reports a walked file', () => {
+    // Two bases, as `layout.displayOf` has: `src/…` for the application's own
+    // files, `packages/…` for the platform's, which are a workspace package's
+    // since the relocation and outside `backend/` entirely.
+    const base = (path: string): string =>
+      path.startsWith('packages/') ? join(BACKEND_ROOT, '..') : BACKEND_ROOT;
     for (const key of Object.keys(NO_SCOPE_NEEDED)) {
       const path = key.slice(0, key.indexOf(':'));
-      expect(relative(join(BACKEND_ROOT, path))).toBe(path);
-      expect(existsSync(join(BACKEND_ROOT, path)), `${path} is ledgered but absent`).toBe(true);
+      expect(displayOf(join(base(path), path))).toBe(path);
+      expect(existsSync(join(base(path), path)), `${path} is ledgered but absent`).toBe(true);
     }
   });
 
@@ -400,14 +458,18 @@ describe('the ledger ratchet', () => {
     }
   });
 
-  it('says what would falsify each of the three sites that only drop a cache or a connection', () => {
+  it('says what would falsify each of the sites that only drop a cache or a connection', () => {
     // The reason these are safe is structural — a synchronous, EntityManager-free
     // handler — and it stops being true the day one of them reloads instead of
     // dropping. That has to be written down as a falsifier, not as "harmless".
+    //
+    // There were three. `admin_actions` had the identical entry until D-174:
+    // its cache now follows module state through `InProcessCacheRegistry`, and
+    // the handler that dropped it is the platform's own — already a site, and
+    // ledgered where it lives.
     const falsifiable = [
-      "src/modules/admin_actions/services/admin-actions-service.ts:<module scope>:on('message')",
-      "src/modules/custom_fields/services/custom-field-definitions-cache.ts:start:on('message')",
-      'src/kernel/container.ts:installShutdownDisposal:process.once',
+      "packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.ts:start:on('message')",
+      'packages/platform/src/kernel/container.ts:installShutdownDisposal:process.once',
     ];
     for (const key of falsifiable) {
       expect(NO_SCOPE_NEEDED[key], `${key} is not ledgered`).toMatch(/Falsified|Retire this entry/);
@@ -421,15 +483,28 @@ describe('one recognizer, two checks', () => {
   // grepping for `setInterval(`, the other by reading the callback. They now
   // share `findRepeatingTimerSites`, and this is what fails if a second
   // implementation grows back.
-  const SEARCH_PLUGIN = 'src/modules/search/plugin.ts';
-  const source = readFileSync(join(BACKEND_ROOT, SEARCH_PLUGIN), 'utf8');
+  // The subject's *path* is resolved, never spelled: `search` became a package
+  // in feature 080's T040b, and `src/modules/search/plugin.ts` stopped existing
+  // in the same commit. What the two checks share is the recognizer, not the
+  // location, so the location is asked for.
+  const SEARCH_PLUGIN = ((): string => {
+    const dir = MODULE_LAYOUT.moduleDirectoryOf('search');
+    if (dir === null) throw new Error('[entry-scope-check] no such module: search');
+    for (const candidate of [join(dir, 'plugin.ts'), join(dir, 'src', 'backend', 'plugin.ts')]) {
+      if (existsSync(candidate)) return candidate;
+    }
+    throw new Error(`[entry-scope-check] search has no plugin.ts under ${dir}`);
+  })();
+  const source = readFileSync(SEARCH_PLUGIN, 'utf8');
 
   it('sees the reindex loop from both sides', () => {
-    expect(kinds(`/repo/backend/${SEARCH_PLUGIN}`, source)).toContain('interval');
+    expect(kinds(SEARCH_PLUGIN, source)).toContain('interval');
     // Blank the presence decision out, so what the timer check reports is the
     // site rather than its compliance.
     const blanked = source.replaceAll("effectiveState.isPresent('search')", 'true');
-    const seen = findUngatedEntries({ sources: new Map([['modules/search/plugin.ts', blanked]]) });
+    const seen = findUngatedEntries({
+      sources: new Map([[MODULE_LAYOUT.keyOf(SEARCH_PLUGIN), blanked]]),
+    });
     expect(seen.map((f) => f.construct)).toContain('setTimeout');
   });
 });

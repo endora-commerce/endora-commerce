@@ -1,6 +1,6 @@
 // Product Feed module — feature 067 contract surface.
 // Single file with logical sections (matching the convention used by every
-// other module in @b2b/contracts):
+// other module in @endora-commerce/contracts):
 //   (1) Enumerations (provider, output format, granularity, run status, …).
 //   (2) Scheduling primitives (cron expression, IANA timezone, schedule).
 //   (3) The product-selection rule AST.
@@ -1530,6 +1530,42 @@ export const feedDeliveryFailureReasonSchema = z.enum([
   'internal_error',
 ]);
 export type FeedDeliveryFailureReason = z.infer<typeof feedDeliveryFailureReasonSchema>;
+
+/**
+ * A transport refusal an operator can be told about, carrying the closed-set
+ * reason above and the transport's own words.
+ *
+ * Adapters throw this rather than a bare `Error` so `product_feeds` does not
+ * have to guess a reason from a message, and the service's classifier decides
+ * on `instanceof`.
+ *
+ * **It lives here rather than beside the adapter interface because an adapter
+ * is a contribution and its author is not always the module** (feature 080,
+ * T040b). Every delivery adapter this platform runs is contributed from
+ * outside `product_feeds` — the composition roots contribute the real three and
+ * the test harness contributes refusing ones — so the class has to be nameable
+ * from outside without naming the module's sources. Once the module is a
+ * package that is not a style preference: a second evaluation of the module's
+ * source is a second class object, `instanceof` is false across the two copies,
+ * and every declared refusal silently reclassifies as `internal_error` and
+ * becomes retryable (D-160.6.1; the same shape that made a KSeF outage answer
+ * `UNEXPECTED`). `@endora-commerce/contracts` is resolved once, so the
+ * comparison holds.
+ *
+ * `detail` is **not** redacted by the thrower — an adapter does not know the
+ * full secret set. `DeliveryService` redacts on the way to the attempt row
+ * (FR-108).
+ */
+export class FeedDeliveryError extends Error {
+  override readonly name = 'FeedDeliveryError';
+  constructor(
+    readonly reason: FeedDeliveryFailureReason,
+    message: string,
+    override readonly cause?: unknown,
+  ) {
+    super(message);
+  }
+}
 
 /**
  * The header names whose VALUE is treated as a secret and stored through the

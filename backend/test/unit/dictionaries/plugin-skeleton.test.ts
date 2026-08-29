@@ -13,13 +13,13 @@
 
 import { asValue } from 'awilix';
 import { describe, it, expect } from 'vitest';
+import { createRootContainer } from '../../../src/kernel/container.js';
 import {
   createModuleContext,
   createModuleRegistrationSink,
-  createRootContainer,
-} from '../../../src/kernel/index.js';
+} from '../../../src/kernel/module-context.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { registerModule } from '../../../src/modules/dictionaries/backend.js';
+import { registerModule } from '../../../../packages/modules/dictionaries/src/backend/index.js';
 
 describe('dictionaries — what the module registers', () => {
   it('provides the validator port and a boot hook, and subscribes to every announcement it caches for', () => {

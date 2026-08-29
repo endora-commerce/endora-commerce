@@ -1,4 +1,4 @@
-import type { EmailVariableDescriptor } from '@b2b/contracts';
+import type { EmailVariableDescriptor } from '@endora-commerce/contracts';
 
 export interface EmailVariableItem extends EmailVariableDescriptor {
   /** When set, insert this instead of `{{var key}}` (e.g. if/for snippets). */

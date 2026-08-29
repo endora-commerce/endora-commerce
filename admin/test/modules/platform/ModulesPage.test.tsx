@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { ModuleListItem, ModulePresence } from '@b2b/contracts';
+import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**

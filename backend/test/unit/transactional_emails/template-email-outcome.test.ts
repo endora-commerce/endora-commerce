@@ -9,11 +9,11 @@
 // must stay silent.
 
 import { describe, expect, it } from 'vitest';
-import type { TransactionalEmailSendInput, TransactionalSendOutcome } from '@b2b/contracts';
+import type { TransactionalEmailSendInput, TransactionalSendOutcome } from '@endora-commerce/contracts';
 import {
   makeTemplateEmail,
   noopTemplateEmail,
-} from '../../../src/modules/transactional_emails/services/template-email.js';
+} from '../../../../packages/modules/transactional_emails/src/backend/services/template-email.js';
 
 const CHANNEL = '00000000-0000-0000-0000-0000000000aa';
 

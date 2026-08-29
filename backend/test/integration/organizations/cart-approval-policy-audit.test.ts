@@ -1,17 +1,22 @@
+import { Cart } from '../../helpers/package-entities.js';
+import { Organization } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import {
   TEST_CUSTOMER_ID,
   TEST_CUSTOMER_RFQ_ID,
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
+
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+
+
 
 /**
  * Issue #175 — `organizations.requires_cart_approval` is written by its owner,

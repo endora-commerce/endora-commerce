@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CreateProductRequest } from '@b2b/contracts';
+import type { CreateProductRequest } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -9,9 +9,9 @@ import { CommandBus } from '../../../src/commands/index.js';
 import {
   CatalogAdminService,
   type CatalogEventBus,
-} from '../../../src/modules/catalog/services/catalog-admin.service.js';
+} from '../../../../packages/modules/catalog/dist/backend/services/catalog-admin.service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**

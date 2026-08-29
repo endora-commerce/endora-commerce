@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Migration20260817T194652ShipmentsOrderFk } from '../../../src/modules/shipments/migrations/20260817T194652_shipments_order_fk.js';
+import { Migration20260817T194652ShipmentsOrderFk } from '../../../../packages/modules/shipments/src/migrations/20260817T194652_shipments_order_fk.js';
 
 /**
  * `shipments_order_fk` (D-90).

@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import { randomUUID } from 'node:crypto';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { OrganizationSalesRepAssignment } from '../../../src/modules/organizations/entities/organization-sales-rep-assignment.entity.js';
-import { SalesRepAssignmentService } from '../../../src/modules/organizations/services/sales-rep-assignment-service.js';
+import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
 
 /**
  * T024 — `SalesRepAssignmentService.canSeeOrganization` covers:

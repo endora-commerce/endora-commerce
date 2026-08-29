@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import type { EmailBlockDetail, EmailTemplateDetail } from '@b2b/contracts';
+import type { EmailBlockDetail, EmailTemplateDetail } from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

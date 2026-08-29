@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { setEditorCarouselPage } from '@b2b/page-builder-core/editor/carousel-preview';
+import { setEditorCarouselPage } from '@endora-commerce/page-builder-core/editor/carousel-preview';
 
 export interface CarouselShellProps {
   children: ReactNode;

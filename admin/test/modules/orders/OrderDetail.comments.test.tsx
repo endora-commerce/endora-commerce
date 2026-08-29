@@ -7,6 +7,28 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 const getSpy = vi.fn();
 const postSpy = vi.fn();
 
+/**
+ * `OrderDetail` resolves the payments tab's visibility through
+ * `useSurfaceVisibility`, which reads the auth and module-presence contexts.
+ * This file is about neither, so both are stubbed permissive; the gate itself is
+ * covered in `OrderDetail.payments-tab-gating.test.tsx`.
+ */
+vi.mock('@/lib/auth', () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));
+
+vi.mock('@/lib/module-presence', () => ({
+  useModulePresence: () => ({
+    modules: [],
+    isPresent: () => true,
+    presenceOf: () => undefined,
+    degraded: false,
+    isLoading: false,
+    error: null,
+    refresh: async (): Promise<void> => {},
+  }),
+}));
+
 vi.mock('@/lib/api-client', async () => {
   const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>('@/lib/api-client');
   return {

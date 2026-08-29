@@ -5,12 +5,12 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { searchManifest } from '../../../src/modules/search/manifest.js';
-import { settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { searchManifest } from '../../../../packages/modules/search/src/manifest.js';
+import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
+import { SEARCH_SETTING_CODES } from '../../../../packages/modules/search/src/manifest.js';
 
 /**
  * T020 — Manifest reconciliation for the search module (feature 006).

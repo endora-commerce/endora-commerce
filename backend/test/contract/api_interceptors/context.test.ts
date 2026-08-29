@@ -12,7 +12,7 @@ import {
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { getTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
 import { forkScopedEm } from '../../../src/tenancy/scoped-em.js';
-import { ShoppingList } from '../../../src/modules/shopping_lists/entities/shopping-list.entity.js';
+import { ShoppingList, type ShoppingListRow } from '../../helpers/package-entities.js';
 
 /**
  * Feature 060 / US1 (T011) — interceptors run inside the SAME ambient
@@ -28,7 +28,7 @@ describe('API interceptor context propagation (feature 060 / US1)', () => {
   let h: BackendServerHandle;
   let baselineEnabled: string[] = [];
   let capturedCtx: TenantContext | undefined;
-  let listsSeenByInterceptor: ShoppingList[] = [];
+  let listsSeenByInterceptor: ShoppingListRow[] = [];
 
   beforeAll(async () => {
     h = await setupBackendServer({

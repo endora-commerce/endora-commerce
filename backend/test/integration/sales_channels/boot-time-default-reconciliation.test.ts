@@ -28,6 +28,14 @@ describe('boot-time default-channel reconciliation (T021)', () => {
 
   async function clearChannels(): Promise<void> {
     const em = db.em();
+    // Release the quote-request attributions first (issue #266). Since a quote
+    // request records the channel it was raised on,
+    // `quote_requests_sales_channel_fk` — `on delete restrict` — refuses to let
+    // the system-default channel go while any RFQ another file raised still
+    // points at it, and every one of them does now. Inside this file's
+    // transaction, which is rolled back after each case, so no other file's row
+    // is really touched.
+    await em.execute('update "quote_requests" set "sales_channel_id" = null');
     const all = await em.find(SalesChannel, {});
     for (const c of all) em.remove(c);
     await em.flush();

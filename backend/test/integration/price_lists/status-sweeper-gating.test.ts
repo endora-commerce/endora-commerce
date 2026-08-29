@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import { PriceList } from '../../helpers/package-entities.js';
 import Fastify from 'fastify';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import {
   priceListsModule,
   type PriceListsModuleOptions,
-} from '../../../src/modules/price_lists/plugin.js';
+} from '../../../../packages/modules/price_lists/src/backend/plugin.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 /**

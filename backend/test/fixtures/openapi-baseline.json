@@ -4,7 +4,7 @@
     "schemas": {}
   },
   "info": {
-    "description": "B2B Platform API. Generated at runtime from the Zod schemas in @b2b/contracts. Source of truth: specs/001-b2b-platform-foundation/contracts/.",
+    "description": "B2B Platform API. Generated at runtime from the Zod schemas in @endora-commerce/contracts. Source of truth: specs/001-b2b-platform-foundation/contracts/.",
     "title": "B2B Platform API (test)",
     "version": "test"
   },
@@ -410,6 +410,24 @@
     },
     "/api/v1/admin/audit-log/recent-activity": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit-log/recent-activity/visibility": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit-log/recent-activity/visibility/{moduleId}": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"
@@ -1994,6 +2012,76 @@
     },
     "/api/v1/admin/delivery-methods/{id}": {
       "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/connection-test": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/connection-test/api": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/connection-test/api-ps": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/courier-bookings": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/shipments/{shipmentId}/label": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/shipments/{shipmentId}/protocol": {
+      "get": {
         "responses": {
           "200": {
             "description": "OK"
@@ -3992,6 +4080,40 @@
     },
     "/api/v1/admin/payment-methods/{id}/status": {
       "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/paypal/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/paypal/methods": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/paypal/methods/{id}": {
+      "put": {
         "responses": {
           "200": {
             "description": "OK"
@@ -6518,6 +6640,15 @@
         }
       }
     },
+    "/api/v1/dhl-parcel/pickup-points": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/dictionary": {
       "get": {
         "responses": {
@@ -6753,33 +6884,6 @@
         }
       }
     },
-    "/api/v1/me/two-factor/confirm": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/me/two-factor/disable": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/me/two-factor/enable": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/megamenu/by-channel": {
       "get": {
         "responses": {
@@ -6884,6 +6988,15 @@
         }
       }
     },
+    "/api/v1/orders/{id}/cancel": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/orders/{id}/clone-to-quote": {
       "post": {
         "responses": {
@@ -6936,7 +7049,25 @@
         }
       }
     },
+    "/api/v1/orders/{id}/purchase-conversion": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/orders/{id}/reorder": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/orders/{orderId}/payments/retry": {
       "post": {
         "responses": {
           "200": {
@@ -7111,6 +7242,42 @@
       }
     },
     "/api/v1/payments/receive": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/paypal/orders/{orderId}/capture": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/paypal/orders/{orderId}/create": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/paypal/storefront-config": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/paypal/webhook": {
       "post": {
         "responses": {
           "200": {

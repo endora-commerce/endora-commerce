@@ -1,13 +1,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { CountryService } from '../../../src/modules/dictionaries/services/country-service.js';
-import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
-import { registerTaxCountryReferences } from '../../../src/modules/taxes/services/tax-country-reference.js';
+import { CountryService } from '../../../../packages/modules/dictionaries/src/backend/services/country-service.js';
+import { CountryReferenceRegistry } from '../../../../packages/modules/dictionaries/src/backend/services/country-reference-registry.js';
+import { registerTaxCountryReferences } from '../../../../packages/modules/taxes/src/backend/services/tax-country-reference.js';
 
 import { HttpError } from '../../../src/http/error-envelope.js';
-import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
 import { runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
+import { Country } from '../../helpers/package-entities.js';
 
 /**
  * T015 / T016 / T017 / T018 / T021 — CountryService invariants

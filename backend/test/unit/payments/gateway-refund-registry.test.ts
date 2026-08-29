@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GatewayRefundRegistry } from '../../../src/modules/payments/services/gateway-refund-registry.js';
-import type { GatewayRefundHandler } from '../../../src/modules/payments/services/gateway-refund-registry.js';
+import { GatewayRefundRegistry } from '../../../../packages/modules/payments/src/backend/services/gateway-refund-registry.js';
+import type { GatewayRefundHandler } from '../../../../packages/modules/payments/src/backend/services/gateway-refund-registry.js';
 
 /**
  * T042 (US5) — the generic gateway-refund seam: register / get / resolve.

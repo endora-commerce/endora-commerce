@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { HomepageConfigResponseSchema } from '@b2b/contracts';
+import { HomepageConfigResponseSchema } from '@endora-commerce/contracts';
 
 import {
   setupBackendServer,

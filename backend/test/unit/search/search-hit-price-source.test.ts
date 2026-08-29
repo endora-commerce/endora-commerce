@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ListingPrice } from '@b2b/contracts';
-import { searchHitSummary } from '../../../src/modules/search/services/search-query.service.js';
+import type { ListingPrice } from '@endora-commerce/contracts';
+import { searchHitSummary } from '../../../../packages/modules/search/src/backend/services/search-query.service.js';
 
 /**
  * Issue #132 — a search hit prices through `price_lists`, like every other

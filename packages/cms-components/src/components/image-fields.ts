@@ -1,4 +1,4 @@
-import { resolveResponsive, type ResponsiveProp } from '@b2b/page-builder-core';
+import { resolveResponsive, type ResponsiveProp } from '@endora-commerce/page-builder-core';
 import type { ImageWidthMode } from '../schema/component-types.js';
 
 export function imageUsesCustomWidth(

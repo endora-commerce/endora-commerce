@@ -26,7 +26,7 @@ import type {
   ReturnTransitionDto,
   SettlementPrefill,
   SettlementResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /** Returns / RMA case detail (feature 046, US2/US4/US5/US6). */
 export function ReturnDetail(): ReactNode {

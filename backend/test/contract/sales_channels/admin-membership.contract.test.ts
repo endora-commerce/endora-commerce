@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { randomUUID } from 'crypto';
 import {
   setupBackendServer,
@@ -7,7 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product, type ProductRow } from '../../helpers/package-entities.js';
 
 /**
  * Phase 5b — Bidirectional membership HTTP contract.
@@ -56,7 +56,7 @@ describe('admin membership routes (Phase 5b)', () => {
     return h.em().findOneOrFail(SalesChannel, { code });
   }
 
-  async function createProduct(slug: string): Promise<Product> {
+  async function createProduct(slug: string): Promise<ProductRow> {
     const em = h.em();
     const product = em.create(Product, {
       sku: `5B-${slug.toUpperCase()}-${randomUUID().slice(0, 4)}`,

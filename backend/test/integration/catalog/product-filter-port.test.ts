@@ -6,10 +6,10 @@ import {
   productVisibilitySchema,
   type CatalogProductFilter,
   type ProductVisibility,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { CatalogProductFilterService } from '../../../src/modules/catalog/services/catalog-product-filter.service.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { CatalogProductFilterService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-product-filter.service.js';
+import { Product } from '../../helpers/package-entities.js';
 
 /**
  * Feature 075 — `catalogProductFilterPort`, the answer to the one demand Phase P
@@ -256,7 +256,7 @@ describe('catalogProductFilterPort — the sellable selection scan [integration]
    *
    * The expectation below is **computed by `isProductVisibleTo`**, never
    * written out. That is the mechanism that keeps the SQL in `sellableFloor`
-   * and the TypeScript predicate in `@b2b/contracts` in step: the only way for
+   * and the TypeScript predicate in `@endora-commerce/contracts` in step: the only way for
    * the two to disagree is for this test to go red, and the domain it sweeps is
    * `productVisibilitySchema.options` × (empty, non-empty), so a fourth
    * visibility value enters the sweep the moment the enum grows.

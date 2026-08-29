@@ -23,6 +23,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import {
   Table,
   TableBody,
@@ -37,7 +38,12 @@ import { OrderShipmentsTab } from './OrderShipmentsTab';
 import { Section } from './Section';
 import { orderStatusBadgeStyle } from './orderStatusColor';
 import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
-import type { IssueInvoiceEmailOutcome } from '@b2b/contracts';
+import {
+  SELECTABLE_PAYMENT_STATUSES,
+  paymentStatusLabelKey,
+  paymentStatusOptions,
+} from './paymentStatus';
+import type { IssueInvoiceEmailOutcome } from '@endora-commerce/contracts';
 
 type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
 
@@ -133,7 +139,10 @@ function statusOptions(graph: StatusGraph | null, current: string): string[] {
   return [current, ...targets.filter((c, i) => targets.indexOf(c) === i)];
 }
 
-const PAYMENT_STATUSES = ['awaiting_payment', 'paid', 'deferred', 'refunded'] as const;
+// The displayable/selectable split this screen introduced (feature 085 Phase C,
+// FR-024) moved to `./paymentStatus` when the orders **list** needed the
+// displayable half for its filter. Same two derivations, one file, so the third
+// screen that prints a payment status finds them instead of writing a list.
 
 interface OrderCommentRow {
   id: string;
@@ -170,6 +179,22 @@ export function OrderDetail(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [tab, setTab] = useState<OrderTab>('overview');
+
+  /**
+   * The payments tab is a surface `payments` owns on a screen `orders` owns, so
+   * it answers to `payments`' own authority and to `payments`' own presence.
+   * `useSurfaceVisibility` is the predicate the sidebar, the palette and the
+   * dashboard already use, which is what keeps this from becoming a fourth
+   * answer to "may this operator see this" (issue #230).
+   *
+   * The refusal is an **absent tab**, never a disabled one and never a 403
+   * inside the panel: the panel's endpoint is gated `payments:read`, so without
+   * the code the tab could only ever advertise a refusal. The gate has to live
+   * here rather than inside `OrderPaymentsTab` because the tab button is
+   * rendered here.
+   */
+  const isVisible = useSurfaceVisibility();
+  const showPayments = isVisible({ module: 'payments', requiredPermission: 'payments:read' });
 
   // Warn before leaving with an unsent comment draft.
   useUnsavedChangesPrompt(commentBody.trim() !== '');
@@ -321,7 +346,7 @@ export function OrderDetail(): ReactNode {
           `/api/v1/admin/orders/${id}/payment-status`,
           { to },
         );
-        setInfo(t('orderDetail.messages.paymentMoved', { status: t(`orderDetail.paymentStatus.${to}`) }));
+        setInfo(t('orderDetail.messages.paymentMoved', { status: t(paymentStatusLabelKey(to)) }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.paymentChange'));
@@ -437,13 +462,15 @@ export function OrderDetail(): ReactNode {
                 active={tab}
                 onChange={setTab}
               />
-              <TabBtn
-                id="payment"
-                label={t('orderDetail.tabs.payment')}
-                icon={<CreditCard size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
+              {showPayments ? (
+                <TabBtn
+                  id="payment"
+                  label={t('orderDetail.tabs.payment')}
+                  icon={<CreditCard size={14} />}
+                  active={tab}
+                  onChange={setTab}
+                />
+              ) : null}
               <TabBtn
                 id="delivery"
                 label={t('orderDetail.tabs.delivery')}
@@ -490,9 +517,13 @@ export function OrderDetail(): ReactNode {
                       value={order.paymentStatus}
                       onChange={(e): void => void handlePaymentStatus(e.target.value)}
                     >
-                      {PAYMENT_STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {t(`orderDetail.paymentStatus.${s}`)}
+                      {paymentStatusOptions(order.paymentStatus).map((s) => (
+                        <option
+                          key={s}
+                          value={s}
+                          disabled={!SELECTABLE_PAYMENT_STATUSES.includes(s)}
+                        >
+                          {t(paymentStatusLabelKey(s))}
                         </option>
                       ))}
                     </Select>
@@ -704,8 +735,10 @@ export function OrderDetail(): ReactNode {
             </>
           ) : null}
 
-          {tab === 'payment' ? <OrderPaymentsTab orderId={id} /> : null}
-          {tab === 'delivery' ? <OrderShipmentsTab orderId={id} /> : null}
+          {tab === 'payment' && showPayments ? <OrderPaymentsTab orderId={id} /> : null}
+          {tab === 'delivery' ? (
+            <OrderShipmentsTab orderId={id} deliveryMethodCode={order.deliveryMethod.code} />
+          ) : null}
 
           {tab === 'comments' ? (
             <Section title={t('orderDetail.sections.comments')}>

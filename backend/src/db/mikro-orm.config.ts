@@ -1,10 +1,8 @@
-import { defineConfig } from '@mikro-orm/postgresql';
+import { defineConfig, type Options } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
 import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
-import { ALL_ENTITIES } from './entities-registry.generated.js';
-import { DISCOVERED_MANIFESTS } from '../modules/_lifecycle/manifest-index.generated.js';
-import { MIGRATION_REGISTRY } from './migrations-registry.generated.js';
-import { orderMigrations, BASELINE_THROUGH } from './migration-order.js';
+import { configuredEntities } from './configured-entities.js';
+import { configuredMigrations } from './configured-migrations.js';
 
 /**
  * MikroORM configuration for the B2B platform backend.
@@ -29,56 +27,78 @@ import { orderMigrations, BASELINE_THROUGH } from './migration-order.js';
  *   prefix, then module by module in a topological order of the manifest
  *   dependency graph, each module's migrations contiguous and ascending by
  *   timestamp. See docs/docs/architecture/migrations.md.
+ *
+ * ## It is a factory, and awaiting it is the caller's job (feature 080, T033)
+ *
+ * Both registries above are **bare core**, and stay that way: an installed
+ * extension package may ship entities and migrations (D-106.2), but which
+ * packages an instance installed is a fact about the process rather than about
+ * the tree, so the committed artefacts must not claim to know (D-119, confirmed
+ * as D-155). The package half is therefore discovered at runtime, which makes
+ * the merged configuration a promise — and the export an **async factory**
+ * rather than a promise-valued default, so that importing this module (for a
+ * type, say) starts no `node_modules` scan and no unhandled rejection. The two
+ * merges live one file away each, in `configured-entities.ts` and
+ * `configured-migrations.ts`, so this file is a few lines over them and the
+ * fourteen call sites cannot each grow a merge of their own.
+ *
+ * Memoised, so those fourteen callers do not mean fourteen scans. That also
+ * pins `DATABASE_URL` to whatever it names at the **first** call, which is the
+ * pre-existing behaviour one step later: `test/helpers/test-db.ts` overrides
+ * `clientUrl` on the object it gets, and the harness reads the migration order
+ * through `configured-migrations.ts` precisely so that reading it costs no
+ * connection.
  */
 
-const databaseUrl =
+const databaseUrl = (): string =>
   process.env['DATABASE_URL'] ?? 'postgresql://b2b:b2b@localhost:5432/b2b';
 
-const moduleDependencies = new Map<string, readonly string[]>([
-  ['core', []],
-  ...DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
-]);
+let memoised: Promise<Options> | undefined;
 
-// Throws at import time on a duplicate name, a duplicate per-module timestamp,
-// an unscoped class name or an unknown module id — a loud, actionable boot
-// failure by design.
-const { migrations: migrationsList, diagnostics } = orderMigrations({
-  entries: MIGRATION_REGISTRY,
-  moduleDependencies,
-  baselineThrough: BASELINE_THROUGH,
-});
+export default async function mikroOrmConfig(): Promise<Options> {
+  memoised ??= (async (): Promise<Options> => {
+    const [entities, migrations] = await Promise.all([
+      configuredEntities(),
+      configuredMigrations(),
+    ]);
 
-// A dependency cycle is a diagnostic, not a throw: the graph is the primary
-// ordering now, so refusing here would let one mis-declared manifest stop the
-// whole platform's schema from migrating. Nothing in this file branches on it —
-// warning is the whole reaction, and the platform boots and serves. The other
-// two readers refuse instead, each where refusing costs nothing:
-// test/unit/db/module-graph.test.ts fails the build on a cycle in the committed
-// manifests, and the _lifecycle orchestrator refuses an install whose arrival
-// closes one (FR-012). test/unit/db/migration-order-boot-warning.test.ts is the
-// proof that this warning fires on a cycle and is silent without one.
-for (const diagnostic of diagnostics) {
-  console.warn(diagnostic.message);
+    // A dependency cycle is a diagnostic, not a throw: the graph is the primary
+    // ordering now, so refusing here would let one mis-declared manifest stop
+    // the whole platform's schema from migrating — and since a manifest can
+    // arrive from an installed package, that manifest may be a stranger's.
+    // Nothing in this file branches on it — warning is the whole reaction, and
+    // the platform boots and serves. The other two readers refuse instead, each
+    // where refusing costs nothing: test/unit/db/module-graph.test.ts fails the
+    // build on a cycle in the committed manifests, and the _lifecycle
+    // orchestrator refuses an install whose arrival closes one (FR-012).
+    // test/unit/db/migration-order-boot-warning.test.ts is the proof that this
+    // warning fires on a cycle and is silent without one.
+    for (const diagnostic of migrations.diagnostics) {
+      console.warn(diagnostic.message);
+    }
+
+    return defineConfig({
+      clientUrl: databaseUrl(),
+      namingStrategy: PluralizingNamingStrategy,
+      // Explicit class list, not a glob — glob discovery requires runtime
+      // dynamic `import()` of .ts files, which Node's ESM loader cannot
+      // transform and which breaks under Vitest. See
+      // src/db/entities-registry.generated.ts for the rationale and for what
+      // emits it, and src/db/configured-entities.ts for the package half.
+      entities: [...entities],
+      debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
+      allowGlobalContext: false,
+      forceUndefined: true,
+      extensions: [Migrator],
+      migrations: {
+        migrationsList: migrations.migrations,
+        transactional: true,
+        disableForeignKeys: false,
+        allOrNothing: true,
+        emit: 'ts',
+        snapshot: false,
+      },
+    });
+  })();
+  return memoised;
 }
-
-export default defineConfig({
-  clientUrl: databaseUrl,
-  namingStrategy: PluralizingNamingStrategy,
-  // Explicit class list, not a glob — glob discovery requires runtime dynamic
-  // `import()` of .ts files, which Node's ESM loader cannot transform and which
-  // breaks under Vitest. See src/db/entities-registry.generated.ts for the
-  // rationale and for what emits it.
-  entities: [...ALL_ENTITIES],
-  debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
-  allowGlobalContext: false,
-  forceUndefined: true,
-  extensions: [Migrator],
-  migrations: {
-    migrationsList,
-    transactional: true,
-    disableForeignKeys: false,
-    allOrNothing: true,
-    emit: 'ts',
-    snapshot: false,
-  },
-});

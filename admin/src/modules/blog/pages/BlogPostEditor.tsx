@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import { slugify as slugifyText, type BlogPostDetail } from '@b2b/contracts';
+import { slugify as slugifyText, type BlogPostDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,7 +43,7 @@ const blankForm: FormState = {
  * "latwy-poradnik"), within the 160-character limit the slug validation regex
  * enforces.
  *
- * `slugify` from `@b2b/contracts`, **imported, never re-implemented** (issue
+ * `slugify` from `@endora-commerce/contracts`, **imported, never re-implemented** (issue
  * #245) — aliased because this wrapper keeps the local name the JSX reads.
  *
  * It was the **ninth** private copy of that generator and issue #245's sweep

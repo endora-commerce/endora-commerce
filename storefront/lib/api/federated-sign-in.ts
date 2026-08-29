@@ -1,4 +1,4 @@
-import type { FederatedSignInOptionsResponse } from '@b2b/contracts';
+import type { FederatedSignInOptionsResponse } from '@endora-commerce/contracts';
 import type { FederatedProvider } from '../federated-sign-in';
 import { apiGet, type RequestContext } from './client';
 

@@ -7,11 +7,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { FeedTaxonomy } from '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
-import { FeedTaxonomyNode } from '../../../src/modules/product_feeds/entities/feed-taxonomy-node.entity.js';
-import { FeedTaxonomyMapping } from '../../../src/modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
-import { TaxonomyReconcilerService } from '../../../src/modules/product_feeds/services/taxonomy-reconciler.service.js';
+import { Category } from '../../helpers/package-entities.js';
+import { TaxonomyReconcilerService } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-reconciler.service.js';
+import { FeedTaxonomy, FeedTaxonomyMapping, FeedTaxonomyNode } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T050 — taxonomy install and revision change
@@ -141,7 +139,7 @@ describe('taxonomy reconciler [integration]', () => {
       const source = readFileSync(
         join(
           HERE,
-          '../../../src/modules/product_feeds/services/taxonomy-reconciler.service.ts',
+          '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-reconciler.service.ts',
         ),
         'utf8',
       );

@@ -33,33 +33,46 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
 
 | Kind | Overridable? | Notes |
 |------|--------------|-------|
-| Service | ✅ | By **decoration**, not by shadowing a file — see below. |
+| Service | ✅ | By **decoration** from the deployment's overlay module, not by shadowing a file — see below. |
 | Route / plugin | ✅ | Same route mechanism as core. |
 | Config / manifest | ✅ | |
 | Whole new module | ✅ (no schema — see below) | Registered without editing the core registry. Ships `backend.ts`, never `plugin.ts`. |
-| Entity / migration | ❌ | Out-of-core code contributes no schema — see below. Ship new schema from a **core** module. |
+| Entity / migration | ❌ | An overlay module contributes no schema — see below. Ship new schema from a **core** module. |
 
-## Out-of-core code contributes no schema
+## An overlay module contributes no schema
 
-Code composed into the platform from outside the core module tree — a
-per-deployment overlay module or an extension package — contributes
-registrations, routes, decorations, interceptors, permissions, i18n bundles and a
-manifest. It contributes **no schema**: no `@Entity()` class and no migration.
+A per-deployment overlay module contributes registrations, routes, decorations,
+interceptors, permissions, i18n bundles and a manifest. It contributes **no
+schema**: no `@Entity()` class and no migration.
 
 This page used to say the opposite ("ship new schema as a client-only overlay
 module that owns its own tables"), and the generator has refused it the whole
-time. The reason is not v1 scope. The migration registry is a committed, ordered
-artifact whose execution order is computed from timestamps and then corrected by
-the module-manifest dependency graph, and that correction is only meaningful over
-a **fixed** set. A set that varies per deployment or per installed package has no
-single correct order to commit — and a per-deployment order is a per-deployment
-schema history, which is the thing "one codebase, many installations" exists to
-avoid. One sentence covers both out-of-core paths because one fact causes both.
+time.
 
-So a deployment that wants client-specific tables ships them from a core module
-and reads them from the overlay module through that module's port. The overlay
-module keeps everything else: its own services, its routes, its decorations and
-its permissions.
+**The reason is not migration ordering.** This page used to give one — that the
+registry's execution order is "only meaningful over a fixed set", so a set that
+varies per deployment has no single correct order to commit. That argument was
+measured and is false: adding a leaf module's migrations leaves the relative
+order of every existing migration exactly unchanged, because a leaf contributes
+dependency edges only out of itself. It is retired (ruling D-106,
+`specs/080-f4-real-scope/README.md` §2); do not repeat it.
+
+The real reason is smaller and holds regardless: **an overlay lives in the same
+repository and the same build as core**, so the remedy is always available and
+costs nothing but a directory. A deployment that wants client-specific tables
+ships them from a core module and reads them from the overlay module through that
+module's port — the overlay module keeps everything else: its own services, its
+routes, its decorations and its permissions. Allowing overlay schema would add a
+second schema-owning mechanism and buy no capability, and that is not worth its
+weight.
+
+**An extension package is the opposite case.** A third-party package author has
+no core module to ship a table from, so the same rule would not be a constraint
+to design around but a prohibition on the whole extension-package programme,
+every family of which persists state. D-106 therefore allows a package its own
+entities and migrations. That mechanism is not built yet — today the only schema
+a running platform executes is core's — so nothing on this page changes for a
+deployment.
 
 ## Service overrides are decorations
 
@@ -73,25 +86,56 @@ deployment no longer instantiates, and nobody finds out until the behaviour
 diverges in production. A wrapper keeps core in the call path, so a core fix
 arrives *and* the client behaviour survives it.
 
-A decoration lives in `backend/src/apps/<deployment>/decorations/`, one file per
-registration it wraps, exporting `decorate`:
+A decoration is written from the deployment's **own overlay module**, in its
+`registerModule`, and there is no other way to write one:
 
 ```ts
-// backend/src/apps/acme/decorations/pricing-service.ts → decorates `pricingService`
-export function decorate(inner: PricingServiceContract): PricingServiceContract {
-  return new AcmePricingService(inner);
+// backend/src/apps/acme/modules/acme_pricing/backend.ts
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.decorate<DecoratedPricing>('pricingService', (inner) => wrap(inner));
 }
 ```
 
-The file is named after the **registration**, not after the core file's path, so
-core moving a file breaks nothing. `tsc` remains the contract gate: the
-decoration is written against the core interface (`*.interface.ts`) and stops
-being assignable the moment that interface changes, so contract drift is a build
-failure rather than a per-deployment runtime surprise.
+It names the **registration**, not a file, so core moving a file breaks nothing
+and a deployment can override a second service without a core edit of any kind.
 
 Where two modules decorate the same registration, the wrapping order must be
 declared — composition fails rather than picking by package load order — and
 every applied decoration appears in the composer's override report.
+
+### There used to be a second mechanism, and it is retired
+
+Until 2026-08 a deployment could also drop a file under
+`backend/src/apps/<deployment>/decorations/`, named after the registration it
+wrapped and exporting `decorate(inner)`. If you are reading a client tree that
+still has one, or a document that still describes one, this is why it is gone
+and why you should not reinvent it.
+
+It existed because feature 072 predated ruling D-103. An overlay module was then
+a `plugin.ts` over a frozen seven-field context: it could not reach the
+container, so it could not decorate anything, and a deployment that wanted to
+wrap a service had nowhere else to go. D-103 made an overlay module an ordinary
+composed participant with a full `ModuleContext` — `ctx.di.decorate` included —
+which left the file seam with no capability of its own.
+
+It was also, as shipped, a documented capability that silently did nothing for
+every registration but one. The loader read *every* file in that directory and
+keyed a map by the registration name derived from each filename; the single
+consumer looked up one hard-coded key and threw the rest of the map away. A
+deployment adding `decorations/command-bus.ts` got no wrap, no warning and no
+error. Extending it meant a core edit per registration — exactly the coupling the
+overlay pattern exists to remove.
+
+**One thing was genuinely given up.** The file imported the owner's
+`*.interface.ts`, so `tsc` held the wrapper to that interface and refused it the
+moment the interface changed — feature 057's contract gate. `ctx.di.decorate<T>`
+asserts `T` at the call site and compares it to nothing, so the wrapped shape is
+declared **structurally** and interface drift surfaces at runtime instead of at
+build time. When a deployment wants the gate back, the way to get it is for the
+owning module to publish its interface on its package's `./ports` subpath and
+for the overlay to name it there: a type-only `./ports` reach is not a module
+boundary reach (D-171), and a published type's shape changes cost a major
+version.
 
 ### Decorating across owners is the deployment's, and only the deployment's
 
@@ -114,6 +158,29 @@ from the root the module was discovered under,
 `backend/src/apps/<deployment>/modules/`, so core has no way to assert it and
 `overlay:check` fails on a hand-edited artefact.
 
+**The exemption stops at an installed extension package** (D-176). An overlay may
+wrap anything core or another of the deployment's own modules registers, and it
+may not wrap a registration a package installed from `node_modules` owns —
+`PackageDecorationNotOfferedError`, refused at composition, naming the overlay,
+the package and the registration. The reason is that there is nothing to write
+the wrap *against*: a package's `exports` map publishes `registerModule`, its
+entities, its migrations and `./ports`, and the container names it registers
+internally are published by none of them, so the name may change in a patch
+release. The `*.interface.ts` gate the retired file seam carried did not transfer
+either — for a package the compiler would be holding the deployment to a
+`dist/*.d.ts` written by someone the deployment does not employ. The message says
+*not offered yet* rather than *forbidden*, and names the exit: a package
+declaring which of its registrations are decoratable, `./ports` being the natural
+home, where changing the shape costs a major version bump. Until then, ask the
+package's author for a port, an event, or use an interceptor around its routes.
+
+Decorations are **applied after every module has registered**, not at the call
+(D-176). Which array a module was composed from therefore has no bearing on what
+it can wrap, and a decoration of a name nothing registers means exactly that
+rather than "not yet". Order within the drain is call order, which is why one
+module decorating a name twice is unambiguous and two modules decorating it are
+not.
+
 Before feature 072 a service override shadowed
 `modules/<id>/services/<name>.ts` and replaced the core class. A `services/`
 file under an overlay is now an **unknown override target**, which is what it
@@ -128,6 +195,8 @@ The build fails — never resolves silently — on:
 - **Schema override** — an overlay under `entities/`/`migrations/` of a core module.
 - **Ambiguous decoration** — two modules decorating one registration with no declared order.
 - **Foreign decoration** — a core module decorating a registration it does not own.
+- **Package decoration** — an overlay decorating a registration an installed
+  extension package owns; not offered yet, and the refusal says so.
 
 ## Guards still apply
 
@@ -140,12 +209,11 @@ and pass the permission-inventory check per deployment.
 ## Adding an overlay
 
 ```bash
-# 1. Override a core service by decorating it (its interface must already exist):
-#    backend/src/apps/acme/decorations/pricing-service.ts
-#    → export function decorate(inner: PricingServiceContract) { … }
+# 1. Add the deployment's overlay module (it ships backend.ts, never plugin.ts):
+#    backend/src/apps/acme/modules/acme_loyalty/{manifest,backend}.ts
 
-# 2. Or add a client-only module:
-#    backend/src/apps/acme/modules/acme_loyalty/{manifest,plugin,routes.admin}.ts
+# 2. Override a core service from its registerModule, by registration name:
+#    ctx.di.decorate('pricingService', (inner) => wrap(inner))
 
 # 3. Build for the deployment (resolver + manifest run automatically):
 DEPLOYMENT=acme pnpm --filter backend run build

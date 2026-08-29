@@ -4,17 +4,17 @@ import '@measured/puck/puck.css';
 // Self-contained, prefix-isolated (`cmsc:`) stylesheet for the shared CMS components
 // (feature 041, FR-012b). This is the admin's ONLY change; it carries its own token
 // values + no preflight, so it cannot restyle admin chrome.
-import '@b2b/cms-components/styles.css';
+import '@endora-commerce/cms-components/styles.css';
 import {
   defaultPageBuilderConfig,
   makeMissingComponentConfig,
   withCmsPageRoot,
   type CmsRenderEmbeds,
-} from '@b2b/cms-components';
-import { filterConfigByContext, type PageBuilderContext } from '@b2b/page-builder-core';
-import { createPageBuilderEditorPlugin } from '@b2b/page-builder-core/editor';
+} from '@endora-commerce/cms-components';
+import { filterConfigByContext, type PageBuilderContext } from '@endora-commerce/page-builder-core';
+import { createPageBuilderEditorPlugin } from '@endora-commerce/page-builder-core/editor';
 import { AdminCmsAssetProvider } from './AdminCmsAssetProvider';
-import type { CmsPageBuilderDescriptor } from '@b2b/contracts';
+import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -42,8 +42,8 @@ import {
   replaceRowInData,
   wrapRowInContentSliderSlide,
   type RowLayoutPresetId,
-} from '@b2b/cms-components/editor/row-layout-presets';
-import { isContentSliderSlidesZone, toPuckItemArray } from '@b2b/page-builder-core/editor';
+} from '@endora-commerce/cms-components/editor/row-layout-presets';
+import { isContentSliderSlidesZone, toPuckItemArray } from '@endora-commerce/page-builder-core/editor';
 import { createPuckActionHandler, PuckDispatchBridgeSlot } from './PuckActionGuard';
 import { RowLayoutPicker } from './RowLayoutPicker';
 import { PageBuilderActionBar } from './PageBuilderActionBar';
@@ -56,7 +56,7 @@ import { PageBuilderDrawer } from './PageBuilderDrawer';
 import { applyPageBuilderTranslations } from './page-builder-i18n';
 import { emptyPageBuilderData, isEmptyPageBuilderData } from './page-builder-data';
 import { PageBuilderOverlayBridge } from './PageBuilderOverlayBridge';
-import { hasInvalidColumnPlacement } from '@b2b/page-builder-core/editor';
+import { hasInvalidColumnPlacement } from '@endora-commerce/page-builder-core/editor';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 
@@ -136,7 +136,7 @@ function previewNode(content: { languages?: Record<string, unknown> }): ReactNod
 
 /**
  * Merges the locally-bundled `defaultPageBuilderConfig` from
- * `@b2b/cms-components` with the descriptor returned by the backend's
+ * `@endora-commerce/cms-components` with the descriptor returned by the backend's
  * page-builder/config endpoint. Components that exist in the descriptor
  * but whose React renderer is missing from this admin bundle fall back to
  * `MissingComponentPlaceholder` so the editor stays usable while the

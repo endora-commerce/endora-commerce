@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import type { DeliveryMethodSummary } from '../api/methods';
+import { tForLocale } from '../i18n/messages';
+import { DhlParcelPickupRenderer } from './dhl-parcel-pickup';
 
 /**
  * Storefront shipping-method renderer registry (feature 035, FR-016/FR-017).
@@ -13,8 +15,8 @@ import type { DeliveryMethodSummary } from '../api/methods';
 export interface ShippingMethodRenderProps {
   method: DeliveryMethodSummary;
   defaultChecked: boolean;
-  /** Active storefront locale (PL/EN) for adapter-specific copy. */
-  locale?: string | undefined;
+  /** Active storefront locale for renderer copy (DHL pickup search, etc.). */
+  locale?: string;
 }
 
 export type ShippingMethodRenderer = (props: ShippingMethodRenderProps) => ReactNode;
@@ -23,23 +25,29 @@ function pickName(name: Record<string, string>): string {
   return name.default ?? name['en-US'] ?? name.en ?? Object.values(name)[0] ?? '';
 }
 
-export const DefaultShippingMethodRenderer: ShippingMethodRenderer = ({ method, defaultChecked }) => (
-  <label style={{ display: 'block' }}>
-    <input
-      type="radio"
-      name="deliveryMethodId"
-      value={method.id}
-      defaultChecked={defaultChecked}
-      data-adapter={method.adapter}
-    />{' '}
-    {pickName(method.name)}
-    {method.cost.amount > 0 ? (
-      <span className="muted">{` — ${method.cost.amount.toFixed(2)} ${method.cost.currency}`}</span>
-    ) : (
-      <span className="muted"> — free</span>
-    )}
-  </label>
-);
+export const DefaultShippingMethodRenderer: ShippingMethodRenderer = ({
+  method,
+  defaultChecked,
+  locale = 'en-US',
+}) => {
+  const t = tForLocale(locale);
+  return (
+    <label style={{ display: 'block' }}>
+      <input
+        type="radio"
+        name="deliveryMethodId"
+        value={method.id}
+        defaultChecked={defaultChecked}
+      />{' '}
+      {pickName(method.name)}
+      {method.cost.amount > 0 ? (
+        <span className="muted">{` — ${method.cost.amount.toFixed(2)} ${method.cost.currency}`}</span>
+      ) : (
+        <span className="muted">{` — ${t('checkout.shipping.free')}`}</span>
+      )}
+    </label>
+  );
+};
 
 /** Alias used when an adapter's renderer is missing — renders the default row. */
 export const MissingShippingMethodRenderer = DefaultShippingMethodRenderer;
@@ -57,3 +65,5 @@ export function resolveShippingMethodRenderer(rendererKey: string | null): Shipp
   }
   return DefaultShippingMethodRenderer;
 }
+
+registerShippingMethodRenderer('dhl_parcel.pickup', DhlParcelPickupRenderer);

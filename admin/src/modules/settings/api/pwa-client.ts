@@ -6,12 +6,12 @@ import type {
   PushSubscriptionStats,
   UpdatePwaConfigRequest,
   VapidKeyPairResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiClient } from '@/lib/api-client';
 
 /**
  * Typed wrapper around `/api/v1/admin/pwa/*` (feature 046). Source-of-truth
- * schemas live in `@b2b/contracts`. Icon upload uses a raw `fetch` because the
+ * schemas live in `@endora-commerce/contracts`. Icon upload uses a raw `fetch` because the
  * shared JSON api-client does not send multipart bodies.
  */
 

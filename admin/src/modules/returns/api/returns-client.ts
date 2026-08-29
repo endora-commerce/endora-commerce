@@ -9,7 +9,7 @@ import type {
   ReturnStatusGraphResponse,
   SettlementPrefill,
   SettlementResult,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 type Wrap<T> = { data: T };
 const unwrap = <T>(p: Promise<Wrap<T>>): Promise<T> => p.then((r) => r.data);

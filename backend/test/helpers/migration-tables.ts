@@ -1,6 +1,13 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-import { deriveFkGraph, KERNEL_OWNER } from './fk-graph.js';
+import { basename, join, relative } from 'node:path';
+import {
+  coreModuleRoot,
+  deriveFkGraph,
+  KERNEL_OWNER,
+  listTsFilesUnderDirectoriesNamed,
+  resolveModuleDirectories,
+  type ModuleRoot,
+} from './fk-graph.js';
 import { TABLE_OWNER_OVERRIDES } from '../unit/db/table-owner-overrides.js';
 
 /**
@@ -50,43 +57,66 @@ function listMigrationFiles(dir: string): string[] {
   return readdirSync(dir).filter((name) => MIGRATION_FILE_RE.test(name));
 }
 
-/** Every migration on disk, with the tables its SQL writes to. */
-export function collectMigrationTables(sourceRoot: string): MigrationTables[] {
-  const groups: { dir: string; groupId: string; prefix: string }[] = [
-    { dir: join(sourceRoot, 'db', 'migrations'), groupId: 'core', prefix: 'src/db/migrations' },
-  ];
-  const modulesRoot = join(sourceRoot, 'modules');
-  if (existsSync(modulesRoot)) {
-    for (const entry of readdirSync(modulesRoot, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      groups.push({
-        dir: join(modulesRoot, entry.name, 'migrations'),
-        groupId: entry.name,
-        prefix: `src/modules/${entry.name}/migrations`,
-      });
+/**
+ * Every migration on disk, with the tables its SQL writes to.
+ *
+ * The module roots are the ones `deriveFkGraph` resolves (feature 080, T013),
+ * so this walk and the ownership map it is compared against read the same
+ * tree — and a root that is not there is refused by that resolution rather
+ * than read as "this repository ships no module migration".
+ */
+export function collectMigrationTables(
+  sourceRoot: string,
+  moduleRoots: readonly ModuleRoot[] = [coreModuleRoot(sourceRoot)],
+): MigrationTables[] {
+  const files: { path: string; groupId: string }[] = listMigrationFiles(
+    join(sourceRoot, 'db', 'migrations'),
+  ).map((name) => ({ path: join(sourceRoot, 'db', 'migrations', name), groupId: 'core' }));
+
+  for (const [id, scanned] of resolveModuleDirectories(moduleRoots)) {
+    // Found by **directory name**, at any depth — the same predicate
+    // `deriveFkGraph` applies (D-141). An application module keeps its
+    // migrations at `<module>/migrations/` and a package at `<pkg>/src/
+    // migrations/`; joining the literal `migrations` finds the first and
+    // silently none of the second, which took this walk from 158 files to 92
+    // over feature 080's first three batches while the ownership rule below
+    // went unasked for every packaged module.
+    for (const path of listTsFilesUnderDirectoriesNamed(scanned.directory, 'migrations')) {
+      if (MIGRATION_FILE_RE.test(basename(path))) files.push({ path, groupId: id });
     }
   }
 
-  const collected: MigrationTables[] = [];
-  for (const group of groups) {
-    for (const filename of listMigrationFiles(group.dir)) {
-      const source = readFileSync(join(group.dir, filename), 'utf8');
-      const tables = new Set<string>();
-      for (const match of source.matchAll(TABLE_STATEMENT_RE)) tables.add(match[1]!);
-      collected.push({
-        className: classNameFromFile(filename),
-        groupId: group.groupId,
-        relativePath: `${group.prefix}/${filename}`,
-        tables,
-      });
-    }
-  }
+  const collected: MigrationTables[] = files.map(({ path, groupId }) => {
+    const source = readFileSync(path, 'utf8');
+    const tables = new Set<string>();
+    for (const match of source.matchAll(TABLE_STATEMENT_RE)) tables.add(match[1]!);
+    return {
+      className: classNameFromFile(basename(path)),
+      groupId,
+      relativePath: relative(join(sourceRoot, '..'), path).split('\\').join('/'),
+      tables,
+    };
+  });
   return collected.sort((left, right) => (left.className < right.className ? -1 : 1));
 }
 
 /** The tables whose schema the kernel owns — resolved, never hand-listed. */
-export function kernelOwnedTables(sourceRoot: string): ReadonlySet<string> {
-  const graph = deriveFkGraph(sourceRoot, { overrides: TABLE_OWNER_OVERRIDES });
+export function kernelOwnedTables(
+  sourceRoot: string,
+  moduleRoots: readonly ModuleRoot[] = [coreModuleRoot(sourceRoot)],
+  /**
+   * Where the kernel's entity classes are. The relocation moved them into
+   * `@endora-commerce/platform`; `<sourceRoot>/kernel` holds re-export shims
+   * with no `@Entity()`, so the default would resolve an empty kernel table set
+   * — which `kernel-migration-ownership.test.ts` refuses as a silent empty scan.
+   */
+  kernelRoot: string = join(sourceRoot, '..', '..', 'packages', 'platform', 'src', 'kernel'),
+): ReadonlySet<string> {
+  const graph = deriveFkGraph(sourceRoot, {
+    overrides: TABLE_OWNER_OVERRIDES,
+    moduleRoots,
+    kernelRoot,
+  });
   const owned = new Set<string>();
   for (const [table, owner] of graph.owners) {
     if (owner === KERNEL_OWNER) owned.add(table);

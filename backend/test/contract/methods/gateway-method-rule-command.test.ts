@@ -6,8 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
-import { isRegisteredCommand } from '../../../src/commands/command-registry.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
 
 /**
  * Issue #125 — `PUT /admin/<gateway>/methods/:id` runs as one Command.
@@ -41,6 +40,16 @@ import { isRegisteredCommand } from '../../../src/commands/command-registry.js';
  * The unknown-Organization body is still the cheapest way to fail the last
  * write: the deny bridge carries a foreign key to `organizations`, so the
  * insert is refused by the database after the rule row has been assigned.
+ *
+ * Until D-163 each case also called `isRegisteredCommand(entries[0]!.action)`,
+ * and the first case was named after it. The registry it read was read by
+ * nothing else: `check:command-coverage` decides coverage syntactically from
+ * `commandBus.run(` and has never imported it, and the tree's one undo
+ * affordance reads the `reversible` **column** on
+ * `catalog_bulk_operations`. The line is gone with the list, and nothing it
+ * proved is lost — what proves the path is the exact single-row assertion above
+ * it and the rollback proof below, which is a property only a Command's
+ * transaction has.
  *
  * The four gateways are the same forty lines four times over; they are asserted
  * from one table so a reviewer who reads one file can trust the other three.
@@ -113,7 +122,7 @@ describe('gateway payment-method rules are written through the Command Bus (issu
   };
 
   for (const gateway of GATEWAYS) {
-    it(`records ${gateway.action} as a registered Command action`, async () => {
+    it(`records ${gateway.action} as exactly one Command audit row`, async () => {
       const id = methodIds.get(gateway.module)!;
 
       const res = await h.app.inject({
@@ -126,7 +135,6 @@ describe('gateway payment-method rules are written through the Command Bus (issu
 
       const entries = await auditEntries(id);
       expect(entries.map((e) => e.action)).toEqual([gateway.action]);
-      expect(isRegisteredCommand(entries[0]!.action)).toBe(true);
 
       const entry = entries[0]!;
       const before = entry.stateBefore as Record<string, unknown> | null;

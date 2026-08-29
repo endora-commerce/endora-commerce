@@ -110,10 +110,56 @@ phrases.
 `SearchIndexer` writes one document per product into a per-channel
 index named `products_<channel_code>`. Document shape carries the
 catalog product surface (id, sku, name, description, type, status,
-slug, primaryAssetUrl, price, categoryIds, categorySlugs, attributes,
-searchableOptions, updatedAt). The indexer also drives Meilisearch's
-`searchableAttributes` + `filterableAttributes` from the live
-`product_attributes.is_searchable` + `is_filterable` flags.
+slug, primaryAssetUrl, categoryIds, categorySlugs, attributes,
+searchableOptions, createdAt, updatedAt). The indexer also drives
+Meilisearch's `searchableAttributes` + `filterableAttributes` from the
+live `product_attributes.is_searchable` + `is_filterable` flags, and
+its `sortableAttributes` from `SORTABLE_ATTRIBUTES` (see *Sorting*).
+
+**A document carries no price.** It used to carry one, copied from the
+legacy `attributes.defaultPrice` catalogue attribute — not any price
+list's figure — and read by nothing on the query path, which resolves
+the viewer's price from `price_lists` at hydrate time so the index
+cannot decide what a buyer pays. A per-buyer price cannot be indexed
+in any case: one index per sales channel and one document per product
+means pricing the document would multiply the corpus by the customer
+base. The legacy attribute is still indexed under
+`attributes.defaultPrice`, where its name says what it is.
+
+### Sorting
+
+Meilisearch refuses a sort on any field outside the index's
+`sortableAttributes`, so the fields the query path may sort on are
+declared once, in `SORTABLE_ATTRIBUTES` (`search-indexer.ts`):
+`createdAt` and `name`. That constant is both what the indexer applies
+to every channel index and the alphabet `buildSort` may emit — its
+return type is built from it, so a sort naming a field the indexer
+never declared does not compile.
+
+The listing contract's four sorts map as follows:
+
+| `?sort=` | Meilisearch |
+| --- | --- |
+| `relevance` (or absent) | none — the engine's ranking rules |
+| `-createdAt` | `createdAt:desc` |
+| `name` | `name:asc` |
+| `-name` | `name:desc` |
+
+The indexed `name` is resolved in the channel's own default language,
+which is the language the listing renders, so the order a buyer sees
+is the order they were sorted by.
+
+**Upgrading an index built before issue #287** needs a reindex: the
+settings were never applied (`sortableAttributes` was `[]` on every
+index, and every sorted listing was silently answered by the Postgres
+fallback), and `createdAt` was never written into a document. A full
+reindex applies both. That happens automatically on the next periodic
+sweep in the worker role (`search.reindex_interval_minutes`, default
+10); a deployment that runs no sweep needs the operator step — the
+admin **Reindex products** action or `pnpm --filter backend run
+search:reindex`. An `attribute.updated.v1` refresh reapplies the
+settings but writes no documents, so it restores `name` sorting and
+not `-createdAt`.
 
 ### Feature 012 / US7 — `searchableOptions`
 
@@ -142,6 +188,29 @@ outage does not break the catalog write path. The reserved fallback
 in the read path (`catalog/routes.public.ts`) keeps storefront search
 functional with a stale index until the next offline `search:reindex`.
 
+### When the index does not answer
+
+The fallback stays a fallback — a public catalogue must not 503
+because search is unhappy — but it distinguishes two facts that used
+to be fused into one (issue #287):
+
+- **unreachable** — the engine is down, unroutable or timing out.
+  Transient. `catalog` logs it per request and re-runs the listing
+  through Postgres; nothing else is expected of anybody.
+- **refused** — the engine answered, in milliseconds, that it will not
+  run *this* query: `invalid_search_sort`, `index_not_found`, a
+  rejected API key. Deterministic, will not pass on its own, and a
+  defect in how this module configured the index. The reason string
+  the caller logs names Meilisearch's own error code, and `search`
+  reports it itself at `error` level — once per code, because an index
+  setting is a deployment fact and a public listing would otherwise
+  report it on every request.
+
+That distinction is the whole reason issue #287 could survive on five
+live indexes: every sorted listing was falling back to Postgres, and
+the only trace of it was a line reading `meilisearch unavailable`
+about an engine that was up and healthy.
+
 ## Storefront integration
 
 The page header (`storefront/components/Header.tsx`) renders a
@@ -167,14 +236,21 @@ the page awaits `listProducts` (so `resultCount` is meaningful), then
 
 ## Reindex CLI
 
-`backend/src/modules/search/scripts/reindex.ts` walks every Sales
-Channel and pushes its public product surface into Meilisearch.
-Idempotent — safe to run after a fresh `seed:dev` or whenever the
-index drifts from Postgres.
+`search reindex` walks every Sales Channel and pushes its public
+product surface into Meilisearch. Idempotent — safe to run after a
+fresh `seed:dev` or whenever the index drifts from Postgres.
+
+It is a command this module declares in its `manifest.ts` and the host
+runs, so it reindexes through the one `SearchIndexer` the composition
+holds rather than building a second one:
 
 ```bash
-pnpm --filter backend exec ts-node src/modules/search/scripts/reindex.ts
+pnpm --filter backend run search:reindex
+# or, addressing the host binary directly:
+pnpm --filter backend exec tsx src/cli.ts search reindex
 ```
+
+The body is `backend/src/modules/search/cli/reindex.ts`.
 
 ## Testing
 
@@ -187,8 +263,12 @@ Per Constitution III:
 - `backend/test/integration/search/embedder-reactor.test.ts` (3 cases) — attach on enable=true, detach on flip-back-to-false, no event-fire when wrapper refuses the toggle.
 - `backend/test/integration/search/event-subscriber.test.ts` (existing) — catalog-event-driven indexing.
 - `backend/test/integration/search/catalog-via-meilisearch.test.ts` (existing) — env-flag-dispatched read path.
+- `backend/test/integration/search/sort-order.test.ts` (6 cases) — each of the four sorts served by Meilisearch (`x-search-backend` is the load-bearing assertion: Postgres answers all four, so the order alone cannot tell a served page from a fallback), the declared `sortableAttributes`, and the absence of the indexed `price`.
+- `backend/test/unit/search/search-sort-attributes.test.ts` (4 cases) — `buildSort` emits only fields `SORTABLE_ATTRIBUTES` declares.
+- `backend/test/unit/search/search-degrade-observability.test.ts` (3 cases) — a refused query names the engine's error code and is reported once; an unreachable one is not reported twice.
 
-Total: 28 tests. All run against real Postgres + real Meilisearch.
+The last two need no services; the rest run against real Postgres +
+real Meilisearch.
 
 ## Extension points
 

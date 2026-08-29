@@ -6,7 +6,7 @@ import {
   type BulkOperationLogEntry,
   type BulkOperationStatus,
   type BulkOperationUndoResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';

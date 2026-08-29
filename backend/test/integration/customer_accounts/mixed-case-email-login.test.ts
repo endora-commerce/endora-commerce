@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CustomerPasswordResetPort } from '@b2b/contracts';
+import type { CustomerPasswordResetPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { manifest as customersManifest } from '../../../src/modules/customers/manifest.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { manifest as customersManifest } from '../../../../packages/modules/customers/src/manifest.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 /**
  * A buyer who registers with a mixed-case address must be able to log in with

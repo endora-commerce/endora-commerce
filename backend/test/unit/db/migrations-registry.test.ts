@@ -3,6 +3,15 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
+// Location only — which workspace members declare themselves modules. The
+// recognizer, the class-name derivation and the walk below stay this file's own,
+// which is what makes it an independent check of the committed artefact.
+import {
+  discoverModulePackages,
+  isDeclaredEntryPoint,
+  packageRelativePathOf,
+  type ModulePackage,
+} from '../../../scripts/lib/module-packages.js';
 
 /**
  * Round-trip guard for the migration registry.
@@ -36,9 +45,19 @@ const modulesRoot = resolve(backendRoot, 'src/modules');
 /** contracts/naming-convention.md §1 — the only recognizer any tool may use. */
 const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_([a-z0-9_]+)\.ts$/;
 
-/** contracts/naming-convention.md §4 — non-migration helpers in a migrations/ dir. */
+/**
+ * contracts/naming-convention.md §4 — non-migration helpers in a migrations/ dir.
+ *
+ * Keyed `backend/`-relative, which is why the tree's one helper now reads
+ * `../packages/…`: `quote_requests` became a module package (feature 080,
+ * T040b) and took it along. This test keeps its own copy of the list, as it
+ * keeps its own copy of the §1 recognizer, because the round trip is worth
+ * something only when the two implementations are independent — the composer's
+ * copy is keyed `<package name>:<package-relative path>` and is reached by a
+ * different walk.
+ */
 const HELPER_ALLOW_LIST = new Set([
-  'src/modules/quote_requests/migrations/status-mapping.ts',
+  '../packages/modules/quote_requests/src/migrations/status-mapping.ts',
 ]);
 
 /** contracts/naming-convention.md §2. */
@@ -70,14 +89,43 @@ interface DiscoveredMigration {
   moduleId: string;
 }
 
-function migrationDirs(): { dir: string; moduleId: string }[] {
+/**
+ * Every `migrations` directory under a module package, at any depth.
+ *
+ * A package's internal layout is its own — `module-package-layout.md` §1 puts
+ * them at `src/migrations/`, and nothing in the check estate spells that — so
+ * this mirrors `generate-composer.ts`'s `PACKAGE_MIGRATION_RE`, which is
+ * "anywhere under a `migrations/` directory". `dist` is skipped: a built package
+ * holds the same migrations compiled, and counting both would make this
+ * round-trip fail on whether `pnpm run build:packages` had run.
+ */
+function migrationDirsUnder(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === 'dist' || entry.name === 'node_modules') continue;
+    const child = resolve(dir, entry.name);
+    if (entry.name === 'migrations') out.push(child);
+    else migrationDirsUnder(child, out);
+  }
+  return out;
+}
+
+function migrationDirs(): { dir: string; moduleId: string; owner?: ModulePackage }[] {
   const moduleDirs = readdirSync(modulesRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => ({
       dir: resolve(modulesRoot, entry.name, 'migrations'),
       moduleId: entry.name,
     }));
-  return [{ dir: dbMigrationsDir, moduleId: 'core' }, ...moduleDirs];
+  // A module that has become a workspace package (feature 080, T040b). Its
+  // migrations are committed here and the committed registry configures them,
+  // so leaving them out makes every one of them an orphan entry — which is what
+  // this file reported on the day `blog` moved. The id is the package's declared
+  // `endora.id` (D-142), never a path segment.
+  const packageDirs = discoverModulePackages(resolve(backendRoot, '..')).flatMap((pkg) =>
+    migrationDirsUnder(pkg.dir).map((dir) => ({ dir, moduleId: pkg.moduleId, owner: pkg })),
+  );
+  return [{ dir: dbMigrationsDir, moduleId: 'core' }, ...moduleDirs, ...packageDirs];
 }
 
 function listTsFiles(dir: string): string[] {
@@ -164,11 +212,20 @@ describe('migration registry round-trip', () => {
 
   it('has no unrecognized .ts file in any migrations directory', () => {
     const strays: string[] = [];
-    for (const { dir } of migrationDirs()) {
+    for (const { dir, owner } of migrationDirs()) {
       for (const filename of listTsFiles(dir)) {
-        const relativePath = relative(backendRoot, resolve(dir, filename));
+        const absolute = resolve(dir, filename);
+        const relativePath = relative(backendRoot, absolute);
         if (MIGRATION_FILE_RE.test(filename)) continue;
         if (HELPER_ALLOW_LIST.has(relativePath.split('\\').join('/'))) continue;
+        // A package's `./migrations` subpath has to point at a file, and that
+        // file is the barrel re-exporting the classes. It is an entry point by
+        // **declaration** — read off the package's own `exports` map — rather
+        // than a §4 helper, so it needs no allow-list entry and the next module
+        // package needs none either.
+        if (owner !== undefined && isDeclaredEntryPoint(owner, packageRelativePathOf(owner, absolute))) {
+          continue;
+        }
         strays.push(relativePath);
       }
     }

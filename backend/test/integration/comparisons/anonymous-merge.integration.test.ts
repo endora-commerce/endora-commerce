@@ -8,8 +8,7 @@ import {
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
-import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
-import { ComparisonProduct } from '../../../src/modules/comparisons/entities/comparison-product.entity.js';
+import { Comparison, ComparisonProduct } from '../../helpers/package-entities.js';
 
 /**
  * T070 — R-2 / FR-005 anonymous → authenticated Comparison adoption.

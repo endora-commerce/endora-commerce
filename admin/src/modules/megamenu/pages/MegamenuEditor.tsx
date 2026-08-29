@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { randomUUID } from '@/lib/uuid';
-import type { MegamenuDetail, MegamenuItem, MegamenuItemKind } from '@b2b/contracts';
+import type { MegamenuDetail, MegamenuItem, MegamenuItemKind } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

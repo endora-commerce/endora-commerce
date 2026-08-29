@@ -22,7 +22,6 @@
  * the same answer — and the second silently changes both checks' verdicts while
  * looking like a normal run (issue #113).
  */
-import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /**
@@ -64,15 +63,21 @@ export function isSwitchableModule(moduleId: string, locked: ReadonlySet<string>
 }
 
 /**
- * Read the manifests out of the generated index under `srcRoot`.
+ * Read the manifests out of the generated index at `indexPath`.
+ *
+ * **The path is given, never built** (feature 080, T040a). It used to be
+ * `join(srcRoot, 'modules/_lifecycle/manifest-index.generated.ts')` — the
+ * module tree's location spelled out inside the one derivation whose job is to
+ * make that location a fact rather than a constant, so a layout move broke the
+ * reader every check's population floor rests on. `lib/module-roots.ts` locates
+ * it by search over the workspace members and hands it here.
  *
  * Throws `ManifestIndexUnreadableError` when the index is missing or empty; a
  * caller turns that into exit 2, never into a pass.
  */
 export async function loadManifestActivations(
-  srcRoot: string,
+  indexPath: string,
 ): Promise<readonly ManifestActivationInput[]> {
-  const indexPath = join(srcRoot, 'modules/_lifecycle/manifest-index.generated.ts');
   let entries: ReadonlyArray<{ id: string; manifest: { activation?: unknown } }>;
   try {
     const loaded = (await import(pathToFileURL(indexPath).href)) as {
@@ -91,7 +96,40 @@ export async function loadManifestActivations(
   }));
 }
 
+/**
+ * Where each registered module's manifest actually is, straight from the index.
+ *
+ * The index records it (feature 080, T041a) because a module's own directory is
+ * `dirname` of it, and three origins answer differently: a module in the
+ * application tree with `<src>/modules/<id>/manifest.ts`, a packaged one with
+ * its `package.json`, and — since T040b — the one module the host itself owns,
+ * whose directory is neither. `lib/module-roots.ts` reads this to place that
+ * last one, rather than inferring it from a directory that is deliberately not
+ * named after its module id.
+ *
+ * Same reader and same import as {@link loadManifestActivations}, so the two
+ * cannot come to disagree about which modules exist or where they are.
+ */
+export async function loadManifestLocations(
+  indexPath: string,
+): Promise<ReadonlyMap<string, string>> {
+  let entries: ReadonlyArray<{ id: string; manifestPath?: string }>;
+  try {
+    const loaded = (await import(pathToFileURL(indexPath).href)) as {
+      DISCOVERED_MANIFESTS?: ReadonlyArray<{ id: string; manifestPath?: string }>;
+    };
+    entries = loaded.DISCOVERED_MANIFESTS ?? [];
+  } catch (err: unknown) {
+    throw new ManifestIndexUnreadableError(`${indexPath} could not be imported: ${String(err)}`);
+  }
+  const located = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.manifestPath !== undefined) located.set(entry.id, entry.manifestPath);
+  }
+  return located;
+}
+
 /** The locked set, straight from the generated index. */
-export async function loadLockedOwners(srcRoot: string): Promise<ReadonlySet<string>> {
-  return lockedOwners(await loadManifestActivations(srcRoot));
+export async function loadLockedOwners(indexPath: string): Promise<ReadonlySet<string>> {
+  return lockedOwners(await loadManifestActivations(indexPath));
 }

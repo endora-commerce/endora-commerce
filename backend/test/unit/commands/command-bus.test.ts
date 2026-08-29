@@ -3,16 +3,13 @@ import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { CommandBus } from '../../../src/commands/command-bus.js';
 import type { Command } from '../../../src/commands/command.js';
 import { EventBus, type EventBase } from '../../../src/events/bus.js';
-import type {
-  AuditLogService,
-  RecordAuditInput,
-} from '../../../src/kernel/audit/audit-log-service.js';
+import type { AuditPort, RecordAuditInput } from '../../../src/kernel/ports/audit.js';
 import {
   MissingTenantContextError,
   runWithTenantContext,
   runWithoutTenantContext,
   type TenantContext,
-} from '../../../src/tenancy/index.js';
+} from '../../../src/tenancy/tenant-context.js';
 
 /**
  * Unit-level verification of the transactional composition (feature 054, FR-003).
@@ -33,7 +30,7 @@ function makeHarness() {
       auditCalls.push(input);
       return {} as never;
     },
-  } as unknown as AuditLogService;
+  } as unknown as AuditPort;
   const events = new EventBus<Record<string, EventBase>>();
   const dispatched: string[] = [];
   const bus = new CommandBus(fakeOrm, fakeAudit, events);

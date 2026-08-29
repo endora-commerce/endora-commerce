@@ -60,6 +60,35 @@
  * is still core-owned after attribution is nobody's to ask for, so it is not a
  * finding — the count of those is printed, so a residue cannot grow in silence.
  *
+ * ## The third source: installed packages (feature 080, T034)
+ *
+ * Since T031 a platform composes modules that are in neither of those two
+ * places — an npm package installed into the instance's `node_modules` — and
+ * D-106.2 lets one own tables. A table it owns was in no map, so a core module
+ * reaching into it resolved to no owner and was **not a finding**: exactly the
+ * silence `unattributed` is printed to make visible, one layer further out than
+ * the printing reaches.
+ *
+ * So `scripts/lib/package-declarations.ts` supplies a third pass, read out of
+ * the artefact the platform composes rather than out of a source text a
+ * published package does not ship: its `entities` export for the tables it maps,
+ * and the `create table` literals in the files beside its `./migrations` entry
+ * point for the ones it creates and maps with no class. The package's owner
+ * directory is `package:<npm name>`, which can equal no module directory, so the
+ * reach is cross-boundary by construction.
+ *
+ * **What the map does when it cannot attribute one: it refuses.** There is no
+ * silent third state for a package. A discovered package whose declarations
+ * cannot be enumerated in full stops the run at exit 2 before the map is built,
+ * naming the package. `package pass=0` therefore means "no package is
+ * installed", never "a package was installed and said nothing" — which is the
+ * property the two existing passes buy with their own exit-2 guards, extended
+ * to the source that arrives from outside the repository. Where the tree and a
+ * package declare one table, the **tree wins**, for the reason the entity pass
+ * wins over the migration pass: it is the declaration this repository can
+ * change, and a stranger must not take a core table's attribution away from the
+ * module that owns it.
+ *
  * ## What counts as a specifier
  *
  * Every shape TypeScript admits, through `scripts/lib/specifiers.ts` — the
@@ -87,10 +116,75 @@
  * overlay `catalog` reaching the core `catalog` is the cross-tree edge it is
  * rather than an internal import.
  *
- * Bare specifiers are ignored: there is no `@endora-commerce/mod-*` package yet,
- * so a bare specifier cannot reach a module. F4 adds the second predicate — the
- * same limit `check-kernel-boundary.ts` states for itself, and for the same
- * reason (Principle IV).
+ * A **bare** specifier can reach a module too, since !910 moved the first one
+ * out of `backend/src/modules`. This paragraph used to say the opposite — "there
+ * is no `@endora-commerce/mod-*` package yet, so a bare specifier cannot reach a
+ * module" — and the sentence outlived the fact by one merge request. Measured on
+ * that tree: `organizations` importing the `BlogPost` entity as
+ * `@endora-commerce/mod-blog/backend` left `reaches=25 violations=0`,
+ * byte-identical to the run without it. The cost is not that the reach is
+ * permitted; it is that rewriting a **ledgered** relative import into a package
+ * specifier deletes it from the walk, whereupon the two-way ledger reports the
+ * entry describing it as stale and asks the author to remove the record of a
+ * debt nobody paid. `blog` shipped with no shard, so the hole was free and
+ * invisible; the next module to move has one.
+ *
+ * So a specifier is also resolved against {@link ModuleBoundaryInput.modulePackages},
+ * the npm name → manifest id map `lib/module-roots.ts` derives from each
+ * workspace member's own `endora` block. Keyed on the **declared id** and never
+ * on the name's spelling (D-142): the edge that was `../blog/entities/blog-post.entity`
+ * before the move has to be one key after it, and a `mod-` prefix rule would be a
+ * derived fact written down (D-100). The map is matched on whole name segments,
+ * because `startsWith` over a package name is the prefix match that produced the
+ * documented 2.2× undercount, one namespace up. An empty map is the tree that has
+ * no module package and is the behaviour that shipped — which is why the CLI
+ * reconciles the map it built against the layout's own package roots and refuses
+ * a run where those disagree.
+ *
+ * ## Contract surface is not a reach (D-171)
+ *
+ * Not every subpath of a module package is that module's internals. T050 (!928)
+ * gave one a type-only `./ports` subpath so that an `EntityManager`-taking port
+ * interface has a home — `packages/contracts` is compiled by `admin` and
+ * `storefront` and carries zero `@mikro-orm` imports, so it cannot — and this
+ * check went on counting `import type { X } from '<pkg>/ports'` exactly as it
+ * counts `<pkg>/backend`. Publishing the interface therefore gave it a supported
+ * name and did **not** retire the consumer's ledger entry, which is what D-169
+ * says the conversion removes.
+ *
+ * **A subpath is contract surface iff the module it resolves to exports no
+ * runtime binding.** `./ports` emits `export {};` → exempt; `./backend` exports
+ * `registerModule` and `entities` → reach; `./migrations` exports `migrations`
+ * plus the named classes → reach; the root exports `manifest` → reach. Derived
+ * from the artefact on every run and from nothing written down — a named list in
+ * the layout contract would be D-100 exactly, and a field in the package's own
+ * `endora` block would be a self-certified exemption from this check's ledger,
+ * issued by the measured party.
+ *
+ * Three consequences, each of them the point rather than a side effect. It
+ * **fails closed**: a `const` added to `./ports` makes the reach count again in
+ * the same run T050's guard goes red, and a subpath the package does not declare
+ * at all stays a reach. A later `./types` is exempt automatically and correctly
+ * while a `./services` is not. And the predicate is **one function**, shared with
+ * that guard (`scripts/lib/emitted-exports.ts`), because two derivations of one
+ * fact are two answers waiting to disagree.
+ *
+ * The parity is structural rather than granted: `packages/contracts` is exempt
+ * for carrying no `endora` block at all, so it never enters
+ * {@link ModuleBoundaryInput.modulePackages} and there is no exemption to point
+ * at. A port type there is exempt for *not being a module*; the same type on
+ * `./ports` counted only because its owner *is* one.
+ *
+ * **"Retire by reclassification" is structurally unavailable.**
+ * {@link resolveModulePackage} answers `null` for any specifier starting with
+ * `.`, and an unconverted reach *is* a relative specifier — so it has no subpath
+ * for the exemption to apply to. Reaching the exempt state takes three separable
+ * edits, each visible in the diff: package the owner, publish the interface,
+ * rewrite the specifier. `surfaceOf` is **not** the seam that decides this: it
+ * answers `'port'` for any path holding a `ports` segment, a relative
+ * `services/ports/foo.ts` included, which is a private file — a path-text
+ * heuristic, right for choosing a remedy sentence and wrong as a boundary
+ * decision.
  *
  * ## Out of scope, each for a stated reason
  *
@@ -100,9 +194,6 @@
  *   - `src/kernel`, `src/http`, `src/events`, `src/tenancy`, `src/commands`,
  *     `src/db`, `src/overlay` — not modules. The reverse direction is
  *     `check-kernel-boundary.ts` rules B and C.
- *   - `src/apps/<deployment>/decorations/**` — a decoration names the core
- *     service interface it wraps; that is its contract with `tsc` (features
- *     057/072).
  *   - `backend/test/**` — reporting only, under `--tests`. A test is allowed to
  *     know more than the code it tests, and after F4 a test importing another
  *     module's entity is a `devDependency` edge.
@@ -128,16 +219,17 @@
  * because a single table makes all 45 cut merge requests edit one file, and that
  * is the serialisation point this design exists to remove.
  *
- * It fails **seven** ways, not two: an unledgered import fails, a stale entry
+ * It fails **eight** ways, not two: an unledgered import fails, a stale entry
  * fails, an empty shard fails (delete the file instead), an orphan shard fails,
  * a **misfiled** entry fails — without that one, an engineer blocked on
  * `catalog` could park an `orders` finding in `catalog.ts` and both merge
  * requests would read green — a **permanent entry with no retiring condition**
- * fails, and a shard that **declares an entry type of its own** fails
- * (issue #217). The last one is what makes the sixth reachable: `payments` was
- * typed `Readonly<Record<string, string>>` for as long as it existed, so its
- * co-transactional seam could claim permanence in prose only — it counted
- * toward `ledger-size` as debt nothing was going to drain, and
+ * fails, an entry whose **recorded count** is not what the walk found fails in
+ * either direction (issue #267, below), and a shard that **declares an entry
+ * type of its own** fails (issue #217). The last one is what makes the sixth
+ * reachable: `payments` was typed `Readonly<Record<string, string>>` for as long
+ * as it existed, so its co-transactional seam could claim permanence in prose
+ * only — it counted toward `ledger-size` as debt nothing was going to drain, and
  * {@link permanentEntryIssue} had no field to run on. It was not one file
  * departing from a convention: **29 of the 33 shards** were typed that way, the
  * four exceptions being the shards that had already had to hold a permanent
@@ -170,6 +262,49 @@
  * is the property that lets code move inside a file without invalidating the
  * ledger; the entry retires when the *last* of the sites under it goes.
  *
+ * ## The count on an entry (issue #267)
+ *
+ * That last property has a cost, and it was paid: because the key answers "is
+ * this file already known to reach this table" rather than "how much", the
+ * **Nth** reach of a shape a file already carries lands against an unchanged
+ * ledger. MR !793 added two `select … from product_categories` statements, in
+ * `price-list-service.ts` and in `pricing-service.ts`; both files already had an
+ * entry for that table, so `sql` rose 52 -> 54, the ledger did not move, `stale`
+ * and `violations` stayed 0, and nothing asked anybody to justify them. The
+ * entries were honest and the merge request was good work — which is the point:
+ * a correct change added cross-module coupling that the mechanism built to make
+ * coupling visible did not surface.
+ *
+ * So an entry carries a **count**, two-way like every other ledger in this tree.
+ * The key stays exactly as it was: an entry is `{ sites, reason }` where the
+ * file reaches its target more than once, and stays a plain string — meaning one
+ * — where it does not. The field is **omittable** because 60 of the 68 keys
+ * standing when it landed cover exactly one reach (7 cover two, 1 covers three,
+ * and 6 of the 8 are `sql`), so a required field would have written `sites: 1`
+ * fifty-odd times to say nothing. The default is safe because it fails
+ * **closed**: a new entry over a file that already reaches three times records 1
+ * by omission and the run says the walk found three.
+ *
+ * Both directions fail. A count **below** the walk is the gap this closes — a
+ * reach nobody was asked about. A count **above** it is the stale entry the key
+ * already refuses, one granularity down: a number left standing after the
+ * statements under it went. {@link countIssueFor} is the whole rule, and it says
+ * nothing when the walk found **none** — that is staleness, reported once by the
+ * name it already had.
+ *
+ * A permanent entry carries the count on the same terms
+ * ({@link PermanentLedgerEntry.sites}). Permanence answers "why does this edge
+ * stand", never "why does it stand twice", and a co-transactional seam that
+ * grows a second statement deserves the question a draining one's growth gets.
+ *
+ * **`ledger-size` still means keys.** An entry is the unit of review and of
+ * retirement — the cut that removes it removes every reach under it — and a file
+ * with three reaches under one entry contributes 1, as it always did. Counting
+ * sites instead would have moved the published number 57 -> 64 with no code
+ * changed, reading as a regression in a drain that is nearly finished. The site
+ * total is printed beside it as `(sites=…)`, derived from the counts and never
+ * written down, so growth inside an entry is visible in the summary line too.
+ *
  * **"Not yet cut" is a reason only during the sweep.** Every entry generated in
  * MR-0 says so and names the merge request that retires it; after
  * **2026-12-31** that sentence stops being an acceptable reason, and an entry
@@ -178,11 +313,15 @@
  *
  * Usage: `tsx scripts/check-module-boundary.ts [--list] [--tests] [--module <id>]`
  * Exit 0 = every cross-module reach is ledgered in its own shard;
- * exit 1 = at least one is not, or the ledger lies in one of the other six ways;
- * exit 2 = the check read nothing — no module sources, no ledger directory, or a
- * table→owner map in which **either** pass resolved zero tables. Each pass
- * proves it looked, and a silently empty migration pass is precisely the
- * entity-only blindness the second source exists to remove (issue #113).
+ * exit 1 = at least one is not, or the ledger lies in one of the other seven ways;
+ * exit 2 = the check read nothing — no module sources, no ledger directory, a
+ * table→owner map in which **either** in-tree pass resolved zero tables, an
+ * installed package whose declarations could not be enumerated, or a module
+ * package subpath a module reached whose **emitted module could not be read**
+ * (D-171). Each pass proves it looked, and a silently empty migration pass is
+ * precisely the entity-only blindness the second source exists to remove
+ * (issue #113) — as is a file whose unreadability would otherwise grant the
+ * reach into it an exemption.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -190,6 +329,13 @@ import { dirname as posixDirname, join as posixJoin, normalize as posixNormalize
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { moduleOf } from './check-container-imports.js';
+import { requireModuleLayout, type ModuleTreeLayout } from './lib/module-roots.js';
+import {
+  EVERY_SUBPATH_IS_A_REACH,
+  modulePackageSurfaces,
+  UnreadableSubpathError,
+  type ModulePackageSurfaces,
+} from './lib/module-package-subpaths.js';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 import {
   declaredTableNames,
@@ -201,12 +347,19 @@ import { pluralize } from '../src/db/pluralizing-naming-strategy.js';
 import {
   loadRegisteredModuleIds,
   modulePopulationCoverage,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
   vacuousModulePopulation,
 } from './lib/module-population.js';
-import { reportReadSize } from './lib/read-size.js';
+import {
+  loadPackageDeclarations,
+  packageCoverage,
+  refuseUnreadablePackages,
+  type PackageTable,
+} from './lib/package-declarations.js';
+import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
-const SRC_ROOT = join(BACKEND_ROOT, 'src');
 const TEST_ROOT = join(BACKEND_ROOT, 'test');
 const LEDGER_ROOT = join(BACKEND_ROOT, 'scripts', 'ledgers', 'cross-module-imports');
 
@@ -219,7 +372,7 @@ const LEDGER_ROOT = join(BACKEND_ROOT, 'scripts', 'ledgers', 'cross-module-impor
  * its reason.
  */
 export const GENERATED_MODULE_FILES: Readonly<Record<string, string>> = {
-  'modules/_lifecycle/manifest-index.generated.ts': 'scripts/generate-composer.ts',
+  'manifest-index.generated.ts': 'scripts/generate-composer.ts',
 };
 
 /** The specifier shape, as `scripts/lib/specifiers.ts` classifies it. */
@@ -331,10 +484,107 @@ export interface PermanentLedgerEntry {
   readonly reason: string;
   /** What would retire it. A merge request is not a retiring condition. */
   readonly retiredBy: string;
+  /**
+   * How many reaches stand under this key. Omitted means one — see
+   * {@link CountedLedgerEntry}, and the header's "the count on an entry".
+   *
+   * A permanent entry carries it on the same terms as a draining one:
+   * permanence answers "why does this edge stand", never "why does it stand
+   * three times", and a co-transactional seam that grows a second statement is
+   * worth exactly the question a draining one's growth is worth.
+   */
+  readonly sites?: number;
 }
 
-/** What a shard maps a key to: a draining reason, or a permanent entry. */
-export type LedgerEntry = string | PermanentLedgerEntry;
+/**
+ * A draining entry whose file reaches its target more than once (issue #267).
+ *
+ * The plain string form *is* this entry with `sites: 1`, which is what 60 of
+ * the 68 keys standing when the count landed are. The field is written only
+ * where the key covers more than one reach, so the common entry stays a
+ * sentence and the exceptional one says how many.
+ */
+export interface CountedLedgerEntry {
+  /** How many reaches stand under this key. At least 1, and an integer. */
+  readonly sites: number;
+  /** The same sentence a string entry carries. */
+  readonly reason: string;
+}
+
+/** What a shard maps a key to: a reason, a counted reason, or a permanent entry. */
+export type LedgerEntry = string | CountedLedgerEntry | PermanentLedgerEntry;
+
+/**
+ * How many reaches the entry claims stand under its key, or `null` when it
+ * declares a `sites` that is not a positive integer.
+ *
+ * Omitting the field means one. That default is safe because it fails
+ * **closed**: an author who ledgers a file that already reaches its target
+ * three times writes a sentence, records 1 by omission, and the run tells them
+ * the walk found three.
+ */
+export function recordedSites(entry: LedgerEntry): number | null {
+  if (typeof entry === 'string') return 1;
+  const sites: unknown = (entry as { sites?: unknown }).sites;
+  if (sites === undefined) return 1;
+  if (typeof sites !== 'number' || !Number.isInteger(sites) || sites < 1) return null;
+  return sites;
+}
+
+/** The reason text an entry carries, whichever of the three forms it takes. */
+export function reasonOf(entry: LedgerEntry): string {
+  return typeof entry === 'string' ? entry : entry.reason;
+}
+
+/**
+ * Whether a shard value is a counted draining entry: a reason with a `sites`
+ * field beside it.
+ *
+ * Structural, and deliberately tolerant of a malformed `sites` — a
+ * `sites: 'two'` is a *count* defect, reported as one, rather than a value the
+ * malformed-entry message calls "neither a reason nor a permanent entry" while
+ * saying nothing about the number.
+ */
+function isCounted(entry: unknown): entry is CountedLedgerEntry {
+  return (
+    typeof entry === 'object' &&
+    entry !== null &&
+    'sites' in entry &&
+    typeof (entry as { reason?: unknown }).reason === 'string'
+  );
+}
+
+/**
+ * Why an entry's recorded count does not describe what the walk found, or
+ * `null` when it does.
+ *
+ * `found === 0` is not this rule's business: the entry describes no reach at
+ * all, which is the stale direction the key has always refused, and reporting
+ * it twice would name one defect two ways.
+ */
+export function countIssueFor(key: string, entry: LedgerEntry, found: number): string | null {
+  const recorded = recordedSites(entry);
+  if (recorded === null) {
+    const written = JSON.stringify((entry as { sites?: unknown }).sites);
+    return (
+      `${key} records \`sites: ${written}\` — a site count is a positive integer, and an ` +
+      'entry that cannot say how many reaches it covers cannot be compared with the walk'
+    );
+  }
+  if (found === 0 || recorded === found) return null;
+  if (recorded < found) {
+    return (
+      `${key} records ${recorded}, the walk found ${found} (+${found - recorded}) — the file ` +
+      'grew a reach into that target and no reviewer was asked why. Record ' +
+      `${found} and say in the reason what the new one is for, or remove it.`
+    );
+  }
+  return (
+    `${key} records ${recorded}, the walk found ${found} (-${recorded - found}) — a count left ` +
+    `standing after a reach went is the stale entry the key already refuses. Record ${found}` +
+    (found === 1 ? ', or drop the `sites` field and leave the reason.' : '.')
+  );
+}
 
 /** One ledger shard: the module it belongs to, and its entries. */
 export interface LedgerShard {
@@ -456,7 +706,49 @@ export interface ModuleBoundaryInput {
    * meaning what they meant.
    */
   readonly schema?: ReadonlyMap<string, string>;
+  /**
+   * Tables the installed extension packages own (feature 080, T034).
+   *
+   * Absent means "this input describes no installed package", which is what
+   * every fixture in the tree says and what every run of this repository's CI
+   * says. It never means "the packages own nothing": a package the loader could
+   * not read stops the run at exit 2 before this map is built.
+   */
+  readonly packageTables?: readonly PackageTable[];
+  /**
+   * Each module package's npm name mapped to the module id it declares, so a
+   * bare specifier can be resolved to a module (feature 080).
+   *
+   * Absent is the tree with no module package, and it is the behaviour that
+   * shipped before !910 — not "no package reaches a module". The CLI derives the
+   * map from `lib/module-roots.ts` and refuses a run in which the layout found
+   * package roots and this map came back empty, because that disagreement is the
+   * only way the absence can mean something other than what it says.
+   */
+  readonly modulePackages?: ReadonlyMap<string, string>;
+  /**
+   * Which of those packages' subpaths are **contract surface** (D-171).
+   *
+   * Absent is {@link EVERY_SUBPATH_IS_A_REACH}, the behaviour that shipped: an
+   * exemption is granted by a measurement and never by the absence of one. The
+   * CLI builds a real reader over each package's directory, so the answer comes
+   * off the package's own `exports` map and its own emitted module.
+   */
+  readonly modulePackageSurfaces?: ModulePackageSurfaces;
+  /**
+   * Directories whose files belong to a module no `modules/<id>/` segment names
+   * — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   *
+   * Absent is a tree that has none. Present, it is what lets both predicates
+   * attribute a host-resident module's files: without it they are read as
+   * belonging to no module, which clears every reach out of them and reports
+   * that module's shard as an orphan.
+   */
+  readonly hostResidentModules?: HostResidentModules;
 }
+
+/** The tree with no module package installed — every fixture, and CI before !910. */
+const NO_MODULE_PACKAGES: ReadonlyMap<string, string> = new Map();
 
 export interface CheckResult {
   readonly total: number;
@@ -475,6 +767,12 @@ export interface CheckResult {
   readonly permanentKeys: readonly string[];
   /** A permanent entry that states no reason or no retiring condition. */
   readonly permanentIssues: readonly string[];
+  /**
+   * An entry whose recorded site count is not what the walk found, in either
+   * direction, or which records a count that is not a positive integer
+   * (issue #267).
+   */
+  readonly countIssues: readonly string[];
   /** A shard whose file declares an entry type of its own (issue #217). */
   readonly shardShapeIssues: readonly string[];
   /** What each pass of the table→owner map resolved, and what is left over. */
@@ -495,14 +793,77 @@ interface ModuleLocation {
  * answer for a specifier that resolves to the module directory itself
  * (`from '../catalog'`).
  */
-function moduleLocationOf(pathUnderSrc: string): ModuleLocation | null {
-  const id = moduleOf(`/src/${pathUnderSrc}/`);
+function moduleLocationOf(
+  pathUnderSrc: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): ModuleLocation | null {
+  const id = moduleOf(`/src/${pathUnderSrc}/`, hostResident);
   if (id === null) return null;
   const segments = pathUnderSrc.split('/');
   const modulesAt = segments.indexOf('modules');
   const index = segments.indexOf(id, modulesAt);
-  if (index === -1) return null;
+  // A host-resident module's directory is not named after its id (feature 080,
+  // T040b), so the segment search cannot find it — the map that named the
+  // module is also the one that says where it starts.
+  if (index === -1) {
+    for (const [directory, moduleId] of hostResident) {
+      if (moduleId === id && (pathUnderSrc === directory || pathUnderSrc.startsWith(`${directory}/`))) {
+        return { id, dir: directory };
+      }
+    }
+    return null;
+  }
   return { id, dir: segments.slice(0, index + 1).join('/') };
+}
+
+/**
+ * The specifier resolved against the importing file's directory, extension
+ * dropped, or `null` for a bare specifier.
+ */
+/**
+ * The module a **bare** specifier reaches, and the subpath it names, or `null`.
+ *
+ * The longest declared name that the specifier matches **on a segment boundary**
+ * wins. Both halves are load-bearing and neither is decoration:
+ * `@endora-commerce/mod-blog-extra` must not answer with `blog`, which a bare
+ * `startsWith` gives — that is the prefix match behind the documented 2.2×
+ * undercount, moved from a path to a package name. Longest-first is what lets
+ * two module packages share a prefix at all.
+ *
+ * The subpath is returned as written (`backend`, `migrations`), never resolved
+ * through the `exports` map: the map's targets are `dist/**` under D-164, and a
+ * ledger key naming a build artefact would change whenever the emit layout does.
+ * The package root answers `''`, which is what a relative specifier naming the
+ * module directory already answers.
+ *
+ * The matched **name** comes back too, because D-171's question is asked of the
+ * package rather than of the module: the exemption is a property of the subpath
+ * the owner declared, and the declaration lives in that package's manifest.
+ */
+function resolveModulePackage(
+  specifier: string,
+  modulePackages: ReadonlyMap<string, string>,
+): { readonly id: string; readonly name: string; readonly subpath: string } | null {
+  if (specifier.startsWith('.') || modulePackages.size === 0) return null;
+  let best: {
+    readonly id: string;
+    readonly name: string;
+    readonly subpath: string;
+    readonly length: number;
+  } | null = null;
+  for (const [name, id] of modulePackages) {
+    if (!specifier.startsWith(name)) continue;
+    const rest = specifier.slice(name.length);
+    if (rest !== '' && !rest.startsWith('/')) continue;
+    if (best !== null && name.length <= best.length) continue;
+    best = {
+      id,
+      name,
+      subpath: rest.replace(/^\//, '').replace(/\.(js|ts)$/, ''),
+      length: name.length,
+    };
+  }
+  return best === null ? null : { id: best.id, name: best.name, subpath: best.subpath };
 }
 
 /**
@@ -544,16 +905,52 @@ function surfaceOf(targetPath: string): CrossModuleSurface {
  * also why every red proof enters here, with source text and a path, rather than
  * with a resolved pair the check normally computes (issue #130).
  */
-export function analyzeSource(source: string, file: string): CrossModuleImport[] {
+export function analyzeSource(
+  source: string,
+  file: string,
+  modulePackages: ReadonlyMap<string, string> = NO_MODULE_PACKAGES,
+  surfaces: ModulePackageSurfaces = EVERY_SUBPATH_IS_A_REACH,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): CrossModuleImport[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
-  const owner = moduleLocationOf(file);
+  const owner = moduleLocationOf(file, hostResident);
   if (owner === null) return [];
 
   const found: CrossModuleImport[] = [];
   for (const specifier of namedSpecifiers(source, file)) {
+    const packaged = resolveModulePackage(specifier.text, modulePackages);
+    if (packaged !== null) {
+      // The importer's own package, named by its own npm name — the self-import
+      // the directory comparison answers for the application tree. Compared by
+      // id because a bare specifier carries no directory to compare.
+      if (packaged.id === owner.id) continue;
+      // D-171: a subpath whose emitted module exports no runtime binding is
+      // contract surface, and reaching contract surface is not cross-module
+      // debt. Derived from the artefact on every run, so a `const` added to a
+      // type-only subpath makes the reach count again in the same run T050's
+      // guard goes red. A subpath whose emitted module cannot be read throws,
+      // and the CLI turns that into exit 2 — an unreadable file must never be
+      // an exemption (issue #113).
+      if (surfaces.surfaceOfSubpath(packaged.name, packaged.subpath).kind === 'contract') continue;
+      found.push({
+        predicate: 'import',
+        file,
+        line: specifier.line,
+        moduleId: owner.id,
+        target: packaged.id,
+        specifier: specifier.text,
+        targetPath: packaged.subpath,
+        kind: specifier.kind,
+        surface: surfaceOf(packaged.subpath),
+        // A package is a workspace member, never a file under `src/apps/`, so
+        // only the importing side can make this edge an overlay one.
+        overlay: owner.dir.startsWith('apps/'),
+      });
+      continue;
+    }
     const resolved = resolveSpecifier(file, specifier.text);
     if (resolved === null) continue;
-    const target = moduleLocationOf(resolved);
+    const target = moduleLocationOf(resolved, hostResident);
     if (target === null) continue;
     if (target.dir === owner.dir) continue;
     const targetPath = resolved === target.dir ? '' : resolved.slice(target.dir.length + 1);
@@ -575,7 +972,12 @@ export function analyzeSource(source: string, file: string): CrossModuleImport[]
 
 /** Every cross-module import in the input, in file then line order. */
 export function findCrossModuleImports(input: ModuleBoundaryInput): CrossModuleImport[] {
-  const found = [...input.sources].flatMap(([file, text]) => analyzeSource(text, file));
+  const packages = input.modulePackages ?? NO_MODULE_PACKAGES;
+  const surfaces = input.modulePackageSurfaces ?? EVERY_SUBPATH_IS_A_REACH;
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
+  const found = [...input.sources].flatMap(([file, text]) =>
+    analyzeSource(text, file, packages, surfaces, hostResident),
+  );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return found;
 }
@@ -602,6 +1004,15 @@ export interface TableOwnerReport {
   readonly entityTables: number;
   readonly migrationTables: number;
   /**
+   * Tables an installed extension package owns (feature 080, T034).
+   *
+   * A third pass, printed like the other two. It is **not** in the vacuous-pass
+   * guard, and the asymmetry is deliberate: zero is the honest answer for every
+   * checkout and every CI run of this repository, whereas a package that was
+   * installed and could not be read has already stopped the run at exit 2.
+   */
+  readonly packageTables: number;
+  /**
    * Tables the migration pass resolved that **no** entity declares — the 21 the
    * second source exists for. Printed, because an entity pass that started
    * swallowing them would leave this at zero while every other number held.
@@ -612,8 +1023,11 @@ export interface TableOwnerReport {
 }
 
 /** The declaring file's owner: a module, the kernel, or a core directory. */
-function declaringOwnerOf(file: string): TableOwner | null {
-  const module = moduleLocationOf(file);
+function declaringOwnerOf(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): TableOwner | null {
+  const module = moduleLocationOf(file, hostResident);
   if (module !== null) return module;
   const head = file.split('/')[0] ?? '';
   if (head === 'kernel') return { id: 'kernel', dir: 'kernel' };
@@ -638,7 +1052,11 @@ function isCoreOwner(owner: TableOwner): boolean {
  * `sales_channel_products` resolves through `sales_channels` and not through
  * some shorter accident.
  */
-export function buildTableOwners(schema: ReadonlyMap<string, string>): {
+export function buildTableOwners(
+  schema: ReadonlyMap<string, string>,
+  packageTables: readonly PackageTable[] = [],
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): {
   readonly owners: ReadonlyMap<string, TableOwner>;
   readonly report: TableOwnerReport;
 } {
@@ -647,7 +1065,7 @@ export function buildTableOwners(schema: ReadonlyMap<string, string>): {
   const fromMigration = new Set<string>();
 
   for (const [file, text] of schema) {
-    const owner = declaringOwnerOf(file);
+    const owner = declaringOwnerOf(file, hostResident);
     if (owner === null) continue;
     for (const declaration of declaredTableNames(text, file)) {
       const seen = declaration.source === 'entity' ? fromEntity : fromMigration;
@@ -655,6 +1073,25 @@ export function buildTableOwners(schema: ReadonlyMap<string, string>): {
       if (declaration.source === 'entity') owners.set(declaration.table, owner);
       else if (!fromEntity.has(declaration.table)) owners.set(declaration.table, owner);
     }
+  }
+
+  // The third source. A package's owner directory is `package:<npm name>`, so
+  // it can never equal a module directory and a core module reaching a
+  // package's table is the cross-boundary reach it is — the same identity rule
+  // that makes an overlay `catalog` reaching the core `catalog` a real edge.
+  //
+  // The tree wins a collision, for the reason the entity pass wins one over the
+  // migration pass: it is the declaration this repository can change, and a
+  // stranger must not be able to take a core table's attribution away from the
+  // module that owns it.
+  const fromPackage = new Set<string>();
+  for (const declared of packageTables) {
+    if (owners.has(declared.table)) continue;
+    fromPackage.add(declared.table);
+    owners.set(declared.table, {
+      id: declared.moduleId,
+      dir: `package:${declared.packageName}`,
+    });
   }
 
   const unattributed: string[] = [];
@@ -670,6 +1107,7 @@ export function buildTableOwners(schema: ReadonlyMap<string, string>): {
     report: {
       entityTables: fromEntity.size,
       migrationTables: fromMigration.size,
+      packageTables: fromPackage.size,
       migrationOnlyTables: [...fromMigration].filter((table) => !fromEntity.has(table)).length,
       unattributed: unattributed.sort(),
     },
@@ -712,12 +1150,13 @@ export function analyzeSqlSource(
   source: string,
   file: string,
   owners: ReadonlyMap<string, TableOwner>,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
 ): CrossModuleSqlAccess[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
   // A migration naming another module's table is the execution order's problem,
   // and `fk-dependency-drift.test.ts` already owns it.
   if (file.includes('/migrations/')) return [];
-  const owner = moduleLocationOf(file);
+  const owner = moduleLocationOf(file, hostResident);
   if (owner === null) return [];
 
   const found: CrossModuleSqlAccess[] = [];
@@ -749,11 +1188,24 @@ export function findCrossModuleSql(input: ModuleBoundaryInput): {
   if (input.schema === undefined) {
     return {
       found: [],
-      report: { entityTables: 0, migrationTables: 0, migrationOnlyTables: 0, unattributed: [] },
+      report: {
+        entityTables: 0,
+        migrationTables: 0,
+        packageTables: 0,
+        migrationOnlyTables: 0,
+        unattributed: [],
+      },
     };
   }
-  const { owners, report } = buildTableOwners(input.schema);
-  const found = [...input.sources].flatMap(([file, text]) => analyzeSqlSource(text, file, owners));
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
+  const { owners, report } = buildTableOwners(
+    input.schema,
+    input.packageTables ?? [],
+    hostResident,
+  );
+  const found = [...input.sources].flatMap(([file, text]) =>
+    analyzeSqlSource(text, file, owners, hostResident),
+  );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return { found, report };
 }
@@ -780,10 +1232,18 @@ export function checkModuleBoundary(
   const all: ModuleBoundaryFinding[] = [...findCrossModuleImports(input), ...sql.found];
   all.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   const present = new Set(all.map(keyOf));
+  // How many reaches each key actually covers, so an entry can be compared with
+  // a number rather than with a boolean (issue #267).
+  const found = new Map<string, number>();
+  for (const finding of all) {
+    const key = keyOf(finding);
+    found.set(key, (found.get(key) ?? 0) + 1);
+  }
 
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   const modules = new Set<string>();
   for (const file of input.sources.keys()) {
-    const owner = moduleLocationOf(file);
+    const owner = moduleLocationOf(file, hostResident);
     if (owner !== null) modules.add(owner.id);
   }
 
@@ -793,6 +1253,7 @@ export function checkModuleBoundary(
   const orphanShards: string[] = [];
   const permanentKeys: string[] = [];
   const permanentIssues: string[] = [];
+  const countIssues: string[] = [];
   const shardShapeIssues: string[] = [];
 
   for (const shard of shards) {
@@ -803,7 +1264,7 @@ export function checkModuleBoundary(
     if (shapeIssue !== null) shardShapeIssues.push(shapeIssue);
     for (const key of keys) {
       const file = fileOfKey(key);
-      const owner = file === null ? null : moduleLocationOf(file);
+      const owner = file === null ? null : moduleLocationOf(file, hostResident);
       // A shard accounts for its own module and nothing else, so it cannot be
       // used to make another module's violation disappear.
       if (owner === null || owner.id !== shard.moduleId) {
@@ -816,12 +1277,17 @@ export function checkModuleBoundary(
         permanentKeys.push(key);
         const issue = permanentEntryIssue(key, entry);
         if (issue !== null) permanentIssues.push(issue);
-      } else if (typeof entry !== 'string') {
+      } else if (typeof entry !== 'string' && !isCounted(entry)) {
         permanentIssues.push(
-          `${key} is neither a reason nor a permanent entry — a shard value is a string or ` +
-            '`{ permanent: true, reason, retiredBy }`',
+          `${key} is neither a reason nor a permanent entry — a shard value is a string, ` +
+            '`{ sites, reason }` or `{ permanent: true, reason, retiredBy }`',
         );
+        continue;
       }
+      // The count is checked on every form, permanent included: the question a
+      // second reach raises is the same one either way (issue #267).
+      const countIssue = countIssueFor(key, entry, found.get(key) ?? 0);
+      if (countIssue !== null) countIssues.push(countIssue);
     }
   }
 
@@ -837,6 +1303,7 @@ export function checkModuleBoundary(
     misfiledEntries: misfiledEntries.sort(),
     permanentKeys: permanentKeys.sort(),
     permanentIssues: permanentIssues.sort(),
+    countIssues: countIssues.sort(),
     shardShapeIssues: shardShapeIssues.sort(),
     tableOwners: sql.report,
   };
@@ -853,6 +1320,8 @@ export function vacuousReason(input: {
   readonly moduleFiles: readonly string[];
   /** Module ids the generated manifest index registers (issue #215). */
   readonly registeredModules: readonly string[];
+  /** How a walked path is attributed, where the layout knows better (T040a). */
+  readonly moduleIdOf?: (path: string) => string | null;
   readonly ledgerDirectoryExists: boolean;
   /** Tables the `@Entity()` pass resolved. */
   readonly entityTables: number;
@@ -871,6 +1340,7 @@ export function vacuousReason(input: {
   const population = vacuousModulePopulation({
     registered: input.registeredModules,
     files: input.moduleFiles,
+    ...(input.moduleIdOf === undefined ? {} : { moduleIdOf: input.moduleIdOf }),
   });
   if (population !== null) return population;
   if (!input.ledgerDirectoryExists) {
@@ -945,8 +1415,8 @@ export async function loadLedgerShards(directory: string): Promise<LedgerShard[]
  * test file living under `src/` and is therefore in scope (it moves to
  * `backend/test/`). Declaration files are not, because they are emitted.
  */
-export function collectModuleFiles(srcRoot: string = SRC_ROOT): string[] {
-  return [...walk(join(srcRoot, 'modules')), ...walk(join(srcRoot, 'apps'))];
+export function collectModuleFiles(roots: readonly string[]): string[] {
+  return roots.flatMap((root) => walk(root));
 }
 
 /**
@@ -957,8 +1427,50 @@ export function collectModuleFiles(srcRoot: string = SRC_ROOT): string[] {
  * (`sales_channels` alone carries 25 findings) and 21 more are declared only by
  * DDL under `src/db/migrations`, which no module walk reaches.
  */
-export function collectSchemaFiles(srcRoot: string = SRC_ROOT): string[] {
-  return walk(srcRoot);
+/**
+ * How a schema source becomes an owner-map key.
+ *
+ * The platform's files keep their `kernel/…`, `http/…` spelling, which is what
+ * {@link declaringOwnerOf} reads to attribute `sales_channels`, `settings`,
+ * `audit_logs` and `module_registrations` to the kernel. `layout.keyOf` is
+ * repository-relative outside the application's `src/`, so after the platform
+ * relocation those four tables were owned by `core:packages` instead — and the
+ * failure is fail-**open**: a module's SQL naming a table nobody owns is not a
+ * cross-module reach, so two ledgered reaches went stale and the predicate
+ * stopped seeing them rather than reporting them.
+ *
+ * Exported because `test/unit/scripts/check-module-boundary.test.ts` builds the
+ * same map over the real tree, and two derivations of one key space are two
+ * answers waiting to disagree.
+ */
+export function schemaKeyOf(layout: ModuleTreeLayout): (absolutePath: string) => string {
+  const platformRoot = layout.platformRoot;
+  return (absolutePath: string): string =>
+    platformRoot !== null && absolutePath.startsWith(`${platformRoot}/`)
+      ? relative(platformRoot, absolutePath).split('\\').join('/')
+      : layout.keyOf(absolutePath);
+}
+
+export function collectSchemaFiles(roots: readonly string[]): string[] {
+  return roots.flatMap((root) => walk(root));
+}
+
+/**
+ * Each module package's npm name mapped to its own directory (D-171).
+ *
+ * Both halves come off the layout and neither is spelled here: the names are the
+ * ones each member's `endora` block declares, and the directory is the one the
+ * layout resolved the module id to. A package the layout knows the name of and
+ * not the directory of is left out, so the surfaces reader answers `undeclared`
+ * for it — a reach, which is the fail-closed direction.
+ */
+export function modulePackageDirectories(layout: ModuleTreeLayout): ReadonlyMap<string, string> {
+  const directories = new Map<string, string>();
+  for (const [name, id] of layout.modulePackageNames) {
+    const directory = layout.moduleDirectoryOf(id);
+    if (directory !== null) directories.set(name, directory);
+  }
+  return directories;
 }
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -975,11 +1487,21 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Absolute paths → the source map the analysis reads, keyed under `src/`. */
-export function sourcesOf(files: readonly string[], srcRoot: string = SRC_ROOT): Map<string, string> {
+/**
+ * Absolute paths → the source map the analysis reads, keyed under `src/`.
+ *
+ * `keyOf` is `resolveModuleLayout().keyOf` from the CLI (feature 080, T040a):
+ * `modules/<id>/…` for the application's own tree, byte-for-byte as before, and
+ * the repository-relative path for a module that has become a workspace
+ * package, which has no `src/` of the application's to be relative to.
+ */
+export function sourcesOf(
+  files: readonly string[],
+  keyOf: (file: string) => string,
+): Map<string, string> {
   const sources = new Map<string, string>();
   for (const file of files) {
-    sources.set(relative(srcRoot, file).split('\\').join('/'), readFileSync(file, 'utf8'));
+    sources.set(keyOf(file), readFileSync(file, 'utf8'));
   }
   return sources;
 }
@@ -1117,7 +1639,7 @@ function describeFinding(finding: ModuleBoundaryFinding): string {
 }
 
 /** `backend/test/**` — reporting only, never part of the exit code. */
-function testSites(): number {
+function testSites(hostResident: HostResidentModules): number {
   let total = 0;
   for (const file of walk(TEST_ROOT)) {
     const fromBackend = relative(BACKEND_ROOT, file).split('\\').join('/');
@@ -1125,7 +1647,7 @@ function testSites(): number {
       if (!specifier.text.startsWith('.')) continue;
       const resolved = posixNormalize(posixJoin(posixDirname(fromBackend), specifier.text));
       if (!resolved.startsWith('src/')) continue;
-      if (moduleLocationOf(resolved.slice('src/'.length)) !== null) total += 1;
+      if (moduleLocationOf(resolved.slice('src/'.length), hostResident) !== null) total += 1;
     }
   }
   return total;
@@ -1137,16 +1659,27 @@ async function main(): Promise<void> {
   const moduleAt = process.argv.indexOf('--module');
   const only = moduleAt === -1 ? null : (process.argv[moduleAt + 1] ?? null);
 
-  const files = collectModuleFiles();
-  const sources = sourcesOf(files);
-  const schema = sourcesOf(collectSchemaFiles());
-  const owners = buildTableOwners(schema).report;
+  // Both roots, derived (feature 080, T040a): the module walk covers each
+  // application tree and every module that has become a workspace package; the
+  // owner map is built over the wider source list, for the same reason it was
+  // always wider than the module walk.
+  const layout = await requireModuleLayout('[module-boundary]');
+  const files = collectModuleFiles(layout.moduleWalkRoots);
+  const sources = sourcesOf(files, layout.keyOf);
+  const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
+  // The third owner-map source (T034). It is read before the vacuous guard so
+  // that a package whose schema cannot be enumerated stops the run instead of
+  // leaving its tables attributed to nobody — the silence that would let every
+  // reach into one report clean.
+  const packages = await loadPackageDeclarations();
+  refuseUnreadablePackages('[module-boundary]', packages);
+  const owners = buildTableOwners(schema, packages.tables, layout.hostResidentModules).report;
   let registeredModules: readonly string[];
   try {
-    registeredModules = await loadRegisteredModuleIds(SRC_ROOT);
+    registeredModules = await loadRegisteredModuleIds(layout.manifestIndexPath);
   } catch (error: unknown) {
     console.error(
-      `[module-boundary] the module index under ${SRC_ROOT} could not be read ` +
+      `[module-boundary] the module index at ${layout.manifestIndexPath} could not be read ` +
         `(${String(error)}) — the expected population is derived from it; ` +
         'refusing to report a vacuous pass',
     );
@@ -1154,8 +1687,9 @@ async function main(): Promise<void> {
     return;
   }
   const vacuous = vacuousReason({
-    moduleFiles: [...sources.keys()],
+    moduleFiles: files,
     registeredModules,
+    moduleIdOf: layout.moduleIdOfPath,
     ledgerDirectoryExists: existsSync(LEDGER_ROOT),
     entityTables: owners.entityTables,
     migrationTables: owners.migrationTables,
@@ -1174,7 +1708,30 @@ async function main(): Promise<void> {
     return;
   }
 
-  const result = checkModuleBoundary({ sources, schema }, shards);
+  // D-171's reader, over the module packages the layout found: each package's
+  // own `exports` map and its own emitted modules, so the contract-surface
+  // designation is re-derived here rather than written down anywhere.
+  const surfaces = modulePackageSurfaces(modulePackageDirectories(layout));
+
+  let result: CheckResult;
+  try {
+    result = checkModuleBoundary(
+      {
+        sources,
+        schema,
+        packageTables: packages.tables,
+        modulePackages: layout.modulePackageNames,
+        modulePackageSurfaces: surfaces,
+        hostResidentModules: layout.hostResidentModules,
+      },
+      shards,
+    );
+  } catch (error) {
+    if (!(error instanceof UnreadableSubpathError)) throw error;
+    console.error(`[module-boundary] ${error.message}`);
+    process.exit(2);
+    return;
+  }
   const selected = <T extends { readonly moduleId: string }>(entries: readonly T[]): readonly T[] =>
     only === null ? entries : entries.filter((entry) => entry.moduleId === only);
 
@@ -1205,6 +1762,21 @@ async function main(): Promise<void> {
   const ledgerSize =
     shards.reduce((sum, shard) => sum + Object.keys(shard.entries).length, 0) -
     result.permanentKeys.length;
+  // `ledger-size` stays **keys** (issue #267): an entry is the unit of review
+  // and of retirement — the cut that removes it removes every reach under it —
+  // and redefining the number would move it 57 -> 64 with no code changed,
+  // making the drain read as a regression. The sites the draining entries cover
+  // are printed beside it, derived from their counts and never written down, so
+  // a file that grew a reach is visible in the summary line as well as in the
+  // diff of the entry it made a reviewer edit.
+  const ledgerSites = shards.reduce(
+    (sum, shard) =>
+      sum +
+      Object.entries(shard.entries)
+        .filter(([key]) => !result.permanentKeys.includes(key))
+        .reduce((inner, [, entry]) => inner + (recordedSites(entry) ?? 1), 0),
+    0,
+  );
   const sqlFindings = result.violations
     .concat(result.ledgered)
     .filter((finding) => finding.predicate === 'sql').length;
@@ -1215,24 +1787,53 @@ async function main(): Promise<void> {
   // the reaches it finds and never counts the specifiers and table references
   // it cleared, so there is no examined-unit number without a second walk;
   // ledgered in `test/helpers/check-read-sizes.ts`.
+  const modules = modulePopulationCoverage({
+    registered: registeredModules,
+    files: [...sources.keys()],
+    // The keys are `layout.keyOf`'s, not absolute paths, so the layout's own
+    // resolver cannot be used here: the attribution has to happen on the key,
+    // which is what `moduleOf` does for every other population in this file.
+    moduleIdOf: (key) => moduleOf(`/src/${key}`, layout.hostResidentModules),
+  });
+  const installed = packageCoverage(packages);
+  const coverages: ReadCoverage[] = installed === null ? [modules] : [modules, installed];
+  // The npm name of every module package, reconciled against the package roots
+  // the layout found by a different route — the directories it walks against the
+  // names it read off their manifests. An empty map is a legal answer (no module
+  // package) and is indistinguishable, from inside, from a derivation that
+  // silently stopped working: a bare specifier into a module whose name is
+  // missing reads as a third-party import and is cleared. Reported only when
+  // there are roots, because `expected=0` is a refusal in this grammar and
+  // "no module package" was the whole tree until !910.
+  const packageRoots = layout.moduleRoots.filter((root) => root.origin === 'workspace-package');
+  if (packageRoots.length > 0) {
+    coverages.push({
+      source: 'module-packages',
+      expected: packageRoots.length,
+      covered: layout.modulePackageNames.size,
+    });
+  }
   reportReadSize({
     prefix: '[module-boundary]',
-    files: sources.size + schema.size,
-    coverage: [
-      modulePopulationCoverage({ registered: registeredModules, files: [...sources.keys()] }),
-    ],
+    // The surfaces reader is lazy — it opens a package's manifest and its
+    // emitted module only for a subpath a module actually reached — so its
+    // contribution is 0 on a tree where no module names a package specifier,
+    // and that is the honest number rather than a rounding of it (issue #244).
+    files: sources.size + schema.size + packages.filesRead + surfaces.filesRead(),
+    coverage: coverages,
   });
   console.log(
     `[module-boundary] module files=${files.length} cross-module reaches=${result.total} ` +
       `(imports=${result.total - sqlFindings} sql=${sqlFindings}) ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
-      `ledger-size=${ledgerSize} shards=${shards.length} stale=${result.stale.length} ` +
-      `permanent=${result.permanentKeys.length}`,
+      `ledger-size=${ledgerSize} (sites=${ledgerSites}) shards=${shards.length} ` +
+      `stale=${result.stale.length} permanent=${result.permanentKeys.length}`,
   );
   console.log(
     `[module-boundary] table→owner map: entity pass=${result.tableOwners.entityTables} ` +
       `migration pass=${result.tableOwners.migrationTables} ` +
       `(declared by no entity=${result.tableOwners.migrationOnlyTables}) ` +
+      `package pass=${result.tableOwners.packageTables} ` +
       `unattributed=${result.tableOwners.unattributed.length}` +
       (result.tableOwners.unattributed.length > 0
         ? ` (${result.tableOwners.unattributed.join(', ')} — owned by no module, so never a finding)`
@@ -1247,7 +1848,7 @@ async function main(): Promise<void> {
 
   if (testMode) {
     console.log(
-      `[module-boundary] test sites=${testSites()} (backend/test/** — reporting only, ` +
+      `[module-boundary] test sites=${testSites(layout.hostResidentModules)} (backend/test/** — reporting only, ` +
         'a test is allowed to know more than the code it tests)',
     );
   }
@@ -1308,6 +1909,16 @@ async function main(): Promise<void> {
     for (const issue of result.permanentIssues) console.error(`  - ${issue}`);
   }
 
+  if (result.countIssues.length > 0) {
+    console.error(
+      '\nA ledger entry says how many reaches stand under its key, and the walk disagrees.\n' +
+        'The key is `<file>:<target>`, so without the count the *next* reach of a shape this\n' +
+        'file already has passes unreviewed — which is how two `product_categories` statements\n' +
+        'landed against an unchanged ledger (issue #267). Omitting `sites` means one:',
+    );
+    for (const issue of result.countIssues) console.error(`  - ${issue}`);
+  }
+
   if (result.shardShapeIssues.length > 0) {
     console.error(
       '\nA ledger shard declares one entry type. A shard of its own typing decides what an\n' +
@@ -1324,6 +1935,7 @@ async function main(): Promise<void> {
     result.orphanShards.length > 0 ||
     result.misfiledEntries.length > 0 ||
     result.permanentIssues.length > 0 ||
+    result.countIssues.length > 0 ||
     result.shardShapeIssues.length > 0 ||
     exemptionIssues.length > 0;
   process.exit(failed ? 1 : 0);

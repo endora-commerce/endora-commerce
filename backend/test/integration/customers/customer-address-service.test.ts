@@ -1,10 +1,19 @@
+import { CustomerAddress } from '../../helpers/package-entities.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { CustomerAddressService } from '../../../src/modules/customers/services/customer-address-service.js';
-import { CustomerAddress } from '../../../src/modules/customers/entities/customer-address.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { AddressReadService } from '../../../src/modules/addresses/services/address-ports.js';
+
+import { CustomerAddressService } from '../../../../packages/modules/customers/src/backend/services/customer-address-service.js';
+
+import { CustomerAccount } from '../../helpers/package-entities.js';
+
+import { AddressReadService } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
+
+import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
+import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
+
 
 /**
  * Feature 040, US2 — personal address book: one-default-per-(customer, kind)
@@ -22,10 +31,22 @@ describe('CustomerAddressService', () => {
 
   beforeEach(async () => {
     em = await db.beginTx();
-    // The real `addresses` read port, not a stub: the org-shared half of this
-    // service is now a call through it (feature 075).
-    service = new CustomerAddressService(() => em, new AddressReadService(() => em));
+    // Both ports real, not stubs: the org-shared half of this service is a call
+    // through `addresses`', and the account read is the tenant boundary — a
+    // stub there would assert the guard away instead of exercising it. These
+    // cases run in the harness's system scope, where it answers for every
+    // account.
+    service = new CustomerAddressService(
+      () => em,
+      new AddressReadService(() => em),
+      new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer')),
+    );
+    // D-178 — every account is scoped by an Organization, so the fixture writes
+    // one. It is a company organisation rather than a personal one because
+    // nothing here is about the B2C shape.
+    const org = await seedAdHocOrganization(em, 'Address Book Org');
     const c = em.create(CustomerAccount, {
+      organizationId: org.id,
       email: `addr-${Date.now()}-${Math.floor(performance.now())}@example.test`,
       passwordHash: 'x'.repeat(32),
       firstName: 'Addr',
@@ -83,6 +104,7 @@ describe('CustomerAddressService', () => {
 
   it('refuses to mutate an address the customer does not own', async () => {
     const other = em.create(CustomerAccount, {
+      organizationId: (await seedAdHocOrganization(em, 'Other Org')).id,
       email: `other-${Date.now()}@example.test`,
       passwordHash: 'x'.repeat(32),
       firstName: 'Other',

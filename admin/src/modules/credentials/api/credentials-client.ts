@@ -4,13 +4,13 @@ import type {
   ConfigurationTypeDescriptor,
   CreateConfiguration,
   UpdateConfiguration,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Admin API client for the credentials module (feature 058).
  *
  * Thin wrapper over `apiClient` calls to `/api/v1/admin/credentials/...`; every
- * shape comes from `@b2b/contracts`. Secrets are never returned in plaintext —
+ * shape comes from `@endora-commerce/contracts`. Secrets are never returned in plaintext —
  * a `ConfigurationDto` field carries only `isSet` for secret fields.
  */
 const BASE = '/api/v1/admin/credentials';

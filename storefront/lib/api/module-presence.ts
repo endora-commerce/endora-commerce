@@ -1,4 +1,4 @@
-import type { StorefrontModulePresenceResponse } from '@b2b/contracts';
+import type { StorefrontModulePresenceResponse } from '@endora-commerce/contracts';
 import { apiGet, type RequestContext } from './client';
 
 /**

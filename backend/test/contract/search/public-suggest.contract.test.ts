@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES, SearchSuggestResponseSchema } from '@b2b/contracts';
+import { ERROR_CODES, SearchSuggestResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
+import { SearchIndexer } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
 import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';

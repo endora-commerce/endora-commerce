@@ -1,16 +1,23 @@
-node_modules/
-.pnpm-store/
+# A pattern with no `**/` matches at the TOP LEVEL ONLY. `node_modules/` therefore excluded
+# `/node_modules` and left every workspace's own — `backend/node_modules`,
+# `packages/*/node_modules` — in the build context. That is why a local `docker build` on a
+# developer machine went green over a Dockerfile CI could not build: the workspace whose
+# manifest the image never installed still received the host's installed `node_modules`
+# through the source COPY, so its `tsc` found the types the image had not fetched. Every
+# build-output and tooling directory below is recursive for the same reason.
+**/node_modules
+**/.pnpm-store
 
-dist/
-build/
-.next/
-out/
-.turbo/
+**/dist
+**/build
+**/.next
+**/out
+**/.turbo
 
-coverage/
-.nyc_output/
+**/coverage
+**/.nyc_output
 
-.git/
+**/.git
 .gitignore
 .github/
 

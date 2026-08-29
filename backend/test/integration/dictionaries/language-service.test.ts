@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { LanguageService } from '../../../src/modules/languages/services/language-service.js';
+import { LanguageService } from '../../../../packages/modules/languages/src/backend/services/language-service.js';
 
-import { Language } from '../../../src/modules/languages/entities/language.entity.js';
+import { Language } from '../../helpers/package-entities.js';
 import { runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 
 /**

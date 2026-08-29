@@ -3,16 +3,16 @@ import type {
   ComparisonOwnerView,
   ComparisonAttributeRow,
   ComparisonDisplayMode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   AssetByteFetcher,
   IMAGE_FALLBACK_BYTES,
-} from '../../../src/modules/comparisons/services/asset-byte-fetcher.js';
+} from '../../../../packages/modules/comparisons/src/backend/services/asset-byte-fetcher.js';
 import {
   ComparisonPdfRenderer,
   filterRowsByMode,
   pickOrientation,
-} from '../../../src/modules/comparisons/services/comparison-pdf-renderer.js';
+} from '../../../../packages/modules/comparisons/src/backend/services/comparison-pdf-renderer.js';
 
 /**
  * T051 — Unit test for the PDF document-definition. Asserts on the

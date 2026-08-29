@@ -3,16 +3,16 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { tenantClassifications } from '../../../src/tenancy/org-scoped.decorator.js';
-import '../../../src/modules/product_feeds/entities/feed-template.entity.js';
-import '../../../src/modules/product_feeds/entities/feed-template-field.entity.js';
-import '../../../src/modules/product_feeds/entities/product-feed.entity.js';
-import '../../../src/modules/product_feeds/entities/feed-run.entity.js';
-import '../../../src/modules/product_feeds/entities/feed-run-issue.entity.js';
-import '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';
-import '../../../src/modules/product_feeds/entities/feed-taxonomy.entity.js';
-import '../../../src/modules/product_feeds/entities/feed-taxonomy-node.entity.js';
-import '../../../src/modules/product_feeds/entities/feed-taxonomy-mapping.entity.js';
-import '../../../src/modules/product_feeds/entities/feed-taxonomy-check.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/feed-template.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/feed-template-field.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/product-feed.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/feed-run.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/feed-run-issue.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/feed-artefact.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy-node.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy-mapping.entity.js';
+import '../../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy-check.entity.js';
 
 /**
  * Feature 067 / data-model.md §0 — every Product Feed entity is
@@ -33,7 +33,7 @@ import '../../../src/modules/product_feeds/entities/feed-taxonomy-check.entity.j
 
 const ENTITY_DIR = join(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../src/modules/product_feeds/entities',
+  '../../../../packages/modules/product_feeds/src/backend/entities',
 );
 
 const ENTITIES: ReadonlyArray<[className: string, fileName: string]> = [

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type SelectHTMLAttributes } from 'react';
-import type { ResolvedCurrency } from '@b2b/contracts';
+import type { ResolvedCurrency } from '@endora-commerce/contracts';
 import { useDictionary } from '../DictionaryProvider';
 
 export interface CurrencyPickerProps

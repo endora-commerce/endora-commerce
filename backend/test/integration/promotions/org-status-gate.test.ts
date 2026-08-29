@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { CartSnapshot } from '@b2b/contracts';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import type { CartSnapshot } from '@endora-commerce/contracts';
 
 /**
  * Feature 026 US5 — Org-status gate on promotions.

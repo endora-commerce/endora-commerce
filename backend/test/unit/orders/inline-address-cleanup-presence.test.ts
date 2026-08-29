@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AddressServicePort, CartWritePort, CustomerAccountReadPort } from '@b2b/contracts';
+import type { AddressServicePort, CartWritePort, CustomerAccountReadPort } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { OrderCreationAdminService } from '../../../src/modules/orders/services/order-creation-admin-service.js';
-import { OrderApiIntakeService } from '../../../src/modules/orders/services/order-api-intake-service.js';
-import type { OrderService } from '../../../src/modules/orders/services/order-service.js';
+import { OrderCreationAdminService } from '../../../../packages/modules/orders/src/backend/services/order-creation-admin-service.js';
+import { OrderApiIntakeService } from '../../../../packages/modules/orders/src/backend/services/order-api-intake-service.js';
+import type { OrderService } from '../../../../packages/modules/orders/src/backend/services/order-service.js';
 
 /**
  * Issue #197 — the one-time inline address both placement surfaces create is

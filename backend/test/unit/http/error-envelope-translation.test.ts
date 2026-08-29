@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError, registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 
 /**
@@ -335,6 +335,98 @@ describe('the error envelope filling a sentence from details', () => {
     });
     const response = await app.inject({ method: 'GET', url: '/module-off-unnamed' });
     expect(response.json().error.message).toBe('Module Disabled.');
+    await app.close();
+  });
+});
+
+/**
+ * Localising an error may never replace the error.
+ *
+ * Everything else in this hook already obeys that: a code with no target, a
+ * `VALIDATION_FAILED` carrying a machine token, a sentence with an unfilled
+ * placeholder — each returns `payload` unchanged, on the ruling that
+ * untranslated prose which is true beats a rendered sentence that is not. A
+ * **throw** was the one path that did neither. It runs inside
+ * `preSerialization` of a reply Fastify is already treating as an error, so
+ * Fastify cannot route it back through `setErrorHandler`: it falls back to its
+ * own serialiser and the response stops being an `ErrorEnvelope` at all —
+ * `{ statusCode, code, error, message }`, in which `error` is the status
+ * phrase and `error.code` is `undefined`. `@endora-commerce/api-client` finds
+ * `'error' in body`, builds an `ApiError` from it, and reports
+ * `undefined: undefined`.
+ *
+ * That is not hypothetical. Feature 080's T052 converted the root's
+ * `adminPreferredLanguage` closure from `em().findOne(AdminUser, …)` to the
+ * gated `adminUserReadPort`, so with `admin_users` platform-absent every error
+ * answered to a signed-in admin lost its envelope — including the
+ * `MODULE_DISABLED` refusal whose whole job is to name the module to restore
+ * (issue #161). `RequestLanguageDeps.adminPreferredLanguage` had said in
+ * writing that a gated port here would do exactly this.
+ *
+ * So the guarantee is stated at the renderer instead of at each injected
+ * callback: whatever `resolvePreferredLanguage` or `translateErrorMessage`
+ * does, the envelope survives it. That covers a switched-off owner, a bundle
+ * lookup that cannot reach Redis, and whatever the next injected callback
+ * turns out to be.
+ */
+describe('the error envelope surviving a decoration that throws', () => {
+  const moduleDisabled = {
+    [ERROR_CODES.MODULE_DISABLED]: { moduleId: 'core', key: 'errors.MODULE_DISABLED' },
+  };
+
+  it('keeps the envelope when the language resolver throws', async () => {
+    const app = await buildProbe({
+      errorTranslationTargets: moduleDisabled,
+      translateErrorMessage: async () => 'never reached',
+      resolvePreferredLanguage: async () => {
+        // What `adminUserReadPort` does while `admin_users` is absent.
+        throw new HttpError(
+          503,
+          ERROR_CODES.MODULE_DISABLED,
+          "Module 'admin_users' is currently disabled.",
+          { module: 'admin_users' },
+        );
+      },
+    });
+    const response = await app.inject({ method: 'GET', url: '/module-off' });
+    expect(response.statusCode).toBe(503);
+    const body = response.json();
+    expect(body.error.code).toBe(ERROR_CODES.MODULE_DISABLED);
+    expect(body.error.message).toBe("Module 'stripe' is currently disabled.");
+    expect(body.error.details).toEqual({ module: 'stripe' });
+    await app.close();
+  });
+
+  it('keeps the envelope when the translator throws', async () => {
+    const app = await buildProbe({
+      errorTranslationTargets: moduleDisabled,
+      translateErrorMessage: async () => {
+        throw new Error('the bundle store is unreachable');
+      },
+    });
+    const response = await app.inject({ method: 'GET', url: '/module-off' });
+    expect(response.statusCode).toBe(503);
+    const body = response.json();
+    expect(body.error.code).toBe(ERROR_CODES.MODULE_DISABLED);
+    expect(body.error.message).toBe("Module 'stripe' is currently disabled.");
+    await app.close();
+  });
+
+  it('leaves a successful response alone — the guard is not a blanket catch', async () => {
+    // The hook returns `payload` for anything that is not an error envelope, so
+    // a 200 body never enters the decoration and never enters the guard either.
+    const app = Fastify();
+    registerErrorEnvelope(app, {
+      errorTranslationTargets: moduleDisabled,
+      translateErrorMessage: async () => {
+        throw new Error('must not be reached for a success payload');
+      },
+    });
+    app.get('/fine', async () => ({ ok: true }));
+    await app.ready();
+    const response = await app.inject({ method: 'GET', url: '/fine' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
     await app.close();
   });
 });

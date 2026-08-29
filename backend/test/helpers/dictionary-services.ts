@@ -1,15 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CurrencyReadPort, LanguageReadPort } from '@b2b/contracts';
-import { DictionaryValidator } from '../../src/modules/dictionaries/services/dictionary-validator.js';
-import { CurrencyReadService } from '../../src/modules/currencies/services/currency-ports.js';
-import { LanguageReadService } from '../../src/modules/languages/services/language-ports.js';
-import { CurrencySeedService } from '../../src/modules/currencies/services/currency-seed-service.js';
-import { LanguageSeedService } from '../../src/modules/languages/services/language-seed-service.js';
+import type { CurrencyReadPort, LanguageReadPort } from '@endora-commerce/contracts';
+import { DictionaryValidator } from '../../../packages/modules/dictionaries/src/backend/services/dictionary-validator.js';
+import { CurrencyReadService } from '../../../packages/modules/currencies/src/backend/services/currency-ports.js';
+import { LanguageReadService } from '../../../packages/modules/languages/src/backend/services/language-ports.js';
+import { CurrencySeedService } from '../../../packages/modules/currencies/src/backend/services/currency-seed-service.js';
+import { LanguageSeedService } from '../../../packages/modules/languages/src/backend/services/language-seed-service.js';
 import {
   runDictionarySeedReconciler,
   type SeedReconcilerPorts,
   type SeedReconcilerSummary,
-} from '../../src/modules/dictionaries/services/seed-reconciler.js';
+} from '../../../packages/modules/dictionaries/src/backend/services/seed-reconciler.js';
 
 /**
  * The two read ports every `dictionaries` service takes — feature 075, Phase C.

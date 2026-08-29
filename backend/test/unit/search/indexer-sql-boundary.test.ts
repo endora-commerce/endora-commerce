@@ -6,10 +6,10 @@ import type {
   CatalogCategoryReadPort,
   CatalogProductReadPort,
   CatalogProductRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
 import type { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
+import { SearchIndexer } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
 
 /**
  * Feature 075 / D-87 — the indexer's four raw-SQL reaches across the boundary.

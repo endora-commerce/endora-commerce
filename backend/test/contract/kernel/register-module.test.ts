@@ -5,13 +5,9 @@ import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ApiInterceptorRegistry } from '../../../src/http/interceptors/index.js';
-import {
-  composeModules,
-  createRootContainer,
-  registerValues,
-  type ModuleContext,
-  type ModuleEntry,
-} from '../../../src/kernel/index.js';
+import { composeModules, type ModuleEntry } from '../../../src/kernel/compose.js';
+import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
+import type { ModuleContext } from '../../../src/kernel/index.js';
 
 /**
  * Contract — `registerModule` (feature 072, T039 / FR-030…FR-035).
@@ -61,7 +57,18 @@ class Greeter {
 /** One module, six surfaces, expressed the way every converted module will be. */
 function fixture(): Fixture {
   const pause = vi.fn(async () => {});
-  const worker = { name: 'fixture-queue', pause, on: vi.fn() } as unknown as Worker;
+  // `processFn` and `isPaused` are not decoration: `ctx.worker` installs the
+  // Principle XVII work gate in front of the processor and reconciles the
+  // worker against the registry cache on every presence install, so a stub
+  // without them is refused rather than registered ungated.
+  const worker = {
+    name: 'fixture-queue',
+    pause,
+    resume: vi.fn(),
+    isPaused: vi.fn(() => false),
+    processFn: async () => undefined,
+    on: vi.fn(),
+  } as unknown as Worker;
   const subscriber = vi.fn();
   const interceptor = vi.fn();
   const booted = vi.fn();

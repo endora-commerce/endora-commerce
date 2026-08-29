@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type {
   SettingWriteValidationInput,
   SettingWriteValidator,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
@@ -10,10 +10,10 @@ import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconc
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { defineModuleSettingsManifest } from '@b2b/contracts';
-import { settingsManifest } from '../../../src/modules/settings/manifest.js';
-import { SettingsAdminService } from '../../../src/modules/settings/services/settings-admin.service.js';
-import { SettingWriteValidatorRegistry } from '../../../src/modules/settings/services/setting-write-validators.js';
+import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
+import { SettingsAdminService } from '../../../../packages/modules/settings/src/backend/services/settings-admin.service.js';
+import { SettingWriteValidatorRegistry } from '../../../../packages/modules/settings/src/backend/services/setting-write-validators.js';
 
 /**
  * Feature 078, D-95.2 — the seam, exercised with a **fake** validator.

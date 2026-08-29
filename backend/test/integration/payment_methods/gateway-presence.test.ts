@@ -6,11 +6,11 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
-import { PaymentMethodReconciler } from '../../../src/modules/payment_methods/services/payment-method-reconciler.js';
-import { paymentAdapterRegistry } from '../../../src/modules/payment_methods/services/registry-singleton.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
+import { PaymentMethodReconciler } from '../../../../packages/modules/payment_methods/src/backend/services/payment-method-reconciler.js';
+import { paymentAdapterRegistryOf } from '../../helpers/package-singletons.js';
 
 /**
  * Issue #96 — a payment method whose gateway module is absent must disappear
@@ -55,6 +55,9 @@ interface AdminMethod {
 
 describe('payment methods of an absent gateway [integration]', () => {
   let h: BackendServerHandle;
+  // The registry the platform composed, never the copy a source import
+  // would build (D-160.6 over a module-scope value — see the helper).
+  const paymentAdapterRegistry = () => paymentAdapterRegistryOf(h.container);
   let code: string;
 
   beforeAll(async () => {
@@ -145,31 +148,31 @@ describe('payment methods of an absent gateway [integration]', () => {
   it('records the contributing module on every registered adapter', () => {
     // Every adapter in the process registry names its owner: without that the
     // enumeration has nothing to filter on (D-39).
-    for (const key of paymentAdapterRegistry.listAll()) {
-      expect(paymentAdapterRegistry.ownerOf(key), `adapter "${key}" has no owner`).toBeTruthy();
+    for (const key of paymentAdapterRegistry().listAll()) {
+      expect(paymentAdapterRegistry().ownerOf(key), `adapter "${key}" has no owner`).toBeTruthy();
     }
-    expect(paymentAdapterRegistry.ownerOf('bank_transfer')).toBe('payments');
-    expect(paymentAdapterRegistry.ownerOf('stripe')).toBe('stripe');
-    expect(paymentAdapterRegistry.ownerOf('payu')).toBe('payu');
-    expect(paymentAdapterRegistry.ownerOf('tpay')).toBe('tpay');
-    expect(paymentAdapterRegistry.ownerOf('autopay')).toBe('autopay');
+    expect(paymentAdapterRegistry().ownerOf('bank_transfer')).toBe('payments');
+    expect(paymentAdapterRegistry().ownerOf('stripe')).toBe('stripe');
+    expect(paymentAdapterRegistry().ownerOf('payu')).toBe('payu');
+    expect(paymentAdapterRegistry().ownerOf('tpay')).toBe('tpay');
+    expect(paymentAdapterRegistry().ownerOf('autopay')).toBe('autopay');
   });
 
   it('hides a vendor gateway adapter from enumeration while its module is off', () => {
-    expect(paymentAdapterRegistry.get('stripe')).toBeDefined();
-    expect(paymentAdapterRegistry.list()).toContain('stripe');
+    expect(paymentAdapterRegistry().get('stripe')).toBeDefined();
+    expect(paymentAdapterRegistry().list()).toContain('stripe');
 
     registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['stripe'] });
     try {
-      expect(paymentAdapterRegistry.get('stripe')).toBeUndefined();
-      expect(paymentAdapterRegistry.list()).not.toContain('stripe');
+      expect(paymentAdapterRegistry().get('stripe')).toBeUndefined();
+      expect(paymentAdapterRegistry().list()).not.toContain('stripe');
       // Registration is untouched — off is not uninstall.
-      expect(paymentAdapterRegistry.listAll()).toContain('stripe');
+      expect(paymentAdapterRegistry().listAll()).toContain('stripe');
     } finally {
       registryCache.__setEnabledForTesting(ALL_IDS);
     }
 
-    expect(paymentAdapterRegistry.get('stripe')).toBeDefined();
+    expect(paymentAdapterRegistry().get('stripe')).toBeDefined();
   });
 
   it('refuses a direct order submission naming an absent gateway method', async () => {

@@ -23,6 +23,28 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
+/*
+ * Feature 080 (T044) — module packages ship UI, and automatic detection cannot
+ * see it.
+ *
+ * With no `@source`, Tailwind v4 stays on automatic source detection, rooted at
+ * the build tool's base directory — `process.cwd()` for `@tailwindcss/postcss`,
+ * i.e. `storefront/`. Vite and Next resolve and scan differently and the answer
+ * was established for each; it is the same answer. Measured on this tree, a
+ * `.tsx` at `storefront/` reaches `.next/static/css`, one at the repository root
+ * does not, and one under `packages/modules/blog/src` does not — so a class used
+ * only inside a module package's component is dropped with no error and no
+ * warning, and the component renders unstyled in production.
+ *
+ * The path is relative to this file, so `../../packages` is the repository's
+ * package tree. One glob rather than a list, and rooted above the current
+ * `modules/` grouping, because a module package is recognised by its own
+ * `endora` block wherever the workspace globs put it (D-100).
+ * `storefront/test/tailwind-module-package-sources.test.ts` derives those
+ * packages and fails when one falls outside this glob.
+ */
+@source '../../packages/**/*.{ts,tsx}';
+
 /* Map Tailwind's `dark:` variant to the storefront's runtime `.is-dark` scope (set on
    <html>), so `dark:` utilities respond to the existing theme toggle rather than the OS
    preference. Most components re-theme automatically via the semantic CSS-variable tokens;

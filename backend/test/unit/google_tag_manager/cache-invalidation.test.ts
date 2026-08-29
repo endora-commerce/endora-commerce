@@ -1,15 +1,15 @@
 import { asValue } from 'awilix';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@b2b/contracts';
+import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@endora-commerce/contracts';
+import { createRootContainer } from '../../../src/kernel/container.js';
 import {
   createModuleContext,
   createModuleRegistrationSink,
-  createRootContainer,
-} from '../../../src/kernel/index.js';
+} from '../../../src/kernel/module-context.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import { registerModule } from '../../../src/modules/google_tag_manager/backend.js';
+import { registerModule } from '../../../../packages/modules/google_tag_manager/src/backend/index.js';
 
 /**
  * FR-009 — a configuration change must reach the storefront without waiting for
@@ -79,8 +79,7 @@ function build(env: { storefront?: string; secret?: string } = {}): {
   // its services are first resolved, and that happens on the first event below,
   // not during `registerModule`.
   return {
-    emit: (settingCode) =>
-      bus.emit('settings.value_changed', { settingCode } as never),
+    emit: (settingCode) => bus.emit('settings.value_changed', { settingCode } as never),
     fetchSpy,
   };
 }

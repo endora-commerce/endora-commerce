@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   collectEntities,
   collectMigrations,
+  coreSources,
   emitEntitiesRegistry,
   emitMigrationsRegistry,
+  type SourceTree,
 } from '../../../scripts/generate-composer.js';
 
 /**
@@ -26,8 +28,16 @@ import {
  * otherwise be emitted as an empty list or a quietly shorter one.
  */
 
-const tree = (entries: Record<string, string>): ReadonlyMap<string, string> =>
-  new Map(Object.entries(entries));
+/**
+ * The application's own sources, as the collectors take them.
+ *
+ * Since feature 080's T041a a `SourceTree` entry carries its **origin** as well
+ * as its text, because a module may now live in a workspace package and the
+ * specifier emitted for it is derived from that package's manifest rather than
+ * from its path. `coreSources` is the generator's own constructor for the
+ * application half, so these fixtures keep entering where a real walk enters.
+ */
+const tree = (entries: Record<string, string>): SourceTree => coreSources(entries);
 
 const ENTITY_SOURCE = ['@Entity()', 'export class Post {}'].join('\n');
 
@@ -112,11 +122,13 @@ describe('collectMigrations', () => {
         moduleId: 'core',
         className: 'Migration20260901T101113CoreThing',
         file: 'db/migrations/20260901T101113_core_thing.ts',
+        owner: null,
       },
       {
         moduleId: 'blog',
         className: 'Migration20260901T101112BlogWidenSlug',
         file: 'modules/blog/migrations/20260901T101112_blog_widen_slug.ts',
+        owner: null,
       },
     ]);
   });
@@ -141,12 +153,34 @@ describe('collectMigrations', () => {
     ).toThrow(/helper\.ts/);
   });
 
-  it('skips the helpers the naming contract allows there', () => {
+  /**
+   * The §4 helper exemption, with the allow-list injected.
+   *
+   * It used to be asserted against whichever real file happened to be on the
+   * list, which made the proof a hostage of the tree: `quote_requests` became a
+   * module package (feature 080, T040b), its key changed origin, and this test
+   * went red for a reason that had nothing to do with the mechanism. The
+   * allow-list is a parameter now — issue #130's "the fixture enters at the top
+   * of the analysis" — so the proof is about the lookup and stays true whichever
+   * files are exempt today.
+   */
+  it('skips a helper the naming contract allows there, in the application tree', () => {
+    const allowed = new Set(['modules/quote_requests/migrations/status-mapping.ts']);
     expect(
       collectMigrations(
         tree({ 'modules/quote_requests/migrations/status-mapping.ts': 'export const map = {};' }),
+        allowed,
       ),
     ).toEqual([]);
+  });
+
+  it('refuses that same helper when the allow-list does not name it', () => {
+    expect(() =>
+      collectMigrations(
+        tree({ 'modules/quote_requests/migrations/status-mapping.ts': 'export const map = {};' }),
+        new Set(),
+      ),
+    ).toThrow(/status-mapping\.ts/);
   });
 
   it('refuses two migrations with the same class name', () => {
@@ -184,7 +218,7 @@ describe('the generator does not read its own output', () => {
   // reacting to the sentence.
   it('emits a re-readable entity registry', () => {
     const content = emitEntitiesRegistry([
-      { className: 'Post', file: 'modules/blog/entities/post.entity.ts' },
+      { className: 'Post', file: 'modules/blog/entities/post.entity.ts', owner: null },
     ]);
     expect(() =>
       collectEntities(tree({ 'db/entities-registry.generated.ts': content })),
@@ -197,6 +231,7 @@ describe('the generator does not read its own output', () => {
         moduleId: 'blog',
         className: 'Migration20260901T101112BlogWidenSlug',
         file: 'modules/blog/migrations/20260901T101112_blog_widen_slug.ts',
+        owner: null,
       },
     ]);
     expect(collectMigrations(tree({ 'db/migrations-registry.generated.ts': content }))).toEqual([]);
@@ -206,8 +241,8 @@ describe('the generator does not read its own output', () => {
 describe('the emitted registries', () => {
   it('imports every entity exactly once and lists it', () => {
     const content = emitEntitiesRegistry([
-      { className: 'Post', file: 'modules/blog/entities/post.entity.ts' },
-      { className: 'AuditLogEntry', file: 'kernel/audit/audit-log-entry.entity.ts' },
+      { className: 'Post', file: 'modules/blog/entities/post.entity.ts', owner: null },
+      { className: 'AuditLogEntry', file: 'kernel/audit/audit-log-entry.entity.ts', owner: null },
     ]);
     expect(content).toContain(
       "import { Post } from '../modules/blog/entities/post.entity.js';",
@@ -225,11 +260,13 @@ describe('the emitted registries', () => {
         moduleId: 'core',
         className: 'Migration20260901T101113CoreThing',
         file: 'db/migrations/20260901T101113_core_thing.ts',
+        owner: null,
       },
       {
         moduleId: 'blog',
         className: 'Migration20260901T101112BlogWidenSlug',
         file: 'modules/blog/migrations/20260901T101112_blog_widen_slug.ts',
+        owner: null,
       },
     ]);
     expect(content).toContain(
@@ -249,6 +286,7 @@ describe('the emitted registries', () => {
         moduleId: 'blog',
         className: 'Migration20260901T101112BlogWidenSlug',
         file: 'modules/blog/migrations/20260901T101112_blog_widen_slug.ts',
+        owner: null,
       },
     ]);
     expect(content).toMatch(/order/i);

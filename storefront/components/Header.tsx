@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { I18nConfigResponse, ResolvedMegamenu } from '@b2b/contracts';
+import type { I18nConfigResponse, ResolvedMegamenu } from '@endora-commerce/contracts';
 import type { MeResult } from '../lib/api/account';
 import { tForLocale } from '../lib/i18n/messages';
 import { CategoriesMega } from './Megamenu/CategoriesMega';

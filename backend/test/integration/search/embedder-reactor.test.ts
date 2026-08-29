@@ -4,9 +4,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { SearchIndexer } from '../../../src/modules/search/services/search-indexer.js';
-import { CredentialConfiguration } from '../../../src/modules/credentials/entities/credential-configuration.entity.js';
-import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
+import type { SearchIndexer } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
+import { SEARCH_SETTING_CODES } from '../../../../packages/modules/search/src/manifest.js';
+import { CredentialConfiguration } from '../../helpers/package-entities.js';
 
 /**
  * T023 — Integration test for the LLM reactor inside SearchEventSubscriber.

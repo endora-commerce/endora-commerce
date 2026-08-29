@@ -1,8 +1,11 @@
 {
+  // Type-check configuration; `tsconfig.build.json` is the emitting one. `paths` is
+  // active here, so `@endora-commerce/page-builder-core` resolves at its source — which is also why
+  // there is no `rootDir` in this file and why `noEmit` is set.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "noEmit": true,
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": []

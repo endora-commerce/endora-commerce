@@ -1,4 +1,4 @@
-/** Minimal catalog shapes for CMS storefront fetch — avoids @b2b/contracts in this package. */
+/** Minimal catalog shapes for CMS storefront fetch — avoids @endora-commerce/contracts in this package. */
 export interface CmsProductSummary {
   id: string;
   slug: string;

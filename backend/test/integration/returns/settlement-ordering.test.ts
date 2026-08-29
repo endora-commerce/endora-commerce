@@ -1,21 +1,28 @@
+import { Invoice } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { withModuleOff } from '../../helpers/off-state.js';
+
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
-import { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
-import { ReturnCaseItem } from '../../../src/modules/returns/entities/return-case-item.entity.js';
-import { Refund } from '../../../src/modules/returns/entities/refund.entity.js';
+
+import { CreditLimit, Refund, ReturnCase, ReturnCaseItem } from '../../helpers/package-entities.js';
+
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
+
 import { setSellerSettings } from '../invoices/helpers.js';
+
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+
 
 /**
  * The settlement ordering law (D-91, issue #157).

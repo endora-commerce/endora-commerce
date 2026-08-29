@@ -1,22 +1,24 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ModuleAction } from '../../helpers/package-entities.js';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { AdminActionsReconciler } from '../../../src/modules/admin_actions/services/admin-actions-reconciler.js';
-import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
-import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
+import { AdminActionsReconciler } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-reconciler.js';
+import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
-import type { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
-import type { PermissionService } from '../../../src/modules/admin_roles/services/permission-service.js';
-import type { SupportedAdminLanguage } from '@b2b/contracts';
-import { manifest as catalogManifest } from '../../../src/modules/catalog/manifest.js';
-import { manifest as importExportManifest } from '../../../src/modules/import_export/manifest.js';
-import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
-import { manifest as quoteRequestsManifest } from '../../../src/modules/quote_requests/manifest.js';
-import { manifest as cmsManifest } from '../../../src/modules/cms/manifest.js';
-import { manifest as blogManifest } from '../../../src/modules/blog/manifest.js';
-import { manifest as megamenuManifest } from '../../../src/modules/megamenu/manifest.js';
-import { manifest as salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';
-import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { ModuleRegistryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
+import type { I18nService } from '@endora-commerce/mod-i18n/backend';
+import type { PermissionService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
+import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
+import { manifest as catalogManifest } from '../../../../packages/modules/catalog/src/manifest.js';
+import { manifest as importExportManifest } from '../../../../packages/modules/import_export/src/manifest.js';
+import { manifest as inventoryManifest } from '../../../../packages/modules/inventory/src/manifest.js';
+import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
+import { manifest as cmsManifest } from '../../../../packages/modules/cms/src/manifest.js';
+import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
+import { manifest as megamenuManifest } from '@endora-commerce/mod-megamenu';
+import { manifest as salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
+import { manifest as settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 
 /**
  * End-to-end integration test for the v1 seed action set
@@ -28,6 +30,15 @@ import { manifest as settingsManifest } from '../../../src/modules/settings/mani
  * and assert the union of declared (moduleId, actionId) pairs comes
  * back. Also verifies the disable path: flipping any one module to
  * 'disabled' removes that module's actions only.
+ *
+ * **The disable path now goes the way a running platform goes it** (issue
+ * #187). The service used to join `module_registrations` per rebuild, so a
+ * `nativeUpdate` on that table was visible to the very next read. It resolves
+ * presence through the kernel's combiner now, and the combiner is refreshed by
+ * `registryCache.refreshFromDb` — which is exactly what the lifecycle
+ * orchestrator triggers after it writes the state. So the flip below is
+ * followed by that refresh, and a passing run proves the palette follows the
+ * platform's own presence rather than reading the table behind its back.
  */
 
 const SEEDED_MANIFESTS = [
@@ -47,12 +58,24 @@ const MODULE_IDS = SEEDED_MANIFESTS.map((m) => m.id);
 describe('seeded action set (integration, v1)', () => {
   let orm: MikroORM;
   let em: EntityManager;
+  /**
+   * A private registry cache over the rows {@link seed} writes, and the
+   * combiner on top of it — the pair both composition roots build this module's
+   * probe from. Private rather than the `registryCache` singleton: the suite
+   * shares one fork, and seeding the process-wide one would hand every other
+   * file a presence built from nine fixture registrations.
+   */
+  let cache: ModuleRegistryCache;
+  let presenceState: ModuleEffectiveState;
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
     em = orm.em.fork() as EntityManager;
     await cleanup(em);
     await seed(em);
+    cache = new ModuleRegistryCache();
+    await cache.refreshFromDb(() => em);
+    presenceState = new ModuleEffectiveState(cache);
   }, 60_000);
 
   afterAll(async () => {
@@ -75,6 +98,15 @@ describe('seeded action set (integration, v1)', () => {
       em: () => em,
       i18nService: i18nStub as I18nService,
       permissionService: permStub as PermissionService,
+      // Exactly what `composition.ts` and `test-server.ts` contribute as
+      // `modulePresenceProbe`.
+      presence: {
+        isPlatformAvailable: (moduleId): boolean =>
+          presenceState.presence(moduleId)?.platformAvailable ?? false,
+        isActivated: (moduleId): boolean =>
+          presenceState.presence(moduleId)?.operatorActivated ?? true,
+        version: (): number => presenceState.presenceVersion(),
+      },
     });
   }
 
@@ -112,6 +144,10 @@ describe('seeded action set (integration, v1)', () => {
 
   it('disabling the catalog module hides only its actions', async () => {
     await em.nativeUpdate(ModuleRegistration, { moduleId: 'catalog' }, { state: 'disabled' });
+    // The refresh the orchestrator runs after every state write. Without it the
+    // combiner still holds the pre-flip presence, which is the correct answer
+    // for that instant and the reason `presenceVersion` exists.
+    await cache.refreshFromDb(() => em);
     try {
       const service = buildService(['*']);
       const result = await service.listVisibleForOperator({
@@ -128,6 +164,7 @@ describe('seeded action set (integration, v1)', () => {
         { moduleId: 'catalog' },
         { state: 'installed' },
       );
+      await cache.refreshFromDb(() => em);
     }
   });
 

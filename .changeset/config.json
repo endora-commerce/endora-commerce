@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
+  "baseBranch": "master",
+  "access": "restricted",
+  "format": "auto",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "ignore": [
+    "backend",
+    "admin",
+    "storefront",
+    "docs"
+  ],
+  "fixed": [],
+  "linked": [
+    [
+      "@endora-commerce/page-builder-core",
+      "@endora-commerce/cms-components",
+      "@endora-commerce/email-components"
+    ]
+  ],
+  "updateInternalDependencies": "patch",
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  }
+}

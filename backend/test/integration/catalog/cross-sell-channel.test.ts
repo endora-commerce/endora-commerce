@@ -4,9 +4,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ANONYMOUS_PRODUCT_AUDIENCE } from '@b2b/contracts';
-import { ProductLinkService } from '../../../src/modules/catalog/services/product-link.service.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
+import { ProductLinkService } from '../../../../packages/modules/catalog/dist/backend/services/product-link.service.js';
+import { Product, type ProductRow } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**
@@ -79,7 +79,7 @@ describe('ProductLinkService.listForStorefront — channel filter (feature 052 U
     await teardownBackendServer(h);
   });
 
-  async function makeProduct(): Promise<Product> {
+  async function makeProduct(): Promise<ProductRow> {
     counter += 1;
     const suffix = `${Date.now()}-${counter}`;
     const em = h.em();

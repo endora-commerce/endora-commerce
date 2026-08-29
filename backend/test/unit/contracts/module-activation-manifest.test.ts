@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defineModuleManifest, type ModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest, type ModuleManifest } from '@endora-commerce/contracts';
 
 /**
  * Feature 073 — `contracts/module-activation-manifest.md`.

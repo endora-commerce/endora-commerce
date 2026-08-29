@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
-import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
-import { DefaultPriceListMigrator } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
+import { DefaultPriceListMigrator } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**

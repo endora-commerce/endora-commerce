@@ -5,7 +5,7 @@ import {
   type GtmPageContext,
   type GtmRelayEligibleEvent,
   type GtmStorefrontConfig,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { readConsent } from '../consent';
 
 /**

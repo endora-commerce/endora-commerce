@@ -9,7 +9,7 @@ import {
 import {
   InvoiceNumberGenerator,
   createSettingsPatternResolver,
-} from '../../../src/modules/invoices/services/invoice-number-generator.js';
+} from '../../../../packages/modules/invoices/src/backend/services/invoice-number-generator.js';
 
 /**
  * Three real `sales_channels` rows: feature 078 renders `{channel}` from the

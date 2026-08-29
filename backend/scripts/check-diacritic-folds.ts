@@ -78,7 +78,7 @@
  * bad one**: the slug builder itself. A site that folds correctly and one that
  * folds not at all both write the run collapse, so the run collapse is where a
  * missing fold becomes observable. Concretely the rule is *"slug construction
- * has one owner"*, `slugify` in `@b2b/contracts`, and not *"a slug builder must
+ * has one owner"*, `slugify` in `@endora-commerce/contracts`, and not *"a slug builder must
  * fold"* — which is deliberate, and is what keeps the predicate honest:
  *
  *   - **It needs no dataflow.** "Did the value reaching this `.replace()` pass
@@ -166,7 +166,7 @@
  * It was `admin/src` and `admin/test` alone when this check landed, and the
  * header said why each other tree was out: none of them could import
  * `admin/src/lib/text-normalization.ts`. That was true and it was the defect,
- * not a property of the trees. The correct fold had been in `@b2b/contracts`
+ * not a property of the trees. The correct fold had been in `@endora-commerce/contracts`
  * the whole time — inside `normalizeOrganizationName`, named after one caller,
  * which is why six authors wrote their own instead of finding it. Issue #240
  * extracted it as `foldDiacritics`, and the four packages below can all import
@@ -177,7 +177,7 @@
  *     a two-line composition over the shared fold, not a second copy of it.
  *   - **`backend/`** — held the last two ledgered folds until issue #245 routed
  *     them, and five more slug generators, through `slugify` in
- *     `@b2b/contracts`. It folds nowhere of its own now, and holds the two
+ *     `@endora-commerce/contracts`. It folds nowhere of its own now, and holds the two
  *     ledgered `slug-run` sites.
  *   - **`storefront/`** — folds nowhere today and builds no slug. It is in the
  *     population so that the first one written there is the one that gets
@@ -239,7 +239,7 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  * folds.
  *
  * It moved here from `admin/src/lib/` when issue #240 extracted `foldDiacritics`
- * into `@b2b/contracts`. That move is what let the population widen: an
+ * into `@endora-commerce/contracts`. That move is what let the population widen: an
  * exemption is only worth anything where the exempted file is reachable, and
  * neither `backend/` nor `storefront/` could ever have imported the admin one.
  */
@@ -328,7 +328,7 @@ export interface LedgerEntry {
  * Note what is *not* a reason to add one back: "slugs are different from
  * search". They are not — the whole family this check exists for is slug
  * generators, and since issue #245 all eight of them compose `slugify` from
- * `@b2b/contracts`, which composes `foldDiacritics`. Nor is "the value is
+ * `@endora-commerce/contracts`, which composes `foldDiacritics`. Nor is "the value is
  * already persisted": that is an argument for not *migrating* the old rows,
  * which is the owner's standing ruling, and not an argument for computing the
  * next one wrongly.
@@ -914,7 +914,7 @@ function main(): void {
   if (folds.length > 0) {
     console.error(
       '\nA diacritic fold outside the shared helper (issue #240).\n' +
-        `Import { foldDiacritics } from '@b2b/contracts' instead — or, in the admin,\n` +
+        `Import { foldDiacritics } from '@endora-commerce/contracts' instead — or, in the admin,\n` +
         `{ normalize } from '@/lib/text-normalization', which is that fold plus a trim.\n` +
         'The one-liner\n' +
         "`normalize('NFD').replace(/\\p{Diacritic}/gu, '')` reads as complete and is not:\n" +
@@ -933,7 +933,7 @@ function main(): void {
   if (slugRuns.length > 0) {
     console.error(
       '\nA slug built outside the shared generator (issue #244).\n' +
-        `Import { slugify } from '@b2b/contracts' instead. It takes the caller's own\n` +
+        `Import { slugify } from '@endora-commerce/contracts' instead. It takes the caller's own\n` +
         'policy — { separator, maxLength, fallback } — and nothing else is negotiable,\n' +
         'because the step a hand-rolled chain leaves out is always the same one:\n' +
         'collapsing everything outside `[a-z0-9]` **deletes** every non-ASCII letter\n' +

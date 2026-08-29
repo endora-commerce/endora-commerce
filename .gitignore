@@ -1,5 +1,8 @@
 # Dependencies
-node_modules/
+# No trailing slash: `node_modules/` matches directories only, and a worktree
+# wired with `scripts/setup-worktree.sh --link` has a *symlinked* root
+# node_modules, which git then reports as an untracked file (issue #255).
+node_modules
 .pnpm-store/
 
 # Build output
@@ -22,6 +25,14 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+
+# Tailwind module-package source guard (feature 080, T044). The admin and
+# storefront suites write a probe carrying an arbitrary-value utility into each
+# module package, compile the app's stylesheet and assert it survived. The files
+# are removed in a `finally`; this rule is what keeps a killed run from leaving
+# one where `git status` — or a later `git add` — would find it.
+**/__tailwind-source-probe__*.ts
+**/__tailwind-source-probe__*.tsx
 
 # Runtime / caches
 .cache/

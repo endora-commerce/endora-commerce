@@ -15,6 +15,17 @@
 #   --diff          scan only files changed against $BASE_REF (defaults to origin/master).
 #                   Used by CI on merge requests; faster + actionable.
 #   (no flag)       full-tree scan. Used locally and by the `master` branch CI.
+#
+# Where the modules are: **resolved, not spelled** (feature 080, T012), and
+# since T040a resolved as a **list**. See `lib/module-root.sh`: the generated
+# manifest index says which modules exist, each module's own directory is the
+# ancestor of a `manifest.ts` named after one of them, a repository without an
+# index is exit 2, and every rule below iterates `${module_dirs[@]}` rather than
+# globbing one root. That is what lets a module leave `backend/src/modules` for
+# a package of its own without these rules quietly stopping at the old address.
+# A checkout nested inside this one — a `git worktree` created under the
+# repository directory, as every agent here works in — is another commit of the
+# same repository and is pruned from both the resolution and the listing.
 
 set -euo pipefail
 
@@ -23,9 +34,8 @@ cd "$REPO_ROOT"
 
 # shellcheck source=scripts/lib/read-size.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/read-size.sh"
-
-# Where the expected population comes from in full mode (issue #244).
-manifest_index="backend/src/modules/_lifecycle/manifest-index.generated.ts"
+# shellcheck source=scripts/lib/module-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/module-root.sh"
 
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
@@ -62,7 +72,29 @@ list_files() {
   fi
 }
 
-mapfile -t changed_files < <(list_files | grep -Ev '^(node_modules/|dist/|build/|\.next/|\.docusaurus/|pnpm-lock\.yaml|package-lock\.json)' || true)
+# Resolved once, at the top level: two of the walks below consult it, a pipeline
+# stage runs in a subshell, and a second scan is a second chance to disagree
+# with the first.
+module_root_resolve_nested_checkouts
+
+# A nested checkout is another commit of this same repository, so its paths are
+# not this listing's (see `lib/module-root.sh` for the discriminator).
+#
+# The listing needs the filter as much as the resolution does, and for a reason
+# that is easy to measure wrong. `git ls-files --others` reports a nested work
+# tree whose gitfile resolves as a **single directory entry**, and one whose
+# gitdir has been swept away **file by file** — so the same directory is a
+# handful of phantom entries in the count or a whole second tree in it,
+# depending on housekeeping nobody performed deliberately. On the machine this
+# was written on neither happens, because an untracked `.git/info/exclude` rule
+# hides `.claude/worktrees` from git and from nothing else: that rule is why
+# this script's sibling kept printing a correct `files=` while this one could
+# not resolve its root at all. A count that depends on a file no clone carries
+# is a count that means one thing here and another there, which is what stops a
+# recorded read size being worth recording (issue #248).
+mapfile -t changed_files < <(list_files \
+  | grep -Ev '^(node_modules/|dist/|build/|\.next/|\.docusaurus/|pnpm-lock\.yaml|package-lock\.json)' \
+  | module_root_drop_nested_checkouts || true)
 
 # A full-tree listing that comes back empty is a broken listing, not a clean
 # repository: every rule below iterates this array, so all four would report
@@ -73,23 +105,67 @@ if [[ "$listing" == "full" ]] && [ "${#changed_files[@]}" -eq 0 ]; then
   exit 2
 fi
 
-# ...and a listing that is merely non-empty is not enough (issue #215). Rules 1
-# and 2 read `backend/src/modules` off the filesystem rather than off the
-# listing, and 93% of the tree lives there: with that directory moved the two
-# rules iterate nothing, the other two report on the remaining 105 files, and
-# the script exits 0 having judged no module at all. So in full mode the
-# directory is a path that must resolve, and hold modules.
-if [[ "$listing" == "full" ]]; then
-  module_dir_count=0
-  if [ -d backend/src/modules ]; then
-    module_dir_count=$(find backend/src/modules -mindepth 1 -maxdepth 1 -type d | wc -l)
-  fi
-  if [ "$module_dir_count" -eq 0 ]; then
-    red "✗ check-naming found no module under backend/src/modules — the module folder and"
-    red "  migration-identifier rules would judge nothing while the rest reported clean."
-    red "  Refusing to report a vacuous pass."
-    exit 2
-  fi
+# ...and a listing that is merely non-empty is not enough (issue #215). Three of
+# the five rules read the module tree off the **filesystem** rather than off the
+# listing, and 93% of this repository lives there: with that directory moved the
+# three iterate nothing, the other two report on the remaining files, and the
+# script exits 0 having judged no module at all. Measured: it did exactly that.
+#
+# So the modules are resolved rather than spelled (feature 080, T012, T040a).
+# The generated manifest index says which ones exist and each module's directory
+# is resolved from it, so a layout move is followed instead of reported clean at
+# the old address. A repository where the index does not resolve is refused; one
+# where it resolves twice is refused as well, because picking one would narrow
+# the scan to it in silence.
+index_status=0
+manifest_index="$(module_root_manifest_index)" || index_status=$?
+if [ "$index_status" -ne 0 ]; then
+  case "$index_status" in
+    2)
+      red "✗ check-naming found more than one generated manifest index:"
+      printf '%s\n' "$manifest_index" | sed 's/^/    /'
+      red "  The module root is whichever one it picked, so the five rules below would judge"
+      red "  one tree and report on the repository. Refusing to guess."
+      ;;
+    *)
+      red "✗ check-naming found no generated manifest index in this repository, so it cannot"
+      red "  tell where the backend modules live. Three of its five rules walk that tree and"
+      red "  would judge nothing while the other two reported clean."
+      red "  Refusing to report a vacuous pass."
+      ;;
+  esac
+  exit 2
+fi
+# The application's own source root, resolved from where the index sits, and
+# the core migration directory inside it. `db/migrations` stays spelled: it is
+# the application's own schema directory rather than a module's, and it is not
+# what moves when a module becomes a package.
+source_root="$(module_root_source_root "$manifest_index")"
+core_migrations_dir="$source_root/db/migrations"
+
+module_dirs=()
+while IFS= read -r module_dir; do
+  [ -n "$module_dir" ] && module_dirs+=("$module_dir")
+done < <(module_root_module_directories "$manifest_index" || true)
+
+# Rule 1 judges *names*, so its population is every directory that sits where a
+# module sits — not the modules the index registers. A folder that is misnamed,
+# or that has not been through `composer:generate` yet, is the one the rule
+# exists to catch and is the one the index does not list.
+module_folders=()
+while IFS= read -r module_folder; do
+  [ -n "$module_folder" ] && module_folders+=("$module_folder")
+done < <(module_root_module_folders "$manifest_index" || true)
+
+# The index resolves; the modules it registers must also be somewhere. This is
+# the weaker of the two floors — the listing reconciliation below passes on
+# nothing a half-moved tree can hide — but it fires before any rule runs, and its
+# message names the tree rather than the listing.
+if [ "${#module_dirs[@]}" -eq 0 ]; then
+  red "✗ check-naming resolved no module directory from $manifest_index — the module"
+  red "  folder and migration-identifier rules would judge nothing while the rest"
+  red "  reported clean. Refusing to report a vacuous pass."
+  exit 2
 fi
 
 # What was read, beside what was found (issue #244). Four rules print a verdict
@@ -103,10 +179,10 @@ fi
 # there is nothing to derive an expectation from and the token says so.
 if [[ "$listing" == "full" ]]; then
   if ! naming_coverage="$(printf '%s\n' "${changed_files[@]}" \
-    | read_size_module_coverage "$manifest_index")"; then
-    red "✗ check-naming could not read the manifest index at $manifest_index — the"
-    red "  expected population is derived from it, so there is nothing to compare the"
-    red "  listing against. Refusing to report a vacuous pass."
+    | read_size_module_coverage "$(printf '%s\n' "${module_dirs[@]}")")"; then
+    red "✗ check-naming could not reconcile the listing against the modules resolved from"
+    red "  $manifest_index — the expected population is derived from them, so there is"
+    red "  nothing to compare the listing against. Refusing to report a vacuous pass."
     exit 2
   fi
   read_size_report '[naming]' "${#changed_files[@]}" - "manifest-index:$naming_coverage"
@@ -138,32 +214,30 @@ fail=0
 # to sort first and to mark "cross-cutting, not a domain" — see AGENTS.md.
 # ──────────────────────────────────────────────────────────────────────────
 allowed_singular="^(auth|catalog|email|example|import_export|inventory|quick_order|search|seo|assets_library|blog|megamenu|newsletter)$"
-allowed_proper_noun="^(autopay|google_tag_manager|inpost|ksef|mfa|payu|pim_ergonode|pwa|stripe|tpay)$"
+allowed_proper_noun="^(autopay|dhl_parcel|google_tag_manager|inpost|ksef|mfa|paypal|payu|pim_ergonode|pwa|stripe|tpay)$"
 
-if [ -d backend/src/modules ]; then
-  while IFS= read -r -d '' dir; do
-    name="$(basename "$dir")"
-    [ -d "$dir" ] || continue
-    if [[ ! "$name" =~ ^_?[a-z][a-z0-9_]*$ ]]; then
-      red "✗ Invalid backend module folder casing: backend/src/modules/$name (must be snake_case)"
-      fail=1
-      continue
-    fi
-    # Cross-cutting infrastructure module — exempt from the plural rule.
-    if [[ "$name" == _* ]]; then
-      continue
-    fi
-    if [[ "$name" =~ $allowed_singular ]] || [[ "$name" =~ $allowed_proper_noun ]]; then
-      continue
-    fi
-    if [[ ! "$name" =~ (s|ies|ches|shes|xes|zes)$ ]]; then
-      red "✗ Backend module folder looks singular: backend/src/modules/$name"
-      red "  Principle VI requires plural snake_case. Allowed singular exceptions: ${allowed_singular//[()^$]/}"
-      red "  Allowed proper nouns: ${allowed_proper_noun//[()^$]/}"
-      fail=1
-    fi
-  done < <(find backend/src/modules -mindepth 1 -maxdepth 1 -type d -print0)
-fi
+for dir in "${module_folders[@]}"; do
+  name="$(basename "$dir")"
+  [ -d "$dir" ] || continue
+  if [[ ! "$name" =~ ^_?[a-z][a-z0-9_]*$ ]]; then
+    red "✗ Invalid backend module folder casing: $dir (must be snake_case)"
+    fail=1
+    continue
+  fi
+  # Cross-cutting infrastructure module — exempt from the plural rule.
+  if [[ "$name" == _* ]]; then
+    continue
+  fi
+  if [[ "$name" =~ $allowed_singular ]] || [[ "$name" =~ $allowed_proper_noun ]]; then
+    continue
+  fi
+  if [[ ! "$name" =~ (s|ies|ches|shes|xes|zes)$ ]]; then
+    red "✗ Backend module folder looks singular: $dir"
+    red "  Principle VI requires plural snake_case. Allowed singular exceptions: ${allowed_singular//[()^$]/}"
+    red "  Allowed proper nouns: ${allowed_proper_noun//[()^$]/}"
+    fail=1
+  fi
+done
 
 # ──────────────────────────────────────────────────────────────────────────
 # 2. Migration files — flag PascalCase/camelCase table or column literals.
@@ -172,15 +246,18 @@ fi
 # ──────────────────────────────────────────────────────────────────────────
 migration_files=()
 for f in "${changed_files[@]}"; do
-  if [[ "$f" == backend/src/modules/*/migrations/*.ts ]]; then
-    migration_files+=("$f")
-  fi
+  for dir in "${module_dirs[@]}"; do
+    if [[ "$f" == "$dir"/*/migrations/*.ts ]] || [[ "$f" == "$dir"/migrations/*.ts ]]; then
+      migration_files+=("$f")
+      break
+    fi
+  done
 done
 # In full mode, also scan all migrations regardless of diff selection so a
 # silent regression on `main` is caught.
 if [[ "$mode" == "full" ]]; then
   while IFS= read -r f; do migration_files+=("$f"); done < <(
-    find backend/src/modules -path '*/migrations/*.ts' 2>/dev/null
+    find "${module_dirs[@]}" -path '*/migrations/*.ts' 2>/dev/null
   )
 fi
 # de-duplicate
@@ -268,13 +345,20 @@ done
 # ──────────────────────────────────────────────────────────────────────────
 route_files=()
 for f in "${changed_files[@]}"; do
-  if [[ "$f" == backend/src/modules/*/routes*.ts ]] || [[ "$f" == backend/src/**/routes.ts ]]; then
+  if [[ "$f" == "$source_root"/*routes*.ts ]] || [[ "$f" == "$source_root"/*/routes*.ts ]]; then
     route_files+=("$f")
+    continue
   fi
+  for dir in "${module_dirs[@]}"; do
+    if [[ "$f" == "$dir"/*routes*.ts ]]; then
+      route_files+=("$f")
+      break
+    fi
+  done
 done
 if [[ "$mode" == "full" ]]; then
   while IFS= read -r f; do route_files+=("$f"); done < <(
-    find backend/src -name 'routes*.ts' 2>/dev/null
+    find "$source_root" "${module_dirs[@]}" -name 'routes*.ts' 2>/dev/null
   )
 fi
 if [ "${#route_files[@]}" -gt 0 ]; then
@@ -337,15 +421,21 @@ pascal_segment() {
 
 class_files=()
 for f in "${changed_files[@]}"; do
-  if [[ "$f" == backend/src/modules/*/migrations/*.ts ]] ||
-     [[ "$f" == backend/src/db/migrations/*.ts ]]; then
+  if [[ "$f" == "$core_migrations_dir"/*.ts ]]; then
     class_files+=("$f")
+    continue
   fi
+  for dir in "${module_dirs[@]}"; do
+    if [[ "$f" == "$dir"/*/migrations/*.ts ]] || [[ "$f" == "$dir"/migrations/*.ts ]]; then
+      class_files+=("$f")
+      break
+    fi
+  done
 done
 if [[ "$mode" == "full" ]]; then
   while IFS= read -r f; do class_files+=("$f"); done < <(
-    { find backend/src/modules -path '*/migrations/*.ts' 2>/dev/null
-      find backend/src/db/migrations -name '*.ts' 2>/dev/null; }
+    { find "${module_dirs[@]}" -path '*/migrations/*.ts' 2>/dev/null
+      find "$core_migrations_dir" -name '*.ts' 2>/dev/null; }
   )
 fi
 if [ "${#class_files[@]}" -gt 0 ]; then
@@ -363,12 +453,13 @@ fi
 
 for f in "${class_files[@]}"; do
   [ -f "$f" ] || continue
-  if [[ "$f" == backend/src/db/migrations/* ]]; then
-    module_id="core"
-  else
-    module_id="${f#backend/src/modules/}"
-    module_id="${module_id%%/*}"
-  fi
+  module_id="core"
+  for dir in "${module_dirs[@]}"; do
+    if [[ "$f" == "$dir"/* ]]; then
+      module_id="$(basename "$dir")"
+      break
+    fi
+  done
   prefix="$(pascal_segment "$module_id")"
   while IFS= read -r class_name; do
     [ -n "$class_name" ] || continue

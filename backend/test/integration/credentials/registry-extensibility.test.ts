@@ -1,15 +1,18 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { randomBytes } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ConfigurationTypeDescriptor } from '@b2b/contracts';
+import type { ConfigurationTypeDescriptor } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { configurationTypeRegistry } from '../../../src/modules/credentials/services/registry-singleton.js';
+import type { ConfigurationTypeRegistry } from '../../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+
+/** Where each module's sources really are — resolved, never spelled (T040a). */
+const MODULE_LAYOUT = await requireModuleLayout('[registry-extensibility]');
 
 /**
  * Feature 058 US3 (T046 / T049) — the configuration-type registry is the single
@@ -18,6 +21,26 @@ import { configurationTypeRegistry } from '../../../src/modules/credentials/serv
  * credentials core; unregistering restores the prior state. Also asserts the
  * core carries no per-code / per-providerCode business branching (Principle XIV).
  */
+/**
+ * The registry **the platform composed**, never a fresh import of the module's
+ * own singleton.
+ *
+ * `credentials` is a package, so the running platform resolves its
+ * `registry-singleton.js` at `dist`; importing the same file from the package's
+ * `src` builds a *second* `ConfigurationTypeRegistry`, and a type registered on
+ * it is invisible to every route this file then asserts against. `tsc` cannot
+ * see the split — the two objects have identical shapes — so the test would
+ * pass on the negative assertions and fail on the positive ones, or worse, read
+ * as a module correctly refusing an unknown type. Feature 080's batch two
+ * measured exactly that with `ShippingAdapterRegistry` (!982); the type import
+ * above erases, so it constructs nothing.
+ */
+function registryOf(handle: BackendServerHandle): ConfigurationTypeRegistry {
+  return (handle.container.cradle as unknown as {
+    configurationTypeRegistry: ConfigurationTypeRegistry;
+  }).configurationTypeRegistry;
+}
+
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const THROWAWAY = 'throwaway_type_058';
 
@@ -46,7 +69,7 @@ describe('Credentials registry extensibility [real DB]', () => {
     h = await setupBackendServer();
   });
   afterAll(async () => {
-    configurationTypeRegistry.unregister(THROWAWAY);
+    registryOf(h).unregister(THROWAWAY);
     await teardownBackendServer(h);
   });
 
@@ -56,7 +79,7 @@ describe('Credentials registry extensibility [real DB]', () => {
     expect((before.json().types as { code: string }[]).some((t) => t.code === THROWAWAY)).toBe(false);
 
     // Register via the cross-module seam (the exact path an overlay module uses).
-    configurationTypeRegistry.register(throwaway);
+    registryOf(h).register(throwaway);
 
     const after = await h.app.inject({ method: 'GET', url: '/api/v1/admin/credentials/types', ...ADMIN });
     expect((after.json().types as { code: string }[]).some((t) => t.code === THROWAWAY)).toBe(true);
@@ -82,7 +105,7 @@ describe('Credentials registry extensibility [real DB]', () => {
   });
 
   it('unregistering restores the not-registered state (the stored config becomes inert)', async () => {
-    configurationTypeRegistry.unregister(THROWAWAY);
+    registryOf(h).unregister(THROWAWAY);
 
     const types = await h.app.inject({ method: 'GET', url: '/api/v1/admin/credentials/types', ...ADMIN });
     expect((types.json().types as { code: string }[]).some((t) => t.code === THROWAWAY)).toBe(false);
@@ -97,8 +120,17 @@ describe('Credentials registry extensibility [real DB]', () => {
   });
 
   it('the credentials core carries no per-code / per-providerCode business branching (Principle XIV)', () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const modulesRoot = join(here, '..', '..', '..', 'src', 'modules', 'credentials');
+    // The module's directory is **resolved**, never spelled: `credentials`
+    // became a workspace package in feature 080's T040b, and a literal
+    // `src/modules/credentials` is `ENOENT` from that commit on. The `src/
+    // backend` hop is the package layout; an application module has neither.
+    const moduleDirectory = MODULE_LAYOUT.moduleDirectoryOf('credentials');
+    if (moduleDirectory === null) {
+      throw new Error('[registry-extensibility] no such module: credentials');
+    }
+    const modulesRoot = existsSync(join(moduleDirectory, 'src', 'backend'))
+      ? join(moduleDirectory, 'src', 'backend')
+      : moduleDirectory;
     const coreFiles = [
       join(modulesRoot, 'services', 'credentials.service.ts'),
       join(modulesRoot, 'services', 'field-validator.ts'),

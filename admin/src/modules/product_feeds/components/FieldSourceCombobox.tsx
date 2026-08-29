@@ -4,7 +4,7 @@ import type {
   FeedFieldSourceKind,
   FeedOutputFormat,
   TaxonomyProviderCode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { useTranslation } from '@/i18n/useTranslation';
 import { normalize } from '@/lib/text-normalization';

@@ -4,9 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   REGISTERED_MANIFESTS,
   resolvedManifestEntries,
-} from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { scanEnforcedPermissionGates } from '../../../src/modules/admin_roles/permission-inventory.js';
-import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
+} from '../../../src/lifecycle/registered-manifests.js';
+import { scanEnforcedPermissionGates } from '../../../../packages/modules/admin_roles/src/backend/permission-inventory.js';
+import { permissionScanRoots } from '../../helpers/permission-scan-roots.js';
+import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 
 /**
  * The `/admin-roles` catalogue and the server's gates have to describe the same
@@ -27,7 +28,9 @@ import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/
  * `DEPLOYMENT=<name>` checks that deployment and a bare-core run checks core.
  */
 
-const I18N_DIR = fileURLToPath(new URL('../../../src/modules/_i18n/i18n/', import.meta.url));
+const I18N_DIR = fileURLToPath(
+  new URL('../../../../packages/modules/_i18n/i18n/', import.meta.url),
+);
 const SHIPPED_LANGUAGES = ['en', 'pl'] as const;
 
 function bundleFor(language: string): Record<string, string> {
@@ -43,8 +46,19 @@ function bundleFor(language: string): Record<string, string> {
  */
 const RESOLVED_MANIFESTS = await resolvedManifestEntries();
 
+/**
+ * Every directory this build enforces gates in — resolved by
+ * `test/helpers/permission-scan-roots.ts`, which carries the reasoning.
+ *
+ * It used to be computed here. D-173's `foreign-gate` sweep asks a second
+ * question of the same population, and two derivations of "where does this
+ * build enforce gates" are two answers waiting to disagree — with the short one
+ * reporting a clean tree.
+ */
+const SCAN_ROOTS = await permissionScanRoots();
+
 describe('permission inventory (SC-001)', () => {
-  const scan = scanEnforcedPermissionGates();
+  const scan = scanEnforcedPermissionGates(SCAN_ROOTS);
   const assignable = listAssignablePermissionCodes(RESOLVED_MANIFESTS);
   /**
    * The `adminRoles.permission.<code>` keys live in the `core` namespace, and

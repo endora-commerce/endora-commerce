@@ -4,13 +4,13 @@ import type {
   AdminI18nTranslatePort,
   ModuleAction,
   PermissionReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   adminActionsModule,
   type AdminActionsManifestRegistryView,
-} from '../../../src/modules/admin_actions/plugin.js';
-import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
+} from '../../../../packages/modules/admin_actions/src/backend/plugin.js';
+import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
 
 /**
  * Feature 075, Phase C — `admin_actions` states its cross-module demand.
@@ -149,7 +149,11 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       em: emReturning([actionRow(), actionRow({ module_id: 'blog', action_id: 'write' })]),
       i18nService: i18n,
       permissionService: permissions,
-      presence: { isActivated: (moduleId) => moduleId !== 'blog', version: () => 0 },
+      presence: {
+        isPlatformAvailable: () => true,
+        isActivated: (moduleId) => moduleId !== 'blog',
+        version: () => 0,
+      },
     });
 
     const result = await service.listVisibleForOperator({
@@ -208,10 +212,9 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       registry,
       i18nService: { translate: async (m, k) => `${m}/${k}` },
       permissionService: { listPermissions: async () => [] },
-      redisSubscriber: undefined as never,
       requireAdmin: () => async () => undefined,
       resolveAdminContext: () => ({ adminUserId: 'admin-1' }),
-      presence: { isActivated: () => true, version: () => 0 },
+      presence: { isPlatformAvailable: () => true, isActivated: () => true, version: () => 0 },
       log: { info: () => {}, warn: () => {} },
     });
 

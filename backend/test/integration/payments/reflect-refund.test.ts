@@ -1,14 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { OrderStatusAnnouncePort, PaymentMethodReadPort } from '@b2b/contracts';
+import type { OrderTransitionPort, PaymentMethodReadPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
-import { ReceivePaymentHandler } from '../../../src/modules/payments/services/receive-payment-handler.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import {
+  ReceivePaymentHandler,
+  type SettlementLogger,
+} from '../../../../packages/modules/payments/src/backend/services/receive-payment-handler.js';
+import type { OrderPaymentStatusApplyPort } from '../../../../packages/modules/orders/src/ports/index.js';
+import { Order } from '../../helpers/package-entities.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 /**
  * Gateway refunds (Dashboard- or platform-initiated, delivered via
@@ -54,10 +58,20 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
   });
 
   it('reflects a partial refund, then a full refund; idempotent and no downgrade', async () => {
+    const quiet: SettlementLogger = { warn: () => undefined };
     const handler = new ReceivePaymentHandler(
       () => h.em(),
       h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-      h.container.resolve<OrderStatusAnnouncePort>('orderStatusAnnouncePort'),
+      // The real gated port, resolved by the literal name a consumer passes to
+      // `lazyPort`: the hold a full refund puts on the order is a transition
+      // like any other since feature 085 Phase D, so it is audited and its
+      // side-effects run.
+      h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+      // The co-transactional half (feature 080, T048): the order's payment
+      // status moves to `refunded` on this handler's own transaction, through
+      // the port `orders` publishes for it.
+      h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
+      quiet,
     );
 
     // Partial refund (cumulative 1.00).
@@ -91,6 +105,15 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
     expect(o!.paymentStatus).toBe('refunded');
     // A full refund also puts the order on hold for operator review.
     expect(o!.status).toBe('on_hold');
+    // ...through the lifecycle since feature 085 Phase D, so the hold is
+    // audited like any other status change. It was the third of the three
+    // sites that assigned `order.status` and reached the orders flow nowhere.
+    const audited = await h.auditLogService.query({
+      action: 'order.status_transition',
+      objectId: orderId,
+    });
+    expect(audited).toHaveLength(1);
+    expect(audited[0]?.stateAfter).toEqual({ status: 'on_hold' });
 
     // Re-applying the same full refund is a no-op (idempotent).
     const again = await handler.reflectRefund({
@@ -102,5 +125,10 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
     expect(again?.changed).toBe(false);
     p = await h.em().findOne(Payment, { id: paymentId }, { refresh: true });
     expect(p!.status).toBe('refunded');
+    // And the re-delivery moved nothing: the port answers `already_there`, so
+    // no second entry and no second event.
+    expect(
+      await h.auditLogService.query({ action: 'order.status_transition', objectId: orderId }),
+    ).toHaveLength(1);
   });
 });

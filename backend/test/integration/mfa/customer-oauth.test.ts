@@ -1,17 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { MfaSocialIdentity } from '../../../src/modules/mfa/entities/mfa-social-identity.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { MfaSocialIdentity } from '../../helpers/package-entities.js';
 
 /**
  * Feature 042 / US4 — storefront federated sign-in (Google), OIDC client faked.
- * Covers: match existing customer, auto-create standalone, the org-less
- * registration gate, unverified-email refusal, and the disabled-provider gate.
+ * Covers: match existing customer, auto-create into a personal organisation
+ * (D-178), the registration gate, unverified-email refusal, and the
+ * disabled-provider gate.
  *
  * The registration gate is asserted here for the first time (feature 072,
  * T143a cluster 6). Auto-creation has always been gated on
@@ -88,7 +90,19 @@ describe('MFA US4 — customer social login', () => {
     expect(link).not.toBeNull();
   });
 
-  it('auto-creates a standalone customer when none matches', async () => {
+  /**
+   * D-178 W2 — federated sign-in provisions the individual's personal
+   * organisation, in the same transaction as the account.
+   *
+   * This case asserted the opposite until D-178: `expect(created.organizationId
+   * ?? null).toBeNull()`, with the comment *"standalone (no org)"*. It was an
+   * accurate description of a defect. `autoCreate` provisioned no organisation
+   * at all, so **every** account a "sign in with Google" produced carried
+   * `organization_id = NULL` permanently — not a window but the steady state of
+   * a shipped feature — and the buyer reaching checkout was told to attach an
+   * Organization they had no way to attach.
+   */
+  it('auto-creates a customer in their own personal organization when none matches', async () => {
     const email = 'new-social-customer@example.com';
     const state = await startAndGetState(h);
     const res = await callback(h, email, state);
@@ -97,7 +111,15 @@ describe('MFA US4 — customer social login', () => {
 
     const created = await h.em().findOne(CustomerAccount, { email });
     expect(created).not.toBeNull();
-    expect(created!.organizationId ?? null).toBeNull(); // standalone (no org)
+    expect(created!.organizationId).toBeTruthy();
+
+    // A single-member personal organisation, named from the address' local part
+    // — the provider sends no name with the claim this seam reads.
+    const org = await h.em().findOne(Organization, { id: created!.organizationId });
+    expect(org).not.toBeNull();
+    expect(org!.isPersonal).toBe(true);
+    expect(org!.status).toBe('active');
+    expect(org!.name).toBe('new-social-customer');
 
     // Issue #122 — the other way an account appears without an admin
     // (`customers`' standalone self-registration) has always recorded an entry

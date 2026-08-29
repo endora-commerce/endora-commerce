@@ -17,7 +17,7 @@ import type {
   PatchBlogTagRequest,
   PutBlogCategoryDescriptionRequest,
   PutBlogPostContentRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export type {
   BlogCategoryDetail,

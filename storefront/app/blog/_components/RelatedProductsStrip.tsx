@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import type { BlogProductCard } from '@b2b/contracts';
+import type { BlogProductCard } from '@endora-commerce/contracts';
 
 export function RelatedProductsStrip({
   products,

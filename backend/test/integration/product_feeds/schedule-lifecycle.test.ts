@@ -5,11 +5,10 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
 import {
   FeedScheduleReconciler,
   syncFeedScheduleFromEvent,
-} from '../../../src/modules/product_feeds/services/feed-schedule-reconciler.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/feed-schedule-reconciler.js';
 import {
   feedSchedulerId,
   reconcileSchedulers,
@@ -19,7 +18,8 @@ import {
   type ReconcileResult,
   type SchedulerBackend,
   type SchedulerBackendEntry,
-} from '../../../src/modules/product_feeds/services/queues/feed-scheduler.js';
+} from '../../../../packages/modules/product_feeds/src/backend/services/queues/feed-scheduler.js';
+import { ProductFeed } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T074 — the schedule lifecycle against a real database

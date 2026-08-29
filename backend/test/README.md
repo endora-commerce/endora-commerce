@@ -93,7 +93,7 @@ So an invocation gets resources of its own, with nothing to remember:
 
 | Resource | What the run gets | Cleanup |
 | --- | --- | --- |
-| PostgreSQL | `<base>_r_<stamp>_<rand>`, cloned from the migrated template `<base>_tpl` | dropped by the run's teardown; a crashed run's database is swept by a later invocation once it is 4 h old and unconnected |
+| PostgreSQL | `<base>_r_<stamp>_<rand>`, cloned from the migrated template of this run's migration set, `<base>_tpl_<digest>` | dropped by the run's teardown; a crashed run's database is swept by a later invocation once it is 4 h old and unconnected |
 | Redis | a logical database index, leased in index 0 and emptied before the run | released by the teardown; the lease expires 5 minutes after a crashed run stops refreshing it |
 
 Index 0 is never leased and never emptied: it holds the leases themselves, and it is the one
@@ -102,38 +102,100 @@ Index 0 is never leased and never emptied: it holds the leases themselves, and i
 `sales-channels:*`, `settings:v1:*` — so a test run logged the developer's own dev session
 out, roughly 225 times per suite.
 
-`<base>_tpl` is the only database migrations are applied to, under an advisory lock so
-concurrent invocations cannot race on it; a run database is a `create database … template …`
-file copy (0.2 s warm). Nothing runs tests against the template, which is what keeps it idle
-enough to be cloned. If it ever gets into a state you do not trust, drop it — the next
-invocation recreates and re-migrates it:
+A **template** is the only kind of database migrations are applied to, under an advisory lock
+so concurrent invocations cannot race on it; a run database is a `create database … template …`
+file copy (0.2 s warm). Nothing runs tests against a template, which is what keeps it idle
+enough to be cloned.
+
+**A template is named after the migration set it holds, not after the base database** (issue
+#289): `<base>_tpl_<digest>`, the digest being 12 hex characters over this run's *whole*
+migration input — the ordered class names, so a manifest `dependencies` edit that reorders
+them counts, plus the SHA-256 of every migration source file and of the declared files that
+seed a template (`test/template-identity.ts` holds the list). Two trees that agree on all of
+it share one template and pay one migration pass between them; two that disagree anywhere
+cannot collide, because they are not looking at the same database at all.
+
+**That population is floored per producer, never in total.** The walk that hashes the sources
+and the registry that lists the migrations are independent derivations of one population, so
+they are reconciled before a digest is computed — per **origin** (`core` today; an extension
+package may ship migrations of its own, D-106.2, and until the mechanism that discovers them
+lands there is no root for that origin to be read from). One comparison against one total was
+not that reconciliation: the tree carries a file of slack — §4 of the naming convention allows
+a non-migration helper beside migrations and there is one,
+`quote_requests/migrations/status-mapping.ts` — so 159 files answered for 158 registered
+migrations, and a producer whose file the walk could not reach was paid for out of that
+surplus. One registered migration outside the digest, two platforms, one template: #289 again,
+one layer out. Each origin now clears its own floor or the run stops, naming the origin and
+the shortfall. A helper settles no floor, because §1's recognizer — the same one the composer
+uses — says it is not a migration, and it is hashed all the same, because a migration may
+import it.
+
+That is not a refinement of the old check, it is the defect it could not see. Until #289 there
+was one `<base>_tpl` for the machine, and provisioning compared the *names* of the migrations
+applied to it against the order this run configures. Names catch a branch that **added** a
+migration. They cannot catch a branch that changed what a migration of the same name **does**,
+which is what an agent iterating on an unmerged data migration produces every morning — and
+so a run whose tree contained no such string failed against a `payment_methods` row called
+`paypal_checkout`, seeded into the shared template from a branch it had never seen. The same
+sharing, taken the other way round, silently swallowed the *edited* migration: the name was
+already applied, so `migrator.up()` had nothing to do and the branch tested against the other
+one's platform. Re-running rebuilt the template and both went green, which is exactly what
+makes this expensive — a failure nobody can reproduce is dismissed as flakiness, and then a
+real one is too.
+
+**A template is cloned only when it can account for itself.** Provisioning reads two
+independent claims before it clones: the provenance comment PostgreSQL keeps on the database
+(`b2b-test-template v1 digest=… migrations=… lastUsedAt=…`, written after the build is
+verified and rewritten on every use — a clone does not inherit it, which is right, because
+the provenance is the template's) and the migration names actually in `mikro_orm_migrations`.
+Either disagreeing, or saying nothing at all, drops the template and builds it from empty.
+"A template whose contents nothing accounts for" is the defect itself, so it is never cloned,
+whatever its name says.
+
+Cost, measured on one file (`test/integration/payment_methods/failure-status-default.test.ts`,
+157 migrations, this machine):
+
+| | before | after |
+| --- | --- | --- |
+| cold — no template on the cluster | 13.2 s | 12.7 s |
+| warm — template already built | 8.6 s / 8.7 s | 8.3 s / 8.1 s |
+| two branches alternating, first run of each | 8.6 s – 9.6 s, **contaminated** | 13.0 s then 8.6 s |
+| two branches alternating, thereafter | 8.6 s – 9.2 s, **contaminated** | 8.2 s / 8.3 s |
+
+So the common case is unchanged (the warm path no longer imports the ORM config or runs
+`migrator.up()` at all, which is where the tenth of a second comes from), and a migration set
+the machine has not seen before pays one migration pass — 4.4 s here — once, instead of
+never and wrongly.
+
+`test/integration/catalog/attributes-migration-parity.test.ts` is why an approximate answer
+was never good enough: it drives the real migrator, umzug reverts the last migration in
+**configured** order while the test reads the last one in **applied** (`id`) order, and the
+two stop agreeing the moment the template stops being this tree's. It walked `down()` straight
+past its own target, never reached its termination condition, timed out twice, and left the
+run database with most of its schema reverted — taking all 21 files of
+`test/integration/catalog` down with it, 20 of them on a truncate against tables that were no
+longer there. A file like that clones the template **by name**
+(`BACKEND_TEST_TEMPLATE`, exported by the global setup), not by re-deriving it: by the time it
+asks, another invocation may have built one of its own.
+
+**Templates are collected.** One per migration set means one left behind every time a branch
+gains a migration or is rebased, so provisioning sweeps, under the same lock: a template of
+this base that nothing is connected to and that no invocation has used for 24 h — or that
+cannot say when it was last used — is dropped, at most 25 per invocation. The pre-#289
+`b2b_test_tpl` is deliberately **not** in that population: an invocation running older code
+still clones it mid-run. Drop it by hand once, and any template you stop trusting with it:
 
 ```bash
 psql -h localhost -U b2b -d postgres -c 'drop database if exists b2b_test_tpl with (force)'
+psql -h localhost -U b2b -d postgres \
+  -c "select datname, pg_size_pretty(pg_database_size(datname)), shobj_description(oid, 'pg_database')
+      from pg_database where datname like 'b2b\_test\_tpl%'"
 ```
 
-**The template is checked for currency before it is cloned, and rebuilt when it is not.** It
-outlives every run and is shared by every branch on the machine, while `migrator.up()` only
-ever *appends* — which is enough exactly when what it already holds is a **prefix** of the
-order this run configures. Anything else is a database no append can repair: another branch's
-migration applied into it, or one of ours applied where `src/db/migration-order.ts` does not
-put it, which is what a migration added anywhere but the last module does to a template that
-is brought forward rather than built. Both are ordinary with several branches on one cluster,
-so provisioning compares the applied names against the configured order and, on a mismatch,
-drops the template and migrates it from empty — one migration pass, paid once per change of
-the migration set.
-
-That is not tidiness. `test/integration/catalog/attributes-migration-parity.test.ts` drives
-the real migrator: umzug reverts the last migration in **configured** order while the test
-reads the last one in **applied** (`id`) order, and the two stop agreeing the moment the
-template stops being a prefix. It then walked `down()` straight past its own target, never
-reached its termination condition, timed out twice, and left the run database with most of its
-schema reverted — taking all 21 files of `test/integration/catalog` down with it, 20 of them
-on a truncate against tables that were no longer there.
-
-Under `BACKEND_TEST_ISOLATION=shared` the same drift accumulates in the base database, and the
-run says so and does nothing else: that database is one you named or kept, so it is not the
-harness's to drop. Drop it yourself and re-run, or drop the escape hatch.
+Under `BACKEND_TEST_ISOLATION=shared` there is no template at all: the run migrates the base
+database, drift from another branch accumulates in it, and the run says so and does nothing
+else — that database is one you named or kept, so it is not the harness's to drop. Drop it
+yourself and re-run, or drop the escape hatch.
 
 ### A test that drives the migrator takes a database of its own
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, type ReactNode } from 'react';
-import { normalizePolishMobilePhone } from '@b2b/contracts';
+import { normalizePolishMobilePhone } from '@endora-commerce/contracts';
 import { ensureInpostTargetPointOnFormData } from '../../lib/shipping-renderers/inpost-geowidget';
 import { tForLocale } from '../../lib/i18n/messages';
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import type { SettingDto, SettingGroupDto } from '@b2b/contracts';
+import type { SettingDto, SettingGroupDto } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**
@@ -16,7 +16,7 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  *
  * The fixtures below are shipped copy, taken verbatim from
  * `backend/src/modules/invoices/i18n/pl.json` and
- * `backend/src/modules/_i18n/i18n/pl.json`; none of them was invented to fold
+ * `packages/modules/_i18n/i18n/pl.json`; none of them was invented to fold
  * nicely.
  */
 

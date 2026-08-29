@@ -1,11 +1,11 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { describe, expect, it } from 'vitest';
-import type { AdminUserPreferencePort, AdminUserRecord } from '@b2b/contracts';
+import type { AdminUserPreferencePort, AdminUserRecord } from '@endora-commerce/contracts';
 import {
   registerI18nAdminRoutes,
   type I18nAdminDeps,
-} from '../../../src/modules/_i18n/routes.admin.js';
+} from '@endora-commerce/mod-i18n/backend';
 
 /**
  * Feature 075, Phase C — `_i18n` writes the admin's language choice over

@@ -7,10 +7,9 @@ import {
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
-import { QuoteRequest } from '../../../src/modules/quote_requests/entities/quote-request.entity.js';
-import { QuoteRequestItem } from '../../../src/modules/quote_requests/entities/quote-request-item.entity.js';
+import { QuoteRequest } from '../../helpers/package-entities.js';
+import { QuoteRequestItem } from '../../helpers/package-entities.js';
+import { Order, OrderItem } from '../../helpers/package-entities.js';
 
 /**
  * Feature 038 (US7) — cloning an order into a Quote Request via the RFQ module.

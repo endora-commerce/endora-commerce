@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAdminUserRequestSchema } from '@b2b/contracts';
-import { SocialIdentityService } from '../../../src/modules/mfa/services/social-identity-service.js';
+import { createAdminUserRequestSchema } from '@endora-commerce/contracts';
+import { SocialIdentityService } from '../../../../packages/modules/mfa/src/backend/services/social-identity-service.js';
 import type { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 

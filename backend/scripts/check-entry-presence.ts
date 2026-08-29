@@ -113,10 +113,14 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf } from './check-port-dependencies.js';
+import {
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
 import {
   callbackOf,
   calleeName,
@@ -131,9 +135,9 @@ import {
 } from './lib/repeating-timers.js';
 import { loadLockedOwners } from './lib/switchable-modules.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
 /** Process-lifecycle events: a handler for one of these has no caller either. */
 const PROCESS_EVENTS = new Set([
@@ -201,7 +205,7 @@ export interface UngatedEntry {
  * reason has to say why that is *correct* rather than why nobody has fixed it.
  */
 export const TIMERS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {
-  'modules/_lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
+  'lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
     'The lease heartbeat belongs to an in-flight lifecycle command that already holds the ' +
     'lock, and it stops when that command releases it. `_lifecycle` is non-deactivatable, so ' +
     'there is no state in which the gate would close — and asking the subsystem that resolves ' +
@@ -226,7 +230,7 @@ export const TIMERS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {
  * while the module is off.
  */
 export const BOOT_HOOKS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {
-  'modules/invoices/backend.ts:onBoot#3:ctx.onBoot':
+  'packages/modules/invoices/src/backend/index.ts:onBoot#3:ctx.onBoot':
     'Feature 078, D-95.3. The hook pins the system-default sales channel to its pre-D-95 ' +
     'numbering pattern, once, and then reports colliding patterns. It is a one-time migration ' +
     "of this module's own configuration, and activation is reversible where a migration is " +
@@ -257,6 +261,15 @@ export interface EntryPresenceInput {
    * caller that forgets it over-reports instead of going quietly blind.
    */
   readonly lockedModules?: ReadonlySet<string> | undefined;
+  /**
+   * Directories whose files belong to a module that no `modules/<id>/` segment
+   * names — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   *
+   * Without it `_lifecycle`'s lease heartbeat attributes to `null` and this
+   * rule skips it as "not a module's file", which is the ledger entry below
+   * going stale while the timer it describes is still there.
+   */
+  readonly hostResidentModules?: HostResidentModules | undefined;
 }
 
 /** Where a presence decision was found, and whether it is the right one. */
@@ -424,8 +437,9 @@ export function findUngatedEntries(input: EntryPresenceInput): UngatedEntry[] {
   const found: UngatedEntry[] = [];
   const locked = input.lockedModules ?? new Set<string>();
 
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   for (const [file, text] of input.sources) {
-    const moduleId = moduleOf(`/src/${file}`);
+    const moduleId = moduleOf(`/src/${file}`, hostResident);
     // Only a module has an effective state to gate on. A file outside one — the
     // kernel, `http/`, `db/`, a composition root — is not this rule's business.
     if (moduleId === null) continue;
@@ -572,15 +586,18 @@ function walk(dir: string, out: string[] = []): string[] {
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
+  // Both roots, derived (feature 080, T040a).
+  const layout = await requireModuleLayout('[entry-presence]');
+  const files = layout.sourceRoots.flatMap((root) => walk(root));
   // The locked-owner read below refuses a tree whose index went missing. It
   // does not refuse a **partial** move — index regenerated, half the modules
   // elsewhere — where the timers and boot hooks in the modules that left are
   // simply never classified and the run reports on what stayed (issue #215).
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[entry-presence]',
-    srcRoot: SRC_ROOT,
+    manifestIndexPath: layout.manifestIndexPath,
     files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   // Which modules an operator can switch off, read from their manifests at check
@@ -589,7 +606,7 @@ async function main(): Promise<void> {
   // one derived from nothing, so it exits 2 rather than reporting either colour.
   let locked: ReadonlySet<string>;
   try {
-    locked = await loadLockedOwners(SRC_ROOT);
+    locked = await loadLockedOwners(layout.manifestIndexPath);
   } catch (err: unknown) {
     console.error(
       `[entry-presence] the module manifests could not be read (${String(err)}) — ` +
@@ -601,10 +618,10 @@ async function main(): Promise<void> {
 
   const sources = new Map<string, string>();
   for (const file of files) {
-    sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
+    sources.set(layout.keyOf(file), readFileSync(file, 'utf8'));
   }
 
-  const input = { sources, lockedModules: locked };
+  const input = { sources, lockedModules: locked, hostResidentModules: layout.hostResidentModules };
   const result = checkEntryPresence(input);
 
   if (listMode) {
@@ -640,7 +657,8 @@ async function main(): Promise<void> {
         'keeps running with the module switched off, so both go on writing while an operator\n' +
         "believes they stopped. Decide it: `if (!effectiveState.isPresent('<module>')) return;`\n" +
         '— first, and outside any `try`. `backend/src/modules/ksef/plugin.ts` (timer) and\n' +
-        '`backend/src/modules/product_feeds/backend.ts` (boot hook) are the worked examples.\n',
+        '`packages/modules/product_feeds/src/backend/index.ts` (boot hook) are the worked\n' +
+        'examples.\n',
     );
     for (const entry of plain) {
       console.error(
@@ -660,8 +678,10 @@ async function main(): Promise<void> {
         'operator delete an asset a switched-off module still references, which surfaces as\n' +
         'data loss at reactivation.\n\n' +
         'SPLIT IT FIRST: two `ctx.onBoot` calls — the contribution one unprobed, the work one\n' +
-        'probed — then this check judges the work half on its own. See\n' +
-        '`backend/src/modules/blog/backend.ts` and `backend/src/modules/cms/backend.ts`.\n',
+        'probed — then this check judges the work half on its own. Both worked examples are\n' +
+        'module packages now, so the file to read is each one\'s `./backend` entry point:\n' +
+        '`packages/modules/blog/src/backend/index.ts` and\n' +
+        '`packages/modules/cms/src/backend/index.ts`.\n',
     );
     for (const entry of mixed) {
       console.error(

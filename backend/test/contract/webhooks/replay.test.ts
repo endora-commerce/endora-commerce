@@ -1,12 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Webhook } from '../../../src/modules/webhooks/entities/webhook.entity.js';
-import { WebhookDelivery } from '../../../src/modules/webhooks/entities/webhook-delivery.entity.js';
+import { Webhook, WebhookDelivery } from '../../helpers/package-entities.js';
 
 /**
  * T232 — failed-deliveries replay surface.

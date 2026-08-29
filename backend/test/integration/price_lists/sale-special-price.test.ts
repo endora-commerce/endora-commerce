@@ -1,20 +1,20 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization, type ProductRow } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import { Product } from '../../helpers/package-entities.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
-import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
@@ -33,7 +33,7 @@ import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js'
  */
 describe('Feature 011 / US6 — Sale → Special Price (T070)', () => {
   let h: BackendServerHandle;
-  let product: Product;
+  let product: ProductRow;
   let salesChannel: SalesChannel;
   let customerGroup: CustomerGroup;
   let organization: Organization;

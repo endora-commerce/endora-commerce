@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { z } from 'zod';
-import { PWA_SETTING_CODES, type PushSubscriptionRef } from '@b2b/contracts';
+import { PWA_SETTING_CODES, type PushSubscriptionRef } from '@endora-commerce/contracts';
 
 // Mock the web-push library so we can script statusCodes.
 const sendNotification = vi.fn();
@@ -9,7 +9,7 @@ vi.mock('web-push', () => ({
 }));
 
 const { WebPushProvider } = await import(
-  '../../../src/modules/pwa/services/providers/web-push-provider.js'
+  '../../../../packages/modules/pwa/src/backend/services/providers/web-push-provider.js'
 );
 
 function settingsWith(keys: Record<string, string>) {

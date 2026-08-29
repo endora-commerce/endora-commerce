@@ -1,8 +1,8 @@
-import { CmsRenderProvider } from '@b2b/cms-components/components/render-context';
+import { CmsRenderProvider } from '@endora-commerce/cms-components/components/render-context';
 // Self-contained, prefix-isolated stylesheet for the CMS Page Builder components
 // (feature 041, FR-012a). SSR-safe — bundled globally by Next at build time.
-import '@b2b/cms-components/styles.css';
-import type { CmsResolvedPage, CmsResolvedBlock, CmsResolvedTemplate } from '@b2b/contracts';
+import '@endora-commerce/cms-components/styles.css';
+import type { CmsResolvedPage, CmsResolvedBlock, CmsResolvedTemplate } from '@endora-commerce/contracts';
 import { toAbsoluteAssetUrl } from '../lib/asset-url';
 import { Hook } from './Hook';
 import { PageBuilderRender } from './PageBuilderRender';

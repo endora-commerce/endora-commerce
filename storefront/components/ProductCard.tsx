@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import type { ProductSummary, StorefrontProductStock } from '@b2b/contracts';
+import type { ProductSummary, StorefrontProductStock } from '@endora-commerce/contracts';
 import { tForLocale } from '../lib/i18n/messages';
 import { DEFAULT_VAT_RATE, grossFromNet } from '../lib/i18n/money';
 import { CompareToggle } from './CompareToggle';

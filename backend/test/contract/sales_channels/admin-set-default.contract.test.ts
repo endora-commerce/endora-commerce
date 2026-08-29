@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES, SalesChannelSetDefaultResponseSchema } from '@b2b/contracts';
+import { ERROR_CODES, SalesChannelSetDefaultResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

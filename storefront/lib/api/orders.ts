@@ -1,3 +1,4 @@
+import { purchaseConversionClaimResponseSchema } from '@endora-commerce/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
 
 /**
@@ -60,6 +61,12 @@ export interface OrderSummary {
   paymentStatus: string;
   deliveryAddress: Record<string, string>;
   billingAddress: Record<string, string>;
+  deliveryPoint?: {
+    provider: string;
+    pointId: string;
+    label?: string | null;
+    address?: string | null;
+  } | null;
   deliveryMethod: { id: string; code: string; name: Record<string, string>; cost: number };
   paymentMethod: { id: string; code: string; name: Record<string, string>; kind: string };
   items: OrderItem[];
@@ -72,6 +79,12 @@ export interface OrderSummary {
   customerNote: string | null;
   placedAt: string;
   nextAction: NextAction | null;
+  /**
+   * Feature 085 — whether *this* buyer may cancel this order, decided by the
+   * platform (FR-018). Optional on the type because only the buyer-facing reads
+   * carry it; `lib/order-cancel.ts` says why nothing here re-derives it.
+   */
+  customerCancellable?: boolean;
 }
 
 export interface PlaceOrderPayload {
@@ -86,6 +99,12 @@ export interface PlaceOrderPayload {
   billingCompanyName?: string;
   /** Optional billing tax-id (NIP) override; defaults from the Organization. */
   billingTaxId?: string;
+  deliveryPoint?: {
+    provider: string;
+    pointId: string;
+    label?: string;
+    address?: string;
+  };
   /**
    * Feature 068 — adapter-specific shipping payload persisted on the order.
    * InPost locker: `{ targetPoint: string }` from the Geowidget selection.
@@ -187,6 +206,23 @@ export async function reorderOrder(sessionCookie: string, id: string): Promise<R
 }
 
 /**
+ * Cancel an order the buyer placed (feature 085, US3).
+ *
+ * No body: the target status is not the buyer's to choose. The server decides
+ * eligibility and answers 409 when the shop has started or the money is no
+ * longer the buyer's to owe, and 404 for an order they did not place.
+ */
+export async function cancelMyOrder(sessionCookie: string, id: string): Promise<OrderSummary> {
+  const result = await apiMutate<OrderSummary>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/cancel`,
+    body: {},
+    sessionCookie,
+  });
+  return result.data!;
+}
+
+/**
  * Order again as a Quote Request (feature 039 / US4). Reuses the existing
  * clone-to-quote path (feature 038 US7).
  */
@@ -201,4 +237,30 @@ export async function cloneOrderToQuote(
     sessionCookie,
   });
   return result.data!;
+}
+
+/**
+ * Claim this order's GA4 `purchase` conversion (issue #277).
+ *
+ * `true` for the caller that may report it, `false` for every later one — so
+ * an order is counted once, whichever storefront page the buyer sees it on
+ * first and however many times they come back to it. The decision is the
+ * platform's because a marker in the browser is gone with the cache and never
+ * reaches the buyer's second device.
+ */
+export async function claimPurchaseConversion(
+  sessionCookie: string,
+  id: string,
+): Promise<boolean> {
+  const result = await apiMutate<unknown>({
+    method: 'POST',
+    path: `/api/v1/orders/${id}/purchase-conversion`,
+    body: {},
+    sessionCookie,
+  });
+  // Parsed rather than asserted: a body this does not recognise is a body that
+  // grants nothing, and reporting a conversion the platform did not hand out
+  // is the one outcome worth failing closed over.
+  const parsed = purchaseConversionClaimResponseSchema.safeParse(result.data);
+  return parsed.success && parsed.data.counted;
 }

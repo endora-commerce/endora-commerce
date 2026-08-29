@@ -1,43 +1,22 @@
-import type { ApiInterceptorRegistry } from './registry.js';
-import type { RouteTable } from './route-table.js';
-
 /**
- * Boot-time validation of interceptor targets (feature 060, FR-010/SC-007).
- * Runs in `buildServer`'s onReady hook, after every module has registered its
- * routes and before any traffic is served. Fail-closed: a typo'd target
- * refuses startup instead of silently never firing — mirroring the overlay
- * pattern's UnknownOverrideTargetError stance (Constitution XV).
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * A target owned by a currently-disabled module is NOT an error: the route is
- * still mounted (it 503s via defineModuleRoutes gating) and the interceptor
- * is simply inert until the module is enabled.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
+ *
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-export function validateRegistrations(
-  registry: ApiInterceptorRegistry,
-  routeTable: RouteTable,
-): void {
-  const problems: string[] = [];
-  for (const reg of registry.registrations()) {
-    for (const target of reg.targets) {
-      const route = routeTable.get(target);
-      if (!route) {
-        problems.push(
-          `module '${reg.module}' interceptor '${reg.id}' targets unknown endpoint '${target}' — ` +
-            `no such route is mounted in this deployment.`,
-        );
-        continue;
-      }
-      if (reg.phase === 'post' && route.streamingResponse) {
-        problems.push(
-          `module '${reg.module}' interceptor '${reg.id}' declares phase 'post' on streaming endpoint ` +
-            `'${target}' — streaming/binary payloads bypass serialization and cannot be reshaped.`,
-        );
-      }
-    }
-  }
-  if (problems.length > 0) {
-    throw new Error(
-      `[api-interceptor] boot validation failed:\n  - ${problems.join('\n  - ')}`,
-    );
-  }
-}
+export * from '../../../../packages/platform/dist/http/interceptors/validation.js';

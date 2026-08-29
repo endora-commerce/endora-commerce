@@ -372,7 +372,7 @@ export interface AssetPatchInput {
  *
  * Deliberately **not** `NodeJS.ReadableStream`: this package is imported by
  * the admin SPA and the storefront as well as the backend, and naming the
- * `NodeJS` namespace here fails `@b2b/api-client`'s compile. A Node
+ * `NodeJS` namespace here fails `@endora-commerce/api-client`'s compile. A Node
  * `Readable` satisfies this shape — `Buffer` extends `Uint8Array` — so the one
  * caller passes its multipart part through unchanged.
  */

@@ -13,7 +13,7 @@ import { MODULES } from '../../../src/composition.generated.js';
 // D-72 point 5 — the same manifest index `check-port-dependencies` and
 // `check-port-catches` read, so "which modules the platform refuses to switch
 // off" has one source in the tree rather than one per consumer.
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**
  * The two composition roots, held to each other (feature 072, US6 / T075–T076).
@@ -65,6 +65,101 @@ function moduleFactories(source: string): Set<string> {
   return names;
 }
 
+/**
+ * The two roots' composition functions, by name.
+ *
+ * Written down because they are entry points rather than derived facts, and
+ * {@link compositionTimeCalls} **refuses** a name it cannot find rather than
+ * returning an empty set: a rename that emptied the population would otherwise
+ * make every ledger below vacuously correct, which is the one way this file can
+ * report green while looking at nothing (issue #113).
+ */
+const COMPOSITION_FUNCTIONS = { production: 'composeApp', harness: 'setupBackendServer' } as const;
+
+/** Every named binding a root imports as a value — the callables it did not write itself. */
+function importedValueNames(source: string): Set<string> {
+  const sourceFile = ts.createSourceFile('root.ts', source, ts.ScriptTarget.ES2022, true);
+  const names = new Set<string>();
+  sourceFile.forEachChild((node) => {
+    if (!ts.isImportDeclaration(node)) return;
+    const clause = node.importClause;
+    if (!clause || clause.isTypeOnly) return;
+    const bindings = clause.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) return;
+    for (const element of bindings.elements) {
+      if (!element.isTypeOnly) names.add(element.name.text);
+    }
+  });
+  return names;
+}
+
+/**
+ * Imported functions a root calls **while composing** — its boot steps.
+ *
+ * The two ledgers above derive their population from the source with `new X(`
+ * and `xModule(`; this one could not, because a boot step is an ordinary call
+ * and looks like every other call in the file. Two facts make it decidable
+ * without a heuristic:
+ *
+ *   - **Imported.** A root's own local helpers are not boot steps; the steps are
+ *     things the platform provides and a root invokes.
+ *   - **Called while composing.** The walk starts at the composition function's
+ *     own statements and descends, and it crosses a function literal only when
+ *     that literal is an **argument** of a call already inside the region. That
+ *     is the difference between a step that runs during composition — including
+ *     the scoped shape `enterSystemScope('…', () => loadModulePresence(…))`,
+ *     which is how production writes one — and a closure that is merely *stored*
+ *     for a request handler to run later. Without it the population picks up
+ *     every helper either root calls from inside a route, and a ledger whose
+ *     entries mostly say "not a boot step" has outgrown its predicate.
+ */
+function compositionTimeCalls(source: string, functionName: string): Set<string> {
+  const sourceFile = ts.createSourceFile('root.ts', source, ts.ScriptTarget.ES2022, true);
+  let composition: ts.FunctionDeclaration | undefined;
+  sourceFile.forEachChild((node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === functionName) composition = node;
+  });
+  if (composition?.body === undefined) {
+    throw new Error(
+      `[harness-parity] no composition function '${functionName}' in this root. It was ` +
+        `renamed or moved; point COMPOSITION_FUNCTIONS at the new name. An empty population ` +
+        `would make the boot-step ledger below vacuously correct.`,
+    );
+  }
+
+  const names = new Set<string>();
+  const visit = (node: ts.Node, composing: boolean): void => {
+    if (composing && ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      names.add(node.expression.text);
+      node.forEachChild((child) => visit(child, true));
+      return;
+    }
+    if (ts.isFunctionLike(node)) {
+      const parent = node.parent;
+      const isArgumentOfAComposingCall =
+        composing &&
+        parent !== undefined &&
+        ts.isCallExpression(parent) &&
+        (parent.arguments as readonly ts.Node[]).includes(node);
+      node.forEachChild((child) => visit(child, isArgumentOfAComposingCall));
+      return;
+    }
+    node.forEachChild((child) => visit(child, composing));
+  };
+  for (const statement of composition.body.statements) visit(statement, true);
+  return names;
+}
+
+/** The boot steps one root performs — imported, and called while composing. */
+function bootSteps(source: string, functionName: string): Set<string> {
+  const imported = importedValueNames(source);
+  return new Set(
+    [...compositionTimeCalls(codeOnly(source), functionName)].filter((name) =>
+      imported.has(name),
+    ),
+  );
+}
+
 describe('T075 — a converted module costs no test-helper edit', () => {
   it('the harness names no module from the generated composer', () => {
     // A module that has converted declares itself through `registerModule`, and
@@ -86,15 +181,25 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     // wants to name a subset has to write the filter itself — and this is where
     // that shows up.
     //
-    // The spelling is pinned including the **append** D-104 requires: a
-    // deployment's overlay modules are discovered at runtime and go into this
-    // same single call, after the frozen core list, which is what makes
-    // "overlay last, so a deployment's decoration wins" structural rather than
-    // a property of a generator's sort. Extending the array is allowed and
-    // spelled identically in both roots; narrowing it is what this refuses, and
-    // any `MODULES.filter(` would fail the exact-match below.
+    // The spelling is pinned including both **appends**: D-104's, a
+    // deployment's overlay modules discovered at runtime, and T031's, the
+    // instance's installed packages. Both go into this same single call, after
+    // the frozen core list. What that buys is one registration pass in both
+    // roots — not a decoration policy: this comment used to say it made
+    // "overlay last, so a deployment's decoration wins" structural, and since
+    // D-176's drain array position decides nothing about a wrap at all.
+    // Extending the array is allowed and must be spelled identically in both
+    // roots; narrowing it is what this refuses, and any `MODULES.filter(` would
+    // fail the exact-match below.
+    //
+    // The **array literal** is pinned rather than the whole call, because the
+    // call is now long enough that the formatter wraps it and a pin including
+    // `, {` would be a pin on prettier's line-breaking rather than on the two
+    // roots agreeing.
     for (const source of [harness, production]) {
-      expect(source).toContain('composeModules([...MODULES, ...overlayModuleEntries], {');
+      expect(source).toContain(
+        'composeModules(\n    [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],',
+      );
       expect(source).not.toContain('MODULES.filter(');
       expect(source).not.toContain('MODULES.slice(');
     }
@@ -272,43 +377,85 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
   });
 
   /**
-   * Boot steps production performs and the harness does not — D-101's own entry.
+   * Boot steps production performs and the harness does not — the third ledger.
    *
-   * The other two ledgers above are computed from `new X(` and `xModule(`, so a
-   * divergence that is neither cannot appear in them. This one is: production
-   * calls `loadModulePresence()` before the first module registers, and the
-   * harness seeds the registry cache directly instead. That is a deliberate
-   * decision recorded in `test-server.ts` — the harness has no database state to
-   * reconcile and wants the two axes set by hand — and it has a consequence that
-   * has to be written down rather than discovered: **every refusal, reconcile
-   * and derivation inside that boot step is exercised by nothing in the suite.**
+   * The other two are computed from `new X(` and `xModule(`, so a divergence
+   * that is neither cannot appear in them. This one used to be computed from
+   * **nothing**: its test iterated `Object.entries(PRODUCTION_ONLY_BOOT_STEPS)`
+   * and asked, of each declared entry, whether it was still true. A ledger that
+   * iterates its own declarations can report a stale entry and can never report
+   * an **omission** — which is "green means not looking" (issue #113) inside the
+   * one test whose job is to name the divergences. It shipped that way with
+   * exactly one entry while `loadOverlayDecorations` — a production-only boot
+   * step, absent from the harness, loading the per-deployment file decorations
+   * nothing in the suite ever composed — sat beside it unwritten and unseeable.
    *
-   * D-101's boot refusal is the newest thing behind it, which is exactly why the
+   * It is computed both ways now, exactly as its two siblings are: the
+   * population comes off both roots' sources, and the set difference is compared
+   * to the ledger's keys. A new divergence fails, and so does an entry the
+   * harness has since closed.
+   *
+   * `loadModulePresence` is the surviving entry, and it is a deliberate
+   * decision recorded in `test-server.ts`: the harness has no database state to
+   * reconcile and wants the two axes set by hand. Its consequence has to be
+   * written down rather than discovered — **every refusal, reconcile and
+   * derivation inside that boot step is exercised by nothing in the suite.**
+   * D-101's boot refusal is the newest thing behind it, which is why that
    * decision put the analysis in a pure function (`assertLockedModulesPresent`)
-   * and left only the call in the boot step. `test/unit/_lifecycle/locked-modules-present.test.ts`
-   * is its proof, and it runs because it needs no composition at all.
+   * and left only the call in the boot step;
+   * `test/unit/_lifecycle/locked-modules-present.test.ts` is its proof, and it
+   * runs because it needs no composition at all.
    */
   const PRODUCTION_ONLY_BOOT_STEPS: Readonly<Record<string, string>> = {
+    assertPublicApiBaseUrlConfigured:
+      'Production refuses to boot without PUBLIC_API_BASE_URL; the harness supplies its own ' +
+      'base URL, so the refusal itself — the message an operator sees on a misconfigured ' +
+      'deployment — is exercised by nothing here. `test/unit/config/public-api-base-url.test.ts` ' +
+      'covers the resolver over its inputs instead.',
+    configuredMigrations:
+      'Production builds the ordered migration list for the running ORM; the harness migrates ' +
+      'through the test template instead (`test/global-setup.ts`), so a defect in the wiring ' +
+      'between the registry and the ORM config would not fail a test here. The ordering itself ' +
+      'is proved by `test/unit/db/migrations-registry.test.ts` and `migration-order.test.ts`.',
+    enterSystemScope:
+      'Production wraps its boot-time database work in the system tenant scope; the harness ' +
+      'composes inside the scope its own setup already established. A boot step that forgot the ' +
+      'scope would therefore fail in production and pass here.',
+    lifecycleModuleFromStaticEntries:
+      'Production builds the lifecycle module from the deployment-resolved manifest set; the ' +
+      'harness builds its own registry through `harnessManifestRegistry()` so a test can pin ' +
+      'the two axes. A divergence between the resolved set and what the lifecycle module sees ' +
+      'is invisible to the suite; `test/unit/_lifecycle/registered-manifests.test.ts` covers ' +
+      'the resolution over its inputs.',
     loadModulePresence:
       'The harness seeds the registry cache by hand, so the reconciler, the gating-graph ' +
       'install and D-101’s two refusals never run in a test composition. Each is proved by a ' +
       'unit test over its pure half instead; a boot-level assertion here would be green for ' +
       'the wrong reason. It drains when the harness composes presence the way production ' +
       'does, which is T073’s open half.',
+    resolvePublicApiBaseUrl:
+      'The same seam as the assertion above, one call earlier: production derives the public ' +
+      'base URL every absolute link is built from, and the harness sets one. A deployment whose ' +
+      'derivation produced the wrong origin would ship links nobody in the suite ever reads.',
   };
 
   it('lists every boot step production runs and the harness does not', () => {
     // Comments are stripped first, and that is not a detail: `test-server.ts`
     // *names* `loadModulePresence()` in the comment explaining why it seeds the
-    // cache instead of calling it. A ledger that read the mention as a call
+    // cache instead of calling it. A population that read the mention as a call
     // would report the divergence closed by the very sentence documenting it.
-    const productionCode = codeOnly(production);
-    const harnessCode = codeOnly(harness);
+    const productionSteps = bootSteps(production, COMPOSITION_FUNCTIONS.production);
+    const harnessSteps = bootSteps(harness, COMPOSITION_FUNCTIONS.harness);
+
+    // The vacuous-pass guard. Both roots compose, so both must have been read;
+    // an empty population would agree with an empty ledger.
+    expect(productionSteps.has('composeModules')).toBe(true);
+    expect(harnessSteps.has('composeModules')).toBe(true);
+
+    const missing = [...productionSteps].filter((step) => !harnessSteps.has(step)).sort();
+
+    expect(missing).toEqual(Object.keys(PRODUCTION_ONLY_BOOT_STEPS).sort());
     for (const [step, cost] of Object.entries(PRODUCTION_ONLY_BOOT_STEPS)) {
-      expect(productionCode, `production does not run ${step}`).toContain(`${step}(`);
-      expect(harnessCode, `the harness runs ${step} after all — remove the entry`).not.toContain(
-        `${step}(`,
-      );
       expect(cost.length, `${step} has no recorded cost`).toBeGreaterThan(20);
     }
   });
@@ -504,181 +651,50 @@ interface RootModuleImport {
  * hide the last two names of a three-name import.
  */
 const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
-  '_i18n:ERROR_TRANSLATION_KEYS': {
-    owner: '_i18n',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'D-54 moved this map out of `src/http` and into both roots on purpose: a platform peer ' +
-      'may not name a module, a root may. It drains when the error-code→translation-key ' +
-      'mapping is declared beside the codes in `@b2b/contracts`, which is where the codes ' +
-      'already live, rather than in the module that renders them.',
-  },
-  '_lifecycle:REGISTERED_MANIFESTS': {
-    owner: '_lifecycle',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'The generated core manifest registry. Which modules a deployment ships is a root input, ' +
-      'so the read is right and its location is not: the file is generated by ' +
-      '`composer:generate` into a module folder. It drains when the generator emits it beside ' +
-      '`composition.generated.ts`, which is D-37 A2 work (F2).',
-  },
-  '_lifecycle:resolvedManifestEntries': {
-    owner: '_lifecycle',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'The **deployment-resolved** manifest set — the core registry plus the overlay modules ' +
-      'this deployment ships (D-104). Same standing as `REGISTERED_MANIFESTS` directly above, ' +
-      'and it drains with it: which modules a deployment ships is a root input, so the read is ' +
-      'right and only its location is wrong. It replaced two competing merges — this root ' +
-      'assembled one from the runtime scan while the function assembled another from the ' +
-      'generated index, and the one under test was not the one that ran. Held by both roots ' +
-      'symmetrically, which is what lets the harness compose a deployment.',
-  },
-  '_lifecycle:loadModulePresence': {
-    owner: '_lifecycle',
-    roots: ['production'],
-    ownerLocked: true,
-    reason:
-      'D-38 — module presence is a composition input, loaded before the first module registers. ' +
-      'Correct where it is; the import drains with the D-37 A2 relocation of the orchestrator ' +
-      'cluster into `src/kernel/lifecycle/` (F2). The harness seeds the registry cache by hand ' +
-      'instead, which is T073’s open half.',
-  },
-  '_lifecycle:lifecycleModuleFromStaticEntries': {
-    owner: '_lifecycle',
-    roots: ['production'],
-    ownerLocked: true,
-    reason:
-      'The orchestrator this deployment boots. Same D-37 A2 relocation as `loadModulePresence`; ' +
-      'the harness boots no orchestrator, which is the asymmetry T073 records.',
-  },
-  '_lifecycle:buildStaticRegistry': {
-    owner: '_lifecycle',
-    roots: ['harness'],
-    ownerLocked: true,
-    reason:
-      'Issue #158 — the manifest registry `_i18n` walks to reconcile every module’s translation ' +
-      'bundles. The harness contributed `() => undefined` here, so `translation_bundles` was ' +
-      'empty in every test and the error envelope’s whole translation path went unexercised; ' +
-      'issue #65 shipped through that gap. Production reaches the same function one hop away, ' +
-      'through `lifecycleModuleFromStaticEntries` directly above, so importing it **reduces** ' +
-      'the divergence this file measures: the alternative is a registry hand-rolled in the ' +
-      'harness, which is the shape T143c exists to refuse. It drains with the same D-37 A2 ' +
-      'relocation as the three entries above, and no sooner.',
-  },
-  'settings:collectRegisteredSettingsManifests': {
-    owner: 'settings',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Boot-time settings-manifest reconciliation, which must run before any module reads a ' +
-      'setting. The reconciler is already the kernel’s; this collector walks the registered ' +
-      'manifests and is the half still living in the module. It drains when it moves next to ' +
-      '`kernel/settings/manifest-reconciler.ts`, whose input it builds.',
-  },
-  'auth:promoteAdminActor': {
-    owner: 'auth',
-    roots: ['production'],
-    ownerLocked: true,
-    reason:
-      'The MFA actor bridge promotes a partially-authenticated session to an admin actor before ' +
-      'asserting it is one. Owner `auth`, which owns the actor shape. It drains when `auth` ' +
-      'provides actor promotion as a port; the harness resolves `request.testActor` directly and ' +
-      'has nothing to promote, which is why this entry is production-only.',
-  },
-  'auth:verifyPassword': {
-    owner: 'auth',
-    roots: ['production'],
-    ownerLocked: true,
-    reason:
-      'Step-up re-verification compares a password against a stored hash. The hasher is ' +
-      '`auth`’s, but the two hashes are `admin_users`’ and `customer_accounts`’ — so the ' +
-      'root reads two other modules’ password columns to use it. It drains when those two ' +
-      'provide `verifyPassword(subjectId, password)`, which also takes the hash out of a root.',
-  },
-  'email:absolutizePublicUrl': {
-    owner: 'email',
-    roots: ['production'],
-    ownerLocked: true,
-    reason:
-      'A pure function over `BACKEND_PUBLIC_URL` / `PUBLIC_API_BASE_URL` with **no consumer ' +
-      'inside `email`** — the root is its only caller. It is a deployment-origin helper filed ' +
-      'under the module that first needed it; it drains by moving to the platform, a relocation ' +
-      'that should be done for that reason and not for this count.',
-  },
-  'customer_accounts:CustomerAccount': {
-    owner: 'customer_accounts',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Six root bridges turn an account id into an e-mail, a role or an organization id by ' +
-      'querying the entity. Each has a different answer to "what if `customer_accounts` is off" ' +
-      '— the MFA bridge should refuse, an invoice e-mail address should degrade — so a single ' +
-      'directory port cannot be added without deciding all six, which is why it is one cluster ' +
-      'and not six one-line fixes.',
-  },
-  'customer_accounts:resolveCustomerRollupSubtreeIds': {
-    owner: 'customer_accounts',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Feature 056 roll-up widening, called from the per-request tenant-context builder ' +
-      '(`composition.ts:992`). The reason this entry used to carry — "a gated port here puts a ' +
-      'module’s effective state on the path of **every** request, including the ones that must ' +
-      'keep working while it is off" — was written before feature 074 and is void: ' +
-      '`customer_accounts` is `nonDeactivatable`, so that gate has no state in which it says ' +
-      'no and there is no request it could break. What is left is a **cost**, not a boundary: ' +
-      'one more container resolution per customer request, in the hottest builder in the tree. ' +
-      'That is a measurement somebody has to take, and the request scope already pays it for ' +
-      'other names. It drains with that measurement, under Principle I — a root that reads a ' +
-      'module’s roll-up query is a root that has to be edited when the roll-up changes.',
-  },
-  'admin_users:AdminUser': {
-    owner: 'admin_users',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Same cluster as `customer_accounts:CustomerAccount`, admin side. The "harder ' +
-      'constraint" this entry used to name — "the error envelope reads the admin’s preferred ' +
-      'language on the error path, so a gated port there would make an error response fail ' +
-      'when `admin_users` is off" — is void since feature 074 locked the module: the error ' +
-      'path cannot meet a closed gate, because there is no state in which that gate closes. ' +
-      'With all three owners of the cluster locked, the six root bridges have **one** answer ' +
-      'to "what if the module is off" instead of six, so the identity/directory projection ' +
-      'port stops being blocked and starts being work. It drains with that port, together ' +
-      'with `admin_roles:AdminRole` and `customer_accounts:CustomerAccount`.',
-  },
-  'admin_roles:AdminRole': {
-    owner: 'admin_roles',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'The RFQ admin-context resolver reads the acting admin’s role code to decide platform-admin ' +
-      'versus sales-representative visibility. Drains with the `admin_users` directory port above, ' +
-      'which is where the role has to be projected from.',
-  },
-  'orders:Order': {
-    owner: 'orders',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'The PWA push bridge turns an order-status event into a notification title and deep link. ' +
-      '`orders` provides `orderServiceAccessor`, but nothing on it answers "the business id and ' +
-      'the customer of this order" without loading the aggregate; drains when it does.',
-  },
-  'assets_library:Asset': {
-    owner: 'assets_library',
-    roots: ['production', 'harness'],
-    ownerLocked: true,
-    reason:
-      'Two bridges read asset rows for facts the service does not expose — the storage backend ' +
-      'and mime type for a PDF embed, and the public/undeleted filter for a feed image set. ' +
-      'This module still hands its service out through a root-registered `assetsLibraryService`, ' +
-      'so the entry drains with that conversion rather than before it.',
-  },
+  // `_i18n:ERROR_TRANSLATION_KEYS` stood here in both roots and drained with
+  // T040b, which packaged the module: each root writes
+  // `@endora-commerce/mod-i18n/backend` now, and a bare specifier into a package
+  // is not an import from `src/modules/**`. The read itself is unchanged and
+  // still right for the reason the entry gave — D-54 moved the map out of
+  // `src/http` because a platform peer may not name a module and a root may —
+  // and the drain the entry predicted, declaring the code→key mapping beside
+  // the codes in `@endora-commerce/contracts`, is still available and still
+  // worth doing. What this ledger measures is the *root's* reach into the
+  // application's module tree, and that reach is gone.
+  // **Six `_lifecycle` entries were here, and all six drained together with
+  // feature 080's T040b** — `REGISTERED_MANIFESTS`, `buildStaticRegistry`,
+  // `deploymentShippedEntries`, `resolvedManifestEntries`, `loadModulePresence`
+  // and `lifecycleModuleFromStaticEntries`.
+  //
+  // Each of them said the same thing in its reason, in the same words: the read
+  // is **right** and only its location is wrong, and it drains with the
+  // relocation of the lifecycle cluster out of a module folder. That is what
+  // happened. D-160.11 keeps the lifecycle subsystem out of the package sweep —
+  // it is the platform's operator half — so instead of becoming
+  // `@endora-commerce/mod-lifecycle` its sources became the host's own, at
+  // `src/lifecycle/`, and the manifest index went to `src/` with them (D-160.3).
+  // A composition root importing them is now the host importing itself, which
+  // is what every one of the six reasons argued it always was.
+  //
+  // Nothing about the reads changed: which modules a deployment ships is still
+  // a root input, production still boots an orchestrator the harness does not,
+  // and the harness still builds the static registry `_i18n` walks. The ledger
+  // stops recording them because its population is a root's value imports out of
+  // a **module's** directory, and this is no longer one — not because the
+  // divergences went away. `test/unit/_lifecycle/` is where they are measured.
+  // `auth:promoteAdminActor` was here, production-only. It said it would drain
+  // *"when `auth` provides actor promotion as a port"*, and that is **not** what
+  // drained it: packaging the module (T040b) did, because this ledger's
+  // population is a root's value imports from `src/modules/**` and the root now
+  // names `@endora-commerce/mod-auth/backend`. The recorded drain condition was
+  // one honest way out and not the only one, which is worth leaving in place of
+  // the entry — a reason that names a single remedy reads as if nothing else can
+  // clear it.
+  //
+  // What survives the re-spelling is the divergence itself: production promotes,
+  // the harness resolves `request.testActor` and has nothing to promote. That is
+  // measured by the roots' own actor resolvers, not here, and the port
+  // conversion is still the thing that would collapse it.
   // `catalog:catalogPromptResolverTools`, `catalog:catalogPromptMutationTools`,
   // `inventory:inventoryPromptTools` and `orders:ordersPromptTools` were here.
   // All four were the same entry: a boot-time push into `prompt_actions`'
@@ -698,24 +714,31 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
   // keyed by contributing module, stating a skip policy — so `catalog` pushes
   // from its own boot hook with a `nonBindingDependencies` entry, and neither
   // root names `catalog/prompt-tools.js`. Production 15 → 14, harness 10 → 9.
-  'product_feeds:FeedDeliveryError': {
-    owner: 'product_feeds',
-    roots: ['harness'],
-    // The one switchable owner on this ledger (D-72 point 1), and the one entry
-    // whose presence claim is therefore live — which is also why it is the one
-    // that is safe to make permanent: nothing is *built* here.
-    permanent: true,
-    reason:
-      'LEDGER-PERMANENT (D-72). Harness-only, and what is imported is the **contract of the ' +
-      'seam** rather than an implementation: this harness contributes delivery adapters that ' +
-      'refuse, and a `product_feeds` delivery adapter says "the transport is absent" by ' +
-      'throwing this error type. No instance of anything `product_feeds` owns is constructed ' +
-      'here, so the hazard the ceiling exists for — a root-built service that keeps answering ' +
-      'after its module is switched off — has no site. The only move that would remove the ' +
-      'name is relocating an error class into `@b2b/contracts` for one test helper’s benefit, ' +
-      'which nothing else in the tree wants and which would put a module’s internal failure ' +
-      'vocabulary into the shared API package. Nothing is: do not drain this.',
-  },
+  //
+  // `settings:collectRegisteredSettingsManifests`,
+  // `customer_accounts:resolveCustomerRollupSubtreeIds`,
+  // `email:absolutizePublicUrl` and `product_feeds:FeedDeliveryError` were the
+  // last four whose owner is a packaging candidate (feature 080, T040b). Each
+  // exited by a different door, and which door was a property of the site:
+  //
+  //  - the settings collector and the roll-up derivation are **rules a module
+  //    owns**, so both are published ports — `settingsManifestCollectionPort`
+  //    and `customerRollupScopePort` — and both roots resolve them lazily out
+  //    of the container they already composed. The registry and the tree
+  //    traversal stay the caller's arguments, because which modules a
+  //    deployment ships and how an organisation's subtree is walked are not
+  //    `settings`' or `customer_accounts`' to decide;
+  //  - `absolutizePublicUrl` had **no consumer inside `email` at all** and is
+  //    now the platform's, beside `configuredPublicApiBaseUrl`, unpublished
+  //    because only the host calls it;
+  //  - `FeedDeliveryError` was `permanent` here and the entry was **wrong**,
+  //    not merely stale. Its argument was that nothing is *constructed* by the
+  //    harness, which is true and is not the whole hazard: `DeliveryService`
+  //    classifies on `instanceof FeedDeliveryError`, so a second evaluation of
+  //    `product_feeds`' sources would answer false and silently reclassify
+  //    every declared refusal as a retryable `internal_error`. The class now
+  //    lives in `@endora-commerce/contracts`, beside the closed reason set it
+  //    carries, which is resolved once.
 };
 
 /**
@@ -736,28 +759,76 @@ const ROOT_MODULE_VALUE_IMPORTS: Readonly<Record<string, RootModuleImport>> = {
  * became 10 for that reason and for no drain.
  */
 const ROOT_MODULE_IMPORT_CEILING: Readonly<Record<RootName, number>> = {
-  production: 14,
-  // 9 → 10 (issue #158), and this is the one direction this number is not
-  // supposed to move, so the argument is here rather than in a merge-request
-  // description nobody will find again.
+  // 8 → 5 (feature 080, T040b): the `settings` collector, the
+  // `customer_accounts` roll-up derivation and `email`'s URL helper. What is
+  // left is `auth` and the two infrastructure modules — `_i18n` and
+  // `_lifecycle` — which are the last modules the packaging sweep converts, so
+  // this root now holds a value import of no packaging candidate at all.
   //
-  // The declaration added is `_lifecycle/services/static-registry.js`, for
-  // `buildStaticRegistry`. It is the function production already reaches
-  // through `lifecycleModuleFromStaticEntries`, so the harness now builds the
-  // manifest registry the way the deployment does instead of contributing
-  // `() => undefined` — which is what left `translation_bundles` empty in every
-  // test and the error envelope's translation path unexercised. The number this
-  // file counts went up; the divergence it exists to measure went down, and
-  // where those two disagree the divergence is the one that matters.
+  // It was 14 → 8 in T052. Six declarations left in one merge request, and
+  // five of them were the same shape: `CustomerAccount`, `AdminUser`,
+  // `AdminRole`, `Order` and `Asset`, each read with `em.findOne` in a root
+  // bridge. The sixth was `auth:verifyPassword`, which drained with them
+  // because what it compared against was two of those entities' password
+  // columns.
+  // 5 → 4 (T040b, `auth`): `promoteAdminActor` is the same declaration, now
+  // written as a bare specifier into `@endora-commerce/mod-auth/backend`.
   //
-  // Both raises available were worse. A registry hand-rolled in the harness is
-  // precisely the "the harness does it its own way" shape T143c refuses, and a
-  // `as LoadedManifestRegistry` cast over a partial object hides the same
-  // divergence from the type system instead of from this ledger.
-  harness: 10,
+  // 4 → 3 (T040b, `_i18n`): the cradle type and `ERROR_TRANSLATION_KEYS` were one
+  // declaration, now `@endora-commerce/mod-i18n/backend`.
+  //
+  // **3 → 0 (T040b, `_lifecycle`).** The three that were left were this root's
+  // reach into the lifecycle subsystem, and all of them drained at once when
+  // D-160.11 made that subsystem the host's own code at `src/lifecycle/` rather
+  // than a module in `src/modules/`. **Zero is the honest number and it is not
+  // an achievement of decoupling**: this root imports no value out of a module
+  // because there is no module left in the application tree to import one from.
+  // The divergences those entries recorded are unchanged — production still
+  // boots an orchestrator the harness does not — and they are measured by the
+  // roots' own behaviour and by `test/unit/_lifecycle/`, not here.
+  //
+  // A clause naming `catalog` and `orders` stood here until this measurement:
+  // it was written before batch six and the `orders`/`payments` pair, and both
+  // had been packaged for some time. That is why the number, and not the prose
+  // beside it, is what this file asserts.
+  production: 0,
+  // 5 → 3 (T040b): the same collector and roll-up derivation. The third
+  // declaration this root lost is `product_feeds:FeedDeliveryError`, which was
+  // `permanent` and therefore never counted here — so the raw count fell by
+  // three and this number by two.
+  //
+  // It was 10 → 5 in T052, the same six as production minus
+  // `auth:verifyPassword`, which this root never held: the harness contributes
+  // no password verifier, so disabling a second factor here has always
+  // required a current code.
+  //
+  // The comment this replaces recorded a raise, 9 → 10 (issue #158), and its
+  // argument stands and is worth keeping in one line: the declaration added was
+  // `buildStaticRegistry`, which made the harness build the manifest registry
+  // the way the deployment does instead of contributing `() => undefined`. The
+  // number went up and the divergence went down, and where those two disagree
+  // the divergence is the one that matters.
+  //
+  // 3 → 2 (T040b, `_i18n`): the same declaration, on the same terms as
+  // production's.
+  //
+  // **2 → 0 (T040b, `_lifecycle`)**, for the reason production reached zero:
+  // `REGISTERED_MANIFESTS` and `buildStaticRegistry` were reaches into a module
+  // folder that is now the host's own directory. The harness still builds the
+  // static registry and still boots no orchestrator; what changed is where the
+  // code it calls lives.
+  harness: 0,
 };
 
-/** What the restated SC-001 / SC-006 ask for, kept beside what is true. */
+/**
+ * What the restated SC-001 / SC-006 ask for, kept beside what is true.
+ *
+ * **Met since feature 080's T052**, in both roots, for the first time — which
+ * is the event the assertion at the bottom of this describe block was written
+ * to make somebody notice. It stays here rather than being deleted: the
+ * ceilings are a ratchet, and a ratchet with nothing to be at or below is one
+ * a later merge request can raise without argument.
+ */
 const ROOT_MODULE_IMPORT_CRITERION = 10;
 
 /**
@@ -772,9 +843,14 @@ const ROOT_MODULE_IMPORT_CRITERION = 10;
  * operator switches its module off and no test can see the difference.
  */
 const ROOT_CONSTRUCTED_MODULE_CLASSES: Readonly<Record<string, string>> = {
-  FeedDeliveryError:
-    'An error type, not a service: the harness throws it from a refusing delivery adapter to ' +
-    'say the transport is absent, which is the shape `product_feeds` declares for that seam.',
+  // Empty since feature 080's T040b. `FeedDeliveryError` was the one entry —
+  // 'an error type, not a service', which was true and was the wrong question:
+  // `DeliveryService` classifies a transport refusal with
+  // `instanceof FeedDeliveryError`, so what mattered was not whether the
+  // harness builds a *service* but whether the class it builds is the one the
+  // module compares against. Once `product_feeds` is a package it would not
+  // have been. The class moved to `@endora-commerce/contracts`, which is
+  // resolved once, so no root imports it out of a module any more.
 };
 
 /** Every value binding a root imports from `src/modules/**`, keyed `<owner>:<binding>`. */
@@ -988,13 +1064,23 @@ describe('T143c — the root value-import ledger', () => {
     }
   });
 
-  it('keeps the criterion visible beside the residue it is not yet at', () => {
-    // Not a behavioural assertion. The ceilings above are what is true; this is
-    // what was asked for, and the gap between them is the remaining work. The
-    // moment a ceiling reaches the criterion, this assertion is the one that
-    // says so.
-    const worst = Math.max(...Object.values(ROOT_MODULE_IMPORT_CEILING));
-    expect(worst).toBeGreaterThanOrEqual(ROOT_MODULE_IMPORT_CRITERION);
+  it('holds every root at the criterion, now that both are under it', () => {
+    // This assertion used to read `toBeGreaterThanOrEqual` and was documented
+    // as "the moment a ceiling reaches the criterion, this assertion is the one
+    // that says so". T052 is that moment: production 14 → 8 and the harness
+    // 10 → 5, both under 10. So it inverts, and what it now refuses is a
+    // ceiling raised back over the criterion — which is the only direction
+    // left that would mean anything.
+    //
+    // The two are separate assertions on purpose. The one above holds each root
+    // to its own recorded residue and is what catches a new import; this one
+    // holds the recorded residues to the number SC-001 and SC-006 asked for,
+    // and is what catches a residue being edited upward to make room for one.
+    for (const [root, ceiling] of Object.entries(ROOT_MODULE_IMPORT_CEILING)) {
+      expect(ceiling, `${root}'s recorded residue is over the criterion`).toBeLessThanOrEqual(
+        ROOT_MODULE_IMPORT_CRITERION,
+      );
+    }
   });
 });
 
@@ -1026,5 +1112,24 @@ describe('T143c — no root constructs a module-owned service', () => {
     for (const [name, reason] of Object.entries(ROOT_CONSTRUCTED_MODULE_CLASSES)) {
       expect(reason.length, `${name} has no recorded argument`).toBeGreaterThan(40);
     }
+  });
+
+  it('holds no allowance for a class no root imports out of a module', () => {
+    // The direction the assertion above cannot have, because it iterates its
+    // own declared entries: a list that only ever reads itself can say that
+    // every entry carries an argument and can never say that an entry still
+    // describes the tree. `FeedDeliveryError`'s allowance was exactly that —
+    // it would have gone on asserting a shape `product_feeds` no longer
+    // declares, in a file whose whole subject is claims about the two roots.
+    const imported = new Set<string>();
+    for (const [root, source] of ROOT_SOURCES) {
+      for (const key of moduleValueImports(source, `${root}.ts`).keys()) {
+        imported.add(key.slice(key.indexOf(':') + 1));
+      }
+    }
+    const stale = Object.keys(ROOT_CONSTRUCTED_MODULE_CLASSES)
+      .filter((name) => !imported.has(name))
+      .sort();
+    expect(stale).toEqual([]);
   });
 });

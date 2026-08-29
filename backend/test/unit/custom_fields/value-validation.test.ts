@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { SupportedEntityType } from '@b2b/contracts';
+import type { SupportedEntityType } from '@endora-commerce/contracts';
 import {
   CustomFieldValidationError,
   CustomFieldValueService,
   type DefinitionSource,
-} from '../../../src/modules/custom_fields/services/custom-field-value.service.js';
-import type { CachedDefinition } from '../../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
+} from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
+import type { CachedDefinition } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
 
 /**
  * Unit tests for the pure value-validation logic (feature 055, SC-002/SC-003/FR-010).

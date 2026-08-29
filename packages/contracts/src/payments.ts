@@ -42,6 +42,51 @@ export const paymentSchema = z.object({
 });
 export type Payment = z.infer<typeof paymentSchema>;
 
+/**
+ * What a buyer is told to do next after asking to pay an unpaid order again
+ * (issue #264). The three kinds are the `StartPaymentResult` a payment adapter
+ * returns, carried out to the storefront: send the buyer to the gateway, show
+ * them the transfer details again, or tell them there is nothing to do here.
+ */
+export const paymentRetryNextActionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('none') }),
+  z.object({ kind: z.literal('redirect'), url: z.string().url() }),
+  z.object({
+    kind: z.literal('awaiting_transfer'),
+    iban: z.string().nullable(),
+    reference: z.string(),
+  }),
+]);
+export type PaymentRetryNextAction = z.infer<typeof paymentRetryNextActionSchema>;
+
+/**
+ * The reply to `POST /api/v1/orders/:orderId/payments/retry` (issue #264).
+ *
+ * `opened` is the difference between the two things the buyer's click can
+ * mean, and the storefront routes on it:
+ *
+ *  - `true`  — the previous attempt had failed, so attempt `attemptNo` was
+ *              opened and its provider session started. `nextAction` is that
+ *              session.
+ *  - `false` — an attempt was already open (a double-click, a reload, a buyer
+ *              coming back to a payment they abandoned). Nothing was opened and
+ *              no provider was contacted, so `nextAction` is `none` and the
+ *              buyer belongs on the existing payment step for that attempt.
+ *
+ * That split is what makes the endpoint idempotent at the provider: one click
+ * is one provider object, whatever the buyer does to the button. It matters
+ * concretely rather than tidily — PayU keys its order on `extOrderId`, which is
+ * this platform's payment id, and a second create against a live attempt would
+ * be a duplicate `extOrderId` at the POS.
+ */
+export const paymentRetryResultSchema = z.object({
+  paymentId: uuidSchema,
+  attemptNo: z.number().int().positive(),
+  opened: z.boolean(),
+  nextAction: paymentRetryNextActionSchema,
+});
+export type PaymentRetryResult = z.infer<typeof paymentRetryResultSchema>;
+
 export const deliveryMethodSchema = z.object({
   id: uuidSchema,
   code: z.string(),
@@ -122,6 +167,25 @@ export interface PaymentReadPort {
   findLatestForOrder(orderId: string): Promise<PaymentRecord | null>;
   /** Resolve by the provider's own reference (a PaymentIntent id, an order id at the PSP). */
   findByExternalReference(externalReference: string): Promise<PaymentRecord | null>;
+  /**
+   * How many attempts reference a payment method — the delete-guard
+   * `payment_methods` runs before removing one (feature 034 FR-003, feature
+   * 075).
+   *
+   * A count rather than the rows: the guard needs "is this method still spoken
+   * for", and the figure goes into the operator's 409 message. Handing back
+   * every attempt for a method a busy shop has used for a year would be a read
+   * of unbounded size for a yes/no question.
+   *
+   * It runs on this port's own `EntityManager`, so it does **not** join the
+   * caller's transaction. That costs nothing here and is worth saying: the
+   * deleting transaction writes no `payments` row, and under `read committed`
+   * an in-transaction count took a fresh snapshot per statement anyway — it
+   * never held a concurrent attempt off. What guarantees no orphan is the
+   * guard plus this module refusing to record an attempt against a method that
+   * is gone, not the instant the count was taken.
+   */
+  countByPaymentMethod(paymentMethodId: string): Promise<number>;
 }
 
 /**

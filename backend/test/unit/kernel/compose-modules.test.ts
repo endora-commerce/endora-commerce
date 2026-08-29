@@ -377,3 +377,93 @@ describe('issue #52 — the contribution window is a method, not a convention', 
     expect(container.resolve<string>('extraPort')).toBe('b');
   });
 });
+
+/**
+ * D-156.6 — a module may not register over a name a composition root supplies.
+ *
+ * The composition-level half of the guard, driven through the real
+ * `composeModules` rather than a hand-built context: the refusal has to hold in
+ * the shape a deployment actually runs, and it has to be attributed to the
+ * module that wrote it, which is what `ModuleCompositionError` does for every
+ * other registration failure.
+ *
+ * The set it refuses is derived on every composition — a name the container
+ * holds that no module claimed — so a root that starts or stops supplying a
+ * name changes the answer in the same run and there is no list to keep true
+ * (D-100, D-156.5).
+ */
+describe('D-156.6 — a root-supplied name is not a module to take', () => {
+  it('refuses the registration, naming the module and the name', () => {
+    let thrown: unknown;
+    try {
+      compose([
+        entry('promotions', (ctx) => {
+          ctx.di.register({ hostValue: ctx.asValue('mine') });
+        }),
+      ]);
+    } catch (err) {
+      thrown = err;
+    }
+
+    const message = (thrown as Error).message;
+    expect(message).toContain('promotions');
+    expect(message).toContain('hostValue');
+  });
+
+  it('leaves the root value resolving, so a refused composition changes nothing', () => {
+    const container = createRootContainer();
+    registerValues(container, { commandBus: 'the-audited-write-path' });
+
+    expect(() =>
+      composeModules(
+        [
+          entry('promotions', (ctx) => {
+            ctx.di.register({ commandBus: ctx.asValue('mine') });
+          }),
+        ],
+        { container, eventBus: new EventBus(), log: log() },
+      ),
+    ).toThrow();
+
+    expect(container.resolve<string>('commandBus')).toBe('the-audited-write-path');
+  });
+
+  it('does not catch the contribution window, which overwrites a default on purpose', () => {
+    // D-45's one slot. `contribute()` runs *after* every module registered, so
+    // the name it writes over is one a module owns — the opposite direction to
+    // the guard, and legal by design. A guard that read "the container already
+    // holds this" without asking who claimed it would break every root.
+    const container = createRootContainer();
+    const composed = composeModules(
+      [
+        entry('defaulting_module', (ctx) => {
+          ctx.di.register({ mailer: ctx.asValue('module-default') });
+        }),
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    composed.contribute({ mailer: 'root-contribution' });
+
+    expect(container.resolve<string>('mailer')).toBe('root-contribution');
+  });
+
+  it('lets a later module register a name an earlier one did not take', () => {
+    // The discrimination at composition scale: 291 module registrations stand
+    // against 17 root-supplied names, and every one of the 291 must still land.
+    const container = createRootContainer();
+    registerValues(container, { hostValue: 'host' });
+
+    composeModules(
+      [
+        entry('price_lists', (ctx) => ctx.di.register({ pricingService: ctx.asValue('core') })),
+        entry('promotions', (ctx) => ctx.di.register({ promotionService: ctx.asValue('promo') })),
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    expect(container.resolve<string>('pricingService')).toBe('core');
+    expect(container.resolve<string>('promotionService')).toBe('promo');
+    expect(container.resolve<string>('hostValue')).toBe('host');
+  });
+});

@@ -1,12 +1,12 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { describe, expect, it } from 'vitest';
-import type { CatalogPromoAttributePort } from '@b2b/contracts';
+import type { CatalogPromoAttributePort } from '@endora-commerce/contracts';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import {
   registerPromotionRoutes,
   type PromotionRoutesDeps,
-} from '../../../src/modules/promotions/routes.js';
+} from '../../../../packages/modules/promotions/src/backend/routes.js';
 
 /**
  * Issue #164, the instance one layer above the service.

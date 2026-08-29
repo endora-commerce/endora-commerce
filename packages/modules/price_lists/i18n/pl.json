@@ -1,0 +1,10 @@
+{
+  "activity.verb.price_list.activate": "aktywował(a) cennik",
+  "activity.verb.price_list.bracket_update": "zaktualizował(a) próg cenowy na",
+  "activity.verb.price_list.create": "utworzył(a) cennik",
+  "activity.verb.price_list.draftify": "przeniósł(esła) cennik do wersji roboczej",
+  "activity.verb.price_list.duplicate": "zduplikował(a) cennik",
+  "activity.verb.price_list.expire": "zakończył(a) cennik",
+  "activity.verb.price_list.products_replace": "zaktualizował(a) produkty na cenniku",
+  "activity.verb.price_list.update": "zaktualizował(a) cennik"
+}

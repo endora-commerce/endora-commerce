@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '../../src/events/bus.js';
 import { createRootContainer } from '../../src/kernel/container.js';
-import { ForeignDecorationError, type ModuleContext } from '../../src/kernel/module-context.js';
+import {
+  ForeignDecorationError,
+  PackageDecorationNotOfferedError,
+  type ModuleContext,
+} from '../../src/kernel/module-context.js';
 import { composeModules, type ModuleEntry } from '../../src/kernel/compose.js';
 import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
@@ -27,6 +31,13 @@ import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
  * while skipping the derivation, and "from the root the module was discovered
  * under, never from anything the module says about itself" is half of what
  * makes the exemption safe.
+ *
+ * The **owner** side of that derivation is asserted next door, in
+ * `packaged-owner-decoration.test.ts` (D-177's Case A). Nothing here can carry
+ * it: the stand-in below is hand-built with `id: 'price_lists'`, so the real
+ * generated entry may change underneath it, and T-A″ sets `installedPackage`
+ * by hand, so it asserts the guard and never the derivation that decides which
+ * owners reach it.
  */
 
 const log = (): { info: () => void; warn: () => void; error: () => void } => ({
@@ -116,5 +127,67 @@ describe('T-A′ — the same module, without the overlay marking, is refused', 
     expect((thrown as ForeignDecorationError).registrationName).toBe('pricingService');
     expect((thrown as ForeignDecorationError).moduleId).toBe('example_overlay');
     expect((thrown as ForeignDecorationError).owner).toBe('price_lists');
+  });
+});
+
+/**
+ * T-A″ — the same overlay module, over an owner that is an **installed
+ * package** (D-176 Q3, ruled by the owner on 2026-08-25).
+ *
+ * The third half of the pair above, and it needs both of them to mean anything:
+ * T-A says the exemption exists, T-A′ says it is not everyone's, and this says
+ * where it stops. A deployment may wrap what core registers and not what a
+ * stranger's package registers — because a package's `exports` map publishes
+ * `registerModule`, its entities, its migrations and `./ports`, and the
+ * container names it registers internally are published by none of them.
+ *
+ * Until the decoration drain landed this case was refused **by accident**:
+ * `composition.ts` composes overlays before packages, so the wrap ran against a
+ * container the package had not registered into yet and `hasRegistration` said
+ * no. The drain removes that accident, which is exactly why the refusal has to
+ * be a rule — the same change would otherwise have granted the capability
+ * silently.
+ *
+ * The entry carries the real derived `overlay: true` for the same reason T-A
+ * does, and its counterpart is marked the way the host's package loader marks
+ * one.
+ */
+describe('T-A″ — the same overlay module cannot wrap an installed package’s registration', () => {
+  it('throws PackageDecorationNotOfferedError naming the overlay, the package and the name', async () => {
+    const calls = { count: 0 };
+    const packagedPricing: ModuleEntry = {
+      ...corePricingModule(calls),
+      id: 'vendor_pricing',
+      installedPackage: true,
+    };
+
+    let thrown: unknown;
+    try {
+      compose([packagedPricing, await exampleOverlayEntry()]);
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(PackageDecorationNotOfferedError);
+    expect((thrown as PackageDecorationNotOfferedError).registrationName).toBe('pricingService');
+    expect((thrown as PackageDecorationNotOfferedError).moduleId).toBe('example_overlay');
+    expect((thrown as PackageDecorationNotOfferedError).owner).toBe('vendor_pricing');
+    // "Not offered yet", with the exit named: a package may later declare which
+    // of its registrations are decoratable. A refusal that reads as permanent
+    // sends its author to fork.
+    expect((thrown as Error).message).toContain('not offered yet');
+    expect((thrown as Error).message).toContain('./ports');
+  });
+
+  it('is about the owner, not about the seam — the same overlay still wraps core', async () => {
+    // The discrimination. Without it, deleting the overlay exemption outright
+    // would satisfy the case above.
+    const calls = { count: 0 };
+    const { cradle } = compose([corePricingModule(calls), await exampleOverlayEntry()]);
+
+    const pricing = cradle['pricingService'] as {
+      resolveLinePrice(input: unknown): Promise<{ priceListId: string } | null>;
+    };
+    expect((await pricing.resolveLinePrice({}))?.priceListId).toBe('overlay:core-list');
   });
 });

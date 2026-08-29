@@ -7,6 +7,10 @@ import {
   collectScannedFiles,
   isMigratedModulePath,
 } from '../../../scripts/check-command-coverage.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+
+/** Where each module's sources really are — resolved, never spelled (T040a). */
+const MODULE_LAYOUT = await requireModuleLayout('[check-command-coverage]');
 
 /** Fixture path under a service dir so the migrated-scope check applies. */
 const PATH = 'src/modules/catalog/services/thing.service.ts';
@@ -268,8 +272,21 @@ describe('command coverage check (feature 054, FR-009 / FR-010) — method-level
  * arguments rather than omissions — see the header of the check.
  */
 describe('the scan reaches every file a module owns (issue #122)', () => {
-  const modulesRoot = fileURLToPath(new URL('../../../src/modules', import.meta.url));
-  const files = collectScannedFiles(modulesRoot).map((f) => f.replace(modulesRoot, ''));
+  // The walk's roots are **resolved**, not spelled (T040a): a module that has
+  // become a package is under `packages/modules/<id>/`, and a test that named
+  // `src/modules` would go on opening the modules the sweep has not reached yet
+  // and quietly stop covering the ones it has. Every path is normalised back to
+  // `/<moduleId>/<rest>` so the examples below say which *shape* the walk opens
+  // and nothing about where that module currently lives.
+  const files = MODULE_LAYOUT.moduleWalkRoots.flatMap((root) =>
+    collectScannedFiles(root).map((absolute) => {
+      const id = MODULE_LAYOUT.moduleIdOfPath(absolute);
+      const directory = id === null ? null : MODULE_LAYOUT.moduleDirectoryOf(id);
+      if (id === null || directory === null) return absolute.replace(root, '');
+      const inside = absolute.slice(directory.length).replace(/^\/src\/backend/, '');
+      return `/${id}${inside}`;
+    }),
+  );
   const has = (suffix: string): boolean => files.some((f) => f.endsWith(suffix));
 
   it('opens nested service directories, not just services/<file>.ts', () => {
@@ -287,12 +304,23 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
   it('opens route files, command files and the composition seam', () => {
     expect(has('/autopay/routes.admin.ts')).toBe(true);
     expect(has('/product_feeds/commands/product-feed.commands.ts')).toBe(true);
-    expect(has('/customer_accounts/backend.ts')).toBe(true);
+    // The composition seam. A packaged module keeps it at `src/backend/index.ts`,
+    // which the normaliser above strips to `/<id>/index.ts`; the walk names no
+    // file, so the spelling is the module's and not the check's.
+    expect(has('/customer_accounts/index.ts')).toBe(true);
   });
 
   it('opens CLI entry points and boot-time seeds', () => {
-    expect(has('/admin_users/scripts/create-admin.ts')).toBe(true);
+    // `cli/` since feature 080's T042b: a module's operator command is a
+    // manifest declaration the host runs (D-160.9), so its body no longer sits
+    // under `scripts/`. The population never named a directory — it is every
+    // `.ts` under `src/modules/` minus four reasoned exclusions — so the move
+    // costs the walk nothing, and this is the assertion that says so.
+    expect(has('/admin_users/cli/create-admin.ts')).toBe(true);
     expect(has('/product_feeds/seeds/predefined-templates.ts')).toBe(true);
+    // The five `module:*` platform commands stay hand-built scripts, and stay
+    // in the population (D-157.2/.4 — a platform command must not compose).
+    expect(has('/_lifecycle/scripts/install.ts')).toBe(true);
   });
 
   it('still excludes migrations, tests, declarations and the audit writer', () => {
@@ -301,11 +329,15 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
     expect(files.some((f) => f.includes('/audit_logs/'))).toBe(false);
   });
 
-  it('reaches overlay modules and decorations under src/apps', () => {
+  it('reaches a deployment’s overlay modules under src/apps', () => {
+    // It used to assert a `decorations/` file here as well. That seam is
+    // retired — a deployment overrides a service from its overlay module's
+    // `ctx.di.decorate` (D-103) — so the whole population under `src/apps/` is
+    // overlay modules and the two per-deployment declaration files.
     const appsRoot = fileURLToPath(new URL('../../../src/apps', import.meta.url));
     const overlay = collectScannedFiles(appsRoot).map((f) => f.replace(appsRoot, ''));
-    expect(overlay.some((f) => f.endsWith('/decorations/pricing-service.ts'))).toBe(true);
     expect(overlay.some((f) => f.includes('/modules/example_overlay/'))).toBe(true);
+    expect(overlay.some((f) => f.endsWith('/reduced-deployment.ts'))).toBe(true);
   });
 });
 
@@ -344,13 +376,13 @@ describe('the analyzer flags a write in each newly scanned category', () => {
         }
       }`;
     const findings = analyzeSource(
-      'src/modules/pim_ergonode/services/import/product-phase.ts',
+      'packages/modules/pim_ergonode/src/backend/services/import/product-phase.ts',
       src,
     );
     expect(findings.map((f) => f.method)).toEqual(['apply']);
   });
 
-  it('flags a boot hook in backend.ts that mutates', () => {
+  it('flags a boot hook in a module composition file that mutates', () => {
     const src = `
       export function registerModule(ctx: any) {
         ctx.onBoot(async ({ em }: any) => {
@@ -358,7 +390,10 @@ describe('the analyzer flags a write in each newly scanned category', () => {
           await em.persistAndFlush(row);
         });
       }`;
-    const findings = analyzeSource('src/modules/customer_accounts/backend.ts', src);
+    const findings = analyzeSource(
+      'packages/modules/customer_accounts/src/backend/index.ts',
+      src,
+    );
     expect(findings.map((f) => f.kind)).toEqual(['unaudited-sensitive-write']);
   });
 
@@ -534,7 +569,9 @@ describe('a mutation name only counts off an EntityManager when the name is ambi
           await this.backend.remove(id);
         }
       }`;
-    expect(analyzeSource('src/modules/pim_ergonode/queues/import-scheduler.ts', src)).toEqual([]);
+    expect(
+      analyzeSource('packages/modules/pim_ergonode/src/backend/queues/import-scheduler.ts', src),
+    ).toEqual([]);
   });
 
   it('still flags `remove` on every EntityManager spelling in the tree', () => {
@@ -548,7 +585,10 @@ describe('a mutation name only counts off an EntityManager when the name is ambi
           }
         }`;
       const findings = analyzeSource('src/modules/catalog/services/x.ts', src);
-      expect(findings.map((f) => f.kind), em).toEqual(['unaudited-sensitive-write']);
+      expect(
+        findings.map((f) => f.kind),
+        em,
+      ).toEqual(['unaudited-sensitive-write']);
     }
   });
 
@@ -590,9 +630,10 @@ describe('a mutation name only counts off an EntityManager when the name is ambi
             ${em}.create('X', { id });
           }
         }`;
-      expect(analyzeSource('src/modules/catalog/services/x.ts', src).map((f) => f.kind), em).toEqual(
-        ['unaudited-sensitive-write'],
-      );
+      expect(
+        analyzeSource('src/modules/catalog/services/x.ts', src).map((f) => f.kind),
+        em,
+      ).toEqual(['unaudited-sensitive-write']);
     }
   });
 
@@ -695,7 +736,7 @@ describe('a marker attaches to the unit it is written on', () => {
         for (const m of manifests) em.create('ModuleRegistration', { moduleId: m.id });
         await em.flush();
       }`;
-    expect(analyzeSource('src/modules/_lifecycle/services/presence-load.ts', src)).toEqual([]);
+    expect(analyzeSource('src/lifecycle/services/presence-load.ts', src)).toEqual([]);
   });
 
   it('ignores a file header even when the unit under it has no doc comment', () => {

@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { InvoiceTemplateService } from '../../../src/modules/invoices/services/invoice-template-service.js';
+import { InvoiceTemplateService } from '../../../../packages/modules/invoices/src/backend/services/invoice-template-service.js';
 import { ADMIN_COOKIE } from './helpers.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 

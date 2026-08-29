@@ -1,11 +1,11 @@
-import type { AssetsLibraryCradle } from '../../src/modules/assets_library/backend.js';
-import type { CartShoppingListBridge, CartsCradle } from '../../src/modules/carts/backend.js';
-import type { ConfigurationTypeRegistry } from '../../src/modules/credentials/services/configuration-type-registry.js';
-import type { CredentialsService } from '../../src/modules/credentials/services/credentials.service.js';
-import type { AdminNotificationService } from '../../src/modules/admin_notifications/services/admin-notification-service.js';
+import type { AssetsLibraryCradle } from '../../../packages/modules/assets_library/src/backend/index.js';
+import type { CartShoppingListBridge, CartsCradle } from '../../../packages/modules/carts/src/backend/index.js';
+import type { ConfigurationTypeRegistry } from '../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
+import type { CredentialsService } from '../../../packages/modules/credentials/src/backend/services/credentials.service.js';
+import type { AdminNotificationService } from '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 
 /**
  * A subscriber-shaped object that subscribes to nothing.
@@ -41,15 +41,19 @@ import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js
 // through the same `composedModules.contribute(…)` window, which is a method
 // rather than a convention precisely because this pair kept drifting.
 import { MODULES } from '../../src/composition.generated.js';
+// The composition machinery, by relative path since T042c: it is the host's,
+// not the `./kernel` subpath's, and this is the second composition root rather
+// than a module. `harness-parity.test.ts` holds the two roots to each other.
+import { composeModules } from '../../src/kernel/compose.js';
 import {
-  composeModules,
-  createRegistrationOwnership,
   createRootContainer,
   registerOrm,
   registerValues,
-  requiredModulesFrom,
   type KernelContainer,
-} from '../../src/kernel/index.js';
+} from '../../src/kernel/container.js';
+import { createRegistrationOwnership } from '../../src/kernel/module-context.js';
+import { platformLogger } from '../../src/kernel/logging.js';
+import { requiredModulesFrom } from '../../src/kernel/lifecycle/required-modules.js';
 import type { DecorationRecord } from '../../src/kernel/compose.js';
 import {
   resolveTenantContext,
@@ -59,118 +63,147 @@ import { initOrm, closeOrm } from '../../src/db/index.js';
 import { assertServicesAvailable } from '../declared-services.js';
 import { EventBus } from '../../src/events/bus.js';
 import { CommandBus } from '../../src/commands/index.js';
-import type { SessionService } from '../../src/modules/auth/services/session-service.js';
+import type { SessionService } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
-import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
-import type { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import type { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
-import type { AuthCradle } from '../../src/modules/auth/backend.js';
+import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
+import type { PermissionCatalogueService } from '../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
+import type { AdminRoleService } from '../../../packages/modules/admin_roles/src/backend/services/admin-role-service.js';
+import type { AuthCradle } from '@endora-commerce/mod-auth/backend';
 import {
   REGISTERED_MANIFESTS,
+  deploymentShippedEntries,
   resolvedManifestEntries,
-} from '../../src/modules/_lifecycle/registered-manifests.js';
+} from '../../src/lifecycle/registered-manifests.js';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
-import { buildStaticRegistry } from '../../src/modules/_lifecycle/services/static-registry.js';
-import type { LoadedManifestRegistry } from '../../src/modules/_lifecycle/services/manifest-loader.js';
-import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@b2b/contracts';
+import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
+import { buildStaticRegistry } from '../../src/lifecycle/services/static-registry.js';
+import type { LoadedManifestRegistry } from '../../src/lifecycle/services/manifest-loader.js';
+import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
+// Feature 080 (T052) — the contract types for the seven ports that replaced
+// this root's five entity-class reads, spelled exactly as `composition.ts`
+// spells them.
+import type {
+  AdminPasswordVerificationPort,
+  AdminRolePort,
+  AdminUserReadPort,
+  AssetReadPort,
+  CustomerAccountReadPort,
+  CustomerPasswordVerificationPort,
+  CustomerRollupScopePort,
+  OrderReadPort,
+  SettingsManifestCollectionPort,
+} from '@endora-commerce/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
-import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { AdminUser } from '../../src/modules/admin_users/entities/admin-user.entity.js';
-import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
+import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 // D-54 — injected into the error envelope, exactly as `composition.ts` does it:
 // `src/http` may not name a module (D-52), a composition root may.
-import { ERROR_TRANSLATION_KEYS } from '../../src/modules/_i18n/services/error-translation.js';
-import { AdminRole } from '../../src/modules/admin_roles/entities/admin-role.entity.js';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+// Type-only, and off the package's **source** rather than its `./backend`
+// subpath, because the three service types below come from the same source
+// files: `dist` and `src` are two nominal declarations of one class, so a
+// cradle typed by one and a getter typed by the other is TS2322. It erases,
+// so nothing is loaded twice (D-160.6.1) — `check:singleton-identity` asks
+// about value reaches, and this is not one.
 import type {
   OrganizationsCradle,
   OrganizationTaxProfilePort,
-} from '../../src/modules/organizations/backend.js';
-import type { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
-import type { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
-import type { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
-import { resolveCustomerRollupSubtreeIds } from '../../src/modules/customer_accounts/services/customer-rollup-scope.js';
+} from '../../../packages/modules/organizations/src/backend/index.js';
+import type { OrganizationModerationService } from '../../../packages/modules/organizations/src/backend/services/organization-moderation-service.js';
+import type { OrganizationContextService } from '../../../packages/modules/organizations/src/backend/services/organization-context-service.js';
+import type { OrganizationRestrictionService } from '../../../packages/modules/organizations/src/backend/services/organization-restriction-service.js';
 import type {
   VatValidator,
   VatValidationResult,
-} from '../../src/modules/organizations/services/vat-validator-port.js';
+} from '../../../packages/modules/organizations/src/backend/services/vat-validator-port.js';
 // Feature 072 (T079) — `email` composes through the kernel here too, from the
 // generated list. The five hand-rolled `new ConsoleMailer()` fallbacks this
 // replaced were the reason a conversion of `composition.ts` alone would have
 // proved nothing: every mail-sending suite runs against this root.
-import type { EmailCradle } from '../../src/modules/email/backend.js';
-import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
-import type { ShoppingListService } from '../../src/modules/shopping_lists/services/shopping-list-service.js';
-import type { ReturnsBridge } from '../../src/modules/returns/backend.js';
-import type { InvoicesBridge, InvoicesCradle } from '../../src/modules/invoices/backend.js';
-import type { NewsletterBridge } from '../../src/modules/newsletter/backend.js';
-import type { CustomFieldsCradle } from '../../src/modules/custom_fields/backend.js';
-import type { CustomFieldDefinitionService } from '../../src/modules/custom_fields/services/custom-field-definition.service.js';
-import type { CustomFieldValueService } from '../../src/modules/custom_fields/services/custom-field-value.service.js';
-import type { CustomFieldDefinitionsCache } from '../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
-import type { ApiKeysCradle } from '../../src/modules/api_keys/backend.js';
-import type { CmsCradle } from '../../src/modules/cms/backend.js';
-import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
-import type { TargetValidatorDeps } from '../../src/modules/megamenu/services/target-validator.js';
-import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefront-resolver.js';
+import type { EmailCradle } from '../../../packages/modules/email/src/backend/index.js';
+import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend';
+import type { ShoppingListService } from '../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
+import type { ReturnsBridge } from '../../../packages/modules/returns/src/backend/index.js';
+// `dist`, not `src`, and it is the type that matches the object (feature 080,
+// T040b, batch four). The container holds the **composed** cradle, which the
+// platform built out of `@endora-commerce/mod-invoices/backend` — i.e. out of
+// `dist` — so typing it from the package's source was already describing a
+// different class. It is usually harmless, because most of these shapes are
+// structural; it stops being harmless where one has a private field, which makes
+// it nominal: `InvoiceNumberGenerator` does, and handing `h.invoices.numberGenerator`
+// to a `dist`-imported `CorrectiveInvoiceProvider` is TS2345 until this import
+// names the same build the runtime does.
+import type { InvoicesBridge, InvoicesCradle } from '../../../packages/modules/invoices/dist/backend/index.js';
+import type { NewsletterBridge } from '../../../packages/modules/newsletter/src/backend/index.js';
+import type { CustomFieldsCradle } from '../../../packages/modules/custom_fields/src/backend/index.js';
+import type { CustomFieldDefinitionService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definition.service.js';
+import type { CustomFieldValueService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
+import type { CustomFieldDefinitionsCache } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
+import type { ApiKeysCradle } from '../../../packages/modules/api_keys/src/backend/index.js';
+import type { CmsCradle } from '../../../packages/modules/cms/src/backend/index.js';
+import type { MegamenuCradle } from '@endora-commerce/mod-megamenu/backend';
+import type { TargetValidatorDeps } from '../../../packages/modules/megamenu/src/backend/services/target-validator.js';
+import type { StorefrontDeps } from '../../../packages/modules/megamenu/src/backend/services/storefront-resolver.js';
 // Feature 072 — the harness is a second composition root, so a module left
 // hand-wired here would keep passing against wiring nobody changed. It composes
 // the same generated list production does; only the host values differ.
-import type { BlogCradle } from '../../src/modules/blog/backend.js';
-import type { DictionariesCradle } from '../../src/modules/dictionaries/backend.js';
-import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
-import type { TaxesCradle } from '../../src/modules/taxes/backend.js';
-import type { PromotionsCradle } from '../../src/modules/promotions/backend.js';
+import type { BlogCradle } from '../../../packages/modules/blog/src/backend/index.js';
+import type { DictionariesCradle } from '../../../packages/modules/dictionaries/src/backend/index.js';
+import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
+import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/index.js';
+import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
 import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
-import type { SettingsCradle } from '../../src/modules/settings/backend.js';
-import type { MfaActorBridge } from '../../src/modules/mfa/backend.js';
-import type { OAuthProviderPort } from '../../src/modules/mfa/services/oauth-provider-service.js';
+import type { SettingsCradle } from '../../../packages/modules/settings/src/backend/index.js';
+import type { MfaActorBridge } from '../../../packages/modules/mfa/src/backend/index.js';
+import type { OAuthProviderPort } from '../../../packages/modules/mfa/src/backend/services/oauth-provider-service.js';
 import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
 import type { SalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
-import type { SalesChannelsCradle } from '../../src/modules/sales_channels/backend.js';
-import type { SearchCradle } from '../../src/modules/search/backend.js';
-import type { PromptActionsCradle } from '../../src/modules/prompt_actions/backend.js';
-import type { PromptActionToolRegistry } from '../../src/modules/prompt_actions/services/tool-registry.js';
-import type { PromptRequestService } from '../../src/modules/prompt_actions/services/prompt-request.service.js';
-import type { LlmProviderFactory } from '../../src/modules/prompt_actions/services/llm/provider-factory.js';
-import type { FetchLike } from '../../src/modules/prompt_actions/services/llm/provider.js';
-import type { KsefCradle } from '../../src/modules/ksef/backend.js';
+import type { SalesChannelsCradle } from '../../../packages/modules/sales_channels/src/backend/index.js';
+import type { SearchCradle } from '../../../packages/modules/search/src/backend/index.js';
+import type { PromptActionsCradle } from '../../../packages/modules/prompt_actions/src/backend/index.js';
+import type { PromptActionToolRegistry } from '../../../packages/modules/prompt_actions/src/backend/services/tool-registry.js';
+import type { PromptRequestService } from '../../../packages/modules/prompt_actions/src/backend/services/prompt-request.service.js';
+import type { LlmProviderFactory } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider-factory.js';
+import type { FetchLike } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider.js';
+import type { KsefCradle } from '../../../packages/modules/ksef/src/backend/index.js';
 import type {
   ProductFeedsBridge,
   ProductFeedsCradle,
-} from '../../src/modules/product_feeds/backend.js';
+} from '../../../packages/modules/product_feeds/src/backend/index.js';
 import type {
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
-} from '../../src/modules/product_feeds/services/taxonomy-source-fetcher.interface.js';
-import {
-  FeedDeliveryError,
-  type FeedDeliveryAdapter,
-} from '../../src/modules/product_feeds/services/delivery/delivery-adapter.interface.js';
-import type { FeedDeliveryProtocol } from '@b2b/contracts';
-import type { PimErgonodeCradle } from '../../src/modules/pim_ergonode/backend.js';
-import type { ErgonodeClientPort } from '../../src/modules/pim_ergonode/services/ergonode-client.port.js';
-import type { ErgonodeMediaFetcherPort } from '../../src/modules/pim_ergonode/services/ergonode-media-fetcher.js';
+} from '../../../packages/modules/product_feeds/src/backend/services/taxonomy-source-fetcher.interface.js';
+import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-adapter.interface.js';
+import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
+import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
+import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
+import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
-import { Asset } from '../../src/modules/assets_library/entities/asset.entity.js';
-import type { KsefApiClientPort } from '../../src/modules/ksef/integrations/ksef-client.interface.js';
-import type { PwaBridge, PwaCradle } from '../../src/modules/pwa/backend.js';
+import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
+import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
-import { Order } from '../../src/modules/orders/entities/order.entity.js';
-import type { ComparisonsCradle } from '../../src/modules/comparisons/backend.js';
-import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
+import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
+// `catalog`'s two service types name the package's **`dist`**, unlike the other
+// packaged modules above, and the difference is not cosmetic: the values these
+// annotate come off the composed container, which is `dist`, and integration
+// tests that construct a `CatalogQueryService` themselves must name `dist` too —
+// a source copy would build entity classes the ORM never discovered (D-160.6.1,
+// measured on `bulk-undo.test.ts` when this module was packaged). Typing the
+// harness against `src` while every consumer names `dist` makes the two
+// structurally-identical declarations non-assignable, which is TS2345 rather
+// than a silent divergence, so the spelling has to agree.
+import type { CatalogQueryService } from '../../../packages/modules/catalog/dist/backend/services/catalog-query.service.js';
 import { z } from 'zod';
-import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
-import type { AssetReadPort } from '@b2b/contracts';
-import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
+import type { CatalogAttributeReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-attribute-read.service.js';
+import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
-import { collectRegisteredSettingsManifests } from '../../src/modules/settings/services/registered-settings-manifests.js';
-import type { CartService } from '../../src/modules/carts/services/cart-service.js';
-import type { Mailer } from '../../src/modules/email/services/mailer.js';
+import type { CartService } from '../../../packages/modules/carts/src/backend/services/cart-service.js';
+import type { Mailer } from '../../../packages/modules/email/src/backend/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
 import { seedTestOrganizations, TEST_ORGANIZATION_TAX_ID } from './seed-organizations.js';
 import { seedUs2Commerce } from './seed-commerce.js';
@@ -308,7 +341,10 @@ export interface BackendServerHandle {
     providerFactory: LlmProviderFactory;
   };
   /** Feature 058 — credentials handle (config-type registry + service). */
-  credentials: { service: CredentialsService; configurationTypeRegistry: ConfigurationTypeRegistry };
+  credentials: {
+    service: CredentialsService;
+    configurationTypeRegistry: ConfigurationTypeRegistry;
+  };
   /** Feature 047 — invoices handle (issuance service, PDF renderer, number generator). */
   invoices: {
     invoiceService: InvoicesCradle['invoiceService'];
@@ -647,15 +683,14 @@ const SEEDED_TABLES = [
  */
 let cachedManifestRegistry: LoadedManifestRegistry | undefined;
 function harnessManifestRegistry(): LoadedManifestRegistry {
-  cachedManifestRegistry ??= buildStaticRegistry(
-    REGISTERED_MANIFESTS.map((entry) => ({
-      manifest: entry.manifest,
-      filePath: entry.filePath,
-    })),
-  );
+  // Handed over unmapped (feature 080, T036a): this map dropped both install
+  // hooks and, once it existed, would have dropped the lifecycle participant —
+  // the seventh copy of one identity map, wrong in its own way like the other
+  // six. The two types are structurally compatible so that there is nothing to
+  // copy.
+  cachedManifestRegistry ??= buildStaticRegistry(REGISTERED_MANIFESTS);
   return cachedManifestRegistry;
 }
-
 
 /**
  * Refuse to hand back a server whose error messages cannot be translated
@@ -781,8 +816,6 @@ export async function setupBackendServer(
 
   const auditLogService = new AuditLogService(em);
 
-
-
   const conn = orm.em.getConnection();
   await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
   // Feature 002: keep the system Default Attribute Set, drop everything
@@ -869,6 +902,14 @@ export async function setupBackendServer(
   ) as NodeJS.ProcessEnv;
   const resolvedRegistry = await resolvedManifestEntries(overlayEnv);
   const overlayModuleEntries = await loadOverlayModuleEntries(overlayEnv);
+  // Feature 080 (T031) — mirrors `composition.ts`. Empty in every test run,
+  // because a checkout installs no Endora module package; it is here so the two
+  // roots compose the same list, which `harness-parity.test.ts` is the ledger
+  // for. `overlayEnv` carries no `ENDORA_INSTANCE_ROOT`, so discovery reads the
+  // chain above the running platform and finds this repository's own
+  // `packages/*` linked out of `node_modules` — which is exactly what it
+  // refuses.
+  const packageModuleEntries = await loadPackageModuleEntries(overlayEnv);
 
   registryCache.setActivationDeclarations(
     activationDeclarationsFrom(resolvedRegistry.map((e) => e.manifest)),
@@ -899,8 +940,7 @@ export async function setupBackendServer(
     // module's code identical in both compositions and keeps the count of
     // *real* subscriptions at "only where a test asks", which is the property
     // `harness-parity` checks.
-    redisSubscriber:
-      options.exercisePubSub === true ? redisSubscriber : inertRedisSubscriber(),
+    redisSubscriber: options.exercisePubSub === true ? redisSubscriber : inertRedisSubscriber(),
     // Modules announce on it; `ctx.subscribe` receives on it. A module that
     // publishes needs it as a registration, not just as a composer option.
     eventBus,
@@ -915,11 +955,45 @@ export async function setupBackendServer(
     // actor property. Soft by contract: `null` for anonymous traffic and for a
     // Customer with no Organization.
     customerOrganizationIdResolver: (request: FastifyRequest): string | null =>
-      request.testActor?.kind === 'customer' ? request.testActor.organizationId ?? null : null,
+      request.testActor?.kind === 'customer' ? (request.testActor.organizationId ?? null) : null,
     storefrontBaseUrl: 'http://localhost:3000',
     // The one composition allowed to serve `/api/v1/_test/latest-verification-token`.
     organizationsExposeTestProbe: true,
   });
+  // Feature 080 (T052) — the identity, order and asset ports, mirroring
+  // `composition.ts` name for name. This harness read the same five entity
+  // classes production did, so the repair is one applied twice: a module
+  // package publishes `entities` and no named entity class (D-168), and a root
+  // that names one stops compiling the day its owner moves.
+  const identityPorts = (): {
+    adminUserReadPort: AdminUserReadPort;
+    adminRolePort: AdminRolePort;
+    adminPasswordVerificationPort: AdminPasswordVerificationPort;
+    customerAccountReadPort: CustomerAccountReadPort;
+    customerPasswordVerificationPort: CustomerPasswordVerificationPort;
+  } => container.cradle as never;
+
+  const orderReadPort = (): OrderReadPort =>
+    (container.cradle as never as { orderReadPort: OrderReadPort }).orderReadPort;
+
+  const assetReadPort = (): AssetReadPort =>
+    (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
+
+  // Feature 080 (T040b) — the roll-up and settings-collection ports, again
+  // mirroring `composition.ts` name for name. Both roots imported the two
+  // derivations out of a module's own sources, which is the spelling that ends
+  // the day the owner becomes a package (D-160.6.1).
+  const customerRollupScopePort = (): CustomerRollupScopePort =>
+    (container.cradle as never as { customerRollupScopePort: CustomerRollupScopePort })
+      .customerRollupScopePort;
+
+  const settingsManifestCollectionPort = (): SettingsManifestCollectionPort =>
+    (
+      container.cradle as never as {
+        settingsManifestCollectionPort: SettingsManifestCollectionPort;
+      }
+    ).settingsManifestCollectionPort;
+
   // T143a — `inventory`'s availability port, mirroring `composition.ts`.
   const inventoryCradle = (): {
     inventoryAvailabilityPort: {
@@ -954,20 +1028,32 @@ export async function setupBackendServer(
   // point in the boot order `composition.ts` composes it. Its boot hooks run
   // once, at the bottom of this function, after every contribution below.
   // D-103/D-104 — mirrors `composition.ts`: the deployment's overlay modules
-  // are appended to this one list rather than composed by a second path, so
-  // "overlay last" is structural and D-45's single pass is preserved.
-  const composedModules = composeModules([...MODULES, ...overlayModuleEntries], {
-    container,
-    eventBus,
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-    interceptorRegistry: apiInterceptors,
-    ownership: registrationOwnership,
-    // Issue #258 — mirrors `composition.ts`: derived from the same resolved
-    // manifest set this harness seeded presence from, so a test that withdraws
-    // a required module meets the refusal production would meet, at the point
-    // production meets it.
-    requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
-  });
+  // are appended to this one list rather than composed by a second path, which
+  // is what preserves D-45's single pass. It is not what decides a decoration:
+  // since D-176 the wraps are drained after the last module registers, so
+  // position in this array grants and refuses nothing.
+  // T031 — and the instance's installed packages after them, same list, same
+  // reason.
+  const composedModules = composeModules(
+    [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],
+    {
+      container,
+      eventBus,
+      // Issue #269 — mirrors `composition.ts`. This root used to pass a no-op
+      // while production passed the global `console`, so the two disagreed on
+      // where a module's log line went and no test could see either. Both pass
+      // the late-bound platform logger now, which `buildServer` points at the
+      // app's pino instance below.
+      log: platformLogger(),
+      interceptorRegistry: apiInterceptors,
+      ownership: registrationOwnership,
+      // Issue #258 — mirrors `composition.ts`: derived from the same resolved
+      // manifest set this harness seeded presence from, so a test that withdraws
+      // a required module meets the refusal production would meet, at the point
+      // production meets it.
+      requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
+    },
+  );
 
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
@@ -1043,11 +1129,14 @@ export async function setupBackendServer(
 
   // CartService is exposed by the commerce module so the login handler in
   // organizations can merge anonymous baskets after sign-in.
-  let shoppingListServiceRef: import('../../src/modules/shopping_lists/services/shopping-list-service.js').ShoppingListService | null = null;
+  let shoppingListServiceRef:
+    | import('../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js').ShoppingListService
+    | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
-  let orderServiceForOneClick: import('../../src/modules/orders/services/order-service.js').OrderService | null = null;
+  let orderServiceForOneClick:
+    | import('../../../packages/modules/orders/src/backend/services/order-service.js').OrderService
+    | null = null;
   // Feature 040 — late-bound OrderListService for the customers module.
-  let orderListServiceForCustomers: import('../../src/modules/orders/services/order-list-service.js').OrderListService | null = null;
   // Feature 026 US4 / 056 — which organizations a sales-rep admin may see.
   // T143a — `organizations`' port, read lazily, where this harness used to
   // build its own `SalesRepAssignmentService` **without** the subtree deps
@@ -1061,21 +1150,25 @@ export async function setupBackendServer(
     resolveByEmail(email: string): Promise<{ id: string } | null>;
     autoCreate(email: string): Promise<{ id: string } | null>;
   } =>
-    (container.cradle as never as {
-      customerSocialLoginPort: {
-        resolveByEmail(email: string): Promise<{ id: string } | null>;
-        autoCreate(email: string): Promise<{ id: string } | null>;
-      };
-    }).customerSocialLoginPort;
+    (
+      container.cradle as never as {
+        customerSocialLoginPort: {
+          resolveByEmail(email: string): Promise<{ id: string } | null>;
+          autoCreate(email: string): Promise<{ id: string } | null>;
+        };
+      }
+    ).customerSocialLoginPort;
 
   const salesRepScope = (): {
     listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
   } =>
-    (container.cradle as never as {
-      organizationSalesRepScopePort: {
-        listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-      };
-    }).organizationSalesRepScopePort;
+    (
+      container.cradle as never as {
+        organizationSalesRepScopePort: {
+          listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+        };
+      }
+    ).organizationSalesRepScopePort;
 
   /**
    * Feature 026 US6 — admin orders/RFQ scope for the test harness. Mirrors
@@ -1114,7 +1207,6 @@ export async function setupBackendServer(
   // `lazyPort` behind an `effectiveState.isPresent('mfa')` probe, so both
   // composition roots contribute nothing for this name and the harness observes
   // exactly what production does.
-
 
   // Feature 056 — organization tree + inheritance resolution, built here for
   // the same reason production builds it (`composition.ts`): three consumers
@@ -1240,41 +1332,68 @@ export async function setupBackendServer(
   // Registered after `composeModules`, where the module declares its defaults.
   composedModules.contribute({
     organizationStatusResolver: async (orgId: string) => {
-      const row = (await em().getKnex()
-        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [orgId])) as { rows: Array<{ status: string }> };
+      const row = (await em()
+        .getKnex()
+        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [
+          orgId,
+        ])) as { rows: Array<{ status: string }> };
       return row.rows[0]?.status ?? null;
     },
     promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
+        const { items } = await (
+          container.cradle as unknown as SalesChannelsCradle
+        ).salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await (container.cradle as unknown as CustomerAccountsCradle).customerGroupService.list();
+        const groups = await (
+          container.cradle as unknown as CustomerAccountsCradle
+        ).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
-        )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
+          )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
         return res.rows.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
       },
       categories: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
-        )) as { rows: Array<{ id: string; slug: string; name: unknown; parent_category_id: string | null }> };
-        return res.rows.map((r) => ({ id: r.id, slug: r.slug, name: testAnyLabel(r.name), parentCategoryId: r.parent_category_id ?? null }));
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
+          )) as {
+          rows: Array<{
+            id: string;
+            slug: string;
+            name: unknown;
+            parent_category_id: string | null;
+          }>;
+        };
+        return res.rows.map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          name: testAnyLabel(r.name),
+          parentCategoryId: r.parent_category_id ?? null,
+        }));
       },
       paymentMethods: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
-        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
+          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
         return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
       },
       deliveryMethods: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
-        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
+          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
         return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
       },
     },
@@ -1286,7 +1405,9 @@ export async function setupBackendServer(
   // publishes both services as accessor ports; this root reads them like any
   // other consumer instead of holding the variables its callbacks filled in.
   const emailCradle = (): {
-    transactionalEmailSenderAccessor: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
+    transactionalEmailSenderAccessor: () =>
+      | import('@endora-commerce/contracts').TransactionalEmailSender
+      | undefined;
     emailBrandingAccessor: () => { resolve(salesChannelId: string): Promise<unknown> } | undefined;
   } => container.cradle as never;
 
@@ -1344,23 +1465,23 @@ export async function setupBackendServer(
           // per request, and being its own it walked the subtree with
           // `organizations` switched off — the roll-up rule answering out of a
           // module the platform was refusing to serve.
-          const rollupSubtree = await resolveCustomerRollupSubtreeIds(
-            em,
+          const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
+            actor.customerAccountId,
+            orgId,
             (id) =>
               (
                 container.cradle as never as {
                   organizationTreeService: { subtreeIds(id: string): Promise<string[]> };
                 }
               ).organizationTreeService.subtreeIds(id),
-            actor.customerAccountId,
-            orgId,
           );
           return resolveTenantContext({
             kind: 'customer',
             customerAccountId: actor.customerAccountId,
             organizationId: orgId,
             impersonatorAdminUserId:
-              (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ?? null,
+              (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ??
+              null,
             ...(rollupSubtree && rollupSubtree.length > 0
               ? { rollupSubtreeOrganizationIds: rollupSubtree }
               : {}),
@@ -1410,8 +1531,7 @@ export async function setupBackendServer(
   // why the bridge is contributed rather than built into the module.
   composedModules.contribute({
     // D-48 — the system-default channel, which always exists.
-    mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.resolver.getSystemDefault()).id,
+    mfaDefaultChannelIdResolver: async () => (await salesChannels.resolver.getSystemDefault()).id,
     mfaBaseUrls: {
       backend: 'http://localhost',
       storefront: 'http://localhost:3000',
@@ -1431,15 +1551,15 @@ export async function setupBackendServer(
       resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
       autoCreateCustomer: (email: string) => customerSocialLogin().autoCreate(email),
       resolveAdminByEmail: async (email: string) => {
-        // Folded like production's (issue #249): the harness writes this read
-        // out rather than forwarding to a port, so a divergence here would be
-        // a test suite that cannot see the defect.
-        const a = await em().findOne(AdminUser, {
-          email: normalizeEmailAddress(email),
-          deletedAt: null,
-          status: 'active',
+        // T052 — the same port production reads, rather than a second copy of
+        // the read. The comment that stood here argued for the copy on the
+        // grounds that a divergence would be invisible; the divergence it
+        // guarded against is what a shared owner removes, and the fold
+        // (issue #249) is `findByEmail`'s now.
+        const a = await identityPorts().adminUserReadPort.findByEmail(email, {
+          activeOnly: true,
         });
-        return a ? { id: a.id } : null;
+        return a !== null && a.status === 'active' ? { id: a.id } : null;
       },
     },
     mfaActorBridge: {
@@ -1459,16 +1579,24 @@ export async function setupBackendServer(
         return { adminUserId: request.testActor.adminUserId };
       },
       resolveOrganizationCustomerIds: async (organizationId: string) => {
-        const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+        const rows = await identityPorts().customerAccountReadPort.listByOrganization(
+          organizationId,
+        );
         return rows.map((r) => r.id);
       },
       resolveOrgAdmin: async (request: FastifyRequest) => {
         if (request.testActor?.kind !== 'customer') {
           throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
         }
-        const c = await em().findOne(CustomerAccount, { id: request.testActor.customerAccountId });
+        const c = await identityPorts().customerAccountReadPort.findById(
+          request.testActor.customerAccountId,
+        );
         if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-          throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+          throw new HttpError(
+            403,
+            ERROR_CODES.FORBIDDEN,
+            'Organization administrator role required.',
+          );
         }
         return { organizationId: c.organizationId, actor: c.id };
       },
@@ -1502,6 +1630,20 @@ export async function setupBackendServer(
     // still in flight, and the snapshot rebuilt on it is built from the
     // presence before the flip.
     modulePresenceProbe: {
+      // Issue #187 — the platform axis, which the palette used to read by
+      // joining `module_registrations` itself. `?? false` where the operator
+      // axis defaults `true`, and the asymmetry is the tri-state rather than an
+      // oversight: `presence()` answers `undefined` only for an id neither the
+      // registry nor the manifests know, and an action row naming one is an
+      // orphan the join had no row to match either.
+      //
+      // Read this one twice if a palette test surprises you: this harness never
+      // populates `module_registrations` (see `__setEnabledForTesting`'s note in
+      // the registry cache), so the platform axis here is the **seeded** enabled
+      // set and not the table. A test that inserts a registration row for a
+      // fixture module has to seed the set too.
+      isPlatformAvailable: (moduleId: string): boolean =>
+        effectiveState.presence(moduleId)?.platformAvailable ?? false,
       isActivated: (moduleId: string): boolean =>
         effectiveState.presence(moduleId)?.operatorActivated ?? true,
       version: (): number => effectiveState.presenceVersion(),
@@ -1592,7 +1734,7 @@ export async function setupBackendServer(
         from: string;
         to: string;
       }) => {
-        const order = await em().findOne(Order, { id: payload.orderId });
+        const order = await orderReadPort().findById(payload.orderId);
         if (!order || !order.placedByCustomerAccountId) return null;
         return {
           salesChannelId: payload.salesChannelId,
@@ -1619,54 +1761,63 @@ export async function setupBackendServer(
   composedModules.contribute({
     megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from categories where id = ? limit 1',
-          [categoryId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from categories where id = ? limit 1', [categoryId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       cmsPageExists: async (pageId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from cms_pages where id = ? limit 1',
-          [pageId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from cms_pages where id = ? limit 1', [pageId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       cmsBlockExists: async (blockId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from cms_blocks where id = ? limit 1',
-          [blockId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from cms_blocks where id = ? limit 1', [blockId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       assetIs: async (assetId, expected) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from assets where id = ? and kind = ? limit 1',
-          [assetId, expected],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from assets where id = ? and kind = ? limit 1', [
+            assetId,
+            expected,
+          ])) as Array<{ '?column?': number }>;
         return rows.length > 0;
       },
     } satisfies TargetValidatorDeps,
     megamenuStorefrontDeps: {
       resolveCategoryUrl: async (categoryId) => {
-        const rows = (await em().getConnection().execute(
-          'select slug from categories where id = ? limit 1',
-          [categoryId],
-        )) as Array<{ slug: string }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select slug from categories where id = ? limit 1', [categoryId])) as Array<{
+          slug: string;
+        }>;
         return rows[0]?.slug ? `/catalog/${rows[0].slug}` : null;
       },
       resolveCmsPageUrl: async (pageId) => {
-        const rows = (await em().getConnection().execute(
-          'select slug from cms_pages where id = ? limit 1',
-          [pageId],
-        )) as Array<{ slug: string }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select slug from cms_pages where id = ? limit 1', [pageId])) as Array<{
+          slug: string;
+        }>;
         return rows[0]?.slug ? `/${rows[0].slug}` : null;
       },
       resolveAsset: async (assetId) => {
-        const rows = (await em().getConnection().execute(
-          'select kind, label from assets where id = ? limit 1',
-          [assetId],
-        )) as Array<{ kind: string; label: string | null }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select kind, label from assets where id = ? limit 1', [assetId])) as Array<{
+          kind: string;
+          label: string | null;
+        }>;
         const row = rows[0];
         if (!row) return null;
         if (row.kind !== 'image' && row.kind !== 'video') return null;
@@ -1674,10 +1825,12 @@ export async function setupBackendServer(
         return { url: resolved.url, label: row.label, kind: row.kind };
       },
       resolveCmsBlock: async (blockId, language) => {
-        const rows = (await em().getConnection().execute(
-          'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
-          [blockId],
-        )) as Array<{
+        const rows = (await em()
+          .getConnection()
+          .execute(
+            'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
+            [blockId],
+          )) as Array<{
           id: string;
           code: string;
           content: { languages?: Record<string, unknown> };
@@ -1739,8 +1892,7 @@ export async function setupBackendServer(
     // own actor property. The ad modules resolve one name instead of each
     // taking its own identically-shaped `resolveAuditContext` option.
     adminAuditActorResolver: (request: FastifyRequest) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
+      actorAdminUserId: request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
     }),
     // Feature 072 (wave 2) — **undefined on purpose.** A BullMQ queue built per
     // `setupBackendServer()` is never closed and this harness is constructed
@@ -1751,10 +1903,11 @@ export async function setupBackendServer(
     moduleQueueRedis: undefined,
     // Feature 072 (wave 2) — mirrors `composition.ts`.
     salesChannelCodeIdPort: {
-      idByCode: async (code: string) =>
-        (await salesChannels.resolver.getByCode(code))?.id ?? null,
+      idByCode: async (code: string) => (await salesChannels.resolver.getByCode(code))?.id ?? null,
       codeById: async (id: string) => {
-        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
+        const { items } = await (
+          container.cradle as unknown as SalesChannelsCradle
+        ).salesChannelsService.list({});
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
@@ -1873,8 +2026,8 @@ export async function setupBackendServer(
     catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
       try {
         const channelId =
-          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)?.id ??
-          (await salesChannels.resolver.getSystemDefault()).id;
+          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)
+            ?.id ?? (await salesChannels.resolver.getSystemDefault()).id;
         const url = await settings.settingsService.get(
           'product_image_placeholder_url',
           channelId,
@@ -2035,50 +2188,55 @@ export async function setupBackendServer(
   // asking, the organization's tax rate, and the subtree the RFQ admin scope
   // rolls up over.
   composedModules.contribute({
-      rfqCustomerContextResolver: async (request: FastifyRequest) => {
-        const ctx = customerResolver(request);
-        const account = await em().findOne(CustomerAccount, { id: ctx.customerAccountId });
-        return {
-          customerAccountId: ctx.customerAccountId,
-          organizationId: ctx.organizationId,
-          isOrgAdmin: account?.role === 'organization_admin',
-        };
-      },
-      rfqAdminContextResolver: async (request: FastifyRequest) => {
-        const adminUserId = request.testActor?.kind === 'admin'
-          ? request.testActor.adminUserId
-          : TEST_ADMIN_ID;
-        const adminUser = await em().findOne(AdminUser, { id: adminUserId });
-        const role = adminUser?.adminRoleId
-          ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
-          : null;
-        return {
-          adminUserId,
-          isPlatformAdmin: role?.code === 'platform_admin' || true,
-          roleLabel: role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
-        };
-      },
-      // No `catch`, exactly as production has none since issue #84 — a harness
-      // that swallowed what production propagates would hide the 503 the
-      // fail-closed tests exist to observe.
-      // T143c — read through `organizations`' port, as production reads it.
-      rfqTaxRateResolver: async (organizationId: string) => {
-        const org = await (
-          container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
-        ).organizationTaxProfilePort.taxProfileOf(organizationId);
-        const vatStatus = org?.vatStatus ?? 'vat_payer';
-        if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.country ?? 'PL';
-        const resolved = await taxesCradle.taxService.taxRateFor({
-          country,
-          productType: 'simple',
-          vatStatus,
-        });
-        // Same narrowing production does (issue #124): `none` is "no rule and no
-        // default configured", never "no `taxes` module" — that one throws at
-        // the port gate before this line runs.
-        return resolved.source === 'none' ? 0 : resolved.rate;
-      },
+    rfqCustomerContextResolver: async (request: FastifyRequest) => {
+      const ctx = customerResolver(request);
+      const account = await identityPorts().customerAccountReadPort.findById(
+        ctx.customerAccountId,
+      );
+      return {
+        customerAccountId: ctx.customerAccountId,
+        organizationId: ctx.organizationId,
+        isOrgAdmin: account?.role === 'organization_admin',
+      };
+    },
+    rfqAdminContextResolver: async (request: FastifyRequest) => {
+      const adminUserId =
+        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
+      const ports = identityPorts();
+      const adminUser = await ports.adminUserReadPort.findById(adminUserId);
+      // `getById` cannot 404 here: `admin_users_admin_role_fk` is
+      // `on delete restrict`, so a non-null `adminRoleId` names a row.
+      const role = adminUser?.adminRoleId
+        ? await ports.adminRolePort.getById(adminUser.adminRoleId)
+        : null;
+      return {
+        adminUserId,
+        isPlatformAdmin: role?.code === 'platform_admin' || true,
+        roleLabel:
+          role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
+      };
+    },
+    // No `catch`, exactly as production has none since issue #84 — a harness
+    // that swallowed what production propagates would hide the 503 the
+    // fail-closed tests exist to observe.
+    // T143c — read through `organizations`' port, as production reads it.
+    rfqTaxRateResolver: async (organizationId: string) => {
+      const org = await (
+        container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
+      ).organizationTaxProfilePort.taxProfileOf(organizationId);
+      const vatStatus = org?.vatStatus ?? 'vat_payer';
+      if (vatStatus !== 'vat_payer') return 0;
+      const country = org?.country ?? 'PL';
+      const resolved = await taxesCradle.taxService.taxRateFor({
+        country,
+        productType: 'simple',
+        vatStatus,
+      });
+      // Same narrowing production does (issue #124): `none` is "no rule and no
+      // default configured", never "no `taxes` module" — that one throws at
+      // the port gate before this line runs.
+      return resolved.source === 'none' ? 0 : resolved.rate;
+    },
   });
 
   // Feature 072 (T138) — the two `organizations` contributions this harness
@@ -2149,18 +2307,13 @@ export async function setupBackendServer(
         organizationId: request.testActor.organizationId ?? null,
       };
     },
-    customerOrderListServiceGetter: () => {
-      if (!orderListServiceForCustomers) {
-        throw new Error('OrderListService not yet bound');
-      }
-      return orderListServiceForCustomers;
-    },
     customerModerationActorResolver: async (request: FastifyRequest) => {
       const adminUserId =
         request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
-      const adminUser = await em().findOne(AdminUser, { id: adminUserId });
+      const ports = identityPorts();
+      const adminUser = await ports.adminUserReadPort.findById(adminUserId);
       const role = adminUser?.adminRoleId
-        ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
+        ? await ports.adminRolePort.getById(adminUser.adminRoleId)
         : null;
       const isPlatformAdmin = role?.code !== 'sales_representative';
       const allowedOrganizationIds = isPlatformAdmin
@@ -2214,7 +2367,7 @@ export async function setupBackendServer(
       // T143c, reading `emailMailer` per send — which is the name this harness
       // already overrides with its spy, so the injected mailer still arrives.
       resolveCustomerEmail: async (cid) =>
-        (await em().findOne(CustomerAccount, { id: cid }))?.email ?? null,
+        (await identityPorts().customerAccountReadPort.findById(cid))?.email ?? null,
       resolveChannelLanguage: async (salesChannelId) =>
         (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
     } satisfies ReturnsBridge,
@@ -2233,12 +2386,14 @@ export async function setupBackendServer(
           req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
         organizationId:
           req.testActor?.kind === 'customer'
-            ? req.testActor.organizationId ?? TEST_ORGANIZATION_ID
+            ? (req.testActor.organizationId ?? TEST_ORGANIZATION_ID)
             : TEST_ORGANIZATION_ID,
       }),
       getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
       resolveRecipientEmail: async (order) =>
-        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+        (
+          await identityPorts().customerAccountReadPort.findById(order.placedByCustomerAccountId)
+        )?.email ?? null,
       resolveLanguage: async (salesChannelId) =>
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
@@ -2254,7 +2409,11 @@ export async function setupBackendServer(
     ksefSellerNipResolver: async () => {
       try {
         const { z: zod } = await import('zod');
-        const raw = await settings.settingsService.get('invoices.seller.tax_id', null, zod.string());
+        const raw = await settings.settingsService.get(
+          'invoices.seller.tax_id',
+          null,
+          zod.string(),
+        );
         const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
         return nip.length > 0 ? nip : null;
       } catch {
@@ -2306,16 +2465,15 @@ export async function setupBackendServer(
       expandCategoryProductIds: (categoryIds: string[]) =>
         // T143a — `catalog`'s port, mirroring `composition.ts`. This built a
         // throwaway `CatalogQueryService` per call.
-        (container.cradle as never as { catalogQueryPort: CatalogQueryService })
-          .catalogQueryPort.expandCategoryProductIds(categoryIds),
+        (
+          container.cradle as never as { catalogQueryPort: CatalogQueryService }
+        ).catalogQueryPort.expandCategoryProductIds(categoryIds),
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
-        const assets = await em().find(Asset, {
-          id: { $in: assetIds },
-          visibility: 'public',
-          deletedAt: null,
-        });
+        const assets = (await assetReadPort().findByIds(assetIds, { liveOnly: true })).filter(
+          (asset) => asset.visibility === 'public',
+        );
         for (const asset of assets) {
           try {
             const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
@@ -2369,8 +2527,7 @@ export async function setupBackendServer(
   composedModules.contribute({
     shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
   });
-  modules.push(
-  );
+  modules.push();
 
   // Feature 072 (T114) — `newsletter` owns its services and routes now.
   // These stay here because they are pinned per composition rather than
@@ -2387,7 +2544,7 @@ export async function setupBackendServer(
       resolveCustomerAccountId: (req) =>
         req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : '',
       loadCustomerEmail: async (customerAccountId) =>
-        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+        (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
       mailer: injectedMailer,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
@@ -2452,8 +2609,14 @@ export async function setupBackendServer(
   // Same derivation the production composition uses, so the harness cannot
   // drift from it — it previously carried its own hand-maintained copy, which
   // is why tests saw KSeF/MFA settings that production never created.
+  //
+  // Feature 080 (T046) — and the same **population**, which is the half that had
+  // drifted: `deploymentShippedEntries(resolvedRegistry)` is core plus this
+  // deployment's overlay and never an installed package. Both roots passed
+  // bare-core `REGISTERED_MANIFESTS`, so an overlay module's activation Setting
+  // was created by nothing, here or in production.
   await new ManifestReconciler(em()).apply(
-    collectRegisteredSettingsManifests(REGISTERED_MANIFESTS),
+    settingsManifestCollectionPort().collect(deploymentShippedEntries(resolvedRegistry)),
   );
 
   // The explicit boot phase (FR-021), run **once**, after every registration
@@ -2484,7 +2647,8 @@ export async function setupBackendServer(
       // root grows a second spelling of the ladder.
       resolvePreferredLanguage: createRequestLanguageResolver({
         adminPreferredLanguage: async (adminUserId) =>
-          (await em().findOne(AdminUser, { id: adminUserId }))?.preferredLanguage ?? null,
+          (await identityPorts().adminUserReadPort.findById(adminUserId))?.preferredLanguage ??
+          null,
       }),
       translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
         const translated = await adminI18nCradle.adminI18nService.translate(
@@ -2568,8 +2732,7 @@ export async function setupBackendServer(
     settings: {
       ...settings,
       adminService: (container.cradle as unknown as SettingsCradle).settingsAdminService,
-      cacheAdminService: (container.cradle as unknown as SettingsCradle)
-        .settingsCacheAdminService,
+      cacheAdminService: (container.cradle as unknown as SettingsCradle).settingsCacheAdminService,
     },
     salesChannels: {
       ...salesChannels,
@@ -2615,8 +2778,9 @@ export async function setupBackendServer(
     // T143a — the port `catalog` provides, so a fixture reads the same instance
     // the module does rather than a second one built here.
     get catalogAttributeRead(): CatalogAttributeReadService {
-      return (container.cradle as never as { catalogAttributeReadPort: CatalogAttributeReadService })
-        .catalogAttributeReadPort;
+      return (
+        container.cradle as never as { catalogAttributeReadPort: CatalogAttributeReadService }
+      ).catalogAttributeReadPort;
     },
     // Issue #132 — the same port the listing paths resolve, so a hand-built
     // fixture prices the way the composed catalogue does.
@@ -2660,10 +2824,13 @@ function customerResolver(request: FastifyRequest): {
   if (request.testActor?.kind !== 'customer') {
     return { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID };
   }
-  // Feature 026 US2 — testActor.organizationId may be null (no-org Customer).
-  // Tests that drive routes requiring an Organization fall back to the
-  // shared TEST_ORGANIZATION_ID; tests that genuinely exercise the no-org
-  // path use `cartActorResolver` or call services directly.
+  // The test actor carries an optional organisation, so a test that names none
+  // falls back to the shared TEST_ORGANIZATION_ID. This is the harness's
+  // deliberate divergence from `composition.ts`'s resolver, which refuses
+  // instead — and since D-178 that refusal is a 500 asserting an invariant
+  // rather than a 422 describing a business state. Substituting here is still
+  // right: the actor is a fixture, not a row, and a test that wants the
+  // invariant's refusal drives the composed resolver.
   return {
     customerAccountId: request.testActor.customerAccountId,
     organizationId: request.testActor.organizationId ?? TEST_ORGANIZATION_ID,
@@ -2757,4 +2924,3 @@ class FakeVatValidator implements VatValidator {
     };
   }
 }
-

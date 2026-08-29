@@ -4,7 +4,7 @@ import type {
   ComparisonOwnerView,
   ComparisonSharedView,
   ComparisonDisplayMode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Client-side fetch helpers for the comparisons backend module

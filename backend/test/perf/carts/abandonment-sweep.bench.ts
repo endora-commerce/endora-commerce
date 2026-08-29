@@ -1,14 +1,18 @@
+import { Cart, CartItem, type CartRow } from '../../helpers/package-entities.js';
 import { vi, afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import type { Knex } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
+
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { CartAuditService } from '../../../src/modules/carts/services/cart-audit-service.js';
+
+import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
+
 import {
   CartAbandonmentWorker,
   DEFAULT_SWEEP_BATCH_SIZE,
-} from '../../../src/modules/carts/services/cart-abandonment-worker.js';
+} from '../../../../packages/modules/carts/src/backend/services/cart-abandonment-worker.js';
+
 
 /**
  * Abandonment-sweep perf harness (feature 027 T129).
@@ -107,7 +111,7 @@ describe.skipIf(!shouldRun)('cart abandonment sweep — perf', () => {
     let inserted = 0;
     while (inserted < cartCount) {
       const batch = Math.min(BATCH, cartCount - inserted);
-      const carts: Cart[] = [];
+      const carts: CartRow[] = [];
       for (let i = 0; i < batch; i += 1) {
         carts.push(
           em.create(Cart, {

@@ -6,7 +6,7 @@ import {
   makePreDispatchOnRoute,
 } from '../../../../src/http/interceptors/dispatch.js';
 import { HttpError } from '../../../../src/http/error-envelope.js';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 
 interface LogRecord {
   level: 'info' | 'error' | 'debug';

@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
 
 /**
  * T056 (Polish) — payment-method edge cases.

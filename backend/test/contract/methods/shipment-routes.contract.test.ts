@@ -6,8 +6,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { DeliveryMethod } from '../../helpers/package-entities.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * T036 — shipment lifecycle routes: generate (shipment_created), list, and the
@@ -43,7 +43,11 @@ async function seedOrder(em: EntityManager): Promise<string> {
     deliveryMethodSnapshot: { code: method.code, name: 'SR', cost: 15 },
     paymentMethodId: randomUUID(),
     paymentMethodSnapshot: { code: 'bt', name: 'BT', kind: 'bank_transfer' },
-    status: 'paid',
+    // `shipment_ready`, because the carrier callback asks the configured graph
+    // for `status_on_success` since feature 085 Phase D and `shipment_sent` is
+    // reachable from here. Seeded at `paid` the route still answers 200 and the
+    // shipment is still generated — the order simply keeps its status.
+    status: 'shipment_ready',
     subtotal: '100.00',
     taxTotal: '23.00',
     deliveryTotal: '15.00',

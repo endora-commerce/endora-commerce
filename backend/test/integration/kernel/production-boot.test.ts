@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { composeApp } from '../../../src/composition.js';
 import { buildServer } from '../../../src/http/server.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * The production root actually boots (feature 072, D-40).

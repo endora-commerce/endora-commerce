@@ -4,8 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { VatValidator } from '@b2b/contracts';
-import type { OrganizationsCradle } from '../../../src/modules/organizations/backend.js';
+import type { VatValidator } from '@endora-commerce/contracts';
+import type { OrganizationsCradle } from '@endora-commerce/mod-organizations/backend';
 
 /**
  * Feature 076 (D-86) — `organizations` supplies the VAT validator it owns.

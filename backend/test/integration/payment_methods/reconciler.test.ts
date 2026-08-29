@@ -4,8 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { PaymentMethodReconciler } from '../../../src/modules/payment_methods/services/payment-method-reconciler.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
+import { PaymentMethodReconciler } from '../../../../packages/modules/payment_methods/src/backend/services/payment-method-reconciler.js';
+import { PaymentMethod } from '../../helpers/package-entities.js';
 
 /**
  * T013 (US1) — the reconciler auto-creates a configurable payment_methods row
@@ -36,7 +36,10 @@ describe('PaymentMethodReconciler.ensureMethodForAdapter', () => {
     expect(row.kind).toBe('gateway');
     expect(row.statusOnPending).toBe('new');
     expect(row.statusOnSuccess).toBe('paid');
-    expect(row.statusOnFailure).toBe('cancelled');
+    // Feature 085 (FR-003) — a declined payment holds the order at `on_hold`
+    // instead of cancelling it. `cancelled` is terminal, so the seeded default
+    // used to make the buyer's most recoverable mistake irreversible.
+    expect(row.statusOnFailure).toBe('on_hold');
 
     const persisted = await h.em().findOne(PaymentMethod, { code });
     expect(persisted?.adapter).toBe('my_adapter');

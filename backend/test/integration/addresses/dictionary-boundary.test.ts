@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
-import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
-import { Country } from '../../../src/modules/dictionaries/entities/country.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { AddressService } from '../../../src/modules/addresses/services/address-service.js';
+import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
+import { Country } from '../../helpers/package-entities.js';
 
 describe('Addresses dictionary boundary', () => {
   let db: TestDb;

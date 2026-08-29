@@ -1,13 +1,16 @@
+import { CustomFieldDefinition } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { CustomFieldDefinitionService } from '../../../src/modules/custom_fields/services/custom-field-definition.service.js';
-import type { CustomFieldValueService } from '../../../src/modules/custom_fields/services/custom-field-value.service.js';
-import { CustomFieldDefinition } from '../../../src/modules/custom_fields/entities/custom-field-definition.entity.js';
+
+import type { CustomFieldDefinitionService } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definition.service.js';
+import type { CustomFieldValueService } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
 
 /**
  * Feature 072 wave 1 (T087) — one definitions cache per composition.

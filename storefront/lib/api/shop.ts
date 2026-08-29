@@ -1,4 +1,4 @@
-import type { ShopInfo } from '@b2b/contracts';
+import type { ShopInfo } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 import { isModuleDisabled } from './module-absence';
 

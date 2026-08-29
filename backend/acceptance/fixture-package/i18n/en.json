@@ -1,0 +1,5 @@
+{
+  "actions.openAcceptanceProbe.label": "Open acceptance probe",
+  "actions.openAcceptanceProbe.description": "Open the acceptance probe screen shipped by the fixture package.",
+  "activity.verb.acceptance_probe.execute": "ran the acceptance probe"
+}

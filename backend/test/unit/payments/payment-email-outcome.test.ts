@@ -17,11 +17,11 @@ import type {
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   PaymentEmailNotifier,
   type PaymentEmailNotifierDeps,
-} from '../../../src/modules/payments/services/payment-email-notifier.js';
+} from '../../../../packages/modules/payments/src/backend/services/payment-email-notifier.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 const ORDER_ID = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -76,6 +76,7 @@ function orderReadPort(order: OrderRecord | null): OrderReadPort {
     listAll: async () => (order ? [order] : []),
     listItems: async () => [],
     findIdsByBusinessIdLike: async () => [],
+    salesChannelIdsForCustomer: async () => [],
   };
 }
 

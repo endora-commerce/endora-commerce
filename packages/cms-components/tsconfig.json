@@ -1,11 +1,19 @@
 {
+  // Type-check configuration; `tsconfig.build.json` is the emitting one. `paths` is
+  // active here, so `@endora-commerce/page-builder-core` resolves at its source — which is also why
+  // there is no `rootDir` in this file and why `noEmit` is set.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "noEmit": true,
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": []
+    // `utils/catalog-fetch.ts` reads `process.env.NEXT_PUBLIC_API_BASE_URL`, which the
+    // storefront's bundler inlines. Until the build config excluded test files, the
+    // declaration for `process` arrived transitively through `vitest`'s own types — so a
+    // production source file type-checked only because a devDependency happened to be in
+    // the program. `@types/node` is a devDependency and ships nothing.
+    "types": ["node"]
   },
   "include": ["src/**/*"]
 }

@@ -14,7 +14,7 @@ A contributing module participates in three places:
 1. **Backend descriptor**: register field metadata at composition time so
    the admin's component palette can render the editor controls.
 2. **Shared renderer**: ship a React component to a workspace package both
-   admin and storefront depend on (typically `@b2b/cms-components` itself
+   admin and storefront depend on (typically `@endora-commerce/cms-components` itself
    or a per-module package re-exporting from it).
 3. **Composition wiring**: pass the contributing module's registration
    helper to the platform's composition root before the CMS plugin is
@@ -170,8 +170,8 @@ Register on the backend descriptor:
 contexts: ['cms'], // default when omitted in registry — CMS-only
 ```
 
-In `@b2b/cms-components`, wrap the Puck config with
-`definePageBuilderComponent` from `@b2b/page-builder-core` so the admin
+In `@endora-commerce/cms-components`, wrap the Puck config with
+`definePageBuilderComponent` from `@endora-commerce/page-builder-core` so the admin
 palette filter stays in sync. Components without `email` / `invoice` in
 `contexts` never appear in those editors (e.g. a product carousel).
 
@@ -179,7 +179,7 @@ palette filter stays in sync. Components without `email` / `invoice` in
 
 The CMS Page Builder supports per-breakpoint overrides with inheritance
 (mobile ← tablet ← desktop). Use `createResponsiveField` from
-`@b2b/page-builder-core` for individual props and
+`@endora-commerce/page-builder-core` for individual props and
 `withResponsiveVisibility` for a per-component **Visibility** control.
 
 Default breakpoints (configurable via Settings
@@ -210,7 +210,7 @@ support uniform or per-side editing. **Columns** use a responsive column
 count (1–12 per breakpoint) with equal-width tracks.
 
 Use `createSpacingField`, `createBorderField`, and `createColorField` from
-`@b2b/page-builder-core` when adding new CMS components.
+`@endora-commerce/page-builder-core` when adding new CMS components.
 
 ## Built-in Icons / Social
 

@@ -8,7 +8,7 @@ import {
   SkipForward,
   XCircle,
 } from 'lucide-react';
-import type { FeedRunStatus } from '@b2b/contracts';
+import type { FeedRunStatus } from '@endora-commerce/contracts';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**

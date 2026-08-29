@@ -1,27 +1,38 @@
+import { Cart, CartItem } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { z } from 'zod';
-import { defineModuleSettingsManifest } from '@b2b/contracts';
+
+import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
+
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
   SettingsChannelIdInvalid,
 } from '../../../src/kernel/settings/settings.service.js';
+
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
-import { CARTS_SETTING_CODES } from '../../../src/modules/carts/manifest.js';
-import { SEARCH_SETTING_CODES } from '../../../src/modules/search/manifest.js';
-import { QUICK_ORDER_SETTING_CODES } from '../../../src/modules/quick_order/manifest.js';
-import type { CartsCradle } from '../../../src/modules/carts/backend.js';
-import type { SearchCradle } from '../../../src/modules/search/backend.js';
+
+import { CARTS_SETTING_CODES } from '../../../../packages/modules/carts/src/manifest.js';
+
+import { SEARCH_SETTING_CODES } from '../../../../packages/modules/search/src/manifest.js';
+
+import { QUICK_ORDER_SETTING_CODES } from '../../../../packages/modules/quick_order/src/manifest.js';
+
+import type { CartsCradle } from '../../../../packages/modules/carts/src/backend/index.js';
+import type { SearchCradle } from '../../../../packages/modules/search/src/backend/index.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+
 
 /**
  * Regression — the settings-channel defect family (feature 072, D-41/D-42/D-43).

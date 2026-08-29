@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { BlogCacheService } from '../../../src/modules/blog/services/blog-cache.js';
+import { BlogCacheService } from '../../../../packages/modules/blog/src/backend/services/blog-cache.js';
 
 /**
  * Integration test for the storefront cache (T089 / R9). Verifies:

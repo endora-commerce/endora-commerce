@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { BlogTagByCodeResponse } from '@b2b/contracts';
+import type { BlogTagByCodeResponse } from '@endora-commerce/contracts';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
 import { Pagination } from './Pagination';
 import { PostCard } from './PostCard';

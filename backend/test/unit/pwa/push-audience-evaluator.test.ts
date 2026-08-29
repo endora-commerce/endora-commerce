@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { PushAudienceRule } from '@b2b/contracts';
+import type { PushAudienceRule } from '@endora-commerce/contracts';
 import {
   evaluatePushAudienceRule,
   type PushAudienceContext,
-} from '../../../src/modules/pwa/services/push-audience-evaluator.js';
+} from '../../../../packages/modules/pwa/src/backend/services/push-audience-evaluator.js';
 
 const linked: PushAudienceContext = {
   salesChannelId: 'sc-1',

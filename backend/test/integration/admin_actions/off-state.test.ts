@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 
@@ -12,22 +12,26 @@ import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
  * Feature 073, Amendment A1 — the off-state obligation that comes with dropping
  * `nonDeactivatable` from this module (Constitution XVII, checklist item 6).
  *
- * This is the awkward one of the three, and the reason is worth stating rather
- * than rediscovering. `admin_actions` owns a **port** — `adminActionsReconciler`
- * — that the lifecycle orchestrator resolves during `module:install` and
- * `module:uninstall --hard`, for *every other module*. `providePort` gates on
- * the effective state, so with the palette switched off that resolution throws
- * `ModuleDisabledError`.
+ * This used to be the awkward one of the three, and what made it awkward is
+ * gone — recorded here because the reasoning it replaced was written down as
+ * settled. `admin_actions` owns a port, `adminActionsReconciler`, and
+ * `composition.ts` forwarded it to the lifecycle orchestrator so that every
+ * *other* module's `module:install` and `module:uninstall --hard` kept
+ * `module_actions` aligned. `providePort` gates on the effective state, so with
+ * the palette switched off that resolution threw `ModuleDisabledError` and
+ * aborted the install of a module that has nothing to do with ⌘K. This file
+ * called that correct, on the ground that the alternative was a stale palette;
+ * it was the better of the only two options on the table, the other being a
+ * backend that would not start.
  *
- * That is the correct behaviour, not a defect: the reconcile is what keeps
- * `module_actions` aligned with the installed set, and running an install that
- * silently skips it would leave the palette permanently stale for that module.
- * It aborts inside the install transaction, so nothing half-reconciled
- * survives. What it must **not** do is fail at boot, which is why
- * `composition.ts` forwards the reconciler through a lambda instead of
- * resolving it while wiring the orchestrator — resolving it there asked whether
- * the palette was on *at boot*, and an operator who had switched it off could
- * not start the backend at all.
+ * Feature 080's T036a took the third option (D-159 §9, the owner, 2026-08-22):
+ * `module_actions` is a projection of manifest data, so this module declares a
+ * `lifecycleParticipant` in its own `manifest.ts` and the orchestrator collects
+ * it from the manifest registry. It is gated on nothing, so the rows are
+ * written whether or not the palette is serving them — inert while it is off,
+ * and answered from unchanged when it comes back. Nothing here resolves that
+ * port any more, and `test/integration/_lifecycle/cli-install-reconciles-projections.integration.test.ts`
+ * holds the palette-off install green.
  *
  * The boot case itself is not asserted here: this file flips the registry cache
  * against an already-running server, so it cannot observe a boot that never

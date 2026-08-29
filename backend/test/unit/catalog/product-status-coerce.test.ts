@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   coerceProductStatusWrite,
   productStatusWriteSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 describe('product status write coercion (feature 032)', () => {
   it('maps archived → inactive in coerceProductStatusWrite', () => {

@@ -21,7 +21,7 @@ import type {
   PutCmsPageContentRequest,
   PutCmsColorPaletteRequest,
   CmsColorPaletteEntry,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 export type {
   CmsPageBuilderDescriptor,

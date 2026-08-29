@@ -1,13 +1,13 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { OrganizationDetailsPort, OrganizationRecord } from '@b2b/contracts';
+import type { OrganizationDetailsPort, OrganizationRecord } from '@endora-commerce/contracts';
 import {
   registerCreditLimitsRoutes,
   type CreditLimitsDeps,
-} from '../../../src/modules/credit_limits/routes.js';
-import type { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
-import type { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
+} from '../../../../packages/modules/credit_limits/src/backend/routes.js';
+import type { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
+import type { CreditLimit } from '../../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
 
 /**
  * Feature 075, Phase C — the admin roster reads the organisation's name from
@@ -67,6 +67,8 @@ describe('GET /api/v1/admin/credit-limits — the organisation name', () => {
         customerAccountId: '00000000-0000-4000-8000-0000000000bb',
         organizationId: ORG_ID,
       }),
+      // Unused by this read-only route; the grant route is what needs it.
+      resolveAdminUserId: () => '00000000-0000-4000-8000-0000000000b1',
     };
 
     app = Fastify();

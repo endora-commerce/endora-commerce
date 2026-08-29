@@ -5,12 +5,12 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CommandBus } from '../../../src/commands/index.js';
-import { InventoryStockImportService } from '../../../src/modules/inventory/services/stock-import.service.js';
-import { CatalogProductReadService } from '../../../src/modules/catalog/services/catalog-product-read.service.js';
+import { InventoryStockImportService } from '../../../../packages/modules/inventory/src/backend/services/stock-import.service.js';
+import { CatalogProductReadService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-product-read.service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
-import { DEFAULT_WAREHOUSE_ID } from '../../../src/modules/inventory/entities/warehouse.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { StockLevel } from '../../helpers/package-entities.js';
+import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
+import { Product } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**

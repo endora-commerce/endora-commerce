@@ -6,8 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { PaymentMethod } from '../../../src/modules/payment_methods/entities/payment-method.entity.js';
-import { Address } from '../../../src/modules/addresses/entities/address.entity.js';
+import { Address, PaymentMethod } from '../../helpers/package-entities.js';
 
 /**
  * Feature 039 (US2) — default ordering preferences: role-scoped upsert,

@@ -79,7 +79,7 @@ post-Zod) plus a read-only request view (`actor`, `salesChannel`, headers,
 attribution logger). It may adjust the request body by mutating `ctx.body` or
 by returning `{ body }`, and it may **veto** the request by throwing
 `HttpError(status, code, message, details?)` with a registered `ErrorCode` from
-`@b2b/contracts` — the handler then never runs.
+`@endora-commerce/contracts` — the handler then never runs.
 
 **Post** — receives the un-serialized response `payload` (and the
 `statusCode`, always `< 400`). Return a replacement payload, or `undefined` to

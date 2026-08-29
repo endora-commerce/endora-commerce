@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Info, Loader2 } from 'lucide-react';
-import type { FeedTaxonomyCheck, FeedTaxonomyRevision, TaxonomyProviderCode } from '@b2b/contracts';
+import type { FeedTaxonomyCheck, FeedTaxonomyRevision, TaxonomyProviderCode } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

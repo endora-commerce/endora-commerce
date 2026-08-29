@@ -4,32 +4,43 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   DeliveryMethodReadPort,
   OrderReadPort,
-  OrderStatusAnnouncePort,
-} from '@b2b/contracts';
+  OrderTransitionPort,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ReceiveShipmentHandler } from '../../../src/modules/shipments/services/receive-shipment-handler.js';
-import type { ShippingEventBus } from '../../../src/modules/shipments/services/events.js';
-import { ShipmentService } from '../../../src/modules/shipments/services/shipment-service.js';
+import {
+  ReceiveShipmentHandler,
+  type CarrierCallbackLogger,
+} from '../../../../packages/modules/shipments/src/backend/services/receive-shipment-handler.js';
+import type { ShippingEventBus } from '../../../../packages/modules/shipments/src/backend/services/events.js';
+import { ShipmentService } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { ShippingAdapterRegistry } from '../../../src/modules/delivery_methods/services/shipping-adapter-registry.js';
-import { builtInShippingAdapters } from '../../../src/modules/delivery_methods/adapters/built-in-adapters.js';
-import { EnumOrderStatusRegistry } from '../../../src/modules/delivery_methods/services/order-status-registry.port.js';
-import { DeliveryMethod } from '../../../src/modules/delivery_methods/entities/delivery-method.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { Shipment } from '../../../src/modules/shipments/entities/shipment.entity.js';
+import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
+import { builtInShippingAdapters } from '../../../../packages/modules/delivery_methods/src/backend/adapters/built-in-adapters.js';
+import { DeliveryMethod, Shipment, type DeliveryMethodRow } from '../../helpers/package-entities.js';
+import { Order } from '../../helpers/package-entities.js';
 
 interface Fixture {
-  method: DeliveryMethod;
+  method: DeliveryMethodRow;
   order: Order;
 }
 
 async function seedOrder(
   em: EntityManager,
-  opts: { adapter?: string; statusOnSuccess?: string; statusOnFailure?: string } = {},
+  opts: {
+    adapter?: string;
+    statusOnSuccess?: string;
+    statusOnFailure?: string;
+    /**
+     * Where the order sits when the carrier calls back. It matters since
+     * feature 085 Phase D: the move goes through the configured graph, and
+     * `shipment_sent` is reachable from `shipment_ready` and `on_hold` only.
+     */
+    status?: string;
+  } = {},
 ): Promise<Fixture> {
   const method = em.create(DeliveryMethod, {
     code: `rs_${randomUUID().slice(0, 8)}`,
@@ -53,7 +64,7 @@ async function seedOrder(
     deliveryMethodSnapshot: { code: method.code, name: 'RS', cost: 15 },
     paymentMethodId: randomUUID(),
     paymentMethodSnapshot: { code: 'bt', name: 'BT', kind: 'bank_transfer' },
-    status: 'paid',
+    status: opts.status ?? 'paid',
     subtotal: '100.00',
     taxTotal: '23.00',
     deliveryTotal: '15.00',
@@ -67,7 +78,6 @@ async function seedOrder(
 
 describe('Shipment lifecycle: createShipment (generate and retry) + receive_shipment', () => {
   let h: BackendServerHandle;
-  const statusRegistry = new EnumOrderStatusRegistry();
   const registry = new ShippingAdapterRegistry();
   for (const a of builtInShippingAdapters()) registry.register(a, 'delivery_methods');
 
@@ -80,13 +90,19 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
   const ports = (): {
     orderReadPort: OrderReadPort;
     deliveryMethodReadPort: DeliveryMethodReadPort;
-    orderStatusAnnouncePort: OrderStatusAnnouncePort;
+    orderTransitionPort: OrderTransitionPort;
   } =>
     h.container.cradle as unknown as {
       orderReadPort: OrderReadPort;
       deliveryMethodReadPort: DeliveryMethodReadPort;
-      orderStatusAnnouncePort: OrderStatusAnnouncePort;
+      orderTransitionPort: OrderTransitionPort;
     };
+
+  /** Refusals, when a case wants to read them rather than ignore them. */
+  function recordingLog(): CarrierCallbackLogger & { warnings: object[] } {
+    const warnings: object[] = [];
+    return { warnings, warn: (details) => void warnings.push(details) };
+  }
 
   const shipmentService = (): ShipmentService =>
     new ShipmentService(
@@ -97,12 +113,15 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
       new AuditLogService(h.em),
     );
 
-  const receiveHandler = (events?: ShippingEventBus): ReceiveShipmentHandler =>
+  const receiveHandler = (
+    events?: ShippingEventBus,
+    log: CarrierCallbackLogger = { warn: () => undefined },
+  ): ReceiveShipmentHandler =>
     new ReceiveShipmentHandler(
       h.em,
-      statusRegistry,
       ports().deliveryMethodReadPort,
-      ports().orderStatusAnnouncePort,
+      ports().orderTransitionPort,
+      log,
       events,
     );
 
@@ -122,7 +141,11 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
   });
 
   it('receive_shipment success → Shipment success + order statusOnSuccess', async () => {
-    const { order } = await seedOrder(h.em());
+    // `shipment_ready`, because `shipment_ready -> shipment_sent` is the edge
+    // the default lifecycle actually carries. See the case at the end of this
+    // file for what the same callback does from `paid`, which is where the
+    // shipped `delivery_methods` defaults leave a great many orders.
+    const { order } = await seedOrder(h.em(), { status: 'shipment_ready' });
     const service = shipmentService();
     const handler = receiveHandler();
     const shipment = await service.createShipment(order.id);
@@ -164,10 +187,63 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
     expect(reloaded!.failureReason).toBe('carrier rejected');
     const reloadedOrder = await em.findOne(Order, { id: order.id });
     expect(reloadedOrder!.status).toBe('processing');
+    // Audited, which no shipment-driven status change had ever been (085 R3).
+    expect(
+      await h.auditLogService.query({
+        action: 'order.status_transition',
+        objectId: order.id,
+      }),
+    ).toHaveLength(1);
+  });
+
+  /**
+   * Feature 085 Phase D, and a finding this case records rather than repairs.
+   *
+   * `delivery_methods` seeds `status_on_success = 'shipment_sent'` and
+   * `status_on_failure = 'processing'`, and **neither is reachable from every
+   * status a carrier callback can find an order in**: `shipment_sent` has one
+   * inbound edge in the default graph, from `shipment_ready` (plus the
+   * universal one out of `on_hold`), and `processing` has two, from `pending`
+   * and `paid`. An operator who generates a shipment while the order is still
+   * at `paid` therefore gets this — the order keeps its status and the callback
+   * is answered.
+   *
+   * That is the architect's ruling applied, not a regression: forcing the jump
+   * is what the ingress used to do, and it made the configured lifecycle a
+   * fiction on this path. Repairing the defaults belongs to whoever revisits
+   * `delivery_methods`; Phase C deliberately left it alone.
+   */
+  it('keeps the order where it is when the configured target is unreachable', async () => {
+    const { order } = await seedOrder(h.em(), { status: 'paid' });
+    const service = shipmentService();
+    const log = recordingLog();
+    const handler = receiveHandler(undefined, log);
+    const shipment = await service.createShipment(order.id);
+
+    const res = await handler.receive({ shipmentId: shipment.id, outcome: 'success' });
+
+    // The carrier's half stands: the shipment is generated and answered for.
+    expect(res.status).toBe('success');
+    expect(res.orderStatus).toBe('paid');
+    expect((await h.em().findOne(Order, { id: order.id }, { refresh: true }))!.status).toBe('paid');
+    expect(log.warnings).toHaveLength(1);
+    expect(log.warnings[0]).toMatchObject({
+      orderId: order.id,
+      from: 'paid',
+      to: 'shipment_sent',
+      setting: 'status_on_success',
+      refusal: 'not_permitted',
+    });
+    expect(
+      await h.auditLogService.query({
+        action: 'order.status_transition',
+        objectId: order.id,
+      }),
+    ).toHaveLength(0);
   });
 
   it('is idempotent on repeated success and rejects failure after success', async () => {
-    const { order } = await seedOrder(h.em());
+    const { order } = await seedOrder(h.em(), { status: 'shipment_ready' });
     const service = shipmentService();
     const handler = receiveHandler();
     const shipment = await service.createShipment(order.id);
@@ -220,30 +296,36 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
   });
 
   /**
-   * The four templated names are `orders`' vocabulary, and since feature 075
-   * Phase C this module no longer builds them: it hands the committed change to
-   * `orderStatusAnnouncePort`, and the naming scheme stays on the owner's side
-   * — which matters because the status set is admin-configurable, so the names
-   * are not known at compile time.
+   * The four templated names are `orders`' vocabulary, and this module builds
+   * none of them: since feature 085 Phase D it does not announce at all. The
+   * transition seam emits them for the move it applied, which is why this case
+   * still passes with `orderStatusAnnouncePort` gone from the handler — and why
+   * announcing beside the port would have doubled every one of them.
    *
-   * The subscriptions therefore go on the container's own bus, which is what
-   * the port emits onto. That is a stronger assertion than the local bus this
-   * test used to hand the handler: it proves the announcement reaches the
-   * platform's bus through `orders`, not merely that the handler called a
-   * builder it had imported.
+   * The subscriptions go on the container's own bus, which is what the seam
+   * emits onto. That is a stronger assertion than the local bus this test used
+   * to hand the handler: it proves the announcement reaches the platform's bus
+   * through `orders`, not merely that the handler called a builder it had
+   * imported.
+   *
+   * The `fired` array is asserted for *content* rather than length because the
+   * coarse event settles a tick later; a length assertion here would be the
+   * one that catches a double emission, and the case below it does that.
    */
   it('announces the templated order status .after events on the auto-transition (T026)', async () => {
     const fired: string[] = [];
     const unsubscribe = [
       h.eventBus.on('order.status.to_shipment_sent.after', () => void fired.push('to')),
-      h.eventBus.on('order.status.from_paid_to_shipment_sent.after', () =>
+      h.eventBus.on('order.status.from_shipment_ready_to_shipment_sent.after', () =>
         void fired.push('fromTo'),
       ),
       h.eventBus.on('order.status_changed.v1', () => void fired.push('coarse')),
     ];
 
     try {
-      const { order } = await seedOrder(h.em()); // seeded in 'paid'; statusOnSuccess = 'shipment_sent'
+      // Seeded at `shipment_ready`, which is where the edge to `shipment_sent`
+      // starts; the announcement is the transition seam's own now.
+      const { order } = await seedOrder(h.em(), { status: 'shipment_ready' });
       const service = shipmentService();
       // The events bus is what production passes, and the announcement rides
       // the same `emit` guard as the `shipment.*` events do.
@@ -265,8 +347,45 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
     }
   });
 
+  /**
+   * Feature 085 Phase D — **once**, not twice.
+   *
+   * The transition seam emits the templated `.after` events for the move it
+   * applies. A handler that also announced the same change through
+   * `orderStatusAnnouncePort` would emit every payment- and shipment-driven
+   * status change twice, and nothing in the type system, the port checks or the
+   * case above would say so: `toContain` is satisfied by two.
+   */
+  it('announces the change exactly once, not once per seam (085 Phase D)', async () => {
+    let announcements = 0;
+    let coarse = 0;
+    const unsubscribe = [
+      h.eventBus.on('order.status.to_shipment_sent.after', () => void (announcements += 1)),
+      h.eventBus.on('order.status_changed.v1', () => void (coarse += 1)),
+    ];
+
+    try {
+      const { order } = await seedOrder(h.em(), { status: 'shipment_ready' });
+      const service = shipmentService();
+      const handler = receiveHandler(h.eventBus as unknown as ShippingEventBus);
+      const shipment = await service.createShipment(order.id);
+      await handler.receive({ shipmentId: shipment.id, outcome: 'success' });
+
+      // The coarse event is emitted from a subscriber on the templated one, so
+      // waiting for it is waiting for the whole fan-out to settle — a second
+      // announcement would have arrived by then.
+      await vi.waitFor(() => expect(coarse).toBeGreaterThan(0));
+      expect(announcements).toBe(1);
+    } finally {
+      for (const stop of unsubscribe) stop();
+    }
+  });
+
   it('reconciles a late receive even when the adapter is de-registered', async () => {
-    const { order } = await seedOrder(h.em(), { adapter: 'removed_carrier' });
+    const { order } = await seedOrder(h.em(), {
+      adapter: 'removed_carrier',
+      status: 'shipment_ready',
+    });
     const service = shipmentService();
     const handler = receiveHandler();
     // createShipment works even with an unregistered adapter (no adapter hook runs).

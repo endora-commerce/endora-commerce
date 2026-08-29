@@ -6,7 +6,7 @@
 // permission-inventory check (FR-009), and its own activation control so an
 // operator can switch it off like any other module (Principle XVII).
 
-import { defineModuleManifest, defineModuleSettingsManifest } from '@b2b/contracts';
+import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
 
 export const EXAMPLE_OVERLAY_SETTING_CODES = {
   ACTIVATION: 'example_overlay.activation',

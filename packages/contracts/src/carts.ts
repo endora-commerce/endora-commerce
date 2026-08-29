@@ -603,23 +603,27 @@ export interface CartSeedLine {
  * by `em.find(CartItem, { cartId })`, which is two round trips and one place
  * to forget the status filter.
  *
- * **Neither half of that is still true, and this port has no consumer** (issue
- * #192; Phase-P unreached-port audit, A6). `quote_requests` no longer reads
- * `Cart` — its conversion is cut and resolves `cartWritePort`. `orders`' read is
- * the only cross-module reach into `carts/entities/**` left in the tree, and it
- * is **escalated, not deferred**: placement reads the cart inside
- * `em.transactional` and ends by clearing it and marking it `completed` on the
- * same object, with `test/integration/orders/place-order-failure-preserves-cart.test.ts`
- * asserting that a failed placement leaves the cart intact. A read through this
- * port runs on the owner's own `EntityManager`, outside that transaction, so it
- * cannot serve that site. The ruling is D-78 point 3, recorded in
- * `backend/scripts/ledgers/cross-module-imports/orders.ts`.
+ * **The escalation is settled and the consumer is written down** (feature 080,
+ * T048; D-169). This doc block used to say the port had none, and asked whoever
+ * settled the question to retire it or name one here.
  *
- * So the port stands published for a demand the tree has ruled out. It is kept
- * rather than retired because the escalation is open, not settled: if D-78
- * point 3 is answered by moving the completion into `carts`, this is the read
- * half of that answer. Whoever settles it retires the port or writes the real
- * consumer here — leaving the sentence above unamended was the defect.
+ * The question was: `orders` reads the cart inside `em.transactional` and ends
+ * by clearing it and marking it `completed`, with
+ * `test/integration/orders/place-order-failure-preserves-cart.test.ts`
+ * asserting that a failed placement leaves the basket intact — and a read
+ * through *this* port runs on the owner's own `EntityManager`, outside that
+ * transaction, so it could not serve that site. The answer is that there are
+ * **two** questions and they take two ports. The completion, and the read that
+ * belongs to it, moved into `carts` as `CartPlacementApplyPort` — declared in
+ * that module's own `ports/` directory rather than here, because both of its
+ * methods take the caller's `EntityManager` and FR-034 keeps a MikroORM type
+ * out of a package `admin` and `storefront` both compile.
+ *
+ * What is left for this port is the read that never had a transaction:
+ * `orders`' storefront **total preview**, which opens none and is its consumer
+ * today. That split is D-169's rule rather than a preference — a read handed an
+ * `EntityManager` is a write seam re-opened to serve a read — and it is why the
+ * two ports exist side by side instead of one widening to cover both.
  *
  * When `carts` is off the read fails closed, which is right: a checkout that
  * cannot see the cart must refuse rather than place an empty order.

@@ -6,11 +6,11 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
-import { PromptActionRequest } from '../../../src/modules/prompt_actions/entities/prompt-action-request.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { BulkOperation } from '../../../src/modules/catalog/entities/bulk-operation.entity.js';
+import { Product } from '../../helpers/package-entities.js';
+import { Category } from '../../helpers/package-entities.js';
+import { BulkOperation } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { PromptActionRequest } from '../../helpers/package-entities.js';
 
 /**
  * T041 + T042 — US2 bulk flow (quickstart §3 step 4): preview with match
@@ -315,14 +315,24 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
     expect(op.total).toBe(allIds.length);
 
     // Drive the worker path deterministically (tests have no BullMQ worker).
+    //
+    // The three specifiers name the package's `dist`, not its `src`, and that is
+    // load-bearing rather than stylistic (D-160.6.1): each of these files imports
+    // `catalog`'s entity classes, and the ORM in this process registered the ones
+    // behind `dist` — `entities-registry.generated.ts` imports the same published
+    // array. A source copy would hand `processById` a `BulkOperation` class the
+    // ORM has never discovered, while `em.findOneOrFail(BulkOperation, …)` above
+    // uses the registered one. `check:singleton-identity` reports the source
+    // spelling as a `whole-file-reach`: a dynamic import names no binding, so it
+    // takes each file's entire graph.
     const { BulkOperationService } = await import(
-      '../../../src/modules/catalog/services/bulk-operation.service.js'
+      '../../../../packages/modules/catalog/dist/backend/services/bulk-operation.service.js'
     );
     const { CatalogBulkUpdateService } = await import(
-      '../../../src/modules/catalog/services/catalog-bulk-update.service.js'
+      '../../../../packages/modules/catalog/dist/backend/services/catalog-bulk-update.service.js'
     );
     const { CatalogAdminService } = await import(
-      '../../../src/modules/catalog/services/catalog-admin.service.js'
+      '../../../../packages/modules/catalog/dist/backend/services/catalog-admin.service.js'
     );
     const adminService = new CatalogAdminService(h.em, h.eventBus as never, h.auditLogService);
     const updater = new CatalogBulkUpdateService(h.em, adminService, undefined, h.auditLogService);

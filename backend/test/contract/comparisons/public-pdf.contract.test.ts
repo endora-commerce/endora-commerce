@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -14,7 +14,7 @@ import {
   freshCompareToken,
   freshShareToken,
 } from '../../helpers/comparison-fixtures.js';
-import { Comparison } from '../../../src/modules/comparisons/entities/comparison.entity.js';
+import { Comparison } from '../../helpers/package-entities.js';
 
 /**
  * T052 — Contract test for `GET /api/v1/comparisons/me/pdf`

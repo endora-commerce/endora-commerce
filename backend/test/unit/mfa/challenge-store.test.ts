@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type Redis from 'ioredis';
-import { ChallengeStore } from '../../../src/modules/mfa/services/challenge-store.js';
+import type { Redis } from 'ioredis';
+import { ChallengeStore } from '../../../../packages/modules/mfa/src/backend/services/challenge-store.js';
 
 /**
  * Minimal in-memory fake of the ioredis surface used by ChallengeStore

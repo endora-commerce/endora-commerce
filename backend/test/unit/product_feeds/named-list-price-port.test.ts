@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { createNamedListPriceResolver } from '../../../src/modules/product_feeds/services/named-list-price-resolver.js';
-import type { NamedListPricePort } from '../../../src/modules/product_feeds/services/named-list-price-resolver.js';
+import { createNamedListPriceResolver } from '../../../../packages/modules/product_feeds/src/backend/services/named-list-price-resolver.js';
+import type { NamedListPricePort } from '../../../../packages/modules/product_feeds/src/backend/services/named-list-price-resolver.js';
 
 /**
  * Issue #132 — a feed pinned to a named price list reads that list through the

@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CreateCustomFieldDefinitionRequest } from '@b2b/contracts';
+import type { CreateCustomFieldDefinitionRequest } from '@endora-commerce/contracts';
 import type { CommandBus } from '../../../src/commands/index.js';
-import { CustomFieldDefinition } from '../../../src/modules/custom_fields/entities/custom-field-definition.entity.js';
-import { CustomFieldOption } from '../../../src/modules/custom_fields/entities/custom-field-option.entity.js';
-import type { CustomFieldDefinitionsCache } from '../../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
+import { CustomFieldDefinition } from '../../../../packages/modules/custom_fields/src/backend/entities/custom-field-definition.entity.js';
+import { CustomFieldOption } from '../../../../packages/modules/custom_fields/src/backend/entities/custom-field-option.entity.js';
+import type { CustomFieldDefinitionsCache } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
 import {
   CustomFieldDefinitionError,
   CustomFieldDefinitionService,
-} from '../../../src/modules/custom_fields/services/custom-field-definition.service.js';
-import { CustomFieldValueService } from '../../../src/modules/custom_fields/services/custom-field-value.service.js';
+} from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definition.service.js';
+import { CustomFieldValueService } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
 
 /**
  * Feature 061 T008 — the transactional apply seam

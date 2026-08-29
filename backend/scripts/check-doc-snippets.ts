@@ -28,6 +28,31 @@
  *
  * Uniform indentation is normalised, so a block may be dedented for reading.
  * Nothing else is: if the code changed, the document is wrong and says so.
+ *
+ * ## Its population is the documents, not the module tree (feature 080, T010)
+ *
+ * Wave 1 of feature 080 re-roots every check whose population is
+ * `backend/src/modules` onto the resolved module list, so a moved module tree
+ * exits 2 instead of reporting clean over the residue. **This check is not one
+ * of them, and re-rooting it would be wrong.** What it walks is the markdown
+ * under {@link DOCUMENT_ROOTS}; the module tree appears only as the *target* of
+ * a citation, and a target that moved is the `cited file does not exist`
+ * finding below — exit 1, naming the document and the path. The one failure
+ * mode #215 is about, a walk that comes back short and reports clean, cannot
+ * arise from the module tree here at all.
+ *
+ * It can arise from the **document** roots, and there the floor was the wrong
+ * one for the same reason. `documents.length === 0` catches only the total
+ * loss. Measured when this paragraph was written: `docs/docs` holds 92 of the
+ * 943 markdown files and one of the seven citing documents, so a docs tree that
+ * moved left a walk of 851 files that reads `6 document(s) checked, every cited
+ * block is a quotation` and exits 0 — and 851 is inside the read-size band's
+ * −10% edge, so nothing downstream would have caught it either. So the floor is
+ * per declared root: every root in {@link DOCUMENT_ROOTS} must contribute at
+ * least one markdown file. It is derived from the check's own declaration
+ * rather than from a second author, which is why `sources=` stays
+ * `self-reported` — nothing in this repository enumerates which documents ought
+ * to cite a source.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -100,6 +125,33 @@ export function markdownDocuments(repoRoot: string = REPO_ROOT): string[] {
   };
   for (const root of DOCUMENT_ROOTS) walk(join(repoRoot, root));
   return found;
+}
+
+/**
+ * Why this run may not report on what it read, or `null`.
+ *
+ * A declared root that contributed no file is the shortfall this check can
+ * actually suffer (see the header): the walk stays large, the citing documents
+ * that survive still check out, and the exit code is 0. Pure and over the walk
+ * itself, so a proof enters where a real run enters (issue #130).
+ */
+export function vacuousDocumentPopulation(
+  files: readonly string[],
+  roots: readonly string[] = DOCUMENT_ROOTS,
+): string | null {
+  // The roots are written with forward slashes and the walk returns whatever
+  // the platform's `relative` produced, so the comparison normalises — a root
+  // that matched nothing because of a separator would read as a missing root.
+  const walked = files.map((file) => file.split('\\').join('/'));
+  const empty = roots.filter(
+    (root) => !walked.some((file) => file === root || file.startsWith(`${root}/`)),
+  );
+  if (empty.length === 0) return null;
+  return (
+    `the walk read ${files.length} markdown file(s) but none under ` +
+    `${empty.join(', ')} — it is reading part of the document tree, not the tree; ` +
+    'refusing to report a vacuous pass'
+  );
 }
 
 export interface SnippetFinding {
@@ -218,6 +270,15 @@ export function checkDocument(docPath: string, readFile: (p: string) => string):
 
 function main(): void {
   const read = (p: string): string => readFileSync(p, 'utf8');
+  const walked = markdownDocuments();
+  // The root floor comes first: a root that vanished takes its citing documents
+  // with it, so the guard below would still see the ones that remain and call
+  // the run clean.
+  const vacuous = vacuousDocumentPopulation(walked);
+  if (vacuous !== null) {
+    console.error(`[doc-snippets] ${vacuous}`);
+    process.exit(2);
+  }
   const documents = discoverCitingDocuments();
   if (documents.length === 0) {
     // Discovery finding nothing is indistinguishable, on the exit code, from
@@ -249,7 +310,7 @@ function main(): void {
   // What was read, beside what was found (issue #244): the markdown walk, and
   // the documents inside it that enrol by carrying a marker. `self-reported`:
   // nothing derives "every document that should cite a source".
-  reportReadSize({ prefix: '[doc-snippets]', files: markdownDocuments().length, sites: scanned });
+  reportReadSize({ prefix: '[doc-snippets]', files: walked.length, sites: scanned });
   console.log(`[doc-snippets] ${scanned} document(s) checked, every cited block is a quotation`);
 }
 

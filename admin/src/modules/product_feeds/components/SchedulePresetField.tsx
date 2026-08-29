@@ -5,7 +5,7 @@ import {
   describeCronExpression,
   isValidCronExpression,
   presetForCron,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import {
   discoverManifests,
   ManifestLoadError,
-} from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+} from '../../../src/lifecycle/services/manifest-loader.js';
 
 /**
  * Integration test for FR-017 — boot refuses on cycle (US4).

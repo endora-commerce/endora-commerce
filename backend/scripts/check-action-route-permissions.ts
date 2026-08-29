@@ -79,14 +79,19 @@
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { activeOverlayModulesRoot } from '../src/overlay/overlay-roots.js';
-import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import {
+  moduleIdOf as segmentModuleIdOf,
+  refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
 /** Every admin API path starts here; nothing else is an admin surface. */
 const ADMIN_API_PREFIX = '/api/v1/admin';
@@ -188,6 +193,15 @@ export interface RouteScanInput {
    */
   readonly absolutePathOf?: (file: string) => string;
   readonly lookupConstant?: ConstantLookup;
+  /**
+   * Directories whose files belong to a module no `modules/<id>/` segment names
+   * — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   *
+   * `_lifecycle` serves `/api/v1/admin/modules/**`, so without it those routes
+   * are read as belonging to no module and the third resolution level — the
+   * owning module's own routes — has nothing to fall back to.
+   */
+  readonly hostResidentModules?: HostResidentModules;
 }
 
 // ---------------------------------------------------------------------------
@@ -408,7 +422,7 @@ export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
     if (!text.includes(ADMIN_API_PREFIX)) continue;
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
     const bindings = localBindings(sf);
-    const moduleId = moduleIdOf(file);
+    const moduleId = moduleIdOf(file, input.hostResidentModules);
 
     const visit = (node: ts.Node): void => {
       if (
@@ -448,14 +462,25 @@ export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
   return { routes, unreadablePaths };
 }
 
-/** The module a source under `src/` belongs to, or `null` outside a module tree. */
-export function moduleIdOf(file: string): string | null {
+/**
+ * The module a source key belongs to, or `null` outside every module tree.
+ *
+ * The two anchored answers are the application's, on keys relative to its own
+ * `src/`. The third is `lib/module-population.ts`' segment reader, which is what
+ * attributes a module that has become a workspace package — its key is
+ * repository-relative and starts with neither `modules` nor `apps` (feature
+ * 080, T040a).
+ */
+export function moduleIdOf(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
   const segments = file.split('/');
   if (segments[0] === 'modules') return segments[1] ?? null;
   // `apps/<deployment>/modules/<id>/…` — an overlay module is an ordinary
   // lifecycle participant and owns its actions the same way (feature 057).
   if (segments[0] === 'apps' && segments[2] === 'modules') return segments[3] ?? null;
-  return null;
+  return segmentModuleIdOf(file, hostResident);
 }
 
 // ---------------------------------------------------------------------------
@@ -699,7 +724,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 async function loadActions(): Promise<ActionRecord[]> {
-  const { resolvedManifestEntries } = await import('../src/modules/_lifecycle/registered-manifests.js');
+  const { resolvedManifestEntries } = await import('../src/lifecycle/registered-manifests.js');
   const entries = await resolvedManifestEntries();
   const actions: ActionRecord[] = [];
   for (const entry of entries) {
@@ -723,8 +748,13 @@ async function main(): Promise<void> {
   // The deployment's overlay modules are part of this build's surface (feature
   // 057), and `src/apps` is otherwise skipped: another deployment's routes are
   // not registered here and its actions are not shipped here.
+  // Both roots, derived (feature 080, T040a). The overlay tree stays excluded
+  // from the core list and is added back below for the active deployment only.
+  const layout = await requireModuleLayout('[action-route-permissions]');
   const overlayRoot = activeOverlayModulesRoot(process.env);
-  const coreFiles = walk(SRC_ROOT).filter((file) => !relative(SRC_ROOT, file).startsWith('apps'));
+  const coreFiles = layout.sourceRoots
+    .flatMap((root) => walk(root))
+    .filter((file) => !file.startsWith(`${layout.overlayRoot}/`));
 
   // Before anything is imported out of the tree, and before a finding count can
   // be printed: over a moved module tree the walk comes back with `src/kernel`
@@ -732,27 +762,29 @@ async function main(): Promise<void> {
   // guard here would read as a clean run (issue #215).
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[action-route-permissions]',
-    srcRoot: SRC_ROOT,
+    manifestIndexPath: layout.manifestIndexPath,
     files: coreFiles,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   const files = overlayRoot === null ? coreFiles : [...coreFiles, ...walk(overlayRoot)];
   const sources = new Map<string, string>();
   for (const file of files) {
-    sources.set(relative(SRC_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
+    sources.set(layout.keyOf(file), readFileSync(file, 'utf8'));
   }
 
   // Imported here rather than at the top: both live in the module tree, so a
   // static import would die at module resolution over the residue above and
   // turn an exit 2 into an unhandled rejection.
-  const { ConstantResolver } = await import('../src/modules/admin_roles/permission-inventory.js');
+  const { ConstantResolver } = await import('@endora-commerce/mod-admin-roles/backend');
   const resolver = new ConstantResolver();
   const actions = await loadActions();
 
   const result = analyse({
     sources,
     actions,
-    absolutePathOf: (file) => join(SRC_ROOT, file),
+    hostResidentModules: layout.hostResidentModules,
+    absolutePathOf: layout.absolutePathOf,
     lookupConstant: (file, name, property) => resolver.lookup(file, name, property),
   });
 

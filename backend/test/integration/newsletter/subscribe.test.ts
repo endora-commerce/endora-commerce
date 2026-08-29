@@ -1,15 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import type { z } from 'zod';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { InMemoryMailer } from '../../../src/modules/email/services/mailer.js';
-import { NewsletterTokenHelper } from '../../../src/modules/newsletter/services/token.helper.js';
-import { NewsletterOptInService } from '../../../src/modules/newsletter/services/opt-in.service.js';
-import { NewsletterSubscriberService } from '../../../src/modules/newsletter/services/subscriber.service.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
+import { NewsletterOptInService } from '../../../../packages/modules/newsletter/src/backend/services/opt-in.service.js';
+import { NewsletterSubscriberService } from '../../../../packages/modules/newsletter/src/backend/services/subscriber.service.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import { NewsletterSubscriber } from '../../../src/modules/newsletter/entities/newsletter-subscriber.entity.js';
-import { NewsletterTag } from '../../../src/modules/newsletter/entities/newsletter-tag.entity.js';
-import { NewsletterSubscriberTag } from '../../../src/modules/newsletter/entities/newsletter-subscriber-tag.entity.js';
-import { NewsletterCustomField } from '../../../src/modules/newsletter/entities/newsletter-custom-field.entity.js';
+import { NewsletterCustomField, NewsletterSubscriber, NewsletterSubscriberTag, NewsletterTag } from '../../helpers/package-entities.js';
 
 /** Minimal SettingsService stub returning the opt-in mode + TTL for the tests. */
 class FakeSettings {

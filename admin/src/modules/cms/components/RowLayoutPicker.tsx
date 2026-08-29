@@ -5,7 +5,7 @@ import type { ReactElement } from 'react';
 import {
   ROW_LAYOUT_PRESETS,
   type RowLayoutPresetId,
-} from '@b2b/cms-components/editor/row-layout-presets';
+} from '@endora-commerce/cms-components/editor/row-layout-presets';
 import { Button } from '@/components/ui/button';
 
 export function RowLayoutPicker({

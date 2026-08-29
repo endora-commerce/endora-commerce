@@ -1,14 +1,20 @@
+import { CartItem } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { ProductLink } from '../../../src/modules/catalog/entities/product-link.entity.js';
+
+import { Product } from '../../helpers/package-entities.js';
+
+import { ProductLink } from '../../helpers/package-entities.js';
+
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+
 
 /**
  * Cart routes perf harness (feature 027 T128).

@@ -1,23 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ModuleAction } from '../../helpers/package-entities.js';
+import { dirname } from 'node:path';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
-import { TranslationBundle } from '../../../src/modules/_i18n/entities/translation-bundle.entity.js';
-import { AdminActionsReconciler } from '../../../src/modules/admin_actions/services/admin-actions-reconciler.js';
-import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
-import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
-import type { PermissionService } from '../../../src/modules/admin_roles/services/permission-service.js';
-import { manifest as catalogManifest } from '../../../src/modules/catalog/manifest.js';
-import { manifest as importExportManifest } from '../../../src/modules/import_export/manifest.js';
-import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
-import { manifest as quoteRequestsManifest } from '../../../src/modules/quote_requests/manifest.js';
-import { manifest as cmsManifest } from '../../../src/modules/cms/manifest.js';
-import { manifest as blogManifest } from '../../../src/modules/blog/manifest.js';
-import { manifest as megamenuManifest } from '../../../src/modules/megamenu/manifest.js';
-import { manifest as salesChannelsManifest } from '../../../src/modules/sales_channels/manifest.js';
-import { manifest as settingsManifest } from '../../../src/modules/settings/manifest.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { I18nService } from '@endora-commerce/mod-i18n/backend';
+import { TranslationBundle } from '../../helpers/package-entities.js';
+import { AdminActionsReconciler } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-reconciler.js';
+import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
+import type { PermissionService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
+import { manifest as catalogManifest } from '../../../../packages/modules/catalog/src/manifest.js';
+import { manifest as importExportManifest } from '../../../../packages/modules/import_export/src/manifest.js';
+import { manifest as inventoryManifest } from '../../../../packages/modules/inventory/src/manifest.js';
+import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
+import { manifest as cmsManifest } from '../../../../packages/modules/cms/src/manifest.js';
+import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
+import { manifest as megamenuManifest } from '@endora-commerce/mod-megamenu';
+import { manifest as salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
+import { manifest as settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 
 /**
  * End-to-end integration test that wires the REAL I18nService into the
@@ -34,8 +34,28 @@ import { manifest as settingsManifest } from '../../../src/modules/settings/mani
  * label/description keys.
  */
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const MODULES_ROOT = resolve(HERE, '../../../src/modules');
+/**
+ * A module's own directory, the way the platform answers it.
+ *
+ * This was `resolve(HERE, '../../../src/modules', id)` — the convention
+ * `manifest-locations.ts` exists to replace. It gave a confident wrong answer
+ * the day `blog` became a workspace package (feature 080, T040b):
+ * `installBundlesForModule` was handed a directory that does not exist, the
+ * loader read that as *"this module ships no translatable strings"*, and every
+ * one of `blog`'s palette labels came back as its raw key — which is precisely
+ * the failure this file was written to catch, arriving through the test's own
+ * path derivation instead of through the resolver.
+ *
+ * `dirname(entry.filePath)` is what the `_i18n` boot reconciler joins
+ * `bundlesDir` to, so this seeds from the same place production reads.
+ */
+function moduleDirectoryOf(moduleId: string): string {
+  const entry = REGISTERED_MANIFESTS.find((candidate) => candidate.manifest.id === moduleId);
+  if (entry === undefined) {
+    throw new Error(`[i18n-resolution] '${moduleId}' is not a registered module`);
+  }
+  return dirname(entry.filePath);
+}
 
 interface SeededModule {
   id: string;
@@ -61,7 +81,7 @@ describe('admin_actions i18n resolution (integration, real I18nService)', () => 
   let em: EntityManager;
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
     em = orm.em.fork() as EntityManager;
     await cleanup(em);
     await seedRegistrations(em);
@@ -181,7 +201,7 @@ async function seedActions(em: EntityManager): Promise<void> {
 async function seedBundles(em: EntityManager): Promise<void> {
   const i18nService = new I18nService({ em: () => em });
   for (const m of SEEDED) {
-    await i18nService.installBundlesForModule(m.id, resolve(MODULES_ROOT, m.id), 'i18n');
+    await i18nService.installBundlesForModule(m.id, moduleDirectoryOf(m.id), 'i18n');
   }
 }
 

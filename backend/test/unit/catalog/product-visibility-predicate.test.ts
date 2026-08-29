@@ -4,7 +4,7 @@ import {
   isProductVisibleTo,
   type ProductAudience,
   type ProductVisibility,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * The one predicate every read path applies (issue #227).

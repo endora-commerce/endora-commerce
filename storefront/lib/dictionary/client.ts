@@ -4,7 +4,7 @@ import {
   type DictionaryByCodeResponse,
   type DictionaryEntryType,
   type DictionaryRegistryResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiGet, type RequestContext } from '../api/client';
 
 export type DictionaryRegistry = DictionaryRegistryResponse['data'];

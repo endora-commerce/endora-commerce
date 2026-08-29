@@ -1,8 +1,14 @@
 {
+  // Type-check configuration. `tsconfig.base.json`'s `paths` block is active here, so a
+  // sibling `@endora-commerce/*` package resolves at its source and this workspace type-checks
+  // against the branch it is on (issue #255). `noEmit` is set for that reason: with
+  // `paths` active an emit would land beside another package's source. The emitting
+  // configuration is `tsconfig.build.json`.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
+    "noEmit": true,
     "types": []
   },
   "include": ["src/**/*"]

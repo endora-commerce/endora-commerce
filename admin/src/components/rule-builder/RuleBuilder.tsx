@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Select } from '@/components/ui/select';
-import type { PromotionRule } from '@b2b/contracts';
+import type { PromotionRule } from '@endora-commerce/contracts';
 
 /**
  * Feature 045 — generic, controlled rule builder for a typed rule AST

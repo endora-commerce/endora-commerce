@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
-import type { FeedFieldSourceCatalogue } from '@b2b/contracts';
+import type { FeedFieldSourceCatalogue } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { FieldSourceCombobox } from '@/modules/product_feeds/components/FieldSourceCombobox';
 

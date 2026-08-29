@@ -2,7 +2,20 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "types": ["node"]
+    // The two Fastify plugins whose *type augmentations* this application's modules
+    // write against: `@fastify/rate-limit` adds `rateLimit` to `FastifyContextConfig`
+    // (`settings/routes.cache.ts`, `product_feeds/routes.public.ts`) and
+    // `@fastify/cookie` adds `setCookie`/`clearCookie` to `FastifyReply` (16 sites in 10
+    // modules). Both used to arrive for free: the platform's `http/server.ts`
+    // value-imports each and lived under `src/**/*`, so both were in this program. The
+    // platform is a package now, and a `.d.ts` carries only the types its own
+    // declarations name — neither plugin appears in any of them, and `tsc` elides an
+    // unreferenced triple-slash directive from declaration output, so neither the package
+    // nor a re-export shim can hand the augmentation on. Naming them here is the
+    // application saying which plugins its handlers are written against; a module that
+    // starts using a third one adds it, and the failure is a compile error rather than a
+    // silence.
+    "types": ["node", "@fastify/rate-limit", "@fastify/cookie"]
   },
   "include": ["src/**/*", "test/**/*"]
 }

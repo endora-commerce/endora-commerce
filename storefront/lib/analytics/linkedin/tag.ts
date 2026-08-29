@@ -1,4 +1,4 @@
-import type { LinkedInStorefrontConfig, LinkedInTriggerAction } from '@b2b/contracts';
+import type { LinkedInStorefrontConfig, LinkedInTriggerAction } from '@endora-commerce/contracts';
 import { readConsent } from '../consent';
 
 /**

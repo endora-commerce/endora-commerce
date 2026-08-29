@@ -1,4 +1,5 @@
-import type { WebhookService } from '../../../src/modules/webhooks/services/webhook-service.js';
+import type { WebhookService } from '../../../../packages/modules/webhooks/src/backend/services/webhook-service.js';
+import { Organization } from '../../helpers/package-entities.js';
 import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Queue, Worker } from 'bullmq';
@@ -8,17 +9,16 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { WebhookDelivery } from '../../../src/modules/webhooks/entities/webhook-delivery.entity.js';
 import {
   createWebhookQueue,
   createWebhookWorker,
   type WebhookJobData,
-} from '../../../src/modules/webhooks/services/webhook-queue.js';
-import { createDeliveryProcessor } from '../../../src/modules/webhooks/services/webhook-delivery-worker.js';
-import { bridgeEventHandler } from '../../../src/modules/webhooks/services/event-bridge.js';
-import { BRIDGED_EVENT_TYPES } from '../../../src/modules/webhooks/backend.js';
-import { emitOrderStatusAfter } from '../../../src/modules/orders/events/order-status-events.js';
+} from '../../../../packages/modules/webhooks/src/backend/services/webhook-queue.js';
+import { createDeliveryProcessor } from '../../../../packages/modules/webhooks/src/backend/services/webhook-delivery-worker.js';
+import { bridgeEventHandler } from '../../../../packages/modules/webhooks/src/backend/services/event-bridge.js';
+import { BRIDGED_EVENT_TYPES } from '../../../../packages/modules/webhooks/src/backend/index.js';
+import { emitOrderStatusAfter } from '../../../../packages/modules/orders/src/backend/events/order-status-events.js';
+import { WebhookDelivery, type WebhookDeliveryRow } from '../../helpers/package-entities.js';
 
 /**
  * Feature 062 / T028 — org-scoped webhook delivery, end to end (SC-006;
@@ -280,7 +280,7 @@ describe('webhook delivery — org-scoped order events (062/T028)', () => {
 
     const flakyId = hookIds.get(URL_FLAKY)!;
     // recordDelivery flushes out-of-band; poll until the succeeded row lands.
-    let rows: WebhookDelivery[] = [];
+    let rows: WebhookDeliveryRow[] = [];
     const deadline = Date.now() + 10_000;
     do {
       await new Promise((r) => setTimeout(r, 100));

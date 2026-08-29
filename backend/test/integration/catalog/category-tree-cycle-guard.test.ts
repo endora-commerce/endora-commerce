@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
+import { Category } from '../../helpers/package-entities.js';
+import { CatalogQueryService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-query.service.js';
 import {
   setupBackendServer,
   teardownBackendServer,

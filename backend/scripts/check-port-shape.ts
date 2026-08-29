@@ -1,12 +1,81 @@
 /**
  * CI check — a published port's **shape**: it declares no optional method
  * (D-97.3), the container name in its doc block is the name it is actually
- * registered under (issue #192), and a module resolves, cross-module, only a
- * name some contract publishes (issue #196, D-98.2).
+ * registered under (issue #192), a module resolves, cross-module, only a name
+ * some contract publishes (issue #196, D-98.2), and an interface a module
+ * declares for *another* module to implement is named at that provider's
+ * `implements` clause (D-171.1).
  *
- * Three signals over one population, because all three read the same thing: the
- * doc block that makes an interface a published port, and what
- * `backend/src/modules` does with the name in it.
+ * Four signals over one population, because all four read the same thing: the
+ * doc block that makes an interface a published port, and what the module tree
+ * does with the name in it.
+ *
+ * ## The population, and why it is two places rather than one
+ *
+ * A published port was `packages/contracts/src` and nothing else until D-171.1.
+ * That was never the rule — it was the only place a port *could* be published,
+ * because a module in `backend/src` has no supported name for anything it
+ * declares. D-171 changed that: a module package's `./ports` subpath is contract
+ * surface, so an interface declared there is published in exactly the sense this
+ * check means — a consumer may name it, and the container name in its doc block
+ * is the literal that consumer copies into `lazyPort`.
+ *
+ * So the population is **every exported `interface` carrying the
+ * `Container name:` marker, in `packages/contracts/src` or on a module
+ * package's declared `./ports` subpath**. The second half is what
+ * {@link RESOLUTIONS_OF_UNPUBLISHED_NAMES}' own entries have named as their
+ * retiring condition since T048 — *"this check's own population —
+ * `packages/contracts/src` — is what has to widen for the entry to go"* — and
+ * widening it retires them as their owners are packaged.
+ *
+ * **The `exports` map decides membership, not the path**, and the difference is
+ * load-bearing rather than pedantic. D-171's designation is derived from the
+ * artefact, and *"a `./ports` subpath exists only on a package"*: a module still
+ * in the application tree has a `ports/` directory with no supported name, so
+ * its interface is not published and a consumer still reaches it relatively —
+ * which is the ledger entry that has not yet retired. Reading the directory
+ * instead would retire those entries the moment this check widened, recording a
+ * repair that had not happened. The path-text alternative is refused for a
+ * second reason too: D-171 says `surfaceOf` answers `'port'` for a relative
+ * `services/ports/foo.ts`, which is a private file, and that a path heuristic
+ * is *"correct for choosing a remedy sentence and wrong as a boundary
+ * decision"*.
+ *
+ * The population is therefore derived in {@link main} and handed in as
+ * {@link PortShapeInput.modulePorts}: nothing in the analysis below spells a
+ * path, so a fixture enters with the same standing a real run has.
+ *
+ * ## Signal 4 — an interface declared by one module and implemented by another
+ *
+ * D-171 §4 used to refuse consumer-side declaration outright, on the ground
+ * that `lazyPort<T>` is an unchecked cast. It is, and that is about the wrong
+ * seam: conformance is checked at the **provider's** `implements` clause
+ * (TS2420) and at its explicitly typed `providePort<T>` registration, whose
+ * `Registration<T> = Resolver<T>` puts `T` in return position (TS2345). Both
+ * resolve the interface wherever it was declared.
+ *
+ * D-171.1 therefore licenses the placement — for a mutual pair, on the side the
+ * binding manifest `dependencies` edge points to — **against a condition**, and
+ * this signal is the condition. What it refuses is
+ * `declared-elsewhere-without-implements`: an interface declared in module A's
+ * `ports/`, registered by a typed `providePort<T>` in module B ≠ A, which no
+ * class in B names at an `implements` clause. That is precisely D-77's rejected
+ * alternative — the consumer declares the seam *"in its own file, importing
+ * nothing"* and the provider names it **nowhere**, so the only relation between
+ * the two types is the cast, which is none.
+ *
+ * **No ledger, and for signal 1's reason.** An entry could only license the one
+ * arrangement the condition exists to refuse.
+ *
+ * Two limits, in the header rather than discovered later. It asks whether the
+ * **provider module** names the interface at an `implements` clause, not
+ * whether the class the registration resolves to does: reading the registration
+ * argument back to a class declaration is analysis this check does not have,
+ * and a provider that implements the interface on a class it does not register
+ * passes. And the complementary direction needs no code here — a registration
+ * that drops its explicit type argument stops being seen as a registration at
+ * all, so its interface lands in {@link PORTS_WITHOUT_A_REGISTRATION}, which is
+ * empty and two-way.
  *
  * ## Signal 3 — the resolution side of the same name (issue #196)
  *
@@ -98,10 +167,11 @@
  * ## What it reads
  *
  *  1. **Published ports** — an exported `interface` in `packages/contracts/src`
- *     whose doc block carries the `Container name:` line every port in the tree
- *     is introduced by. One parse, `portDocOf`, answers both "is this a port?"
- *     and "which container does it name?", so the two signals cannot come to
- *     disagree about the population.
+ *     **or on a module package's declared `./ports` subpath** (D-171.1) whose
+ *     doc block carries the `Container name:` line every port in the tree is
+ *     introduced by. One parse, `portDocOf`, answers both "is this a port?" and
+ *     "which container does it name?", so the signals cannot come to disagree
+ *     about the population.
  *  2. **Interfaces extending one** — an `interface X extends <port>` anywhere in
  *     `backend/src/modules` or `backend/src/apps`, or in the contracts package
  *     itself. A widening is the shape that actually happened; refusing it only
@@ -120,7 +190,7 @@
  *
  * Usage: `tsx scripts/check-port-shape.ts [--list]`
  * Exit 0 = clean; exit 1 = at least one finding, of any signal;
- * exit 2 = nothing was read. Five conditions, one per input any signal could be
+ * exit 2 = nothing was read. Six conditions, one per input any signal could be
  * silently missing (issue #113), because a green must never be able to mean
  * "not looking": no sources; no port type in the contracts package; **no
  * registration in the module scan** — an empty registration map would report
@@ -128,8 +198,13 @@
  * widening the ledger would have turned the whole check off; **no published
  * container name** — signal 3 compares a consumer's literal against that set,
  * and an empty one makes every cross-module resolution in the tree a finding;
- * and **no `lazyPort` resolution at all** — signal 3's population, whose
- * emptiness would otherwise read as a clean bill.
+ * **no `lazyPort` resolution at all** — signal 3's population, whose emptiness
+ * would otherwise read as a clean bill; and **no module-declared port**, which
+ * is signal 4's whole population and the half of signal 3's the widening added.
+ * That last one is the one to understand: the widening is what retires the
+ * resolution ledger's entries, so a walk that stopped producing module ports
+ * would report those entries stale and invite an author to delete them — the
+ * exact inverse of the repair.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -144,11 +219,15 @@ import {
   registeredNames,
   resolvedNames,
 } from './check-port-dependencies.js';
-import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import {
+  refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
+import { requireModuleLayout, type ModuleTreeLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const BACKEND_SRC = join(HERE, '..', 'src');
 const CONTRACTS_SRC = join(HERE, '..', '..', 'packages', 'contracts', 'src');
 
 /** The line every port's doc block carries, and the only marker that finds one. */
@@ -211,7 +290,7 @@ export interface PortNameFinding {
  *
  * **Two-way**: an entry whose port has gained a registration, or whose port no
  * longer exists, fails the check as stale. This is not a queue to add to — a
- * port nobody provides is what `@b2b/contracts` would publish to the outside
+ * port nobody provides is what `@endora-commerce/contracts` would publish to the outside
  * world at F4, so an entry is a decision that has been taken and recorded, not
  * one deferred.
  *
@@ -274,11 +353,25 @@ export interface UnpublishedResolutionFinding {
  * contribution seam a composition root or the kernel supplies, where "name a
  * published contract" would be the wrong requirement. `PortResolution.via`
  * carries the distinction from the one function that decides it.
+ *
+ * **Publication is the `./ports` subpath *and* the `Container name:` marker, and
+ * an entry can stand on either half being absent.** Since D-171.1 an owner that
+ * has been packaged publishes its interface, so the entry goes — that is what
+ * retired `carts`, `invoices`, `inventory` and `custom_fields`, whose consumers
+ * had already been converted to name the subpath and whose entries only this
+ * check could not see were spent. The mutual `orders` <-> `payments` pair went with T040b
+ * packaging both of them, which is the second half D-171.1 predicted. The three
+ * entries left all have packaged owners and stand anyway, because their
+ * `ports/` declarations name the container in **prose** rather than in the
+ * marker line `portDocOf` reads (`creditLimitService`,
+ * `promotionUsageFinalizer`, `personalOrganizationProvisionApi`). That is an omission rather than a
+ * decision, and it is recorded rather than repaired here: adding a marker
+ * publishes a name, which is signal 2's subject and the owner's call.
  */
 export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> = {
   // The two D-94.5 ports, and they are one entry written twice: each is an
   // interface the **owner** declares beside its implementation, deliberately
-  // outside `@b2b/contracts`, because its signature carries the caller's
+  // outside `@endora-commerce/contracts`, because its signature carries the caller's
   // MikroORM `EntityManager` and FR-034 keeps a MikroORM type out of that
   // package. Both are held there by a foreign key rather than by a convention
   // — `credit_limit_reservations_order_fk` and `promotion_usages_order_fk`,
@@ -291,42 +384,68 @@ export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> 
   // either shape today would mean publishing an `EntityManager`.
   'orders:creditLimitService':
     'D-94.5 — `CreditLimitPort` is declared by `credit_limits` beside its ' +
-    'implementation and stays out of `@b2b/contracts` because `reserve` takes the ' +
+    'implementation and stays out of `@endora-commerce/contracts` because `reserve` takes the ' +
     "caller's `EntityManager` (FR-034); `credit_limit_reservations_order_fk` is what " +
     'holds it co-transactional. Retired by F4 package entry points, as the matching ' +
     "`permanent: true` entry in `orders`' cross-module-imports shard says.",
   'orders:promotionUsageFinalizer':
     'D-94.5 — the twin of the entry above and the same shape: `PromotionUsageFinalizer` ' +
-    'is `promotions`\' own interface, kept out of `@b2b/contracts` because ' +
+    'is `promotions`\' own interface, kept out of `@endora-commerce/contracts` because ' +
     '`finalizeUsage` takes the placement transaction, and held there by ' +
     '`promotion_usages_order_fk`. Retired by F4 package entry points.',
-  // `catalog`'s remaining edge, and the one the #196 sweep recorded as *two
-  // answers under one key*. Four sites resolved this name because both
-  // composition roots handed the owner's `CustomFieldDefinitionService` to two
-  // different options — one service satisfying two shapes — so the definition
-  // *read* and the transactional *apply* seam were indistinguishable from the
-  // container's side. Issue #209 split them: the two read sites name the
-  // published `customFieldDefinitionReadPort`, and what is left under this key
-  // is the apply seam alone.
-  'catalog:customFieldDefinitionService':
-    'The apply seam, and only that, since issue #209 re-pointed this module\'s two ' +
-    'definition *reads* to the published `customFieldDefinitionReadPort`. ' +
-    '`CatalogCustomFieldsPort` extends `CustomFieldDefinitionApplyApi`, whose every ' +
-    "method takes the caller's `EntityManager` — FR-034 keeps a MikroORM type out of " +
-    '`@b2b/contracts`, and `fk_product_attributes_custom_field_definition` is `on delete ' +
-    'restrict` with a `unique` on the same column, so the attribute row and its ' +
-    'definition must be written in one transaction and a second one cannot satisfy the ' +
-    'key. D-77 ruled the seam permanent for that reason. Retired by F4 package entry ' +
-    'points, or by dropping the constraint — the same two conditions the D-77 note on ' +
-    "`CustomFieldDefinitionApplyApi` names, and the same shape as `orders`' two entries " +
-    'above.',
+  // D-178's seam, and the same shape once more: an interface the owner declares
+  // beside its implementation, kept out of `@endora-commerce/contracts` because
+  // its signature carries the caller's `EntityManager`, held co-transactional by
+  // a foreign key.
+  'customer_accounts:personalOrganizationProvisionApi':
+    'D-178 — `PersonalOrganizationProvisionApi` is declared by `organizations` beside its ' +
+    'implementation and stays out of `@endora-commerce/contracts` because `provisionFor` takes ' +
+    "the caller's `EntityManager` (FR-034). What holds it co-transactional is " +
+    '`customer_accounts_organization_fk` (`on delete restrict`) over a column D-178 makes ' +
+    '`NOT NULL`: the account row cannot be inserted before its Organization exists, and a ' +
+    'second transaction cannot satisfy a foreign key against a row it cannot see. Splitting ' +
+    'the two reopens the window that ruling closed — a committed account with no tenant, and ' +
+    'nothing that retries. The **read**-shaped half of the same capability is published, as ' +
+    "`PersonalOrganizationPort`; this name answers only the write. Retired by F4 package " +
+    "entry points, as the matching `permanent: true` entries in this module's " +
+    'cross-module-imports shard say.',
 };
+
+/**
+ * Signal 4 — an interface one module declares for another to implement, where
+ * the provider names it at no `implements` clause (D-171.1).
+ */
+export type DeclaredElsewhereKind = 'declared-elsewhere-without-implements';
+
+export interface DeclaredElsewhereFinding {
+  /** The port interface, as declared. */
+  readonly portName: string;
+  /** Where it is declared, as the caller keyed it. */
+  readonly file: string;
+  readonly line: number;
+  /** The module whose `ports/` directory declares it. */
+  readonly declaringModule: string;
+  /** The module whose typed `providePort<T>` registers it. */
+  readonly providingModule: string;
+  /** The container name that registration gives. */
+  readonly container: string;
+  readonly kind: DeclaredElsewhereKind;
+}
 
 export interface PortShapeInput {
   /** Contract sources, keyed however the caller likes (the key is reported). */
   readonly contracts: ReadonlyMap<string, string>;
   /** Module sources — `src/modules/**`, `src/apps/**`. */
   readonly modules: ReadonlyMap<string, string>;
+  /**
+   * The sources behind a module package's declared `./ports` subpath — the
+   * second half of the published population since D-171.1. Keyed like
+   * {@link PortShapeInput.modules}, and the module id is read off the key by the
+   * same `moduleOf` everything else here uses. Derived in {@link main} from the
+   * packages' `exports` maps, so no path shape is spelled below and a fixture
+   * enters where a real run does.
+   */
+  readonly modulePorts?: ReadonlyMap<string, string>;
   /** Defaults to {@link PORTS_WITHOUT_A_REGISTRATION}; a fixture overrides it. */
   readonly unregisteredLedger?: Readonly<Record<string, string>>;
   /**
@@ -335,6 +454,13 @@ export interface PortShapeInput {
    * real one.
    */
   readonly unpublishedResolutionLedger?: Readonly<Record<string, string>>;
+  /**
+   * Directories whose files belong to a module no `modules/<id>/` segment names
+   * — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   * Without it a host-resident module's registrations are owned by nobody, and
+   * signal 3 cannot tell its self-resolutions from cross-module ones.
+   */
+  readonly hostResidentModules?: HostResidentModules;
 }
 
 export interface PortShapeResult {
@@ -366,6 +492,15 @@ export interface PortShapeResult {
   readonly lazyPortResolutionCount: number;
   /** `<consumer>:<name>` entries no resolution in the tree answers to. */
   readonly staleUnpublishedResolutions: readonly string[];
+  /** Signal 4 — a port declared for another module, implemented by nothing. */
+  readonly declaredElsewhere: readonly DeclaredElsewhereFinding[];
+  /**
+   * How many published ports came out of the **module** half of the population.
+   * Zero means the widening D-171.1 rests on read nothing, which the CLI turns
+   * into exit 2 — signal 4 would have no population at all, and signal 3 would
+   * report the resolution ledger's retired entries as live findings again.
+   */
+  readonly modulePortCount: number;
 }
 
 function parse(file: string, text: string): ts.SourceFile {
@@ -418,6 +553,52 @@ function interfaces(sf: ts.SourceFile): ts.InterfaceDeclaration[] {
   return found;
 }
 
+/**
+ * Every interface name a class in this file names at an `implements` clause.
+ *
+ * Signal 4's evidence, and the one `tsc` acts on: `implements` is resolved
+ * against the type wherever it was declared, so a missing member is TS2420
+ * whichever package the interface came from. A class `extends` clause is
+ * deliberately not read — it is not a conformance claim about an interface.
+ */
+function implementedNames(sf: ts.SourceFile): string[] {
+  const names: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
+      for (const clause of node.heritageClauses ?? []) {
+        if (clause.token !== ts.SyntaxKind.ImplementsKeyword) continue;
+        for (const type of clause.types) {
+          if (ts.isIdentifier(type.expression)) names.push(type.expression.text);
+        }
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return names;
+}
+
+/**
+ * The module a source key belongs to.
+ *
+ * `moduleOf` keys on `/src/modules/<id>/` and falls back to the first
+ * `modules/<id>/` segment, while this function's inputs are keyed however the
+ * caller likes — so the key is normalised for it and the caller's own key is
+ * what gets reported. Normalising is not re-deciding: the id still comes from
+ * the one function that owns that question.
+ */
+function moduleOfKey(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
+  return moduleOf(forOwnerLookup(file), hostResident);
+}
+
+/** The key spelling `moduleOf`, `registeredNames` and `resolvedNames` expect. */
+function forOwnerLookup(file: string): string {
+  return file.includes('/src/') ? file : `/src/${file.replace(/^\/+/, '')}`;
+}
+
 /** The names an interface extends, as written (type arguments dropped). */
 function extendedNames(node: ts.InterfaceDeclaration): string[] {
   const names: string[] = [];
@@ -463,6 +644,7 @@ function memberName(member: ts.TypeElement): string {
  * does (issue #130): nothing above this function classifies anything.
  */
 export function checkPortShape(input: PortShapeInput): PortShapeResult {
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   const parsedContracts = new Map<string, ts.SourceFile>();
   const portTypes = new Set<string>();
   /** Every published port, with where it is declared and what it documents. */
@@ -471,22 +653,54 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
     readonly file: string;
     readonly line: number;
     readonly containers: readonly string[];
+    /**
+     * The module whose `ports/` directory declares it; `null` for a port in the
+     * contracts package, which belongs to no module. Signal 4's subject.
+     */
+    readonly declaringModule: string | null;
   }> = [];
 
-  for (const [file, text] of input.contracts) {
+  /**
+   * One sweep for both halves of the population — the contracts package and the
+   * modules' own `ports/` directories. `portDocOf` decides membership in both,
+   * so the two cannot come to disagree about what a published port is.
+   */
+  const collect = (
+    file: string,
+    text: string,
+    declaringModule: string | null,
+    remember: (sf: ts.SourceFile) => void,
+  ): number => {
     const sf = parse(file, text);
-    parsedContracts.set(file, sf);
+    remember(sf);
+    let found = 0;
     for (const node of interfaces(sf)) {
       const doc = portDocOf(node, text);
       if (doc === null) continue;
+      found += 1;
       portTypes.add(node.name.text);
       published.push({
         portName: node.name.text,
         file,
         line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
         containers: doc.containers,
+        declaringModule,
       });
     }
+    return found;
+  };
+
+  for (const [file, text] of input.contracts) {
+    collect(file, text, null, (sf) => parsedContracts.set(file, sf));
+  }
+
+  const modulePorts = input.modulePorts ?? new Map<string, string>();
+  const parsedModulePorts = new Map<string, ts.SourceFile>();
+  let modulePortCount = 0;
+  for (const [file, text] of modulePorts) {
+    modulePortCount += collect(file, text, moduleOfKey(file, hostResident), (sf) =>
+      parsedModulePorts.set(file, sf),
+    );
   }
 
   const findings: PortShapeFinding[] = [];
@@ -515,7 +729,13 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
   };
 
   for (const [file, sf] of parsedContracts) scan(file, sf);
-  for (const [file, text] of input.modules) scan(file, parse(file, text));
+  // A ports file is walked by both halves of a real run — it is a module source
+  // and it is a port declaration — so signal 1 scans the union keyed by file,
+  // never the concatenation, which would report an optional method twice.
+  const moduleScan = new Map<string, ts.SourceFile>();
+  for (const [file, text] of input.modules) moduleScan.set(file, parse(file, text));
+  for (const [file, sf] of parsedModulePorts) if (!moduleScan.has(file)) moduleScan.set(file, sf);
+  for (const [file, sf] of moduleScan) scan(file, sf);
 
   findings.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
 
@@ -529,13 +749,28 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
   const gatedNames = new Set<string>();
   /** Container name a typed `providePort<T>` gives each port type. */
   const gatedNameOfType = new Map<string, string>();
+  /** The module that typed registration sits in — signal 4's other half. */
+  const gatedModuleOfType = new Map<string, string>();
+  /** Module id → every interface name a class in it `implements`. */
+  const implementsByModule = new Map<string, Set<string>>();
   for (const [file, text] of input.modules) {
     for (const name of registeredNames(text, file)) allNames.add(name);
     for (const port of providedPorts(text, file)) {
       gatedNames.add(port.name);
       if (port.typeName !== null && !gatedNameOfType.has(port.typeName)) {
         gatedNameOfType.set(port.typeName, port.name);
+        const owner = moduleOfKey(file, hostResident);
+        if (owner !== null) gatedModuleOfType.set(port.typeName, owner);
       }
+    }
+  }
+  for (const [file, sf] of moduleScan) {
+    const owner = moduleOfKey(file, hostResident);
+    if (owner === null) continue;
+    for (const name of implementedNames(sf)) {
+      const claimed = implementsByModule.get(owner);
+      if (claimed) claimed.add(name);
+      else implementsByModule.set(owner, new Set([name]));
     }
   }
 
@@ -597,6 +832,31 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
     .filter((portName) => !ledgerHits.has(portName))
     .sort();
 
+  // --- signal 4: the condition D-171.1 licenses the placement against ---------
+  //
+  // Only a port a **module** declares can be in this population: a port in
+  // `packages/contracts` belongs to no module, so "declared elsewhere" has no
+  // meaning for it. And only where the typed registration is in a *different*
+  // module — the ordinary case, where the owner declares and implements its own
+  // interface, is what D-171 §4 already describes and is untouched.
+  const declaredElsewhere: DeclaredElsewhereFinding[] = [];
+  for (const port of published) {
+    if (port.declaringModule === null) continue;
+    const provider = gatedModuleOfType.get(port.portName);
+    if (provider === undefined || provider === port.declaringModule) continue;
+    if (implementsByModule.get(provider)?.has(port.portName) === true) continue;
+    declaredElsewhere.push({
+      portName: port.portName,
+      file: port.file,
+      line: port.line,
+      declaringModule: port.declaringModule,
+      providingModule: provider,
+      container: gatedNameOfType.get(port.portName) as string,
+      kind: 'declared-elsewhere-without-implements',
+    });
+  }
+  declaredElsewhere.sort((a, b) => a.portName.localeCompare(b.portName));
+
   // --- signal 3: the resolution side of the same name ------------------------
   //
   // Signal 2 above walks contract doc -> registration. This walks consumer
@@ -627,11 +887,11 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
     // So the path is normalised for them and the caller's own key is what gets
     // reported. Normalising is not re-deciding: the module id still comes from
     // the one function that owns that question.
-    const forOwnerLookup = file.includes('/src/') ? file : `/src/${file.replace(/^\/+/, '')}`;
-    const moduleId = moduleOf(forOwnerLookup);
+    const lookupKey = forOwnerLookup(file);
+    const moduleId = moduleOf(lookupKey, hostResident);
     if (moduleId === null) continue;
-    for (const name of registeredNames(text, forOwnerLookup)) ownerOfName.set(name, moduleId);
-    for (const resolution of resolvedNames(text, forOwnerLookup)) {
+    for (const name of registeredNames(text, lookupKey)) ownerOfName.set(name, moduleId);
+    for (const resolution of resolvedNames(text, lookupKey)) {
       if (resolution.via !== 'lazyPort') continue;
       lazyResolutions.push({
         moduleId: resolution.moduleId,
@@ -692,6 +952,8 @@ export function checkPortShape(input: PortShapeInput): PortShapeResult {
     publishedContainerCount: publishedContainers.size,
     lazyPortResolutionCount: lazyResolutions.length,
     staleUnpublishedResolutions,
+    declaredElsewhere,
+    modulePortCount,
   };
 }
 
@@ -709,6 +971,66 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * Every module's own `ports/` directory, and the package manifests that say
+ * which of them must exist.
+ *
+ * **"The module's own directory", never "a path with a `ports` segment in
+ * it".** D-171 is explicit that `surfaceOf` answers `'port'` for a relative
+ * `services/ports/foo.ts`, which is a private file, and that a path-text
+ * heuristic is *"correct for choosing a remedy sentence and wrong as a boundary
+ * decision"*. So the directory is reached from the module's own location, which
+ * `module-roots.ts` derives, and the two source layouts are **probed**: a module
+ * in the application tree keeps its sources at its directory, a module package
+ * one level in, under the source root its build compiles from. `existsSync`
+ * answers rather than a rule, so a package arranged differently is followed
+ * rather than silently missed.
+ *
+ * `declaredPortsSubpaths` is the independent second author (issue #244): a
+ * package's `exports` map declares `./ports` or it does not, and that is
+ * written by the manifest generator from the file's presence — a different
+ * derivation of the same fact, so a walk that stopped seeing ports directories
+ * disagrees with it in the same run.
+ */
+function modulePortsPopulation(layout: ModuleTreeLayout): {
+  readonly files: string[];
+  readonly packagesDeclaringPorts: number;
+  readonly packagesWalked: number;
+} {
+  const files: string[] = [];
+  let packagesDeclaringPorts = 0;
+  let packagesWalked = 0;
+
+  for (const root of layout.moduleRoots) {
+    if (root.origin !== 'workspace-package') continue;
+    const manifestPath = join(root.directory, 'package.json');
+    if (!existsSync(manifestPath)) continue;
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      exports?: Record<string, unknown>;
+    };
+    if (manifest.exports?.['./ports'] === undefined) continue;
+    packagesDeclaringPorts += 1;
+    // The declaration is the publication; the location is a probe. A package
+    // keeps its sources under the root its build compiles from, which is `src`
+    // for every package the generator renders — so `existsSync` answers, and a
+    // package arranged differently contributes nothing rather than being
+    // guessed at.
+    const portsDir = join(root.directory, 'src', 'ports');
+    const found = existsSync(portsDir) ? walk(portsDir) : [];
+    if (found.length > 0) packagesWalked += 1;
+    files.push(...found);
+  }
+
+  return { files, packagesDeclaringPorts, packagesWalked };
+}
+
+/** Absolute paths → sources, keyed by the layout's own spelling (T040a). */
+function keyed(files: readonly string[], keyOf: (file: string) => string): Map<string, string> {
+  const sources = new Map<string, string>();
+  for (const file of files) sources.set(keyOf(file), readFileSync(file, 'utf8'));
+  return sources;
+}
+
 function read(root: string, files: string[], prefix: string): Map<string, string> {
   const sources = new Map<string, string>();
   for (const file of files) {
@@ -720,11 +1042,10 @@ function read(root: string, files: string[], prefix: string): Map<string, string
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
 
+  // Every root a module's source can live in, derived (feature 080, T040a).
+  const layout = await requireModuleLayout('[port-shape]');
   const contractFiles = walk(CONTRACTS_SRC);
-  const moduleFiles = [
-    ...walk(join(BACKEND_SRC, 'modules')),
-    ...walk(join(BACKEND_SRC, 'apps')),
-  ];
+  const moduleFiles = layout.moduleWalkRoots.flatMap((root) => walk(root));
   if (contractFiles.length === 0) {
     console.error(
       '[port-shape] no sources under packages/contracts/src — ' +
@@ -738,13 +1059,17 @@ async function main(): Promise<void> {
   // surviving registration or resolution. The floor is per registered module.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[port-shape]',
-    srcRoot: BACKEND_SRC,
+    manifestIndexPath: layout.manifestIndexPath,
     files: moduleFiles,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
+  const ports = modulePortsPopulation(layout);
   const input: PortShapeInput = {
     contracts: read(CONTRACTS_SRC, contractFiles, 'contracts/'),
-    modules: read(BACKEND_SRC, moduleFiles, ''),
+    modules: keyed(moduleFiles, layout.keyOf),
+    modulePorts: keyed(ports.files, layout.keyOf),
+    hostResidentModules: layout.hostResidentModules,
   };
   const result = checkPortShape(input);
 
@@ -785,6 +1110,17 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  if (result.modulePortCount === 0) {
+    console.error(
+      `[port-shape] the walk of ${ports.files.length} module \`ports/\` files found no ` +
+        `published port — D-171.1 widened this check's population to a module's own ` +
+        `\`ports/\` directory, and a walk that produces none has turned signal 4 off ` +
+        `entirely and reported the resolution ledger's retired entries as stale, which ` +
+        `invites deleting the record of a repair that did not happen (issue #113)`,
+    );
+    process.exit(2);
+  }
+
   if (listMode) {
     for (const name of result.portTypes) console.log(`PORT ${name}`);
     console.log('');
@@ -795,7 +1131,8 @@ async function main(): Promise<void> {
     result.nameFindings.length +
     result.staleLedgerEntries.length +
     result.unpublishedResolutions.length +
-    result.staleUnpublishedResolutions.length;
+    result.staleUnpublishedResolutions.length +
+    result.declaredElsewhere.length;
   // What was read, in the shared grammar (issue #244). `files` is both walks —
   // the contracts package and the module tree — and `sites` is the union of the
   // two unit kinds this check judges: the published ports (signals 1 and 2) and
@@ -803,13 +1140,26 @@ async function main(): Promise<void> {
   // the union is what the ratchet watches for a silent halving.
   reportReadSize({
     prefix: '[port-shape]',
-    files: contractFiles.length + moduleFiles.length,
+    files: contractFiles.length + moduleFiles.length + ports.files.length,
     sites: result.portTypes.length + result.lazyPortResolutionCount,
-    coverage: [coverage],
+    coverage: [
+      coverage,
+      // The second author for the half of the population D-171.1 added: a
+      // module package's `exports` map declares `./ports` because the generator
+      // saw the file, so a walk that stopped finding ports directories
+      // disagrees with the manifests in the same run.
+      {
+        source: 'ports-subpaths',
+        expected: ports.packagesDeclaringPorts,
+        covered: ports.packagesWalked,
+      },
+    ],
   });
   console.log(
     `[port-shape] ports=${result.portTypes.length} ` +
+      `module-declared-ports=${result.modulePortCount} ` +
       `contract-files=${contractFiles.length} module-files=${moduleFiles.length} ` +
+      `module-port-files=${ports.files.length} ` +
       `registered-names=${result.registeredNameCount} ` +
       `published-container-names=${result.publishedContainerCount} ` +
       `lazy-port-resolutions=${result.lazyPortResolutionCount} ` +
@@ -899,6 +1249,27 @@ async function main(): Promise<void> {
         'gained a registration, or it is no longer published. Delete the entry.\n',
     );
     for (const portName of result.staleLedgerEntries) console.error(`  - ${portName}`);
+  }
+
+  if (result.declaredElsewhere.length > 0) {
+    console.error(
+      '\nAn interface one module declares is registered by another, which names it at no\n' +
+        '`implements` clause (D-171.1). Declaring a port on the consumer side is licensed\n' +
+        'only against that condition: `lazyPort<T>` is an unchecked cast and verifies\n' +
+        'nothing, so everything `tsc` checks happens on the provider — TS2420 at the\n' +
+        '`implements` clause, TS2345 at the explicitly typed `providePort<T>`, whose\n' +
+        '`Registration<T> = Resolver<T>` puts `T` in return position. With neither, the\n' +
+        'only relation between the two types is the cast, which is D-77`s rejected\n' +
+        'alternative and stays refused.\n' +
+        'Add the `implements` clause to the class the provider registers.\n',
+    );
+    for (const finding of result.declaredElsewhere) {
+      console.error(
+        `  - ${finding.file}:${finding.line}  ${finding.portName} is declared by ` +
+          `\`${finding.declaringModule}\` and registered as \`${finding.container}\` by ` +
+          `\`${finding.providingModule}\`, which implements it nowhere [${finding.kind}]`,
+      );
+    }
   }
 
   process.exit(violations > 0 ? 1 : 0);

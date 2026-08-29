@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { OrgRegistrationNotifier } from '../../../src/modules/organizations/services/org-registration-notifier.js';
+import { OrgRegistrationNotifier } from '../../../../packages/modules/organizations/src/backend/services/org-registration-notifier.js';
 
 /**
  * D-88 — the one live fail-open the backward hop found.

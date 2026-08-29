@@ -5,7 +5,7 @@ title: The Kernel — boundary, scopes and composition order
 # The Kernel
 
 Every module composes through an Awilix container. The **kernel**
-(`backend/src/kernel/`) owns the container, the seams a module registers
+(`packages/platform/src/kernel/`) owns the container, the seams a module registers
 through, and the handful of services that back nearly every module. This page
 covers the three things you have to know before writing or changing a module:
 **what the kernel may and may not contain**, **how per-request state is
@@ -113,7 +113,7 @@ platform-wide and the behaviour stays in the module that owns the table.
 
 Since D-55 the port types its return values with a kernel-owned structural
 `OrganizationSnapshot` — `{ id, status }`, with `OrganizationStatus` taken from
-`@b2b/contracts` — rather than the module's `Organization` entity class. That is
+`@endora-commerce/contracts` — rather than the module's `Organization` entity class. That is
 the whole surface the port's callers consume: `promotions` reads `status`, and
 `carts` and `orders` discard the return value entirely because what they want is
 the throw. TypeScript is structural, so `OrganizationContextService` satisfies
@@ -168,6 +168,21 @@ reason is not mechanical: a root sits outside the manifest dependency graph and
 has no `dependencies` array that could record the edge, so a root contribution
 is the one write that cannot be expressed as a port. A module↔module edge always
 can be, and therefore must be.
+
+**The seam runs one way, and since D-156.6 the kernel says so.** A module may
+not write a name a composition **root** supplies either: `ctx.di.register` and
+`ctx.di.providePort` throw `ForeignRegistrationError` for a name the container
+already holds that no module claimed. That set is derived on every composition
+and written down nowhere — a name with no module owner is a name a root
+registered — so a root that starts or stops supplying one changes the answer in
+the same run. Until it landed, `registerValues` claimed no ownership and `claim`
+threw only for a *different module*, so any module could register `commandBus`,
+become its owner, and thereafter decorate it legally: the decoration rule was a
+lock on the front door of a house whose side door was open. There is no overlay
+exemption, deliberately. A deployment changes what a root-supplied name resolves
+to with `ctx.di.decorate` from its own overlay module, which keeps core
+delegating through the wrap; taking the name outright severs that for every
+consumer at once, and D-28 requires replacement to be the *more* explicit act.
 
 ### `lazyPort<T>(ctx, 'name')` — reading someone else's port
 
@@ -356,17 +371,67 @@ depending on an absent one**. Every seam between the two then needs an answer to
 "what happens?", and the operator being asked to accept the flip needs the same
 answer, by name, before the write. There is one artefact for both, and that is
 the point of it rather than an economy:
-`modules/_lifecycle/services/deactivation-ledger.ts`.
+`lifecycle/services/deactivation-ledger.ts`.
 
 `buildDeactivationLedger` assigns every cross-module edge whose owner an
 operator may switch off one of four outcomes:
 
 | Outcome | Mechanism |
 | --- | --- |
-| **fails closed** | a call-time read of a gated port, or of a registry whose host *skips* an absent owner's entry — the caller gets nothing back, which is the same answer arriving at enumeration instead of at the port |
+| **fails closed** | a call-time read of a gated port, or of a registry whose host *skips* an absent owner's entry — the caller gets nothing back, which is the same answer arriving at enumeration instead of at the port. The dependent's own `nonBindingDependencies` entry of kind `refuses-without` reaches the same outcome and brings the operator's sentence with it |
 | **degrades** | the dependent's own `nonBindingDependencies` entry of kind `degrades-without`; its `whenAbsent` is the sentence an operator is shown |
 | **contributes** | a boot-time push into an ungated table the host filters, or a host that deliberately *honours* an absent owner's entry |
 | **schema-only** | a `dependencies` edge with no container read under it: deactivation drops no tables, so a foreign key stays valid |
+
+### `refuses-without` — saying "it fails closed" without binding the operator
+
+Fail-closed is the outcome the platform infers when a gated port is read at call
+time and nothing is declared about it. Until the owner ruling of 2026-08-25 it
+was also the *only* outcome a dependent could not **say**: the two spellings for
+"I read this and I have no fallback" were `dependencies` and
+`acknowledgedDependencies`, and both bind the lifecycle. For a dependent that
+itself declares `activation.nonDeactivatable` that turns the **owner's**
+activation control into a dead switch — the operator flips it, the flip-time
+refusal names a module that will never go away, and nothing happens. A control
+that lies is a worse answer than either alternative.
+
+`nonBindingDependencies` therefore has a third kind. `refuses-without` says: the
+operation answers 503 `MODULE_DISABLED`, the rest of the declaring module keeps
+working, and the owner's activation control keeps working. It classifies
+`fails-closed` — the same behaviour the gate already produces — and its
+`whenAbsent` is what the operator's confirmation dialog renders instead of the
+platform's translated default:
+
+```
+orders — unavailable: checkout cannot take an order, because no payment
+method is available
+```
+
+Three things hold it honest, and none of them is the author's word:
+
+- **The name must be a `di.providePort` registration.** An ungated registration
+  keeps resolving, or resolves to nothing; either way nothing refuses.
+  `check-port-dependencies.ts` reports `refusal-over-an-ungated-name` — the
+  mirror of `contribution-over-a-gated-port`, and the two together say one thing
+  once: a pull with a failure mode needs a gate, an inert push must not sit
+  behind one.
+- **The declaring manifest must not bind the owner.** `dependencies` and
+  `acknowledgedDependencies` are exactly what `ModuleGatingGraph` builds the
+  flip-time refusal from, so an entry claiming the owner's control still works
+  beside one of those is a manifest saying both things at once.
+  `defineModuleManifest`'s "one edge, one claim, in one place" rule refuses it
+  first; the check re-derives the same fact for a manifest built without the
+  helper (`refusal-over-a-bound-owner`).
+- **It must carry a `whenAbsent`.** Without it the entry classifies exactly as
+  no entry at all, so the sentence is the whole of what the declaration buys
+  (`refusal-without-a-sentence`).
+
+A fourth is structural rather than checked: a gated port resolved at boot or at
+wiring is `gated-port-before-first-request`, which the ledger assigns **before**
+it consults any declaration, so no entry can rescue one.
+
+Write the sentence for the operator who will read it — *what* refuses, in terms
+of the capability, never "a port throws".
 
 An edge that gets none is reported by shape, and `check-port-dependencies.ts`
 fails the build on it. There are three, each a *fail-open* rather than a
@@ -474,11 +539,53 @@ What does **not** carry is equally load-bearing, and each exclusion was paid for
 in false positives: a call's **result** (`proxy.applyToCart(…)` is the gated
 call, the discount it returns is data), an **object literal** (a deps bag is a
 record — tainting it made `this.deps.<anything>()` a port call, 39 of them in one
-run), and a **field read off a port**. Scope follows the binding: a `const` is
-file-scoped because it is, a deps key or constructor parameter is module-scoped
-because the receiving class reads it from another file, and a root's container
-registration is visible everywhere because a container name is global. Run with
-`PORT_CATCH_WHY=1` to see every alias with the site that introduced it.
+run), and a **field read off a port**. Run with `PORT_CATCH_WHY=1` to see every
+alias with the site that introduced it.
+
+**An alias is visible where its binding is, and nowhere else** (issue #278).
+A `const` is file-scoped because it is. A **deps-object key** is module-scoped,
+because the receiving class reads it as `this.deps.<key>` from another file and a
+property name is not a lexical binding anybody can shadow. A **constructor or
+function parameter** is scoped to the file that *declares* it — it used to be
+scoped to the module the call site sat in, which is neither where the parameter
+is in scope nor, when the callee lives in another module, a place it can be read
+at all. A root's container registration is visible everywhere, because a
+container name is global by construction.
+
+The cost of getting that wrong was measured, and it is not noise. Building
+`orderTransitionPort` (feature 085, Phase B), an author named a constructor
+parameter `transitionService`; an unrelated local of that spelling in
+`orders/prompt-tools.ts` became a reported violation with no code change of its
+own, and the author cleared it by renaming the parameter. The rename hid a
+`catch` that is a genuine fail-open — `OrderTransitionService.apply` flushes the
+status change and then runs a side-effects hook that reaches `credit_limits`'
+release port, so a bulk status change reported `failed` for orders whose status
+had already moved. **A false positive an author can only clear by renaming
+something else does not merely add noise; it moves code.** Two more of exactly
+that shape were standing in `pim_ergonode` and went with the fix: a
+`walkStream(…, handle)` parameter claiming an unrelated cradle property in
+`backend.ts`, and a `categoryPathOf(id, byId)` parameter claiming a local
+`new Map(…)` in the schedule reconciler. The second was carrying a ledger entry.
+
+On top of the scoping, a **bare identifier resolves lexically**: a nearer binding
+that *manifestly* holds no port — a literal, an object or array of non-ports, a
+`new` whose arguments are those — hides the wider alias. "Manifestly" is the
+load-bearing word. The carriage analysis under-approximates on purpose, so
+`carries` answering "no" means either "not a port" or "cannot follow this", and
+only the first may shadow: `catalog` binds
+`const customFields = this.#requireCustomFields()`, which holds `custom_fields`'
+gated port through a call the analysis does not follow, and reading that as a
+shadow took six `catch` sites out of the population. A call, an identifier, a
+property access, a closure, a destructuring binding, an import, a `catch`
+variable and a parameter with no default therefore shadow nothing — the
+direction of the doubt is "report it".
+
+**The old rule had a safety argument and it survives where it was actually
+made.** It was made about the `gatesOf` table — merging *gates* by name, which
+can only add owners and so can only make `OWNER LOCKED` harder to satisfy. That
+table is untouched, and `gatesIn` stays deliberately shadow-blind for the same
+reason. The argument was never made about alias **visibility** and does not
+transfer to it: a wider alias does not add owners to a site, it invents a site.
 
 `PORT_CATCHES_TO_DRAIN` holds the sites where absorbing the answer is still the
 least-wrong behaviour, each with its reason, in three shapes the entries name:
@@ -541,6 +648,50 @@ module takes an explicit `emFactory` now, and `getEm()` was deleted in feature
 request behind it — boot reconciles, CLI entry points, workers. It exists so
 that tenant-scoped queries have an explicit, auditable escape hatch instead of
 an implicit one.
+
+## `ctx.log` — where a module's log line goes
+
+`ctx.log` is the platform's own logger, bound to the module. Every line it
+writes carries `module: '<your module id>'`, and carries `reqId` when it is
+written during a request, and the author names neither.
+
+It used to be neither of those things. The destination is chosen by the
+composition root, composition runs before `buildServer`, and so each root passed
+what it could name that early: `composition.ts` passed the global `console` and
+the test harness passed a no-op. A module's warning was therefore unstructured,
+uncorrelated with the request that caused it, outside the pino stream a
+deployment ships — and the two roots disagreed about which of those two nothings
+it was, which is exactly the class of drift `harness-parity.test.ts` exists for
+(issue #269).
+
+Both roots now pass `platformLogger()`, which is **late-bound**: it reads the
+destination per line rather than capturing it. `buildServer` attaches the
+application's own pino instance the moment one exists and detaches it on
+`onClose`. That is one attach site for all four entry points — `index.ts`,
+`worker.ts` (which builds a server it never listens on, precisely so the module
+plugins register), the test harness and the overlay runtime — so neither root
+can forget it and the two cannot drift apart on it again.
+
+The request id is read out of the platform scope's `requestMeta`, not out of
+`request.log`. Fastify's `request.log` is `app.log.child({ reqId })` and nothing
+more, so a line carrying `reqId` joins up with Fastify's own `req`/`res` lines
+identically; reading the id from the scope buys correlation at any depth without
+threading `request`, and — the load-bearing half — it **retains nothing**, where
+capturing the request into the scope would pin it for as long as any async
+resource created inside that scope lives (see the retention notes in `scope.ts`).
+
+**Outside a request there is no request id, and the line is still written.** A
+boot hook runs before `buildServer` in both roots, so it reaches a console
+fallback — which is where a boot line has always gone, and where a boot failure
+is read. A worker, a timer or an EventBus subscriber runs after the app was
+built, so it reaches the app's pino instance. A process that composes modules and
+builds no server reaches the fallback too. The fallback is a real write and never
+a no-op: turning an unstructured line into a dropped one would be a worse
+platform than the one this replaced.
+
+`ctx.log` is therefore safe to keep. Four modules hand it to a service that holds
+it for the life of the process (`invoices`, `payments`, `pwa`, `shipments`), and
+both the destination and the request correlation are read per line.
 
 ## Composition order — read this before writing a boot hook
 
@@ -647,7 +798,7 @@ the reason.
 `runBootHooks` wraps each hook, attributes the failure to the module that
 registered it, and **re-throws**:
 
-<!-- verbatim-from: backend/src/kernel/compose.ts -->
+<!-- verbatim-from: packages/platform/src/kernel/compose.ts -->
 
 ```ts
 try {
@@ -1058,6 +1209,94 @@ uninstall — and cannot carry services.** A hook that needs a collaborator
 constructs it from `em`. Nothing resolves from the container here, because there
 is no container in the process running it.
 
+## Operator commands: a declaration the host runs
+
+A module's operator command — a reindex, a sweep, a bootstrap — is a
+`cliCommands` export of the same `manifest.ts` the install hooks live in, and
+the host invokes it. It is never a script that bootstraps the platform for
+itself.
+
+```ts
+// backend/src/modules/search/manifest.ts
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'reindex',
+    summary: "Rebuild every sales channel's Meilisearch index from PostgreSQL.",
+    run: async (context) => (await import('./cli/reindex.js')).reindex(context),
+  },
+];
+```
+
+```bash
+pnpm --filter backend run cli -- --list          # every command this instance offers
+pnpm --filter backend run cli -- search reindex  # or the alias: pnpm search:reindex
+```
+
+The same tree walk and the same `detectHookExport` that carry `installHook`
+pick this up, so it reaches core, a per-deployment overlay module and an
+**installed extension package** on identical terms — which is the whole reason
+for the shape. A file under `node_modules` can name no specifier that resolves
+to the instance's `backend/src/composition.ts`, and a core script that names one
+is a module → root → module cycle. So the invocation inverts: `backend/src/cli.ts`
+composes once, and calls the module. That is one-to-one with Magento 2, where a
+module ships a command class plus a declaration under `CommandListInterface` and
+`bin/magento` bootstraps the application and constructs the command with its
+dependencies injected.
+
+Five things about it that are decisions rather than detail:
+
+**1. The body lives in `backend/src/modules/<id>/cli/<name>.ts`, and the
+declaration `await import()`s it.** The generated manifest index is imported by
+every static check script and by `src/db/configured-migrations.ts`; a static
+import of a Meilisearch client or an ORM-dependent service graph would pull it
+into all of them. This is the rule `lifecycleParticipant` already follows.
+
+**2. The handler receives a `ModuleContext`, not a cradle.** It resolves with
+`lazyPort<T>(ctx, 'literalName')`, character-for-character what `backend.ts`
+writes, so `check:port-dependencies` sees the cross-module edge. A
+`scope.cradle.someForeignPort` read is an undeclared edge that reports clean —
+the failure the `port(ctx, name)` helper produced, where fourteen resolutions
+hid behind a variable. Reading your **own** module's registration off
+`ctx.cradle<T>()` is fine and sometimes necessary: `lazyPort` returns a proxy
+that answers every property with a function so it can forward a method call, so
+a nested reach like `handle.indexer.reindexAll()` type-checks and then fails
+with *"is not a function"*.
+
+**3. Presence is decided by the host, before a context exists.** A command has
+no route to gate, no worker to wrap and no port resolution to hang a transient
+gate on, so the **declaration** is the seam:
+`src/cli/module-commands.ts` calls `requireModuleEnabled` for the module that
+declared the command — first, outside every `try`, before it asks for a context.
+A module author writes no presence check and cannot forget one, which is what
+Constitution XVII item 3 says a gate is for. It is asked for the declaring
+module's id and never for an owner's: that answer belongs to the owner's
+`providePort` gate, and asking it twice is how the two come to disagree.
+
+**4. `--list` and `--help` are answered before anything is opened.** They are
+questions about the *declaration*, so the host reads
+`resolvedManifestEntries()` — manifests only, no database — and answers. That is
+why `help` is a data property on the declaration rather than something the body
+prints: `audit_logs read`'s credential is host access, not a working connection
+string (D-102), so it has to be able to say what it does before it can do it.
+
+**5. The five `module:*` commands are a different family and must not convert.**
+`install`, `uninstall`, `enable`, `disable` and `status` operate **on** the
+platform rather than with it. Composing runs `reconcileExistingModules`, which
+inserts `state='installed'` for every shipped manifest with no row — so a
+composing `module:install X` would find `X` already installed and return
+`already-installed`, applying no migration, reconciling no setting and running no
+install hook, at exit code 0. A platform command must be able to run against a
+platform that is not yet in the state the command is about to create.
+
+What composing **does** cost is worth stating so it is not discovered late: every
+boot hook runs (they are idempotent convergences, so this is latency and log
+noise rather than new state), a failing one takes the command down naming its
+own module, and the deployment's environment becomes a precondition — a reachable
+PostgreSQL and, in production, a configured public origin. What it does **not**
+cost is a queue consumer or a timer: every `ctx.worker(` call site and every
+module timer sits inside a `ctx.routes(…)` body that runs at Fastify
+registration, and this process never builds a server.
+
 ## The checks
 
 | Script | What it refuses |
@@ -1100,7 +1339,7 @@ the build.
 
 Read the first list's size with its own history in mind. It was written as
 conversion residue and drained that way — every entry whose owner converted was
-deleted, and the check fails when one outlives its owner. All 65 core modules have
+deleted, and the check fails when one outlives its owner. Every core module has
 converted, and **28 entries remain**, so what is left is not residue: it is the
 composition inputs no module can default. Three shapes account for nearly all of
 them — *who is asking* (`customerContextResolver`, `cartActorResolver`,

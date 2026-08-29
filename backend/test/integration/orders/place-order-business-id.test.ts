@@ -1,19 +1,30 @@
+import { Cart } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+
 import { EventBus } from '../../../src/events/bus.js';
-import { OrderService, type OrderEventBus } from '../../../src/modules/orders/services/order-service.js';
-import { PaymentAdapterRegistry } from '../../../src/modules/payment_methods/services/payment-adapter-registry.js';
-import { EnumOrderStatusRegistry } from '../../../src/modules/payment_methods/services/order-status-registry.port.js';
-import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
-import { createBusinessIdGenerator } from '../../../src/modules/orders/services/business-id-generator.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+
+import { OrderService, type OrderEventBus } from '../../../../packages/modules/orders/dist/backend/services/order-service.js';
+
+import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
+
+import { EnumOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
+
+import { builtInPaymentAdapters } from '../../../../packages/modules/payments/src/backend/adapters/built-in-adapters.js';
+
+import { createBusinessIdGenerator } from '../../../../packages/modules/orders/dist/backend/services/business-id-generator.js';
+
 import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
+
 
 /**
  * Feature 036 (US1) — placeOrder generates a customer-facing business Order ID

@@ -7,7 +7,7 @@ import {
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
 import type { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { NumberingConfigurationService } from '../../../src/modules/invoices/services/numbering-configuration.js';
+import { NumberingConfigurationService } from '../../../../packages/modules/invoices/src/backend/services/numbering-configuration.js';
 import {
   ensureSalesChannel,
   systemDefaultSalesChannel,

@@ -4,12 +4,12 @@ import type {
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   InvoiceEmailDispatcher,
   type InvoiceEmailDispatchDeps,
-} from '../../../src/modules/invoices/services/invoice-email-dispatch.js';
-import { INVOICES_SETTING_CODES } from '../../../src/modules/invoices/manifest.js';
+} from '../../../../packages/modules/invoices/src/backend/services/invoice-email-dispatch.js';
+import { INVOICES_SETTING_CODES } from '../../../../packages/modules/invoices/src/manifest.js';
 
 /**
  * D-59 — the invoice e-mail names the document it delivers, so its delivery

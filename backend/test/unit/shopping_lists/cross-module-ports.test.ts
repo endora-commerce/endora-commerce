@@ -7,8 +7,9 @@ import type {
   CatalogProductRecord,
   QuoteRequest,
   RfqCustomerPort,
-} from '@b2b/contracts';
-import { ShoppingListService } from '../../../src/modules/shopping_lists/services/shopping-list-service.js';
+} from '@endora-commerce/contracts';
+import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
+import { ShoppingListService } from '../../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
 
 /**
  * Feature 075, Phase C — `shopping_lists` asks `catalog` for its rows and
@@ -86,6 +87,24 @@ function fakeEm(handlers: Record<string, unknown>): () => EntityManager {
   return () => em as unknown as EntityManager;
 }
 
+/**
+ * Issue #259 — outside a request there is no resolved channel, so the seam has
+ * nothing to narrow against and must not ask the bridge at all. A membership
+ * port that throws on every method is how that is asserted rather than assumed:
+ * a `productIdsInRequestChannel` that fabricated the system-default channel
+ * here would take the whole file red.
+ */
+const refusingChannelMembership = new Proxy(
+  {},
+  {
+    get: (_target, property) => () => {
+      throw new Error(
+        `shopping_lists asked the channel bridge (${String(property)}) with no request channel`,
+      );
+    },
+  },
+) as SalesChannelMembershipPort;
+
 const refusingCarts = new Proxy(
   {},
   {
@@ -121,6 +140,7 @@ describe('shopping_lists — product rows arrive over catalogProductReadPort', (
       refusingCarts,
       refusingRfq,
       catalogProducts,
+      refusingChannelMembership,
     );
 
     const item = await service.addItem(CTX, 'list-1', { productId: 'prod-9', quantity: 3 });
@@ -139,6 +159,7 @@ describe('shopping_lists — product rows arrive over catalogProductReadPort', (
       refusingCarts,
       refusingRfq,
       catalogProducts,
+      refusingChannelMembership,
     );
 
     await expect(
@@ -177,6 +198,7 @@ describe('shopping_lists — conversion partitions by the port, and writes throu
       carts,
       refusingRfq,
       catalogProducts,
+      refusingChannelMembership,
     );
 
     const result = await service.convertToCart(CTX, 'list-1', undefined);
@@ -203,6 +225,7 @@ describe('shopping_lists — conversion partitions by the port, and writes throu
       refusingCarts,
       rfq,
       catalogProducts,
+      refusingChannelMembership,
     );
 
     const result = await service.convertToRfq(CTX, 'list-1', undefined);

@@ -1,4 +1,4 @@
-import { foldDiacritics } from '@b2b/contracts';
+import { foldDiacritics } from '@endora-commerce/contracts';
 
 /**
  * Fold a string so two spellings of the same word compare equal.
@@ -17,7 +17,7 @@ import { foldDiacritics } from '@b2b/contracts';
  *    `BlogPostEditor`. Fold first, then collapse whatever is left to `-` / `_`.
  *
  * **The fold itself is not written here.** Since issue #240 it is
- * `foldDiacritics` from `@b2b/contracts` — the same implementation the backend
+ * `foldDiacritics` from `@endora-commerce/contracts` — the same implementation the backend
  * writes `organizations.name_search` with. This file had grown its own copy of
  * the map for the same reason the four private copies grew: the shared one was
  * correct but named after a single caller (`normalizeOrganizationName`), so

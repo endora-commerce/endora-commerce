@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, X } from 'lucide-react';
-import type { FulfilmentStrategy } from '@b2b/contracts';
+import type { FulfilmentStrategy } from '@endora-commerce/contracts';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';

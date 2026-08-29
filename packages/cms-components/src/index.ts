@@ -1,8 +1,8 @@
-// @b2b/cms-components — shared Page Builder components for the CMS module
+// @endora-commerce/cms-components — shared Page Builder components for the CMS module
 // (feature 014).
 
 import type { ComponentConfig, Config } from '@measured/puck';
-import { definePageBuilderComponent, withHideOn } from '@b2b/page-builder-core';
+import { definePageBuilderComponent, withHideOn } from '@endora-commerce/page-builder-core';
 import { Accordion } from './components/Accordion.js';
 import { AnnouncementBar } from './components/AnnouncementBar.js';
 import { Button } from './components/Button.js';

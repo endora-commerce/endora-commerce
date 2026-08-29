@@ -4,13 +4,13 @@ import type {
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   InvoiceEmailDispatcher,
   type InvoiceEmailDispatchDeps,
-} from '../../../src/modules/invoices/services/invoice-email-dispatch.js';
+} from '../../../../packages/modules/invoices/src/backend/services/invoice-email-dispatch.js';
 import { SettingsChannelIdInvalid } from '../../../src/kernel/settings/settings.service.js';
-import { INVOICES_SETTING_CODES } from '../../../src/modules/invoices/manifest.js';
+import { INVOICES_SETTING_CODES } from '../../../../packages/modules/invoices/src/manifest.js';
 
 /**
  * Issue #103 — an invoice whose order carries no sales channel used to be

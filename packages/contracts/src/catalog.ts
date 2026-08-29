@@ -1119,14 +1119,84 @@ export type UpdateCategoryRequest = z.infer<typeof updateCategoryRequestSchema>;
 
 // --- Storefront list/query ---------------------------------------------------
 
-export const productListQuerySchema = z.object({
-  q: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).default(50),
-  cursor: z.string().optional(),
-  sort: z.enum(['relevance', '-createdAt', 'name', '-name']).optional(),
-  changedSince: isoDateTimeSchema.optional(),
-});
+/**
+ * The orderings the storefront listing accepts.
+ *
+ * Feature 086 adds `price` / `-price`, following the convention the two `name`
+ * members set: the bare member ascends, the `-` prefix descends. "Price" is the
+ * **viewer's own** resolved unit price at quantity 1 — the figure the card
+ * renders — never a stored base price, a channel price or anything a search
+ * index carries.
+ */
+export const productListSortSchema = z.enum([
+  'relevance',
+  '-createdAt',
+  'name',
+  '-name',
+  'price',
+  '-price',
+]);
+export type ProductListSort = z.infer<typeof productListSortSchema>;
+
+/** The two orderings feature 086 added, as a narrowing a consumer can reuse. */
+export function isPriceSort(sort: ProductListSort | undefined): sort is 'price' | '-price' {
+  return sort === 'price' || sort === '-price';
+}
+
+export const productListQuerySchema = z
+  .object({
+    q: z.string().optional(),
+    limit: z.coerce.number().int().positive().max(200).default(50),
+    cursor: z.string().optional(),
+    sort: productListSortSchema.optional(),
+    changedSince: isoDateTimeSchema.optional(),
+
+    /**
+     * Feature 086 — inclusive bounds on the **viewer's own** resolved unit
+     * price, in the currency the response quotes. Both optional and
+     * independent, and both compose with every ordering rather than only with
+     * the two price ones (FR-009).
+     *
+     * Numbers on the wire, decimal strings by the time they reach the pricing
+     * relation: the comparison happens in `numeric`, never in a float.
+     */
+    minPrice: z.coerce.number().nonnegative().finite().optional(),
+    maxPrice: z.coerce.number().nonnegative().finite().optional(),
+  })
+  .refine(
+    (v) => v.minPrice === undefined || v.maxPrice === undefined || v.minPrice <= v.maxPrice,
+    {
+      // FR-008 — a minimum above a maximum is a 400, not an empty page. An
+      // empty page for a contradictory range is indistinguishable from an empty
+      // page for a genuine one, and a buyer who typed the bounds the wrong way
+      // round should be told which two they were.
+      message: 'minPrice must not exceed maxPrice',
+      path: ['minPrice'],
+    },
+  );
 export type ProductListQuery = z.infer<typeof productListQuerySchema>;
+
+/**
+ * What the listing surface may offer this viewer on this page — feature 086 /
+ * FR-023.
+ *
+ * It rides on the listing response because the storefront has to decide whether
+ * to *render* the price controls, and the answer depends on the viewer and the
+ * channel: a non-public channel publishes no prices, and
+ * `pricing.unauthenticated_display_mode = none` hides them until login. A
+ * storefront that guessed would guess wrong on exactly the deployments that
+ * care, and a control that offers an ordering the API refuses is a worse defect
+ * than no control.
+ *
+ * It is **not** on the filter-definitions endpoint, which is anonymous and
+ * shared (FR-010): a per-viewer answer may not travel on a response whose cache
+ * key omits the viewer.
+ */
+export const productListCapabilitiesSchema = z.object({
+  /** May this page be ordered by price, and narrowed to a price range? */
+  priceOrdering: z.boolean(),
+});
+export type ProductListCapabilities = z.infer<typeof productListCapabilitiesSchema>;
 
 // --- Notify-when-available --------------------------------------------------
 
@@ -1671,7 +1741,7 @@ export const ANONYMOUS_PRODUCT_AUDIENCE: ProductAudience = {
  * one answer that a listing, a PDP, a search hit, a cart line, a comparison and
  * a feed row can all reach.
  *
- * It lives in `@b2b/contracts` rather than in `catalog` because the record it
+ * It lives in `@endora-commerce/contracts` rather than in `catalog` because the record it
  * reads is already published here: twenty modules hold a
  * {@link CatalogProductRecord}, both columns are on it, and a predicate over a
  * published shape needs no port, no manifest edge and no `catalog` on the other
@@ -1692,17 +1762,84 @@ export const ANONYMOUS_PRODUCT_AUDIENCE: ProductAudience = {
  *     so the permissive reading of it would disclose the row to the whole
  *     world.
  *
- * The SQL half of the same rule — the one `catalog`'s quick-search applies
- * inside its statement, where a post-filter would break the `limit` — asks with
- * `@>` containment over the JSONB array, so the buyer's id has to be an element
- * of the list rather than a substring of the serialised bag. Keep the two in
- * step; `backend/test/unit/catalog/product-visibility-predicate.test.ts` is the
- * truth table both are read against.
+ * ## The two SQL restatements of this rule, and how they differ
+ *
+ * A predicate over a record cannot be pushed into a query, and two read paths
+ * must filter in SQL rather than after it. So `catalog` states this rule twice
+ * more, in SQL, and the two statements are **not** copies of each other — they
+ * answer for different audiences and are meant to differ (issue #262):
+ *
+ *  - **`catalog-quick-search.service.ts`** answers for a **signed-in buyer**.
+ *    `CatalogQuickSearchParams.organizationId` is required and there is no
+ *    anonymous spelling, so the audience is
+ *    `{ organizationId, authenticated: true }` by construction. It is the
+ *    restatement where `@>` containment over the JSONB array does real work:
+ *    the buyer's id has to be an *element* of the allow-list rather than a
+ *    substring of the serialised bag. It is SQL because the statement carries
+ *    a `limit`, and a post-filter would hand a buyer a short page — or an
+ *    empty one — while visible rows waited behind the restricted ones.
+ *  - **`catalog-product-filter.service.ts`'s `sellableFloor`** answers for
+ *    {@link ANONYMOUS_PRODUCT_AUDIENCE}, because the port's only consumer is a
+ *    product feed and a feed is read by Google. With no organisation to
+ *    contain, the containment branch can never match, so that restatement
+ *    collapses to two equalities — `visibility = 'public'` and an empty
+ *    allow-list. It is SQL because `countSellable` is the number an operator
+ *    is shown before saving and `listSellable` is what the next run emits, and
+ *    the two must be one query's answer.
+ *
+ * Neither is licensed to drift toward the other: the containment clause would
+ * be dead weight in the feed floor, and the two equalities would hide from a
+ * buyer every row his own organisation is named on. What keeps both honest is
+ * that each has a parity test which **derives** its expectation from this
+ * function over `productVisibilitySchema.options`, so a fourth visibility value
+ * forces every side to be decided rather than letting one keep an accidental
+ * default — this predicate falls through to `return true`, both SQL sites fail
+ * closed:
+ *
+ *  - `backend/test/integration/catalog/quick-search-audience-parity.test.ts`
+ *    — visibility × (empty, own org, another org, several including own,
+ *    a near-miss string) × three viewers;
+ *  - `backend/test/integration/catalog/product-filter-port.test.ts`
+ *    — visibility × (empty, non-empty) for the anonymous audience, on
+ *    `listSellable` and `countSellable` alike.
+ *
+ * `backend/test/unit/catalog/product-visibility-predicate.test.ts` is the truth
+ * table all three are read against.
+ *
+ * Unifying the three into one shared SQL fragment was considered and refused:
+ * the builder would have to live here, and a fragment knows table and column
+ * names — the persistence shape. This package knows API shapes and depends on
+ * `zod` alone (FR-034). Keeping that line is worth more than removing the
+ * duplication, so the duplication is kept and pinned instead.
  *
  * What this predicate is **not** is the channel answer. Channel scoping is
  * Principle XII's, travels through `sales_channel_products` and the sanctioned
  * bridge accessors, and is a second filter every buyer-facing path owes on top
  * of this one.
+ *
+ * That second filter has two spellings and neither is here, by an owner ruling
+ * of 2026-08-21 (issue #259): the channel is a property of the **request**, not
+ * of the viewer's relationship to the product, so folding it in would merge two
+ * questions and make this predicate asynchronous. The **view** side spells it
+ * as `CatalogQueryService.filterByChannel`; the **acquisition** side — cart
+ * add, comparison add, a quote line, a saved list, a pasted quick-order SKU —
+ * spells it as `productIdsInRequestChannel` in
+ * `backend/src/kernel/sales-channels/request-channel-assortment.ts`. Every one
+ * of those refuses out-of-assortment with the *same* answer it gives a
+ * restricted row and an absent one, so the pair cannot be used to enumerate an
+ * operator's private assortment.
+ *
+ * **Two re-acquisition paths are exempt, by the same ruling**: `orders`'
+ * reorder and `quote_requests`' `convertToOrder`. Neither names a product the
+ * caller supplied — each rebuilds a cart from lines the buyer already holds a
+ * commitment on, a placed order or a quote the seller approved at agreed
+ * prices — and refusing would strand a buyer holding an approved quote they
+ * cannot act on. Read that as decided, not as the two seams that were missed;
+ * each carries the reason at its own call site, including the second-order
+ * consequence that makes the obvious repair of the first one wrong. Two
+ * operator surfaces are exempt on the operator's-permission ground instead:
+ * `RfqAdminService.createOnBehalf` and `quick_order`'s `'unrestricted'` import
+ * arm, both of which say so where they stand.
  */
 export function isProductVisibleTo(
   product: Pick<CatalogProductRecord, 'visibility' | 'allowedOrganizationIds'>,
@@ -2480,6 +2617,22 @@ export interface CatalogGalleryWriteOptions {
 }
 
 /**
+ * One gallery item of a batch read, flattened to the three fields a caller
+ * outside `catalog` builds an image list from: which product it belongs to,
+ * which asset it points at, and where it sits in the operator's order.
+ *
+ * Deliberately not `GalleryItem`. The batch read exists for callers that walk a
+ * page — or a whole sellable catalogue — and the label set, the timestamps and
+ * the item id are all rows or columns those callers do not read; carrying them
+ * would cost a second statement per batch for a field nobody looks at.
+ */
+export interface CatalogGalleryBatchItem {
+  productId: string;
+  assetId: string;
+  position: number;
+}
+
+/**
  * Container name: `galleryService`. Owner: `catalog`.
  *
  * **Owner off:** the seam fails closed — resolving this port throws
@@ -2490,6 +2643,44 @@ export interface CatalogGalleryWriteOptions {
  */
 export interface CatalogGalleryPort {
   list(productId: string): Promise<GalleryItem[]>;
+  /**
+   * The gallery items of a **batch** of products, ordered by product and then
+   * by the operator's position, in one statement.
+   *
+   * `list` cannot serve this caller and it is not a matter of taste: it takes a
+   * single product, verifies it exists, and then runs two more queries, so a
+   * page of 500 products costs 1500 round-trips where this costs one. That is
+   * what kept a raw `select … from gallery_items` inside `product_feeds` — a
+   * boundary crossing that names no import specifier and so compiled (feature
+   * 075 / D-87).
+   *
+   * **A product id that resolves to nothing is data, not an error.** No row
+   * comes back for it and the method does not throw: a caller holding an id
+   * whose product has since been removed asks about the batch it has, not about
+   * the batch it wishes it had. The two absences — "this product has an empty
+   * gallery" and "this product is gone" — are therefore not distinguished here,
+   * because both consumers render them identically (no image) and telling them
+   * apart would need exactly the product-existence probe that makes `list`
+   * unusable for a batch.
+   */
+  listForProducts(productIds: readonly string[]): Promise<CatalogGalleryBatchItem[]>;
+  /**
+   * The `base_image` url of each of a batch of products — `base_image` only,
+   * with no fallback to `thumbnail` or to the first item by position.
+   *
+   * The returned map holds **one entry per requested id**, `null` where this
+   * module has no `base_image` for it: the product carries no such label, the
+   * product is gone, or the asset row behind the label no longer resolves. A
+   * caller that renders a placeholder for all three (both of today's do) reads
+   * one branch; the map's key set answering the request exactly is what lets it
+   * index without re-checking membership.
+   *
+   * `catalog` answers this from its own `gallery_item_labels` and
+   * `gallery_items` plus the asset read port it already holds, so a consumer
+   * gets the url without joining `assets_library`'s table itself — which is the
+   * third of the three reaches this method retires (feature 075 / D-87).
+   */
+  baseImageUrls(productIds: readonly string[]): Promise<Map<string, string | null>>;
   create(
     productId: string,
     req: CreateGalleryItemRequest,

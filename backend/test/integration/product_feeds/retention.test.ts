@@ -4,12 +4,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { FeedArtefact } from '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';
-import { FeedRun } from '../../../src/modules/product_feeds/entities/feed-run.entity.js';
-import { FeedRunIssue } from '../../../src/modules/product_feeds/entities/feed-run-issue.entity.js';
-import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { FeedArtefact, FeedRun, FeedRunIssue, ProductFeed } from '../../helpers/package-entities.js';
+import type { FeedArtefactRow } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T102 — artefact retention (FR-052, `contracts/admin-runs.md` §6).
@@ -35,7 +33,7 @@ describe('feed artefact retention [integration]', () => {
   let h: BackendServerHandle;
   let feedId: string;
 
-  const artefactsFor = async (): Promise<FeedArtefact[]> => {
+  const artefactsFor = async (): Promise<FeedArtefactRow[]> => {
     const em = h.em();
     em.clear();
     return em.find(FeedArtefact, { productFeedId: feedId }, { orderBy: { producedAt: 'asc' } });

@@ -1,17 +1,18 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { existsSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import type { IMigrator } from '@mikro-orm/core';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
+import { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
+import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
 
 /**
  * Hard uninstall must revert the target module's migrations.
@@ -113,6 +114,7 @@ describe('Module uninstall — migration revert resolves from the registry (inte
     const registry: LoadedManifestRegistry = {
       modules: new Map([[moduleId, { manifest, filePath: '<test>' }]]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
     return new ModuleLifecycleOrchestrator({
       orm: db.orm,
@@ -187,7 +189,13 @@ describe('Module uninstall — migration revert resolves from the registry (inte
       registry: {
         modules: new Map([['fixture_no_migs', { manifest, filePath: '<test>' }]]) as never,
         graph: new ModuleDepGraph([manifest]),
+        participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
       },
+      // Feature 080 (T033): covered, and owns nothing — the branch this test
+      // is about. Without the declaration the orchestrator answers from the
+      // core registry, which has never heard of `fixture_no_migs`, and refuses
+      // instead: a different branch answering a different question.
+      migrationOwnership: migrationOwnershipOf([], ['fixture_no_migs']),
       migratorFor: async () => migrator,
       log: { info: () => {}, warn: (message) => warnings.push(message), error: () => {} },
     });

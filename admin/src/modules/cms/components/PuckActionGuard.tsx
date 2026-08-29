@@ -2,8 +2,8 @@
 
 import { useEffect, type MutableRefObject, type ReactElement } from 'react';
 import type { AppState, Data, OnAction, PuckAction } from '@measured/puck';
-import { shouldRevertPuckAction, EditorCarouselPreviewBridge } from '@b2b/page-builder-core/editor';
-import { usePageBuilderPuck } from '@b2b/page-builder-core/editor';
+import { shouldRevertPuckAction, EditorCarouselPreviewBridge } from '@endora-commerce/page-builder-core/editor';
+import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor';
 
 /** Captures Puck `dispatch` for the parent editor shell. */
 export function PuckDispatchBridge({

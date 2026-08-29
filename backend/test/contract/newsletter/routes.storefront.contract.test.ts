@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { newsletterStatusResponseSchema, newsletterSubscribeResponseSchema } from '@b2b/contracts';
+import { newsletterStatusResponseSchema, newsletterSubscribeResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

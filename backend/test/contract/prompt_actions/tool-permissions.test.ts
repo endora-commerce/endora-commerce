@@ -1,9 +1,9 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
-import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * Deployment-resolved at module scope, with a top-level `await` — since D-104
@@ -11,21 +11,21 @@ import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registe
  * `permission-inventory.test.ts` for the same note).
  */
 const RESOLVED_MANIFESTS = await resolvedManifestEntries();
-import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import type { PromptActionTool } from '@b2b/contracts';
+import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
+import type { PromptActionTool } from '@endora-commerce/contracts';
 import {
   catalogPromptMutationTools,
   catalogPromptResolverTools,
   type CatalogPromptToolsDeps,
-} from '../../../src/modules/catalog/prompt-tools.js';
+} from '../../../../packages/modules/catalog/src/backend/prompt-tools.js';
 import {
   inventoryPromptTools,
   type InventoryPromptToolsDeps,
-} from '../../../src/modules/inventory/prompt-tools.js';
+} from '../../../../packages/modules/inventory/src/backend/prompt-tools.js';
 import {
   ordersPromptTools,
   type OrdersPromptToolsDeps,
-} from '../../../src/modules/orders/prompt-tools.js';
+} from '../../../../packages/modules/orders/dist/backend/prompt-tools.js';
 
 /**
  * Issue #112, follow-up — a contributed prompt-action tool names a permission
@@ -53,7 +53,19 @@ import {
  * side, so `DEPLOYMENT=<name>` checks that deployment's catalogue.
  */
 
-const MODULES_ROOT = fileURLToPath(new URL('../../../src/modules/', import.meta.url));
+/**
+ * The module tree, **resolved rather than spelled** (feature 080, T040a).
+ *
+ * This was `fileURLToPath(new URL('../../../src/modules/'))` joined to
+ * `<id>/prompt-tools.ts`, and both halves broke on the first contributor that
+ * became a package: the directory no longer holds it, and its file sits at
+ * `src/backend/prompt-tools.ts` rather than at the module root. Neither failure
+ * is loud in the direction that matters — the map below would have gone on
+ * naming a module the walk stopped seeing until every contributor had moved,
+ * at which point the walk returns nothing and the non-vacuity assertion this
+ * function exists for passes over an empty map.
+ */
+const MODULE_LAYOUT = await requireModuleLayout('[prompt-tool-permissions]');
 
 /** Enough of each contributor's dependency bag to build its tool descriptors. */
 const emFactory = (): EntityManager => ({}) as EntityManager;
@@ -73,13 +85,34 @@ const CONTRIBUTED: Readonly<Record<string, () => PromptActionTool[]>> = {
   orders: () => ordersPromptTools(ordersDeps),
 };
 
-/** Module ids shipping a `prompt-tools.ts`, read off the tree. */
+/** Whether `prompt-tools.ts` exists anywhere under a module's own directory. */
+function shipsPromptTools(directory: string): boolean {
+  for (const name of readdirSync(directory)) {
+    if (name === 'node_modules' || name === 'dist') continue;
+    const full = join(directory, name);
+    if (statSync(full).isDirectory()) {
+      if (shipsPromptTools(full)) return true;
+    } else if (name === 'prompt-tools.ts') return true;
+  }
+  return false;
+}
+
+/** Module ids shipping a `prompt-tools.ts`, read off the tree, either layout. */
 function contributingModulesOnDisk(): string[] {
-  return readdirSync(MODULES_ROOT, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .filter((id) => existsSync(join(MODULES_ROOT, id, 'prompt-tools.ts')))
+  const ids = MODULE_LAYOUT.registeredIds
+    .map((id) => [id, MODULE_LAYOUT.moduleDirectoryOf(id)] as const)
+    .filter((pair): pair is readonly [string, string] => pair[1] !== null)
+    .filter(([, directory]) => shipsPromptTools(directory))
+    .map(([id]) => id)
     .sort();
+  if (ids.length === 0) {
+    throw new Error(
+      '[prompt-tool-permissions] no registered module ships a `prompt-tools.ts` — ' +
+        'the walk came back empty, which would make the non-vacuity assertion below ' +
+        'vacuous. Fix the walk, never the expectation.',
+    );
+  }
+  return ids;
 }
 
 /** Tools naming a permission the role matrix cannot grant. */

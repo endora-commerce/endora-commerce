@@ -21,7 +21,12 @@ const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
  * exactly like a clean tree:
  *
  *   - it sees the two shapes a defaulted read is written in (two-step, inline),
- *     through a `const`, a `let` and a plain assignment, and through an index;
+ *     through a `const`, a `let` and a plain assignment, through an index, and
+ *     through a **destructuring** binding — which is what hid the two live sites
+ *     of issue #275 and would have hidden an ORM read just as completely;
+ *   - it sees a read issued through the **query builder**, whose chain names no
+ *     read at its tail (`em.getKnex().select(…).from(…)`) or anywhere at all
+ *     (`const knex = em.getKnex()` … `knex('t').where(…)`);
  *   - it sees the fabricating fallbacks and **only** those — `null` and
  *     `undefined` keep the absence in the type and are not reported;
  *   - it does not see an `expect(x ?? null)` normalisation, a `findOneOrFail`, a
@@ -96,6 +101,62 @@ describe('check-fixture-substitution sees a defaulted database read', () => {
     expect(found.map((f) => f.fallback)).toEqual(['randomUUID()']);
   });
 
+  it('reports an array-destructured read — the shape that hid two live sites', () => {
+    // `integration/dictionaries/reference-registry-consumers.test.ts`, verbatim
+    // (issue #275). The name never entered the bound set, so the `??` under it
+    // was rooted in nothing and the file reported clean.
+    const source = [
+      'const [channel] = await em.execute(',
+      '  `select "default_language" as code from "sales_channels" where "system_default" = true`,',
+      ') as Array<{ code: string }>;',
+      "const code = channel?.code ?? 'en-US';",
+    ].join('\n');
+    const found = findDefaultedReads(sourcesOf('integration/dictionaries/x.test.ts', source));
+    expect(found).toHaveLength(1);
+    expect(found[0]?.holder).toBe('channel');
+    expect(found[0]?.shape).toBe('two-step');
+    expect(found[0]?.fallback).toBe("'en-US'");
+  });
+
+  it('reports an object-destructured read, including through the ORM', () => {
+    const source = [
+      'const { defaultCurrency } = (await em.findOne(SalesChannel, {})) as SalesChannel;',
+      "const code = defaultCurrency ?? 'PLN';",
+    ].join('\n');
+    const found = findDefaultedReads(sourcesOf('integration/x.test.ts', source));
+    expect(found.map((f) => f.holder)).toEqual(['defaultCurrency']);
+  });
+
+  it('reports a destructuring **assignment**, not only a destructuring declaration', () => {
+    const source = [
+      'let channel;',
+      "[channel] = await em.execute('select code from sales_channels');",
+      "const code = channel?.code ?? 'en-US';",
+    ].join('\n');
+    const found = findDefaultedReads(sourcesOf('integration/x.test.ts', source));
+    expect(found.map((f) => f.holder)).toEqual(['channel']);
+    expect(found[0]?.shape).toBe('two-step');
+  });
+
+  it('reports a builder chain, whose tail call names no read', () => {
+    const source = [
+      "const rows = await em.getKnex().select('*').from('sales_channels');",
+      "const code = rows[0]?.code ?? 'en-US';",
+    ].join('\n');
+    const found = findDefaultedReads(sourcesOf('integration/x.test.ts', source));
+    expect(found.map((f) => f.holder)).toEqual(['rows']);
+  });
+
+  it('reports a read through a bound builder, whose chain names no read anywhere', () => {
+    const source = [
+      'const knex = h.em().getConnection().getKnex();',
+      "const rows = await knex('sales_channels').where('system_default', true);",
+      "const code = rows[0]?.code ?? 'en-US';",
+    ].join('\n');
+    const found = findDefaultedReads(sourcesOf('integration/x.test.ts', source));
+    expect(found.map((f) => f.holder)).toEqual(['rows']);
+  });
+
   it('reports a numeric fabrication, which reads as a real quantity', () => {
     const source = [
       'const stockBefore = await em.findOne(StockLevel, { productId });',
@@ -149,6 +210,32 @@ describe('check-fixture-substitution leaves the honest shapes alone', () => {
 
   it('does not report a `??` over something that never touched the database', () => {
     const source = "const url = process.env['REDIS_URL'] ?? 'redis://localhost:6379';";
+    expect(findDefaultedReads(sourcesOf('integration/x.test.ts', source))).toEqual([]);
+  });
+
+  it('does not follow a read into an **argument** — the value is the wrapper\'s', () => {
+    // The chain walk follows receivers and callees, never arguments. Stated in
+    // the header as a limit, asserted here so a widening of it is a decision.
+    const source = [
+      'const [a, b] = await Promise.all([em.find(A, {}), em.find(B, {})]);',
+      "const id = a?.id ?? '';",
+    ].join('\n');
+    expect(findDefaultedReads(sourcesOf('integration/x.test.ts', source))).toEqual([]);
+  });
+
+  it('does not report a destructured `findOneOrFail`, which already fails on absence', () => {
+    const source = [
+      'const { defaultLanguage } = await em.findOneOrFail(SalesChannel, {});',
+      "const code = defaultLanguage ?? 'en-US';",
+    ].join('\n');
+    expect(findDefaultedReads(sourcesOf('integration/x.test.ts', source))).toEqual([]);
+  });
+
+  it('does not report a call on an identifier no `getKnex()` bound', () => {
+    const source = [
+      "const rows = await makeRows('sales_channels').where('x', 1);",
+      "const code = rows[0]?.code ?? 'en-US';",
+    ].join('\n');
     expect(findDefaultedReads(sourcesOf('integration/x.test.ts', source))).toEqual([]);
   });
 

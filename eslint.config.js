@@ -50,7 +50,9 @@ export default [
         { selector: 'function', format: ['camelCase', 'PascalCase'], leadingUnderscore: 'allow' },
         { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
         // Default imports of classes / namespaces are conventionally PascalCase
-        // (e.g. `import Redis from 'ioredis'`, `import Fastify from 'fastify'`).
+        // (e.g. `import Fastify from 'fastify'`, `import Stripe from 'stripe'`).
+        // `ioredis` is the one package excluded from that idiom — see the
+        // `no-restricted-imports` entry below.
         { selector: 'import', format: ['camelCase', 'PascalCase'] },
         { selector: 'typeLike', format: ['PascalCase'] },
         { selector: 'enumMember', format: ['PascalCase', 'UPPER_CASE'] },
@@ -73,6 +75,31 @@ export default [
         { prefer: 'type-imports', disallowTypeAnnotations: false },
       ],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // D-162 — a published `@endora-commerce/*` package compiles under
+      // `moduleResolution: NodeNext` as well as under `Bundler`. `ioredis` is the
+      // only bare specifier in this tree whose default import breaks that: its
+      // runtime is CJS (`built/index.js` reassigns `module.exports` to the class)
+      // while its declarations claim an ESM `export default`, so under NodeNext the
+      // default binding is the module namespace — `TS2709` as a type, `TS2351` as a
+      // constructor. The named export is the identical class at runtime and
+      // type-checks under both modes. This is a rule about `ioredis`, not a general
+      // prohibition on default imports; the other eight default-imported bare
+      // specifiers in this tree are clean under NodeNext.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'ioredis',
+              importNames: ['default'],
+              message:
+                "Import ioredis by name: `import { Redis } from 'ioredis'`. The default import " +
+                "does not type-check under moduleResolution: NodeNext (TS2709) — ioredis' " +
+                'declarations describe an ESM default over a CJS `module.exports = Redis`.',
+            },
+          ],
+        },
+      ],
     },
   },
 ];

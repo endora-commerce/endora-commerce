@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import { Organization } from './package-entities.js';
+import { CustomerAccount } from './package-entities.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import {
   TEST_CUSTOMER_EMPTY_ID,
   TEST_CUSTOMER_ID,
@@ -77,4 +77,37 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
     emailVerifiedAt: new Date(),
   });
   await em.persistAndFlush([admin, rfq, empty]);
+}
+
+/**
+ * A throwaway company Organization, for a fixture that needs a tenant rather
+ * than a particular one.
+ *
+ * It exists because D-178 made `customer_accounts.organization_id` `NOT NULL`:
+ * a fixture that used to write an account and nothing else now has to write the
+ * tenant that scopes it, and duplicating six lines of address placeholder per
+ * test file is how those six lines come to disagree.
+ *
+ * The tax id is unique per call — the column is globally `@Unique` — and derived
+ * from the clock rather than from a counter, so two files seeding inside one
+ * run do not collide.
+ */
+export async function seedAdHocOrganization(
+  em: EntityManager,
+  name = 'Fixture Organization',
+): Promise<Organization> {
+  const org = em.create(Organization, {
+    name,
+    taxId: `PL${String(Math.floor(performance.now() * 1000)).slice(-8).padStart(8, '0')}${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`,
+    status: 'active',
+    vatStatus: 'vat_payer',
+    registeredAddress: {
+      street: 'ul. Testowa 1',
+      city: 'Warszawa',
+      postalCode: '00-001',
+      country: 'PL',
+    },
+  });
+  await em.persistAndFlush(org);
+  return org;
 }

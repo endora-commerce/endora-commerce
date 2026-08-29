@@ -4,17 +4,20 @@ import type {
   CustomerAccountLifecycleWritePort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../src/commands/index.js';
+import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
+import { PersonalOrganizationService } from '../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
 import {
   CustomerAccountMemberWriteService,
   CustomerAccountReadService,
-} from '../../src/modules/customer_accounts/services/customer-account-ports.js';
+} from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
 import {
   CustomerAccountAdminSearchService,
   CustomerAccountLifecycleWriteService,
-} from '../../src/modules/customer_accounts/services/customer-account-lifecycle-ports.js';
+} from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-lifecycle-ports.js';
+import { twoFactorEnrolmentsFor } from './two-factor-enrolments.js';
 
 /**
  * The two `customer_accounts` ports a hand-built `organizations` service needs
@@ -31,8 +34,11 @@ export function customerAccountPortsFor(emFactory: () => EntityManager): {
   write: CustomerAccountMemberWritePort;
 } {
   return {
-    read: new CustomerAccountReadService(emFactory),
-    write: new CustomerAccountMemberWriteService(emFactory),
+    read: new CustomerAccountReadService(emFactory, twoFactorEnrolmentsFor(emFactory, 'customer')),
+    write: new CustomerAccountMemberWriteService(
+      emFactory,
+      twoFactorEnrolmentsFor(emFactory, 'customer'),
+    ),
   };
 }
 
@@ -46,12 +52,50 @@ export function customerAccountLifecycleWriteFor(
   emFactory: () => EntityManager,
   auditLog: AuditLogService,
   commandBus?: CommandBus,
+  personalOrganizations: PersonalOrganizationProvisionApi = personalOrganizationProvisionFor(
+    emFactory,
+  ),
 ): CustomerAccountLifecycleWritePort {
-  return new CustomerAccountLifecycleWriteService(emFactory, auditLog, commandBus);
+  return new CustomerAccountLifecycleWriteService(
+    emFactory,
+    auditLog,
+    twoFactorEnrolmentsFor(emFactory, 'customer'),
+    personalOrganizations,
+    commandBus,
+  );
+}
+
+/**
+ * D-178 — `organizations`' co-transactional provisioning seam, the real
+ * implementation, for the same reason the two ports above are real: it is what
+ * makes `createStandalone` write the account **and** its personal organisation
+ * in one transaction, and a stub here would make every assertion about that
+ * atomicity vacuous.
+ *
+ * It needs neither of `customer_accounts`' ports — `provisionFor` reads and
+ * writes only `organizations`' own table — so the `PersonalOrganizationService`
+ * built here is handed a pair that throws if anything ever reaches for one.
+ */
+export function personalOrganizationProvisionFor(
+  emFactory: () => EntityManager,
+): PersonalOrganizationProvisionApi {
+  const unreachable = (): never => {
+    throw new Error('provisionFor touches no customer_accounts port');
+  };
+  const service = new PersonalOrganizationService(emFactory, {
+    read: new Proxy({} as CustomerAccountReadPort, { get: unreachable }),
+    write: new Proxy({} as CustomerAccountMemberWritePort, { get: unreachable }),
+  });
+  return {
+    provisionFor: async (em, input) => ({ id: (await service.provisionFor(em, input)).id }),
+  };
 }
 
 export function customerAccountAdminSearchFor(
   emFactory: () => EntityManager,
 ): CustomerAccountAdminSearchPort {
-  return new CustomerAccountAdminSearchService(emFactory);
+  return new CustomerAccountAdminSearchService(
+    emFactory,
+    twoFactorEnrolmentsFor(emFactory, 'customer'),
+  );
 }

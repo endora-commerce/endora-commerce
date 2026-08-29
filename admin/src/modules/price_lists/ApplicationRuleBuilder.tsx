@@ -15,7 +15,7 @@ import type {
   RuleCriterionNode,
   RuleCriterionType,
   RuleGroupNode,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { normalize } from '@/lib/text-normalization';
@@ -40,7 +40,7 @@ interface PickerCache {
  * ApplicationRuleBuilder (US4 / T055).
  *
  * Recursive editor over the AST defined in
- * `@b2b/contracts/price-lists#ApplicationRule`. The contract caps depth
+ * `@endora-commerce/contracts/price-lists#ApplicationRule`. The contract caps depth
  * at 5 nested groups; the UI disables "add subgroup" once that limit is
  * reached so the validator never sees a tree it has to reject.
  *

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ComparisonAttributeRow } from '@b2b/contracts';
+import type { ComparisonAttributeRow } from '@endora-commerce/contracts';
 import { filterRowsByMode } from '../components/ComparisonTable';
 
 /**

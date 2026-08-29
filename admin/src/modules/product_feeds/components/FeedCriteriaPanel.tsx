@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { ProductSelectionRule } from '@b2b/contracts';
+import type { ProductSelectionRule } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   RuleBuilder,

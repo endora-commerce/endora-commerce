@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { type AttributeSetDetail } from '@b2b/contracts';
+import { type AttributeSetDetail } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

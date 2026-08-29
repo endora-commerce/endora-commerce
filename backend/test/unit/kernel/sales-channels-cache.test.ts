@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type Redis from 'ioredis';
+import type { Redis } from 'ioredis';
 import {
   SalesChannelsCache,
   SALES_CHANNELS_CACHE_KEY_PREFIX,

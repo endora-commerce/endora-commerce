@@ -1,20 +1,32 @@
+import { Asset } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { randomUUID } from 'node:crypto';
-import { ERROR_CODES } from '@b2b/contracts';
+
+import { ERROR_CODES } from '@endora-commerce/contracts';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { withModuleOff } from '../../helpers/off-state.js';
+
 import { EventBus } from '../../../src/events/bus.js';
+
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
+
 import { composeModules } from '../../../src/kernel/compose.js';
-import { Asset } from '../../../src/modules/assets_library/entities/asset.entity.js';
-import { CmsPage } from '../../../src/modules/cms/entities/cms-page.entity.js';
-import { AssetReferenceRegistry } from '../../../src/modules/assets_library/services/reference-registry.js';
-import { AssetsLibraryService } from '../../../src/modules/assets_library/services/assets-library.service.js';
-import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
+
+import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
+
+import { AssetsLibraryService } from '../../../../packages/modules/assets_library/src/backend/services/assets-library.service.js';
+
+import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
+
+import { CmsPage } from '../../helpers/package-entities.js';
+
 
 /**
  * D-68 — an asset a **switched-off** `cms` still references cannot be deleted.
@@ -97,7 +109,7 @@ describe('an asset a deactivated cms still references cannot be deleted (D-68)',
 
   /** Compose `cms` on its own and run its boot hooks, whatever its state. */
   async function bootCmsInto(registry: AssetReferenceRegistry): Promise<void> {
-    const { registerModule } = await import('../../../src/modules/cms/backend.js');
+    const { registerModule } = await import('../../../../packages/modules/cms/src/backend/index.js');
     const container = createRootContainer();
     registerValues(container, {
       emFactory: () => h.em(),

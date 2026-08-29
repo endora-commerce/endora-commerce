@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
-import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * Feature 078, D-95.2 — the sentences, and the trap they must not step in.
@@ -19,14 +19,20 @@ import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/erro
  * and a silently untranslated refusal.
  */
 
-const INVOICES_BUNDLES = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../src/modules/invoices/i18n',
-);
-const CORE_BUNDLES = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../src/modules/_i18n/i18n',
-);
+/**
+ * Both bundle directories, **resolved** rather than spelled. `invoices` became a
+ * workspace package in feature 080's T040b and `i18n/` sits at the same place
+ * relative to the module's own directory in either layout; a literal
+ * `src/modules/invoices/i18n` is an `ENOENT` the day it moves.
+ */
+const layout = await requireModuleLayout('[invoice-error-sentences]');
+const bundlesOf = (id: string): string => {
+  const directory = layout.moduleDirectoryOf(id);
+  if (directory === null) throw new Error(`[invoice-error-sentences] no such module: ${id}`);
+  return join(directory, 'i18n');
+};
+const INVOICES_BUNDLES = bundlesOf('invoices');
+const CORE_BUNDLES = bundlesOf('_i18n');
 
 const LANGUAGES = ['en', 'pl'] as const;
 

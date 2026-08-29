@@ -1,105 +1,22 @@
-import { AsyncLocalStorage } from 'async_hooks';
-
 /**
- * Systemic Organization Tenant Scoping (feature 050).
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * The ambient `TenantContext` is the single source of truth for "which tenant
- * is this async execution allowed to see?". It is derived server-side from the
- * authenticated actor (never from request inputs) and read by the MikroORM
- * filter's `cond` thunk **when a query is built** (`filters.ts`) — never stamped
- * onto an EntityManager. `forkScopedEm` is a bare `orm.em.fork()`; a manager
- * therefore carries no tenancy of its own, and the same fork yields different
- * rows under different ambient contexts (feature 072, T038).
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * Modes:
- *  - `single-org`   — a customer (or an org-pinned job); confined to one org.
- *  - `allowed-set`  — a scoped sales-rep admin; confined to an assigned set.
- *  - `all`          — a platform admin; no org restriction (still explicit).
- *  - `system`       — worker / migration / escape hatch; crosses all orgs.
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
  *
- * Fail-closed: a query against a tenant-scoped entity with NO ambient context
- * raises `MissingTenantContextError` (see `filters.ts`) — it never returns
- * unscoped rows.
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-
-export type TenantScopeMode = 'single-org' | 'allowed-set' | 'all' | 'system';
-
-export interface TenantActor {
-  /** `api_key` (feature 062) = a bound distributor key acting as the tenant principal. */
-  readonly kind: 'customer' | 'admin' | 'system' | 'api_key';
-  readonly id?: string;
-}
-
-export interface TenantImpersonation {
-  readonly realAdminUserId: string;
-  readonly impersonatedCustomerAccountId: string;
-}
-
-export interface TenantContext {
-  readonly mode: TenantScopeMode;
-  /** Present for `single-org`. */
-  readonly organizationId?: string | null;
-  /** Present for `allowed-set`. */
-  readonly allowedOrganizationIds?: readonly string[];
-  /** Present for customer actors — drives the `customerAccount` filter. */
-  readonly customerAccountId?: string | null;
-  readonly actor: TenantActor;
-  readonly impersonation?: TenantImpersonation;
-  /** Required for `system` scope entered via the escape hatch. */
-  readonly reason?: string;
-}
-
-/**
- * Thrown when a tenant-scoped entity is queried with no ambient context. This is
- * the fail-closed guarantee: forgetting to establish a context surfaces as a loud
- * error, never a silent cross-tenant read.
- */
-export class MissingTenantContextError extends Error {
-  constructor(detail?: string) {
-    super(
-      `No tenant context is active for a tenant-scoped query.${
-        detail ? ` (${detail})` : ''
-      } Establish one via the request pipeline, or opt out explicitly with withSystemScope()/withOrgScope().`,
-    );
-    this.name = 'MissingTenantContextError';
-  }
-}
-
-const storage = new AsyncLocalStorage<TenantContext>();
-
-/** The ambient context for the current async execution, or `undefined` if none is set. */
-export function getTenantContext(): TenantContext | undefined {
-  return storage.getStore();
-}
-
-/** Run `fn` with `ctx` as the ambient context for its entire async subtree. */
-export function runWithTenantContext<T>(ctx: TenantContext, fn: () => Promise<T>): Promise<T> {
-  return storage.run(ctx, fn);
-}
-
-/**
- * Set the ambient context for the current async execution. NOTE: when called
- * inside an *async* Fastify hook this does not propagate to the route handler
- * (the handler resumes in the hook's parent async context). Prefer
- * `runInTenantContext` in the request pipeline; keep this only for synchronous
- * top-level entrypoints (e.g. a worker process bootstrap).
- */
-export function enterTenantContext(ctx: TenantContext): void {
-  storage.enterWith(ctx);
-}
-
-/**
- * Establish `ctx` for the remainder of a Fastify request via the callback-style
- * hook pattern: `addHook('onRequest', (req, reply, done) => runInTenantContext(ctx, done))`.
- * Fastify invokes the next hook/handler synchronously inside `callback`, so the
- * store propagates across the handler's awaited continuations. This is the
- * reliable AsyncLocalStorage-with-Fastify pattern (cf. @fastify/request-context).
- */
-export function runInTenantContext(ctx: TenantContext, callback: () => void): void {
-  storage.run(ctx, callback);
-}
-
-/** Run `fn` with NO ambient context (fail-closed testing / explicit clears). */
-export function runWithoutTenantContext<T>(fn: () => T): T {
-  return storage.exit(fn);
-}
+export * from '../../../packages/platform/dist/tenancy/tenant-context.js';

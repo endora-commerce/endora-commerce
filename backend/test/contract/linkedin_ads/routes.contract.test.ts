@@ -3,7 +3,7 @@ import {
   LINKEDIN_ADS_SETTING_CODES,
   linkedInConversionMappingSchema,
   linkedInStorefrontConfigSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

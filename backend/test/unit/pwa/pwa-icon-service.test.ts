@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { PwaIconInvalid, PwaIconService, type AssetUploadPort } from '../../../src/modules/pwa/services/pwa-icon-service.js';
+import { PwaIconInvalid, PwaIconService, type AssetUploadPort } from '../../../../packages/modules/pwa/src/backend/services/pwa-icon-service.js';
 
 /** Fake EM: find returns [], create echoes, persist/flush/removeAndFlush no-op. */
 function fakeEmFactory() {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { slugify, type CustomFieldType, type NewsletterCustomField, type NewsletterTag } from '@b2b/contracts';
+import { slugify, type CustomFieldType, type NewsletterCustomField, type NewsletterTag } from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,7 @@ const CUSTOM_FIELD_TYPES: CustomFieldType[] = ['text', 'number', 'boolean', 'dat
  * non-alphanumerics collapsed to underscores, trimmed. A leading digit still
  * fails `CODE_RE`, so callers validate the result before sending.
  *
- * The generator is `slugify` from `@b2b/contracts`, **imported, never
+ * The generator is `slugify` from `@endora-commerce/contracts`, **imported, never
  * re-implemented** (issues #239, #245). The private NFD one-liner it started as
  * did not fold `ł` — U+0142 has no canonical decomposition, so the strip had
  * nothing to remove — it *deleted* it: `Metody płatności` produced

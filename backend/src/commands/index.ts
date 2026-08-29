@@ -1,40 +1,20 @@
 /**
- * Command Bus core layer (feature 054 — Uniform Write Auditing & Undo,
- * Constitution Principle XIII). Peer of `events/`, `tenancy/`, `http/`, `db/`.
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
+ *
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
+ *
+ * This file is a published subpath's own entry point, so the shim names the
+ * subpath: `@endora-commerce/platform/commands`, exactly as a packaged module does.
+ *
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-export {
-  type AuditState,
-  type CommandActor,
-  type CommandEvent,
-  type CommandContext,
-  type CommandOutcome,
-  type Command,
-} from './command.js';
-export { resolveCommandActor, actorFromContext } from './actor.js';
-export {
-  recordAuditFromContext,
-  type AuditFromContextInput,
-} from './audit-from-context.js';
-export {
-  CommandBus,
-  type CommandBusOptions,
-  type CommandRequestMeta,
-} from './command-bus.js';
-export {
-  COMMAND_REGISTRY,
-  type CommandRegistryEntry,
-  type KnownCommandAction,
-  isRegisteredCommand,
-  isReversibleCommand,
-  registeredCommandActions,
-} from './command-registry.js';
-export {
-  type RevertRecord,
-  type UndoStatus,
-  type RevertConflict,
-  type RevertConflictReason,
-  type UndoResult,
-  type RevertHandlers,
-  shallowFieldEquals,
-  applyUndo,
-} from './reversible.js';
+export * from '@endora-commerce/platform/commands';

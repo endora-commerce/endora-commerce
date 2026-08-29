@@ -43,15 +43,41 @@
  * Static analysis through the TypeScript compiler API. Sits alongside
  * `check-container-imports.ts` and `check-kernel-boundary.ts`.
  *
+ * ## Installed packages (feature 080, T034)
+ *
+ * The port→owner map was `src/modules/**` plus {@link HOST_REGISTERED_PORTS},
+ * and since T031 that is a fraction of the platform: a module can arrive as an
+ * npm package installed into the instance's `node_modules`. A name such a
+ * package owns resolved to nobody, so property 1 above reported the *consumer*
+ * as broken — `unowned-name`, a wiring bug — when the wiring is right and the
+ * map was short. That is the ordinary case of the F4 endgame, where a module
+ * leaves this tree for a package and every core consumer of its port starts
+ * reading as a defect.
+ *
+ * `scripts/lib/package-declarations.ts` supplies the third source, read out of
+ * the package's `./backend` artefact with the analyzers below — the same
+ * {@link providedPortNames} and {@link registeredNames} the tree is read with,
+ * so the two derivations cannot disagree about what a registration looks like.
+ *
+ * **What it does when it cannot attribute one: it refuses.** A `./backend`
+ * export whose own source does not declare the `registerModule` it hands out is
+ * bundled or re-exported; its registrations are unreadable and the run stops at
+ * exit 2, naming the package, rather than crediting it with zero names. So
+ * `packages=0` means "no package is installed" and `package-names=0` means "the
+ * installed packages register nothing" — neither can mean "the map stopped
+ * looking".
+ *
  * Usage: `tsx scripts/check-port-dependencies.ts [--list]`
- * Exit 0 = every resolved port is declared; exit 1 = at least one is not.
+ * Exit 0 = every resolved port is declared; exit 1 = at least one is not;
+ * exit 2 = the walk read a residue of the module tree, saw no resolution or no
+ * ledger edge at all, or could not enumerate an installed package.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
-import type { ModuleManifest } from '@b2b/contracts';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import { deploymentsOnDisk } from '../src/overlay/overlay-roots.js';
 import { discoverOverlayModuleManifests } from '../src/overlay/overlay-runtime.js';
 import {
@@ -59,14 +85,25 @@ import {
   type CrossModuleRead,
   type DeactivationLedger,
   type UnassignedEdge,
-} from '../src/modules/_lifecycle/services/deactivation-ledger.js';
+} from '../src/lifecycle/services/deactivation-ledger.js';
 import {
   acknowledgedPortEdgesFrom,
   nonBindingPortEdgesFrom,
   type NonBindingPortEdge,
-} from '../src/modules/_lifecycle/services/gating-graph.js';
-import { refuseVacuousModulePopulation } from './lib/module-population.js';
-import { reportReadSize } from './lib/read-size.js';
+} from '../src/lifecycle/services/gating-graph.js';
+import {
+  moduleIdOf,
+  refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
+import { declaresRegisterModule, requireModuleLayout } from './lib/module-roots.js';
+import {
+  loadPackageDeclarations,
+  packageCoverage,
+  refuseUnreadablePackages,
+} from './lib/package-declarations.js';
+import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
@@ -660,7 +697,10 @@ export interface NonBindingIssue {
     | 'nothing-resolves'
     | 'contribution-registry-without-policy'
     | 'contribution-over-a-gated-port'
-    | 'contribution-not-pushed-at-boot';
+    | 'contribution-not-pushed-at-boot'
+    | 'refusal-over-an-ungated-name'
+    | 'refusal-over-a-bound-owner'
+    | 'refusal-without-a-sentence';
   readonly edge: NonBindingPortEdge;
   readonly detail: string;
 }
@@ -672,21 +712,67 @@ export interface NonBindingInput {
   readonly resolutions: readonly PortResolution[];
   /** Defaults to {@link CONTRIBUTION_POLICY_STATED}; a fixture supplies its own. */
   readonly contributionPolicies?: Readonly<Record<string, 'skip' | 'honour'>> | undefined;
+  /**
+   * `<declaring module>` → the modules it names in `dependencies` **or**
+   * `acknowledgedDependencies` — the two arrays the flip-time refusal reads
+   * (`ModuleGatingGraph`'s `dependentsOf`).
+   *
+   * It is the input the `refuses-without` guard needs and nothing else here
+   * uses: that kind's claim is *"the owner's control keeps working"*, and this
+   * is the one thing in the tree that can contradict it.
+   */
+  readonly boundOwners?: ReadonlyMap<string, ReadonlySet<string>> | undefined;
 }
 
 /**
  * What a `nonBindingDependencies` entry has to be true of, checked against the
  * tree rather than taken on the author's word.
  *
- * Two of the five are about the declaration itself — it names the module that
+ * Two of the eight are about the declaration itself — it names the module that
  * really owns the name, and something really resolves it — because the entry
  * clears an `undeclared-dependency` outright and a wrong or stale one clears a
- * resolution nobody declared. The other three are D-44 §7's guard-rails on
+ * resolution nobody declared. Three are D-44 §7's guard-rails on
  * `contributes-to`, and they exist because that kind withdraws the refusal on
  * the strength of an argument that only holds for a push into a stated-policy
  * registry. `degrades-without` withdraws it on the strength of a written
  * degradation and an off-state test, which no static check can see, so it is
  * held only to the first two.
+ *
+ * The last three are the mirror of the `contributes-to` rail, for
+ * `refuses-without`. That kind makes a claim with two halves — *the operation
+ * refuses* and *the owner's control keeps working* — and both halves are
+ * decidable here:
+ *
+ *  - `refusal-over-an-ungated-name` — the name is not a `di.providePort`
+ *    registration, so there is no gate and nothing refuses. This is
+ *    `contribution-over-a-gated-port` walked the other way, and the two
+ *    together say the same thing once: a pull with a failure mode needs a
+ *    gate, an inert push must not sit behind one.
+ *  - `refusal-over-a-bound-owner` — the declaring module also names the owner
+ *    in `dependencies` or `acknowledgedDependencies`. Those are exactly the
+ *    arrays `ModuleGatingGraph` builds `dependentsOf` from, so the flip-time
+ *    refusal fires while the entry claims it does not. Whichever of the two is
+ *    the mistake, they cannot both stand.
+ *  - `refusal-without-a-sentence` — no `whenAbsent`. The outcome of such an
+ *    entry is byte-identical to declaring nothing at all, so the declaration
+ *    bought the operator nothing; the sentence *is* the kind's payload.
+ *
+ * The last two are also refused, earlier and with a better message, by
+ * `assertNonBindingRules` in `packages/contracts/src/modules.ts` — rules 2 and
+ * 3a, which every manifest written through `defineModuleManifest` passes
+ * through. They are re-derived here rather than assumed because that helper is
+ * a convention and this is a gate: a manifest object built without it reaches
+ * the composition all the same, and the two facts these rules rest on
+ * (`dependencies` + `acknowledgedDependencies`, and the presence of a
+ * sentence) are on the manifest, so deriving them costs nothing and closes the
+ * one route that skips the helper.
+ *
+ * The third half of that claim — that the resolution happens at call time — is
+ * not checked here, and deliberately: `buildDeactivationLedger` already
+ * refuses a gated port read at boot or wiring as
+ * `gated-port-before-first-request`, **before** it consults any declaration, so
+ * a `refuses-without` entry cannot rescue one. A second guard for it would be a
+ * second answer waiting to disagree with the first.
  */
 export function findNonBindingIssues(input: NonBindingInput): NonBindingIssue[] {
   const policies = input.contributionPolicies ?? CONTRIBUTION_POLICY_STATED;
@@ -713,6 +799,31 @@ export function findNonBindingIssues(input: NonBindingInput): NonBindingIssue[] 
         edge,
         detail: `'${edge.moduleId}' resolves no name '${edge.name}' anywhere`,
       });
+      continue;
+    }
+    if (edge.kind === 'refuses-without') {
+      if (input.providedPorts.get(edge.name) === undefined) {
+        issues.push({
+          kind: 'refusal-over-an-ungated-name',
+          edge,
+          detail: `'${edge.name}' is not registered with di.providePort, so resolving it asks no gate`,
+        });
+      }
+      const bound = input.boundOwners?.get(edge.moduleId);
+      if (bound?.has(edge.dependsOn) === true) {
+        issues.push({
+          kind: 'refusal-over-a-bound-owner',
+          edge,
+          detail: `'${edge.moduleId}' also names '${edge.dependsOn}' in dependencies or acknowledgedDependencies`,
+        });
+      }
+      if (edge.whenAbsent === null) {
+        issues.push({
+          kind: 'refusal-without-a-sentence',
+          edge,
+          detail: `no \`whenAbsent\`, so the operator's row would read exactly as if nothing were declared`,
+        });
+      }
       continue;
     }
     if (edge.kind !== 'contributes-to') continue;
@@ -767,6 +878,22 @@ export function describeNonBindingIssue(issue: NonBindingIssue): string {
       `    Reading an answer out of an ungated registry is a pull. \`contributes-to\` is for a\n` +
       `    push, which happens once from a boot hook and reads nothing back; anything resolved\n` +
       `    at call or wiring time needs \`degrades-without\` and an off-state test for the edge.`,
+    'refusal-over-an-ungated-name':
+      `    \`refuses-without\` says the operation answers 503 \`MODULE_DISABLED\` and the rest of\n` +
+      `    the module carries on. Only a \`di.providePort\` gate produces that answer: an ungated\n` +
+      `    registration keeps resolving, or resolves to nothing, and either way nothing refuses.\n` +
+      `    Ask the owner to publish the name as a port, or declare the real behaviour with\n` +
+      `    \`degrades-without\`.`,
+    'refusal-over-a-bound-owner':
+      `    The two halves of \`refuses-without\` are "the operation refuses" and "the owner's\n` +
+      `    activation control keeps working". \`dependencies\` and \`acknowledgedDependencies\` are\n` +
+      `    what the flip-time refusal reads, so naming the owner there makes the second half\n` +
+      `    false and the owner's control a dead switch. Drop the entry, or drop the owner from\n` +
+      `    the binding array — whichever of the two states what you meant.`,
+    'refusal-without-a-sentence':
+      `    A gated port with no declaration already classifies as \`fails-closed\`, so an entry\n` +
+      `    with no \`whenAbsent\` changes nothing an operator can see. Write what refuses — the\n` +
+      `    capability, in the operator's words, not "a port throws".`,
   };
   return `${head}\n${tail[issue.kind]}`;
 }
@@ -913,13 +1040,40 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** The owning module id of a source file, core or overlay. */
-export function moduleOf(file: string): string | null {
+/**
+ * The owning module id of a source file, over every root a module can live in.
+ *
+ * Three shapes, in order. The two anchored regexes answer for the application's
+ * own trees — a deployment overlay first, then the core module tree — and both
+ * key on `/src/`, so they say nothing about a module that has become a
+ * **package** (feature 080, T040a). The third is `lib/module-population.ts`'
+ * `moduleIdOf`, the same segment reader the population floor uses, and it is
+ * what makes a path like `packages/modules/blog/src/services/x.ts` attribute to
+ * `blog` instead of to nobody.
+ *
+ * That fallback is not cosmetic. Without it a package's files are read by the
+ * walk, satisfy the floor, and are then attributed to `null` — which for every
+ * consumer here means *not a module*, so the check judges none of them and
+ * reports clean. That is issue #215's failure one layer in, and it is why
+ * `resolveModuleLayout` refuses a package root whose location the segment
+ * reader cannot attribute rather than letting it through unnamed.
+ *
+ * The fourth answer is `hostResident`, the map the layout derives from the
+ * manifest index for a module whose sources the host owns and whose directory
+ * therefore carries no `modules/<id>/` segment (feature 080, T040b). It is
+ * threaded from `main` rather than left to default, for exactly the reason the
+ * third shape exists: a file the walk reads and cannot name is a file this
+ * check judges as nobody's and reports clean about.
+ */
+export function moduleOf(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
   const overlay = /\/src\/apps\/[^/]+\/modules\/([^/]+)\//.exec(file);
   if (overlay) return overlay[1] ?? null;
   const core = /\/src\/modules\/([^/]+)\//.exec(file);
   if (core) return core[1] ?? null;
-  return null;
+  return moduleIdOf(file, hostResident);
 }
 
 /** `ctx.di.register` → `di.register`; used to match on the tail, not the receiver name. */
@@ -1191,8 +1345,12 @@ function isWithin(node: ts.Node, scope: ts.Node): boolean {
  * until issue #127 — the eighth time this scanner's *reach*, rather than the
  * rules under it, turned out to be the defect.
  */
-export function resolvedNames(source: string, file: string): PortResolution[] {
-  const moduleId = moduleOf(file);
+export function resolvedNames(
+  source: string,
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): PortResolution[] {
+  const moduleId = moduleOf(file, hostResident);
   if (moduleId === null) return [];
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const found: PortResolution[] = [];
@@ -1422,8 +1580,12 @@ export interface ImportedContributionSeam {
   readonly site: ResolutionSite;
 }
 
-export function importedContributionSeams(source: string, file: string): ImportedContributionSeam[] {
-  const moduleId = moduleOf(file);
+export function importedContributionSeams(
+  source: string,
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): ImportedContributionSeam[] {
+  const moduleId = moduleOf(file, hostResident);
   if (moduleId === null) return [];
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
 
@@ -1436,7 +1598,7 @@ export function importedContributionSeams(source: string, file: string): Importe
     if (!specifier.startsWith('.')) continue;
     // `moduleOf` reads a directory segment, so the resolved path needs one
     // more separator after the module name to match on a file at its root.
-    const owner = moduleOf(`${resolvePath(dirname(file), specifier)}/`);
+    const owner = moduleOf(`${resolvePath(dirname(file), specifier)}/`, hostResident);
     if (owner === null || owner === moduleId) continue;
     const bindings = statement.importClause?.namedBindings;
     if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
@@ -2079,7 +2241,9 @@ export async function overlayManifestEntries(): Promise<
 }
 
 async function main(): Promise<void> {
-  const files = [...walk(join(SRC_ROOT, 'modules')), ...walk(join(SRC_ROOT, 'apps'))];
+  // Every root a module's source can live in, derived (feature 080, T040a).
+  const layout = await requireModuleLayout('[port-deps]');
+  const files = layout.moduleWalkRoots.flatMap((root) => walk(root));
   // Emptiness is only the total loss (issue #215). `src/apps` is a scan root of
   // its own, and `resolutions.length === 0` below is satisfied by a single
   // surviving `lazyPort` — so a **partial** move, which is what a package split
@@ -2087,18 +2251,36 @@ async function main(): Promise<void> {
   // is one source per registered module, derived from the manifest index.
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[port-deps]',
-    srcRoot: SRC_ROOT,
+    manifestIndexPath: layout.manifestIndexPath,
     files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
 
   // The third supply source (D-73). Read before anything else so its own
   // vacuous guard fires before the platform sweep can turn an unreadable kernel
   // directory into a screenful of false `platform-name-unsupplied`.
-  const kernelFiles = walk(join(SRC_ROOT, 'kernel'));
+  // The kernel's own sources, wherever the workspace says they are. Spelling the
+  // path here was how this guard nearly went silent at the relocation: the five
+  // platform directories moved into `@endora-commerce/platform` and left
+  // re-export shims at the old paths, so `walk(join(SRC_ROOT, 'kernel'))` came
+  // back with 48 files that register nothing — a non-empty walk clearing the
+  // refusal below and an empty `kernelNames` reporting `orm`, `em` and
+  // `emFactory` as unsupplied. That is issue #113 with a full-length file count.
+  const platformRoot = layout.platformRoot;
+  if (platformRoot === null) {
+    console.error(
+      '[port-deps] no workspace member declares `endora.type: "platform"` — the ' +
+        'kernel-supplied names cannot be read and every one of them would report as ' +
+        'unsupplied; refusing to report anything',
+    );
+    process.exit(2);
+  }
+  const kernelFiles = walk(join(platformRoot, 'kernel'));
   if (kernelFiles.length === 0) {
     console.error(
-      '[port-deps] no kernel sources under src/kernel — the platform-name sweep would ' +
-        'report every kernel-supplied name as unsupplied; refusing to report anything',
+      `[port-deps] no kernel sources under ${join(platformRoot, 'kernel')} — the ` +
+        'platform-name sweep would report every kernel-supplied name as unsupplied; ' +
+        'refusing to report anything',
     );
     process.exit(2);
   }
@@ -2112,20 +2294,86 @@ async function main(): Promise<void> {
     for (const name of registeredNames(source, file)) kernelNames.add(name);
   }
 
+  // The names the installed extension packages register (feature 080, T034).
+  //
+  // The port→owner map was `src/modules/**` plus the host table, so a name an
+  // installed package owns resolved to **no owner** — and a core module
+  // resolving one was reported as `unowned-name`, a wiring bug, when the wiring
+  // is right and the map was short. That is the F4 endgame's ordinary case: a
+  // module leaves the tree for a package and every consumer of its port starts
+  // reading as broken.
+  //
+  // A registration is a call inside `registerModule`, and executing a
+  // stranger's composition to find out what it composes is not a thing a static
+  // check may do — so the artefact is read with the analyzers this file already
+  // owns. What it cannot read it refuses: a `./backend` export whose own source
+  // does not declare the `registerModule` it hands out is bundled or
+  // re-exported, and it stops the run at exit 2 rather than being credited with
+  // zero names.
+  const packages = await loadPackageDeclarations({
+    containerNames: (source, file) => {
+      const gated = new Set(providedPortNames(source, file));
+      return [
+        ...[...gated].map((name) => ({ name, gated: true })),
+        ...registeredNames(source, file)
+          .filter((name) => !gated.has(name))
+          .map((name) => ({ name, gated: false })),
+      ];
+    },
+  });
+  refuseUnreadablePackages('[port-deps]', packages);
+
   const owners = new Map<string, string>(Object.entries(HOST_REGISTERED_PORTS));
   const resolutions: PortResolution[] = [];
   const seams: ImportedContributionSeam[] = [];
+  /**
+   * Each module's composition entry point, by the **marker** rather than by a
+   * filename (feature 080, T040b).
+   *
+   * This used to be `file.endsWith('/backend.ts')`, with a second spelling —
+   * `<dir>/backend.ts` or `<dir>/src/backend.ts` — in the `HOST_REGISTERED_PORTS`
+   * staleness sweep below. A module package keeps its entry point wherever its
+   * `exports` map's `./backend` subpath points, which for both packages in this
+   * repository is `src/backend/index.ts`: neither spelling matches it, so a
+   * packaged module's `di.providePort` calls were invisible and every consumer
+   * of one of its ports read as *resolving an ungated registration*. That is
+   * fail-open in the direction that matters — the six consumers of
+   * `quote_requests`' two ports were reported as needing an absent-owner policy
+   * for a gate that is right there. `blog` hid it only by owning no port another
+   * module resolves.
+   *
+   * The marker is `generate-composer.ts`'s own — the file exporting
+   * `registerModule` — so the composer and this check cannot disagree about
+   * which file composes a module. Two such files in one module is the
+   * composer's error to raise, and it does; here the first in walk order wins,
+   * because a check that threw would refuse a tree the generator has already
+   * refused with a better message.
+   */
+  const moduleEntryPoints = new Map<string, string>();
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
-    const moduleId = moduleOf(file);
+    const moduleId = moduleOf(file, layout.hostResidentModules);
     if (moduleId === null) continue;
+    if (
+      !moduleEntryPoints.has(moduleId) &&
+      declaresRegisterModule(source)
+    ) {
+      moduleEntryPoints.set(moduleId, file);
+    }
     for (const name of registeredNames(source, file)) owners.set(name, moduleId);
-    resolutions.push(...resolvedNames(source, file));
-    seams.push(...importedContributionSeams(source, file));
+    resolutions.push(...resolvedNames(source, file, layout.hostResidentModules));
+    seams.push(...importedContributionSeams(source, file, layout.hostResidentModules));
+  }
+  // The tree wins a collision, as it does in `check-module-boundary`'s table
+  // map: two registrations of one name is a `DuplicateRegistrationError` the
+  // container raises for itself, and until it does, a stranger must not take a
+  // core module's name away from it in the diagnosis.
+  for (const claimed of packages.containerNames) {
+    if (!owners.has(claimed.name)) owners.set(claimed.name, claimed.moduleId);
   }
 
   const { DISCOVERED_MANIFESTS } = (await import(
-    pathToFileURL(join(SRC_ROOT, 'modules/_lifecycle/manifest-index.generated.ts')).href
+    pathToFileURL(layout.manifestIndexPath).href
   )) as { DISCOVERED_MANIFESTS: ReadonlyArray<{ id: string; manifest: ModuleManifest }> };
 
   // Every deployment's overlay manifests, merged in — issue #210.
@@ -2168,8 +2416,11 @@ async function main(): Promise<void> {
   // A host entry whose owner now registers the port itself is dead weight, and
   // dead weight in a bridging table is how the bridge outlives the gap.
   const stale = Object.entries(HOST_REGISTERED_PORTS).filter(([name, owner]) => {
-    const backend = join(SRC_ROOT, 'modules', owner, 'backend.ts');
-    return existsSync(backend) && registeredNames(readFileSync(backend, 'utf8'), backend).includes(name);
+    const backend = moduleEntryPoints.get(owner);
+    return (
+      backend !== undefined &&
+      registeredNames(readFileSync(backend, 'utf8'), backend).includes(name)
+    );
   });
 
   // What each composition root registers, and what each converted module
@@ -2182,10 +2433,7 @@ async function main(): Promise<void> {
   // platform sweep asks is "does a module own this name at all", and a
   // `ctx.di.register` default is enough to answer yes (D-73).
   const moduleOwnedNames = new Map<string, string>();
-  for (const file of files) {
-    if (!file.endsWith('/backend.ts')) continue;
-    const moduleId = moduleOf(file);
-    if (moduleId === null) continue;
+  for (const [moduleId, file] of moduleEntryPoints) {
     const source = readFileSync(file, 'utf8');
     for (const name of providedPortNames(source, file)) {
       moduleRegistered.set(name, moduleId);
@@ -2193,6 +2441,16 @@ async function main(): Promise<void> {
     for (const name of registeredNames(source, file)) {
       moduleOwnedNames.set(name, moduleId);
     }
+  }
+  // A package's names belong in both, for the reason the tree's do: a gated
+  // port of a package is a gate like any other, and a `PLATFORM_OWNED_NAMES`
+  // entry a package owns is a module-owned name laundering a cross-module edge
+  // past two exemptions (D-73), whichever tree the module lives in.
+  for (const claimed of packages.containerNames) {
+    if (claimed.gated && !moduleRegistered.has(claimed.name)) {
+      moduleRegistered.set(claimed.name, claimed.moduleId);
+    }
+    if (!moduleOwnedNames.has(claimed.name)) moduleOwnedNames.set(claimed.name, claimed.moduleId);
   }
 
   // The modules the orchestrator refuses to switch off on either axis, read
@@ -2222,6 +2480,19 @@ async function main(): Promise<void> {
     owners,
     providedPorts: moduleRegistered,
     resolutions,
+    // The two arrays `ModuleGatingGraph` builds its `dependentsOf` — and hence
+    // the flip-time refusal — from. Derived here from the same manifests
+    // rather than restated, so an owner moved between the arrays changes this
+    // answer in the same run.
+    boundOwners: new Map(
+      manifests.map((manifest) => [
+        manifest.id,
+        new Set<string>([
+          ...(manifest.dependencies ?? []),
+          ...(manifest.acknowledgedDependencies ?? []).map((edge) => edge.moduleId),
+        ]),
+      ]),
+    ),
   });
 
   // The deactivation-consequence ledger (feature 074) — the same edges,
@@ -2282,7 +2553,7 @@ async function main(): Promise<void> {
   );
   const rootNames = new Map<string, ReadonlySet<string>>();
   for (const [label, relative] of Object.entries(ROOT_FILES)) {
-    const full = join(SRC_ROOT, '..', relative);
+    const full = join(layout.applicationRoot, relative);
     if (!existsSync(full)) continue;
     rootNames.set(label, new Set(rootRegisteredNames(readFileSync(full, 'utf8'), full)));
   }
@@ -2331,16 +2602,21 @@ async function main(): Promise<void> {
   // What was read, in the shared grammar (issue #244). The port resolutions are
   // the finer population: `resolutions.length === 0` was already a floor, but a
   // number that halves silently is the case the floor cannot see.
+  const installed = packageCoverage(packages);
+  const coverages: ReadCoverage[] = installed === null ? [coverage] : [coverage, installed];
   reportReadSize({
     prefix: '[port-deps]',
-    files: files.length,
+    files: files.length + packages.filesRead,
     sites: resolutions.length,
-    coverage: [coverage],
+    coverage: coverages,
   });
   console.log(
-    `[port-deps] modules scanned=${new Set(files.map(moduleOf)).size} ` +
+    `[port-deps] modules scanned=${
+      new Set(files.map((file) => moduleOf(file, layout.hostResidentModules))).size
+    } ` +
       `resolutions=${resolutions.length} violations=${violations.length} ` +
       `root-issues=${rootIssues.length} ` +
+      `packages=${packages.discovered} package-names=${packages.containerNames.length} ` +
       `platform-names=${PLATFORM_OWNED_NAMES.size} kernel-supplied=${
         [...PLATFORM_OWNED_NAMES].filter((name) => kernelNames.has(name)).length
       } ` +
@@ -2413,9 +2689,11 @@ async function main(): Promise<void> {
   if (unassigned.length > 0) {
     console.error(
       `\nAn edge into a module an operator may switch off has no defined behaviour. Every ` +
-        `such edge answers one of four ways — it fails closed at the seam, it degrades as its ` +
-        `own manifest declares, it is a contribution the host filters, or it is schema-only ` +
-        `and nothing stops. These answer a fifth way, which is silently wrong:`,
+        `such edge answers one of four ways — it fails closed at the seam (say so with a ` +
+        `\`refuses-without\` entry, which adds the operator's sentence and keeps the owner's ` +
+        `control alive), it degrades as its own manifest declares, it is a contribution the ` +
+        `host filters, or it is schema-only and nothing stops. These answer a fifth way, ` +
+        `which is silently wrong:`,
     );
     for (const edge of unassigned) console.error(describeUnassignedEdge(edge));
   }

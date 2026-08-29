@@ -2,16 +2,16 @@ import Fastify from 'fastify';
 import { asValue } from 'awilix';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createRootContainer } from '../../../src/kernel/container.js';
 import {
   createModuleContext,
   createModuleRegistrationSink,
-  createRootContainer,
-  type ModuleContext,
   type ModuleRegistrationSink,
-} from '../../../src/kernel/index.js';
+} from '../../../src/kernel/module-context.js';
+import { type ModuleContext } from '../../../src/kernel/index.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { registerModule } from '../../../src/modules/_i18n/backend.js';
+import { registerModule } from '@endora-commerce/mod-i18n/backend';
 
 /**
  * Feature 072 wave 1 (T089) — `_i18n` reconciles on plugin attach, not on boot.

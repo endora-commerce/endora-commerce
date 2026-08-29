@@ -1,4 +1,4 @@
-import type { ReducedDeploymentDeclaration } from '@b2b/contracts';
+import type { ReducedDeploymentDeclaration } from '@endora-commerce/contracts';
 
 /**
  * `example` ships the full module set, so it declares no omission — D-101.

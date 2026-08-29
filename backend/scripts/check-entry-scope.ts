@@ -95,10 +95,23 @@
  * `pnpm run <name>` starts it, no HTTP request is involved, and nothing above it
  * can open a scope on its behalf.
  *
- * The two sources are a **union**, and both halves are needed:
- * `sales_channels/scripts/backfill-quote-channel.ts` has no package script
- * (it is run directly), and the seed is under no `scripts/` directory. Either
- * source alone is smaller than the truth.
+ * The two sources are a **union**, and the seed is the standing proof that the
+ * declaration half is load-bearing: it is under no `scripts/` directory and no
+ * shape class contains it, so without the `package.json` source it is not in
+ * the population at all.
+ *
+ * The other half used to be cited to `backfill-quote-channel.ts`, a `scripts/`
+ * file run directly with no package script of its own — and it was the *only*
+ * one, so D-167 deleting it took the citation with it. Today every `scripts/`
+ * file is also a declared program, which means the `scripts/` half adds no site
+ * this run would otherwise miss. It stays, and the reason is the shape of the
+ * two sources rather than today's count: a `scripts/` file is a process entry
+ * point because of what it *is*, while a `package.json` entry says only what
+ * this repository currently chooses to run. An author who adds a maintenance
+ * script and invokes it with `tsx` — which is exactly how the deleted file was
+ * run — is back in the case the union exists for, and the check would report
+ * `unscoped=0` about a file it never opened. Dropping the shape half would make
+ * that silence possible again to save nothing.
  *
  * Usage: `tsx scripts/check-entry-scope.ts [--list]`
  * Exit 0 = every entry site establishes a scope (or is ledgered);
@@ -124,10 +137,10 @@ import {
   stringLiteralOf,
 } from './lib/repeating-timers.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
-const SRC_ROOT = join(BACKEND_ROOT, 'src');
 
 /** The two functions that open a scope. Nothing else counts as establishing one. */
 const SCOPE_ENTRY_FUNCTIONS: ReadonlySet<string> = new Set([
@@ -211,17 +224,11 @@ export function keyOf(site: EntrySite): string {
  * longer describes an unscoped site fails it too.
  */
 export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
-  'src/modules/_lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
+  'src/lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
     'Lease refresh: one Redis EVAL per tick, no EntityManager. A tenant context ' +
     'would be dead weight and the entry would emit an escape-hatch audit record ' +
     'every few seconds for the life of every lease.',
 
-  'src/modules/settings/scripts/modules-install.ts:<file>:cli':
-    'Deprecation shim: spawns `module:install` and forwards argv. The scope is ' +
-    'established by the script it spawns.',
-
-  'src/modules/settings/scripts/modules-uninstall.ts:<file>:cli':
-    'Deprecation shim: spawns `module:uninstall` and forwards argv.',
 
   'src/index.ts:<file>:program':
     'The HTTP server root. It composes and listens; it opens no EntityManager ' +
@@ -245,7 +252,7 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'The same two shutdown handlers as `index.ts`, closing the app and disposing ' +
     'the composition. No query, nothing to scope.',
 
-  'src/kernel/container.ts:installShutdownDisposal:process.once':
+  'packages/platform/src/kernel/container.ts:installShutdownDisposal:process.once':
     'Issue #237 — the site no file-level class contained: `container.ts` is under ' +
     'no `scripts/` directory, is no declared program, constructs no `Worker` and ' +
     'starts no timer, so the check that classified files had nowhere to put it. ' +
@@ -256,20 +263,16 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'flush, a "worker stopped" row — which would need the scope here, at the ' +
     'signal, since a disposer has no caller of its own either.',
 
-  "src/modules/admin_actions/services/admin-actions-service.ts:<module scope>:on('message')":
-    'A synchronous, EntityManager-free cache drop: the handler compares the ' +
-    'channel and calls `invalidate()`, which clears a `Map` and bumps a counter. ' +
-    'Nothing is read, so nothing needs a scope; the refill happens lazily on the ' +
-    'next caller\'s stack, which is a request or another entry point and already ' +
-    'has one. Falsified the moment this handler *reloads* instead of dropping — ' +
-    'that is issue #235 exactly, and the repair then is `enterSystemScope` here.',
-
-  "src/modules/custom_fields/services/custom-field-definitions-cache.ts:start:on('message')":
-    'The same shape and the same falsifier as the `admin_actions` handler above: ' +
-    '`handleMessage` parses the payload and clears the cached definitions for one ' +
-    'entity type. No EntityManager, no read — the next caller reloads, inside its ' +
-    'own scope. Retire this entry the day the handler warms the cache instead of ' +
-    'emptying it.',
+  "packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.ts:start:on('message')":
+    'A synchronous, EntityManager-free cache drop: `handleMessage` parses the ' +
+    'payload and clears the cached definitions for one entity type. No ' +
+    'EntityManager, no read — the next caller reloads, inside its own scope. ' +
+    'Retire this entry the day the handler warms the cache instead of emptying ' +
+    'it, which is issue #235 exactly and would need `enterSystemScope` here. ' +
+    '(`admin_actions` had the identical entry until D-174 removed its handler: ' +
+    'the module registers an `InProcessCacheLayer` and the platform\'s own ' +
+    'state-changed subscriber drops it, so the module owns no `on(\'message\')` ' +
+    'site at all.)',
 
   'src/db/migrate.ts:<file>:program':
     "The migration runner. MikroORM's migrator executes each migration through " +
@@ -337,11 +340,23 @@ const NOTHING_DECLARED: ReadonlySet<string> = new Set();
  * The path as the ledger spells it: everything from the last `/src/` on.
  * Derived from the path itself rather than from `SRC_ROOT` so the predicates
  * here are testable without knowing where the checkout lives.
+ *
+ * **It is the default and no longer the only answer** (feature 080, T040a). A
+ * module that has become a workspace package lives at
+ * `packages/modules/<id>/src/…`, where "everything from the last `/src/` on"
+ * drops the module and leaves `src/services/x.ts` — a key two packages would
+ * share. The CLI therefore passes `resolveModuleLayout().displayOf`, which
+ * keeps the application's own spelling byte-for-byte and answers repo-relative
+ * for anything outside it. The default stays for the predicates' own tests,
+ * which have no checkout to resolve.
  */
 export function relative(file: string): string {
   const marker = file.lastIndexOf('/src/');
   return marker === -1 ? file : file.slice(marker + 1);
 }
+
+/** How a walked file becomes the key a site and a ledger entry are spelled with. */
+export type PathSpelling = (file: string) => string;
 
 /**
  * Which file-level class this file belongs to, or `null` for neither.
@@ -352,9 +367,10 @@ export function relative(file: string): string {
 export function fileLevelKind(
   file: string,
   declared: ReadonlySet<string> = NOTHING_DECLARED,
+  pathOf: PathSpelling = relative,
 ): 'cli' | 'program' | null {
   if (/\/scripts\//.test(file)) return 'cli';
-  if (declared.has(relative(file))) return 'program';
+  if (declared.has(pathOf(file))) return 'program';
   return null;
 }
 
@@ -482,11 +498,12 @@ export function findEntrySites(
   file: string,
   source: string,
   declared: ReadonlySet<string> = NOTHING_DECLARED,
+  pathOf: PathSpelling = relative,
 ): EntrySite[] {
-  const fileKind = fileLevelKind(file, declared);
+  const fileKind = fileLevelKind(file, declared, pathOf);
   if (fileKind === null && !mayHoldSite(source)) return [];
 
-  const path = relative(file);
+  const path = pathOf(file);
   const sf = parseScript(file, source);
   const bindings = localFunctions(sf);
 
@@ -548,20 +565,23 @@ export function staleAllowances(sites: readonly EntrySite[]): string[] {
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
-  const files = walk(SRC_ROOT);
+  // Both roots, derived (feature 080, T040a).
+  const layout = await requireModuleLayout('[entry-scope]');
+  const files = layout.sourceRoots.flatMap((root) => walk(root));
   // Every CLI script, worker and sweep this check classifies is a module's, and
   // its exemptions are keyed by `src/modules/**` paths — so a walk over the
   // residue left when the module tree moves recognises almost no entry point at
   // all and still clears the `sites.length === 0` floor (issue #215).
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[entry-scope]',
-    srcRoot: SRC_ROOT,
+    manifestIndexPath: layout.manifestIndexPath,
     files,
+    moduleIdOf: layout.moduleIdOfPath,
   });
   const declaredPaths = declaredProgramEntryPoints(
     readFileSync(join(BACKEND_ROOT, 'package.json'), 'utf8'),
   );
-  const walked = new Set(files.map(relative));
+  const walked = new Set(files.map(layout.displayOf));
   // The second population source can go short the same two ways the walk can:
   // a `scripts` block this cannot read at all, and a declaration whose file has
   // been renamed away underneath it. The first is "not looking" and exits 2;
@@ -584,7 +604,9 @@ async function main(): Promise<void> {
   }
   const declared = new Set(declaredPaths);
 
-  const sites = files.flatMap((file) => findEntrySites(file, readFileSync(file, 'utf8'), declared));
+  const sites = files.flatMap((file) =>
+    findEntrySites(file, readFileSync(file, 'utf8'), declared, layout.displayOf),
+  );
   const violations = violationsOf(sites);
   const stale = staleAllowances(sites);
 

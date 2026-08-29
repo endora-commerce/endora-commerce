@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalize } from '../../../src/lib/text-normalization';
 
 /**
- * `normalize` is `foldDiacritics` from `@b2b/contracts` plus a trim since issue
+ * `normalize` is `foldDiacritics` from `@endora-commerce/contracts` plus a trim since issue
  * #240 — the same fold the backend writes `organizations.name_search` with.
  * Before that this file carried its own map, and the two disagreed over 19 code
  * points without either author knowing, which is the defect the extraction ends.

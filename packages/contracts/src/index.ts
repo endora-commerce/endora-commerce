@@ -1,4 +1,4 @@
-// @b2b/contracts — source-of-truth Zod schemas for every API boundary of the B2B platform.
+// @endora-commerce/contracts — source-of-truth Zod schemas for every API boundary of the B2B platform.
 //
 // Per Principle V of the constitution, this package is the ONLY place where request/response
 // shapes are defined. The backend regenerates its live OpenAPI document from here at startup
@@ -26,10 +26,13 @@ export * from './inventory.js';
 export * from './invoices.js';
 export * from './payments.js';
 export * from './payment-methods.js';
+export * from './payment-return-url.js';
 export * from './stripe.js';
 export * from './tpay.js';
 export * from './payu.js';
 export * from './autopay.js';
+export * from './paypal.js';
+export * from './dhl-parcel.js';
 export * from './inpost.js';
 export * from './shipping-methods.js';
 export * from './admin.js';
@@ -109,6 +112,8 @@ export {
   type CmsReferenceRegistryPort,
   type CmsPageRecord,
   type CmsPageReadPort,
+  type CmsSeededBlock,
+  type CmsBlockSeedPort,
 } from './cms.js';
 export * from './shopping-lists.js';
 export * from './quick-order.js';

@@ -2,7 +2,7 @@ import type {
   CreateWarehouseRequest,
   UpdateWarehouseRequest,
   Warehouse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiClient } from '@/lib/api-client';
 
 interface ListResponse {

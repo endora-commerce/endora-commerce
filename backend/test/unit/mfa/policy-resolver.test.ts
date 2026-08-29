@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import { MFA_SETTING_CODES } from '@b2b/contracts';
+import { MFA_SETTING_CODES } from '@endora-commerce/contracts';
 import {
   MfaPolicyResolver,
   type SettingsReader,
-} from '../../../src/modules/mfa/services/mfa-policy-resolver.js';
+} from '../../../../packages/modules/mfa/src/backend/services/mfa-policy-resolver.js';
 
 /**
  * Fake settings reader: returns the value mapped per (code, channel), or

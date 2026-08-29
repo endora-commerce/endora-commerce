@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -12,10 +13,40 @@ import {
   type ComposerNode,
 } from '../../../scripts/generate-composer.js';
 import { MODULES } from '../../../src/composition.generated.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
-const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+
+/**
+ * The file that *declares* a manifest, given the location the registry carries.
+ *
+ * `filePath` means "the module's own directory, one `dirname` away" for all
+ * three origins (`manifest-locations.ts`), which for a module in the application
+ * tree is the manifest source itself and for a **package** is its
+ * `package.json` — the file that claims the module id. So a text witness that
+ * read `filePath` directly worked for as long as no module shipping an install
+ * hook had become a package, and stopped the day `custom_fields` did (feature
+ * 080, T040b, batch four): a `package.json` says nothing about `installHook`,
+ * and the assertion failed while the derivation it is about was correct.
+ *
+ * The package's own `exports['.']` target is what it declares as the manifest
+ * module, so that is what is read — a derived answer rather than a
+ * `src/manifest.ts` written down here (D-100), and one that follows a package
+ * that names its layers differently.
+ */
+function manifestModuleOf(filePath: string): string {
+  if (!filePath.endsWith(`${sep}package.json`)) return filePath;
+  const manifest = JSON.parse(readFileSync(filePath, 'utf8')) as {
+    exports?: Record<string, { default?: string } | string>;
+  };
+  const root = manifest.exports?.['.'];
+  const target = typeof root === 'string' ? root : root?.default;
+  expect(target, `${filePath} declares no '.' export, so its manifest module cannot be found`)
+    .toBeDefined();
+  return join(dirname(filePath), target!);
+}
+
 
 /**
  * The generated composer (feature 072, T046–T049).
@@ -82,11 +113,22 @@ describe('F2 — a single generated manifest registry', () => {
 
   it('is the only file that imports a module manifest statically', () => {
     const registry = readFileSync(
-      new URL('../../../src/modules/_lifecycle/registered-manifests.ts', import.meta.url),
+      new URL('../../../src/lifecycle/registered-manifests.ts', import.meta.url),
       'utf8',
     );
-    expect(registry).not.toMatch(/from '\.\.\/[a-z_]+\/manifest\.js'/);
-    expect(renderManifestIndex().content).toMatch(/from '\.\.\/blog\/manifest\.js'/);
+    expect(registry).not.toMatch(/from '\.[^']*\/manifest\.js'/);
+    // The control: the index really does import manifests, so the assertion
+    // above is about `registered-manifests.ts` and not about an empty file.
+    // Neither the module nor the *shape* of the specifier is named — it read
+    // `blog` until that module became a package (feature 080, T040b) and the
+    // index started naming it `@endora-commerce/mod-blog`, then `../<id>/` until
+    // the index moved to the source root (D-160.3) and every relative specifier
+    // it emits gained a directory. Both are expiry dates; "a relative manifest
+    // import, of any depth" is the property the assertion above is about.
+    const index = renderManifestIndex().content;
+    expect(index, 'the index imports no manifest by relative path').toMatch(
+      /from '\.[^']*\/manifest\.js'/,
+    );
   });
 
   it('carries the install hooks the registry used to import a second time', () => {
@@ -97,7 +139,7 @@ describe('F2 — a single generated manifest registry', () => {
     // is that the derivation carries them, not which module has one today.
     expect(hooked.length).toBeGreaterThan(0);
     for (const entry of hooked) {
-      const source = readFileSync(entry.filePath, 'utf8');
+      const source = readFileSync(manifestModuleOf(entry.filePath), 'utf8');
       if (entry.installHook) expect(source).toMatch(/\binstallHook\b/);
       if (entry.uninstallHook) expect(source).toMatch(/\buninstallHook\b/);
     }
@@ -110,8 +152,14 @@ describe('F2 — a single generated manifest registry', () => {
   });
 
   it('gives every entry a filePath that exists on disk', () => {
+    // Under this checkout, and not under `backend/` — a module that has become
+    // a workspace package is anchored on its own `package.json`, which is a
+    // sibling of `backend/` rather than a descendant (feature 080, T040b). The
+    // property that matters to every consumer is unchanged and is the second
+    // assertion: `dirname()` of this reaches the module's own directory, so its
+    // `i18n/` bundles load and its palette labels resolve.
     for (const entry of REGISTERED_MANIFESTS) {
-      expect(entry.filePath.startsWith(BACKEND_ROOT), entry.filePath).toBe(true);
+      expect(entry.filePath.startsWith(REPO_ROOT), entry.filePath).toBe(true);
       expect(existsSync(entry.filePath), entry.filePath).toBe(true);
     }
   });

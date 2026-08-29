@@ -1,4 +1,4 @@
-import { GTM_DISABLED_CONFIG, type GtmStorefrontConfig } from '@b2b/contracts';
+import { GTM_DISABLED_CONFIG, type GtmStorefrontConfig } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 
 /**

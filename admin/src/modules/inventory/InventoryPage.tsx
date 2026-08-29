@@ -9,7 +9,7 @@ import { AlertCircle, Search, Upload } from 'lucide-react';
 import type {
   InventoryLandingKpis,
   StockLevelRow,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { PaginationFooter } from '@/components/PaginationFooter';

@@ -3,7 +3,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import type { CommandActor } from '../../../src/commands/command.js';
 import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { makeSetSystemDefaultChannelCommand } from '../../../src/modules/sales_channels/commands/set-default.command.js';
+import { makeSetSystemDefaultChannelCommand } from '../../../../packages/modules/sales_channels/src/backend/commands/set-default.command.js';
 
 /**
  * D-51 — moving the `system_default` flag, against real Postgres.
@@ -51,6 +51,12 @@ describe('moving the system-default flag (D-51) [real DB]', () => {
   /** Two channels: `default` holds the flag, `shop-b` is the promotion target. */
   async function seedTwoChannels(): Promise<{ def: SalesChannel; other: SalesChannel }> {
     const em = db.em();
+    // Release the quote-request attributions first (issue #266): a quote
+    // request records the channel it was raised on, and
+    // `quote_requests_sales_channel_fk` is `on delete restrict`, so an RFQ
+    // another file raised on the system-default channel would refuse this wipe.
+    // Inside this file's transaction, which is rolled back after each case.
+    await em.execute('update "quote_requests" set "sales_channel_id" = null');
     for (const c of await em.find(SalesChannel, {})) em.remove(c);
     await em.flush();
 

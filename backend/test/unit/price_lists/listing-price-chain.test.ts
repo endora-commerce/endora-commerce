@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { listingPriceMoney } from '@b2b/contracts';
-import { listingPriceFrom } from '../../../src/modules/price_lists/services/listing-price-chain.js';
-import type { PricingLineResult } from '../../../src/modules/price_lists/services/pricing-service.interface.js';
+import { listingPriceMoney } from '@endora-commerce/contracts';
+import { listingPriceFrom } from '../../../../packages/modules/price_lists/src/backend/services/listing-price-chain.js';
+import type { PricingLineResult } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 
 /**
  * The product ruling for issue #132, as a pure function:

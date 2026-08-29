@@ -5,9 +5,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { NewsletterProviderRegistry } from '../../../src/modules/newsletter/services/provider/provider-registry.js';
-import { SmtpProvider } from '../../../src/modules/newsletter/services/provider/smtp-provider.js';
-import { ConsoleNewsletterProvider } from '../../../src/modules/newsletter/services/provider/console-provider.js';
+import { NewsletterProviderRegistry } from '../../../../packages/modules/newsletter/src/backend/services/provider/provider-registry.js';
+import { SmtpProvider } from '../../../../packages/modules/newsletter/src/backend/services/provider/smtp-provider.js';
+import { ConsoleNewsletterProvider } from '../../../../packages/modules/newsletter/src/backend/services/provider/console-provider.js';
 
 /**
  * Feature 058 US1 adoption (T061) — the newsletter sending provider is built

@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AdminI18nTranslatePort, PermissionReadPort } from '@b2b/contracts';
+import type { AdminI18nTranslatePort, PermissionReadPort } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
-import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
+import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
 
 /**
  * Issue #225 — the palette snapshot is keyed to the presence generation it was
@@ -68,6 +68,7 @@ function buildService(state: { activated: boolean; version: number }): AdminActi
     i18nService: i18n,
     permissionService: permissions,
     presence: {
+      isPlatformAvailable: () => true,
       isActivated: () => state.activated,
       version: () => state.version,
     },
@@ -112,7 +113,7 @@ describe('admin_actions — the snapshot is keyed to the presence generation', (
     expect(service.stats.cacheHits).toBe(2);
   });
 
-  it('an unwired composition reads as activated and never invalidates', async () => {
+  it('an unwired composition reads as present and never invalidates', async () => {
     // No probe at all: the pre-073 shape of a composition that resolves no
     // activation state. It must not start rebuilding on every read.
     const service = new AdminActionsService({

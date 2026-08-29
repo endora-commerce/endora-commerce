@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'node:crypto';
 import {
@@ -7,24 +8,23 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { OrganizationSalesRepAssignment } from '../../../src/modules/organizations/entities/organization-sales-rep-assignment.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
-import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
-import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';
-import { SalesRepAssignmentService } from '../../../src/modules/organizations/services/sales-rep-assignment-service.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
-import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
+import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
+import { OrganizationInheritanceService } from '../../../../packages/modules/organizations/src/backend/services/organization-inheritance-service.js';
+import { CreditLimitReadService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-read.js';
+import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { CreditLimitService } from '../../../src/modules/credit_limits/services/credit-limit-service.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
+import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 056 — flat-behavior preservation lock (T028, FR-001/FR-013).
@@ -89,7 +89,12 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     tree = new OrganizationTreeService(h.em);
-    inheritance = new OrganizationInheritanceService(h.em, tree, async () => 'shared_pool');
+    inheritance = new OrganizationInheritanceService(
+      h.em,
+      tree,
+      new CreditLimitReadService(h.em),
+      async () => 'shared_pool',
+    );
   });
 
   afterAll(async () => {
@@ -155,7 +160,17 @@ describe('flat-behavior preservation (feature 056, FR-001/FR-013)', () => {
     await svc.activate(orgList.id);
 
     const flatPricing = new PricingService(h.em, undefined, undefined, neighbourReadPorts(h.em));
-    const wiredPricing = new PricingService(h.em, undefined, (id) => inheritance.priceListOrgChain(id));
+    // Both engines get the neighbour ports: the org-chain resolver is the one
+    // difference this case is about, and a real composition always supplies
+    // them. The wired one went without until `price_lists` stopped reading
+    // `product_categories` in its own SQL (feature 075 / D-87), which is when
+    // the omission stopped being invisible.
+    const wiredPricing = new PricingService(
+      h.em,
+      undefined,
+      (id) => inheritance.priceListOrgChain(id),
+      neighbourReadPorts(h.em),
+    );
 
     const flatOut = await flatPricing.resolveEngine({
       product,

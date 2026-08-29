@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { ModuleAction } from '../../helpers/package-entities.js';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleAction as ModuleActionDecl } from '@b2b/contracts';
+import type { ModuleAction as ModuleActionDecl } from '@endora-commerce/contracts';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { AdminActionsReconciler } from '../../../src/modules/admin_actions/services/admin-actions-reconciler.js';
-import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
+import { AdminActionsReconciler } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-reconciler.js';
 
 /**
  * Integration test for the AdminActionsReconciler against a real
@@ -24,7 +24,7 @@ describe('AdminActionsReconciler (integration)', () => {
   let em: EntityManager;
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
     em = orm.em.fork() as EntityManager;
   }, 60_000);
 

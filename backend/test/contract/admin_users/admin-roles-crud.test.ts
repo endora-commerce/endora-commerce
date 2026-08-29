@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { READ_ONLY_ROLE_ID } from '../../helpers/seed-admins.js';
-import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * Deployment-resolved at module scope, with a top-level `await` — since D-104
@@ -14,7 +14,7 @@ import { resolvedManifestEntries } from '../../../src/modules/_lifecycle/registe
  * `permission-inventory.test.ts` for the same note).
  */
 const RESOLVED_MANIFESTS = await resolvedManifestEntries();
-import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
+import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 
 /**
  * T193 — Admin role CRUD + permissions catalogue exposure. Validates the

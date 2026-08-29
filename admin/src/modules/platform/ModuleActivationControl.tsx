@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { Power, PowerOff } from 'lucide-react';
-import type { ModulePresence } from '@b2b/contracts';
+import type { ModulePresence } from '@endora-commerce/contracts';
 import { Button } from '@/components/ui/button';
 import { ApiError } from '@/lib/api-client';
 import { setModuleActivation, useModulePresence } from '@/lib/module-presence';

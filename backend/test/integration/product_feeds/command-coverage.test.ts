@@ -8,11 +8,11 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
+import { Category } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
-import { TaxonomyReconcilerService } from '../../../src/modules/product_feeds/services/taxonomy-reconciler.service.js';
+import { TaxonomyReconcilerService } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-reconciler.service.js';
 import {
   analyzeSource,
   MIGRATED_MODULES,
@@ -40,7 +40,7 @@ import {
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = join(HERE, '../../..');
-const MODULE_ROOT = join(BACKEND_ROOT, 'src/modules/product_feeds');
+const MODULE_ROOT = join(BACKEND_ROOT, '../packages/modules/product_feeds/src/backend');
 const FIXTURE_TAXONOMIES = join(HERE, '../../fixtures/product_feeds/taxonomies-v1');
 
 describe('product feeds command coverage [integration]', () => {
@@ -403,7 +403,12 @@ describe('product feeds command coverage [integration]', () => {
       // The checker CI runs (`pnpm --filter backend run check:command-coverage
       // -- --strict`), applied to this module only. Running its analyzer here
       // means a regression fails a test rather than only a pipeline stage.
-      const findings = moduleFiles(join(MODULE_ROOT, 'services')).flatMap((file) =>
+      const services = moduleFiles(join(MODULE_ROOT, 'services'));
+      // `[]` findings over `[]` files is the same green as a clean module, and
+      // this root moved once already (into `packages/modules/`), so the walk is
+      // asserted before its result is.
+      expect(services.length, 'no service file read — a vacuous pass').toBeGreaterThan(10);
+      const findings = services.flatMap((file) =>
         analyzeSource(relative(BACKEND_ROOT, file), readFileSync(file, 'utf8')).map(
           (finding) => `${finding.filePath}:${finding.line ?? '?'} ${finding.kind}: ${finding.message}`,
         ),

@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CartRecomputeCache } from '../../../src/modules/carts/services/cart-recompute-cache.js';
+import { CartRecomputeCache } from '../../../../packages/modules/carts/src/backend/services/cart-recompute-cache.js';
 
 /**
  * T031 (feature 027 §R5 — partial coverage).

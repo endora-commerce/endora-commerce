@@ -3,7 +3,7 @@ import {
   META_ADS_SETTING_CODES,
   metaCustomEventMappingSchema,
   metaStorefrontConfigSchema,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

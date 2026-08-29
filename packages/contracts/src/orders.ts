@@ -90,6 +90,15 @@ export const orderSchema = z.object({
   paymentStatus: paymentStatusSchema,
   deliveryAddress: addressSnapshotSchema,
   billingAddress: addressSnapshotSchema,
+  deliveryPoint: z
+    .object({
+      provider: z.string(),
+      pointId: z.string(),
+      label: z.string().nullable().optional(),
+      address: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   deliveryMethod: z.object({
     id: uuidSchema,
     code: z.string(),
@@ -124,6 +133,24 @@ export const orderSchema = z.object({
   placedAt: isoDateTimeSchema,
   customerNote: z.string().nullable(),
   nextAction: nextActionSchema.nullable(),
+  /**
+   * Whether the buyer reading this order may cancel it (feature 085, FR-018).
+   *
+   * A **capability computed by the platform**, not a fact about the order: it
+   * combines the money axis, the configured status graph and the payment
+   * method's configured failure status, and it is scoped to the account asking
+   * — an Organization colleague may read a peer's order and never cancel it.
+   * The storefront renders its control on this value alone and re-derives
+   * nothing, because two of the three inputs are configuration the storefront
+   * does not have and must not be given.
+   *
+   * Present on the buyer-facing order reads (`GET /api/v1/orders`,
+   * `GET /api/v1/orders/:id` and the placement reply). Absent on the admin
+   * reads, where an administrator's power to cancel carries no payment-state
+   * condition at all (FR-017), so a per-order capability there would describe a
+   * narrowing that does not exist.
+   */
+  customerCancellable: z.boolean().optional(),
 });
 export type Order = z.infer<typeof orderSchema>;
 
@@ -150,6 +177,18 @@ export const placeOrderRequestSchema = z.object({
    * otherwise the snapshot defaults to the Organization's tax-id.
    */
   billingTaxId: z.string().max(32).optional(),
+  /**
+   * Optional pickup-point metadata selected at checkout. Provider-agnostic,
+   * so any carrier adapter can read one normalized snapshot from the order.
+   */
+  deliveryPoint: z
+    .object({
+      provider: z.string().min(1),
+      pointId: z.string().min(1),
+      label: z.string().max(255).optional(),
+      address: z.string().max(500).optional(),
+    })
+    .optional(),
   /**
    * Optional adapter-specific shipping payload persisted on the order
    * (feature 068). Shape is interpreted by the selected delivery method's
@@ -304,6 +343,19 @@ function multiQueryParam<T extends z.ZodTypeAny>(schema: T) {
 export const adminOrdersListQuerySchema = z.object({
   // Multi-select filters (accept repeated query params).
   status: multiQueryParam(orderStatusCodeSchema),
+  /**
+   * The money axis (feature 085, FR-021).
+   *
+   * The list could filter on eight things and none of them was payment status,
+   * so "which orders have a failed payment?" was a question the orders screen
+   * could not answer — and after this feature a platform administrator is the
+   * only actor who can rescue a held order whose buyer cannot.
+   *
+   * Validated against `paymentStatusSchema` rather than a free string: unlike
+   * the lifecycle status, the money axis is a fixed vocabulary and not an
+   * operator-configurable table.
+   */
+  paymentStatus: multiQueryParam(paymentStatusSchema),
   salesChannelId: multiQueryParam(uuidSchema),
   paymentMethodId: multiQueryParam(uuidSchema),
   deliveryMethodId: multiQueryParam(uuidSchema),
@@ -352,7 +404,25 @@ export const adminOrdersListResponseSchema = z.object({
     pageSize: z.number().int().positive(),
     total: z.number().int().nonnegative(),
   }),
+  /** Per **lifecycle status** counts, keyed by status code. */
   counts: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  /**
+   * Per **payment status** counts, keyed by payment status (feature 085,
+   * FR-021).
+   *
+   * A second map rather than more keys in `counts`, because one map cannot
+   * carry both axes: `paid` is a shipped *order* status code **and** a payment
+   * status, so a merged map would silently add two different populations
+   * together under one key — and an operator may name a custom order status
+   * anything, including `failed` or `refunded`.
+   *
+   * Each axis's counts are computed over every other filter but its own, which
+   * is what makes an option's number mean "this is what selecting it would
+   * yield". That is the semantics `counts` already had for the status
+   * multi-select; this map extends it symmetrically, and with no payment-status
+   * filter applied `counts` is exactly what it was before.
+   */
+  paymentStatusCounts: z.record(z.string(), z.number().int().nonnegative()).optional(),
 });
 export type AdminOrdersListResponse = z.infer<typeof adminOrdersListResponseSchema>;
 
@@ -650,7 +720,23 @@ export const ORDER_STATUS_ON_HOLD = 'on_hold';
 export const ORDER_STATUS_CANCELLED = 'cancelled';
 export const ORDER_STATUS_INITIAL = 'new';
 
-export type OrderPaymentStatus = 'awaiting_payment' | 'paid' | 'deferred' | 'refunded';
+/**
+ * The money axis of an order.
+ *
+ * `failed` is set by the settlement ingress when a gateway declines a payment
+ * (feature 085, FR-001). The wire vocabulary — `paymentStatusSchema` in
+ * `common.ts` — has carried the value since feature 034, so nothing on the wire
+ * changes here; what changed is that the platform can now produce it. It is
+ * **system-written only**: `adminOrderPaymentStatusTransitionSchema` accepts
+ * `paid` and `refunded` and nothing else, so an operator can see a failed
+ * payment but never set one.
+ */
+export type OrderPaymentStatus =
+  | 'awaiting_payment'
+  | 'paid'
+  | 'failed'
+  | 'deferred'
+  | 'refunded';
 
 export interface OrderAddressSnapshot {
   recipientName: string;
@@ -668,6 +754,13 @@ export interface OrderDeliveryMethodSnapshot {
   code: string;
   name: string;
   cost: number;
+}
+
+export interface OrderDeliveryPointSnapshot {
+  provider: string;
+  pointId: string;
+  label?: string | null;
+  address?: string | null;
 }
 
 export interface OrderPaymentMethodSnapshot {
@@ -705,6 +798,15 @@ export interface OrderRecord {
   paymentStatus: OrderPaymentStatus;
   deliveryAddress: OrderAddressSnapshot;
   billingAddress: OrderAddressSnapshot;
+  deliveryPointSnapshot?: OrderDeliveryPointSnapshot | null;
+  /**
+   * The adapter-specific shipping envelope captured at placement (feature 068).
+   * Opaque here on purpose: only the delivery method's own `ShippingAdapter`
+   * knows its shape, and it is published on the record so a carrier module can
+   * read the order it is shipping over `OrderReadPort` rather than reaching for
+   * this module's entity.
+   */
+  shippingAdapterData?: Record<string, unknown> | null;
   deliveryMethodId: string;
   deliveryMethodSnapshot: OrderDeliveryMethodSnapshot;
   paymentMethodId: string;
@@ -778,11 +880,36 @@ export interface OrderReadPort {
    * silently dropped matches beyond the 500th.
    */
   findIdsByBusinessIdLike(fragment: string, limit: number): Promise<string[]>;
+  /**
+   * The distinct sales channels one customer has ordered on, most recently
+   * ordered-on first. A customer with no orders answers `[]`.
+   *
+   * Published for feature 080's T048 (D-169), for the `customers` detail
+   * header. It is a **read**, so it is a method here and not an
+   * `EntityManager`-taking apply port: handing a read a transaction handle
+   * re-opens a write seam to serve it.
+   *
+   * It is deliberately not {@link OrderListPort.list} with a
+   * `placedByCustomerAccountId`. That read is paginated, so the channels it
+   * yields are the channels on one page, and a detail header that silently
+   * narrowed with the page size would be a different fact under the same
+   * label. `customers` used to answer it with `em.find(Order, {
+   * placedByCustomerAccountId }, { fields: ['salesChannelId'] })` inside its
+   * own module, which was unpaginated and correct and read this module's table
+   * whether this module was there or not.
+   *
+   * The ids come back **already distinct**: the deduplication is the owner's,
+   * because it is what makes the ordering meaningful — the answer is one entry
+   * per channel keyed on that customer's latest order there.
+   */
+  salesChannelIdsForCustomer(customerAccountId: string): Promise<string[]>;
 }
 
 /** The admin order list's filter set. Page and page size are required. */
 export interface OrderListQuery {
   status?: string[] | undefined;
+  /** The money axis (feature 085, FR-021). */
+  paymentStatus?: string[] | undefined;
   salesChannelId?: string[] | undefined;
   paymentMethodId?: string[] | undefined;
   deliveryMethodId?: string[] | undefined;
@@ -845,7 +972,14 @@ export interface OrderListRow {
 export interface OrderListResult {
   rows: OrderListRow[];
   total: number;
+  /** Per lifecycle status, over every filter except the status filter. */
   counts: Record<string, number>;
+  /**
+   * Per payment status, over every filter except the payment-status filter
+   * (feature 085). Two maps and not one: `paid` is both a shipped order status
+   * code and a payment status, so a single map would merge two populations.
+   */
+  paymentStatusCounts: Record<string, number>;
 }
 
 /**
@@ -963,3 +1097,110 @@ export interface OrderStatusChange {
 export interface OrderStatusAnnouncePort {
   announceStatusChanged(change: OrderStatusChange): void;
 }
+
+/** Why a requested transition did not happen. */
+export type OrderTransitionRefusal =
+  /** No order with that id. */
+  | 'not_found'
+  /** `to` is not a configured status code. */
+  | 'unknown_status'
+  /** The configured lifecycle has no edge, or the source status is terminal. */
+  | 'not_permitted'
+  /** A registered before-guard vetoed it. */
+  | 'vetoed';
+
+/**
+ * What became of a requested transition.
+ *
+ * `already_there` is separated from the refusals because it is not one: the
+ * order is where the caller wanted it, nothing moved, and nothing was
+ * recorded. It is the normal outcome of a second declined payment attempt on
+ * an order already held.
+ */
+export type OrderTransitionOutcome =
+  | { applied: true; from: string; to: string }
+  | { applied: false; reason: 'already_there'; from: string }
+  | { applied: false; reason: OrderTransitionRefusal; from: string | null; detail: string };
+
+/**
+ * Container name: `orderTransitionPort`. Owner: `orders`.
+ *
+ * The write twin of `orderStatusAnnouncePort`: that one publishes the
+ * *announcement* half of a status change, this one performs the change. Three
+ * sites in `payments` and `shipments` write `order.status` directly, and in
+ * doing so skip graph validation, the veto guards, the audit entry and the
+ * side-effects that release stock allocations and free a credit-limit
+ * reservation. This port is the seam that lets them stop (feature 085).
+ *
+ * It is not `orderTransitionServiceAccessor`, which hands out the
+ * `OrderTransitionService` class: a published port's type argument must be a
+ * contract type, and that accessor also answers `null` until the plugin body
+ * has run.
+ *
+ * **Call this after your own commit, never inside your transaction.** The
+ * implementation obtains its own EntityManager, so a caller running inside
+ * `em.transactional` would have the order written on a *different* pooled
+ * connection that commits independently — the caller's rollback cannot reach
+ * it, which is the shape `check:transaction-context` refuses (issue #200).
+ * Both settlement handlers therefore write their payment or shipment row,
+ * commit, and only then call this. The failure mode of that ordering lands on
+ * the safe side: a crash in between leaves the payment recorded and the
+ * lifecycle unmoved, which the buyer can retry, where the opposite ordering
+ * would hold an order against a payment nobody recorded.
+ *
+ * **Refusals are outcomes, not exceptions**, because both settlement callers
+ * are answering a payment service provider: a thrown refusal becomes a non-2xx
+ * callback response, which every PSP retries indefinitely. The refusal has to
+ * be visible to the caller and invisible to the provider.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. A consumer must not wrap the call in a bare `catch`, which
+ * would turn that into fail-open. Whether `orders` has an off state at all is
+ * its manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface OrderTransitionPort {
+  /**
+   * Move an order to status `to`, applying the configured lifecycle: graph
+   * validation, the before-guards, the audit entry and the status's
+   * side-effects. The caller invokes none of those and needs to know about
+   * none of them.
+   */
+  applyStatus(input: {
+    orderId: string;
+    to: string;
+    actor: OrderStatusActor;
+    reason?: string | null;
+  }): Promise<OrderTransitionOutcome>;
+
+  /**
+   * Whether an order's current status is terminal, per the configured graph.
+   *
+   * A caller that has to refuse acting on a finished order asks this rather
+   * than comparing against the string `'cancelled'`: the status set is
+   * operator-configurable and a deployment may add terminal statuses of its
+   * own. `null` when there is no such order, so the caller answers 404 in its
+   * own words instead of guessing.
+   */
+  isTerminal(orderId: string): Promise<boolean | null>;
+}
+
+/**
+ * The answer to a buyer-side claim on an order's GA4 `purchase` conversion
+ * (issue #277).
+ *
+ * `counted: true` means this caller is the one that may report the conversion;
+ * every later caller, on any device, gets `false`. The storefront asks before
+ * it fires, so the tag runs once per order and never again — which is what
+ * stops a buyer who reopens their order from being counted twice, and what
+ * lets the two surfaces that may count an order (`/checkout/success` and
+ * `/orders/:id`) share one answer instead of guessing about each other.
+ */
+export const purchaseConversionClaimResponseSchema = z.object({
+  counted: z.boolean(),
+});
+
+export type PurchaseConversionClaimResponse = z.infer<
+  typeof purchaseConversionClaimResponseSchema
+>;

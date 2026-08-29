@@ -24,7 +24,6 @@ gated by `customers:manage`.
 | `POST /api/v1/auth/password-reset/confirm` | anon | Redeem the emailed reset token |
 | `GET /api/v1/me` | customer | Current customer + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer (T194) |
 | `POST /api/v1/me/password` | customer | Change password (rejects wrong `currentPassword`) |
-| `POST /api/v1/me/two-factor/{enable,confirm,disable}` | customer | TOTP enrolment lifecycle |
 | `GET /api/v1/organizations/mine/members` | org admin | List members |
 | `DELETE /api/v1/organizations/mine/members/:id` | org admin | Remove member (last-admin guard) |
 | `PATCH /api/v1/organizations/mine/members/:id/role` | org admin | Promote / demote (last-admin guard) |
@@ -180,6 +179,29 @@ caller's admin role is `sales_representative`, the admin Orders list
 and RFQ list are filtered to the orgs the rep owns. Platform admins
 see everything.
 
+Three endpoints maintain the relation, and this module owns and
+registers all three:
+
+| Verb + Path | Purpose |
+| --- | --- |
+| `GET /api/v1/admin/organizations/:id/sales-reps` | List the reps assigned to an organization. |
+| `POST /api/v1/admin/organizations/:id/sales-reps` | Assign a rep. |
+| `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | Remove an assignment. |
+
+They are gated by `organizations:assign-sales-rep`. Until 2026-08 they
+were registered by the quote-requests module and gated by
+`rfqs:handle`, which meant switching quote requests off also removed
+the ability to assign a sales representative — and the code gating
+the screen disappeared from the roles matrix with it. Assigning a rep
+qualifies an organization, so it belongs here, with a code this
+module declares. The one endpoint that stayed behind is the reverse
+listing, `GET /api/v1/admin/sales-reps/:adminUserId/organizations`:
+it reports how many quote requests are open per organization, which
+is that module's fact.
+
+Other modules read the relation through this module's
+`organizationSalesRepScopePort`, never by querying the pivot.
+
 ### VAT-ID / NIP validation (US7)
 
 Two production HTTP clients implement the `VatValidator` port:
@@ -240,9 +262,11 @@ so it is a migration of `name_search`, not an edit.
   B-Tree index, and remaps every `suspended` row to `blocked`.
 - `048_admin_notifications_init.ts` — adds the `admin_notifications`
   table + the per-admin `admin_notification_reads` bridge.
-- `049_customer_accounts_organization_optional.ts` — relaxes
+- `049_customer_accounts_organization_optional.ts` — relaxed
   `customer_accounts.organization_id` to nullable so guest-style
-  Customer accounts are representable (FR-010 / FR-012).
+  Customer accounts were representable (FR-010 / FR-012). **That design is
+  dead**: feature 051 replaced it and D-178 re-tightened the column — see
+  `customer_accounts`' `20260825T141659_customer_accounts_organization_required`.
 - `089_personal_organizations.ts` — adds `organizations.is_personal`
   and backfills a personal organization for every pre-existing no-org
   customer account (see "Personal organizations" below).
@@ -252,12 +276,15 @@ so it is a migration of `name_search`, not an edit.
 The Organization is the platform's single tenant concept. A B2C /
 individual customer is **not** a null-org special case: every standalone
 customer registration provisions a single-member **personal
-organization** (`is_personal = true`), created automatically by
-`PersonalOrganizationService.ensureFor(account)` and linked to the
-account. This means:
+organization** (`is_personal = true`). Since D-178 the organization and the
+account are written **in one transaction**, by the module that owns the account
+row, on both paths that create one — self-registration and federated sign-in.
+This means:
 
-- **Transacting works unchanged.** `organization_id` is always non-null,
-  so ordering, RFQs, credit, invoices and addresses need no null-org path.
+- **Transacting works unchanged.** `organization_id` is `NOT NULL` since D-178,
+  so ordering, RFQs, credit, invoices and addresses need no null-org path — and
+  the column, not a guard, is what refuses one: MikroORM applies its tenant
+  filter to `SELECT` / `UPDATE` / `DELETE` and not to `INSERT`.
 - **Isolation is structural.** The feature-050 tenant guard isolates each
   personal org as its own tenant — two B2C customers can never see each
   other's data, with zero null-org special-casing.
@@ -272,7 +299,14 @@ account. This means:
 - **Per-channel gate.** Standalone (B2C) registration is controlled per
   sales channel by the `customers.allow_registration_without_organization`
   setting; a B2B-only channel refuses the registration and provisions
-  nothing.
+  nothing. The setting's name is a leftover from feature 026 US2 — what it
+  gates is registration outside a *company* organization, not registration
+  without one.
+- **Detaching a member from a company moves them here.** The admin
+  `DELETE /api/v1/admin/customers/:id/organization` used to write
+  `organization_id = NULL`; since D-178 it provisions (or re-finds) the
+  customer's own personal organization and moves them into it, keeping the
+  `customer_account.organization_unassigned` audit verb.
 
 Company (B2B) organizations are unaffected — the single-member invariant
 (`assertMembershipAllowed`) only rejects adding a second member to a

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { ApplicationRule } from '@b2b/contracts';
+import type { ApplicationRule } from '@endora-commerce/contracts';
 import {
   evaluateApplicationRule,
   type ResolutionContext,
-} from '../../../src/modules/price_lists/services/application-rule-evaluator.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/application-rule-evaluator.js';
 
 const SC = 'sc_pl_default';
 const ORG = 'org_acme';

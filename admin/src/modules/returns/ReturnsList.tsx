@@ -17,7 +17,7 @@ import { orderStatusBadgeStyle } from '@/modules/orders/orderStatusColor';
 import { formatDateTime } from '@/lib/format';
 import { formatMoney } from '@/lib/money';
 import { useTranslation } from '@/i18n/useTranslation';
-import type { AdminReturnRow, ReturnStatusDto } from '@b2b/contracts';
+import type { AdminReturnRow, ReturnStatusDto } from '@endora-commerce/contracts';
 
 const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? 'http://localhost:3001';
 

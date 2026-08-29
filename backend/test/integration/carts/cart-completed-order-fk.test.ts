@@ -1,12 +1,16 @@
+import { Cart, type CartRow } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
+
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+
 
 /**
  * `carts_completed_order_fk` (D-94.1, site 2 — the one where the column itself
@@ -42,7 +46,7 @@ describe('carts.completed_order_id foreign key (D-94.1)', () => {
     await teardownBackendServer(h);
   });
 
-  const seedCart = async (): Promise<Cart> => {
+  const seedCart = async (): Promise<CartRow> => {
     const em = h.em();
     const cart = em.create(Cart, {
       customerAccountId: randomUUID(),

@@ -16,7 +16,7 @@ folders permitted by Principle VI (alongside `example`).
 - **Password hashing** — `password-hasher.ts` wraps argon2id; defaults are
   tuned for the target hardware (see the **Hardware & system requirements**
   section of `README.md` at the repository root).
-- **TOTP** — `totp-service.ts` wraps `otpauth` + a backup-code pool.
+- **TOTP** — the platform's `kernel/crypto/totp` wraps `otpauth` + a backup-code pool.
 - **Fastify plugin** — `plugin.ts` parses the session cookie and attaches
   `request.actor = { kind, id, ... }` plus `request.adminActor`.
 - **Route guards** — `requireAdmin(permission?)`, `requireAdminAny(codes)` and

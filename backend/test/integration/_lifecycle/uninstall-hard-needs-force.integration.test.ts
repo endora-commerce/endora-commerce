@@ -8,7 +8,7 @@ const exec = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const script = resolve(
   here,
-  '../../../src/modules/_lifecycle/scripts/uninstall.ts',
+  '../../../src/lifecycle/scripts/uninstall.ts',
 );
 
 /**

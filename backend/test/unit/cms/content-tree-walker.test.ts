@@ -4,7 +4,7 @@ import {
   walkBlockEmbeds,
   walkTemplateEmbeds,
   walkUnknownComponents,
-} from '../../../src/modules/cms/services/content-tree-walker.js';
+} from '../../../../packages/modules/cms/src/backend/services/content-tree-walker.js';
 
 describe('walkAssetIds', () => {
   it('collects assetId values from any nested props', () => {

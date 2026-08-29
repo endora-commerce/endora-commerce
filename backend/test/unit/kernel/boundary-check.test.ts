@@ -21,6 +21,11 @@ import {
   PENDING_RELOCATION,
   PLATFORM_ROOTS,
 } from '../../../scripts/check-kernel-boundary.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
+
+/** Every root the check itself walks — resolved, never spelled (T040a). */
+const MODULE_LAYOUT = await requireModuleLayout('[kernel-boundary-check]');
 
 /**
  * The kernel boundary rule (feature 072, T021) is satisfied by construction now
@@ -84,9 +89,6 @@ describe('isViolation', () => {
   });
 });
 
-/** A cross-module import that still resolves after the D-32 relocations. */
-const CATALOG_CATEGORY_IMPORT =
-  "import { Category } from '../../catalog/entities/category.entity.js';";
 
 /**
  * Derived, never written out. `analyzeSource` reads the owning module out of the
@@ -98,29 +100,48 @@ const CATALOG_CATEGORY_IMPORT =
 const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const moduleFile = (relative: string): string => join(BACKEND_ROOT, 'src/modules', relative);
 
+/**
+ * A cross-module relation target that really exists — derived, never named, and
+ * shared with `check-inventory`'s rule-A red proof so the two cannot disagree.
+ * See `test/helpers/in-tree-relation-target.ts` for why it is not a literal.
+ */
+const RELATION_TARGET = inTreeRelationTarget();
+const RELATION_TARGET_IMPORT =
+  `import { ${RELATION_TARGET.name} } from '${RELATION_TARGET.specifier}';`;
+/**
+ * The importing file for a proof that names {@link RELATION_TARGET_IMPORT}.
+ *
+ * It has to sit in the **fixture** tree rather than under `backend/src/modules`,
+ * because the specifier above is relative and rule A resolves it against the
+ * importing file. `moduleFile` stays for the proofs whose target is a real
+ * platform file — the kernel's `SalesChannel` — which is where a path under the
+ * application tree is still the right one.
+ */
+const relationFixtureFile = RELATION_TARGET.sourceFile;
+
 describe('analyzeSource', () => {
   it('finds the relation target through the import that declares it', () => {
     const findings = analyzeSource(
       ENTITY(
-        '@ManyToOne(() => Category, { fieldName: "category_id" })',
-        CATALOG_CATEGORY_IMPORT,
+        `@ManyToOne(() => ${RELATION_TARGET.name}, { fieldName: "target_id" })`,
+        RELATION_TARGET_IMPORT,
       ),
-      moduleFile('search/entities/search-phrase-record.entity.ts'),
+      relationFixtureFile('search/entities/search-phrase-record.entity.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       sourceOwner: 'search',
-      targetOwner: 'catalog',
+      targetOwner: RELATION_TARGET.module,
       decorator: 'ManyToOne',
-      targetName: 'Category',
+      targetName: RELATION_TARGET.name,
     });
     expect(isViolation(findings[0]!)).toBe(true);
   });
 
   it('ignores a plain @Property — an FK column is not an ORM relation', () => {
     const findings = analyzeSource(
-      ENTITY('@Property({ type: "uuid" })', CATALOG_CATEGORY_IMPORT),
-      moduleFile('search/entities/x.entity.ts'),
+      ENTITY('@Property({ type: "uuid" })', RELATION_TARGET_IMPORT),
+      relationFixtureFile('search/entities/x.entity.ts'),
     );
     expect(findings).toEqual([]);
   });
@@ -128,13 +149,13 @@ describe('analyzeSource', () => {
   it('reads the entity out of the object form too', () => {
     const findings = analyzeSource(
       ENTITY(
-        '@ManyToMany({ entity: () => Category, pivotTable: "setting_categories" })',
-        CATALOG_CATEGORY_IMPORT,
+        `@ManyToMany({ entity: () => ${RELATION_TARGET.name}, pivotTable: "setting_targets" })`,
+        RELATION_TARGET_IMPORT,
       ),
-      moduleFile('settings/entities/setting.entity.ts'),
+      relationFixtureFile('settings/entities/setting.entity.ts'),
     );
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.targetOwner).toBe('catalog');
+    expect(findings[0]?.targetOwner).toBe(RELATION_TARGET.module);
   });
 
   it('allows the relocated settings → SalesChannel relations, now kernel-internal', () => {
@@ -158,10 +179,17 @@ describe('analyzeSource', () => {
  * unread — and an unread file and a clean one produce the same green line.
  */
 describe('rule A — the scan scope', () => {
-  const srcRoot = join(BACKEND_ROOT, 'src');
+  // Every root the check itself walks, not `backend/src` alone. Measured on the
+  // batch-three tree: **zero** relation decorators are left under `backend/src`
+  // — every ORM relation in this repository now sits in a module package — so a
+  // population rooted at the application tree makes this file's recall
+  // assertion vacuous, which is issue #215 inside the test that exists to
+  // refuse it.
+  const relationSources = (): string[] =>
+    MODULE_LAYOUT.sourceRoots.flatMap((root) => collectSources(root));
 
   it('collects sources that are not named *.entity.ts', () => {
-    const files = collectSources(srcRoot);
+    const files = relationSources();
     expect(files.length).toBeGreaterThan(500);
     expect(files.some((f) => f.endsWith('/backend.ts'))).toBe(true);
     expect(files.every((f) => !f.endsWith('.test.ts'))).toBe(true);
@@ -169,8 +197,11 @@ describe('rule A — the scan scope', () => {
 
   it('flags a cross-module relation declared in a file with no entity suffix', () => {
     const findings = analyzeSource(
-      ENTITY('@OneToMany(() => Category, (c) => c.thing)', CATALOG_CATEGORY_IMPORT),
-      moduleFile('search/entities/index.ts'),
+      ENTITY(
+        `@OneToMany(() => ${RELATION_TARGET.name}, (c) => c.thing)`,
+        RELATION_TARGET_IMPORT,
+      ),
+      relationFixtureFile('search/entities/index.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(isViolation(findings[0]!)).toBe(true);
@@ -186,11 +217,11 @@ describe('rule A — the scan scope', () => {
 
   it('every relation in the tree sits in a file the pre-filter keeps', () => {
     // The filter is the scan scope now, so its recall is the rule's reach.
-    const kept = collectSources(srcRoot).filter((f) =>
+    const kept = relationSources().filter((f) =>
       RELATION_DECORATOR_HINT.test(readFileSync(f, 'utf8')),
     );
     expect(kept.length).toBeGreaterThan(0);
-    const missed = collectSources(srcRoot).filter(
+    const missed = relationSources().filter(
       (f) => !kept.includes(f) && /@(?:ManyToOne|OneToMany|OneToOne|ManyToMany)/.test(readFileSync(f, 'utf8')),
     );
     expect(missed).toEqual([]);
@@ -231,14 +262,26 @@ describe('the pending-relocation ratchet', () => {
  * fixtures are synthetic, so the check has to be able to go **red** on shapes
  * the tree does not contain yet — every specifier form of the plan's §4.2 table.
  */
-const kernelFile = (relative: string): string => join(BACKEND_ROOT, 'src/kernel', relative);
-const srcFile = (relative: string): string => join(BACKEND_ROOT, 'src', relative);
+/**
+ * The platform root the fixtures are written against.
+ *
+ * Rules B and C read the platform's own sources, which since the relocation are
+ * `@endora-commerce/platform`'s and not `backend/src`'s — and the root is passed
+ * in rather than matched by name, because a `/src/<root>/` substring test now
+ * matches two trees: the platform's, and the re-export shims left at the old
+ * paths. These fixtures name the real one so that the resolution they exercise
+ * is the resolution a run performs.
+ */
+const PLATFORM_ROOT = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
+const kernelFile = (relative: string): string => join(PLATFORM_ROOT, 'kernel', relative);
+const srcFile = (relative: string): string => join(PLATFORM_ROOT, relative);
 
 describe('analyzePlatformImports', () => {
   it('finds a value import into a module and names its bindings', () => {
     const findings = analyzePlatformImports(
       "import { ModuleDisabledError } from '../../modules/_lifecycle/plugin-helpers.js';",
       kernelFile('ports/provide.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
@@ -254,6 +297,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import type { Organization } from '../../modules/organizations/entities/organization.entity.js';",
       kernelFile('ports/organizations.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('organizations');
@@ -264,6 +308,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       'export type Org = import("../../modules/organizations/entities/organization.entity.js").Organization;',
       kernelFile('ports/organizations.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'organizations', kind: 'import-type' });
@@ -274,6 +319,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "export { Category } from '../modules/catalog/entities/category.entity.js';",
       kernelFile('index.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'catalog', kind: 'export' });
@@ -284,6 +330,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "const m = await import('../modules/catalog/backend.js');",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'catalog', kind: 'dynamic' });
@@ -293,6 +340,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "const m = require('../modules/catalog/backend.js');",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'catalog', kind: 'require' });
@@ -302,16 +350,22 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { thing } from '../apps/example/modules/example_overlay/service.js';",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('example_overlay');
     expect(isImportViolation(findings[0]!)).toBe(true);
   });
 
-  it('refuses a deployment decoration — a kernel that differs per deployment is not a kernel', () => {
+  it('refuses a per-deployment file — a kernel that differs per deployment is not a kernel', () => {
+    // The fixture named `apps/example/decorations/catalog-service.js` until the
+    // file seam was retired. What the rule refuses is a platform root reaching
+    // *any* file a deployment owns, so the fixture names one that exists: the
+    // attribution is to `apps/<deployment>`, not to the directory below it.
     const findings = analyzePlatformImports(
-      "import { decorate } from '../apps/example/decorations/catalog-service.js';",
+      "import { REDUCED } from '../apps/example/reduced-deployment.js';",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('apps/example');
@@ -322,6 +376,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { scopedEm } from '../tenancy/scoped-em.js';",
       kernelFile('container.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBeNull();
@@ -332,6 +387,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       ["import { asFunction } from 'awilix';", "import { x } from './container.js';"].join('\n'),
       kernelFile('ports/provide.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toEqual([]);
   });
@@ -340,6 +396,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { registerPort } from '../../kernel/ports/provide.js';",
       join(BACKEND_ROOT, 'src/modules/catalog/backend.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toEqual([]);
   });
@@ -348,6 +405,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { gone } from '../modules/catalog/services/deleted-yesterday.js';",
       kernelFile('compose.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(isImportViolation(findings[0]!)).toBe(true);
@@ -367,18 +425,19 @@ describe('analyzePlatformImports over the platform roots', () => {
   });
 
   it('names the root a file belongs to, and nothing outside them', () => {
-    expect(platformRootOf(kernelFile('compose.ts'))).toBe('kernel');
-    expect(platformRootOf(srcFile('http/error-envelope.ts'))).toBe('http');
-    expect(platformRootOf(srcFile('events/bus.ts'))).toBe('events');
-    expect(platformRootOf(srcFile('tenancy/scoped-em.ts'))).toBe('tenancy');
-    expect(platformRootOf(srcFile('db/entities-registry.generated.ts'))).toBeNull();
-    expect(platformRootOf(moduleFile('catalog/backend.ts'))).toBeNull();
+    expect(platformRootOf(kernelFile('compose.ts'), PLATFORM_ROOT)).toBe('kernel');
+    expect(platformRootOf(srcFile('http/error-envelope.ts'), PLATFORM_ROOT)).toBe('http');
+    expect(platformRootOf(srcFile('events/bus.ts'), PLATFORM_ROOT)).toBe('events');
+    expect(platformRootOf(srcFile('tenancy/scoped-em.ts'), PLATFORM_ROOT)).toBe('tenancy');
+    expect(platformRootOf(srcFile('db/entities-registry.generated.ts'), PLATFORM_ROOT)).toBeNull();
+    expect(platformRootOf(moduleFile('catalog/backend.ts'), PLATFORM_ROOT)).toBeNull();
   });
 
   it('refuses the one hop that made the kernel rule cosmetic — a peer naming a module', () => {
     const findings = analyzePlatformImports(
       "import { ERROR_TRANSLATION_KEYS } from '../modules/_i18n/services/error-translation.js';",
       srcFile('http/error-envelope.ts'),
+      PLATFORM_ROOT,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: '_i18n', kind: 'import', line: 1 });
@@ -389,6 +448,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     const fromTenancy = analyzePlatformImports(
       "import type { Organization } from '../modules/organizations/entities/organization.entity.js';",
       srcFile('tenancy/org-scoped.decorator.ts'),
+      PLATFORM_ROOT,
     );
     expect(fromTenancy).toHaveLength(1);
     expect(fromTenancy[0]?.targetOwner).toBe('organizations');
@@ -396,6 +456,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     const fromEvents = analyzePlatformImports(
       "const m = await import('../modules/catalog/backend.js');",
       srcFile('events/bus.ts'),
+      PLATFORM_ROOT,
     );
     expect(fromEvents).toHaveLength(1);
     expect(fromEvents[0]).toMatchObject({ targetOwner: 'catalog', kind: 'dynamic' });
@@ -405,6 +466,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     const outward = analyzePlatformImports(
       "import { HttpError } from '../kernel/index.js';",
       srcFile('http/server.ts'),
+      PLATFORM_ROOT,
     );
     expect(outward).toHaveLength(1);
     expect(outward[0]?.targetOwner).toBeNull();
@@ -414,6 +476,7 @@ describe('analyzePlatformImports over the platform roots', () => {
       analyzePlatformImports(
         "import { HttpError } from './error-envelope.js';",
         srcFile('http/server.ts'),
+        PLATFORM_ROOT,
       ),
     ).toEqual([]);
   });
@@ -422,9 +485,10 @@ describe('analyzePlatformImports over the platform roots', () => {
     const [finding] = analyzePlatformImports(
       "import { ERROR_TRANSLATION_KEYS } from '../modules/_i18n/services/error-translation.js';",
       srcFile('http/error-envelope.ts'),
+      PLATFORM_ROOT,
     );
     expect(importFindingKey(finding!)).toBe(
-      'src/http/error-envelope.ts:../modules/_i18n/services/error-translation.js -> _i18n',
+      'packages/platform/src/http/error-envelope.ts:../modules/_i18n/services/error-translation.js -> _i18n',
     );
   });
 
@@ -438,12 +502,14 @@ describe('analyzePlatformImports over the platform roots', () => {
       analyzePlatformImports(
         "import { Category } from '../modules/catalog/entities/category.entity.js';",
         srcFile('db/entities-registry.generated.ts'),
+        PLATFORM_ROOT,
       ),
     ).toEqual([]);
     expect(
       analyzePlatformImports(
         "import { Category } from '../modules/catalog/entities/category.entity.js';",
         srcFile('commands/command-bus.ts'),
+        PLATFORM_ROOT,
       ),
     ).toEqual([]);
   });
@@ -475,9 +541,13 @@ describe('analyzeClosure', () => {
     expect(violations).toHaveLength(1);
     expect(violations[0]).toMatchObject({ targetOwner: '_i18n', line: 1 });
     expect(violations[0]?.chain).toEqual([
-      'src/kernel/compose.ts',
-      'src/http/error-envelope.ts',
-      'src/modules/_i18n/services/error-translation.ts',
+      'packages/platform/src/kernel/compose.ts',
+      'packages/platform/src/http/error-envelope.ts',
+      // The fixture's specifiers are resolved against the platform root, so the
+      // module it reaches is keyed there too. Synthetic on both ends: the rule
+      // under test is that the chain is followed and printed, not where this
+      // repository's `_i18n` lives.
+      'packages/platform/src/modules/_i18n/services/error-translation.ts',
     ]);
   });
 
@@ -493,8 +563,8 @@ describe('analyzeClosure', () => {
     );
     expect(violations).toHaveLength(1);
     expect(violations[0]?.chain).toEqual([
-      'src/kernel/ports/organizations.ts',
-      'src/modules/organizations/entities/organization.entity.ts',
+      'packages/platform/src/kernel/ports/organizations.ts',
+      'packages/platform/src/modules/organizations/entities/organization.entity.ts',
     ]);
   });
 
@@ -528,7 +598,7 @@ describe('analyzeClosure', () => {
       ),
     );
     expect(violations).toEqual([]);
-    expect([...files].sort()).toEqual(['src/kernel/container.ts', 'src/tenancy/scoped-em.ts']);
+    expect([...files].sort()).toEqual(['packages/platform/src/kernel/container.ts', 'packages/platform/src/tenancy/scoped-em.ts']);
   });
 
   it('reports a module edge whose target is not on disk, and walks on', () => {
@@ -563,7 +633,7 @@ describe('analyzeClosure', () => {
 
 describe('the kernel→module import ledger', () => {
   const ORGANIZATION_ENTRY =
-    'src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations';
+    'packages/platform/src/kernel/ports/organizations.ts:../../modules/organizations/entities/organization.entity.js -> organizations';
 
   it('is empty — D-54 and D-55 dissolved the last two edges', () => {
     // The completion signal for D-53. D-37 A1 seeded four entries and dissolved
@@ -578,6 +648,7 @@ describe('the kernel→module import ledger', () => {
     const [organization] = analyzePlatformImports(
       "import type { Organization } from '../../modules/organizations/entities/organization.entity.js';",
       kernelFile('ports/organizations.ts'),
+      PLATFORM_ROOT,
     );
     expect(importFindingKey(organization!)).toBe(ORGANIZATION_ENTRY);
     expect(isDraining(organization!)).toBe(false);

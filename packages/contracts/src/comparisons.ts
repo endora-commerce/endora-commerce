@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { uuidSchema, moneySchema, multilingualStringSchema } from './common.js';
 import { attributeValueTypeSchema } from './catalog.js';
 
-// @b2b/contracts — Compare module contracts (feature 007).
+// @endora-commerce/contracts — Compare module contracts (feature 007).
 //
 // Per Constitution V, this file is the source of truth for every Zod schema
 // crossing the comparisons HTTP boundary; TS types are inferred via z.infer.

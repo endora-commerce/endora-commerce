@@ -5,10 +5,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Refund } from '../../../src/modules/returns/entities/refund.entity.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
 import { setSellerSettings } from '../invoices/helpers.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { Refund } from '../../helpers/package-entities.js';
 
 /**
  * The corrective-invoice outcome survives a reload (D-92, issue #156).

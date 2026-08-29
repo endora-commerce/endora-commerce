@@ -9,12 +9,12 @@ import type {
   CustomerGroupRecord,
   OrganizationDetailsPort,
   OrganizationRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   registerPwaAdminRoutes,
   type PwaAdminRoutesDeps,
-} from '../../../src/modules/pwa/routes.admin.js';
-import { PushMessageService } from '../../../src/modules/pwa/services/push-message-service.js';
+} from '../../../../packages/modules/pwa/src/backend/routes.admin.js';
+import { PushMessageService } from '../../../../packages/modules/pwa/src/backend/services/push-message-service.js';
 
 /**
  * Feature 075, Phase C — `pwa` asks `customer_accounts`, `organizations` and
@@ -60,7 +60,7 @@ function accountRecord(
 ): CustomerAccountRecord {
   return {
     id,
-    organizationId: null,
+    organizationId: 'org-1',
     email: `${id}@example.test`,
     firstName: 'Ada',
     lastName: 'Lovelace',

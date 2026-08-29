@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatInvoiceNumber } from '../../../src/modules/invoices/services/invoice-number-generator.js';
+import { formatInvoiceNumber } from '../../../../packages/modules/invoices/src/backend/services/invoice-number-generator.js';
 
 /**
  * D-95.3 move 1 — `{channel}` renders the sales channel's code, uppercased and

@@ -8,7 +8,7 @@ import {
 import { CUSTOMER_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { seedInvoiceableOrder } from '../invoices/helpers.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 055 US3 (T036) — custom-field values on an org-owned host (Order) are

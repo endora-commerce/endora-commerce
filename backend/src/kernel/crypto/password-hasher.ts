@@ -1,46 +1,22 @@
-import argon2 from 'argon2';
-
 /**
- * Thin wrapper around argon2id with OWASP-recommended parameters.
- * See specs/001-b2b-platform-foundation/research.md R-11.
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * - memoryCost: 19 MiB (19456 KiB) — OWASP 2024 recommendation.
- * - timeCost: 2.
- * - parallelism: 1.
- * - argon2id type.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * **Why this lives in the kernel and not in `auth` (feature 075, R-09).**
- * Five modules and the dev seed hash a password. Every one of them reached
- * into `auth/services/password-hasher.js` for it, and the obvious remedy —
- * publish it as a port — is the wrong one: `providePort` wraps a registration
- * in a gate on the owner's effective state, so an operator switching `auth`
- * off would make `hashPassword` answer 503 `MODULE_DISABLED`. That is not a
- * degrade, it is a bug. The test the plan sets is "does switching the owner
- * off change the answer?", and for a pure function over its argument the
- * answer is no. So it relocates rather than becoming a port.
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
  *
- * It reads no table, holds no state and touches no request context, which is
- * what makes the kernel the right home rather than a second module.
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-
-const HASH_OPTIONS: argon2.Options = {
-  type: argon2.argon2id,
-  memoryCost: 19_456,
-  timeCost: 2,
-  parallelism: 1,
-};
-
-export async function hashPassword(password: string): Promise<string> {
-  if (password.length < 12) {
-    throw new Error('Password must be at least 12 characters long.');
-  }
-  return argon2.hash(password, HASH_OPTIONS);
-}
-
-export async function verifyPassword(hash: string, password: string): Promise<boolean> {
-  try {
-    return await argon2.verify(hash, password);
-  } catch {
-    return false;
-  }
-}
+export * from '../../../../packages/platform/dist/kernel/crypto/password-hasher.js';

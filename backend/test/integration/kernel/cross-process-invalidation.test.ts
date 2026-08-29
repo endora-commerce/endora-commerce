@@ -7,7 +7,7 @@ import {
 import {
   CUSTOM_FIELDS_CHANGED_CHANNEL,
   type CachedDefinition,
-} from '../../../src/modules/custom_fields/services/custom-field-definitions-cache.js';
+} from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
 
 /**
  * The one cross-process invalidation path the platform has (feature 072, T073).

@@ -4,7 +4,7 @@
  * Pure-function fusion of (baseline + channel-aware overrides) into an
  * effective value per (channelId, languageCode) context. This file
  * is the SINGLE source of truth for the four-scope fallback chain:
- * the backend imports it from `@b2b/contracts` (no behavioural
+ * the backend imports it from `@endora-commerce/contracts` (no behavioural
  * duplication in `backend/src/modules/catalog/services/...`) and the
  * admin SPA imports it to compute its "effective-value preview"
  * client-side so switcher toggles do not need a network round-trip.

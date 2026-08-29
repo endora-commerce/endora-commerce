@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
 import { AdminSecuritySettings } from './modules/mfa/AdminSecuritySettings.js';
@@ -122,6 +122,8 @@ import { StripeSettingsPage } from './modules/stripe/StripeSettingsPage.js';
 import { TpaySettingsPage } from './modules/tpay/TpaySettingsPage.js';
 import { PayuSettingsPage } from './modules/payu/PayuSettingsPage.js';
 import { AutopaySettingsPage } from './modules/autopay/AutopaySettingsPage.js';
+import { PaypalSettingsPage } from './modules/paypal/PaypalSettingsPage.js';
+import { DhlParcelSettingsPage } from './modules/dhl_parcel/DhlParcelSettingsPage.js';
 import { InpostSettingsPage } from './modules/inpost/InpostSettingsPage.js';
 import { CredentialsPage } from './modules/credentials/pages/CredentialsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
@@ -287,11 +289,14 @@ export function App(): ReactNode {
         <Route path="/price-lists/display-modes" element={<DisplayModeOverridesPage />} />
         <Route path="/price-lists/:id" element={<PriceListDetailPage />} />
         <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
+        <Route path="/delivery-methods/dhl-parcel" element={<DhlParcelSettingsPage />} />
+        <Route path="/settings/dhl-parcel" element={<Navigate to="/delivery-methods/dhl-parcel" replace />} />
         <Route path="/payment-methods" element={<PaymentMethodsPage />} />
         <Route path="/settings/stripe" element={<StripeSettingsPage />} />
         <Route path="/settings/tpay" element={<TpaySettingsPage />} />
         <Route path="/settings/payu" element={<PayuSettingsPage />} />
         <Route path="/settings/autopay" element={<AutopaySettingsPage />} />
+        <Route path="/settings/paypal" element={<PaypalSettingsPage />} />
         <Route path="/settings/inpost" element={<InpostSettingsPage />} />
         <Route path="/credentials" element={<CredentialsPage />} />
         <Route path="/credentials/new" element={<CredentialsPage initialMode="new" />} />

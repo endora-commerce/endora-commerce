@@ -1,4 +1,4 @@
-import type { I18nConfigResponse } from '@b2b/contracts';
+import type { I18nConfigResponse } from '@endora-commerce/contracts';
 import { apiGet, type RequestContext } from './client';
 
 /**

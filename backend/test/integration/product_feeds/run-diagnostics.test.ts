@@ -1,17 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { AdminNotification } from '../../../src/modules/admin_notifications/entities/admin-notification.entity.js';
-import { FeedRunIssue } from '../../../src/modules/product_feeds/entities/feed-run-issue.entity.js';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { AdminNotification, FeedRunIssue, type AdminNotificationRow } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T100 — run diagnostics (FR-037, FR-054).
@@ -225,7 +223,7 @@ describe('feed run diagnostics [integration]', () => {
   describe('failed-run notification', () => {
     const BROKEN_CHANNEL = '00000000-0000-4000-8000-0000000000cd';
 
-    const notifications = async (subjectId: string): Promise<AdminNotification[]> => {
+    const notifications = async (subjectId: string): Promise<AdminNotificationRow[]> => {
       const em = h.em();
       em.clear();
       return em.find(AdminNotification, {

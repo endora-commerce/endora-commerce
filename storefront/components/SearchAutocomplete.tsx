@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import type { SearchSuggestItem } from '@b2b/contracts';
+import type { SearchSuggestItem } from '@endora-commerce/contracts';
 import {
   getSuggestions,
   SearchSuggestError,

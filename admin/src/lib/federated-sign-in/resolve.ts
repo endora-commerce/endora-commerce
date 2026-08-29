@@ -1,4 +1,4 @@
-import type { MfaSocialProvider } from '@b2b/contracts';
+import type { MfaSocialProvider } from '@endora-commerce/contracts';
 
 /**
  * Which federated sign-in buttons the pre-auth admin screen may render —

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   ALIAS_HIDDEN_RESOLUTIONS,
@@ -24,8 +25,9 @@ import {
   PLATFORM_OWNED_NAMES,
   type PortResolution,
 } from '../../../scripts/check-port-dependencies.js';
-import { defineModuleManifest } from '@b2b/contracts';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { defineModuleManifest } from '@endora-commerce/contracts';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * The port-dependency rule (feature 072, T061 / FR-040).
@@ -1301,6 +1303,98 @@ describe('findNonBindingIssues — the guard-rails on `contributes-to`', () => {
   });
 });
 
+/**
+ * `refuses-without` — the mirror rail (owner ruling, 2026-08-25).
+ *
+ * The kind makes a two-part claim: *the operation refuses* and *the owner's
+ * activation control keeps working*. Each part is decidable, and each is
+ * checked on its own fixture so neither can go blind behind the other's red.
+ *
+ * The fixture is deliberately the *good* case with one thing changed, because
+ * both signals are absences — an absent gate, an absent sentence — and a
+ * fixture that never satisfied the rule cannot tell you which absence it
+ * caught.
+ */
+describe('findNonBindingIssues — the rail on `refuses-without`', () => {
+  const call: PortResolution = {
+    moduleId: 'shop',
+    name: 'settlementPort',
+    file: '/repo/backend/src/modules/shop/backend.ts',
+    line: 1,
+    kind: 'deferred',
+    via: 'lazyPort',
+    site: 'call',
+  };
+
+  const input = (
+    over: Partial<Parameters<typeof findNonBindingIssues>[0]> = {},
+  ): Parameters<typeof findNonBindingIssues>[0] => ({
+    edges: [
+      {
+        moduleId: 'shop',
+        dependsOn: 'settlement',
+        name: 'settlementPort',
+        kind: 'refuses-without',
+        whenAbsent: 'checkout stops accepting orders',
+        reason: 'The placement seam has no fallback and lets the 503 reach the buyer.',
+      },
+    ],
+    owners: new Map([['settlementPort', 'settlement']]),
+    providedPorts: new Map([['settlementPort', 'settlement']]),
+    resolutions: [call],
+    contributionPolicies: {},
+    boundOwners: new Map([['shop', new Set<string>()]]),
+    ...over,
+  });
+
+  it('accepts a call-time read of a gated port with a sentence and no bind', () => {
+    expect(findNonBindingIssues(input())).toEqual([]);
+  });
+
+  it('refuses a refusal over a name nothing gates', () => {
+    // An ungated registration keeps resolving, or resolves to nothing; either
+    // way there is no `MODULE_DISABLED` for the entry to be describing.
+    const issues = findNonBindingIssues(input({ providedPorts: new Map<string, string>() }));
+    expect(issues.map((issue) => issue.kind)).toEqual(['refusal-over-an-ungated-name']);
+    expect(describeNonBindingIssue(issues[0]!)).toContain('di.providePort');
+  });
+
+  it('refuses a refusal whose owner the declaring module also binds', () => {
+    // `dependencies` and `acknowledgedDependencies` are what the flip-time
+    // refusal reads, so the entry's second claim is false and the owner's
+    // control is a dead switch. `defineModuleManifest` refuses this first; the
+    // check re-derives it for a manifest built without the helper.
+    const issues = findNonBindingIssues(
+      input({ boundOwners: new Map([['shop', new Set(['settlement'])]]) }),
+    );
+    expect(issues.map((issue) => issue.kind)).toEqual(['refusal-over-a-bound-owner']);
+    expect(describeNonBindingIssue(issues[0]!)).toContain('dead switch');
+  });
+
+  it('refuses a refusal that names nothing to show the operator', () => {
+    const issues = findNonBindingIssues(
+      input({ edges: [{ ...input().edges[0]!, whenAbsent: null }] }),
+    );
+    expect(issues.map((issue) => issue.kind)).toEqual(['refusal-without-a-sentence']);
+  });
+
+  it('holds the two shared rules over the new kind as well', () => {
+    // `wrong-owner` and `nothing-resolves` are about the declaration rather
+    // than the kind, and both run before the rail. A kind-specific `continue`
+    // that skipped them would be the regression.
+    expect(
+      findNonBindingIssues(input({ owners: new Map([['settlementPort', 'treasury']]) })).map(
+        (issue) => issue.kind,
+      ),
+    ).toContain('wrong-owner');
+    expect(findNonBindingIssues(input({ resolutions: [] })).map((issue) => issue.kind)).toEqual([
+      'nothing-resolves',
+    ]);
+  });
+});
+
+const layout = await requireModuleLayout('[port-dependency-check]');
+
 describe('CONTRIBUTION_POLICY_STATED — the registries a contribution may name', () => {
   /**
    * A contribution seam is wired one of two ways in this tree, and the table
@@ -1311,24 +1405,37 @@ describe('CONTRIBUTION_POLICY_STATED — the registries a contribution may name'
    * the reason the payment family's three registries could not be listed at
    * all.
    */
+  /**
+   * The owner's directory is **resolved, never spelled** (feature 080, T040a):
+   * a module lives under the application's source root or in a workspace member
+   * declaring `endora: { type: 'module', id }`, and the two layouts keep the
+   * entry point at different names. An owner this cannot place throws, because
+   * a read that came back empty would report the ledger entry as unheld.
+   */
+  const ownerFile = (owner: string, ...segments: readonly string[]): string | null => {
+    const dir = layout.moduleDirectoryOf(owner);
+    if (dir === null) throw new Error(`[port-dependency-check] no such module: ${owner}`);
+    for (const candidate of [join(dir, ...segments), join(dir, 'src', 'backend', ...segments)]) {
+      if (existsSync(candidate)) return candidate;
+    }
+    return null;
+  };
+
   const holdsName = (owner: string, name: string): boolean => {
-    const file = `/repo/backend/src/modules/${owner}/backend.ts`;
-    const source = readFileSync(
-      new URL(`../../../src/modules/${owner}/backend.ts`, import.meta.url),
-      'utf8',
-    );
-    if (registeredNames(source, file).includes(name)) {
+    const entry = ownerFile(owner, 'backend.ts') ?? ownerFile(owner, 'index.ts');
+    if (entry === null) {
+      throw new Error(`[port-dependency-check] ${owner} has no backend entry point`);
+    }
+    const source = readFileSync(entry, 'utf8');
+    if (registeredNames(source, entry).includes(name)) {
       expect(
-        providedPortNames(source, file),
+        providedPortNames(source, entry),
         `${owner}:${name} is a gated port, so a contribution to it is a pull`,
       ).not.toContain(name);
       return true;
     }
-    const singleton = new URL(
-      `../../../src/modules/${owner}/services/registry-singleton.ts`,
-      import.meta.url,
-    );
-    return existsSync(singleton) && readFileSync(singleton, 'utf8').includes(`export const ${name}`);
+    const singleton = ownerFile(owner, 'services', 'registry-singleton.ts');
+    return singleton !== null && readFileSync(singleton, 'utf8').includes(`export const ${name}`);
   };
 
   it('attributes every listed registry to the module that holds it, ungated', () => {

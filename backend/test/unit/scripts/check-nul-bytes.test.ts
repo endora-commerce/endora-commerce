@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   BINARY_EXTENSIONS,
+  GENERATED_FILE_EXTENSIONS,
   BINARY_FILENAMES,
   checkNulBytes,
   extensionOf,
@@ -168,6 +169,33 @@ describe('check-nul-bytes — what it does not refuse', () => {
   });
 });
 
+describe('check-nul-bytes — generated files beside their source', () => {
+  it('drops a `.tsbuildinfo`, wherever a tool wrote it', () => {
+    // The fixture enters at the predicate, which is where the walk and the
+    // reporter both ask the question (issue #130): a fixture entering below it
+    // would prove only that a list has an entry in it.
+    expect(isScannablePath('storefront/tsconfig.tsbuildinfo')).toBe(false);
+    expect(isScannablePath('admin/tsconfig.tsbuildinfo')).toBe(false);
+  });
+
+  it('keeps the `tsconfig.json` sitting next to it', () => {
+    // The discrimination that matters: the exclusion is keyed on the extension,
+    // not on the stem, so the config the artefact is named after stays source.
+    expect(isScannablePath('storefront/tsconfig.json')).toBe(true);
+  });
+
+  it('carries a reason for every entry, as the other three categories do', () => {
+    for (const [extension, reason] of Object.entries(GENERATED_FILE_EXTENSIONS)) {
+      expect(extension.startsWith('.'), `${extension} is not an extension`).toBe(true);
+      expect(reason.length, `${extension} carries no reason`).toBeGreaterThan(40);
+    }
+  });
+
+  it('is not empty — an empty category is one nothing would notice losing', () => {
+    expect(Object.keys(GENERATED_FILE_EXTENSIONS).length).toBeGreaterThan(0);
+  });
+});
+
 describe('check-nul-bytes — the ledger', () => {
   const file: ScannedFile = { path: 'backend/src/a.ts', bytes: bytes('a\0b') };
 
@@ -280,10 +308,12 @@ describe('check-nul-bytes — the exit codes', () => {
 
 describe('check-nul-bytes — the tree it guards', () => {
   const repaired = [
-    'backend/src/http/interceptors/registry.ts',
-    'backend/src/modules/admin_actions/services/admin-actions-service.ts',
-    'backend/src/modules/orders/domain/order-status-graph.ts',
-    'backend/src/modules/product_feeds/services/taxonomy-revision-identity.ts',
+    // Moved with the platform relocation; `backend/src/http/interceptors/registry.ts`
+    // is now a re-export shim and carries no separator of its own.
+    'packages/platform/src/http/interceptors/registry.ts',
+    'packages/modules/admin_actions/src/backend/services/admin-actions-service.ts',
+    'packages/modules/orders/src/backend/domain/order-status-graph.ts',
+    'packages/modules/product_feeds/src/backend/services/taxonomy-revision-identity.ts',
     'backend/test/unit/product_feeds/xml-feed-serializer.test.ts',
   ];
 

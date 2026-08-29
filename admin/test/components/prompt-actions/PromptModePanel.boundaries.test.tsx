@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PromptActionRequestDto } from '@b2b/contracts';
+import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { ApiError } from '@b2b/api-client';
+import { ApiError } from '@endora-commerce/api-client';
 
 /**
  * T053 — US3 interaction test: clarification candidate picker + free-text

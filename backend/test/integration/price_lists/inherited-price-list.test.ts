@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization, type ProductRow } from '../../helpers/package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   setupBackendServer,
@@ -6,18 +7,18 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import { Product } from '../../helpers/package-entities.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
-import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
-import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
-import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
+import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
+import { OrganizationInheritanceService } from '../../../../packages/modules/organizations/src/backend/services/organization-inheritance-service.js';
+import { CreditLimitReadService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-read.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
@@ -64,7 +65,7 @@ async function reparent(
 
 describe('price-list inheritance up the org tree (US3)', () => {
   let h: BackendServerHandle;
-  let product: Product;
+  let product: ProductRow;
   let salesChannel: SalesChannel;
   let tree: OrganizationTreeService;
   let pricing: PricingService;
@@ -75,7 +76,7 @@ describe('price-list inheritance up the org tree (US3)', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     tree = new OrganizationTreeService(h.em);
-    const inheritance = new OrganizationInheritanceService(h.em, tree);
+    const inheritance = new OrganizationInheritanceService(h.em, tree, new CreditLimitReadService(h.em));
     pricing = new PricingService(
       h.em,
       undefined,

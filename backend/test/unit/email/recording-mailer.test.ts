@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { Mailer, MailerSendInput, MailerSendOutcome } from '../../../src/modules/email/services/mailer.js';
-import { RecordingMailer } from '../../../src/modules/email/services/recording-mailer.js';
+import type { Mailer, MailerSendInput, MailerSendOutcome } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+import { RecordingMailer } from '../../../../packages/modules/email/src/backend/services/recording-mailer.js';
 import type {
   EmailDeliveryRecorder,
   EmailDeliveryRecordInput,
-} from '../../../src/modules/email/services/email-delivery-recorder.js';
+} from '../../../../packages/modules/email/src/backend/services/email-delivery-recorder.js';
 
 /**
  * D-59 — every transport call leaves a durable row, and the row says which of

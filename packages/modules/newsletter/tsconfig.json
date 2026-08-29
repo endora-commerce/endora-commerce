@@ -1,0 +1,45 @@
+{
+  // Type-check configuration, and the two-config split every package under
+  // `packages/` uses (feature 080, T042 / R11). `tsconfig.base.json`'s `paths`
+  // block is active here, so `@endora-commerce/contracts` resolves at its
+  // *source* and this package type-checks against the branch it is on (issue
+  // #255). `noEmit` is set for that reason: with `paths` active an emit would
+  // land beside another package's source. The emitting configuration is
+  // `tsconfig.build.json`.
+  //
+  // `@endora-commerce/platform` is deliberately **not** in that `paths` block
+  // and is resolved here through its own `exports` map, at its built `.d.ts`.
+  // That is the same resolution the running application gets, which is what
+  // keeps one copy of `HttpError`, `SalesChannel` and `effectiveState` in the
+  // process — see `backend/test/unit/kernel/platform-single-copy.test.ts`. This
+  // package is refused a `paths` entry for its own sources on the same grounds,
+  // one step sharper: `paths` is honoured by `tsx` and not by `node`, so an
+  // entry would make a `tsx` process load this package's sources rather than
+  // its `dist`, which is the split D-164 measured killing a decorated entity.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*"],
+  // A co-located test must not be compiled into `dist`: it imports `vitest`, a
+  // devDependency, which is an unresolvable specifier in every consumer's
+  // install. That is this exclusion's whole job, and it is an *emit* concern —
+  // `tsconfig.build.json` extends this file, which is how it gets there.
+  //
+  // It does not stop those tests running, and the sentence that used to stand
+  // here said it did: it read that this module's tests live in `backend/test/`
+  // and that a co-located one would be "a test that does not run". The first
+  // half is false for this package — the files are under `src/backend/` — and
+  // the second described `specs/deferred-defects.md`'s "co-located tests inside
+  // a module package run nowhere", which feature 089's Phase 1 closes. `vitest`
+  // reads its own `include` and transpiles what it collects, so this package's
+  // `vitest.config.ts` runs every one of them.
+  //
+  // What the exclusion does still cost is the type-check: `pnpm run typecheck`
+  // does not read these files. Measured 2026-08-28, they compile clean when it
+  // does, so moving the patterns down into `tsconfig.build.json` is available
+  // and is deliberately not part of that Phase.
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+}

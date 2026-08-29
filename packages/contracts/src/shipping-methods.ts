@@ -129,6 +129,25 @@ export const receiveShipmentSchema = z
   });
 export type ReceiveShipment = z.infer<typeof receiveShipmentSchema>;
 
+/**
+ * Container name: `receiveShipmentHandler`. Owner: `shipments`.
+ *
+ * Carrier callback / tracking-poll ingress: apply a success or failure outcome
+ * to a shipment attempt and ask the order lifecycle for the configured move.
+ *
+ * **Owner off:** fails closed — a caller gets the 503 `MODULE_DISABLED`
+ * envelope. Tracking workers must rethrow `ModuleDisabledError` from any
+ * per-item `catch` that records transport failures.
+ */
+export interface ReceiveShipmentPort {
+  receive(input: ReceiveShipment): Promise<{
+    shipmentId: string;
+    status: string;
+    orderStatus: string | null;
+    idempotent: boolean;
+  }>;
+}
+
 // ---------------------------------------------------------------------------
 // Behavioural adapter contract (TypeScript types — not persisted).
 // A module is recognised as a shipping-method adapter iff it registers a

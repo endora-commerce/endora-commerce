@@ -1,10 +1,15 @@
-import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { parseReadSize, type ParsedReadSize } from '../../../scripts/lib/read-size.js';
+import {
+  reachedItsOwnVerdict,
+  spawnCheck,
+  terminationReport,
+  type SpawnedCheck,
+} from '../../helpers/check-process.js';
+import { explainPool, observedPoolInputs, spawnPoolSize } from '../../helpers/spawn-pool.js';
 import {
   RECORDED_READ_SIZES,
   READ_SIZE_WITHOUT_A_SITE_POPULATION,
@@ -24,45 +29,96 @@ import {
  *
  * So each check is **spawned the way CI spawns it**, over the real tree, and
  * the read line it prints is compared with the number recorded in
- * `test/helpers/check-read-sizes.ts`. Three things are asserted, and they fail
- * for three different reasons:
+ * `test/helpers/check-read-sizes.ts`. Four things are asserted, and they fail
+ * for four different reasons:
  *
- *   1. **The line exists.** A check that discloses nothing is a check whose
+ *   1. **The child reached a verdict of its own.** A process the kernel killed
+ *      printed nothing for a reason that is not the check's, and the two must
+ *      not read the same: one sends the reader into the analysis, the other to
+ *      what the run was executed inside.
+ *   2. **The line exists.** A check that discloses nothing is a check whose
  *      green cannot be told from a check that read nothing — the whole family.
- *   2. **The numbers are in band.** Materially fewer files or sites than
+ *   3. **The numbers are in band.** Materially fewer files or sites than
  *      recorded is the defect direction; materially more is a recorded number
  *      that has gone stale and stopped meaning anything. The band and the
  *      reasoning behind its two edges are in the helper.
- *   3. **The corroboration is the one recorded, and it holds.** A check that
+ *   4. **The corroboration is the one recorded, and it holds.** A check that
  *      computes its own population and reports it has not closed #215 — that is
  *      the same value twice. Where an independent derivation exists the run
  *      must still name it *and* cover it in full; where none exists the record
  *      says so and `READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE` carries the
  *      reason, so "self-reported" is a statement rather than a silence.
  *
- * It spawns twenty-seven processes over the whole repository, which is why it
- * lives in its own file rather than inside the inventory: the inventory is pure
- * and fast, and a developer runs it constantly.
+ * It spawns one process per recorded check over the whole repository, which is
+ * why it lives in its own file rather than inside the inventory: the inventory
+ * is pure and fast, and a developer runs it constantly.
+ *
+ * **A killed child is not a silent one.** Every spawn goes through
+ * `test/helpers/check-process.ts`, which keeps the `close` event's two answers
+ * apart: a non-zero exit is tolerated on purpose (a check may legitimately be
+ * red on the working tree, and it still has to disclose what it read), while a
+ * termination by *signal* is a resource failure of whatever the run is inside
+ * and is reported as one. It was not, and the disguise cost a CI investigation:
+ * the two heaviest checks were OOM-killed on the 4 GB runner and reported as
+ * `printed no read line`.
  */
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const BACKEND_ROOT = join(REPO_ROOT, 'backend');
-const run = promisify(execFile);
-
-/** Long enough for the slowest check (the two full-tree shell scans). */
-const SPAWN_TIMEOUT_MS = 240_000;
 
 /**
- * How many checks run at once.
+ * Long enough for the whole sweep at a pool of **one**, which is a legal
+ * outcome of the derivation below on a tight container.
  *
- * A pool rather than batches: the two shell scans are several times slower than
- * the fastest tsx check, and a batch waits for its slowest member. Eight on a
- * sixteen-core box keeps the whole sweep near the sum of the slowest few.
+ * Measured 2026-08-24 on a 16-core developer box: the estate takes 220 s end to
+ * end when run strictly one at a time. A 4 vCPU runner is slower per check, so
+ * this leaves a wide margin rather than a tight one — a hook timeout that
+ * expires reports as "the checks did not print", which is the very confusion
+ * this file has just been repaired of.
  */
-const CONCURRENCY = 8;
+const SPAWN_TIMEOUT_MS = 900_000;
 
-interface Observed {
-  readonly output: string;
+/**
+ * Peak resident cost of one spawned check, and the divisor the pool is sized
+ * with.
+ *
+ * Measured on 2026-08-24, per process tree, sampled every 100 ms, summing PSS
+ * so pages shared between the children are not counted twice — and measured one
+ * check at a time, because several agents run on this machine and any
+ * whole-machine sampling would have been somebody else's memory. The estate:
+ *
+ *   * the 26 `tsx` checks peak between 274 MB and **746 MB**, median 573 MB;
+ *   * the 3 shell scans peak under 12 MB — they are `grep` and `perl`, not a
+ *     TypeScript program;
+ *   * `check-port-catches` (746 MB) and `check-port-shape` (627 MB) are the
+ *     first and third heaviest, and they are exactly the two the runner killed.
+ *
+ * `files=` is not a proxy for this and the numbers say so plainly:
+ * `check-nul-bytes` opens 5470 files for 364 MB, `check-port-catches` opens
+ * 1541 for 746 MB. What costs memory is the TypeScript program, not the walk.
+ *
+ * 800 MB is the worst observed (778 MB on a second run of the heaviest) rounded
+ * up. Re-measure it when the tree grows; it is a measurement, not a budget.
+ */
+const PEAK_BYTES_PER_CHECK = 800 * 1024 * 1024;
+
+/**
+ * How many checks run at once — derived, never chosen.
+ *
+ * `test/helpers/spawn-pool.ts` takes the minimum of the cores this process may
+ * use and what the container will still give it, holding one child's worth
+ * back. This used to be the literal `8`, chosen when nothing limited the
+ * container: eight of the heaviest at 746 MB is 5.8 GB, which is why a 4 GB
+ * runner killed two of them.
+ *
+ * What it trades: a smaller pool is a longer sweep and nothing else — the
+ * checks share no state. {@link SPAWN_TIMEOUT_MS} covers the sequential case.
+ */
+const POOL_INPUTS = observedPoolInputs(PEAK_BYTES_PER_CHECK);
+const CONCURRENCY = spawnPoolSize(POOL_INPUTS);
+const POOL_NOTE = explainPool(POOL_INPUTS, CONCURRENCY);
+
+interface Observed extends SpawnedCheck {
   readonly read: ParsedReadSize | null;
 }
 
@@ -73,20 +129,23 @@ async function observe(script: string, recorded: RecordedReadSize): Promise<void
   const command = kind === 'tsx' ? 'pnpm' : 'bash';
   const argv = kind === 'tsx' ? ['exec', 'tsx', path, ...args] : [path, ...args];
   const cwd = kind === 'tsx' ? BACKEND_ROOT : REPO_ROOT;
-  let output: string;
-  try {
-    const result = await run(command, argv, { cwd, maxBuffer: 64 * 1024 * 1024 });
-    output = `${result.stdout}${result.stderr}`;
-  } catch (error: unknown) {
-    // A non-zero exit is not this file's business: a check may legitimately be
-    // red on the working tree, and it still has to disclose what it read.
-    const failure = error as { stdout?: string; stderr?: string };
-    output = `${failure.stdout ?? ''}${failure.stderr ?? ''}`;
-  }
-  observed.set(script, { output, read: parseReadSize(output) });
+  const seen = await spawnCheck(command, argv, { cwd });
+  observed.set(script, { ...seen, read: parseReadSize(seen.output) });
 }
 
 beforeAll(async () => {
+  // Printed on every run, not only on a failing one, in the idiom this whole
+  // file exists for: a pool that silently derived 1 — or 16 — would otherwise
+  // be visible as nothing but a job that got slower, or a runner that died
+  // again. `warn` because that is where the harness's own lines go.
+  console.warn(POOL_NOTE);
+  // Declaration order, deliberately. With the pool sized against the *heaviest*
+  // child, no ordering of the queue can exceed the budget, so ordering is a
+  // makespan question alone — and at these pool sizes it is worth a few seconds
+  // of a two-minute sweep. Scheduling the heavy ones first would need a cost
+  // per check, and the one number this file already has (`files`) does not
+  // predict cost at all: see PEAK_BYTES_PER_CHECK. A second recorded number,
+  // kept true by nobody, would buy that handful of seconds.
   const queue = Object.entries(RECORDED_READ_SIZES);
   let next = 0;
   const worker = async (): Promise<void> => {
@@ -101,13 +160,25 @@ beforeAll(async () => {
 describe('every static check discloses the size of what it read', () => {
   for (const [script, recorded] of Object.entries(RECORDED_READ_SIZES)) {
     describe(script, () => {
-      it('prints a read line', () => {
+      it('ran to a verdict of its own', () => {
         const seen = observed.get(script);
         expect(seen, `${script} was never spawned`).toBeDefined();
+        // Not a claim about the check's colour: exit 1 is a verdict. This is
+        // the claim that the process was allowed to reach one at all, and it
+        // is the assertion a SIGKILL belongs to — every test below would
+        // otherwise report a resource failure as missing content.
         expect(
-          seen?.read,
-          `${script} printed no read line. Its output was:\n${seen?.output ?? ''}`,
-        ).not.toBeNull();
+          reachedItsOwnVerdict(seen),
+          `${terminationReport(script, seen)}\n\n${POOL_NOTE}`,
+        ).toBe(true);
+      });
+
+      it('prints a read line', () => {
+        const seen = observed.get(script);
+        // Reported by the test above, in the words that send the reader to the
+        // runner rather than to the check.
+        if (!reachedItsOwnVerdict(seen)) return;
+        expect(seen?.read, terminationReport(script, seen)).not.toBeNull();
         expect(seen?.read?.prefix).toBe(recorded.prefix.slice(1, -1));
       });
 

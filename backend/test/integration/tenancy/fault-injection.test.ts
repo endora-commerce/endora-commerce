@@ -6,7 +6,6 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { seedInvoiceableOrder } from '../invoices/helpers.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import {
   runWithTenantContext,
   runWithoutTenantContext,
@@ -17,6 +16,7 @@ import {
   systemTenantContext,
 } from '../../../src/tenancy/resolve-tenant-context.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 050 (SC-003) — fault injection: the guard is the data-layer backstop.

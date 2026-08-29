@@ -1,28 +1,40 @@
+import { Invoice } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
+
 import { dirname, resolve } from 'node:path';
+
 import { fileURLToPath } from 'node:url';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+
 import { withModuleOff } from '../../helpers/off-state.js';
-import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
-import { Invoice } from '../../../src/modules/invoices/entities/invoice.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { gatewayRefundRegistry } from '../../../src/modules/payments/services/registry-singleton.js';
-import { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
-import { Refund } from '../../../src/modules/returns/entities/refund.entity.js';
+
+import { CreditLimit, Refund, ReturnCase } from '../../helpers/package-entities.js';
+
+
+
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
+
 import { setSellerSettings } from '../invoices/helpers.js';
+
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { TranslationBundle } from '../../../src/modules/_i18n/entities/translation-bundle.entity.js';
+
+import { TranslationBundle } from '../../helpers/package-entities.js';
+
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { Order } from '../../helpers/package-entities.js';
+import { gatewayRefundRegistryOf } from '../../helpers/package-singletons.js';
+
 
 const I18N_MODULE_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../src/modules/_i18n',
+  '../../../../packages/modules/_i18n',
 );
 
 /**
@@ -169,8 +181,8 @@ describe('returns — settlement (US5)', () => {
     it('has the stripe handler contributed, so the assertions below are about presence', () => {
       // Without this the provider would take the no-integration branch and
       // every refusal below would be measuring an adapter nobody registered.
-      expect(gatewayRefundRegistry.ownerOf('stripe')).toBe('stripe');
-      expect(gatewayRefundRegistry.list()).toContain('stripe');
+      expect(gatewayRefundRegistryOf(h.container).ownerOf('stripe')).toBe('stripe');
+      expect(gatewayRefundRegistryOf(h.container).list()).toContain('stripe');
     });
 
     it('refuses while the operator has the gateway switched off, and settles nothing', async () => {

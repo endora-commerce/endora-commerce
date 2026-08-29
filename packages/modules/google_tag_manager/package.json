@@ -1,0 +1,56 @@
+{
+  "name": "@endora-commerce/mod-google-tag-manager",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "Google Tag Manager integration: per-sales-channel container injection behind the storefront consent decision, a documented commerce dataLayer vocabulary, and an optional server-side tagging relay.",
+  "endora": {
+    "type": "module",
+    "id": "google_tag_manager"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/manifest.d.ts",
+      "default": "./dist/manifest.js"
+    },
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "default": "./dist/backend/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "i18n"
+  ],
+  "engines": {
+    "node": ">=22.17.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "bullmq": "^5",
+    "fastify": "^5",
+    "ioredis": "^5",
+    "vitest": "^2",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@types/node": "^22.9.0",
+    "bullmq": "^5.76.1",
+    "fastify": "^5.8.5",
+    "ioredis": "^5.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4",
+    "zod": "^4.2.0"
+  }
+}

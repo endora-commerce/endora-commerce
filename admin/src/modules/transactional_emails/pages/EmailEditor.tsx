@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import type { TransactionalEmailDetail } from '@b2b/contracts';
+import type { TransactionalEmailDetail } from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { SaveButtonGroup } from '@/components/ui/save-button-group';

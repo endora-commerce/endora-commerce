@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { CommandActor } from '../../../src/commands/command.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { makeSetSystemDefaultChannelCommand } from '../../../src/modules/sales_channels/commands/set-default.command.js';
+import { makeSetSystemDefaultChannelCommand } from '../../../../packages/modules/sales_channels/src/backend/commands/set-default.command.js';
 
 /**
  * D-51 — moving the `system_default` flag, at the level where the ordering lives.

@@ -1,13 +1,13 @@
 import { randomBytes } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { defineModuleSettingsManifest, ERROR_CODES } from '@b2b/contracts';
+import { defineModuleSettingsManifest, ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { SettingsAdminService } from '../../../src/modules/settings/services/settings-admin.service.js';
+import { SettingsAdminService } from '../../../../packages/modules/settings/src/backend/services/settings-admin.service.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';

@@ -19,7 +19,7 @@ A module's `manifest.ts` may declare zero or more actions inline alongside its e
 `settings` and `i18n` fields:
 
 ```ts
-import { defineModuleManifest } from '@b2b/contracts';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 
 export const manifest = defineModuleManifest({
   id: 'catalog',
@@ -99,9 +99,19 @@ upgrades, and action removals are all idempotent. On hard-uninstall (`module:uni
 bundle removal step.
 
 State is persisted in `module_actions` (composite PK `(module_id, action_id)`); soft-
-uninstall (state → `disabled`) does NOT delete rows — it relies on the visibility
-query's join with `module_registrations.state = 'installed'` to hide the actions while
-preserving them for re-enable.
+uninstall (state → `disabled`) does NOT delete rows — it relies on the visibility read
+filtering every row whose module is not effectively present, which hides the actions
+while preserving them for re-enable.
+
+That filter asks the kernel's effective-state combiner, through a probe the composition
+root contributes, and it asks it for **both** presence axes: the deployment's
+`module_registrations` state and the operator's activation Setting. It used to ask only
+the second that way and join `module_registrations.state = 'installed'` for the first,
+which meant the palette and the route gates read one question out of two sources —
+disagreeing for the length of every `registryCache.refreshFromDb`, so a palette could
+advertise an action whose route answered 503 and hide one the route would still serve.
+The registry table is still the record for the platform axis; the palette simply no
+longer reads it behind the platform's back.
 
 ## Storage shape
 

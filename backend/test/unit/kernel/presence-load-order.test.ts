@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { join } from 'node:path';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleManifest, RegistryState } from '@b2b/contracts';
+import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import {
@@ -15,10 +16,14 @@ import {
   ModulePresenceNotLoadedError,
   registryCache,
 } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { loadModulePresence } from '../../../src/modules/_lifecycle/services/presence-load.js';
+import {
+  loadModulePresence,
+  type ShippedModuleEntry,
+} from '../../../src/lifecycle/services/presence-load.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { coreModulesRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * Module presence is a **composition input** (feature 072, D-38 / D-40).
@@ -66,10 +71,21 @@ function manifest(id: string, settingCode: string): ModuleManifest {
   };
 }
 
-const MANIFESTS = [
-  manifest(HOST, `${HOST}.enabled`),
-  manifest(CONSUMER, `${CONSUMER}.enabled`),
-];
+/**
+ * Core entries. `loadModulePresence` takes the resolved entries and reads each
+ * one's origin off its `filePath`, so that only what this build ships is
+ * converged by the first-boot reconciler (D-157.6(b)); a fixture that wants a
+ * row written has to anchor where a core module anchors.
+ */
+function coreEntry(id: string): ShippedModuleEntry {
+  return {
+    manifest: manifest(id, `${id}.enabled`),
+    filePath: join(coreModulesRoot(), id, 'manifest.ts'),
+    origin: 'core',
+  };
+}
+
+const ENTRIES = [coreEntry(HOST), coreEntry(CONSUMER)];
 
 /**
  * The two reads the load makes, and nothing else: `module_registrations` for
@@ -160,7 +176,7 @@ describe('module presence is loaded before the first module registers', () => {
   it('answers from the database once loaded, and the boot hook resolves the port', async () => {
     await loadModulePresence({
       em: stubEm({ registrations: [{ moduleId: HOST, state: 'installed' }] }),
-      manifests: MANIFESTS,
+      entries: ENTRIES,
     });
 
     const { runBootHooks, greeted } = composeFixture();
@@ -175,7 +191,7 @@ describe('module presence is loaded before the first module registers', () => {
         registrations: [{ moduleId: HOST, state: 'installed' }],
         settings: [{ code: `${HOST}.enabled`, globalValue: false }],
       }),
-      manifests: MANIFESTS,
+      entries: ENTRIES,
     });
 
     const { runBootHooks } = composeFixture();
@@ -207,7 +223,7 @@ describe('module presence is loaded before the first module registers', () => {
         registrations: [{ moduleId: CONSUMER, state: 'installed' }],
         settings: [{ code: `${CONSUMER}.enabled`, globalValue: false }],
       }),
-      manifests: MANIFESTS,
+      entries: ENTRIES,
     });
     // Non-vacuity: without this the case would pass on a module that is simply
     // present, which is the assertion it is not making.
@@ -235,7 +251,7 @@ describe('module presence is loaded before the first module registers', () => {
 
   it('registers a module the registry has never seen, so a new module boots enabled', async () => {
     const em = stubEm({ registrations: [{ moduleId: HOST, state: 'installed' }] });
-    await loadModulePresence({ em, manifests: MANIFESTS });
+    await loadModulePresence({ em, entries: ENTRIES });
 
     // First-boot reconcile: the row is written before the axes are read, so the
     // consumer is present in the same boot that discovered it.

@@ -1,10 +1,23 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DISCOVERED_MANIFESTS } from '../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../src/manifest-index.generated.js';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+import { discoverModulePackages } from '../../scripts/lib/module-packages.js';
+import { MANIFEST_INDEX_FILENAME } from '../../scripts/lib/module-roots.js';
 
 /**
  * A backend whose module tree has moved, with the residue left behind — the
@@ -53,6 +66,11 @@ const RESIDUE_ROOTS: readonly string[] = [
   'http',
   'kernel',
   'overlay',
+  // Feature 080, T031. `_lifecycle/registered-manifests.ts` — kept by
+  // `KEPT_MODULE` — imports the package discovery, so a fixture without this
+  // root dies at module resolution and every proof under it fails for a reason
+  // that has nothing to do with a moved module tree.
+  'packages',
   'seeds',
   'tenancy',
 ];
@@ -77,8 +95,200 @@ const RESIDUE_ROOTS: readonly string[] = [
  */
 export const KEPT_MODULE = '_lifecycle';
 
-/** Single files of other modules a spawned check imports as code. */
-const KEPT_MODULE_FILES: readonly string[] = ['admin_roles/permission-inventory.ts'];
+/**
+ * Single files of other modules a spawned check imports as code.
+ *
+ * **Empty, and it drained rather than being emptied.** Two entries stood here.
+ * `admin_roles/permission-inventory.ts` went when batch five packaged that
+ * module: `check-action-route-permissions` reaches the gate-argument resolver
+ * through `@endora-commerce/mod-admin-roles/backend`, which resolves through the
+ * `node_modules` this fixture borrows, so the file arrives with the package
+ * rather than with a copy of one module's source.
+ * `_i18n/services/error-translation.ts` went the same way when T040b packaged
+ * `_i18n` — `check-error-translations` imports the routing table as *code* from
+ * `@endora-commerce/mod-i18n/backend` now.
+ *
+ * The list stays because the property it encodes has not changed: a spawned
+ * check that imports one application-tree module's file as code needs that file
+ * copied in, and copying a whole module would stop the fixture being the hard
+ * case. `_lifecycle` is the only module left in the application tree, and its
+ * own files are copied above by name.
+ */
+const KEPT_MODULE_FILES: readonly string[] = [];
+
+/**
+ * The one i18n bundle the fixture keeps, and the reason it keeps exactly one.
+ *
+ * `check-error-translations` walks each module's `i18n/en.json` and
+ * `i18n/pl.json`. With no bundle
+ * at all the walk yields no `errors.*` key, and the check's *pre-existing*
+ * guard already exits 2 on that — so the fixture would prove nothing about the
+ * floor T010 added. With one routed module's bundle present, the old guard is
+ * green (keys were written, findings can be computed) while seventeen of the
+ * eighteen routed modules contributed nothing, which is the residue only a
+ * per-module floor sees. It has to be a **routed** module, because its bundle
+ * is what carries the `errors.*` keys.
+ *
+ * **Where that module's bundle lives is no longer part of the question, and
+ * that is this function's second correction.** It read `'blog'` until batch one
+ * packaged that module and the `cpSync` below threw ENOENT, taking all 73
+ * proofs in `moved-module-tree.test.ts` with it. The repair then was to derive
+ * the id — but it derived it by asking which routed module still kept a bundle
+ * **under `backend/src/modules`**, which is a property the T040b sweep is in the
+ * business of removing from every module in turn. `orders` was the last one,
+ * and this file went red on `master` the day it moved: not "the fixture needs a
+ * different module" but "the fixture cannot be built at all", every proof in
+ * the file failing at import. So the derivation now asks only what it needs —
+ * *which routed module ships a bundle* — and reads it from the module's **own
+ * directory**, `dirname(manifestPath)`, which is what the boot reconciler joins
+ * `bundlesDir` to and is therefore correct for an application module and a
+ * package alike. The fixture writes it to `backend/src/modules/<id>/i18n`,
+ * because that is where the fixture's own layout puts a module.
+ */
+interface KeptBundle {
+  readonly moduleId: string;
+  /** The real directory the bundle is copied *from*, wherever the module lives. */
+  readonly sourceDirectory: string;
+}
+
+function routedModuleShippingABundle(): KeptBundle {
+  const routed = [
+    ...new Set(Object.values(ERROR_TRANSLATION_KEYS).map((target) => target.moduleId)),
+  ].sort();
+  for (const moduleId of routed) {
+    const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === moduleId);
+    if (entry === undefined) continue;
+    const directory = join(dirname(entry.manifestPath), 'i18n');
+    if (existsSync(join(directory, 'en.json'))) {
+      return { moduleId, sourceDirectory: directory };
+    }
+  }
+  throw new Error(
+    '[moved-module-tree-fixture] no module that `ERROR_TRANSLATION_KEYS` routes a code to ' +
+      'ships an i18n bundle anywhere the manifest index can find one. The fixture needs one ' +
+      "to stage check-error-translations' per-module shortfall; with none, its proof would " +
+      'pass on the pre-existing empty-walk guard instead.',
+  );
+}
+
+/**
+ * The kept module's real directory, and where the fixture stages it.
+ *
+ * `_lifecycle` sits at `backend/src/lifecycle/` since feature 080's T040b —
+ * D-160.11 keeps the lifecycle subsystem out of the package sweep, so it is the
+ * one registered module whose sources the host owns — and the fixture stages it
+ * at the same place relative to `src/`, along with the manifest index, which
+ * became host-owned with it (D-160.3). Both are derived rather than spelled:
+ * the ledgers the spawned checks compare against are keyed on where these files
+ * are, so staging them at their pre-T040b addresses made five of those ledgers
+ * read stale *inside the fixture* — five checks exiting 1 on a residue they
+ * exist to refuse with 2, which is a red for the wrong reason.
+ */
+function keptModuleDirectory(): string {
+  const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === KEPT_MODULE);
+  const directory = entry === undefined ? null : dirname(entry.manifestPath);
+  if (directory === null || !directory.startsWith(join(BACKEND_ROOT, 'src') + sep)) {
+    throw new Error(
+      `[moved-module-tree-fixture] '${KEPT_MODULE}' is not in the application's own source ` +
+        'tree, so the fixture cannot copy the files its spawned checks import as code. ' +
+        'Point KEPT_MODULE at a module the application still holds.',
+    );
+  }
+  return directory;
+}
+
+const KEPT_MODULE_RELATIVE_DIR = relative(join(BACKEND_ROOT, 'src'), keptModuleDirectory())
+  .split(sep)
+  .join('/');
+
+const KEPT_BUNDLE = routedModuleShippingABundle();
+
+// ---------------------------------------------------------------------------
+// Which modules a split fixture relocates — the selection, not the choice
+// ---------------------------------------------------------------------------
+
+/**
+ * The modules the application tree still holds, in the order they were offered.
+ *
+ * The split fixture relocates a module by copying `backend/src/modules/<id>` and
+ * deleting the original, so a candidate that has really become a package fails
+ * the copy outright — `ENOENT … lstat backend/src/modules/<id>`, which took all
+ * 73 proofs of `moved-module-tree.test.ts` with it the day `google_analytics`
+ * moved. Answering that question here is what lets the caller offer a **pool**
+ * rather than a roster: a member that leaves needs no edit, because it stops
+ * being available in the same commit that makes it a real package, and
+ * `createSplitModuleTreeFixture` copies every real module package anyway.
+ */
+export function modulesInTheApplicationTree(candidates: readonly string[]): readonly string[] {
+  return candidates.filter((id) => existsSync(join(BACKEND_ROOT, 'src', 'modules', id)));
+}
+
+/** The module packages this repository really ships, filtered to registered ids. */
+export function packagedModuleIds(): readonly string[] {
+  return discoverModulePackages(REPO_ROOT)
+    .filter((pkg) => DISCOVERED_MANIFESTS.some((entry) => entry.id === pkg.moduleId))
+    .map((pkg) => pkg.moduleId);
+}
+
+/** The modules `ERROR_TRANSLATION_KEYS` routes an operator-visible code to. */
+export function routedModuleIds(): readonly string[] {
+  return [
+    ...new Set(Object.values(ERROR_TRANSLATION_KEYS).map((target) => target.moduleId)),
+  ].sort();
+}
+
+/**
+ * How many modules must sit **outside** the application tree for the split
+ * fixture to be staging anything.
+ *
+ * Several, not one: a single module outside `backend/src` would leave every
+ * check's walk more than 98% inside the application tree, which is comfortably
+ * inside the shape that made issue #215 possible in the first place — a walk
+ * that comes back short, is read, and reports clean. Six is the number T040a
+ * measured the estate against and it is the floor rather than the target; the
+ * relocation pool above it is headroom, and the real module packages count
+ * toward it, because "outside the application tree" is the property and
+ * "relocated by this fixture" is only one way of getting there.
+ */
+export const MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE = 6;
+
+export interface SplitRelocationPlan {
+  readonly candidates: readonly string[];
+  /** Of those, the ones `backend/src/modules` still holds. */
+  readonly available: readonly string[];
+  /** The ids this repository already ships as module packages. */
+  readonly alreadyPackaged: readonly string[];
+  readonly floor?: number;
+}
+
+/**
+ * Which candidates a split fixture relocates, and the refusal when there are
+ * not enough modules outside the application tree for the fixture to mean
+ * anything.
+ *
+ * Pure and injected, so the refusal is provable without building a 120-second
+ * fixture: the inputs enter above the decision rather than being values the
+ * builder has already computed.
+ */
+export function planSplitRelocation(plan: SplitRelocationPlan): readonly string[] {
+  const packaged = new Set(plan.alreadyPackaged);
+  const available = new Set(plan.available);
+  const relocate = plan.candidates.filter((id) => available.has(id) && !packaged.has(id));
+  const floor = plan.floor ?? MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE;
+  const outside = new Set([...relocate, ...plan.alreadyPackaged]);
+  if (outside.size < floor) {
+    throw new Error(
+      `[moved-module-tree-fixture] the split tree would hold ${outside.size} module(s) outside ` +
+        `the application tree and needs at least ${floor}. The relocation pool ` +
+        `(${plan.candidates.join(', ') || 'empty'}) has ${relocate.length} member(s) left under ` +
+        'backend/src/modules. Add free modules to it — ones no artefact under backend/scripts ' +
+        'keys on their location — rather than lowering the floor: below it every check\'s walk ' +
+        'is inside the application tree by so much that a check reading one root passes, which ' +
+        'is the shape this fixture exists to refuse.',
+    );
+  }
+  return relocate;
+}
 
 export interface MovedModuleTreeOptions {
   /**
@@ -105,7 +315,27 @@ function realActivation(id: string): unknown {
 }
 
 /** The stub the fixture puts where the generated index lives. */
-function stubManifestIndex(ids: readonly string[]): string {
+function stubManifestIndex(ids: readonly string[], backendRoot: string): string {
+  // Feature 080, T041a — the real generator emits `manifestPath` per entry and
+  // `coreManifestEntries` refuses an entry without one, so a stub that omitted
+  // it would kill every spawn at module resolution and each proof below would
+  // fail for a reason that has nothing to do with a moved module tree. The
+  // fixture writes the path the residue *would* have had: it is the moved
+  // module's old address, which for this fixture is a directory that is
+  // deliberately not there — and that is fine, because the refusal is about the
+  // field being absent, never about the file being present. It is written here,
+  // in a fixture whose job is to be a concrete layout, and not derived, so that
+  // the stub keeps saying what a pre-move index said.
+  // The kept module is the exception, and it has to be: its files are really
+  // there, so an entry pointing at its pre-move address would leave the layout
+  // unable to place them and every ledger keyed on where they are reading stale.
+  const pathFor = (id: string): string =>
+    (id === KEPT_MODULE
+      ? join(backendRoot, 'src', KEPT_MODULE_RELATIVE_DIR, 'manifest.ts')
+      : join(backendRoot, 'src', 'modules', id, 'manifest.ts')
+    )
+      .split('\\')
+      .join('/');
   return [
     '// Fixture stand-in for the generated manifest index.',
     '//',
@@ -123,6 +353,7 @@ function stubManifestIndex(ids: readonly string[]): string {
     '// to do with the residue, and their controls exited 2 as well.',
     'export interface DiscoveredManifestEntry {',
     '  id: string;',
+    '  manifestPath: string;',
     '  manifest: {',
     '    id: string;',
     '    name: string;',
@@ -142,13 +373,55 @@ function stubManifestIndex(ids: readonly string[]): string {
       const activation = realActivation(id);
       const tail = activation === undefined ? '' : `, activation: ${JSON.stringify(activation)}`;
       return (
-        `  { id: '${id}', manifest: { id: '${id}', name: '${id}', ` +
+        `  { id: '${id}', manifestPath: '${pathFor(id)}', ` +
+        `manifest: { id: '${id}', name: '${id}', ` +
         `version: '1.0.0', dependencies: []${tail} } },`
       );
     }),
     '];',
     '',
   ].join('\n');
+}
+
+/**
+ * The platform package, copied whole — manifest, `src` and `dist`.
+ *
+ * Three things need it and each fails differently without it. The residue
+ * includes `backend/src/{kernel,http,tenancy,commands,events}`, which since the
+ * relocation are re-export shims naming `packages/platform/dist/…`, so a check
+ * that *imports* one — `check-entity-tenant-classification` reads the tenancy
+ * decorators as code — dies at module resolution and its proof passes for the
+ * wrong reason. `scripts/lib/platform-root.ts` finds the platform by its own
+ * `endora: { type: 'platform' }` block over the workspace members, so a fixture
+ * without the manifest has no platform root and the checks that refuse on
+ * `null` refuse for the wrong reason. And `src` is what those checks walk.
+ *
+ * `dist` is a build artefact and may legitimately be absent in a fresh
+ * checkout; the fixture refuses rather than staging a tree whose shims resolve
+ * to nothing, because that failure is indistinguishable from a moved module
+ * tree, which is the one thing this fixture exists to tell apart.
+ */
+function copyPlatformPackage(root: string): void {
+  const source = join(REPO_ROOT, 'packages', 'platform');
+  const built = join(source, 'dist');
+  if (!existsSync(built)) {
+    throw new Error(
+      `${built} does not exist — the platform package is not built, and the residue's ` +
+        're-export shims name it. Run `pnpm run build:packages`; without it every proof ' +
+        'under this fixture would fail at module resolution rather than on what it measures.',
+    );
+  }
+  const destination = join(root, 'packages', 'platform');
+  mkdirSync(destination, { recursive: true });
+  // The copied `dist` imports `@mikro-orm/core`, `fastify` and `awilix` by bare
+  // specifier, and node resolves those by walking up from the *importing* file —
+  // a path that never passes through `backend/`, where the fixture's other
+  // borrowed tree is. Without this the residue's shims die at module resolution
+  // and every proof under them fails for a reason that is not the residue.
+  symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(destination, 'node_modules'));
+  cpSync(join(source, 'package.json'), join(destination, 'package.json'));
+  cpSync(join(source, 'src'), join(destination, 'src'), { recursive: true });
+  cpSync(built, join(destination, 'dist'), { recursive: true });
 }
 
 export function createMovedModuleTreeFixture(
@@ -161,7 +434,7 @@ export function createMovedModuleTreeFixture(
   const root = mkdtempSync(join(tmpdir(), 'moved-module-tree-'));
   const backend = join(root, 'backend');
   mkdirSync(backend, { recursive: true });
-  // Bare specifiers (`typescript`, `@b2b/contracts`) resolve by walking up from
+  // Bare specifiers (`typescript`, `@endora-commerce/contracts`) resolve by walking up from
   // the importing file, so the fixture borrows the backend's installed tree
   // rather than carrying one.
   symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(backend, 'node_modules'));
@@ -173,42 +446,393 @@ export function createMovedModuleTreeFixture(
     `${JSON.stringify({ name: 'moved-module-tree-fixture', type: 'module', private: true }, null, 2)}\n`,
     'utf8',
   );
+  // The fixture is a pnpm workspace (feature 080, T040a). The module roots are
+  // derived from the globs — the application is the member holding the
+  // generated index — so a fixture without this file is refused before a single
+  // rule runs, which is a correct refusal for the wrong reason and would prove
+  // nothing about the residue.
+  writeFileSync(
+    join(root, 'pnpm-workspace.yaml'),
+    'packages:\n  - backend\n  - packages/*\n',
+    'utf8',
+  );
   cpSync(join(BACKEND_ROOT, 'scripts'), join(backend, 'scripts'), { recursive: true });
   cpSync(
     join(REPO_ROOT, 'packages', 'contracts', 'src'),
     join(root, 'packages', 'contracts', 'src'),
     { recursive: true },
   );
+  cpSync(
+    join(REPO_ROOT, 'packages', 'contracts', 'package.json'),
+    join(root, 'packages', 'contracts', 'package.json'),
+  );
+  copyPlatformPackage(root);
   for (const directory of RESIDUE_ROOTS) {
     cpSync(join(BACKEND_ROOT, 'src', directory), join(backend, 'src', directory), {
       recursive: true,
     });
   }
   cpSync(
-    join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'services'),
-    join(backend, 'src', 'modules', KEPT_MODULE, 'services'),
+    join(keptModuleDirectory(), 'services'),
+    join(backend, 'src', KEPT_MODULE_RELATIVE_DIR, 'services'),
     { recursive: true },
   );
   cpSync(
-    join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'registered-manifests.ts'),
-    join(backend, 'src', 'modules', KEPT_MODULE, 'registered-manifests.ts'),
+    join(keptModuleDirectory(), 'registered-manifests.ts'),
+    join(backend, 'src', KEPT_MODULE_RELATIVE_DIR, 'registered-manifests.ts'),
   );
   cpSync(
-    join(BACKEND_ROOT, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
-    join(backend, 'src', 'modules', KEPT_MODULE, 'manifest.ts'),
+    join(keptModuleDirectory(), 'manifest.ts'),
+    join(backend, 'src', KEPT_MODULE_RELATIVE_DIR, 'manifest.ts'),
   );
-  // Same reason as the two files above: `check-action-route-permissions`
-  // imports the gate-argument resolver as *code*, so without it that spawn dies
-  // at module resolution and its proof would pass for the wrong reason. It is
-  // one file of one module, so the fixture stays the hard case — the walk still
-  // produces sources for two of the 65 registered modules.
+  // Same reason as the two files above: a spawned check imports one of these as
+  // *code*, so without it that spawn dies at module resolution and its proof
+  // would pass for the wrong reason. They are single files of single modules, so
+  // the fixture stays the hard case — the walk produces sources for a handful of
+  // the modules the registry lists, never for all of them.
   for (const file of KEPT_MODULE_FILES) {
     mkdirSync(join(backend, 'src', 'modules', dirname(file)), { recursive: true });
     cpSync(join(BACKEND_ROOT, 'src', 'modules', file), join(backend, 'src', 'modules', file));
   }
+  cpSync(
+    KEPT_BUNDLE.sourceDirectory,
+    join(backend, 'src', 'modules', KEPT_BUNDLE.moduleId, 'i18n'),
+    { recursive: true },
+  );
   writeFileSync(
-    join(backend, 'src', 'modules', KEPT_MODULE, 'manifest-index.generated.ts'),
-    stubManifestIndex(options.registeredIds ?? DISCOVERED_MANIFESTS.map((entry) => entry.id)),
+    join(backend, 'src', MANIFEST_INDEX_FILENAME),
+    stubManifestIndex(
+      options.registeredIds ?? DISCOVERED_MANIFESTS.map((entry) => entry.id),
+      backend,
+    ),
+    'utf8',
+  );
+
+  return {
+    root,
+    run: (script, args = []) => {
+      const result = spawnSync(TSX, [join(backend, 'scripts', script), ...args], {
+        encoding: 'utf8',
+        cwd: backend,
+      });
+      return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+    },
+    cleanup: () => rmSync(root, { recursive: true, force: true }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The split tree — feature 080, T040a
+// ---------------------------------------------------------------------------
+
+/**
+ * A backend whose modules live in **two** roots at once, which is every
+ * intermediate state of the layout move.
+ *
+ * The fixture above proves the estate refuses a tree that moved. Refusing is
+ * not following, and the difference is what decides whether T040b can be
+ * incremental: because the population floor is per module, the *first* module
+ * that leaves `backend/src/modules` reds every check that has one — the index
+ * still registers it and no walk produces a file for it. So the discrimination
+ * this fixture stages is the one the moved-tree fixture cannot make:
+ *
+ *   * **`packaged`** — the module is at `packages/modules/<id>/src`, and its
+ *     directory is a workspace member declaring `endora: { type: 'module', id }`.
+ *     The globs produce it, the root list covers it, the floor is satisfied by
+ *     the union, and every check must report exactly what it reports on the
+ *     one-root tree.
+ *   * **`stranded`** — the module is at the same address with **no**
+ *     `package.json`. Nothing declares it, so no glob produces it and no root
+ *     covers it: the index registers a module the walk cannot see, which is the
+ *     half-moved state, and every check must exit 2.
+ *
+ * The two differ by one file. That is deliberate — it is the narrowest thing
+ * that can tell "the check follows both roots" from "the check happens to read
+ * a tree that is all there".
+ *
+ * Unlike the moved-tree fixture this one is a **faithful copy** of the
+ * repository's backend: every check here is expected to return its real verdict,
+ * so it needs the real sources, the real ledgers and the real `package.json`
+ * (`check-entry-scope` derives half its population from that file's `scripts`
+ * block). What it stages is only where the modules sit.
+ */
+export interface SplitModuleTreeOptions {
+  /**
+   * Candidates for relocation into a declared workspace package — a pool, and
+   * every member of it that `backend/src/modules` still holds is relocated. One
+   * that has meanwhile become a real package is skipped rather than refused;
+   * see `planSplitRelocation`.
+   */
+  readonly packaged: readonly string[];
+  /** Modules relocated into a directory nothing declares — the half-moved state. */
+  readonly stranded?: readonly string[];
+}
+
+/** The workspace globs the fixture declares — the authority for what a member is. */
+const SPLIT_WORKSPACE_GLOBS: readonly string[] = ['backend', 'packages/*', 'packages/modules/*'];
+
+/**
+ * Where a relocated module's sources land, relative to the fixture root.
+ *
+ * `packages/modules/<id>/src` is not written into the check estate anywhere —
+ * D-100 — it is written *here*, because a fixture's job is to be a concrete
+ * layout. The estate finds it through the workspace globs above.
+ */
+function packagedModulePath(id: string): string {
+  return join('packages', 'modules', id);
+}
+
+/** Every `.ts` file under `dir`. */
+function typeScriptFilesUnder(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) typeScriptFilesUnder(full, out);
+    else if (entry.name.endsWith('.ts')) out.push(full);
+  }
+  return out;
+}
+
+/**
+ * Re-point the relative specifiers of a module that has just been relocated.
+ *
+ * A module's own internal specifiers (`./services/x.js`) are untouched — they
+ * travel with it. One that **escapes** the module directory named a platform
+ * file at a depth that is now wrong: `packages/modules/<id>/src` happens to sit
+ * exactly as deep as `backend/src/modules/<id>`, so `../../kernel/index.js`
+ * still *resolves* and resolves to `packages/modules/kernel/index.js` — a
+ * directory that does not exist and, worse, one every module walk reads as a
+ * module called `kernel`. Left alone it turns this fixture into a report about a
+ * defect it invented.
+ *
+ * In the real move those specifiers become bare host-package ones, which is
+ * T042a's deliverable and does not exist yet; here they are re-pointed at the
+ * same file through its new relative distance, which is the same edge with the
+ * same owner. The rewrite is the ~20 lines the F4 spike measured, and it is a
+ * property of the fixture rather than of the check estate.
+ */
+function repointEscapingSpecifiers(root: string, id: string): void {
+  const oldPrefix = `backend/src/modules/${id}`;
+  const newPrefix = `${packagedModulePath(id)}/src`.split('\\').join('/');
+  for (const file of typeScriptFilesUnder(join(root, newPrefix))) {
+    const within = relative(join(root, newPrefix), file).split('\\').join('/');
+    const oldDir = posix.dirname(posix.join(oldPrefix, within));
+    const newDir = posix.dirname(posix.join(newPrefix, within));
+    const source = readFileSync(file, 'utf8');
+    const rewritten = source.replace(/'(\.[^']*)'/g, (whole, specifier: string) => {
+      const target = posix.normalize(posix.join(oldDir, specifier));
+      if (target === oldPrefix || target.startsWith(`${oldPrefix}/`)) return whole;
+      const repointed = posix.relative(newDir, target);
+      return `'${repointed.startsWith('.') ? repointed : `./${repointed}`}'`;
+    });
+    if (rewritten !== source) writeFileSync(file, rewritten, 'utf8');
+  }
+}
+
+/** The index, rewritten so a relocated module's manifest still resolves. */
+function splitManifestIndex(relocated: ReadonlySet<string>): string {
+  const ids = DISCOVERED_MANIFESTS.map((entry) => entry.id);
+  // Computed from the two paths rather than written as a shape, because the
+  // index moved out of the module tree with T040b (D-160.3) and every one of
+  // these specifiers is relative to wherever it sits.
+  const indexDirectory = posix.join('backend', 'src');
+  const specifierOf = (id: string): string => {
+    const target = relocated.has(id)
+      ? posix.join(packagedModulePath(id).split(sep).join('/'), 'src', 'manifest.js')
+      : posix.join(
+          indexDirectory,
+          id === KEPT_MODULE ? KEPT_MODULE_RELATIVE_DIR : posix.join('modules', id),
+          'manifest.js',
+        );
+    const specifier = posix.relative(indexDirectory, target);
+    return specifier.startsWith('.') ? specifier : `./${specifier}`;
+  };
+  return [
+    '// Fixture stand-in for the generated manifest index, over a split tree.',
+    '//',
+    '// The entry array is the real one; only the specifiers move. The ids are',
+    '// read off the entries rather than off the specifiers precisely so that',
+    '// this rewrite changes nothing about which modules are registered.',
+    '//',
+    '// A relocated module keeps a **relative** specifier here, where the real',
+    '// generator emits a bare one (D-149). That is deliberate and is a property',
+    '// of the fixture rather than a claim about the generator: this tree borrows',
+    '// the repository`s own `node_modules`, so no `@endora-commerce/mod-<id>`',
+    '// link exists in it and a bare specifier would resolve to nothing. What the',
+    '// fixture is staging is where the module sources sit, which is the question',
+    '// the checks below answer; the emitted specifier shape is proved instead by',
+    '// `test/unit/scripts/generate-registries.test.ts` and by',
+    '// `test/unit/scripts/module-package-artefacts.test.ts`.',
+    '//',
+    '// `manifestPath` is resolved by the real helper (feature 080, T041a), so',
+    '// this stub answers the location question the way the artefact does — and',
+    '// so a relocated module whose sources did not travel is a throw here rather',
+    '// than an i18n directory nobody looks at.',
+    "import { resolveManifestPath } from './manifest-locations.js';",
+    ...ids.map((id, index) => `import { manifest as manifest${index} } from '${specifierOf(id)}';`),
+    'export const DISCOVERED_MANIFESTS = [',
+    ...ids.map(
+      (id, index) =>
+        `  { id: '${id}', manifest: manifest${index}, ` +
+        `manifestPath: resolveManifestPath(import.meta.url, '${specifierOf(id)}') },`,
+    ),
+    '];',
+    '',
+  ].join('\n');
+}
+
+export function createSplitModuleTreeFixture(
+  options: SplitModuleTreeOptions,
+): MovedModuleTreeFixture {
+  const root = mkdtempSync(join(tmpdir(), 'split-module-tree-'));
+  const backend = join(root, 'backend');
+  mkdirSync(backend, { recursive: true });
+  symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(backend, 'node_modules'));
+  // A second borrowed tree, at the fixture root. A relocated module resolves
+  // `@endora-commerce/contracts` by walking up from `packages/modules/<id>/src`, which never
+  // passes through `backend/`, so without this the manifest index cannot be
+  // imported and every check dies at module resolution.
+  symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(root, 'node_modules'));
+  writeFileSync(
+    join(root, 'pnpm-workspace.yaml'),
+    `packages:\n${SPLIT_WORKSPACE_GLOBS.map((glob) => `  - ${glob}`).join('\n')}\n`,
+    'utf8',
+  );
+  // The checkout's own manifest, and it is load-bearing for one reason: a
+  // relocated module that is **not** a declared package has no `package.json`
+  // above it until this one, so node reads its sources as CommonJS and the
+  // manifest index fails to import them. The stranded case has to fail because
+  // nothing declares the module, not because tsx compiled it in the other
+  // module system.
+  writeFileSync(
+    join(root, 'package.json'),
+    `${JSON.stringify({ name: 'split-module-tree-fixture', type: 'module', private: true }, null, 2)}\n`,
+    'utf8',
+  );
+  // The real manifest, not a stub: `check-entry-scope`'s second population
+  // source is this file's `scripts` block, and a fixture without it exits 2 for
+  // a reason that has nothing to do with where the modules are.
+  cpSync(join(BACKEND_ROOT, 'package.json'), join(backend, 'package.json'));
+  cpSync(join(BACKEND_ROOT, 'scripts'), join(backend, 'scripts'), { recursive: true });
+  cpSync(join(BACKEND_ROOT, 'src'), join(backend, 'src'), { recursive: true });
+  cpSync(join(REPO_ROOT, 'packages', 'contracts', 'src'), join(root, 'packages', 'contracts', 'src'), {
+    recursive: true,
+  });
+  cpSync(
+    join(REPO_ROOT, 'packages', 'contracts', 'package.json'),
+    join(root, 'packages', 'contracts', 'package.json'),
+  );
+  copyPlatformPackage(root);
+
+  const relocate = (id: string, declared: boolean): void => {
+    const from = join(backend, 'src', 'modules', id);
+    const to = join(root, packagedModulePath(id));
+    cpSync(from, join(to, 'src'), { recursive: true });
+    rmSync(from, { recursive: true, force: true });
+    repointEscapingSpecifiers(root, id);
+    if (!declared) return;
+    writeFileSync(
+      join(to, 'package.json'),
+      `${JSON.stringify(
+        {
+          name: `@endora-commerce/mod-${id.replace(/_/g, '-')}`,
+          version: '1.0.0',
+          private: true,
+          type: 'module',
+          endora: { type: 'module', id, platform: '0.x' },
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+  };
+
+  // Modules this repository has **already** moved (feature 080, T040b). They
+  // are not under `backend/src` for `cpSync` to have brought over, so without
+  // this the stub index below would import a manifest from a directory the
+  // fixture does not hold and every proof would die at module resolution. They
+  // are copied whole rather than `src`-only, because a package keeps its `i18n/`
+  // bundles beside `src/` and `check-error-translations` walks them.
+  //
+  // **`dist` travels with them, and it did not until the fourth package**
+  // (`credit_limits`, which publishes a `./ports`). D-171 designates a subpath
+  // contract surface iff its **emitted** module exports no runtime binding, and
+  // a subpath whose emitted module cannot be read is a *refusal* — exit 2 —
+  // never an exemption, which is the one direction a silence must not go. So a
+  // fixture that copied a package's sources and dropped its build handed
+  // `check-module-boundary` a package it could not classify, and the split tree
+  // went red for a defect it had introduced. Copying `dist` costs little and
+  // makes the fixture what it claims to be: this repository's packages, where
+  // this repository's layout move would put them. It changes no walk — every
+  // module walk skips `dist` by name (`module-roots.ts`, and the package walk in
+  // `check-module-boundary.ts`), which is why the real tree's numbers do not
+  // move for having one.
+  const alreadyPackaged = discoverModulePackages(REPO_ROOT).filter((pkg) =>
+    DISCOVERED_MANIFESTS.some((entry) => entry.id === pkg.moduleId),
+  );
+  for (const pkg of alreadyPackaged) {
+    cpSync(pkg.dir, join(root, packagedModulePath(pkg.moduleId)), {
+      recursive: true,
+      filter: (source) => !source.endsWith(`${sep}node_modules`),
+    });
+  }
+
+  // `options.packaged` is a **pool**, not a roster: a candidate this repository
+  // has meanwhile packaged for real is carried by the loop above, at the same
+  // address and with its own real `package.json`, and relocating it as well
+  // would be an ENOENT on a directory that is correctly gone. The refusal that
+  // matters is the other one — too few modules outside the application tree for
+  // the split to stage anything — and `planSplitRelocation` raises it here,
+  // before a single file is copied.
+  const toRelocate = planSplitRelocation({
+    candidates: options.packaged,
+    available: modulesInTheApplicationTree(options.packaged),
+    alreadyPackaged: alreadyPackaged.map((pkg) => pkg.moduleId),
+  });
+  // The half-moved state has **two** sources, and the second is what makes the
+  // stranded pool stop draining (feature 080, T040b, batch five).
+  //
+  // Until now it could only be staged out of `backend/src/modules`: relocate a
+  // module the application tree still owns and withhold its `package.json`. That
+  // pool shrank with every batch — its members have to be routed by
+  // `ERROR_TRANSLATION_KEYS` *and* unkeyed by any check's ledger *and* still
+  // unmoved — and batch four measured it down to one. Batch five took that one.
+  //
+  // A module that has **already** become a package stages the identical state
+  // for free: the `alreadyPackaged` loop above has just copied it to
+  // `packages/modules/<id>/`, so deleting the manifest it copied leaves sources
+  // at a package address that no glob produces and no root covers — which is
+  // exactly what the relocation built by hand. Nothing moves, so no path
+  // changes, so a ledger keyed on this module stays valid; and the population
+  // this draws from grows with every batch instead of shrinking.
+  const packagedIds = new Set(alreadyPackaged.map((pkg) => pkg.moduleId));
+  const toStrand = options.stranded ?? [];
+  for (const id of toStrand) {
+    if (modulesInTheApplicationTree([id]).length === 1) continue;
+    if (packagedIds.has(id)) continue;
+    throw new Error(
+      `[moved-module-tree-fixture] cannot strand '${id}': it is neither under ` +
+        'backend/src/modules nor a module package this repository ships. The half-moved state ' +
+        'is a module whose sources sit at a package address with no `package.json` beside ' +
+        'them; pick a candidate from the stranded pool instead of naming one that exists ' +
+        'nowhere.',
+    );
+  }
+
+  for (const id of toRelocate) relocate(id, true);
+  for (const id of toStrand) {
+    if (packagedIds.has(id)) {
+      rmSync(join(root, packagedModulePath(id), 'package.json'), { force: true });
+      continue;
+    }
+    relocate(id, false);
+  }
+
+  writeFileSync(
+    join(backend, 'src', MANIFEST_INDEX_FILENAME),
+    splitManifestIndex(
+      new Set([...alreadyPackaged.map((pkg) => pkg.moduleId), ...toRelocate, ...toStrand]),
+    ),
     'utf8',
   );
 

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import type {
   FederatedSignInOptionsResponse,
   StorefrontModulePresenceResponse,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Feature 042 / US5 — the admin login screen's federated sign-in buttons.

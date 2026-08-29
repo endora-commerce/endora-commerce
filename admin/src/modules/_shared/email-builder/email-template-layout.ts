@@ -1,5 +1,5 @@
 import type { Data } from '@measured/puck';
-import type { EmailTemplateDetail, EmailTemplateSummary } from '@b2b/contracts';
+import type { EmailTemplateDetail, EmailTemplateSummary } from '@endora-commerce/contracts';
 import { emptyPageBuilderData, isEmptyPageBuilderData } from '@/modules/cms/components/page-builder-data';
 import { codeFromTemplateName } from '@/modules/cms/components/cms-template-layout';
 import { transactionalEmailsClient } from '@/modules/transactional_emails/api/transactional-emails-client';

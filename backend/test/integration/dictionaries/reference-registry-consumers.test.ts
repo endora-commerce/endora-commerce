@@ -1,22 +1,23 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DictionaryReferenceRegistryPort } from '@b2b/contracts';
+import type { DictionaryReferenceRegistryPort } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { CountryReferenceRegistry } from '../../../src/modules/dictionaries/services/country-reference-registry.js';
-import { LanguageReferenceRegistry } from '../../../src/modules/languages/services/language-reference-registry.js';
-import { CurrencyReferenceRegistry } from '../../../src/modules/currencies/services/currency-reference-registry.js';
-import { registerCountryCurrencyReference } from '../../../src/modules/dictionaries/services/country-currency-reference.js';
-import { registerAddressCountryReferences } from '../../../src/modules/addresses/services/address-country-reference.js';
-import { registerTaxCountryReferences } from '../../../src/modules/taxes/services/tax-country-reference.js';
-import { registerOrganizationCountryReferences } from '../../../src/modules/organizations/services/organization-country-reference.js';
-import { registerWarehouseCountryReferences } from '../../../src/modules/inventory/services/warehouse-country-reference.js';
-import { registerBlogLanguageReferences } from '../../../src/modules/blog/services/blog-language-reference.js';
-import { registerCmsLanguageReferences } from '../../../src/modules/cms/services/cms-language-reference.js';
-import { registerMegamenuLanguageReferences } from '../../../src/modules/megamenu/services/megamenu-language-reference.js';
-import { registerPromotionCurrencyReferences } from '../../../src/modules/promotions/services/promotion-currency-reference.js';
-import { registerPriceListCurrencyReferences } from '../../../src/modules/price_lists/services/price-list-currency-reference.js';
-import { CurrencyService } from '../../../src/modules/currencies/services/currency-service.js';
-import { LanguageService } from '../../../src/modules/languages/services/language-service.js';
+import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { CountryReferenceRegistry } from '../../../../packages/modules/dictionaries/src/backend/services/country-reference-registry.js';
+import { LanguageReferenceRegistry } from '../../../../packages/modules/languages/src/backend/services/language-reference-registry.js';
+import { CurrencyReferenceRegistry } from '../../../../packages/modules/currencies/src/backend/services/currency-reference-registry.js';
+import { registerCountryCurrencyReference } from '../../../../packages/modules/dictionaries/src/backend/services/country-currency-reference.js';
+import { registerAddressCountryReferences } from '../../../../packages/modules/addresses/src/backend/services/address-country-reference.js';
+import { registerTaxCountryReferences } from '../../../../packages/modules/taxes/src/backend/services/tax-country-reference.js';
+import { registerOrganizationCountryReferences } from '../../../../packages/modules/organizations/src/backend/services/organization-country-reference.js';
+import { registerWarehouseCountryReferences } from '../../../../packages/modules/inventory/src/backend/services/warehouse-country-reference.js';
+import { registerBlogLanguageReferences } from '../../../../packages/modules/blog/src/backend/services/blog-language-reference.js';
+import { registerCmsLanguageReferences } from '../../../../packages/modules/cms/src/backend/services/cms-language-reference.js';
+import { registerMegamenuLanguageReferences } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-language-reference.js';
+import { registerPromotionCurrencyReferences } from '../../../../packages/modules/promotions/src/backend/services/promotion-currency-reference.js';
+import { registerPriceListCurrencyReferences } from '../../../../packages/modules/price_lists/src/backend/services/price-list-currency-reference.js';
+import { CurrencyService } from '../../../../packages/modules/currencies/src/backend/services/currency-service.js';
+import { LanguageService } from '../../../../packages/modules/languages/src/backend/services/language-service.js';
 
 /**
  * The ten contributed dictionary-reference descriptors, against the real schema
@@ -110,11 +111,34 @@ describe('the contributed dictionary-reference descriptors', () => {
   it('reports a country’s default currency without blocking the delete', async () => {
     const registry = new CurrencyReferenceRegistry();
     registerCountryCurrencyReference(registry, () => em);
+    // The reference this asserts on is made here, like the tax rule above.
+    // `countries` is filled by the `dictionaries` seed reconciler at boot, and
+    // `setupTestDb` boots no server — so the version that updated `PL` matched
+    // zero rows and counted zero references unless some other file's
+    // `setupBackendServer` had run first in the same invocation (issue #272,
+    // the issue #159 family).
+    //
+    // The codes are outside ISO 3166-1 and ISO 4217, so the two inserts stand
+    // whether or not a booting file has already seeded the real catalogue: the
+    // fixture never collides with a seeded row, in either direction. The
+    // currency is inserted too, because `countries_default_currency_fk` refuses
+    // a reference to a currency that is not there.
     await em.execute(
-      `update "countries" set "default_currency_code" = 'PLN' where "code" = 'PL'`,
+      `insert into "currencies"
+         ("code","label","symbol","symbol_position","decimal_places",
+          "is_default","is_active","sort_order","created_at","updated_at")
+       values ('ZZD', 'Fixture dollar', 'Z$', 'suffix', 2, false, true, 0, now(), now())`,
+    );
+    await em.execute(
+      `insert into "countries"
+         ("code","alpha3_code","numeric_code","label","region","is_eu_member",
+          "default_currency_code","is_active","is_default","sort_order",
+          "created_at","updated_at")
+       values ('ZZ', 'ZZZ', '999', 'Fixtureland', 'Europe', false, 'ZZD',
+               true, false, 0, now(), now())`,
     );
 
-    const references = await registry.countReferences('PLN');
+    const references = await registry.countReferences('ZZD');
     // `countries.default_currency_code` is `on delete set null`, so the
     // reference is worth showing an operator and is not a reason to refuse —
     // the distinction the hand-written version made by leaving one number out
@@ -154,10 +178,12 @@ describe('the channel half of the same guard', () => {
     const languages = new LanguageService(() => em, undefined, undefined, () =>
       new LanguageReferenceRegistry(),
     );
-    const [channel] = await em.execute(
-      `select "default_language" as code from "sales_channels" where "system_default" = true`,
-    ) as Array<{ code: string }>;
-    const code = channel?.code ?? 'en-US';
+    // `findOneOrFail`, not a `??` over a raw-SQL read (issue #275): a
+    // system-default channel always exists (D-47…D-51), so an absent row is a
+    // broken platform and has to say so here rather than turn into `'en-US'`
+    // and fail twenty lines down as "the language is not the default".
+    const channel = await em.findOneOrFail(SalesChannel, { systemDefault: true });
+    const code = channel.defaultLanguage;
     // Demote it first, so the refusal under test is the dependent one rather
     // than "you cannot delete the default language".
     await em.execute(`update "languages" set "is_default" = false where "code" = ?`, [code]);
@@ -174,10 +200,8 @@ describe('the channel half of the same guard', () => {
     const currencies = new CurrencyService(() => em, undefined, undefined, () =>
       new CurrencyReferenceRegistry(),
     );
-    const [channel] = await em.execute(
-      `select "default_currency" as code from "sales_channels" where "system_default" = true`,
-    ) as Array<{ code: string }>;
-    const code = channel?.code ?? 'PLN';
+    const channel = await em.findOneOrFail(SalesChannel, { systemDefault: true });
+    const code = channel.defaultCurrency;
     await em.execute(`update "currencies" set "is_default" = false where "code" = ?`, [code]);
 
     const references = await currencies.countDependents(code);

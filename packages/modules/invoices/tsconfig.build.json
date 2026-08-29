@@ -1,0 +1,35 @@
+{
+  // Emit configuration — the only configuration in this package allowed to write
+  // files, and the declaration the composer reads to learn where this package's
+  // sources end up (`backend/scripts/lib/module-packages.ts`).
+  //
+  // `paths` is cleared, so `@endora-commerce/contracts` resolves through its own
+  // `exports` map to its built `.d.ts`; `pnpm run build:packages` builds
+  // `contracts` and `platform` before this package, which is what makes that
+  // resolution real. `rootDir` with an active `paths` block is the TS6059 trap:
+  // `tsc` reports the sibling's source as outside `rootDir`, exits 2, and emits
+  // that sibling's `.js`/`.d.ts` beside its source anyway.
+  //
+  // **This package emits, rather than shipping source, because of its six
+  // entities** (D-164). One decorated entity file would be enough: `tsx` loads
+  // exactly one tsconfig per process and applies its `compilerOptions` only to
+  // files under that tsconfig's own directory; a file outside gets tsx's
+  // defaults, which lower decorators with standard semantics while MikroORM's
+  // are legacy, and the entity dies at load with `Cannot read properties of
+  // undefined (reading 'constructor')`.
+  //
+  // It is also what makes `./ports` resolvable. The subpath declares types and
+  // nothing else (R8), and `tsc` writes `export {};` for such a module — that
+  // emitted empty module is the `default` condition's target, without which a
+  // consumer whose toolchain does not elide the import gets
+  // `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    // A compile that failed must ship nothing (feature 080, R11). Without this a
+    // diagnostic is not a stop — the artefacts are written before the exit code is.
+    "noEmitOnError": true
+  }
+}

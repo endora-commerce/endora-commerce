@@ -1,23 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { ProductFeed } from '../../../src/modules/product_feeds/entities/product-feed.entity.js';
-import { FeedRun } from '../../../src/modules/product_feeds/entities/feed-run.entity.js';
-import { FeedArtefact } from '../../../src/modules/product_feeds/entities/feed-artefact.entity.js';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import {
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
+import { FeedArtefact, FeedRun, ProductFeed } from '../../helpers/package-entities.js';
 
 /**
  * Feature 067 / T027 — generation against a real database

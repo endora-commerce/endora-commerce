@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -15,8 +15,7 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { OrderPlacementIntent } from '../../../src/modules/orders/entities/order-placement-intent.entity.js';
+import { Order, OrderPlacementIntent } from '../../helpers/package-entities.js';
 
 /**
  * Feature 062 / T021 — durable order-intake idempotency (SC-003, FR-012):

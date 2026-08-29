@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectMigrationTables, kernelOwnedTables } from '../../helpers/migration-tables.js';
+import { coreModuleRoot } from '../../helpers/fk-graph.js';
+import { discoverModulePackages } from '../../../scripts/lib/module-packages.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 
 /**
@@ -23,7 +25,25 @@ const here = dirname(fileURLToPath(import.meta.url));
 const backendSrc = resolve(here, '../../../src');
 
 const kernelTables = kernelOwnedTables(backendSrc);
-const migrations = collectMigrationTables(backendSrc);
+
+/**
+ * Every module, over **both** roots the tree now has (feature 080, T040b).
+ *
+ * `collectMigrationTables` defaults to `src/modules` alone, and a module that
+ * has become a package contributes no migration to that walk — so the floor
+ * below fell from 158 to 92 while the rule it guards ("no module-owned
+ * migration writes to a kernel-owned table") went unasked for two thirds of the
+ * repository. Same derivation `fk-dependency-drift.test.ts` uses: the packages
+ * declare themselves through `endora: { type: 'module', id }`.
+ */
+const migrations = collectMigrationTables(backendSrc, [
+  coreModuleRoot(backendSrc),
+  ...discoverModulePackages(resolve(backendSrc, '../..')).map((pkg) => ({
+    directory: pkg.dir,
+    origin: 'core' as const,
+    moduleId: pkg.moduleId,
+  })),
+]);
 
 describe('kernel-owned schema is filed under the core migration group', () => {
   it('resolves a non-trivial kernel table set (guards against a silent empty scan)', () => {

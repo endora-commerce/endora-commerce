@@ -58,7 +58,25 @@ export function PaymentMethodsPage(): ReactNode {
   const [editing, setEditing] = useState<AdminPaymentMethod | null>(null);
   const [formNonce, setFormNonce] = useState(0);
 
+  /**
+   * The screen's own gate (2026-08-28), on the code its routes now enforce.
+   *
+   * `payment_methods` used to borrow `catalog:read`, so this page had no
+   * permission of its own to check and the sidebar entry beside it carried the
+   * catalogue's. Both moved together; hiding the screen rather than letting it
+   * 403 is the treatment the sidebar, the palette and the dashboard already
+   * apply to a denied destination, and `AppShell.tsx`'s `PALETTE_ITEMS` comment
+   * argues it at length. The fetch is skipped as well as the render — a page
+   * that renders nothing has no reason to ask the API three questions it will
+   * be refused.
+   */
+  const canRead = hasPermission('payment_methods:read');
+
   const refresh = useCallback(async (): Promise<void> => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -75,7 +93,7 @@ export function PaymentMethodsPage(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canRead]);
 
   useEffect(() => {
     void refresh();
@@ -165,10 +183,19 @@ export function PaymentMethodsPage(): ReactNode {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  if (!canRead) {
+    return (
+      <Alert>
+        <AlertDescription>{t('legacyMethods.payment.noPermission')}</AlertDescription>
+      </Alert>
+    );
+  }
+
   const showStripe = hasPermission('stripe:read');
   const showTpay = hasPermission('tpay:read');
   const showPayu = hasPermission('payu:read');
   const showAutopay = hasPermission('autopay:read');
+  const showPaypal = hasPermission('paypal:read');
 
   return (
     <>
@@ -188,7 +215,7 @@ export function PaymentMethodsPage(): ReactNode {
         </Alert>
       ) : null}
 
-      {showStripe || showTpay || showPayu || showAutopay ? (
+      {showStripe || showTpay || showPayu || showAutopay || showPaypal ? (
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
@@ -255,6 +282,22 @@ export function PaymentMethodsPage(): ReactNode {
                 </div>
                 <Button asChild variant="outline" size="sm">
                   <Link to="/settings/autopay">
+                    {t('legacyMethods.integrations.configure')}
+                    <ArrowRight />
+                  </Link>
+                </Button>
+              </div>
+            ) : null}
+            {showPaypal ? (
+              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
+                <div>
+                  <div className="font-medium">{t('legacyMethods.integrations.paypal.name')}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {t('legacyMethods.integrations.paypal.description')}
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/settings/paypal">
                     {t('legacyMethods.integrations.configure')}
                     <ArrowRight />
                   </Link>

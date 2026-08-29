@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Script from 'next/script';
-import type { GaStorefrontConfig } from '@b2b/contracts';
+import type { GaStorefrontConfig } from '@endora-commerce/contracts';
 
 /**
  * Injects Google Analytics 4 (feature 049, US1). Renders nothing for untracked

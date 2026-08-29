@@ -2,11 +2,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
-import type { DictionaryValidator } from '../../../src/modules/dictionaries/services/dictionary-validator.js';
+import type { DictionaryValidator } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
-import { Language } from '../../../src/modules/languages/entities/language.entity.js';
+import { Language } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { MegamenuService } from '../../../src/modules/megamenu/services/megamenu-service.js';
+import { MegamenuService } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-service.js';
 
 describe('Megamenu dictionary boundary', () => {
   let db: TestDb;

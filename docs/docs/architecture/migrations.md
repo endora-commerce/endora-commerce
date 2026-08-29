@@ -80,8 +80,8 @@ Segment normalization has exactly two special cases:
 | Owning directory | `<SEGMENT>` | Registry `moduleId` |
 |------------------|-------------|---------------------|
 | `backend/src/modules/orders/migrations/` | `orders` | `'orders'` |
-| `backend/src/modules/_i18n/migrations/` | `i18n` | `'_i18n'` |
-| `backend/src/modules/_lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
+| `packages/modules/_i18n/src/migrations/` | `i18n` | `'_i18n'` |
+| `backend/src/lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
 | `backend/src/db/migrations/` | `core` | `'core'` |
 
 **The class-name tail must begin with the module's segment**, and that is a rule now,
@@ -100,6 +100,12 @@ repository forbids the rename — see "Renaming an applied migration" below for 
 costs and how to ship it.
 
 ## How to create a migration
+
+This section is the **core tree** — a module under `backend/src/modules/`, or the
+cross-cutting migrations under `backend/src/db/migrations/`. Both commands below need this
+repository's layout. If you are writing a module that ships as an installed npm package,
+neither is available to you: skip to
+[How to create a migration in an extension package](#how-to-create-a-migration-in-an-extension-package).
 
 ```bash
 pnpm --filter backend run migration:new -- --module orders --name placement_intents
@@ -154,6 +160,191 @@ exists so a typo'd migration filename fails loudly instead of silently disappear
 from the migrator.
 :::
 
+## How to create a migration in an extension package
+
+Everything above is the **core tree**. A module that ships as an installed npm package
+(`endora.type: "module"` in its `package.json`) can run neither command: `migration:new`
+resolves `backend/src/modules` and `backend/src/db/migrations` as path literals, and both
+generated registries are deliberately core-only — which packages an instance installed is a
+fact about the *process*, not about the tree, so a committed artefact must not claim to know
+it. The host discovers a package's migrations at runtime instead, through the package's own
+`./migrations` export.
+
+**There is no scaffolder for this, and one is not required.** A correct package migration is
+written by hand and the whole shape fits on this page. (`endora new migration` is planned as a
+subcommand of the `@endora-commerce/cli` binary; when it ships it will emit exactly what
+follows, and this section will point at it.)
+
+The worked example lives in this repository:
+**`backend/acceptance/fixture-package/`** — a synthetic third-party module package, built and
+installed from a packed tarball by the packaging acceptance run, whose one migration creates a
+real table in a real database.
+
+### 1. Write the migration file
+
+Put it under your package's `src/migrations/`, named the way core names them:
+
+```
+<YYYYMMDDTHHmmss>_<your module segment>_<slug>.ts
+```
+
+| Part | Rule |
+|------|------|
+| Timestamp | UTC, fixed width (15 characters), literal `T` at index 8. No `Z`, no separators. |
+| `<segment>` | Your module id — the `endora.id` field of your `package.json` — with a leading underscore stripped. |
+| `<slug>` | `snake_case` (`[a-z0-9_]+`) describing the change. |
+
+The **class name is derived mechanically from that filename**: strip the extension, PascalCase
+each `_`-separated segment of the tail (first character only, so `i18n` → `I18n`), and prefix
+`Migration` + the timestamp. Export it as a named export.
+
+| `endora.id` | Filename | Class name |
+|-------------|----------|------------|
+| `acceptance_probe` | `20260821T120000_acceptance_probe_init.ts` | `Migration20260821T120000AcceptanceProbeInit` |
+| `acme_gateway` | `20260901T093000_acme_gateway_payouts.ts` | `Migration20260901T093000AcmeGatewayPayouts` |
+
+For a package the *filename* is a convention nothing in the host reads — the host receives
+classes, not paths. **The class name is not a convention.** It is the string the host writes
+into `mikro_orm_migrations.name`, and two rules bite on it:
+
+- **Its tail must begin with `PascalCase(<your module segment>)`.** That is what makes class
+  names globally unique across every module the platform can compose — *including yours*, and
+  that is the entire reason the rule exists: module ids are unique platform-wide (discovery
+  refuses a package that claims one already taken, and `composeModules` asserts uniqueness
+  before the first module registers), so a name scoped by the module id cannot collide with a
+  core module's or with another vendor's. There is no registry, no namespace and no hash doing
+  this job. Naming the file as above produces a compliant class name for free.
+- **It is never renamed after it has applied anywhere.** The host computes pending migrations
+  as "names not in `mikro_orm_migrations`", so a rename in version 1.2 of your package is a
+  *new* migration to every database that ran the old one, and it will be re-applied against a
+  schema that already has it. Ship a new migration instead.
+
+The fixture's migration class, quoted verbatim — the header comment above it in the
+source records the rules it followed:
+
+<!-- verbatim-from: backend/acceptance/fixture-package/src/migrations/20260821T120000_acceptance_probe_init.ts -->
+
+```ts
+export class Migration20260821T120000AcceptanceProbeInit extends Migration {
+  override async up(): Promise<void> {
+    this.addSql(`
+      create table "acceptance_probe_rows" (
+        "id" uuid not null,
+        "organization_id" uuid null,
+        "label" text not null,
+        "created_at" timestamptz not null default now(),
+        constraint "acceptance_probe_rows_pkey" primary key ("id")
+      );
+    `);
+    this.addSql(
+      `create index "acceptance_probe_rows_organization_id_index" on "acceptance_probe_rows" ("organization_id");`,
+    );
+  }
+
+  override async down(): Promise<void> {
+    this.addSql(`drop table if exists "acceptance_probe_rows" cascade;`);
+  }
+}
+```
+
+### 2. List it in your `./migrations` export — nothing else will
+
+Your package's `./migrations` entry point exports an array of your migration classes (bare
+classes, or `{ name, class }` pairs whose `name` must equal the class's own). The host reads
+that array, tags every entry `origin: 'external'`, and slots the chain into its execution
+order at your module's topological position. `backend/acceptance/fixture-package/src/migrations/index.ts`
+is the worked example.
+
+:::danger This is the one failure that is silent
+**A migration file your `./migrations` array does not list is never run**, and the first
+symptom is a query error against a table that does not exist. In the core tree the equivalent
+mistake is closed by a generator — `composer:generate` walks the directory and the round-trip
+guard fails the build for a file with no entry. **A package has no equivalent and will not get
+one here**: nothing in the host greps a package, by design. Keeping that array complete is the
+author's job, and no check in this repository can do it for you.
+:::
+
+Everything else fails loudly — see *If you get the naming wrong* below.
+
+### 3. Declare, in your manifest `dependencies`, every module whose tables you reference
+
+The execution order is a topological walk of the manifest dependency graph, so a manifest
+`dependencies` entry is **the only thing** that puts your migration after the table it
+references. If your migration adds a foreign key to `orders`, your manifest declares `orders`
+— that, and only that, is what makes the constraint applicable on a fresh database. The
+fixture declares `auth` for exactly this class of reason.
+
+There is no other lever. Moving your timestamp cannot do it (see below), and there is no
+per-migration ordering edge.
+
+### What a timestamp does and does not order
+
+This is the part that is the opposite of what a sequential-numbering scheme trains you to
+expect, and it is what makes hand-authoring safe:
+
+- **Within your module**, the timestamp is the whole order: your migrations run ascending by
+  stamp, contiguously. Two of your own migrations sharing a stamp is an error
+  (`duplicate-timestamp`).
+- **Across modules, a timestamp means nothing.** Two modules may legally share one. Permuting
+  the stamps of two migrations in unrelated modules changes no emitted order. You cannot move
+  your migration relative to the host's — or relative to another vendor's — by choosing a
+  stamp, in either direction.
+
+So the entire stamp rule for a package author is: **newer than your own newest migration.**
+You need no knowledge of the host's history, which is fortunate, because you have none.
+
+### `BASELINE_THROUGH` is a core-tree fact and does not apply to you
+
+The core scaffolder clamps every new core stamp past `BASELINE_THROUGH` (`20260801T000000`),
+and this repository's `AGENTS.md` tells core authors never to scaffold a migration at or
+before it. **That instruction is not addressed to you, and the door it warns about is not
+there.** Baseline membership takes *two* conditions:
+
+```
+isBaseline(entry) ⇔ (entry.origin ?? 'core') === 'core'  AND  entry.timestamp <= BASELINE_THROUGH
+```
+
+Every entry the host reads out of a package is tagged `origin: 'external'` unconditionally
+(`backend/src/packages/package-runtime.ts`), so **a package's stamp is never compared against
+the watermark at all**. Pick a stamp below it — even years below it — and your migration is
+still in the open block, still at your module's topological position, still ordered by your
+manifest `dependencies`. That is the point of the origin condition: without it, a back-dated
+third-party stamp would land ahead of the platform's own foundation migration (measured: index
+0 of 143).
+
+Pick a sensible stamp anyway. But pick it for your own chain, not for the host's.
+
+### If you get the naming wrong
+
+All four naming rules are enforced at `orderMigrations()` Step 1, which the host reaches while
+initialising its ORM. Each throws a `MigrationOrderError` naming your class, your module and
+the contract section — before any migration runs, and with nothing half-applied:
+
+| Error | What it means |
+|-------|---------------|
+| `unparsable-name` | The class name is not `Migration<YYYYMMDDTHHmmss><PascalCaseTail>`, or the stamp names no real UTC instant. |
+| `unscoped-name` | The tail does not begin with your module's segment. The message states the prefix it expected. |
+| `duplicate-name` | Two migrations in the whole composition share a class name — yours and someone else's, or two of yours. It is the database's key, so it must be globally unique. |
+| `duplicate-timestamp` | Two of **your** migrations share a stamp. Advance one by a whole second, in the file name and the class name together. |
+
+:::note These stop the host, not just your module
+A `MigrationOrderError` is raised during the host's ORM initialisation, so a naming mistake in
+an installed package prevents the platform from starting rather than disabling the package that
+made it. That asymmetry — a dependency *cycle* declared by a package is softened to a warning
+ten lines away, for the stated reason that a stranger's manifest must not stop a shop's schema
+from migrating — is a known open question, recorded in `specs/deferred-defects.md`. Until it is
+answered, treat a naming mistake as an outage in someone else's shop.
+:::
+
+### What a package may and may not ship
+
+A package may ship entities and migrations. A **per-deployment overlay module** under
+`backend/src/apps/` may not (the generator refuses both) — its remedy is always available and
+costs nothing but a directory: own the table from a core module and read it through that
+module's port. A third-party author has no core module, which is why the answer differs. See
+`docs/docs/architecture/overlay-pattern.md`.
+
+
 ## Ordering rules
 
 `orderMigrations()` (`backend/src/db/migration-order.ts`) is a pure function: same
@@ -167,6 +358,12 @@ was written and applied in a hand-maintained array order its manifests do not de
 — they contradict it in 37 places — so emitting it any other way produces an order a
 fresh database cannot apply. It is closed, it never grows (the scaffolder clamps every
 new core stamp past the watermark), and nothing should try to drain it.
+
+Its 112 names are pinned as a committed literal in
+`backend/test/unit/db/migration-order-baseline.test.ts`, in the order a database applied
+them. That literal is never regenerated — a baseline recomputed from the code it guards
+measures nothing — and because the watermark is closed, adding a migration never touches
+it.
 
 Membership takes **both** conditions. A stamp-only test lets a migration that arrived
 from outside the committed registry join a prefix whose order is historical fact:
@@ -380,15 +577,16 @@ re-runs the migration against a schema that already has it:
 - `allOrNothing: true` and `transactional: true` mean the replay rolls back rather than
   half-applying: you lose the run, not the database.
 
-So a rename ships with a coordinated rebuild — every developer runs
-`DATABASE_URL=…/b2b_test_tpl pnpm --filter backend run db:fresh` for the test database and
-`pnpm --filter backend run db:reset` for the dev one, in the same window as the merge.
-`b2b_test_tpl` is the migrated template every test invocation is cloned from since issue
-#189; dropping it does the same job, because the next invocation recreates and re-migrates
-it from scratch.
-`db:fresh` and `db:reset` read `backend/.env` and default to the **dev** database, so
-always pass `DATABASE_URL` explicitly when you mean the test one. CI builds an empty
-database and needs no intervention.
+So a rename ships with a coordinated rebuild of the **dev** database — every developer runs
+`pnpm --filter backend run db:reset` in the same window as the merge.
+
+The test suite needs no intervention. Since issue #289 the migrated template every invocation
+is cloned from is named `<base>_tpl_<digest>`, the digest covering the ordered migration class
+names and the content of every migration file — so a renamed class is a *different* migration
+set, and the next invocation builds a template of its own instead of trying to re-apply
+anything into the one you have. CI builds an empty database and needs no intervention either.
+`db:fresh` and `db:reset` read `backend/.env` and default to the **dev** database, so always
+pass `DATABASE_URL` explicitly when you mean anything else.
 
 ## Module-uninstall migration revert
 

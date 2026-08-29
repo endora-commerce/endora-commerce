@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCurrentPlatformScope } from '../../../src/kernel/scope.js';
 import { getTenantContext } from '../../../src/tenancy/tenant-context.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { searchModule, type SearchModuleOptions } from '../../../src/modules/search/plugin.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { searchModule, type SearchModuleOptions } from '../../../../packages/modules/search/src/backend/plugin.js';
 
 /**
  * Issue #126 — the reindex scheduler is an entry point, so it decides presence.

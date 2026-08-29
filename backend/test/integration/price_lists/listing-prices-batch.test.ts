@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ListingPrice } from '@b2b/contracts';
+import {
+  Organization,
+  PriceDisplayModeOverride,
+  type ProductRow,
+} from '../../helpers/package-entities.js';
+import type { ListingPrice } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -10,19 +15,17 @@ import {
   SEED_PRODUCT_102_ID,
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import { Product } from '../../helpers/package-entities.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { PriceDisplayModeOverride } from '../../../src/modules/price_lists/entities/price-display-mode-override.entity.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
-import { PricingService } from '../../../src/modules/price_lists/services/pricing-service.js';
-import { PricingCache } from '../../../src/modules/price_lists/services/pricing-cache.js';
-import { listingPriceFrom } from '../../../src/modules/price_lists/services/listing-price-chain.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
+import { PricingCache } from '../../../../packages/modules/price_lists/src/backend/services/pricing-cache.js';
+import { listingPriceFrom } from '../../../../packages/modules/price_lists/src/backend/services/listing-price-chain.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
@@ -77,7 +80,7 @@ describe('price_lists — batched listing price resolution', () => {
   let salesChannel: SalesChannel;
   let organization: Organization;
   let customerGroup: CustomerGroup;
-  let products: Product[];
+  let products: ProductRow[];
   let childCategoryId: string;
   const overrideTargets: Array<{ scope: 'product' | 'category' | 'organization'; targetId: string }> =
     [];

@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+
+import { PRUNED_DIRECTORIES, requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
  * One `RequireAdminFactory` declaration, and one implementation (T145).
@@ -23,11 +24,35 @@ import { describe, expect, it } from 'vitest';
  * about the *source*, so the assertion has to be too.
  */
 
-const SRC = fileURLToPath(new URL('../../../src/', import.meta.url));
-const KERNEL_PORT = 'kernel/ports/require-admin.ts';
+/**
+ * Every source root, keyed on the repository. The declaration lives in the
+ * platform package since the relocation and the implementation in a module, so
+ * a walk of one tree would report the *other* as the only declaration — and a
+ * walk of `backend/src` alone would find the re-export shim, which this file's
+ * own `declarationsOf` correctly does not count, and conclude the type is
+ * declared nowhere.
+ *
+ * The roots are **derived** rather than spelled (T040a). This file listed
+ * `backend/src` and the platform, which was every root there was until `auth`
+ * became `@endora-commerce/mod-auth`: after that the implementation walk would
+ * have come back empty and the assertion would have read as *"the guard has no
+ * implementation"* rather than as *"this list is short"*. `sourceRoots` follows
+ * the module wherever the workspace globs put it.
+ */
+const layout = await requireModuleLayout('[single-require-admin]');
+const REPO = layout.repoRoot.endsWith('/') ? layout.repoRoot : `${layout.repoRoot}/`;
+const ROOTS = layout.sourceRoots;
+const KERNEL_PORT = 'packages/platform/src/kernel/ports/require-admin.ts';
 
+/**
+ * `PRUNED_DIRECTORIES` is not an optimisation here. A package root holds its own
+ * `node_modules`, and pnpm links every workspace member into it — so an
+ * unpruned walk reads the platform's `require-admin.ts` once per module package
+ * and reports 60 declarations of a type that has one.
+ */
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
+    if (PRUNED_DIRECTORIES.includes(entry)) continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
     else if (entry.endsWith('.ts')) out.push(full);
@@ -47,9 +72,9 @@ function declarationsOf(name: string): string[] {
     `^\\s*(export\\s+)?(type\\s+${name}\\s*(<[^=]*>)?\\s*=|interface\\s+${name}\\b[^;]*\\{)`,
     'm',
   );
-  return walk(SRC)
+  return ROOTS.flatMap((root) => walk(root))
     .filter((file) => pattern.test(readFileSync(file, 'utf8')))
-    .map((file) => file.slice(SRC.length))
+    .map((file) => file.slice(REPO.length))
     .sort();
 }
 
@@ -70,10 +95,10 @@ describe('T145 — the admin guard has one declaration', () => {
     // because promoting an admin actor needs that module's per-request
     // decorations and a permission check needs `admin_roles` — which `auth`
     // declares as a dependency and the kernel could not.
-    const implementations = walk(SRC)
+    const implementations = ROOTS.flatMap((root) => walk(root))
       .filter((file) => /export function createRequireAdmin\b/.test(readFileSync(file, 'utf8')))
-      .map((file) => file.slice(SRC.length));
+      .map((file) => file.slice(REPO.length));
 
-    expect(implementations).toEqual(['modules/auth/require-admin.ts']);
+    expect(implementations).toEqual(['packages/modules/auth/src/backend/require-admin.ts']);
   });
 });

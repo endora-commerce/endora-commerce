@@ -3,7 +3,7 @@ import type {
   ComparisonAdminDetail,
   ComparisonAdminListItem,
   ComparisonAdminListQuery,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 
 /**
  * Admin client helpers for the Comparisons overview (feature 007 / US5

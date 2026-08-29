@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FeedRunStatus } from '@b2b/contracts';
+import type { FeedRunStatus } from '@endora-commerce/contracts';
 import { FeedStatusBadge } from '../../../src/modules/product_feeds/components/FeedStatusBadge';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 

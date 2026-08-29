@@ -1,15 +1,26 @@
-import type { AssetsLibraryCradle } from './modules/assets_library/backend.js';
-import type { CartShoppingListBridge, CartsCradle } from './modules/carts/backend.js';
+import type { AssetsLibraryCradle } from '@endora-commerce/mod-assets-library/backend';
+import type { CartShoppingListBridge, CartsCradle } from '@endora-commerce/mod-carts/backend';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { z } from 'zod';
-import { CustomerAccount } from './modules/customer_accounts/entities/customer-account.entity.js';
-import { resolveCustomerRollupSubtreeIds } from './modules/customer_accounts/services/customer-rollup-scope.js';
-import { AdminUser } from './modules/admin_users/entities/admin-user.entity.js';
-import { AdminRole } from './modules/admin_roles/entities/admin-role.entity.js';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, normalizeEmailAddress, type ProductAvailability } from '@b2b/contracts';
+import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
+// Feature 080 (T052) — the contract types for the seven ports that replaced
+// this root's five entity-class reads. Types only: what a root resolves is a
+// container name, and the shape it resolves it against is published in
+// `@endora-commerce/contracts` rather than imported from the provider.
+import type {
+  AdminPasswordVerificationPort,
+  AdminRolePort,
+  AdminUserReadPort,
+  AssetReadPort,
+  CustomerAccountReadPort,
+  CustomerPasswordVerificationPort,
+  CustomerRollupScopePort,
+  OrderReadPort,
+  SettingsManifestCollectionPort,
+} from '@endora-commerce/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
 import { ApiInterceptorRegistry } from './http/interceptors/index.js';
@@ -35,18 +46,51 @@ import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
 // `registerValues` stays for the host values no module defaults, which have no
 // window because there is nothing to overwrite.
 import { MODULES } from './composition.generated.js';
+// The published half — `configuredPublicApiBaseUrl` and `resolvePublicApiBaseUrl`
+// are on the barrel because five modules read them (§1.3 row 6's "+4"), and
+// `ModuleContext` because 67 do: `ComposeAppHandle.contextFor` hands one out, so
+// a CLI command's body resolves with `lazyPort(ctx, …)` exactly as `backend.ts`
+// does (T042b, D-157.12 item 2).
 import {
-  assertPublicApiBaseUrlConfigured,
-  composeModules,
   configuredPublicApiBaseUrl,
+  resolvePublicApiBaseUrl,
+  type ModuleContext,
+} from './kernel/index.js';
+// The composition machinery, by relative path. T042c took it off the barrel: a
+// packaged module never builds a container, composes a module list or refuses a
+// boot, so publishing these would put the host's own wiring into
+// `@endora-commerce/platform`'s contract. This root is *inside* that package,
+// which is exactly why the relative path is available to it and not to a module.
+// `KernelContainer` is here for the same reason — `ComposeAppHandle` exposes the
+// container to the CLI entry point, which is host code, not a module.
+import { composeModules } from './kernel/compose.js';
+import {
   createRootContainer,
-  createRegistrationOwnership,
   registerOrm,
   registerValues,
-  requiredModulesFrom,
-  resolvePublicApiBaseUrl,
-} from './kernel/index.js';
-import { promoteAdminActor } from './modules/auth/plugin.js';
+  type KernelContainer,
+} from './kernel/container.js';
+import { createRegistrationOwnership } from './kernel/module-context.js';
+import { platformLogger } from './kernel/logging.js';
+import { requiredModulesFrom } from './kernel/lifecycle/required-modules.js';
+import {
+  absolutizePublicUrl,
+  assertPublicApiBaseUrlConfigured,
+} from './kernel/public-api-base-url.js';
+// Feature 080 (T040b) — `auth` is `@endora-commerce/mod-auth`. This is the one
+// **value** import this root takes from a module package, and the bare
+// specifier is what makes it legal: `composition.generated.ts` already imports
+// the same `./backend` subpath, so the process holds one copy of the module
+// (D-160.6.1). The relative path it replaces named a file *inside* the module
+// and would have evaluated the package's source a second time.
+//
+// The helper stays in `auth` rather than moving to the platform the way
+// `absolutizePublicUrl` did, because `auth` reads it itself and because
+// promotion is about `request.actor` and `request.adminActor`, two decorations
+// that module owns. `harness-parity.test.ts`'s `auth:promoteAdminActor` entry
+// names the further step — actor promotion published as a port, resolved from
+// the container — which this change deliberately does not take.
+import { promoteAdminActor } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
 import { effectiveState } from './kernel/lifecycle/effective-state.js';
@@ -55,66 +99,63 @@ import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 // two event subscriptions. T143a — the sales-rep assignment scope too: what is
 // left here is the actor half of the orders/RFQ visibility question, which only
 // a composition can answer.
-import type { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
-import type { OrganizationTaxProfilePort } from './modules/organizations/backend.js';
+import type { OrganizationTreeService } from '@endora-commerce/mod-organizations/backend';
+import type { OrganizationTaxProfilePort } from '@endora-commerce/mod-organizations/backend';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
-// `backend.ts`; what stays here is the pure URL helper, which is a function,
-// not a service, and the cradle shape the senders below resolve through.
-import type { EmailCradle } from './modules/email/backend.js';
-import { absolutizePublicUrl } from './modules/email/absolutize-public-url.js';
+// `backend.ts`; what stays here is the cradle shape the senders below resolve
+// through. The URL helper that also stayed was `absolutizePublicUrl`, and
+// feature 080's T040b moved it to the platform: it had no consumer inside
+// `email` at all, so it was a deployment-origin helper filed under the module
+// that first needed it — and a root value import of a module's source is a
+// spelling that ends the day that module becomes a package (D-160.6.1).
+import type { EmailCradle } from '@endora-commerce/mod-email/backend';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
-import type { ReturnsBridge } from './modules/returns/backend.js';
-import type { InvoicesBridge } from './modules/invoices/backend.js';
-import type { KsefCradle } from './modules/ksef/backend.js';
-import type { ProductFeedsBridge } from './modules/product_feeds/backend.js';
-import type { AdminUsersCradle } from './modules/admin_users/backend.js';
-import type { MfaActorBridge } from './modules/mfa/backend.js';
-import { verifyPassword } from './modules/auth/services/password-hasher.js';
-import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
-import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
-import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
-import type { TaxesCradle } from './modules/taxes/backend.js';
+import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
+import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
+import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
+import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
+import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend';
+import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
+import type { TargetValidatorDeps } from '@endora-commerce/mod-megamenu/backend';
+import type { StorefrontDeps } from '@endora-commerce/mod-megamenu/backend';
+import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
+import type { TaxesCradle } from '@endora-commerce/mod-taxes/backend';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
-import type { SalesChannelsCradle } from './modules/sales_channels/backend.js';
+import type { SalesChannelsCradle } from '@endora-commerce/mod-sales-channels/backend';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
-import type { ComparisonsCradle } from './modules/comparisons/backend.js';
+import type { ComparisonsCradle } from '@endora-commerce/mod-comparisons/backend';
 // Feature 046 — Progressive Web App.
-import type { PwaBridge } from './modules/pwa/backend.js';
+import type { PwaBridge } from '@endora-commerce/mod-pwa/backend';
 // Feature 047 — Transactional Emails.
 // Feature 048 — Newsletter.
-import type { NewsletterBridge } from './modules/newsletter/backend.js';
+import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
 // Feature 049 — Google Analytics.
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
-import { collectRegisteredSettingsManifests } from './modules/settings/services/registered-settings-manifests.js';
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
-import { Order } from './modules/orders/entities/order.entity.js';
-import { Asset } from './modules/assets_library/entities/asset.entity.js';
-import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
-import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
+import { lifecycleModuleFromStaticEntries } from './lifecycle/plugin.js';
+import { loadModulePresence } from './lifecycle/services/presence-load.js';
 import {
-  REGISTERED_MANIFESTS,
+  deploymentShippedEntries,
   resolvedManifestEntries,
-} from './modules/_lifecycle/registered-manifests.js';
+  type RegisteredManifestEntry,
+} from './lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
-import {
-  loadOverlayDecorations,
-  loadOverlayModuleEntries,
-} from './overlay/overlay-runtime.js';
-import type { PricingServiceContract } from './modules/price_lists/services/pricing-service.interface.js';
-import type { AdminI18nCradle } from './modules/_i18n/backend.js';
+import { loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
+// Feature 080 — installed extension packages, discovered at runtime (D-155).
+import { loadPackageModuleEntries } from './packages/package-runtime.js';
+import { configuredMigrations } from './db/configured-migrations.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
 // kernel-obeying platform peer and may not name a module (D-52). A root may.
-import { ERROR_TRANSLATION_KEYS } from './modules/_i18n/services/error-translation.js';
-import type { AdminActionsCradle } from './modules/admin_actions/backend.js';
-import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
-import type { ModuleSettingsManifest } from '@b2b/contracts';
-import type { ShoppingListService } from './modules/shopping_lists/services/shopping-list-service.js';
+import { ERROR_TRANSLATION_KEYS, type AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
+import type { CatalogQueryService } from '@endora-commerce/mod-catalog/backend';
+import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
+import type { ShoppingListService } from '@endora-commerce/mod-shopping-lists/backend';
 
 /**
  * Production composition root.
@@ -143,6 +184,41 @@ export interface ComposeAppHandle {
    * factory options / OverlayModuleContext and register during composition.
    */
   apiInterceptors: ApiInterceptorRegistry;
+  /**
+   * Feature 080 (T042b, D-157.12 item 1) — the composed kernel container.
+   *
+   * The harness handle has exposed it since feature 072 and this one did not,
+   * which made the production root the odd one out among the two roots
+   * `harness-parity.test.ts` holds to each other. Passing it is mandatory
+   * rather than convenient for anything that opens a scope over this
+   * composition: `composeApp` deliberately does **not** call `setRootContainer`
+   * (see the reason at the container's construction below), so an
+   * `enterSystemScope` with no `container` branches off a process-wide root
+   * that has nothing registered.
+   */
+  container: KernelContainer;
+  /**
+   * Feature 080 (T042b, D-157.12 item 2) — a post-registration `ModuleContext`
+   * for one composed module, forwarded from `ComposedModules.contextFor`.
+   *
+   * The host's CLI runner is its caller: a module-declared command receives a
+   * `ModuleContext` rather than a cradle, so its body resolves with
+   * `lazyPort<T>(ctx, 'literalName')` and `check:port-dependencies` keeps its
+   * line of sight (D-157.7).
+   */
+  contextFor: (moduleId: string) => ModuleContext;
+  /**
+   * Feature 080 (T042b) — the instance-resolved manifest set this composition
+   * was actually built from: core, this deployment's overlay modules and every
+   * installed package.
+   *
+   * Exposed rather than re-derived by the caller. `resolvedManifestEntries()`
+   * is memoised per `node_modules` root and would answer the same, but a
+   * second call is a second answer waiting to disagree with the first — and the
+   * property that makes a package's declared command reachable at all is that
+   * the host reads the commands off the **same** entries it composed.
+   */
+  resolvedModules: readonly RegisteredManifestEntry[];
   /** Closes the ORM + redis connection; call from a SIGTERM handler. */
   dispose: () => Promise<void>;
 }
@@ -231,14 +307,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // build (no DEPLOYMENT / no overlay dir) all of these are empty and the wiring
   // below is byte-for-byte unchanged. `resolvedRegistry` = the hand-maintained
   // core registry + overlay-only modules (the core array is never edited).
-  // Feature 072 (T066) — a deployment's client overrides, as decorations
-  // keyed by the registration they wrap. The overrides that reach a module
-  // decorate a core registration are applied by `composeModules`; the lookup
-  // survives only to hand that call the decorations it should apply.
-  const overlayDecorations = await loadOverlayDecorations();
-  const decoratePricingService = overlayDecorations.get('pricingService') as
-    | ((inner: PricingServiceContract) => PricingServiceContract)
-    | undefined;
   // D-104 — one implementation of "the deployment-resolved manifest set", and
   // one of "the deployment's composed modules". Both are runtime discoveries
   // over the deployment root, because both answers depend on which deployment
@@ -248,6 +316,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // one that ran.
   const resolvedRegistry = await resolvedManifestEntries();
   const overlayModuleEntries = await loadOverlayModuleEntries();
+  // Feature 080 (T031, D-119/D-155) — the same shape, one axis out: every
+  // Endora module package installed in this instance's `node_modules`. The
+  // committed registries stay bare core for D-104's reason, so this is the only
+  // thing that knows a package is here.
+  const packageModuleEntries = await loadPackageModuleEntries();
 
   // Feature 072 (D-38) — module presence is a **composition input**, so it is
   // loaded here: before the first module registers, and therefore before any
@@ -263,7 +336,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // must never fail a boot — a lost notification channel means stale, not off.
   await enterSystemScope(
     'boot: load module presence',
-    () => loadModulePresence({ em, manifests: resolvedRegistry.map((e) => e.manifest) }),
+    // The **entries**, not their manifests: `loadModulePresence` narrows the
+    // first-boot insert to what this build ships (D-157.6(b)), and `filePath` is
+    // what says which entry that is. Everything else it does — both D-101
+    // refusals, the gating graph, the activation declarations, the cache itself
+    // — still reads the whole resolved set.
+    () => loadModulePresence({ em, entries: resolvedRegistry }),
     { entryPoint: 'boot' },
   );
 
@@ -326,12 +404,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // that one throwing 401/422 for both. Catching that to mean "unrestricted"
     // is the fail-open hazard this split exists to remove.
     customerOrganizationIdResolver: (request: FastifyRequest): string | null => {
-      const actor = (request as { actor?: { kind: string; organizationId?: string | null } })
-        .actor;
-      return actor?.kind === 'customer' ? actor.organizationId ?? null : null;
+      const actor = (request as { actor?: { kind: string; organizationId?: string | null } }).actor;
+      return actor?.kind === 'customer' ? (actor.organizationId ?? null) : null;
     },
-    storefrontBaseUrl:
-      process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
+    storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     // No verification-token probe outside the harness.
     organizationsExposeTestProbe: false,
   });
@@ -341,6 +417,50 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const searchCradle = (): {
     searchReindexPort: { reindexAll(): Promise<{ documentCount: number }> };
   } => container.cradle as never;
+
+  // Feature 080 (T052) — the ports that replaced this root's reads of five
+  // other modules' entity classes: `CustomerAccount`, `AdminUser`,
+  // `AdminRole`, `Order` and `Asset`.
+  //
+  // The reason is packaging rather than the boundary. A composition root is
+  // explicitly not a platform root (D-52/D-53), so naming those classes was
+  // legal; what ends it is D-168 — a module package publishes `entities` and
+  // no named entity class, so the day one of the five moves, a root that names
+  // its class stops compiling and there is no import to fix.
+  //
+  // Read lazily and never captured, like every other port this file reaches:
+  // `providePort` registers a transient gate, and a captured one keeps
+  // answering after its owner is withdrawn.
+  const identityPorts = (): {
+    adminUserReadPort: AdminUserReadPort;
+    adminRolePort: AdminRolePort;
+    adminPasswordVerificationPort: AdminPasswordVerificationPort;
+    customerAccountReadPort: CustomerAccountReadPort;
+    customerPasswordVerificationPort: CustomerPasswordVerificationPort;
+  } => container.cradle as never;
+
+  const orderReadPort = (): OrderReadPort =>
+    (container.cradle as never as { orderReadPort: OrderReadPort }).orderReadPort;
+
+  // Feature 080 (T040b) — the two ports that replaced this root's value
+  // imports of a module's own sources. Same reason as the block above and the
+  // same lazy read: a packaged module publishes `./backend`, not a file path,
+  // so a root that names one stops compiling the day its owner moves — and a
+  // root that names the *source* of a module the platform composes from `dist`
+  // evaluates it twice, which fails silently rather than loudly (D-160.6.1).
+  const customerRollupScopePort = (): CustomerRollupScopePort =>
+    (container.cradle as never as { customerRollupScopePort: CustomerRollupScopePort })
+      .customerRollupScopePort;
+
+  const settingsManifestCollectionPort = (): SettingsManifestCollectionPort =>
+    (
+      container.cradle as never as {
+        settingsManifestCollectionPort: SettingsManifestCollectionPort;
+      }
+    ).settingsManifestCollectionPort;
+
+  const assetReadPort = (): AssetReadPort =>
+    (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
 
   // T143a — `inventory`'s availability port, read lazily.
   const inventoryCradle = (): {
@@ -400,20 +520,34 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // makes "overlay last, so a deployment's decoration wins" structural: the
   // core list is frozen and the deployment's entries come after it, rather than
   // the ordering being a property of a generator's sort.
-  const composedModules = composeModules([...MODULES, ...overlayModuleEntries], {
-    container,
-    eventBus,
-    // Composition runs before `buildServer`, so there is no `app.log` yet.
-    log: console,
-    interceptorRegistry: apiInterceptors,
-    ownership: registrationOwnership,
-    // Issue #258 — the modules this deployment is required to have, derived
-    // from the manifest set it resolved above rather than written down (D-100).
-    // The composer refuses before the first module registers when one of them
-    // is missing, which is what stops a first boot from dying in whichever
-    // module's boot hook happened to need it first.
-    requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
-  });
+  //
+  // T031 — and the instance's installed packages after them, in the same one
+  // list and for the same reasons. Order is not a privilege here: registration
+  // resolves nothing (the `registering` guard), and a package gets no
+  // decoration exemption, so "last" buys it nothing a core module does not
+  // have.
+  const composedModules = composeModules(
+    [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],
+    {
+      container,
+      eventBus,
+      // Issue #269 — composition runs before `buildServer`, so there is no
+      // `app.log` yet. This is late-bound rather than a snapshot: `buildServer`
+      // attaches the application's own pino instance the moment it exists, and
+      // every line written after that lands there. It used to be the bare global
+      // `console` — unstructured, uncorrelated, and outside the stream a
+      // deployment ships.
+      log: platformLogger(),
+      interceptorRegistry: apiInterceptors,
+      ownership: registrationOwnership,
+      // Issue #258 — the modules this deployment is required to have, derived
+      // from the manifest set it resolved above rather than written down (D-100).
+      // The composer refuses before the first module registers when one of them
+      // is missing, which is what stops a first boot from dying in whichever
+      // module's boot hook happened to need it first.
+      requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
+    },
+  );
 
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
@@ -467,12 +601,22 @@ export async function composeApp(): Promise<ComposeAppHandle> {
 
   /**
    * Resolver for routes that require an authenticated Customer **with** an
-   * Organization. Feature 026 US2 introduces no-org Customer accounts;
-   * routes that read price lists, credit limit, addresses, or place orders
-   * still need an Organization, so this resolver throws 422 when one is
-   * missing. Routes that genuinely work without an Organization (cart-add,
-   * browsing, profile-read) use `resolveCartActor` or read `request.actor`
-   * directly.
+   * Organization. Routes that work without one (cart-add, browsing,
+   * profile-read) use `resolveCartActor` or read `request.actor` directly.
+   *
+   * **The refusal below asserts an invariant; it does not describe a business
+   * state** (D-178). It was a 422 `organization_required`, introduced by
+   * feature 026 US2 for accounts that were allowed to have no Organization.
+   * Every transacting customer has one — `customer_accounts.organization_id` is
+   * `NOT NULL` and an individual is backed by a personal organisation — so a
+   * caller reaching this branch is a broken invariant, and a 422 telling a buyer
+   * to attach an Organization they have no way to attach is a lie with a
+   * remedy attached.
+   *
+   * The guard is **kept** rather than deleted: `request.actor.organizationId` is
+   * `string | null | undefined` at this seam and the consumers' input type is
+   * `organizationId: string`, so removing the check would push `undefined`
+   * through silently.
    */
   const customerResolver = (
     request: FastifyRequest,
@@ -486,10 +630,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     }
     if (!request.actor.organizationId) {
       throw new HttpError(
-        422,
-        ERROR_CODES.VALIDATION_FAILED,
-        'This action requires an Organization attached to your account.',
-        { code: 'organization_required' },
+        500,
+        ERROR_CODES.INTERNAL,
+        'Invariant violated: a customer account has no Organization (Principle XI).',
+        { code: 'customer_account_organization_missing' },
       );
     }
     return {
@@ -566,7 +710,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // `customer_accounts` each resolve the port through `lazyPort` behind an
   // `effectiveState.isPresent('mfa')` probe and declare the edge
   // `degrades-without`, so neither root binds anything here.
-
 
   // Feature 056 — organization tree + inheritance resolution. Both are
   // `organizations`' own services and both are gated ports since T138; this
@@ -684,7 +827,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       }
       return { actorAdminUserId: actor.adminUserId };
     },
-    ...(decoratePricingService ? { decoratePricingService } : {}),
   });
   // Feature 072 (T119) — `taxes` owns its service and routes now.
   const taxesCradle = container.cradle as unknown as TaxesCradle;
@@ -700,35 +842,59 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   composedModules.contribute({
     promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
+        const { items } = await (
+          container.cradle as unknown as SalesChannelsCradle
+        ).salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await (container.cradle as unknown as CustomerAccountsCradle).customerGroupService.list();
+        const groups = await (
+          container.cradle as unknown as CustomerAccountsCradle
+        ).customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
-        )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
+          )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
         return res.rows.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
       },
       categories: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
-        )) as { rows: Array<{ id: string; slug: string; name: unknown; parent_category_id: string | null }> };
-        return res.rows.map((r) => ({ id: r.id, slug: r.slug, name: anyLabel(r.name), parentCategoryId: r.parent_category_id ?? null }));
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
+          )) as {
+          rows: Array<{
+            id: string;
+            slug: string;
+            name: unknown;
+            parent_category_id: string | null;
+          }>;
+        };
+        return res.rows.map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          name: anyLabel(r.name),
+          parentCategoryId: r.parent_category_id ?? null,
+        }));
       },
       paymentMethods: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
-        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
+          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
         return res.rows.map((r) => ({ id: r.id, code: r.code, name: anyLabel(r.name) }));
       },
       deliveryMethods: async () => {
-        const res = (await em().getKnex().raw(
-          `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
-        )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+        const res = (await em()
+          .getKnex()
+          .raw(
+            `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
+          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
         return res.rows.map((r) => ({ id: r.id, code: r.code, name: anyLabel(r.name) }));
       },
     },
@@ -802,12 +968,14 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveByEmail(email: string): Promise<{ id: string } | null>;
     autoCreate(email: string): Promise<{ id: string } | null>;
   } =>
-    (container.cradle as never as {
-      customerSocialLoginPort: {
-        resolveByEmail(email: string): Promise<{ id: string } | null>;
-        autoCreate(email: string): Promise<{ id: string } | null>;
-      };
-    }).customerSocialLoginPort;
+    (
+      container.cradle as never as {
+        customerSocialLoginPort: {
+          resolveByEmail(email: string): Promise<{ id: string } | null>;
+          autoCreate(email: string): Promise<{ id: string } | null>;
+        };
+      }
+    ).customerSocialLoginPort;
 
   const mfaSocialResolvers = {
     resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
@@ -815,14 +983,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     resolveAdminByEmail: async (email: string) => {
       // The claim's spelling is the identity provider's, and the row holds the
       // folded address, so the two are compared in the one form both modules
-      // store (issue #249). This read is still a root's — `admin_users` has no
-      // port for it — so the fold is written here rather than behind one.
-      const a = await em().findOne(AdminUser, {
-        email: normalizeEmailAddress(email),
-        deletedAt: null,
-        status: 'active',
+      // store (issue #249). T052 — the fold is the owner's now:
+      // `findByEmail` folds before it compares, for exactly the callers that
+      // arrive through no request schema, so this root no longer writes out a
+      // normalisation it would have to keep in step with the column.
+      //
+      // `activeOnly` is the port's undeleted filter; `status` is a column on
+      // the record, and both halves of the original filter are kept.
+      const a = await identityPorts().adminUserReadPort.findByEmail(email, {
+        activeOnly: true,
       });
-      return a ? { id: a.id } : null;
+      return a !== null && a.status === 'active' ? { id: a.id } : null;
     },
   };
 
@@ -835,8 +1006,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // D-48 — the system-default channel, which always exists. It used to be
     // `?? null`, which switched MFA policy resolution to the platform-wide
     // settings tier on a branch that cannot be taken.
-    mfaDefaultChannelIdResolver: async () =>
-      (await salesChannels.resolver.getSystemDefault()).id,
+    mfaDefaultChannelIdResolver: async () => (await salesChannels.resolver.getSystemDefault()).id,
     mfaSocialAccountResolvers: mfaSocialResolvers,
     mfaActorBridge: {
       resolveCustomerActor: (request: FastifyRequest) => {
@@ -856,40 +1026,48 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return { adminUserId: request.actor.adminUserId };
       },
       resolveOrganizationCustomerIds: async (organizationId: string) => {
-        const rows = await em().find(CustomerAccount, { organizationId }, { fields: ['id'] });
+        const rows = await identityPorts().customerAccountReadPort.listByOrganization(
+          organizationId,
+        );
         return rows.map((r) => r.id);
       },
       resolveOrgAdmin: async (request: FastifyRequest) => {
         if (request.actor.kind !== 'customer') {
           throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
         }
-        const c = await em().findOne(CustomerAccount, { id: request.actor.customerAccountId });
+        const c = await identityPorts().customerAccountReadPort.findById(
+          request.actor.customerAccountId,
+        );
         if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-          throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Organization administrator role required.');
+          throw new HttpError(
+            403,
+            ERROR_CODES.FORBIDDEN,
+            'Organization administrator role required.',
+          );
         }
         return { organizationId: c.organizationId, actor: c.id };
       },
       resolveAccountEmail: async (subjectType: 'customer' | 'admin', subjectId: string) => {
-        const em2 = em();
+        const ports = identityPorts();
         if (subjectType === 'admin') {
-          const a = await em2.findOne(AdminUser, { id: subjectId });
-          return a?.email ?? null;
+          return (await ports.adminUserReadPort.findById(subjectId))?.email ?? null;
         }
-        const c = await em2.findOne(CustomerAccount, { id: subjectId });
-        return c?.email ?? null;
+        return (await ports.customerAccountReadPort.findById(subjectId))?.email ?? null;
       },
+      // T052 — the hash no longer travels. This root read `passwordHash` off
+      // both entities and ran the comparison with `auth`'s hasher, so a
+      // credential column and a hash comparison lived in a file that owns
+      // neither; each module answers for its own now and only the boolean
+      // crosses.
       verifyAccountPassword: async (
         subjectType: 'customer' | 'admin',
         subjectId: string,
         password: string,
       ) => {
-        const em2 = em();
-        if (subjectType === 'admin') {
-          const a = await em2.findOne(AdminUser, { id: subjectId });
-          return a ? verifyPassword(a.passwordHash, password) : false;
-        }
-        const c = await em2.findOne(CustomerAccount, { id: subjectId });
-        return c ? verifyPassword(c.passwordHash, password) : false;
+        const ports = identityPorts();
+        return subjectType === 'admin'
+          ? ports.adminPasswordVerificationPort.verifyPassword(subjectId, password)
+          : ports.customerPasswordVerificationPort.verifyPassword(subjectId, password);
       },
     } satisfies MfaActorBridge,
   });
@@ -923,7 +1101,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // could not address a `setting_values` row at all. "No channel" is now `null`
   // and the read decides what that means.
 
-
   // Feature 056 — subtree-aware assignment scope. When a scoped sales-rep actor
   // holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
   // expands each assignment to its subtree (with per-descendant override,
@@ -937,11 +1114,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const salesRepScope = (): {
     listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
   } =>
-    (container.cradle as never as {
-      organizationSalesRepScopePort: {
-        listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-      };
-    }).organizationSalesRepScopePort;
+    (
+      container.cradle as never as {
+        organizationSalesRepScopePort: {
+          listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
+        };
+      }
+    ).organizationSalesRepScopePort;
 
   /**
    * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
@@ -973,8 +1152,6 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     return { allowAll: false, allowedOrganizationIds };
   };
 
-
-
   // Feature 047 — late-bound transactional-email sender. `orders` (and
   // other owning modules) read it via a getter; the transactional_emails module
   // sets it through exposeSender once built.
@@ -982,9 +1159,13 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // publishes both services as accessor ports; this root reads them like any
   // other consumer instead of holding the variables its callbacks filled in.
   const emailCradle = (): {
-    transactionalEmailSenderAccessor: () => import('@b2b/contracts').TransactionalEmailSender | undefined;
+    transactionalEmailSenderAccessor: () =>
+      | import('@endora-commerce/contracts').TransactionalEmailSender
+      | undefined;
     emailBrandingAccessor: () =>
-      | { resolve(salesChannelId: string | null): Promise<{ logoUrl: string; accentColor: string }> }
+      | {
+          resolve(salesChannelId: string | null): Promise<{ logoUrl: string; accentColor: string }>;
+        }
       | undefined;
   } => container.cradle as never;
 
@@ -1004,11 +1185,10 @@ export async function composeApp(): Promise<ComposeAppHandle> {
           actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
         // Feature 056 (T032) — a roll-up-enabled customer widens to its org
         // subtree (server-derived). Absent the capability, stays single-org.
-        const rollupSubtree = await resolveCustomerRollupSubtreeIds(
-          em,
-          (id) => organizationTreeService().subtreeIds(id),
+        const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
           actor.customerAccountId,
           orgId,
+          (id) => organizationTreeService().subtreeIds(id),
         );
         return resolveTenantContext({
           kind: 'customer',
@@ -1151,7 +1331,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCustomerAccountId: async (request: FastifyRequest) =>
         request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
       resolveOrderTarget: async (payload) => {
-        const order = await em().findOne(Order, { id: payload.orderId });
+        const order = await orderReadPort().findById(payload.orderId);
         if (!order || !order.placedByCustomerAccountId) return null;
         return {
           salesChannelId: payload.salesChannelId,
@@ -1177,31 +1357,36 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   composedModules.contribute({
     megamenuValidatorDeps: {
       categoryExists: async (categoryId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from categories where id = ? limit 1',
-          [categoryId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from categories where id = ? limit 1', [categoryId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       cmsPageExists: async (pageId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from cms_pages where id = ? limit 1',
-          [pageId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from cms_pages where id = ? limit 1', [pageId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       cmsBlockExists: async (blockId) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from cms_blocks where id = ? limit 1',
-          [blockId],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from cms_blocks where id = ? limit 1', [blockId])) as Array<{
+          '?column?': number;
+        }>;
         return rows.length > 0;
       },
       assetIs: async (assetId, expected) => {
-        const rows = (await em().getConnection().execute(
-          'select 1 from assets where id = ? and kind = ? limit 1',
-          [assetId, expected],
-        )) as Array<{ '?column?': number }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select 1 from assets where id = ? and kind = ? limit 1', [
+            assetId,
+            expected,
+          ])) as Array<{ '?column?': number }>;
         return rows.length > 0;
       },
     } satisfies TargetValidatorDeps,
@@ -1209,24 +1394,29 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       resolveCategoryUrl: async (categoryId) => {
         // Feature 068 — a megamenu item pointing at a deactivated (or deleted)
         // category resolves to null, which drops the item from the menu.
-        const rows = (await em().getConnection().execute(
-          'select slug from categories where id = ? and is_active = true and deleted_at is null limit 1',
-          [categoryId],
-        )) as Array<{ slug: string }>;
+        const rows = (await em()
+          .getConnection()
+          .execute(
+            'select slug from categories where id = ? and is_active = true and deleted_at is null limit 1',
+            [categoryId],
+          )) as Array<{ slug: string }>;
         return rows[0]?.slug ? `/c/${rows[0].slug}` : null;
       },
       resolveCmsPageUrl: async (pageId) => {
-        const rows = (await em().getConnection().execute(
-          'select slug from cms_pages where id = ? limit 1',
-          [pageId],
-        )) as Array<{ slug: string }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select slug from cms_pages where id = ? limit 1', [pageId])) as Array<{
+          slug: string;
+        }>;
         return rows[0]?.slug ? `/${rows[0].slug}` : null;
       },
       resolveAsset: async (assetId) => {
-        const rows = (await em().getConnection().execute(
-          'select kind, label from assets where id = ? limit 1',
-          [assetId],
-        )) as Array<{ kind: string; label: string | null }>;
+        const rows = (await em()
+          .getConnection()
+          .execute('select kind, label from assets where id = ? limit 1', [assetId])) as Array<{
+          kind: string;
+          label: string | null;
+        }>;
         const row = rows[0];
         if (!row) return null;
         if (row.kind !== 'image' && row.kind !== 'video') return null;
@@ -1234,10 +1424,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         return { url: resolved.url, label: row.label, kind: row.kind };
       },
       resolveCmsBlock: async (blockId, language) => {
-        const rows = (await em().getConnection().execute(
-          'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
-          [blockId],
-        )) as Array<{
+        const rows = (await em()
+          .getConnection()
+          .execute(
+            'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
+            [blockId],
+          )) as Array<{
           id: string;
           code: string;
           content: { languages?: Record<string, unknown> };
@@ -1316,10 +1508,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // Feature 072 (wave 2) — the sales-channel code⇄id lookup `google_analytics`
     // resolves. Owned by `sales_channels`; this is a root bridge to its port.
     salesChannelCodeIdPort: {
-      idByCode: async (code: string) =>
-        (await salesChannels.resolver.getByCode(code))?.id ?? null,
+      idByCode: async (code: string) => (await salesChannels.resolver.getByCode(code))?.id ?? null,
       codeById: async (id: string) => {
-        const { items } = await (container.cradle as unknown as SalesChannelsCradle).salesChannelsService.list({});
+        const { items } = await (
+          container.cradle as unknown as SalesChannelsCradle
+        ).salesChannelsService.list({});
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
@@ -1447,8 +1640,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         // so the default channel's value is the wanted answer, not the
         // platform-wide one the old `?? null` quietly switched to.
         const channelId =
-          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)?.id ??
-          (await salesChannels.resolver.getSystemDefault()).id;
+          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)
+            ?.id ?? (await salesChannels.resolver.getSystemDefault()).id;
         const url = await settings.settingsService.get(
           'product_image_placeholder_url',
           channelId,
@@ -1594,75 +1787,80 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // asking, the organization's tax rate, and the subtree the RFQ admin scope
   // rolls up over.
   composedModules.contribute({
-      rfqCustomerContextResolver: async (request: FastifyRequest) => {
-        if (request.actor.kind !== 'customer') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-        }
-        if (!request.actor.organizationId) {
-          throw new HttpError(
-            422,
-            ERROR_CODES.VALIDATION_FAILED,
-            'Quote Requests require an Organization attached to your account.',
-            { code: 'organization_required' },
-          );
-        }
-        const account = await em().findOne(CustomerAccount, {
-          id: request.actor.customerAccountId,
-        });
-        return {
-          customerAccountId: request.actor.customerAccountId,
-          organizationId: request.actor.organizationId,
-          isOrgAdmin: account?.role === 'organization_admin',
-        };
-      },
-      rfqAdminContextResolver: async (request: FastifyRequest) => {
-        if (request.actor.kind !== 'admin') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-        }
-        const adminUser = await em().findOne(AdminUser, { id: request.actor.adminUserId });
-        const role = adminUser?.adminRoleId
-          ? await em().findOne(AdminRole, { id: adminUser.adminRoleId })
-          : null;
-        return {
-          adminUserId: request.actor.adminUserId,
-          isPlatformAdmin: role?.code === 'platform_admin',
-          roleLabel:
-            role?.code === 'platform_admin'
-              ? 'Platform administrator'
-              : role?.code === 'sales_representative'
-                ? 'Sales representative'
-                : (role?.name ?? 'Administrator'),
-        };
-      },
-      // No `catch` (issue #84). `taxRateFor` answers "nothing applies" as a
-      // value — `{ source: 'none' }`, with no rate to read — so the only errors
-      // left here are a failing database and `taxes` being switched off.
-      // Returning 0 for either quoted a zero-VAT price on an operator's behalf
-      // and called it an answer.
-      // T143c — the Organization is read through `organizations`' own port
-      // rather than by loading its entity here. Both roots spelled the same
-      // query, and being a root's it answered with `organizations` switched
-      // off: a quote priced from a tenancy row the platform was refusing to
-      // serve. The refusal now reaches the same place a database failure does.
-      rfqTaxRateResolver: async (organizationId: string) => {
-        const org = await (
-          container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
-        ).organizationTaxProfilePort.taxProfileOf(organizationId);
-        const vatStatus = org?.vatStatus ?? 'vat_payer';
-        if (vatStatus !== 'vat_payer') return 0;
-        const country = org?.country ?? 'PL';
-        const resolved = await taxesCradle.taxService.taxRateFor({
-          country,
-          productType: 'simple',
-          vatStatus,
-        });
-        // `none` is the operator's own configuration state — `taxes` is present
-        // and holds no rule that applies and no default — so a quote is priced
-        // net, and the quote view drops its VAT row rather than printing a 0%
-        // one. An *absent* `taxes` never reaches this line: the port gate above
-        // throws (issue #124).
-        return resolved.source === 'none' ? 0 : resolved.rate;
-      },
+    rfqCustomerContextResolver: async (request: FastifyRequest) => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      // D-178 — an invariant, not a business state; see `customerResolver`.
+      if (!request.actor.organizationId) {
+        throw new HttpError(
+          500,
+          ERROR_CODES.INTERNAL,
+          'Invariant violated: a customer account has no Organization (Principle XI).',
+          { code: 'customer_account_organization_missing' },
+        );
+      }
+      const account = await identityPorts().customerAccountReadPort.findById(
+        request.actor.customerAccountId,
+      );
+      return {
+        customerAccountId: request.actor.customerAccountId,
+        organizationId: request.actor.organizationId,
+        isOrgAdmin: account?.role === 'organization_admin',
+      };
+    },
+    rfqAdminContextResolver: async (request: FastifyRequest) => {
+      if (request.actor.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      const ports = identityPorts();
+      const adminUser = await ports.adminUserReadPort.findById(request.actor.adminUserId);
+      // `getById` rather than a nullable lookup, and it cannot 404 here:
+      // `admin_users_admin_role_fk` is `on delete restrict`, so a non-null
+      // `adminRoleId` names a row that exists.
+      const role = adminUser?.adminRoleId
+        ? await ports.adminRolePort.getById(adminUser.adminRoleId)
+        : null;
+      return {
+        adminUserId: request.actor.adminUserId,
+        isPlatformAdmin: role?.code === 'platform_admin',
+        roleLabel:
+          role?.code === 'platform_admin'
+            ? 'Platform administrator'
+            : role?.code === 'sales_representative'
+              ? 'Sales representative'
+              : (role?.name ?? 'Administrator'),
+      };
+    },
+    // No `catch` (issue #84). `taxRateFor` answers "nothing applies" as a
+    // value — `{ source: 'none' }`, with no rate to read — so the only errors
+    // left here are a failing database and `taxes` being switched off.
+    // Returning 0 for either quoted a zero-VAT price on an operator's behalf
+    // and called it an answer.
+    // T143c — the Organization is read through `organizations`' own port
+    // rather than by loading its entity here. Both roots spelled the same
+    // query, and being a root's it answered with `organizations` switched
+    // off: a quote priced from a tenancy row the platform was refusing to
+    // serve. The refusal now reaches the same place a database failure does.
+    rfqTaxRateResolver: async (organizationId: string) => {
+      const org = await (
+        container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
+      ).organizationTaxProfilePort.taxProfileOf(organizationId);
+      const vatStatus = org?.vatStatus ?? 'vat_payer';
+      if (vatStatus !== 'vat_payer') return 0;
+      const country = org?.country ?? 'PL';
+      const resolved = await taxesCradle.taxService.taxRateFor({
+        country,
+        productType: 'simple',
+        vatStatus,
+      });
+      // `none` is the operator's own configuration state — `taxes` is present
+      // and holds no rule that applies and no default — so a quote is priced
+      // net, and the quote view drops its VAT row rather than printing a 0%
+      // one. An *absent* `taxes` never reaches this line: the port gate above
+      // throws (issue #124).
+      return resolved.source === 'none' ? 0 : resolved.rate;
+    },
   });
 
   // Feature 072 (T138) — what a login does beyond logging in. Points *outward*
@@ -1771,18 +1969,24 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       },
       getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
       resolveRecipientEmail: async (order) =>
-        (await em().findOne(CustomerAccount, { id: order.placedByCustomerAccountId }))?.email ?? null,
+        (
+          await identityPorts().customerAccountReadPort.findById(order.placedByCustomerAccountId)
+        )?.email ?? null,
       resolveLanguage: async (salesChannelId) =>
         (salesChannelId
           ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
           : null) ?? 'en-US',
       loadAssetImage: async (assetId) => {
+        // T052 — the row read sits **outside** the `try`, deliberately. It is a
+        // gated port now, and a `catch` around one turns "this capability is
+        // off" into "this asset is not an image" (composition checklist item
+        // 7). What the `try` is for is the storage adapter below: a backend
+        // that cannot stream the bytes is an invoice rendered without a logo,
+        // which is the degrade this bridge is written for.
+        const a = await assetReadPort().findById(assetId, { liveOnly: true });
+        if (!a || !a.mimeType.startsWith('image/')) return null;
         try {
-          const a = await em().findOne(Asset, { id: assetId, deletedAt: null });
-          if (!a || !a.mimeType.startsWith('image/')) return null;
-          const adapter = await assetsLibrary.handle.adapters.getForBackend(
-            a.storageBackend as 'local' | 's3' | 'gcs' | 'legacy',
-          );
+          const adapter = await assetsLibrary.handle.adapters.getForBackend(a.storageBackend);
           // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
           if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
           const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
@@ -1876,16 +2080,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // it stops answering when `catalog` is switched off, which the root's
       // copy never did.
       expandCategoryProductIds: (categoryIds: string[]) =>
-        (container.cradle as never as { catalogQueryPort: CatalogQueryService })
-          .catalogQueryPort.expandCategoryProductIds(categoryIds),
+        (
+          container.cradle as never as { catalogQueryPort: CatalogQueryService }
+        ).catalogQueryPort.expandCategoryProductIds(categoryIds),
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
-        const assets = await em().find(Asset, {
-          id: { $in: assetIds },
-          visibility: 'public',
-          deletedAt: null,
-        });
+        const assets = (await assetReadPort().findByIds(assetIds, { liveOnly: true })).filter(
+          (asset) => asset.visibility === 'public',
+        );
         const apiOrigin = configuredPublicApiBaseUrl();
         for (const asset of assets) {
           try {
@@ -1977,7 +2180,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // since T143c; what a composition still answers is where the message goes
       // and in which language.
       resolveCustomerEmail: async (customerAccountId) =>
-        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+        (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
       resolveChannelLanguage: async (salesChannelId) =>
         (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
     } satisfies ReturnsBridge,
@@ -2007,11 +2210,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // admin routes. Coupling (settings, sales channels, default channel) is
   // injected so the module stays isolated (Principle I).
 
-
-
-
-  modules.push(
-  );
+  modules.push();
 
   // Feature 048 — Newsletter. Own-infrastructure bulk email: subscriber
   // signup (per-channel opt-in), campaigns, automations, and a configurable
@@ -2044,7 +2243,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       publicBaseUrl: resolvePublicApiBaseUrl(),
       storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
       loadCustomerEmail: async (customerAccountId) =>
-        (await em().findOne(CustomerAccount, { id: customerAccountId }))?.email ?? null,
+        (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
       mailer: platformMailer,
       emitEvent: (name, payload) =>
         eventBus.emit(name, {
@@ -2118,12 +2317,19 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // still in flight, and the snapshot rebuilt on it is built from the
     // presence before the flip.
     modulePresenceProbe: {
+      // Issue #187 — the platform axis, which the palette used to read by
+      // joining `module_registrations` itself. `?? false` where the operator
+      // axis defaults `true`, and the asymmetry is the tri-state rather than an
+      // oversight: `presence()` answers `undefined` only for an id neither the
+      // registry nor the manifests know, and an action row naming one is an
+      // orphan the join had no row to match either.
+      isPlatformAvailable: (moduleId: string): boolean =>
+        effectiveState.presence(moduleId)?.platformAvailable ?? false,
       isActivated: (moduleId: string): boolean =>
         effectiveState.presence(moduleId)?.operatorActivated ?? true,
       version: (): number => effectiveState.presenceVersion(),
     },
   });
-  const adminActionsCradle = container.cradle as unknown as AdminActionsCradle;
 
   const lifecycle = lifecycleModuleFromStaticEntries(
     {
@@ -2132,37 +2338,35 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       redisSubscriber,
       emFactory: em,
       auditLog: auditLogService,
-      // Feature 019: hand the i18n reconciler to the orchestrator so
-      // module:install and module:uninstall --hard keep
-      // translation_bundles aligned with the lifecycle.
-      i18nReconciler: adminI18nCradle.adminI18nReconciler,
-      // Feature 020: hand the admin-actions reconciler to the
-      // orchestrator so module:install and module:uninstall --hard keep
-      // module_actions aligned with the lifecycle.
+      // Feature 080 (T033, D-155.3(c)) — who owns which migration, merged over
+      // core plus every installed extension package. This root is where it is
+      // known: the orchestrator may not import the ORM config, and the packages
+      // half is a runtime discovery, so the merged value arrives as an
+      // injected value rather than as an import of anything async. Without it
+      // the orchestrator answers from the committed core registry and refuses
+      // a hard uninstall of a module that registry cannot enumerate — which is
+      // exactly the fail-closed a package's `uninstall --hard` needs.
+      migrationOwnership: (await configuredMigrations()).ownership,
+      // Feature 080 (T036a, D-159) — the two reconcilers this root used to hand
+      // over are gone. `_i18n` and `admin_actions` declare a
+      // `lifecycleParticipant` in their own `manifest.ts` and the orchestrator
+      // collects it from the registry below, which is the one shape that also
+      // reaches a `module:*` command (a platform command composes nothing, so
+      // it could resolve neither service) and an installed package.
       //
-      // Forwarded rather than resolved, because `adminActionsReconciler` is a
-      // gated port and `admin_actions` is deactivatable: reading it here asked
-      // whether the command palette was on *at boot*, and an operator who had
-      // switched it off could not start the backend at all. Forwarding moves
-      // the question to `module:install` / `module:uninstall --hard`, where a
-      // switched-off palette aborts that one operation — inside its
-      // transaction, so nothing half-reconciled survives it.
-      adminActionsReconciler: {
-        install: (args) => adminActionsCradle.adminActionsReconciler.install(args),
-        remove: (moduleId) => adminActionsCradle.adminActionsReconciler.remove(moduleId),
-      },
-      // `_i18n` is read directly, one line above, and stays that way: it
-      // declares itself non-deactivatable and the orchestrator refuses to
-      // disable such a module on either axis, so that resolution has no state
-      // in which it can throw. Same for `auth`'s `requireAdmin` at the top of
-      // this function.
+      // **This changes the admin path's behaviour, deliberately** (D-159 §9,
+      // owner's ruling of 2026-08-22). `adminActionsReconciler` was forwarded
+      // through a lambda because it is a gated port and `admin_actions` is
+      // deactivatable, so a switched-off command palette *aborted* the install
+      // of an unrelated module — chosen over the only alternative then on the
+      // table, a backend that would not start. The participant is gated on
+      // nothing, so the install succeeds and the rows are written whether or
+      // not anything is serving them, which is what a projection of manifest
+      // data should do.
     },
-    resolvedRegistry.map((e) => ({
-      manifest: e.manifest,
-      filePath: e.filePath,
-      ...(e.installHook ? { installHook: e.installHook } : {}),
-      ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
-    })),
+    // Handed over unmapped: an identity map here is where a field added to
+    // `RegisteredManifestEntry` later gets silently dropped, and one just was.
+    resolvedRegistry,
   );
   lifecycleRef = lifecycle;
   // Feature 072 (T125) — `_lifecycle` registers its own routes now, through
@@ -2229,11 +2433,28 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // their manifests is enough.
   // Feature 075, Phase C — the registry is passed in rather than imported by
   // `settings`. Which modules a deployment ships is this root's input, which is
-  // why `resolvedModuleRegistry` is a platform-owned name; the reconciliation
-  // keeps reading the **core** registry, exactly as it did before the argument
-  // existed, so this is a cut and not a widening.
-  const settingsManifests: ModuleSettingsManifest[] =
-    collectRegisteredSettingsManifests(REGISTERED_MANIFESTS);
+  // why `resolvedModuleRegistry` is a platform-owned name.
+  //
+  // Feature 080 (T046) — the argument was bare-core `REGISTERED_MANIFESTS`,
+  // recorded here as "a cut and not a widening". The cut had a live cost on the
+  // operator axis (Principle XVII): an **overlay** module's presence is
+  // converged by `loadModulePresence` above, so no `install` ever runs for it
+  // and this reconcile is the only author its activation Setting can have.
+  // `example_overlay` declares one and never got a row — it was installed,
+  // gated and switchable in every respect except that the operator had nothing
+  // to switch.
+  //
+  // The population is therefore `deploymentShippedEntries`, the same split
+  // D-157.6(b) ruled for the first-boot insert and the same function, not a
+  // second copy of the origin test (D-100). A **package** is excluded for a
+  // reason of its own rather than for symmetry: since D-157.6(b) it has exactly
+  // one author, `install`, which reconciles its settings inside the operation
+  // that also applies its migrations — so reconciling them here as well would
+  // let a `SettingCodeConflict` in something an operator merely `pnpm add`ed
+  // abort this boot.
+  const settingsManifests: ModuleSettingsManifest[] = settingsManifestCollectionPort().collect(
+    deploymentShippedEntries(resolvedRegistry),
+  );
   const reconcilerEm = em();
   const reconciler = new ManifestReconciler(reconcilerEm);
   const reconciliation = await enterSystemScope(
@@ -2287,6 +2508,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     modules,
     commandBus,
     apiInterceptors,
+    container,
+    // Bound to the composed object rather than re-implemented: a second way to
+    // build a module's context is a second answer about what that module
+    // resolves (T042b).
+    contextFor: (moduleId) => composedModules.contextFor(moduleId),
+    resolvedModules: resolvedRegistry,
     errorEnvelope: {
       errorTranslationTargets: ERROR_TRANSLATION_KEYS,
       // Issue #234 — the ladder is one kernel function, and the root keeps the
@@ -2296,7 +2523,8 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // platform ships was unreachable for a buyer.
       resolvePreferredLanguage: createRequestLanguageResolver({
         adminPreferredLanguage: async (adminUserId) =>
-          (await em().findOne(AdminUser, { id: adminUserId }))?.preferredLanguage ?? null,
+          (await identityPorts().adminUserReadPort.findById(adminUserId))?.preferredLanguage ??
+          null,
       }),
       translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
         const translated = await adminI18nCradle.adminI18nService.translate(

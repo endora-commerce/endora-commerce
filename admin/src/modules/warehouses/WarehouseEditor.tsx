@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { CreateWarehouseRequest, Warehouse } from '@b2b/contracts';
+import type { CreateWarehouseRequest, Warehouse } from '@endora-commerce/contracts';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';

@@ -1,11 +1,14 @@
+import { Cart, CartAuditEntry, CartItem } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Cart } from '../../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../../src/modules/carts/entities/cart-item.entity.js';
-import { CartAuditEntry } from '../../../src/modules/carts/entities/cart-audit-entry.entity.js';
+
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { CartAuditService } from '../../../src/modules/carts/services/cart-audit-service.js';
-import { CartAbandonmentWorker } from '../../../src/modules/carts/services/cart-abandonment-worker.js';
+
+import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
+
+import { CartAbandonmentWorker } from '../../../../packages/modules/carts/src/backend/services/cart-abandonment-worker.js';
+
 
 /**
  * T100 / T101 (feature 027 US5) — CartAbandonmentWorker integration test.

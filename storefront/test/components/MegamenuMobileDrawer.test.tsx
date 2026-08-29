@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import type { ResolvedMegamenu } from '@b2b/contracts';
+import type { ResolvedMegamenu } from '@endora-commerce/contracts';
 import { MegamenuMobileDrawer } from '../../components/Megamenu/MegamenuMobileDrawer';
 
 /**

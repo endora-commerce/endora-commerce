@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Render } from '@measured/puck';
-import { defaultPageBuilderConfig } from '@b2b/cms-components';
-import type { BlogBySlugCategoryResponse } from '@b2b/contracts';
+import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
+import type { BlogBySlugCategoryResponse } from '@endora-commerce/contracts';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
 import { CategoryTree } from './CategoryTree';
 import { Pagination } from './Pagination';

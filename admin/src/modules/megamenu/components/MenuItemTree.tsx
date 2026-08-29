@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, GripVertical, Plus, Trash2 } from 'lucide-react';
-import type { MegamenuItem, MegamenuItemKind } from '@b2b/contracts';
+import type { MegamenuItem, MegamenuItemKind } from '@endora-commerce/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/i18n/useTranslation';

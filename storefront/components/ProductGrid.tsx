@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ProductSummary } from '@b2b/contracts';
+import type { ProductSummary } from '@endora-commerce/contracts';
 import { ProductCard } from './ProductCard';
 import { ProductRow } from './ProductRow';
 import { tForLocale } from '../lib/i18n/messages';

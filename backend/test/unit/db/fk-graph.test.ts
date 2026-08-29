@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { deriveFkGraph } from '../../helpers/fk-graph.js';
+import {
+  coreModuleRoot,
+  deriveFkGraph,
+  FkGraphRootError,
+  type ModuleRoot,
+} from '../../helpers/fk-graph.js';
 
 /**
  * Derivation cases D1-D8 of
@@ -256,6 +261,119 @@ describe('deriveFkGraph — D8 created table with no owner', () => {
     expect(graph.unownedTables).toEqual(['mystery_bridge']);
     // The unowned table cannot contribute an edge — its `from` is unknown.
     expect(graph.edges).toEqual([]);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Feature 080, T013 — where the scan looks, and what it does when the tree is
+ * not there.
+ *
+ * Every fixture below is a tree on disk read by `deriveFkGraph` itself: the
+ * refusal is at the very top of the analysis, so a proof that entered under it
+ * would be proving nothing about the case it exists for (issue #130).
+ * ──────────────────────────────────────────────────────────────────────────── */
+describe('deriveFkGraph — module roots', () => {
+  it('refuses a root that does not resolve, rather than reading an empty listing', () => {
+    // Issue #215's shape. `src/db/migrations` and the rest of the residue are
+    // still here; only the module tree has moved. Before T013 this produced a
+    // graph with no owner, no edge and no finding — a clean report over a tree
+    // the scan never found.
+    mkdirSync(join(root, 'db', 'migrations'), { recursive: true });
+
+    expect(() => deriveFkGraph(root)).toThrow(FkGraphRootError);
+    expect(() => deriveFkGraph(root)).toThrow(/do not resolve/);
+  });
+
+  it('names the root it could not resolve', () => {
+    mkdirSync(join(root, 'db', 'migrations'), { recursive: true });
+    const packages: ModuleRoot = { directory: join(root, 'packages'), origin: 'external' };
+
+    // The core root is there, the package one is not: a partial configuration
+    // has to fail on the member that is missing and name it.
+    entities('orders', 'orders');
+    expect(() => deriveFkGraph(root, { moduleRoots: [coreModuleRoot(root), packages] })).toThrow(
+      /packages/,
+    );
+  });
+
+  it('accepts a root that resolves and holds no module — that is a population', () => {
+    // The discrimination. "No module here" is an answer; "no directory here" is
+    // a broken scan, and collapsing the two is what the refusal above is for.
+    mkdirSync(join(root, 'modules'), { recursive: true });
+
+    const graph = deriveFkGraph(root);
+
+    expect(graph.modules.size).toBe(0);
+    expect(graph.edges).toEqual([]);
+  });
+
+  it('reads a module under a package root and tags it, files and all', () => {
+    entities('catalog', 'products');
+    mkdirSync(join(root, 'packages'), { recursive: true });
+    const dir = join(root, 'packages', 'loyalty', 'entities');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'points.entity.ts'),
+      `import { Entity } from '@mikro-orm/core';\n` +
+        `@Entity({ tableName: 'loyalty_points' })\n` +
+        `export class Some {}\n`,
+      'utf8',
+    );
+
+    const graph = deriveFkGraph(root, {
+      moduleRoots: [coreModuleRoot(root), { directory: join(root, 'packages'), origin: 'external' }],
+    });
+
+    expect(graph.modules.get('loyalty')?.origin).toBe('external');
+    expect(graph.modules.get('loyalty')?.files).toBe(1);
+    expect(graph.modules.get('catalog')?.origin).toBe('core');
+    expect(graph.owners.get('loyalty_points')).toBe('loyalty');
+  });
+
+  it('refuses one module id claimed by two roots', () => {
+    // Last-wins would move the module's origin — and with it its baseline
+    // membership — with nothing saying so.
+    entities('catalog', 'products');
+    const shadow = join(root, 'packages', 'catalog', 'entities');
+    mkdirSync(shadow, { recursive: true });
+    writeFileSync(join(shadow, 'x.entity.ts'), `@Entity({ tableName: 'x' })\n`, 'utf8');
+
+    expect(() =>
+      deriveFkGraph(root, {
+        moduleRoots: [
+          coreModuleRoot(root),
+          { directory: join(root, 'packages'), origin: 'external' },
+        ],
+      }),
+    ).toThrow(/claimed by two roots/);
+  });
+
+  it('tags a migration with the origin of the root its module was found under', () => {
+    entities('catalog', 'products');
+    migration('catalog', '20260901T090000_catalog_init', `create table "products" ("id" uuid);`);
+    const dir = join(root, 'packages', 'loyalty', 'migrations');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, '20260501T090000_loyalty_init.ts'),
+      `import { Migration } from '@mikro-orm/migrations';\n` +
+        `export class X extends Migration {\n` +
+        `  override async up(): Promise<void> {\n` +
+        `    this.addSql(\`create table "loyalty_points" ("id" uuid not null);\`);\n` +
+        `  }\n` +
+        `}\n`,
+      'utf8',
+    );
+
+    const graph = deriveFkGraph(root, {
+      moduleRoots: [coreModuleRoot(root), { directory: join(root, 'packages'), origin: 'external' }],
+    });
+
+    expect(graph.tableCreators.get('products')?.origin).toBe('core');
+    expect(graph.tableCreators.get('loyalty_points')?.origin).toBe('external');
+    // The stamp is inside the frozen window and the origin is not: the two
+    // together are what `isBaseline` tests, and only the pair can tell this
+    // file from a core one (D-154).
+    expect(graph.tableCreators.get('loyalty_points')?.timestamp).toBe('20260501T090000');
   });
 });
 

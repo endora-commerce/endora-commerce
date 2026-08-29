@@ -673,6 +673,28 @@ export interface PersonalOrganizationPort {
   ensureForCustomerAccount(customerAccountId: string): Promise<OrganizationRecord>;
 
   /**
+   * D-178 — the organisation an account is moved **to** when an operator
+   * detaches it from a company, and the one it would already be in had it never
+   * joined one.
+   *
+   * It differs from {@link ensureForCustomerAccount} in exactly one way, and
+   * the difference is the whole reason it exists: that method answers with the
+   * account's *current* organisation when it has one, so an account inside a
+   * company gets that company back. This one always answers with the account's
+   * **own** personal organisation, provisioning it if it has never existed.
+   *
+   * It writes no membership. Binding the account is the caller's write on
+   * `customer_accounts`' side of the boundary
+   * (`CustomerAccountLifecycleWritePort.detachToPersonalOrganization`), because
+   * the authority check and the "an organisation keeps an administrator" guard
+   * that must precede it are `customers`' policy.
+   *
+   * Idempotent: the personal organisation's `taxId` is derived from the account
+   * id, so a second call re-finds the row rather than creating a second one.
+   */
+  provisionPersonalOrganization(customerAccountId: string): Promise<OrganizationRecord>;
+
+  /**
    * Feature 051, the other end of the same rule — the retention sweep's
    * cascade. Once the single member of a personal organisation has been
    * anonymised, the organisation is left with nobody in it and its name is

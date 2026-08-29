@@ -11,7 +11,7 @@ import type {
   SalesChannelSummary,
   SettingDto,
   SettingGroupDto,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';

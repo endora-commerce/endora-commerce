@@ -7,11 +7,11 @@ import {
   type AuthCreateSessionInput,
   type AuthSessionPort,
   type AuthSessionRecord,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   registerMfaPublicRoutes,
   type MfaPublicDeps,
-} from '../../../src/modules/mfa/routes.public.js';
+} from '../../../../packages/modules/mfa/src/backend/routes.public.js';
 
 /**
  * Feature 075, Phase C — `mfa` mints its post-second-factor session over

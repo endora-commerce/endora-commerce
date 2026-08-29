@@ -44,7 +44,22 @@ function listModuleDirs(root: string): string[] {
     .sort();
 }
 
-/** Recursively collect module-relative POSIX file paths under a module dir, sorted. */
+/**
+ * What `tsc` emits beside every unit it compiles. They are build artefacts, not
+ * units a deployment can override, and they exist only in a compiled tree — so
+ * the source tree this scan was written against never held one and nothing
+ * excluded them. In `backend/dist` each unit brings three, and every one of
+ * them classified as `'other'`, which is `UnknownOverrideTargetError` for a
+ * file nobody wrote (feature 080, D-165 step C).
+ */
+const EMIT_SIDECAR = /(?:\.d\.ts|\.map)$/;
+
+/**
+ * Recursively collect module-relative POSIX file paths under a module dir,
+ * sorted. Emit sidecars are left out on both sides — of the core index and of
+ * the overlay scan — so a compiled tree indexes exactly the units a source tree
+ * does.
+ */
 function listModuleFiles(moduleDir: string): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {
@@ -53,7 +68,7 @@ function listModuleFiles(moduleDir: string): string[] {
       const full = join(dir, name);
       const st = statSync(full);
       if (st.isDirectory()) walk(full);
-      else if (st.isFile()) out.push(toPosix(relative(moduleDir, full)));
+      else if (st.isFile() && !EMIT_SIDECAR.test(name)) out.push(toPosix(relative(moduleDir, full)));
     }
   };
   walk(moduleDir);
@@ -83,14 +98,21 @@ export function indexCore(coreRoot: string): CoreIndex {
  * the platform would silently never load.
  */
 export function classifyKind(relPath: string): UnitKind {
-  if (relPath.endsWith('.interface.ts')) return 'other';
-  if (relPath.startsWith('entities/') || relPath.startsWith('migrations/')) {
+  // A compiled tree spells every one of these `.js`, and this function used to
+  // read the extension five times — so under `backend/dist` a route override
+  // classified as `'other'` and the scan refused it as an unknown target
+  // (feature 080, D-165 step C). The kind is a property of the unit, not of the
+  // artefact format it is currently in, so the compiled name is read as the
+  // authored one and every rule below stays written once.
+  const path = relPath.endsWith('.js') ? `${relPath.slice(0, -'.js'.length)}.ts` : relPath;
+  if (path.endsWith('.interface.ts')) return 'other';
+  if (path.startsWith('entities/') || path.startsWith('migrations/')) {
     return 'schema' satisfies RejectedKind;
   }
-  if (relPath.startsWith('routes/') || /^routes\.[^/]+\.ts$/.test(relPath)) return 'route';
-  if (relPath === 'plugin.ts') return 'route';
-  if (relPath === 'config.ts' || relPath.startsWith('config/')) return 'config';
-  if (relPath === 'manifest.ts') return 'config';
+  if (path.startsWith('routes/') || /^routes\.[^/]+\.ts$/.test(path)) return 'route';
+  if (path === 'plugin.ts') return 'route';
+  if (path === 'config.ts' || path.startsWith('config/')) return 'config';
+  if (path === 'manifest.ts') return 'config';
   return 'other';
 }
 

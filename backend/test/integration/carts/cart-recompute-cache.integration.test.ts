@@ -1,9 +1,9 @@
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   CartRecomputeCache,
   type CachedCartRecompute,
-} from '../../../src/modules/carts/services/cart-recompute-cache.js';
+} from '../../../../packages/modules/carts/src/backend/services/cart-recompute-cache.js';
 
 /**
  * T020 (feature 027) — Redis-backed CartRecomputeCache.

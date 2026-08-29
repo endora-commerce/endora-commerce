@@ -1,37 +1,22 @@
-import { ERROR_CODES } from '@b2b/contracts';
-import { HttpError } from '../../http/error-envelope.js';
-
 /**
- * The platform has no sales channel holding `system_default` (feature 072,
- * D-47 / D-48).
+ * Re-export shim — this file's sources now live in `@endora-commerce/platform`
+ * (feature 080, the platform relocation; D-160, D-164, D-165).
  *
- * This is a **platform fault, not a caller error**, and it is unreachable on a
- * booted deployment: the boot reconciler
- * (`kernel/sales-channels/default-channel-reconciler.ts`) inserts or promotes a
- * default on every serving path, a partial unique index forbids a second one,
- * and `SalesChannelsService` refuses every delete, deactivate and `active:false`
- * that would take the flag away. The only way to observe it is to read a
- * channel before composition has run the reconciler.
+ * The five platform directories moved to `packages/platform/src/` so that the
+ * application and an installed extension package resolve **one** copy of the
+ * platform. Everything in `backend/` still names them at their old paths — 2632
+ * relative specifiers in 1347 files — and each of those specifiers now arrives
+ * here and is forwarded to the package. The forwarding target is the package's
+ * build output, which is what its `exports` map serves, so a bare specifier and
+ * a relative one land on the same file and therefore on the same module record.
  *
- * It exists so that state has **one** spelling. Before D-48 it had four — a
- * `'default'` channel code where an id was wanted, a nil UUID, a `randomUUID()`
- * persisted into an order, and a silent switch to the platform-wide settings
- * tier — because `getSystemDefault()` returned `null` and every author had to
- * invent a value for a branch that cannot be taken.
+ * This file has **no published subpath** — it is reach into the host's
+ * internals that `check:platform-surface` already ledgers — so the shim names
+ * the built file directly. That is the debt made visible: a specifier a packaged
+ * module could not write.
  *
- * 500 `INTERNAL` is deliberate and matches what the resolver middleware already
- * answered on this condition: no request can be blamed for it and no client can
- * retry into a fix. The one surface that *renders* the condition rather than
- * failing on it is `/sales-channels` (D-51); every consumer propagates.
+ * These shims are the bridge, not the destination: each is deleted as the module
+ * that reaches through it becomes a package and rewrites its specifier to the
+ * published subpath (T040b).
  */
-export class NoSystemDefaultChannel extends HttpError {
-  constructor() {
-    super(
-      500,
-      ERROR_CODES.INTERNAL,
-      'No sales channel holds the system-default flag; the boot-time default-channel ' +
-        'reconciler has not run or could not repair the registry.',
-    );
-    this.name = 'NoSystemDefaultChannel';
-  }
-}
+export * from '../../../../packages/platform/dist/kernel/sales-channels/no-system-default-channel.error.js';

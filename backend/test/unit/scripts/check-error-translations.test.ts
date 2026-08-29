@@ -3,10 +3,15 @@ import {
   analyseErrorTranslations,
   findUnreachableSentences,
   findUntranslatedErrorCodes,
+  treeTranslationInput,
+  routedBundleDirectories,
   UNTRANSLATED_ERROR_CODES,
+  unroutedModules,
   type ErrorTranslationTarget,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
+import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
 
 /**
  * The error-translation rule's own test (issue #113).
@@ -154,8 +159,8 @@ describe('the ledger, as a two-way ratchet', () => {
 });
 
 describe('the tree itself', () => {
-  it('has a routing table with codes in it, and no unledgered untranslated code', () => {
-    const findings = findUntranslatedErrorCodes();
+  it('has a routing table with codes in it, and no unledgered untranslated code', async () => {
+    const findings = findUntranslatedErrorCodes(await treeTranslationInput());
     // The routing table is the whole input: an empty one would report every
     // code translated. `main` exits 2 on it; here the floor is the assertion.
     expect(findings.length + UNTRANSLATED_ERROR_CODES.size).toBeGreaterThan(0);
@@ -340,17 +345,85 @@ describe('the two vacuity guards, which are independent', () => {
 });
 
 describe('the tree itself, under P2', () => {
-  it('writes every error sentence in the bundle the routing table points at', () => {
-    const findings = findUnreachableSentences();
+  it('writes every error sentence in the bundle the routing table points at', async () => {
+    const findings = findUnreachableSentences(await treeTranslationInput());
     expect(
       findings.map((f) => `${f.kind}: ${f.moduleId}/${f.language} ${f.key}`),
     ).toEqual([]);
   });
 
-  it('read a real tree while doing so', () => {
+  it('read a real tree while doing so', async () => {
     // The population is a filesystem walk; an empty one reports no finding for
-    // the same reason a clean tree does.
-    const walked = [...analyseErrorTranslations().keysWalked];
+    // the same reason a clean tree does. Since feature 080's T040a the walk is
+    // over the module directories the layout resolves, so this also covers a
+    // module whose bundle has moved into a package with it.
+    const walked = [...analyseErrorTranslations(await treeTranslationInput()).keysWalked];
     expect(walked.length).toBeGreaterThan(100);
+  });
+});
+
+/**
+ * The population floor under the bundle walk (feature 080, T010, issue #215).
+ *
+ * The bundle half is a module-tree walk, and its old floor was "the walk read
+ * no `errors.*` key at all" — which catches the total loss and nothing else.
+ * What happens instead is that one module's bundle is not where the walk looks:
+ * P1 then reports every code routed there as untranslated, which is loud and
+ * wrong. Measured on the tree this landed against, emptying any one of the
+ * eighteen routed modules' bundles produced between 2 and 41 such findings and
+ * never zero.
+ *
+ * So the walk is reconciled against the modules the routing table names,
+ * derived per run from two static imports. These cases enter where the CLI
+ * enters: the registered ids, the routing table and the file list the walk
+ * produced.
+ */
+describe('the bundle-walk population floor', () => {
+  const REGISTERED = ['blog', 'catalog', 'orders'];
+  const ROUTED_TO_BLOG = {
+    BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' },
+  } as const;
+
+  const refusal = (files: readonly string[]): string | null =>
+    vacuousModulePopulation({
+      registered: REGISTERED,
+      files,
+      excluded: unroutedModules(ROUTED_TO_BLOG, REGISTERED),
+    });
+
+  it('refuses a walk that missed a module the routing table names', () => {
+    const reason = refusal(['/abs/src/modules/catalog/i18n/en.json']);
+    expect(reason).not.toBeNull();
+    expect(reason).toContain('blog');
+  });
+
+  it('says nothing about a module the routing table does not name', () => {
+    // `catalog` and `orders` route no code here, so nothing requires them to
+    // ship a bundle — 45 of the 66 registered modules ship one on the real
+    // tree, and a floor that asked for all 66 would be a list of exceptions.
+    expect(refusal(['/abs/src/modules/blog/i18n/en.json'])).toBeNull();
+  });
+
+  it('resolves `core` to the bundle that actually holds it', () => {
+    // The routing table's `core` is an answer, not a directory. A floor that
+    // asked for a module called `core` would ask for one nothing can satisfy,
+    // and would refuse every run.
+    expect(
+      routedBundleDirectories({ X: { moduleId: 'core', key: 'errors.X' } }),
+    ).toEqual(['_i18n']);
+  });
+
+  it('derives the exclusion rather than taking one, on the real routing table', () => {
+    const routed = routedBundleDirectories();
+    expect(routed.length).toBeGreaterThan(0);
+    expect(routed).toContain('_i18n');
+    expect(routed).not.toContain('core');
+    // The dual, over the table the CLI actually uses: every routed module stays
+    // inside the floor and only the one that routes nothing falls out of it. An
+    // exclusion that quietly covered everything would switch the floor off
+    // while every run still looked normal.
+    expect(unroutedModules(ERROR_TRANSLATION_KEYS, [...routed, 'zz_routes_nothing'])).toEqual([
+      'zz_routes_nothing',
+    ]);
   });
 });

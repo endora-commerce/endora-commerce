@@ -1,16 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AdminRole, AdminUser, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import { randomUUID } from 'crypto';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
-import { AdminRole } from '../../../src/modules/admin_roles/entities/admin-role.entity.js';
-import { OrganizationSalesRepAssignment } from '../../../src/modules/organizations/entities/organization-sales-rep-assignment.entity.js';
-import { ReturnCase } from '../../../src/modules/returns/entities/return-case.entity.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { ReturnCase } from '../../helpers/package-entities.js';
 
 /**
  * Feature 050 US1 — the tenant guard confines the returns admin surface. A

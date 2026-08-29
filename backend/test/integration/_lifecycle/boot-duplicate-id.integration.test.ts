@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { defineModuleManifest } from '@b2b/contracts';
-import { buildStaticRegistry } from '../../../src/modules/_lifecycle/services/static-registry.js';
+import { defineModuleManifest } from '@endora-commerce/contracts';
+import { buildStaticRegistry } from '../../../src/lifecycle/services/static-registry.js';
 
 /**
  * Integration test for FR-002 — boot refuses on duplicate id (US4).

@@ -1,4 +1,4 @@
-import type { BreakpointTier } from '@b2b/page-builder-core';
+import type { BreakpointTier } from '@endora-commerce/page-builder-core';
 
 export type ImageSourceKind = 'url' | 'library';
 

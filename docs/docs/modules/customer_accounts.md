@@ -17,20 +17,21 @@ service; this module owns the customer-facing identity surface.
 | `POST /api/v1/me/password` | Change password (rejects wrong `currentPassword`) |
 | `POST /api/v1/auth/password-reset/request` | Begin reset flow |
 | `POST /api/v1/auth/password-reset/confirm` | Redeem reset token |
-| `POST /api/v1/me/2fa/enable` | Enroll TOTP, returns OTP secret + backup codes |
-| `POST /api/v1/me/2fa/confirm` | Activate after first valid TOTP |
-| `DELETE /api/v1/me/2fa` | Disable 2FA |
 
 ## Entities
 
-`CustomerAccount` (email, passwordHash, role, twoFactorState),
-`PasswordResetToken`. Role is enum `organization_admin | regular_user`.
+`CustomerAccount` (email, passwordHash, role), `PasswordResetToken`. Role is
+enum `organization_admin | regular_user`.
 
 ## Extension points
 
 - **Password policy** — `password-hasher.ts` wraps argon2id; tune cost
   parameters there.
-- **Backup codes** — `totp-service.ts` generates one-time backup codes at
-  enrollment; add rotation/regeneration here.
+- **Backup codes and second factors** — not this module's. Customer and admin
+  2FA is the `mfa` module's, over `mfa_enrolments`, served at
+  `/api/v1/account/mfa/*`; recovery codes are single-use rows there. The
+  superseded scaffolding this bullet used to point at
+  (`totp-enrolment-service.ts`) was deleted on 2026-08-25 — it could never
+  complete a single enrolment.
 - **Login throttling** — relies on Fastify `@fastify/rate-limit` at server
   level; per-account lockout would be added here.

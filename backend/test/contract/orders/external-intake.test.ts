@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@b2b/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -18,12 +18,12 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { ApiKey } from '../../../src/modules/api_keys/entities/api-key.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { Product } from '../../helpers/package-entities.js';
+import { StockLevel } from '../../helpers/package-entities.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
+import { ApiKey } from '../../helpers/package-entities.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 062 / T020 — `POST /api/v1/external/orders` + the orders half of the

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { SupportedEntityType } from '@b2b/contracts';
+import type { SupportedEntityType } from '@endora-commerce/contracts';
 import {
   CustomFieldValueService,
   type DefinitionSource,
-} from '../../../src/modules/custom_fields/services/custom-field-value.service.js';
+} from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
 
 /**
  * Feature 061 T003 — the change-guard probes (`hasStoredValues` / `isOptionInUse`)

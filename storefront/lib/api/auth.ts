@@ -1,4 +1,4 @@
-import type { CartMergeOutcomePublic } from '@b2b/contracts';
+import type { CartMergeOutcomePublic } from '@endora-commerce/contracts';
 import { apiMutate } from './mutations';
 import type { RequestContext } from './client';
 

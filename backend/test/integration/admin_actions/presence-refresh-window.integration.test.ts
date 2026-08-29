@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { ModuleAction } from '../../helpers/package-entities.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
-import type { AdminI18nTranslatePort, PermissionReadPort } from '@b2b/contracts';
+import type { AdminI18nTranslatePort, PermissionReadPort } from '@endora-commerce/contracts';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
-import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
+import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { ModuleRegistryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
@@ -53,7 +53,7 @@ describe('AdminActionsService presence-refresh window (integration)', () => {
   let em: EntityManager;
 
   beforeAll(async () => {
-    orm = await MikroORM.init(mikroOrmConfig);
+    orm = await MikroORM.init(await mikroOrmConfig());
     em = orm.em.fork() as EntityManager;
   }, 60_000);
 
@@ -103,6 +103,7 @@ describe('AdminActionsService presence-refresh window (integration)', () => {
       // Exactly what `composition.ts` and `test-server.ts` contribute as
       // `modulePresenceProbe`.
       presence: {
+        isPlatformAvailable: (moduleId) => state.presence(moduleId)?.platformAvailable ?? false,
         isActivated: (moduleId) => state.presence(moduleId)?.operatorActivated ?? true,
         version: () => state.presenceVersion(),
       },

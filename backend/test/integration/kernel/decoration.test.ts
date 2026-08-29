@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ListingPrice } from '@b2b/contracts';
+import type {
+  DisplayMode,
+  ListingPrice,
+  ListingPriceOrderChunk,
+  ListingPriceOrderQuery,
+  ListingPriceViewerContext,
+} from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import {
   AmbiguousDecorationError,
@@ -15,7 +21,7 @@ import type {
   PricingLineResult,
   PricingResolutionInput,
   PricingServiceContract,
-} from '../../../src/modules/price_lists/services/pricing-service.interface.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 
 /**
  * Decoration — a client customises core without forking (feature 072, US7 /
@@ -76,6 +82,18 @@ class CorePricingService implements PricingServiceContract {
   async namedListPrices(): Promise<Map<string, string>> {
     return new Map();
   }
+
+  async orderByUnitPrice(): Promise<ListingPriceOrderChunk> {
+    return { rows: [], exhausted: true, sourceRowsRead: 0 };
+  }
+
+  async pricedProductIds(): Promise<ReadonlySet<string>> {
+    return new Set();
+  }
+
+  async pageDisplayMode(): Promise<DisplayMode> {
+    return 'net_only';
+  }
 }
 
 /**
@@ -115,6 +133,21 @@ class TaggingPricingService implements PricingServiceContract {
     productIds: readonly string[];
   }): Promise<Map<string, string>> {
     return this.inner.namedListPrices(input);
+  }
+
+  async orderByUnitPrice(input: ListingPriceOrderQuery): Promise<ListingPriceOrderChunk> {
+    return this.inner.orderByUnitPrice(input);
+  }
+
+  async pricedProductIds(input: {
+    context: ListingPriceViewerContext;
+    productIds: readonly string[];
+  }): Promise<ReadonlySet<string>> {
+    return this.inner.pricedProductIds(input);
+  }
+
+  async pageDisplayMode(input: { context: ListingPriceViewerContext }): Promise<DisplayMode> {
+    return this.inner.pageDisplayMode(input);
   }
 }
 
@@ -252,6 +285,15 @@ describe('T064 — two modules decorating one name must declare their order', ()
     expect((thrown as Error).message).toContain('acme_pricing');
     expect((thrown as Error).message).toContain('beta_pricing');
     expect((thrown as Error).message).toContain('pricingService');
+    // And the remedy it names has to be reachable. It used to say "declare it
+    // as `decorationOrder['pricingService']` in the composer" — a field no
+    // composition root passes, sourced from an `endora.config.ts` that exists
+    // in no checkout of this repository (D-156.7/D-156.11). The one thing an
+    // author can do today is make both wraps one module's, which the case
+    // below proves is legal.
+    expect((thrown as Error).message).not.toContain('endora.config');
+    expect((thrown as Error).message).not.toContain("decorationOrder['pricingService']");
+    expect((thrown as Error).message).toContain('one module');
   });
 
   it('one module decorating the same name twice is not ambiguous', () => {

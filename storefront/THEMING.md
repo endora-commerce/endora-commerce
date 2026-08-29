@@ -45,7 +45,7 @@ storefront/
 
 **Stable**: `lib/api/*`, `lib/i18n/*`, `lib/server-context.ts`, the route
 layout under `app/`. Pages call typed adapters whose signatures are
-shared with the `@b2b/contracts` types — themes inherit them.
+shared with the `@endora-commerce/contracts` types — themes inherit them.
 
 **Replace freely**: every file under `components/`. The component prop
 contracts are documented inline; keep them stable and a theme can ship

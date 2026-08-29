@@ -1,0 +1,13 @@
+{
+  "name": "@fixture/mod-schema-without-entities",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "endora": { "type": "module", "id": "fixture_schema_only", "platform": "0.x" },
+  "exports": {
+    ".": "./lib/manifest.js",
+    "./backend": "./lib/backend/index.js",
+    "./migrations": "./lib/migrations/index.js",
+    "./package.json": "./package.json"
+  }
+}

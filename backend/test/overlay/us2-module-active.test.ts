@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { discoverOverlayModuleManifests } from '../../src/overlay/overlay-runtime.js';
-import { REGISTERED_MANIFESTS } from '../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../src/lifecycle/registered-manifests.js';
 
 const EXAMPLE: NodeJS.ProcessEnv = { DEPLOYMENT: 'example' } as NodeJS.ProcessEnv;
 

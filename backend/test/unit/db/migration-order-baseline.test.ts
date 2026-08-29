@@ -1,149 +1,91 @@
 import { describe, expect, it } from 'vitest';
-import {
-  BASELINE_THROUGH,
-  orderMigrations,
-  type MigrationRegistryEntry,
-} from '../../../src/db/migration-order.js';
+import { BASELINE_THROUGH, orderMigrations } from '../../../src/db/migration-order.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**
- * The regression baseline for feature 081 (T001).
+ * The frozen historical prefix, committed as a literal.
  *
- * `PRE_081_ORDER` below is the sequence `orderMigrations()` emitted over the
- * real registry under feature 065's algorithm — chronology corrected by
- * dependency-inversion edges inside a 45-day horizon — captured on
- * `master@c1aeb71a`, **before** `src/db/migration-order.ts` was rewritten. It
- * is a committed literal and is never regenerated: a baseline recomputed from
- * the code it is supposed to guard measures nothing.
+ * `FROZEN_PREFIX` below is the order in which a database actually applied the
+ * pre-065 block, captured on `master@9ecee8fa` — before
+ * `src/db/migration-order.ts` was rewritten — and unchanged since. It stays a
+ * committed literal and is never regenerated: a baseline recomputed from the
+ * code it is supposed to guard measures nothing. That sentence is the reason
+ * this file exists, and it is the reason it cannot be replaced by
+ * `migration-order.test.ts`'s J14, which derives its expected prefix by
+ * filtering today's registry and would therefore follow a change to the
+ * registry, a stamp or the watermark wherever it went.
  *
- * Three of the four claims below hold under both algorithms and are what makes
- * the rewrite safe on a live database:
+ * The claim: `orderMigrations()` emits these 112 names, in this order, first.
+ * That block predates feature 065 — it was written and applied in a
+ * hand-maintained array order its manifests do not describe, contradicting it
+ * in 37 places — so emitting it any other way produces an order a fresh
+ * database cannot apply. It is the claim the live-database safety rests on.
  *
- * - the same migrations are emitted, each exactly once (no class was renamed,
- *   so nothing already in `mikro_orm_migrations` can become pending again);
- * - the frozen historical prefix is emitted identically;
- * - the emitted count is unchanged.
+ * **The literal is closed and cannot grow.** Membership is `origin === 'core'`
+ * and a stamp at or before `BASELINE_THROUGH` (`20260801T000000`), and
+ * `scripts/new-migration.ts` clamps every scaffolded core stamp past that
+ * watermark — see `new-migration-scaffolder.test.ts`, "never emits a stamp
+ * inside the uncorrected block". So no migration a merge request adds can join
+ * it, which is what makes a committed literal affordable here: adding a
+ * migration does not touch this file, and two merge requests that each add one
+ * do not meet in it.
  *
- * The fourth — how many positions moved — is the measurement the rewrite is
- * allowed to change, and `EXPECTED_MOVED_POSITIONS` is a two-way ratchet over
- * it: a number that is too low and one that is too high both fail. Every moved
- * position must be in the open block.
+ * ## What this file used to be, and why that half is retired (issue #291)
  *
- * Note on the counts. `specs/081-per-module-migration-order/` measured 141
- * migrations (112 baseline, 29 open) against `master@4186aec0`. Five
- * migrations have landed since —
- * `Migration20260819T074816CustomerAccountsPasswordSetAt`,
- * `Migration20260819T142837CustomerAccountsFoldEmailCase`,
- * `Migration20260819T155150AdminUsersFoldEmailCase`,
- * `Migration20260819T171006ShipmentsStatusPendingManual` and
- * `Migration20260819T193653PimErgonodeFoldDerivedKeys`, all open-block
- * entries — so the numbers here are 146/112/34. The frozen prefix, which is the
- * claim the feature rests on, is the spec's 112 unchanged.
+ * It shipped as feature 081's T001 regression baseline: the full 065-era
+ * emission (`PRE_081_ORDER`, 157 entries by the end) plus
+ * `EXPECTED_MOVED_POSITIONS`, a count of the positions on which the rewritten
+ * algorithm disagreed with the one it replaced. Its job was to prove that the
+ * rewrite did nothing harmful to a live database, and it did that job: the
+ * rewrite shipped in `a139e1b7` with the fresh-and-upgrade rehearsal of T002 in
+ * its merge request, and every database in the project — each developer's, the
+ * `b2b_test_tpl` template and every per-invocation clone taken from it — has
+ * been built under the new ordering since. No database holds an applied set
+ * that predates the rewrite and has not been re-derived under it. That is the
+ * expiry condition, and it is met.
  *
- * A new migration is added to `PRE_081_ORDER` in the position feature 065's
- * algorithm would have emitted it. That position is **computed, not guessed**:
- * the 065 algorithm is a pure function and it is still in the history, so
- * running `orderMigrations` as of `master@a139e1b7^` over today's registry
- * reproduces this literal entry for entry and says where the new name lands.
- * It is not a regeneration by the code this baseline guards — that code is the
- * rewritten `src/db/migration-order.ts`, and it emits the new name three
- * positions earlier. The 143 positions the literal already held are untouched,
- * and `EXPECTED_MOVED_POSITIONS` stayed at 26, which is the evidence that the
- * insertion did not move anybody.
+ * The cost of keeping it past that point was measured rather than argued. Every
+ * one of the 11 migration-bearing merge requests since `a139e1b7` had to edit
+ * this file, because both `PRE_081_ORDER` and the count are **measurements** —
+ * 065's `orderMigrations`, taken from `master@a139e1b7^`, re-run over the merged
+ * registry — and neither can be resolved textually when two branches carry one.
+ * The count did not even move monotonically (26, 28, 29, 30, 30, 29, 36, 36, 39,
+ * 41, 41): inserting an entry ahead of an existing one can end a *coincidental*
+ * agreement between the two algorithms, so the second branch to land always had
+ * to re-measure after the first. Two merge requests (!835, !837) were sent back
+ * for exactly that. Migration work was serialised platform-wide, and ruling D-106 — a
+ * package ships its own migrations — multiplies migration-bearing changes rather
+ * than reducing them.
+ *
+ * What went with it, stated so that nobody has to rediscover it:
+ *
+ * - **The moved-position count.** It compared today's code against a function
+ *   deleted from `src/` in `a139e1b7`; its one durable sub-claim, that no moved
+ *   position falls inside the frozen prefix, is the first test below.
+ * - **Rename detection for the 45 open-block classes.** The old set comparison
+ *   caught those as a side effect. The 112 frozen names are still covered, by
+ *   the two tests below. Renaming an open-block class now surfaces at the next
+ *   `db:fresh` or test-template rebuild, where umzug sees the new name as
+ *   pending and re-runs it — see `docs/docs/architecture/migrations.md`
+ *   § *The baseline block, and renaming an applied migration*, which is where
+ *   that rule and its coordinated-rebuild remedy already live.
+ * - **The 065 emission as a record.** Recoverable in full from
+ *   `git show e3a6a02d:backend/test/unit/db/migration-order-baseline.test.ts`,
+ *   the last commit that carried it, and in its original 141-entry form from
+ *   `9ecee8fa`. Both hold the prose that named, insertion by insertion, which
+ *   positions moved and why.
+ *
+ * The properties that survived the retirement did not need the literal: the
+ * bijection with the registry, per-module contiguity, intra-module chronology,
+ * dependency order and the absence of cycles are all asserted over the real
+ * registry and the real manifest graph by `migration-order.test.ts` § J14.
+ *
+ * What is left has no expiry of its own. It retires exactly when
+ * `BASELINE_THROUGH` does, and `src/db/migration-order.ts` says of that block:
+ * "Closed. Never drained."
  */
-
-const FROZEN_PREFIX_LENGTH = 112;
-
-/**
- * How many positions the emitted order differs from `PRE_081_ORDER` in.
- *
- * Feature 081 moved it from 0 to **26**, and no later change may move it
- * again without saying why. All 26 are in the open block, where the rule
- * changed from "chronology, corrected inside a 45-day horizon" to "module by
- * module in dependency order" — the spec measured the same 26 against
- * `master@4186aec0`. Four open-block entries keep their position by
- * coincidence, and the frozen prefix keeps all 112 of its own by rule.
- *
- * A database that has applied them does not care: `mikro_orm_migrations` keys
- * applied work by class name, no name moved, and umzug filters applied
- * migrations out of `pending` regardless of list position. Measured, not
- * assumed — see the rehearsal in the merge request.
- *
- * **26 → 28**, and this is the "saying why". Issue #249's backfill
- * (`Migration20260819T155150AdminUsersFoldEmailCase`) is the first migration
- * the two algorithms place differently: 065's chronology puts it at 115, among
- * the August stamps it sits between, while 081 puts it at 113 because
- * `admin_users` comes early in the dependency topological order. Exactly two
- * positions change status — the new migration itself, and
- * `Migration20260817T070014EmailDeliveryRecord`, which the new entry displaces
- * from 113 to 114 in the emitted order while the frozen baseline keeps it at
- * 113. Nothing else moves, and nothing in the frozen prefix does. A migration
- * that lands on a position the two algorithms agree about still leaves this
- * number alone; one that does not is expected to move it, by two, and to say
- * which two.
- *
- * **28 → 29, by one**, and this is that saying. Issue #250's
- * `Migration20260819T171006ShipmentsStatusPendingManual` is the newest stamp in
- * the registry, so 065's chronology emits it **last**, at 144; 081 emits it at
- * 142, immediately after `Migration20260817T194652ShipmentsOrderFk`, because a
- * module's migrations are contiguous and `shipments` precedes the four PSP
- * modules in the dependency topological order. Exactly one position changes
- * status — the new migration's own. `StripeSeedPaymentMethods` and
- * `TpaySeedPaymentMethods` shift from 142/143 to 143/144 but were already
- * moved, so the count grows by one rather than by three. Measured by running
- * 065's `orderMigrations` (from `master@a139e1b7^`) over the registry with and
- * without the new entry, which is the method the paragraph above prescribes.
- *
- * **29 → 30, by one**, and this is that saying. Issue #260's back-fill
- * (`Migration20260819T193653PimErgonodeFoldDerivedKeys`) is now the newest
- * stamp, so 065's chronology emits it **last**, at 145; 081 emits it at 127,
- * immediately after `Migration20260804T190439PimErgonodeInit`, because a
- * module's migrations are contiguous and `pim_ergonode` precedes
- * `product_feeds` in the dependency topological order. Exactly one position
- * changes status — the new migration's own, at 145. Every position from 127 to
- * 144 shifts by one in the emitted order and every one of them was already
- * moved, so the count grows by one rather than by nineteen. Measured the same
- * way: 065's `orderMigrations` from `master@a139e1b7^`, run over today's
- * registry, reproduces the literal below entry for entry and puts the new name
- * at 145.
- *
- * **30 → 31, by one**, and this is that saying. Feature 068 lands two
- * migrations, and only one of them moves a position.
- * `Migration20260804T114814OrdersShippingAdapterData` carries an August 4th
- * stamp and belongs to `orders`, so both algorithms emit it at 121 — inside
- * `orders`' own block, where chronology and the dependency order agree — and it
- * changes no position's status; it only shifts the already-moved tail down by
- * one, which the count does not see. `Migration20260821T150748InpostWebhookEventsAndShipmentLinks`
- * is the newest stamp in the registry, so 065's chronology emits it **last**, at
- * 147; 081 emits it at 145, immediately after `shipments`' two, because a
- * module's migrations are contiguous and `inpost` declares `shipments` and so
- * follows it in the topological order, ahead of the four PSP modules. Exactly
- * one position changes status — the new migration's own. Measured the same way:
- * 065's `orderMigrations` from `master@a139e1b7^`, run over today's registry,
- * reproduces the 146 entries the literal already held, entry for entry, and puts
- * the two new names at 121 and 147.
- */
-const EXPECTED_MOVED_POSITIONS = 31;
-
-const MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
-  string,
-  readonly string[]
->([
-  ['core', []],
-  ...DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
-]);
-
-function emittedOrder(entries: readonly MigrationRegistryEntry[] = MIGRATION_REGISTRY): string[] {
-  return orderMigrations({
-    entries,
-    moduleDependencies: MODULE_DEPENDENCIES,
-    baselineThrough: BASELINE_THROUGH,
-  }).migrations.map((migration) => migration.name);
-}
-
-/** The order feature 065's algorithm emitted, captured verbatim. Do not regenerate. */
-const PRE_081_ORDER: readonly string[] = [
+const FROZEN_PREFIX: readonly string[] = [
   'Migration20260424T165847CoreFoundationInit',
   'Migration20260424T190112QuoteRequestsInit',
   'Migration20260424T205317OrganizationsInit',
@@ -256,93 +198,100 @@ const PRE_081_ORDER: readonly string[] = [
   'Migration20260727T233211LinkedinAdsInit',
   'Migration20260728T002715MetaAdsInit',
   'Migration20260729T132507TpayInit',
-  'Migration20260816T203339CoreRetireCoreActivationSettings',
-  'Migration20260817T070014EmailDeliveryRecord',
-  'Migration20260801T111001TransactionalEmailsEmailDefaultsReseed',
-  'Migration20260819T155150AdminUsersFoldEmailCase',
-  'Migration20260804T152604CatalogWidenProductSku',
-  'Migration20260804T160244CatalogCategoryActivation',
-  'Migration20260819T074816CustomerAccountsPasswordSetAt',
-  'Migration20260819T142837CustomerAccountsFoldEmailCase',
-  'Migration20260817T055457PriceListsSingleSystemPriceList',
-  'Migration20260804T114814OrdersShippingAdapterData',
-  'Migration20260801T111000InvoicesGenericTemplateReseed',
-  'Migration20260804T190439PimErgonodeInit',
-  'Migration20260817T194652ShipmentsOrderFk',
-  'Migration20260817T201110InvoicesCorrectionIdempotencyKey',
-  'Migration20260817T201111CreditLimitsReturnTopups',
-  'Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome',
-  'Migration20260801T100943PayuInit',
-  'Migration20260803T065409AutopayInit',
-  'Migration20260816T053826StripeSeedPaymentMethods',
-  'Migration20260816T053830PayuSeedPaymentMethods',
-  'Migration20260816T053834TpaySeedPaymentMethods',
-  'Migration20260816T053835AutopaySeedPaymentMethods',
-  'Migration20260818T081243InventoryStockAllocationOrderItemFk',
-  'Migration20260802T073547ProductFeedsInit',
-  'Migration20260802T073627ProductFeedsRuns',
-  'Migration20260802T110630ProductFeedsTaxonomies',
-  'Migration20260803T060153ProductFeedsTaxonomyRefresh',
-  'Migration20260804T152741ProductFeedsWidenIssueSku',
-  'Migration20260806T105956ProductFeedsFeedTokenSecret',
-  'Migration20260806T125806ProductFeedsDelivery',
-  'Migration20260818T081251PromotionsPromotionUsageOrderFk',
-  'Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk',
-  'Migration20260818T081253CartsCartCompletedOrderFk',
-  'Migration20260819T171006ShipmentsStatusPendingManual',
-  'Migration20260819T193653PimErgonodeFoldDerivedKeys',
-  'Migration20260821T150748InpostWebhookEventsAndShipmentLinks',
 ];
 
-describe('migration order — the pre-081 baseline (T001)', () => {
-  it('emits as many migrations as the baseline records', () => {
-    expect(emittedOrder()).toHaveLength(PRE_081_ORDER.length);
-    expect(PRE_081_ORDER).toHaveLength(MIGRATION_REGISTRY.length);
-  });
+const MODULE_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map<
+  string,
+  readonly string[]
+>([
+  ['core', []],
+  ...DISCOVERED_MANIFESTS.map((entry) => [entry.id, entry.manifest.dependencies ?? []] as const),
+]);
 
-  it('emits exactly the baseline\u2019s migrations \u2014 no class was renamed, added or dropped', () => {
-    // The property `mikro_orm_migrations` depends on: it keys applied work by
-    // class name, so a name in the emitted list that is not in the baseline is
-    // a migration that becomes pending again on every live database.
-    const emitted = emittedOrder();
-    expect(new Set(emitted).size, 'a name is emitted twice').toBe(emitted.length);
-    expect([...emitted].sort()).toEqual([...PRE_081_ORDER].sort());
-  });
+function emittedOrder(): string[] {
+  return orderMigrations({
+    entries: MIGRATION_REGISTRY,
+    moduleDependencies: MODULE_DEPENDENCIES,
+    baselineThrough: BASELINE_THROUGH,
+  }).migrations.map((migration) => migration.name);
+}
 
+/** `Migration20260424T165847CoreFoundationInit` -> `20260424T165847`. */
+function stampOf(name: string): string {
+  return name.slice('Migration'.length, 'Migration'.length + 15);
+}
+
+describe('migration order — the frozen historical prefix', () => {
   it('emits the frozen historical prefix identically', () => {
-    const emitted = emittedOrder();
-    expect(emitted.slice(0, FROZEN_PREFIX_LENGTH)).toEqual(
-      PRE_081_ORDER.slice(0, FROZEN_PREFIX_LENGTH),
+    // The claim the live-database safety rests on. Compared against a committed
+    // literal, never against a prefix recomputed from the registry: the two
+    // agree today, and the point of the literal is to be the one that does not
+    // move when the registry, a stamp or the watermark does.
+    const emitted = emittedOrder().slice(0, FROZEN_PREFIX.length);
+
+    // Reported before the deep equality, because `[ …(112) ] to deeply equal
+    // [ …(112) ]` tells the author nothing and this block is 112 entries long.
+    const divergence = FROZEN_PREFIX.findIndex((name, index) => emitted[index] !== name);
+    expect(
+      divergence,
+      divergence === -1
+        ? ''
+        : `position ${divergence} of the frozen prefix holds "${emitted[divergence]}", ` +
+            `where history applied "${FROZEN_PREFIX[divergence]}". This block's order is ` +
+            `history and a fresh database cannot apply any other; see the file header.`,
+    ).toBe(-1);
+    expect(emitted).toEqual(FROZEN_PREFIX);
+  });
+
+  it('holds every migration the watermark covers, and only those', () => {
+    // What makes the literal *complete*: a migration cannot land inside the
+    // frozen block without this going red, and neither can one leave it. Order
+    // is not the subject here — the test above is — so both sides are sorted.
+    const withinWatermark = MIGRATION_REGISTRY.map((entry) => entry.cls.name).filter(
+      (name) => stampOf(name) <= BASELINE_THROUGH,
     );
-  });
+    const pinned = new Set(FROZEN_PREFIX);
+    const registered = new Set(withinWatermark);
 
-  it('agrees with the registry about where the frozen prefix ends', () => {
-    // FROZEN_PREFIX_LENGTH is hand-written above; this is what says it is not
-    // an arbitrary number. Both algorithms put every entry stamped at or
-    // before the watermark, and only those, in the prefix.
-    const stampOf = (name: string): string =>
-      name.slice('Migration'.length, 'Migration'.length + 15);
-    const withinWatermark = PRE_081_ORDER.filter((name) => stampOf(name) <= BASELINE_THROUGH);
-
-    expect(withinWatermark).toHaveLength(FROZEN_PREFIX_LENGTH);
-    expect(PRE_081_ORDER.slice(0, FROZEN_PREFIX_LENGTH)).toEqual(withinWatermark);
-  });
-
-  it('moves exactly the positions the current algorithm is expected to move', () => {
-    const emitted = emittedOrder();
-    const moved = emitted
-      .map((name, index) => (name === PRE_081_ORDER[index] ? null : { index, name }))
-      .filter((entry): entry is { index: number; name: string } => entry !== null);
-
+    // Named rather than counted, for the same reason as above: the two ways
+    // this goes red want different remedies. An arrival is a stamp hand-written
+    // below the watermark, which the scaffolder cannot produce; a departure is
+    // an applied class renamed or deleted, which costs every database a rebuild.
     expect(
-      moved.length,
-      `positions differing from the pre-081 baseline: ${moved.map((m) => `${m.index}:${m.name}`).join(', ')}`,
-    ).toBe(EXPECTED_MOVED_POSITIONS);
-
-    const inFrozenPrefix = moved.filter((entry) => entry.index < FROZEN_PREFIX_LENGTH);
-    expect(
-      inFrozenPrefix,
-      'the frozen prefix is history and may not be reordered by any change',
+      withinWatermark.filter((name) => !pinned.has(name)),
+      'a migration entered the frozen block, whose membership closed at BASELINE_THROUGH',
     ).toEqual([]);
+    expect(
+      FROZEN_PREFIX.filter((name) => !registered.has(name)),
+      'a migration left the frozen block — an applied class was renamed or deleted',
+    ).toEqual([]);
+    expect([...withinWatermark].sort()).toEqual([...FROZEN_PREFIX].sort());
+  });
+
+  it('emits nothing stamped inside the watermark after the prefix ends', () => {
+    // The boundary, asserted without consulting the literal. Only the committed
+    // core registry is walked, so the origin half of the membership rule cannot
+    // legitimately push a below-watermark entry into the open block here — the
+    // test below is what keeps that true. An external entry doing so on purpose
+    // is `migration-order.test.ts` § J11.
+    const afterPrefix = emittedOrder().slice(FROZEN_PREFIX.length);
+    const leaked = afterPrefix.filter((name) => stampOf(name) <= BASELINE_THROUGH);
+
+    expect(leaked, 'a below-watermark migration is emitted outside the frozen prefix').toEqual([]);
+    expect(afterPrefix.length, 'the open block is empty').toBeGreaterThan(0);
+  });
+
+  it('carries no committed entry that declares itself external', () => {
+    // The second half of baseline membership. A committed entry stamped below
+    // the watermark but declared `external` is dropped from the prefix by
+    // `isBaseline` while still passing the stamp filter above, so the two tests
+    // before this one would disagree about it for a reason neither can name.
+    const external = MIGRATION_REGISTRY.filter(
+      (entry) => entry.origin !== undefined && entry.origin !== 'core',
+    ).map((entry) => entry.cls.name);
+
+    expect(external, 'the committed core registry may only contribute core-origin entries').toEqual(
+      [],
+    );
   });
 });

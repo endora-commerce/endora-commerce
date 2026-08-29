@@ -3,8 +3,8 @@
 import { useMemo, type ReactElement } from 'react';
 import type { Field } from '@measured/puck';
 import { FieldLabel } from '@measured/puck';
-import { createColorField } from '@b2b/page-builder-core';
-import type { BackgroundKind, BackgroundValue, MediaSourceKind } from '@b2b/page-builder-core';
+import { createColorField } from '@endora-commerce/page-builder-core';
+import type { BackgroundKind, BackgroundValue, MediaSourceKind } from '@endora-commerce/page-builder-core';
 import { createImageAssetField, createImageUrlField, createVideoAssetField, inputClassName } from './AssetPickers';
 
 const KIND_OPTIONS: { label: string; value: BackgroundKind }[] = [

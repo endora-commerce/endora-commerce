@@ -1,4 +1,4 @@
-import type { InventoryDisplayMode, StorefrontProductStock } from '@b2b/contracts';
+import type { InventoryDisplayMode, StorefrontProductStock } from '@endora-commerce/contracts';
 import { apiGet, type RequestContext } from './client';
 import { apiMutate } from './mutations';
 

@@ -29,7 +29,7 @@ The legacy `PriceListItem` and `PriceListAssignment` tables (and the
 `code` / `currency` / `priority` / `isDefault` columns on `price_lists`)
 are kept by migration 031 only as a transitional shim during the
 expand → migrate → contract rollout. Newly written code MUST consume
-the engine schema via `@b2b/contracts`.
+the engine schema via `@endora-commerce/contracts`.
 
 ## Lifecycle
 
@@ -185,7 +185,18 @@ order-placement endpoints additionally refuse the line with
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | Per-customer Base + Sale + display mode |
-| `GET /api/v1/storefront/pricing/display-mode/:productId` | Display mode only (used for catalog/search batch surfaces) |
+| `GET /api/v1/storefront/pricing/display-mode/:productId` | Display mode only (used by the cart, and by batch surfaces that resolve the price separately) |
+
+Both storefront reads are resolved **for the viewer**: they take the buyer's
+session when one is there and answer as the public when it is not. They also
+derive that viewer through one function, so the display mode carried inside a
+resolved price and the one this endpoint returns cannot disagree for the same
+caller — before issue #271 they could, and a signed-in buyer read net on the
+product page and gross in the cart wherever `pricing.default_display_mode` and
+`pricing.unauthenticated_display_mode` were set differently. A response resolved
+for an Organization carries `Cache-Control: private, no-store`; the anonymous
+one is unstamped and stays the representation a crawler and the storefront's
+shared window hold.
 
 ### Legacy (feature 014 — still served until every reader migrates)
 

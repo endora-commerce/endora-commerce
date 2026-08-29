@@ -8,6 +8,13 @@ import { MobileFilterSheet } from '../../../components/mobile/MobileFilterSheet'
 import { listProducts, getFilters } from '../../../lib/api/catalog';
 import { getServerContext } from '../../../lib/server-context';
 import { tForLocale } from '../../../lib/i18n/messages';
+import {
+  parseCatalogPriceQuery,
+  parsePriceBound,
+  parseSortParam,
+  priceControlsActive,
+} from '../../../lib/catalog-price-query';
+import type { ProductListSort } from '@endora-commerce/contracts';
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -23,11 +30,14 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
   const { ctx, locale } = await getServerContext();
   const t = tForLocale(locale);
   const query = parseQuery(params);
+  const priceQuery = parseCatalogPriceQuery(params);
 
   const [products, filters] = await Promise.all([
     listProducts(query.list, ctx),
     getFilters(ctx),
   ]);
+  // FR-023 — the server's answer, never the storefront's guess.
+  const priceOrdering = products.capabilities?.priceOrdering === true;
 
   const heading = query.list.q
     ? `${t('common.searchAction')}: ${query.list.q}`
@@ -59,6 +69,8 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
             baseQuery={query.baseQuery}
             basePath="/catalog"
             locale={locale}
+            priceRange={priceOrdering}
+            selectedPriceRange={{ min: priceQuery.minPrice, max: priceQuery.maxPrice }}
           />
         </div>
         <div>
@@ -74,6 +86,9 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
             limit={query.list.limit ?? 24}
             view={query.view}
             baseQuery={query.baseQuery}
+            locale={locale}
+            priceOrdering={priceOrdering}
+            priceControlsActive={priceOrdering && priceControlsActive(priceQuery)}
             filtersSlot={
               <MobileFilterSheet
                 key="mobile-filter-sheet"
@@ -88,6 +103,8 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
                   baseQuery={query.baseQuery}
                   basePath="/catalog"
                   locale={locale}
+                  priceRange={priceOrdering}
+                  selectedPriceRange={{ min: priceQuery.minPrice, max: priceQuery.maxPrice }}
                   variant="sheet"
                 />
               </MobileFilterSheet>
@@ -128,9 +145,11 @@ function parseQuery(raw: Record<string, string | string[] | undefined>): {
   list: {
     q?: string | undefined;
     cursor?: string | undefined;
-    sort?: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+    sort?: ProductListSort | undefined;
     limit?: 24 | 48 | 96 | undefined;
     attributeFilters?: Record<string, string[]> | undefined;
+    minPrice?: number | undefined;
+    maxPrice?: number | undefined;
   };
   view: 'grid' | 'list';
   baseQuery: Record<string, string>;
@@ -138,7 +157,7 @@ function parseQuery(raw: Record<string, string | string[] | undefined>): {
   const baseQuery: Record<string, string> = {};
   const attributeFilters: Record<string, string[]> = {};
   let q: string | undefined;
-  let sort: 'relevance' | '-createdAt' | 'name' | '-name' | undefined;
+  let sort: ProductListSort | undefined;
   let limit: 24 | 48 | 96 | undefined;
   let view: 'grid' | 'list' = 'grid';
   for (const [key, value] of Object.entries(raw)) {
@@ -149,10 +168,16 @@ function parseQuery(raw: Record<string, string | string[] | undefined>): {
       continue;
     }
     if (key === 'sort' && typeof value === 'string') {
-      if (value === 'relevance' || value === '-createdAt' || value === 'name' || value === '-name') {
-        sort = value;
-        baseQuery['sort'] = value;
+      const parsedSort = parseSortParam(value);
+      if (parsedSort !== undefined) {
+        sort = parsedSort;
+        baseQuery['sort'] = parsedSort;
       }
+      continue;
+    }
+    if ((key === 'minPrice' || key === 'maxPrice') && typeof value === 'string') {
+      const bound = parsePriceBound(value);
+      if (bound !== undefined) baseQuery[key] = String(bound);
       continue;
     }
     if (key === 'limit' && typeof value === 'string') {
@@ -180,11 +205,15 @@ function parseQuery(raw: Record<string, string | string[] | undefined>): {
       attributeFilters[attrMatch[1]] = values;
     }
   }
+  const minPrice = parsePriceBound(raw['minPrice']);
+  const maxPrice = parsePriceBound(raw['maxPrice']);
   return {
     list: {
       ...(q !== undefined ? { q } : {}),
       ...(sort !== undefined ? { sort } : {}),
       ...(limit !== undefined ? { limit } : {}),
+      ...(minPrice !== undefined ? { minPrice } : {}),
+      ...(maxPrice !== undefined ? { maxPrice } : {}),
       ...(baseQuery['cursor'] !== undefined ? { cursor: baseQuery['cursor'] } : {}),
       ...(Object.keys(attributeFilters).length > 0 ? { attributeFilters } : {}),
     },

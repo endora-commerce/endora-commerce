@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { listQuerySchema } from '@b2b/contracts';
+import { listQuerySchema } from '@endora-commerce/contracts';
 
 /**
  * The run-detail page loads the feed, the run and its issues in one

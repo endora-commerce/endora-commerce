@@ -12,9 +12,15 @@
 // runtime exports as a separate step.
 
 import { z } from 'zod';
-import { ModuleSettingsManifestSchema, settingCodeRe } from './settings.js';
-import { ModuleActionsManifestSchema } from './admin-actions.js';
+import {
+  ModuleSettingsManifestSchema,
+  settingCodeRe,
+  type ModuleSettingsManifest,
+  type SettingManifestEntry,
+} from './settings.js';
+import { KnownIconNameSchema, ModuleActionsManifestSchema } from './admin-actions.js';
 import { modulePermissionDeclarationSchema } from './admin.js';
+import { errorCodeRe } from './errors.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
 
 // ---------------------------------------------------------------------------
@@ -142,7 +148,7 @@ export type ModuleAcknowledgedDependency = z.infer<
  * still forces a `dependencies` entry, and `fk-dependency-drift.test.ts` still
  * fails for one declared here instead.
  *
- * The two kinds are the two ways an edge can exist without the bind bit:
+ * The three kinds are the three ways an edge can exist without the bind bit:
  *
  *  - **`contributes-to`** — the declaring module pushes an inert descriptor
  *    into `moduleId`'s ungated registry at boot. It has no failure mode in
@@ -153,6 +159,43 @@ export type ModuleAcknowledgedDependency = z.infer<
  *    `moduleId`, checks presence before it does, and keeps working with less.
  *    `whenAbsent` is required and states that behaviour, which is what an
  *    off-state test for the edge is held to.
+ *  - **`refuses-without`** — the declaring module reads a **gated port**, has
+ *    no fallback for it, and lets the 503 `MODULE_DISABLED` refusal reach the
+ *    caller. The operation stops; the rest of the declaring module keeps
+ *    working; the owner's activation control keeps working. `whenAbsent` is
+ *    required and names **what** refuses, because that is the whole payload:
+ *    the deactivation-consequence ledger classifies the edge `fails-closed`
+ *    and the operator's confirmation dialog renders this sentence.
+ *
+ * The third kind was an omission rather than a narrowing, and it is worth
+ * saying why, because the gap is invisible from the manifest side. A read with
+ * no fallback had only one spelling — `dependencies` (or
+ * `acknowledgedDependencies`) — and both carry the bind, so a dependent that
+ * cannot itself be switched off turned the *owner's* activation control into a
+ * dead switch: the operator flips it, the flip-time refusal names a module
+ * that will never go away, and nothing happens. That is a worse answer than
+ * either alternative, since a control that lies is not a control. So the
+ * missing spelling is "refuse, and do not bind", which is what this kind is;
+ * the outcome it produces (`fails-closed`) has been in the ledger's vocabulary
+ * since feature 074 and was reachable only for edges that also bound.
+ *
+ * **The half of the claim about the owner's control is already unspellable**,
+ * and it is worth knowing where: rule 2 of `assertNonBindingRules` refuses any
+ * non-binding edge whose target the same manifest also names in
+ * `dependencies` or `acknowledgedDependencies` — one edge, one claim, in one
+ * place. So a `refuses-without` entry cannot sit beside the bind it denies;
+ * a module that wants both is telling the operator two things at once and is
+ * refused before the ledger ever sees it. `check-port-dependencies.ts` re-
+ * derives the same fact from the manifests as a second net, for a manifest
+ * built without this helper.
+ *
+ * The other two halves are the check's alone, because both are properties of
+ * the *tree* rather than of the manifest: the name is registered with
+ * `di.providePort` (an ungated registration has no refusal to propagate), and
+ * the resolution happens at call time (a gated port resolved at boot stops the
+ * next start rather than one request — the ledger's
+ * `gated-port-before-first-request`, which is assigned before any declaration
+ * is consulted and which no entry can therefore rescue).
  *
  * The fourth quadrant — order without bind — stays deliberately unspellable
  * (Constitution IV). An edge that needs both goes back to `dependencies`, and
@@ -163,8 +206,11 @@ export const ModuleNonBindingDependencySchema = z.object({
   moduleId: z.string().regex(moduleIdRe),
   /** The container registration name, e.g. `promptActionToolRegistry`. */
   name: z.string().min(1),
-  kind: z.enum(['contributes-to', 'degrades-without']),
-  /** `degrades-without` only: what stops working. Rendered beside the control. */
+  kind: z.enum(['contributes-to', 'degrades-without', 'refuses-without']),
+  /**
+   * `degrades-without` and `refuses-without` only: what stops working, and for
+   * the second, what refuses. Rendered beside the control.
+   */
   whenAbsent: z.string().min(1).max(200).optional(),
   reason: z.string().min(1).max(800),
 });
@@ -197,6 +243,39 @@ export const ReducedDeploymentDeclarationSchema = z.object({
 export type ReducedDeploymentDeclaration = z.infer<
   typeof ReducedDeploymentDeclarationSchema
 >;
+
+/**
+ * Refusal-token grammar for {@link ModuleErrorCodeDeclarationSchema}.
+ *
+ * One code, several reasons — `specs/082-error-code-ownership/contracts/error-code-ownership.md`
+ * §1.4. The envelope reads `details.code` and looks up
+ * `errors.<CODE>.<token>`, falling back to `errors.<CODE>`.
+ */
+export const errorCodeTokenRe = /^[a-z][a-z0-9_]*$/;
+
+/**
+ * One error code a module claims as its own
+ * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md` §1.1).
+ *
+ * **No `message` field, and that is a decision.** The English sentence a caller
+ * sees when nothing is translated is the one the raising code wrote: it already
+ * exists, it is written where the condition is known, and it can interpolate.
+ * A manifest message would be a third English sentence for one condition, and
+ * the two would drift exactly as a permission's `label` and its
+ * `adminRoles.permission.<code>` bundle key already do. The translated
+ * sentences live in the declaring module's own `i18n/<language>.json` under
+ * `errors.<CODE>`, which is where the envelope already looks.
+ *
+ * **`tokens` is declared rather than inferred** because a static reader that
+ * does not know the token set cannot tell `errors.CART_COUPON_REJECTED.expired`
+ * from a key whose tail is not a code at all — which is a finding. Fourteen keys
+ * in `invoices` and `carts` have this shape today.
+ */
+export const ModuleErrorCodeDeclarationSchema = z.object({
+  code: z.string().regex(errorCodeRe),
+  tokens: z.array(z.string().regex(errorCodeTokenRe)).optional(),
+});
+export type ModuleErrorCodeDeclaration = z.infer<typeof ModuleErrorCodeDeclarationSchema>;
 
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
@@ -255,6 +334,19 @@ export const ModuleManifestSchema = z.object({
    * supplied separately at runtime via the EmailDefaultsRegistry.
    */
   transactionalEmails: z.array(transactionalEmailManifestEntrySchema).optional(),
+  /**
+   * The operator-visible error codes this module owns (feature 090, D-182).
+   *
+   * The declaration is what routes the code's sentence to this module's bundle:
+   * `errors.<CODE>` in `<module>/i18n/<language>.json`. Which module owns a code
+   * is `specs/082-error-code-ownership/contracts/error-code-ownership.md` §1 —
+   * the domain noun decides, never the thrower, so `orders` raising `CART_EMPTY`
+   * leaves the code owned by `carts`.
+   *
+   * Absent means "this module owns no operator-visible error code", which is
+   * true of most modules and is not a finding.
+   */
+  errorCodes: z.array(ModuleErrorCodeDeclarationSchema).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
@@ -356,6 +448,20 @@ function assertNonBindingRules(m: ModuleManifest): void {
           `behaviour and the sentence is what a reviewer and an off-state test hold it to.`,
       );
     }
+    // 3a. And it is the whole of `refuses-without`, for a sharper reason: the
+    //     outcome that kind produces is the one an undeclared gated port
+    //     produces anyway, so the sentence is the only thing the declaration
+    //     adds. Without it the entry classifies identically to no entry at
+    //     all, and the operator's dialog falls back to a translated default
+    //     that names no capability.
+    if (edge.kind === 'refuses-without' && edge.whenAbsent === undefined) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares "${edge.moduleId}:${edge.name}" ` +
+          `as \`refuses-without\` with no \`whenAbsent\` — the ledger classifies such an ` +
+          `edge exactly as it classifies an undeclared one, so the sentence is the whole ` +
+          `of what the declaration buys. Name what refuses, in the operator's words.`,
+      );
+    }
     if (edge.kind === 'contributes-to' && edge.whenAbsent !== undefined) {
       throw new Error(
         `[contracts/modules] manifest "${m.id}" declares "${edge.moduleId}:${edge.name}" ` +
@@ -363,6 +469,69 @@ function assertNonBindingRules(m: ModuleManifest): void {
           `degrades nothing, so either drop the sentence or the edge is a pull and the ` +
           `kind is \`degrades-without\`.`,
       );
+    }
+  }
+}
+
+/**
+ * The `errorCodes` refusals (feature 090,
+ * `contracts/error-code-declaration.md` §2, first layer).
+ *
+ * They live here rather than in the schema for the reason the activation rules
+ * do: two of them are cross-element — a duplicate is a relationship between two
+ * entries, which an element schema cannot see — and every message has to name
+ * the module the author is looking at. All four fire on import, on the author's
+ * machine, with no instance and no database.
+ *
+ * What this layer deliberately does **not** refuse is a code **another** module
+ * declares. It sees one manifest and cannot see a second, so a partial refusal
+ * here called "the collision rule" would be a green that means "not looking".
+ * The collision rule is composition's (§3), and an in-repository collision is
+ * refused before that, in CI.
+ *
+ * Nor does it refuse a code that is a member of `ERROR_CODES`. After feature
+ * 090's migration every core module's declarations are members of it, so such a
+ * rule would refuse the platform's own manifests; there is no origin field to
+ * condition it on, and adding one would be a self-certified exemption issued by
+ * the measured party.
+ */
+function assertErrorCodeRules(m: ModuleManifest): void {
+  const seenCodes = new Set<string>();
+  for (const declaration of m.errorCodes ?? []) {
+    if (!errorCodeRe.test(declaration.code)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares error code ` +
+          `"${declaration.code}", which is not SCREAMING_SNAKE_CASE ` +
+          `(${String(errorCodeRe)}) — the code travels verbatim on the wire and ` +
+          'is the tail of the `errors.<CODE>` key its sentence is written under.',
+      );
+    }
+    if (seenCodes.has(declaration.code)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares error code ` +
+          `"${declaration.code}" twice — one code has one owner and one sentence, ` +
+          'so the second entry can only disagree with the first.',
+      );
+    }
+    seenCodes.add(declaration.code);
+
+    const seenTokens = new Set<string>();
+    for (const token of declaration.tokens ?? []) {
+      if (!errorCodeTokenRe.test(token)) {
+        throw new Error(
+          `[contracts/modules] manifest "${m.id}" declares refusal token "${token}" ` +
+            `under "${declaration.code}", which does not match ${String(errorCodeTokenRe)} — ` +
+            'the token is the tail of `errors.<CODE>.<token>` and a key that does not ' +
+            'parse is a key nothing reads.',
+        );
+      }
+      if (seenTokens.has(token)) {
+        throw new Error(
+          `[contracts/modules] manifest "${m.id}" declares refusal token "${token}" ` +
+            `twice under "${declaration.code}" — one token is one sentence.`,
+        );
+      }
+      seenTokens.add(token);
     }
   }
 }
@@ -410,6 +579,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
     }
   }
   assertNonBindingRules(m);
+  assertErrorCodeRules(m);
   return ModuleManifestSchema.parse(m);
 }
 
@@ -447,11 +617,450 @@ export type ModuleUninstallHook<EM = unknown, Redis = unknown> = (
   ctx: ModuleLifecycleContext<EM, Redis> & { hard: boolean },
 ) => Promise<void>;
 
+// ---------------------------------------------------------------------------
+// Lifecycle participants (feature 080, T036a / D-159)
+// ---------------------------------------------------------------------------
+
+/**
+ * What a participant is told when **another** module is installed.
+ *
+ * `moduleId` is the module the operator asked to install, never the
+ * participant's own — that is the whole difference between this and an install
+ * hook, and it is why a participant could not be one. An install hook answers
+ * *"my module is arriving"*; a participant answers *"a module is arriving and I
+ * keep a projection of every module".*
+ */
+export interface ModuleInstalledEvent<EM = unknown> {
+  /** The module being installed. */
+  moduleId: string;
+  /** That module's manifest, already validated. */
+  manifest: ModuleManifest;
+  /**
+   * The directory holding that module's manifest file — what a participant
+   * that reads the module's own files off disk (bundles, templates) joins its
+   * relative directory onto.
+   */
+  modulePath: string;
+  /**
+   * The orchestrator's EntityManager. A participant MUST write through it
+   * rather than forking its own, so its rows join the operation the orchestrator
+   * is performing instead of committing beside it.
+   */
+  em: EM;
+  log: ModuleLifecycleLogger;
+}
+
+/**
+ * What a participant is told when another module is **hard**-uninstalled.
+ *
+ * A soft uninstall never reaches a participant: soft preserves the module's
+ * data so a re-install picks it up unchanged, and a projection of the manifest
+ * is data on those terms.
+ */
+export interface ModuleHardUninstalledEvent<EM = unknown> {
+  /** The module being removed. */
+  moduleId: string;
+  /**
+   * That module's manifest, or `null` when the registry holds a row for a
+   * module whose manifest is no longer on this instance — an orphan. Removing a
+   * projection is exactly the case that must still work then, so the manifest
+   * is nullable here and not on the install side.
+   */
+  manifest: ModuleManifest | null;
+  /** The orchestrator's EntityManager — see {@link ModuleInstalledEvent.em}. */
+  em: EM;
+  log: ModuleLifecycleLogger;
+}
+
+/**
+ * A module's declared interest in **every other module's** lifecycle.
+ *
+ * Two modules keep a table that projects what the manifests declare — `_i18n`
+ * projects `manifest.i18n` into `translation_bundles`, `admin_actions` projects
+ * `manifest.actions` into `module_actions` — and both projections have to move
+ * when *any* module is installed or hard-uninstalled. That is not an install
+ * hook (which fires for its own module) and it cannot be a port (the lifecycle
+ * orchestrator serves a platform command, which composes no container to
+ * resolve one from). It is a third export of `manifest.ts`, walked by the same
+ * generator, so it reaches core, overlay and an installed package on identical
+ * terms.
+ *
+ * **Both methods are required**, deliberately. Feature detection through an
+ * optional method is what D-97.3 refuses on a published port, and the reason
+ * carries here: a participant with nothing to do on one edge writes an empty
+ * body, which is a decision a reader can see, while an omitted method is
+ * indistinguishable from one somebody forgot.
+ *
+ * Keep the implementation in `manifest.ts` **light** — `await import()` the
+ * service the body needs. The generated manifest index is imported by the check
+ * scripts and by `src/db/configured-migrations.ts`, so a participant that
+ * statically imported an ORM-dependent service graph would pull it into every
+ * one of them.
+ */
+export interface ModuleLifecycleParticipant<EM = unknown> {
+  /**
+   * Runs after the installed module's settings are reconciled and before its
+   * own install hook. A throw aborts the install and reverts its migrations,
+   * which is the property FR-016 rests on: an operator installing a module with
+   * an unreadable bundle is told while they can still choose not to install it.
+   */
+  onModuleInstalled(event: ModuleInstalledEvent<EM>): Promise<void>;
+  /** Runs on `uninstall --hard` only. */
+  onModuleHardUninstalled(event: ModuleHardUninstalledEvent<EM>): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// Module CLI commands (feature 080, T042b / D-160.9)
+// ---------------------------------------------------------------------------
+
+/**
+ * The shape a command's name has to take: lowercase, hyphen-separated.
+ *
+ * A command is addressed as `<module id> <command name>` on the host's argv, so
+ * the name shares the module id's alphabet minus the underscore — an operator
+ * types `carts abandonment-sweep`, and `check:naming`'s route-segment rule is
+ * the same shape for the same reason. The host validates against this rather
+ * than accepting whatever a package declared: a name with a space in it is
+ * unaddressable, and a name that differs from the one printed by `--list` is
+ * worse than one that is refused.
+ */
+export const MODULE_CLI_COMMAND_NAME_RE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+
+/**
+ * What a command handler is given.
+ *
+ * `ctx` is the module's own `ModuleContext` — a kernel type this package
+ * deliberately does not import, so it arrives through the generic exactly as an
+ * `EntityManager` does on the lifecycle hooks above. A handler resolves what it
+ * needs from it with
+ * `lazyPort<T>(ctx, 'literalName')`, character-for-character what `backend.ts`
+ * writes, which is what keeps `check:port-dependencies` able to see the edge. A
+ * cradle read would be invisible to it.
+ *
+ * `out` and `err` are the command's interface, injected rather than reached for:
+ * a handler that writes to `process.stdout` directly cannot be driven from a
+ * test without capturing the process's streams, and the host is the one place
+ * that knows whether this invocation has a terminal.
+ */
+export interface ModuleCliCommandContext<Ctx = unknown> {
+  /** The module's own composed `ModuleContext`. */
+  ctx: Ctx;
+  /** Everything the operator typed after `<module id> <command name>`. */
+  argv: readonly string[];
+  /** One line of human-readable output. The host adds the newline. */
+  out(line: string): void;
+  /** One line of diagnostics. The host adds the newline. */
+  err(line: string): void;
+}
+
+/**
+ * An operator command a module declares and **the host runs** (D-160.9).
+ *
+ * Checked against Magento 2, which is this repository's module benchmark: a
+ * Magento module ships a command class plus a declaration in its `di.xml` under
+ * `CommandListInterface`, and `bin/magento` — the host binary — bootstraps the
+ * application and constructs each command with its dependencies injected. The
+ * module never bootstraps the host. That is one-to-one with what D-157.8 had
+ * already ruled here: the command is declared where `installHook` is declared,
+ * an export of the module's `manifest.ts`, picked up by the same tree walk, and
+ * one shape covers core, overlay and package.
+ *
+ * A package could not do it any other way. A file under `node_modules` can name
+ * no specifier that resolves to the instance's `backend/src/composition.ts`, and
+ * a core script that names it creates a module → root → module cycle. So the
+ * invocation inverts: the host composes once and calls the module.
+ *
+ * **It is not a Command Bus Command** (Constitution XIII), and the field is
+ * spelled `cliCommands` rather than `commands` so that the two cannot be read
+ * for one another — `backend/src/commands/` and every module's own `commands/`
+ * directory already hold the audited domain writes. A CLI command that performs
+ * a domain write runs one of those, resolved from `ctx`, exactly as a route
+ * handler does.
+ *
+ * Keep the declaration in `manifest.ts` **light**, for the reason
+ * {@link ModuleLifecycleParticipant} gives: the generated manifest index is
+ * imported by the check scripts and by `src/db/configured-migrations.ts`, so
+ * `run` should `await import()` the file that holds the body rather than
+ * pulling a service graph into all of them.
+ */
+export interface ModuleCliCommand<Ctx = unknown> {
+  /** Unique within the module. Must match {@link MODULE_CLI_COMMAND_NAME_RE}. */
+  name: string;
+  /** One line, printed by the host's `--list`. Written for an operator. */
+  summary: string;
+  /**
+   * The full usage text, printed by the host for `--help`.
+   *
+   * A **data property**, not a method, and answered by the host **before it
+   * composes**: `--list` and `--help` are questions about the declaration, and
+   * a tool has to be able to say what it does before it can do it. D-102 made
+   * that a condition rather than a nicety for `audit_logs read` — its credential
+   * is host access, not a working connection string — and the same property is
+   * why D-157.8 rejected path-convention dispatch, which *"nothing can list …
+   * for `--help`"*.
+   *
+   * Omit it and the host prints {@link summary}. An optional *data* property is
+   * outside what D-97.3 refuses: that rule is about optional **methods** on a
+   * published port, where `lazyPort`'s proxy makes feature detection impossible
+   * by construction.
+   */
+  help?: string;
+  /**
+   * The body. Returns the process exit code — `0` for success, non-zero for a
+   * failure the command itself detected (bad argv, a strict-mode violation).
+   *
+   * Required to return one rather than `void`: a command that means "1" and
+   * returns nothing is indistinguishable from one that succeeded, and the shell
+   * that runs it in a deploy hook reads only the code.
+   *
+   * A throw is the other failure channel and needs no handling here: the host
+   * reports it and exits non-zero. In particular a command must **not** wrap a
+   * port call in a `catch` — that swallows `ModuleDisabledError` and turns
+   * fail-closed into fail-open (`check:port-catches`).
+   */
+  run(context: ModuleCliCommandContext<Ctx>): Promise<number>;
+}
+
+// ---------------------------------------------------------------------------
+// Recent-activity eligibility (feature 080, T042j / D-163.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * The shape an audit action token has: `<object>.<verb>`, both snake_case.
+ *
+ * `product.create`, `stock_level.bulk_import`, `prompt_action.execute`. It is
+ * the value stored in `audit_log_entries.action`, and it is matched here rather
+ * than accepted as any string because the declaration is the *only* thing that
+ * puts a token into the dashboard query's `$in` — a typo used to be caught by a
+ * reviewer reading a hand-written array, and there is no array to read now.
+ *
+ * naming:allow-snake-case — the token is persisted verbatim in
+ * `audit_log_entries.action` and is written by `Command.action`, so this is the
+ * existing wire value rather than a new API field.
+ */
+export const auditActionRe = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/;
+
+/**
+ * One audit action a module offers to the admin home dashboard's
+ * recent-activity card.
+ *
+ * `labelKey` is **relative to the declaring module's i18n namespace**, exactly
+ * as a command-palette action's `labelKey` is: the module ships
+ * `activity.verb.product.create` in its own `i18n/en.json` and `pl.json`, the
+ * card resolves it as `t('<moduleId>', '<labelKey>')`. That is what lets a
+ * third-party package render a verb in the operator's language without the host
+ * shipping a string for it.
+ *
+ * `icon` comes from {@link KnownIconNameSchema}, so the admin maps it through
+ * the one `icon-map.ts` it already has and a package cannot name a component
+ * the SPA does not bundle.
+ */
+export const RecentActivityEntrySchema = z.object({
+  /** The `audit_log_entries.action` token, e.g. `product.create`. */
+  action: z.string().regex(auditActionRe),
+  icon: KnownIconNameSchema,
+  /** Module-namespace-relative i18n key for the verb, e.g. `activity.verb.product.create`. */
+  labelKey: z.string().min(1).max(255),
+});
+export type RecentActivityEntry = z.infer<typeof RecentActivityEntrySchema>;
+
+/**
+ * A module's declaration that its activity is **eligible** for the dashboard's
+ * recent-activity card — D-163.1, the first of the ruling's two axes.
+ *
+ * It is a declaration and not a decision. Whether a declared module's rows
+ * actually appear is the operator's, held in
+ * {@link recentActivityVisibilitySettingCode}'s Setting and defaulting to
+ * visible — Constitution XVII's two-axis shape applied to a narrower object.
+ * Neither axis overwrites the other: a module author cannot put entries on
+ * somebody's home screen by fiat, and an operator cannot be surprised by a card
+ * they did not configure.
+ *
+ * It replaces four hand-maintained tables that had already drifted apart inside
+ * core (D-163): the server allow-list that filtered the dashboard query, the
+ * action → module prefix map, the route's `module` enum and the admin's
+ * `ACTIVITY_RENDERING`. Every one of them is derived from this now, so a
+ * package's row reaches the card and a fifth hand-written entry has nowhere to
+ * be written.
+ *
+ * Declared as an export of `manifest.ts` beside `installHook`,
+ * `lifecycleParticipant` and `cliCommands`, walked by the same generator, so
+ * core, overlay and an installed package declare one on identical terms.
+ */
+export const ModuleRecentActivitySchema = z.object({
+  entries: z.array(RecentActivityEntrySchema).min(1),
+});
+export type ModuleRecentActivity = z.infer<typeof ModuleRecentActivitySchema>;
+
+/**
+ * Identity-with-validation helper for module authors, the twin of
+ * {@link defineModuleManifest}.
+ */
+export function defineModuleRecentActivity(
+  declaration: ModuleRecentActivity,
+): ModuleRecentActivity {
+  return ModuleRecentActivitySchema.parse(declaration);
+}
+
+/** The suffix every recent-activity visibility Setting code ends in. */
+export const RECENT_ACTIVITY_VISIBILITY_SETTING_SUFFIX = 'recent_activity_visible';
+
+/**
+ * Raised when a module's id cannot carry a Setting code — see
+ * {@link recentActivityVisibilitySettingCode}.
+ */
+export class RecentActivitySettingCodeInvalid extends Error {
+  override readonly name = 'RecentActivitySettingCodeInvalid';
+}
+
+/**
+ * The Setting that holds the operator's choice for one declaring module.
+ *
+ * **Derived, never declared.** `activation.settingCode` is declared because a
+ * module that already shipped an ad-hoc control had to be able to adopt it;
+ * there is no such history here, and a declared code would be a fifth place a
+ * module could disagree with the platform about its own name. D-163.1 also
+ * fixes the default — visible — so there is nothing else for a declaration to
+ * carry.
+ */
+export function recentActivityVisibilitySettingCode(moduleId: string): string {
+  const code = `${moduleId}.${RECENT_ACTIVITY_VISIBILITY_SETTING_SUFFIX}`;
+  if (!settingCodeRe.test(code)) {
+    throw new RecentActivitySettingCodeInvalid(
+      `[contracts/modules] module "${moduleId}" declares recent-activity eligibility, but ` +
+        `"${code}" is not a valid setting code. A platform-internal module id (leading ` +
+        `underscore) cannot own one; the card is for a domain module's activity.`,
+    );
+  }
+  return code;
+}
+
+/**
+ * The settings manifest the platform reconciles for a module, which is the
+ * module's own declaration plus the one Setting its recent-activity eligibility
+ * implies.
+ *
+ * Two callers and one derivation, deliberately (D-100): the boot reconcile
+ * walks every shipped module's settings, and the lifecycle orchestrator's
+ * `install` reconciles exactly the arriving module's. A package has only the
+ * second — since D-157.6(b) `install` is its sole author — so a second copy of
+ * this merge would mean a packaged module's control existing on one path and
+ * not the other.
+ *
+ * Returns `undefined` when the module declares neither, so a caller can keep
+ * treating "no settings" as an absent value.
+ */
+export function settingsManifestWithRecentActivity(
+  manifest: ModuleManifest,
+  recentActivity: ModuleRecentActivity | undefined,
+): ModuleSettingsManifest | undefined {
+  if (!recentActivity) return manifest.settings;
+  const entry: SettingManifestEntry = {
+    code: recentActivityVisibilitySettingCode(manifest.id),
+    name: `${manifest.name}: show activity on the dashboard`,
+    description:
+      `Whether ${manifest.name}'s entries appear on the admin home dashboard's Recent ` +
+      'Activity card. Switching it off hides them from that card only — the audit trail ' +
+      'itself is unchanged and the entries stay on the audit-log screen.',
+    valueType: 'boolean',
+    defaultValue: true,
+    // Managed on /platform/modules beside the module's activation control, the
+    // surface an operator already uses for exactly this kind of choice. A
+    // second control on the generic Settings screen would be two doors onto one
+    // decision.
+    hidden: true,
+    ...(manifest.settings?.groups[0]?.code
+      ? { groupCode: manifest.settings.groups[0].code }
+      : {}),
+  };
+  if (!manifest.settings) {
+    return {
+      moduleCode: manifest.id,
+      groups: [{ code: manifest.id, name: manifest.name }],
+      settings: [{ ...entry, groupCode: manifest.id }],
+    };
+  }
+  if (manifest.settings.settings.some((s) => s.code === entry.code)) {
+    return manifest.settings;
+  }
+  return {
+    ...manifest.settings,
+    settings: [...manifest.settings.settings, entry],
+  };
+}
+
+/**
+ * The two properties of a module-registry entry the boot settings reconcile
+ * reads — see {@link SettingsManifestCollectionPort}.
+ */
+export interface SettingsManifestSource {
+  readonly manifest: ModuleManifest;
+  /**
+   * The module's recent-activity eligibility (feature 080, T042j / D-163.1).
+   * It implies one Setting — the operator's choice of whether this module's
+   * entries reach the dashboard card — which is derived rather than declared,
+   * so a module that adds the eligibility export gets the control with it.
+   */
+  readonly recentActivity?: ModuleRecentActivity | undefined;
+}
+
+/**
+ * Container name: `settingsManifestCollectionPort`. Owner: `settings`.
+ *
+ * The boot-time reconcile's input list, assembled from the module registry the
+ * caller hands in.
+ *
+ * **Two owners, one list, and that is why this is a port.** Which modules a
+ * deployment ships is a composition-root input — core plus this deployment's
+ * overlay modules, never an installed package — so the registry arrives as an
+ * argument. How that registry becomes a reconcile list is `settings`' own rule:
+ * the settings module's manifest goes first, because every other manifest's
+ * entries fall back to its `general` group and the group has to exist before
+ * they are inserted, and each module code appears exactly once. A root that
+ * imported the derivation would be a root that has to be edited when the rule
+ * changes, and there are two of them.
+ *
+ * Nothing is gated on the module axis here on purpose: a module that is
+ * switched off keeps its settings rows and keeps its group on `/settings`,
+ * because a deactivation is not an uninstall (Constitution XVII) and the
+ * operator has to be able to switch it back on.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError`. It is resolved once, at boot, where a throw ends the
+ * process rather than answering a request, which is the ruled-correct
+ * behaviour for a composition that cannot be what the code says it is. Whether
+ * `settings` has an off state at all is its manifest's `activation` to say, not
+ * this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface SettingsManifestCollectionPort {
+  collect(registry: ReadonlyArray<SettingsManifestSource>): ModuleSettingsManifest[];
+}
+
 /** Aggregate of what a module's `manifest.ts` may export at runtime. */
-export interface ModuleManifestExports<EM = unknown, Redis = unknown> {
+export interface ModuleManifestExports<EM = unknown, Redis = unknown, Ctx = unknown> {
   manifest: ModuleManifest;
   installHook?: ModuleInstallHook<EM, Redis>;
   uninstallHook?: ModuleUninstallHook<EM, Redis>;
+  /**
+   * This module's interest in every *other* module's lifecycle — see
+   * {@link ModuleLifecycleParticipant}. Additive and optional: the modules that
+   * declare one are the two that keep a projection of the manifest set, and
+   * every other module's `manifest.ts` is unchanged.
+   */
+  lifecycleParticipant?: ModuleLifecycleParticipant<EM>;
+  /**
+   * The operator commands this module declares — see {@link ModuleCliCommand}.
+   * Additive and optional: a module with no operator command exports nothing
+   * and is unchanged.
+   */
+  cliCommands?: readonly ModuleCliCommand<Ctx>[];
+  /**
+   * This module's declaration that its activity is eligible for the admin home
+   * dashboard's recent-activity card — see {@link ModuleRecentActivitySchema}.
+   * Additive and optional: a module that declares none contributes no token,
+   * owns no visibility Setting and is unchanged.
+   */
+  recentActivity?: ModuleRecentActivity;
 }
 
 // ---------------------------------------------------------------------------

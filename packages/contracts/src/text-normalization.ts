@@ -10,7 +10,7 @@
  *
  * The fold was correct and unreachable. It lived inside
  * `normalizeOrganizationName` in `organizations.ts` — published from
- * `@b2b/contracts`, so importable from `backend/`, `admin/` and `storefront/`
+ * `@endora-commerce/contracts`, so importable from `backend/`, `admin/` and `storefront/`
  * alike, but named after **one caller**. Nobody looking for "how do I compare
  * `Łatwy` with `latwy`" searches for an organisation helper, so within a year
  * four private copies had grown in `admin/` (repaired by !745) and two more

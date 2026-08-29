@@ -1,15 +1,15 @@
 import { asValue } from 'awilix';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createRootContainer } from '../../../src/kernel/container.js';
 import {
   createModuleContext,
   createModuleRegistrationSink,
-  createRootContainer,
-  type ModuleContext,
   type ModuleRegistrationSink,
-} from '../../../src/kernel/index.js';
+} from '../../../src/kernel/module-context.js';
+import { type ModuleContext } from '../../../src/kernel/index.js';
 import { EventBus } from '../../../src/events/bus.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { registerModule } from '../../../src/modules/product_feeds/backend.js';
+import { registerModule } from '../../../../packages/modules/product_feeds/src/backend/index.js';
 
 /**
  * D-62 — the two boot hooks of `product_feeds`, and why only one of them asks.

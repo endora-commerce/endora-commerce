@@ -160,9 +160,12 @@ export function isCustomFieldValidationFailure(
 // **One seam is deliberately not published here, and D-77 ruled that it stays
 // that way.** `CustomFieldDefinitionApplyApi` — the six co-transactional
 // `apply*` methods `catalog`'s attribute Commands call — takes the caller's
-// MikroORM `EntityManager`, which may not appear in a `@b2b/contracts`
+// MikroORM `EntityManager`, which may not appear in a `@endora-commerce/contracts`
 // signature (FR-034) and which a branded stand-in would publish rather than
-// remove.
+// remove. It is declared in `custom_fields`' own `ports/` directory, the file
+// that becomes the package's `./ports` subpath (D-171), and its seventh
+// method, `publishInvalidate`, stays with it because it is a step of that
+// seam's post-commit protocol rather than a question any reader has.
 //
 // What holds it there is not a convention but a constraint:
 // `fk_product_attributes_custom_field_definition`, `on delete restrict`, plus a
@@ -172,6 +175,11 @@ export function isCustomFieldValidationFailure(
 // cross-module foreign key rather than avoid it; `catalog`'s manifest does.
 // The seam's ledger entry is `permanent: true`, and what retires it is F4's
 // package entry points — not a port, and not a relocation.
+//
+// The definition **read** it used to carry alongside them is published, as
+// `CustomFieldDefinitionReadPort.getById` below (feature 080, T053(b)): a read
+// handed an `EntityManager` is a write seam re-opened to serve it (D-169), and
+// the seam was answering that one with the owner's managed ORM entities.
 //
 // Two narrowings were taken with that ruling, and both live here. The `apply*`
 // returns are the published records below rather than live managed entities, so
@@ -304,6 +312,26 @@ export interface CustomFieldDefinitionReadPort {
    * unconditionally and turned a self-healing window into a 500.
    */
   listForEntityFresh(entityType: SupportedEntityType): Promise<CustomFieldDefinitionWithOptions[]>;
+  /**
+   * One definition by id, with its options, or `null`.
+   *
+   * The **committed** state, deliberately: `catalog`'s attribute Commands read
+   * it to capture an audit "before" snapshot and to feed the guards a
+   * definition change has to satisfy, and both questions are about the row as
+   * it stands rather than about anything the caller's open transaction has
+   * written. That is what makes it a read rather than a seventh member of the
+   * apply seam — handing a read an `EntityManager` re-opens a write seam to
+   * serve it (D-169).
+   *
+   * It is published here, rather than left on the apply seam it used to sit
+   * beside, because the definition service answers it with its two **managed
+   * ORM entities** while the one consumer typed the result as a record.
+   * Nothing mutated them, so the leak was latent — but that is precisely the
+   * ability D-77's first narrowing took away from every other apply-seam
+   * return, and a consumer holding a managed entity can persist a change to it
+   * on whatever transaction it happens to be holding.
+   */
+  getById(id: string): Promise<CustomFieldDefinitionWithOptions | null>;
 }
 
 /**
@@ -344,7 +372,7 @@ export interface CustomFieldValuePort {
 // `CustomFieldValidationFailure` and `isCustomFieldValidationFailure` are
 // declared once, above, beside the other D-77 structural guards. Two Phase-C
 // cuts published them independently on the same afternoon — `quote_requests`
-// and `organizations` — and both merged, which stopped `@b2b/contracts`
+// and `organizations` — and both merged, which stopped `@endora-commerce/contracts`
 // compiling at all. The surviving pair keeps the `name === 'CustomFieldValidation
 // Error'` test rather than re-parsing every entry: it is the check that still
 // works once each module is its own npm package (F4), which is the reason the

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { Organization } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
@@ -6,9 +7,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } from '../../../src/modules/credit_limits/migrations/20260818T081252_credit_limits_credit_limit_reservation_order_fk.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CreditLimit } from '../../../src/modules/credit_limits/entities/credit-limit.entity.js';
+import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } from '../../../../packages/modules/credit_limits/src/migrations/20260818T081252_credit_limits_credit_limit_reservation_order_fk.js';
+import { CreditLimit } from '../../helpers/package-entities.js';
 
 /**
  * `credit_limit_reservations_order_fk` (D-94.1, site 4 — the one the D-94
@@ -30,6 +30,8 @@ describe('credit_limit_reservations.order_id foreign key (D-94.1)', () => {
    * is about.
    */
   let creditLimitId: string;
+  /** The organization the fixture limit belongs to; also the reserving one here. */
+  let organizationId: string;
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -42,6 +44,7 @@ describe('credit_limit_reservations.order_id foreign key (D-94.1)', () => {
       registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
     await em.persistAndFlush(org);
+    organizationId = org.id;
     const limit = em.create(CreditLimit, {
       organizationId: org.id,
       grantedAmount: '1000.00',
@@ -57,9 +60,10 @@ describe('credit_limit_reservations.order_id foreign key (D-94.1)', () => {
   const insertReservation = (em: EntityManager, orderId: string): Promise<unknown> =>
     em.getConnection().execute(
       `insert into "credit_limit_reservations"
-         ("id", "credit_limit_id", "order_id", "amount", "currency", "status", "created_at", "updated_at")
-       values (?, ?, ?, '10.00', 'PLN', 'active', now(), now())`,
-      [randomUUID(), creditLimitId, orderId],
+         ("id", "credit_limit_id", "order_id", "reserving_organization_id", "amount", "currency",
+          "status", "created_at", "updated_at")
+       values (?, ?, ?, ?, '10.00', 'PLN', 'active', now(), now())`,
+      [randomUUID(), creditLimitId, orderId, organizationId],
     );
 
   it('declares credit_limit_reservations_order_fk into orders with on delete restrict', async () => {
@@ -119,9 +123,10 @@ describe('credit_limit_reservations.order_id foreign key (D-94.1)', () => {
         );
         await conn.execute(
           `insert into "credit_limit_reservations"
-             ("id", "credit_limit_id", "order_id", "amount", "currency", "status", "created_at", "updated_at")
-           values (?, ?, ?, '42.00', 'PLN', 'active', now(), now())`,
-          [randomUUID(), creditLimitId, randomUUID()],
+             ("id", "credit_limit_id", "order_id", "reserving_organization_id", "amount",
+              "currency", "status", "created_at", "updated_at")
+           values (?, ?, ?, ?, '42.00', 'PLN', 'active', now(), now())`,
+          [randomUUID(), creditLimitId, randomUUID(), organizationId],
           'run',
           trx,
         );

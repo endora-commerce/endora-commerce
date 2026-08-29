@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { Address } from '../../../src/modules/addresses/entities/address.entity.js';
+import { Address } from '../../helpers/package-entities.js';
 
 /**
  * Feature 039 — admin org-addresses read endpoint.

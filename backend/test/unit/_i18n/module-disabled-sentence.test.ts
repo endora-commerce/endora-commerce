@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
+import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 /**
@@ -27,7 +27,7 @@ import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helper
  */
 const I18N_BUNDLES = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../src/modules/_i18n/i18n',
+  '../../../../packages/modules/_i18n/i18n',
 );
 
 const LANGUAGES = ['en', 'pl'] as const;

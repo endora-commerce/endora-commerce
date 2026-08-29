@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { dictionaryCountriesPageResponseSchema } from '@b2b/contracts';
+import { dictionaryCountriesPageResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,

@@ -15,11 +15,13 @@ import { getStripeStorefrontConfig, getStripeClientSecret } from '../../../lib/a
 import { getTpayStorefrontConfig } from '../../../lib/api/tpay';
 import { getPayuStorefrontConfig } from '../../../lib/api/payu';
 import { getAutopayStorefrontConfig } from '../../../lib/api/autopay';
+import { getPaypalStorefrontConfig } from '../../../lib/api/paypal';
 import {
   STRIPE_REDIRECT_RENDERER_KEY,
   TPAY_REDIRECT_RENDERER_KEY,
   PAYU_REDIRECT_RENDERER_KEY,
   AUTOPAY_REDIRECT_RENDERER_KEY,
+  PAYPAL_REDIRECT_RENDERER_KEY,
 } from '../../../lib/payment-renderers/registry';
 import {
   StripeInlinePaymentMethods,
@@ -35,6 +37,9 @@ import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { AddressSection } from '../../../components/checkout/AddressSection';
 import { PlaceOrderButton } from '../../../components/checkout/PlaceOrderButton';
+import { blockTitle, placeOrderBlock } from '../../../lib/checkout/place-order-gate';
+import { selectablePaymentMethods } from '../../../lib/checkout/payment-method-eligibility';
+import { tForLocale } from '../../../lib/i18n/messages';
 import { CouponField } from '../../../components/checkout/CouponField';
 import { getServerContext } from '../../../lib/server-context';
 import { formatMoney } from '../../../lib/i18n/money';
@@ -42,7 +47,12 @@ import { OrganizationModerationBanner } from '../../../components/OrganizationMo
 import { StorefrontApiError } from '../../../lib/api/client';
 import { getMe } from '../../../lib/api/account';
 import { BeginCheckoutTracker } from '../../../components/analytics/EcommerceTrackers';
-import { shippingAdapterDataFromFormData, ensureInpostTargetPointOnFormData } from '../../../lib/shipping-renderers/inpost-geowidget';/**
+import {
+  shippingAdapterDataFromFormData,
+  ensureInpostTargetPointOnFormData,
+} from '../../../lib/shipping-renderers/inpost-geowidget';
+
+/**
  * Checkout (T157 / FR-046, FR-049). One page, four sections — pick a
  * delivery address + a billing address from the org's saved set, choose
  * delivery + payment methods, optionally add a promotion code or note,
@@ -80,6 +90,7 @@ export default async function CheckoutPage({
     Awaited<ReturnType<typeof getTpayStorefrontConfig>> | null,
     Awaited<ReturnType<typeof getPayuStorefrontConfig>> | null,
     Awaited<ReturnType<typeof getAutopayStorefrontConfig>> | null,
+    Awaited<ReturnType<typeof getPaypalStorefrontConfig>> | null,
   ];
   try {
     loaded = await Promise.all([
@@ -102,6 +113,7 @@ export default async function CheckoutPage({
       getTpayStorefrontConfig().catch(() => null),
       getPayuStorefrontConfig().catch(() => null),
       getAutopayStorefrontConfig().catch(() => null),
+      getPaypalStorefrontConfig().catch(() => null),
     ]);
   } catch (err) {
     // A stale/expired `b2b_session` cookie is still truthy, so it slips past
@@ -126,6 +138,7 @@ export default async function CheckoutPage({
     tpayConfig,
     payuConfig,
     autopayConfig,
+    paypalConfig,
   ] = loaded;
   // `carts` is not present (issue #132). There is nothing to check out, and the
   // cart page owns the copy that says so — sending the buyer there is one
@@ -134,20 +147,16 @@ export default async function CheckoutPage({
   if (cartResult.newAnonCookie) await setAnonCartCookie(cartResult.newAnonCookie);
   const cart = cartResult.cart;
   const canTransact = me?.organization?.canTransact ?? true;
-  // Hide the credit_limit-kind method(s) when the buyer's organization
-  // hasn't been granted a limit, or when the cart total clearly exceeds
-  // the available credit. The backend rejects an over-limit reservation
-  // anyway, but a friendlier UX is to drop the option early.
   const creditAvailable = creditLimit?.availableAmount ?? 0;
   const cartTotal = cart.subtotal.amount;
-  let paymentMethods = paymentMethodsRaw.filter((m) => {
-    // Defensive: the backend already only returns active methods, but never
-    // offer an inactive method at checkout even if one slips through (feature
-    // 049 — an inactive method must not be selectable).
-    if (m.status !== 'active') return false;
-    if (m.kind !== 'credit_limit') return true;
-    if (!creditLimit) return false;
-    return creditAvailable >= cartTotal;
+  // Which methods this buyer may actually pick — inactive rows dropped, and the
+  // credit-limit method(s) hidden from an organization with no grant or too
+  // little of one. Extracted so the rule is assertable and so the Place Order
+  // gate below can count what checkout really offers rather than what the
+  // catalogue returned; see `lib/checkout/payment-method-eligibility.ts`.
+  let paymentMethods = selectablePaymentMethods(paymentMethodsRaw, {
+    creditAvailable: creditLimit ? creditAvailable : null,
+    cartTotal,
   });
 
   // Feature 049 — in Stripe "redirect" display mode the whole payment happens on
@@ -212,6 +221,35 @@ export default async function CheckoutPage({
       paymentMethods = [...nonAutopay, collapsed];
     }
   }
+
+  if (paypalConfig?.active && paypalConfig.displayMode === 'redirect') {
+    const paypalMethods = paymentMethods.filter((m) => m.adapter === 'paypal');
+    if (paypalMethods.length > 0) {
+      const nonPaypal = paymentMethods.filter((m) => m.adapter !== 'paypal');
+      const primary =
+        paypalMethods.find((m) => m.code === 'paypal_checkout') ?? paypalMethods[0]!;
+      const collapsed = {
+        ...primary,
+        name: { default: 'PayPal', 'en-US': 'PayPal', 'pl-PL': 'PayPal' },
+        rendererKey: PAYPAL_REDIRECT_RENDERER_KEY,
+      };
+      paymentMethods = [...nonPaypal, collapsed];
+    }
+  }
+
+  // Why the buyer cannot submit, if they cannot. Both counts are off the *final*
+  // lists — after the credit-limit eligibility filter and the gateway collapses
+  // above — because an option checkout does not render is not an option. An
+  // empty list covers both an unconfigured shop and a switched-off module
+  // (`delivery_methods` for one, `payment_methods` / `payments` for the other),
+  // which `listDeliveryMethods` and `listPaymentMethods` degrade to the same
+  // empty answer. Which reason wins is `placeOrderBlock`'s and not this page's.
+  const placeOrderBlockReason = placeOrderBlock({
+    canTransact,
+    deliveryMethodCount: deliveryMethods.length,
+    paymentMethodCount: paymentMethods.length,
+  });
+  const tr = tForLocale(locale);
 
   if (cart.items.length === 0) {
     return (
@@ -410,10 +448,10 @@ export default async function CheckoutPage({
             ← Back to cart
           </Link>
           <PlaceOrderButton
-            canTransact={canTransact}
+            blocked={placeOrderBlockReason}
             label="Place order"
             pendingLabel="Placing order…"
-            title={me?.organization?.moderationMessage ?? 'Ordering is currently unavailable.'}
+            title={blockTitle(placeOrderBlockReason, tr, me?.organization?.moderationMessage ?? null)}
           />
         </div>
       </CheckoutForm>
@@ -464,18 +502,37 @@ async function buildPlaceOrderPayload(
       : await resolveAddress('billing', 'billing');
   const billingCompanyName = field('billingCompanyName');
   const billingTaxId = field('billingTaxId');
+  const deliveryPointProvider = field('deliveryPointProvider');
+  const deliveryPointId = field('deliveryPointId');
+  const deliveryPointMethodId = field('deliveryPointMethodId');
+  const deliveryPointLabel = field('deliveryPointLabel');
+  const deliveryPointAddress = field('deliveryPointAddress');
+  const selectedDeliveryMethodId = (formData.get('deliveryMethodId') as string) ?? '';
   // Feature 068 — InPost locker (and future adapters) via shippingAdapterData.
   ensureInpostTargetPointOnFormData(formData);
   const shippingAdapterData = shippingAdapterDataFromFormData(formData);
   return {
     deliveryAddressId,
     billingAddressId,
-    deliveryMethodId: (formData.get('deliveryMethodId') as string) ?? '',
+    deliveryMethodId: selectedDeliveryMethodId,
     paymentMethodId: (formData.get('paymentMethodId') as string) ?? '',
     ...(promo ? { promotionCode: promo } : {}),
     ...(note ? { customerNote: note } : {}),
     ...(billingCompanyName ? { billingCompanyName } : {}),
     ...(billingTaxId ? { billingTaxId } : {}),
+    ...(deliveryPointProvider &&
+    deliveryPointId &&
+    deliveryPointMethodId &&
+    deliveryPointMethodId === selectedDeliveryMethodId
+      ? {
+          deliveryPoint: {
+            provider: deliveryPointProvider,
+            pointId: deliveryPointId,
+            ...(deliveryPointLabel ? { label: deliveryPointLabel } : {}),
+            ...(deliveryPointAddress ? { address: deliveryPointAddress } : {}),
+          },
+        }
+      : {}),
     ...(shippingAdapterData ? { shippingAdapterData } : {}),
   };
 }
@@ -513,6 +570,9 @@ async function submitAction(formData: FormData): Promise<void> {
   }
   if (order.paymentMethod?.code?.startsWith('payu_')) {
     redirect(`/checkout/pay?id=${order.id}&gateway=payu`);
+  }
+  if (order.paymentMethod?.code?.startsWith('paypal_')) {
+    redirect(`/checkout/pay?id=${order.id}&gateway=paypal`);
   }
   redirect(`/checkout/success?id=${order.id}`);
 }

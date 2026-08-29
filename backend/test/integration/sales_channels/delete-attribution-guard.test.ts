@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES, type SalesChannelAttributionRegistryPort } from '@b2b/contracts';
+import { ERROR_CODES, type SalesChannelAttributionRegistryPort } from '@endora-commerce/contracts';
 import { EventBus } from '../../../src/events/bus.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { QuoteRequest } from '../../../src/modules/quote_requests/entities/quote-request.entity.js';
+import { QuoteRequest } from '../../helpers/package-entities.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { salesChannelsServiceFor } from '../../helpers/sales-channels-service.js';
 import {
@@ -13,6 +12,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * FR-006's delete guard, on a composed platform (feature 075, D-87 drain).
@@ -116,24 +116,21 @@ describe('sales channel delete — the attribution guard asks the owners', () =>
 
   async function attributeQuoteRequestTo(salesChannelId: string): Promise<void> {
     const em = h.em();
+    // The attribution is set through the entity, which is what issue #266
+    // changed: `QuoteRequest` had no property for the column feature 005 /
+    // FR-012 added, so this used to be a raw `update "quote_requests" set
+    // "sales_channel_id"` — the only way to produce the row this case is about,
+    // and an admission that no request path could produce it either. The
+    // end-to-end version, an RFQ raised over HTTP on a named channel, lives in
+    // `test/integration/quote_requests/sales-channel-attribution.test.ts`; this
+    // file stays on a hand-built row so the off-state case below is about the
+    // registry and not about the RFQ request path.
     const quote = em.create(QuoteRequest, {
       organizationId: randomUUID(),
       customerAccountId: randomUUID(),
+      salesChannelId,
     });
     await em.persistAndFlush(quote);
-    // The attribution itself goes on with SQL, and that is the defect this
-    // drain moved rather than fixed: `quote_requests` records no channel at
-    // all — its entity has no property for the column feature 005 / FR-012
-    // added — so there is no supported way to produce the row this case is
-    // about. The counter is still right to exist: the column, its index and
-    // its `on delete restrict` foreign key are all in the schema, and a legacy
-    // backfill fills it.
-    await em
-      .getConnection()
-      .execute('update "quote_requests" set "sales_channel_id" = ? where "id" = ?', [
-        salesChannelId,
-        quote.id,
-      ]);
   }
 
   it('has every owner registered by its own boot hook', () => {

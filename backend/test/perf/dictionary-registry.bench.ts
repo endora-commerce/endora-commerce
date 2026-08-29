@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Knex } from '@mikro-orm/postgresql';
-import type { DictionaryRegistryResponse } from '@b2b/contracts';
+import type { DictionaryRegistryResponse } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../helpers/test-server.js';
-import { DictionaryCache } from '../../src/modules/dictionaries/services/dictionary-cache.js';
-import { DictionaryReadService } from '../../src/modules/dictionaries/services/dictionary-read-service.js';
+import { DictionaryCache } from '../../../packages/modules/dictionaries/src/backend/services/dictionary-cache.js';
+import { DictionaryReadService } from '../../../packages/modules/dictionaries/src/backend/services/dictionary-read-service.js';
 import { dictionaryReadPortsFor } from '../helpers/dictionary-services.js';
 
 /**

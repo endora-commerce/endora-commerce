@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { Field } from '@measured/puck';
-import { usePageBuilderPuck } from '@b2b/page-builder-core/editor';
+import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor';
 import { apiClient } from '@/lib/api-client';
 import { cmsClient } from '../api/cms-client';
 

@@ -19,11 +19,12 @@
  * derived fact and goes stale in silence, which is what D-100 was written
  * about. Two properties fall out of reading it, and the check needs both:
  *
- *   1. **The index is a path that must resolve.** It lives at
- *      `src/modules/_lifecycle/manifest-index.generated.ts`, so a tree that
- *      moved without it is an error rather than an empty result — the whole
- *      module directory going missing is refused before a single file is
- *      analysed.
+ *   1. **The index is a path that must resolve.** Where it lives is
+ *      `lib/module-roots.ts`' answer since feature 080's T040a — searched for
+ *      over the workspace members rather than joined onto a source root — so a
+ *      tree that moved without it is an error rather than an empty result, and
+ *      the whole module directory going missing is refused before a single file
+ *      is analysed.
  *   2. **Every module it registers must contribute a source.** A *partial*
  *      move — the one a package split actually performs, index regenerated and
  *      pointing at the new home — leaves the index readable and the walk
@@ -58,7 +59,38 @@ export interface ModulePopulationInput {
    * check makes in its header, not a convenience.
    */
   readonly excluded?: readonly string[];
+  /**
+   * How a path is attributed to a module, where the `modules/<id>/` segment is
+   * not the answer (feature 080, T040a).
+   *
+   * A module that has become a **package** lives at a path of its own choosing
+   * — `packages/modules/blog/src/…` today, whatever the workspace globs allow
+   * tomorrow — and its id is read from its manifest's `endora.id` rather than
+   * from a directory name. `lib/module-roots.ts` supplies the function; the
+   * default is {@link moduleIdOf}, so a caller with only an application tree
+   * gets exactly the behaviour it had before this field existed.
+   */
+  readonly moduleIdOf?: (path: string) => string | null;
 }
+
+/**
+ * Directories whose files belong to one module although no `modules/<id>/`
+ * segment says so — keyed by the directory's path under the application's own
+ * source root, mapped to the module id (feature 080, T040b).
+ *
+ * There is one, and it is `_lifecycle` at `src/lifecycle/`. D-160.11 keeps the
+ * lifecycle subsystem out of the package sweep — it is the platform's operator
+ * half — so it is the one registered module whose sources the host owns, and
+ * the directory is deliberately not named after its id (a `src/_lifecycle/`
+ * would make `backend/src` itself a module root, see
+ * `scripts/lib/module-roots.ts`). Nothing here is written down: the map is
+ * derived per run from the manifest index's own `manifestPath`, which is the
+ * artefact that records where each module's manifest actually is.
+ */
+export type HostResidentModules = ReadonlyMap<string, string>;
+
+/** The default: every path attributes by its `modules/<id>/` segment alone. */
+export const NO_HOST_RESIDENT_MODULES: HostResidentModules = new Map();
 
 /**
  * The module a path belongs to, or `null` for a file outside the module tree.
@@ -67,18 +99,44 @@ export interface ModulePopulationInput {
  * `apps/<deployment>/modules/<id>/` resolves to its own id rather than to the
  * deployment. `node_modules/` cannot match: the segment must start the path or
  * follow a separator.
+ *
+ * `hostResident` is the second answer, and it is a **map rather than a shape**
+ * because there is no shape to read: a host-resident module's directory says
+ * nothing about which module it is, so the id comes from the index. Omitting it
+ * is not a neutral default — a file the walk read and attributed to `null` is a
+ * file every consumer treats as *not a module's*, which is the check judging
+ * nothing and reporting clean (issue #215 one layer in). Every caller that
+ * attributes inside its analysis therefore takes it from the layout and passes
+ * it down; the default exists for a fixture that has no such module.
+ *
+ * The comparison is made on the path's tail after the last `/src/`, so it
+ * answers the same for the three key shapes this repository uses — a layout
+ * key, an absolute path, and the synthetic `/src/<key>` several checks build —
+ * and cannot be fooled by a directory of that name deeper in another tree
+ * (`packages/platform/src/kernel/lifecycle/` is the live example).
  */
-export function moduleIdOf(path: string): string | null {
-  const match = /(?:^|\/)modules\/([^/]+)\//.exec(path.split('\\').join('/'));
-  return match?.[1] ?? null;
+export function moduleIdOf(
+  path: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
+  const normalised = path.split('\\').join('/');
+  const match = /(?:^|\/)modules\/([^/]+)\//.exec(normalised);
+  if (match) return match[1] ?? null;
+  const marker = normalised.lastIndexOf('/src/');
+  const tail = marker === -1 ? normalised : normalised.slice(marker + '/src/'.length);
+  for (const [directory, moduleId] of hostResident) {
+    if (tail === directory || tail.startsWith(`${directory}/`)) return moduleId;
+  }
+  return null;
 }
 
 /** Registered modules the walk produced no file for. */
 export function modulesWithoutSources(input: ModulePopulationInput): string[] {
   const excluded = new Set(input.excluded ?? []);
+  const idOf = input.moduleIdOf ?? moduleIdOf;
   const seen = new Set<string>();
   for (const file of input.files) {
-    const id = moduleIdOf(file);
+    const id = idOf(file);
     if (id !== null) seen.add(id);
   }
   return input.registered.filter((id) => !excluded.has(id) && !seen.has(id)).sort();
@@ -139,13 +197,13 @@ export function vacuousModulePopulation(input: ModulePopulationInput): string | 
 }
 
 /**
- * Ids of every module the generated index under `srcRoot` registers.
+ * Ids of every module the generated index at `indexPath` registers.
  *
  * Throws `ManifestIndexUnreadableError` when the index is missing or empty; a
  * caller turns that into exit 2, never into a pass.
  */
-export async function loadRegisteredModuleIds(srcRoot: string): Promise<readonly string[]> {
-  return (await loadManifestActivations(srcRoot)).map((manifest) => manifest.id);
+export async function loadRegisteredModuleIds(indexPath: string): Promise<readonly string[]> {
+  return (await loadManifestActivations(indexPath)).map((manifest) => manifest.id);
 }
 
 /**
@@ -164,17 +222,18 @@ export async function loadRegisteredModuleIds(srcRoot: string): Promise<readonly
 export async function refuseVacuousModulePopulation(input: {
   /** The check's log prefix, e.g. `[subscribe-seam]`. */
   readonly prefix: string;
-  /** Where `modules/_lifecycle/manifest-index.generated.ts` is looked for. */
-  readonly srcRoot: string;
+  /** The generated manifest index, as `lib/module-roots.ts` resolved it. */
+  readonly manifestIndexPath: string;
   readonly files: readonly string[];
   readonly excluded?: readonly string[];
+  readonly moduleIdOf?: (path: string) => string | null;
 }): Promise<ModulePopulationCoverage> {
   let registered: readonly string[];
   try {
-    registered = await loadRegisteredModuleIds(input.srcRoot);
+    registered = await loadRegisteredModuleIds(input.manifestIndexPath);
   } catch (error: unknown) {
     console.error(
-      `${input.prefix} the module index under ${input.srcRoot} could not be read ` +
+      `${input.prefix} the module index at ${input.manifestIndexPath} could not be read ` +
         `(${String(error)}) — the expected population is derived from it, so there is ` +
         'nothing to compare the walk against; refusing to report a vacuous pass',
     );
@@ -184,6 +243,7 @@ export async function refuseVacuousModulePopulation(input: {
     registered,
     files: input.files,
     ...(input.excluded === undefined ? {} : { excluded: input.excluded }),
+    ...(input.moduleIdOf === undefined ? {} : { moduleIdOf: input.moduleIdOf }),
   };
   const reason = vacuousModulePopulation(population);
   if (reason !== null) {

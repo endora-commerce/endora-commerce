@@ -1,20 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { CreditLimit } from '../../src/modules/credit_limits/entities/credit-limit.entity.js';
-import { CreditLimitReservation } from '../../src/modules/credit_limits/entities/credit-limit-reservation.entity.js';
-import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Cart } from '../../src/modules/carts/entities/cart.entity.js';
-import { CartItem } from '../../src/modules/carts/entities/cart-item.entity.js';
-import { PaymentMethod } from '../../src/modules/payment_methods/entities/payment-method.entity.js';
-import { Order } from '../../src/modules/orders/entities/order.entity.js';
-import { Payment } from '../../src/modules/payments/entities/payment.entity.js';
-import { Invoice } from '../../src/modules/invoices/entities/invoice.entity.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import { Cart, CartItem, CreditLimit, CreditLimitReservation, Invoice, PaymentMethod } from './package-entities.js';
+import { CustomerAccount } from './package-entities.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 import { SEED_PRODUCT_101_ID } from './seed-catalog.js';
 import { STUB_CUSTOMER_PASSWORD } from './seed-organizations.js';
 import {
   SEED_DELIVERY_METHOD_ID,
 } from './seed-commerce.js';
+import { Order } from './package-entities.js';
+import { Payment } from './package-entities.js';
 
 /**
  * US6 fixture IDs.
@@ -177,6 +172,7 @@ export async function seedCreditLimitWithActiveReservation(em: EntityManager): P
   const reservation = em.create(CreditLimitReservation, {
     creditLimitId: limit.id,
     orderId: order.id,
+    reservingOrganizationId: TEST_ORGANIZATION_ID,
     amount: '5000.00',
     currency: 'PLN',
     status: 'active',

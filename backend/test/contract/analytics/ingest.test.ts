@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AnalyticsEvent } from '../../../src/modules/analytics/entities/analytics-event.entity.js';
+import { AnalyticsEvent } from '../../helpers/package-entities.js';
 
 /**
  * T237 — public ingest endpoint accepts a batch from storefront/admin

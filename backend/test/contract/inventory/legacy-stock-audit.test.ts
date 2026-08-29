@@ -4,14 +4,14 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { CatalogCategoryReadPort, CatalogProductReadPort } from '@b2b/contracts';
+import type { CatalogCategoryReadPort, CatalogProductReadPort } from '@endora-commerce/contracts';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
+import { StockLevel } from '../../helpers/package-entities.js';
 import {
   StockLevelService,
   type InventoryAdjustedEvent,
-} from '../../../src/modules/inventory/services/stock-level-service.js';
+} from '../../../../packages/modules/inventory/src/backend/services/stock-level-service.js';
 
 /**
  * Issue #122 — the legacy single-bucket stock write audits like the other one.

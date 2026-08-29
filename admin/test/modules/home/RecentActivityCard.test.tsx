@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { ApiError } from '@b2b/api-client';
+import { ApiError } from '@endora-commerce/api-client';
 
 function fakeApiError(status: number): ApiError {
   return new ApiError(status, { error: { code: 'INTERNAL', message: 'test' } });
@@ -36,22 +36,33 @@ const { RecentActivityCard } = await import(
   '../../../src/modules/home/RecentActivityCard'
 );
 
-const BUNDLE = passthroughBundle('core', [
-  'home.recentActivity.title',
-  'home.recentActivity.subtitle',
-  'home.activity.empty',
-  'home.activity.error',
-  'home.activity.retry',
-  'home.activity.viewAll',
-  'home.activity.time.justNow',
-  'home.activity.time.minutesAgo',
-  'home.activity.time.hoursAgo',
-  'home.activity.time.yesterday',
-  'home.activity.time.daysAgo',
-  'home.activity.verb.unknown',
-  'home.activity.verb.product.update',
-  'home.activity.verb.price_list.activate',
-]);
+const BUNDLE = {
+  ...passthroughBundle('core', [
+    'home.recentActivity.title',
+    'home.recentActivity.subtitle',
+    'home.activity.empty',
+    'home.activity.error',
+    'home.activity.retry',
+    'home.activity.viewAll',
+    'home.activity.time.justNow',
+    'home.activity.time.minutesAgo',
+    'home.activity.time.hoursAgo',
+    'home.activity.time.yesterday',
+    'home.activity.time.daysAgo',
+    'home.activity.verb.unknown',
+  ]),
+  // Since feature 080's T042j the verb lives in the **declaring module's**
+  // namespace, not in `core`: that is what lets a packaged module ship its own
+  // translation of its own action (D-163.1).
+  //
+  // The values are scope-prefixed by hand rather than through
+  // `passthroughBundle`, which resolves a key to itself: an assertion on the
+  // bare key would pass whichever namespace the card looked in, and the
+  // namespace is the whole claim.
+  catalog: { 'activity.verb.product.update': 'catalog:updated product' },
+  inventory: { 'activity.verb.stock_level.bulk_import': 'inventory:imported stock' },
+  acceptance_probe: { 'activity.verb.probe.execute': 'probe:ran the probe' },
+};
 
 function renderCard(): void {
   renderWithI18n(
@@ -117,6 +128,8 @@ describe('<RecentActivityCard />', () => {
           actedAt: new Date(Date.now() - 2 * 60_000).toISOString(),
           action: 'product.update',
           module: 'catalog',
+          icon: 'Edit',
+          labelKey: 'activity.verb.product.update',
           actorDisplayName: 'Anna K.',
           actorKind: 'admin',
           targetType: 'product',
@@ -133,7 +146,7 @@ describe('<RecentActivityCard />', () => {
       expect(screen.getByText('CABLE-LIY-1.5-50')).toBeInTheDocument(),
     );
     expect(screen.getByText('Anna K.')).toBeInTheDocument();
-    expect(screen.getByText('home.activity.verb.product.update')).toBeInTheDocument();
+    expect(screen.getByText('catalog:updated product')).toBeInTheDocument();
     // Row is clickable when targetUrl is non-null (anchor element).
     const row = screen.getByTestId('recent-activity-row');
     expect(row.tagName).toBe('A');
@@ -148,6 +161,8 @@ describe('<RecentActivityCard />', () => {
           actedAt: new Date().toISOString(),
           action: 'product.update',
           module: 'catalog',
+          icon: 'Edit',
+          labelKey: 'activity.verb.product.update',
           actorDisplayName: 'Anna K.',
           actorKind: 'admin',
           targetType: 'product',
@@ -185,6 +200,41 @@ describe('<RecentActivityCard />', () => {
     expect(link.getAttribute('href')).toBe('/audit-log');
   });
 
+  /**
+   * The packaged-module case, at the surface — feature 080, T042j / D-163.1.
+   *
+   * The four tables this replaced were closed over core module ids, so this row
+   * was unrenderable in principle: `ACTIVITY_RENDERING` had no entry for its
+   * token, the SPA imported no icon for it, and its verb was in no `core`
+   * bundle. It renders here because every one of those three arrives on the
+   * row, from the package's own manifest and its own i18n bundle.
+   */
+  it("renders a packaged module's row, in the package's own namespace", async () => {
+    getSpy.mockResolvedValue({
+      data: [
+        {
+          id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          actedAt: new Date().toISOString(),
+          action: 'probe.execute',
+          module: 'acceptance_probe',
+          icon: 'Boxes',
+          labelKey: 'activity.verb.probe.execute',
+          actorDisplayName: 'Anna K.',
+          actorKind: 'admin',
+          targetType: 'acceptance_probe_row',
+          targetId: 'probe-1',
+          targetDisplayName: 'probe row',
+          targetUrl: null,
+          summary: null,
+        },
+      ],
+      pagination: { limit: 8, fetchedAt: '' },
+    });
+    renderCard();
+    await waitFor(() => expect(screen.getByText('probe row')).toBeInTheDocument());
+    expect(screen.getByText('probe:ran the probe')).toBeInTheDocument();
+  });
+
   it('renders a summary tooltip on bulk rows (never raw JSON)', async () => {
     getSpy.mockResolvedValue({
       data: [
@@ -193,6 +243,8 @@ describe('<RecentActivityCard />', () => {
           actedAt: new Date().toISOString(),
           action: 'stock_level.bulk_import',
           module: 'inventory',
+          icon: 'Upload',
+          labelKey: 'activity.verb.stock_level.bulk_import',
           actorDisplayName: 'Tomasz W.',
           actorKind: 'admin',
           targetType: 'bulk_operation',

@@ -4,17 +4,17 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { PromotionService } from '../../../src/modules/promotions/services/promotion-service.js';
+import type { PromotionService } from '../../../../packages/modules/promotions/src/backend/services/promotion-service.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
-import { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
-import { CatalogProductReadService } from '../../../src/modules/catalog/services/catalog-product-read.service.js';
+import { CatalogQueryService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-query.service.js';
+import { CatalogProductReadService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-product-read.service.js';
 import {
   findAttributeExtensionByKey,
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
-import type { CartSnapshot, CatalogProductReadPort } from '@b2b/contracts';
+import type { CartSnapshot, CatalogProductReadPort } from '@endora-commerce/contracts';
 
 /**
  * Feature 012 / T056 — Promotion attribute criterion end-to-end (US8).

@@ -14,11 +14,11 @@ import type {
   TransactionalEmailSendInput,
   TransactionalEmailSender,
   TransactionalSendOutcome,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import {
   ShipmentEmailNotifier,
   type ShipmentEmailNotifierDeps,
-} from '../../../src/modules/shipments/services/shipment-email-notifier.js';
+} from '../../../../packages/modules/shipments/src/backend/services/shipment-email-notifier.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 const ORDER_ID = 'bbbbbbbb-0000-4000-8000-000000000001';
@@ -75,6 +75,7 @@ function orderReadPort(order: OrderRecord | null): OrderReadPort {
     listAll: async () => (order ? [order] : []),
     listItems: async () => [],
     findIdsByBusinessIdLike: async () => [],
+    salesChannelIdsForCustomer: async () => [],
   };
 }
 
@@ -212,6 +213,7 @@ describe('shipments — the shipment-created notifier reports what happened (#78
       listAll: async () => [],
       listItems: async () => [],
       findIdsByBusinessIdLike: async () => [],
+      salesChannelIdsForCustomer: async () => [],
     };
 
     const subject = new ShipmentEmailNotifier({

@@ -1,10 +1,12 @@
+import { AssetFolder } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AssetFolder } from '../../../src/modules/assets_library/entities/asset-folder.entity.js';
+
 
 /**
  * T053 — Contract test: folder CRUD endpoints under /api/v1/admin/assets/folders.

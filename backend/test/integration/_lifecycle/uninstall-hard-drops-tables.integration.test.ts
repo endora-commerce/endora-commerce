@@ -1,12 +1,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Redis from 'ioredis';
-import { defineModuleManifest } from '@b2b/contracts';
+import { Redis } from 'ioredis';
+import { defineModuleManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ModuleLifecycleOrchestrator } from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
+import { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
+import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
 
 /**
  * Integration test for FR-011 — hard uninstall deletes registry row
@@ -64,6 +65,7 @@ describe('Module uninstall — hard deletes registry row (integration)', () => {
         ],
       ]) as never,
       graph: new ModuleDepGraph([manifest]),
+      participants: [], // no fixture module declares a lifecycle participant (feature 080, T036a)
     };
 
     const em = db.em();
@@ -85,6 +87,10 @@ describe('Module uninstall — hard deletes registry row (integration)', () => {
       em: () => db.em(),
       auditLog: new AuditLogService(() => db.em()),
       registry,
+      // Feature 080 (T033): this fixture module is covered and owns no
+      // migration. Declaring that is what keeps the assertion below about the
+      // registration row rather than about the refusal an unknown module gets.
+      migrationOwnership: migrationOwnershipOf([], ['fixture_hard']),
     });
 
     const result = await orchestrator.uninstall('fixture_hard', { hard: true });

@@ -16,7 +16,7 @@ import type {
   UpdateDictionaryLanguageRequest,
   UpsertTranslationRequest,
   UpsertLanguageCountryRequest,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { apiClient } from '@/lib/api-client';
 
 const BASE = '/api/v1/admin/dictionary';

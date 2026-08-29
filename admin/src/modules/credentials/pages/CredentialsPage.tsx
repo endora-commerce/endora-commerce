@@ -5,7 +5,7 @@ import type {
   ConfigurationTypeDescriptor,
   CreateConfiguration,
   UpdateConfiguration,
-} from '@b2b/contracts';
+} from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

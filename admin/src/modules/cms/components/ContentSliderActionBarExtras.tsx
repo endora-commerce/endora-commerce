@@ -3,8 +3,8 @@
 import { useEffect, type ReactElement } from 'react';
 import { ActionBar, useGetPuck } from '@measured/puck';
 import { Minus, Plus } from 'lucide-react';
-import { resolveResponsiveNumber } from '@b2b/page-builder-core';
-import { usePreviewBreakpointTier } from '@b2b/page-builder-core/client';
+import { resolveResponsiveNumber } from '@endora-commerce/page-builder-core';
+import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import {
   carouselEditorPageCount,
   clearEditorCarouselPreviewLock,
@@ -16,7 +16,7 @@ import {
   resolveContentSliderSlideIndex,
   setEditorCarouselPage,
   usePageBuilderPuck,
-} from '@b2b/page-builder-core/editor';
+} from '@endora-commerce/page-builder-core/editor';
 import { CarouselPreviewNav } from './CarouselPreviewNav';
 import { QuickTooltip } from './QuickTooltip';
 import { isPuckItemType, safeGetPuckData, safeGetPuckItem } from './puck-safe';
