@@ -216,6 +216,9 @@ export const entities = [
  *     D-182), together with the collisions that derivation refuses to resolve.
  *     Published for the same reason the table is: the composition roots inject
  *     it, and the in-repository collision refusal reads it as code.
+ *   * `composeErrorTranslationTargets` — the two of them together, which is what
+ *     the roots actually inject while the migration is in flight (Phase 2). It
+ *     is deleted with the chain, and the roots then inject the derivation alone.
  *   * `I18nService` — the resolver the reconciler, the CLI commands and the
  *     acceptance probe construct over an `EntityManager` of their own.
  *   * `MissingKeyLogger` — the resolver's collaborator, constructed the same way.
@@ -229,6 +232,7 @@ export const entities = [
 export {
   ERROR_TRANSLATION_KEYS,
   buildErrorTranslationTargets,
+  composeErrorTranslationTargets,
   describeErrorCodeCollisions,
   type ErrorCodeClaim,
   type ErrorCodeCollision,

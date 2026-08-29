@@ -235,9 +235,12 @@ export interface ErrorTranslationTargets {
  * **Deterministic**: the answer does not depend on the order the manifests
  * arrive in. Claims are sorted by module id, collisions by code.
  *
- * Nothing consumes this yet. Feature 090's Phase 2 injects it through
- * `errorEnvelopeOptions.errorTranslationTargets`, the seam that already exists,
- * and Phase 3 deletes the prefix chain above it one module at a time.
+ * **This is the end state, and it is not what the roots inject today.** No module
+ * has migrated yet, so over the resolved manifest set this function returns an
+ * empty map — injecting it alone would take every operator-visible sentence in
+ * both shipped languages out of reach at once. {@link composeErrorTranslationTargets}
+ * is what the roots call while the migration is in flight; it is deleted with
+ * the chain, and the roots then call this.
  */
 export function buildErrorTranslationTargets(
   manifests: readonly ErrorCodeDeclarationSource[],
@@ -270,6 +273,55 @@ export function buildErrorTranslationTargets(
     });
   }
   return { targets, collisions: collisions.sort((a, b) => a.code.localeCompare(b.code)) };
+}
+
+/**
+ * The map both composition roots inject **while the migration is in flight** —
+ * the declarations, over the incumbent chain (feature 090, Phase 2).
+ *
+ * `contracts/error-code-declaration.md` §6.4 makes the migration one merge
+ * request per owning module, and §6.2 makes it answer-preserving over all of
+ * `ERROR_CODES`. Those two together are only satisfiable if a code the owner has
+ * not declared yet keeps the answer the chain gives it. So this is a transitional
+ * shape with a scheduled death: the last merge request of Phase 3 deletes
+ * {@link ERROR_TRANSLATION_KEYS}, deletes this function, and points both roots at
+ * {@link buildErrorTranslationTargets}. Nothing new should be built on it.
+ *
+ * Three rules, and the reason for each is why they are not interchangeable:
+ *
+ *  1. **A declaration wins over the chain.** Chain-first is the one arrangement
+ *     in which a declaration that disagrees with the chain changes nothing until
+ *     the chain is deleted — which is the last merge request of the migration and
+ *     the worst possible place to discover eighteen merge requests' worth of
+ *     drift. Declaration-first makes the equality harness
+ *     (`backend/test/unit/_i18n/error-code-routing-equality.test.ts`) report the
+ *     disagreement on the day it lands.
+ *  2. **The chain answers for a code nobody has declared.** That is the whole
+ *     reason this function exists rather than the roots injecting the derivation.
+ *  3. **A contested code is absent, chain or no chain.** §3.1 rule 1 says a code
+ *     more than one module declares routes to none of them; letting the incumbent
+ *     answer instead would be exactly the origin precedence §3.4 refuses by name —
+ *     the platform's own table quietly outranking a claim it cannot see, which
+ *     renders one raiser's condition under another's sentence.
+ *
+ * The collisions come out of the one `buildErrorTranslationTargets` call this
+ * makes, so the routing and the report still cannot disagree (D-100).
+ */
+export function composeErrorTranslationTargets(
+  manifests: readonly ErrorCodeDeclarationSource[],
+): ErrorTranslationTargets {
+  const declared = buildErrorTranslationTargets(manifests);
+  const contested = new Set(declared.collisions.map((collision) => collision.code));
+
+  const targets: Record<string, ErrorTranslationTarget> = {};
+  for (const [code, target] of Object.entries(ERROR_TRANSLATION_KEYS)) {
+    if (contested.has(code)) continue;
+    targets[code] = target;
+  }
+  for (const [code, target] of Object.entries(declared.targets)) {
+    targets[code] = target;
+  }
+  return { targets, collisions: declared.collisions };
 }
 
 /** One line per claimant, in the words an operator reads on `/platform/modules`. */

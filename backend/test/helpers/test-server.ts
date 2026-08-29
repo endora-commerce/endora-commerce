@@ -98,7 +98,15 @@ import { randomUUID } from 'node:crypto';
 import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 // D-54 — injected into the error envelope, exactly as `composition.ts` does it:
 // `src/http` may not name a module (D-52), a composition root may.
-import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+//
+// Feature 090 Phase 2 — and derived from the resolved manifests here too, by the
+// same call in the same place. The harness composes the same modules production
+// does, so a second way of building this map would be a second answer to "which
+// bundle holds this code's sentence" that only one of the two roots ever gives.
+import {
+  composeErrorTranslationTargets,
+  describeErrorCodeCollisions,
+} from '@endora-commerce/mod-i18n/backend';
 // Type-only, and off the package's **source** rather than its `./backend`
 // subpath, because the three service types below come from the same source
 // files: `dist` and `src` are two nominal declarations of one class, so a
@@ -910,6 +918,20 @@ export async function setupBackendServer(
   // `packages/*` linked out of `node_modules` — which is exactly what it
   // refuses.
   const packageModuleEntries = await loadPackageModuleEntries(overlayEnv);
+
+  // Feature 090 Phase 2 — mirrors `composition.ts`: the error-code routing map,
+  // derived from the manifests this run resolved, with the collisions reported
+  // out of the same call (D-100). A collision is a `warn` and never a refused
+  // boot, here for the same reason as in production — the harness's job is to be
+  // the composition production is.
+  const errorTranslation = composeErrorTranslationTargets(resolvedRegistry);
+  if (errorTranslation.collisions.length > 0) {
+    platformLogger().warn(
+      { collisions: errorTranslation.collisions.length },
+      'error codes are claimed by more than one module and therefore route to none of ' +
+        `them:\n${describeErrorCodeCollisions(errorTranslation.collisions)}`,
+    );
+  }
 
   registryCache.setActivationDeclarations(
     activationDeclarationsFrom(resolvedRegistry.map((e) => e.manifest)),
@@ -2638,7 +2660,7 @@ export async function setupBackendServer(
     modules,
     apiInterceptors,
     errorEnvelope: {
-      errorTranslationTargets: ERROR_TRANSLATION_KEYS,
+      errorTranslationTargets: errorTranslation.targets,
       // The same call production makes, from the same kernel function (D-137).
       // The `request.testActor` read this replaces was the residual drift
       // between the two roots: `registerTestAuth` mirrors every resolved actor
