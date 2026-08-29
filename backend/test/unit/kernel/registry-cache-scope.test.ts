@@ -101,7 +101,7 @@ function armedCache(emFactory?: () => EntityManager): {
       tenantMode: getTenantContext()?.mode,
       entryPoint: getCurrentPlatformScope()?.entryPoint,
       orgCond: condOrError(orgFilterCond),
-      customerCond: condOrError(customerFilterCond),
+      customerCond: condOrError(() => customerFilterCond('absent')),
     });
     if (emFactory) return emFactory();
     return { find: async () => [] } as unknown as EntityManager;
