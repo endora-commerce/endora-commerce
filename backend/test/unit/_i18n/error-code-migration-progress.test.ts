@@ -47,6 +47,7 @@ const MIGRATED_MODULES: readonly string[] = [
   'mfa',
   'quote_requests',
   'sales_channels',
+  'settings',
 ];
 
 describe('feature 090 Phase 3 — each migrated module declares exactly what it owns', () => {
