@@ -367,3 +367,47 @@ export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
   SETTING_SECRET_KEY_MISSING: 'settings',
   SETTING_VALUE_SHAPE_MISMATCH: 'settings',
 };
+
+/**
+ * The one value in {@link CHAIN_ROUTING_ANSWERS} that is **not** a module id.
+ *
+ * `core` is the synthetic namespace `_i18n`'s bundle is exposed under at the
+ * resolver boundary (feature 019; `I18nService`'s `exposedBundleNamespace`).
+ * The declaration mechanism feature 090 replaces the chain with is keyed on
+ * module ids, so the platform block's declaration necessarily says `_i18n`
+ * where the chain said `core` — 100 codes, and `compareErrorCodeRouting` calls
+ * every one of them `rerouted` unless the two vocabularies are reconciled
+ * somewhere.
+ *
+ * **The capture is not where.** It is the reference side of every Phase 3
+ * assertion and a migration does not edit it: a reference a migration may
+ * rewrite is one that agrees with whatever the migration did
+ * (`specs/090-module-owned-error-codes/migration-runbook.md` §1). So the
+ * identity is named once, here, at the capture's edge, and both harnesses read
+ * the capture through {@link CHAIN_ANSWERS_AS_MODULE_IDS} rather than
+ * carrying a `=== 'core'` test of their own. It is a transitional alias in a
+ * transitional artefact and it retires with the capture.
+ *
+ * `specs/090-module-owned-error-codes/core-block-home.md` §4(d) is the ruling.
+ */
+export const PLATFORM_BUNDLE_MODULE_ID = '_i18n';
+
+/** Chain answer → the module id that answers for it. */
+export const CHAIN_ANSWER_ALIASES: Readonly<Record<string, string>> = {
+  core: PLATFORM_BUNDLE_MODULE_ID,
+};
+
+/**
+ * {@link CHAIN_ROUTING_ANSWERS} with every answer expressed as a module id —
+ * the form a manifest declaration can be compared to.
+ *
+ * Derived, never a second hand-written table: the two differ in exactly the
+ * entries {@link CHAIN_ANSWER_ALIASES} names, so they cannot drift.
+ */
+export const CHAIN_ANSWERS_AS_MODULE_IDS: Readonly<Record<string, string>> =
+  Object.fromEntries(
+    Object.entries(CHAIN_ROUTING_ANSWERS).map(([code, answer]) => [
+      code,
+      CHAIN_ANSWER_ALIASES[answer] ?? answer,
+    ]),
+  );

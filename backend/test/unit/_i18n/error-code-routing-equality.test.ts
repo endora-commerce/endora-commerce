@@ -5,7 +5,10 @@ import {
   composeErrorTranslationTargets,
 } from '@endora-commerce/mod-i18n/backend';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
-import { CHAIN_ROUTING_ANSWERS } from '../../fixtures/error-code-routing/chain-answers.js';
+import {
+  CHAIN_ANSWERS_AS_MODULE_IDS,
+  CHAIN_ROUTING_ANSWERS,
+} from '../../fixtures/error-code-routing/chain-answers.js';
 import {
   compareErrorCodeRouting,
   describeRoutingDifferences,
@@ -192,7 +195,17 @@ describe('error-code routing equality harness (feature 090, Phases 0 and 2)', ()
         Object.entries(targets).map(([code, target]) => [code, target.moduleId]),
       );
 
-      const differences = compareErrorCodeRouting(CHAIN_ROUTING_ANSWERS, composed);
+      // `CHAIN_ANSWERS_AS_MODULE_IDS`, not the raw capture: the composed map is
+      // keyed by the **declaring module's id**, and one of the capture's
+      // eighteen answers — `core` — is a bundle namespace rather than a module
+      // id. Reconciling the two vocabularies at the capture's edge is what
+      // keeps the platform block's 100 declarations from reading as 100
+      // `rerouted` differences, without editing the reference
+      // (`chain-answers.ts`'s `CHAIN_ANSWER_ALIASES`, and
+      // `specs/090-module-owned-error-codes/core-block-home.md` §4(d)). The
+      // block above still compares the **raw** capture to the live chain,
+      // because the chain genuinely answers `core`.
+      const differences = compareErrorCodeRouting(CHAIN_ANSWERS_AS_MODULE_IDS, composed);
       expect(
         differences,
         differences.length === 0

@@ -156,7 +156,7 @@ export class I18nService {
     const rows = await targetEm.find(TranslationBundle, {});
     const byModule = new Map<string, Map<SupportedAdminLanguage, TranslationBundleEntries>>();
     for (const row of rows) {
-      const exposedId = row.moduleId === I18N_CHROME_MODULE_ID ? CORE_NAMESPACE : row.moduleId;
+      const exposedId = exposedBundleNamespace(row.moduleId);
       if (moduleFilter && !moduleFilter.has(exposedId)) continue;
       const langs = byModule.get(exposedId) ?? new Map();
       langs.set(row.languageCode as SupportedAdminLanguage, row.entries);
@@ -263,7 +263,7 @@ export class I18nService {
       // boundary so consumers (Admin SPA + backend `translate(...)`
       // calls) look it up under `core`. See data-model.md §3 / §4 and
       // research.md §R7.
-      const exposedId = row.moduleId === I18N_CHROME_MODULE_ID ? CORE_NAMESPACE : row.moduleId;
+      const exposedId = exposedBundleNamespace(row.moduleId);
       merged[exposedId] = row.entries;
       if (Number(row.version) > highest) highest = Number(row.version);
     }
@@ -283,8 +283,36 @@ export class I18nService {
     params?: Record<string, string | number>,
     em?: EntityManager,
   ): Promise<string> {
+    // The alias, applied on the **read** side — feature 090, Phase 3
+    // (`specs/090-module-owned-error-codes/core-block-home.md` §4(c)).
+    //
+    // This module's bundle is exposed to clients under the synthetic namespace
+    // `core`, for the reason `getMergedBundleForLanguage` gives above: the
+    // admin SPA has called it that since feature 019 and does so in 132 places.
+    // Every caller therefore asked for `core` — until this module declared the
+    // platform's 100 error codes in its own manifest, which made the composed
+    // routing map answer `_i18n` and `translate('_i18n', 'errors.INTERNAL', …)`
+    // return the placeholder. Both composition roots turn a placeholder back
+    // into the raiser's untranslated English, silently, so the symptom would
+    // have been 41 codes losing their sentences in both shipped languages with
+    // no log and no failing check. `backend/test/integration/_i18n/
+    // platform-error-sentences.test.ts` is the assertion that refuses it.
+    //
+    // The alternative was to publish the bundle under both keys in the merged
+    // map, and it was refused: that map is the payload
+    // `GET /api/v1/admin/i18n/bundles` serves, so it would change the wire
+    // shape and duplicate the largest bundle on every admin boot.
+    //
+    // **A module with no legacy namespace needs nothing equivalent.** This is
+    // one fact about one repository's history, not a pattern to copy: a
+    // stranger's module is looked up under the id it registers. The remaining
+    // three copies of the identity live in
+    // `backend/scripts/check-error-translations.ts`, which still reads the
+    // prefix chain and so still sees the string `core`; they go with the chain,
+    // in the merge request that deletes it.
+    const bundleId = exposedBundleNamespace(moduleId);
     const merged = await this.getMergedBundleForLanguage(language, em);
-    const requested = merged.bundles[moduleId]?.[key];
+    const requested = merged.bundles[bundleId]?.[key];
     if (requested != null) {
       return interpolate(requested, params);
     }
@@ -293,10 +321,13 @@ export class I18nService {
         LANGUAGE_FALLBACK,
         em,
       );
-      const englishValue = fallback.bundles[moduleId]?.[key];
+      const englishValue = fallback.bundles[bundleId]?.[key];
       if (englishValue != null) {
+        // The **exposed** id, not the caller's: `getCoverageSnapshot` keys its
+        // bundle side by the exposed id too, so logging `_i18n` here would
+        // report a second module with no bundle and 0% coverage beside `core`.
         this.missingKeyLogger.logFallback({
-          moduleId,
+          moduleId: bundleId,
           languageCode: language,
           key,
           fellBackTo: 'en',
@@ -305,11 +336,17 @@ export class I18nService {
       }
     }
     this.missingKeyLogger.logFallback({
-      moduleId,
+      moduleId: bundleId,
       languageCode: language,
       key,
       fellBackTo: 'placeholder',
     });
+    // The **caller's** id, and this one may not be normalised: both composition
+    // roots recognise a miss by comparing the answer to `${moduleId}.${key}`
+    // with the id they passed in, and answer the raiser's own message when it
+    // matches. Returning `core.errors.INTERNAL` to a caller that asked about
+    // `_i18n` would defeat that comparison and put the placeholder itself in
+    // front of a client.
     return `${moduleId}.${key}`;
   }
 
@@ -331,6 +368,21 @@ export class I18nService {
 const I18N_CHROME_MODULE_ID = '_i18n';
 /** Synthetic namespace exposed to clients for the `_i18n` module's bundle. */
 const CORE_NAMESPACE = 'core';
+
+/**
+ * `_i18n` -> `core`, written once.
+ *
+ * The identity was spelled as the same ternary in two places here and, with its
+ * own separately declared constant, three more times in
+ * `backend/scripts/check-error-translations.ts` — five copies of one fact
+ * across two files. Feature 090's platform-block migration needed a **third**
+ * application in this file (`translate`, below), which is what made writing it
+ * once worth the three lines: the check's three go with the prefix chain they
+ * read, and this is then the only statement of the alias in the tree.
+ */
+function exposedBundleNamespace(moduleId: string): string {
+  return moduleId === I18N_CHROME_MODULE_ID ? CORE_NAMESPACE : moduleId;
+}
 
 /** Substitute `{name}` placeholders. Missing params are left as-is. */
 function interpolate(

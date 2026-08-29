@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
-import { CHAIN_ROUTING_ANSWERS } from '../../fixtures/error-code-routing/chain-answers.js';
+import { CHAIN_ANSWERS_AS_MODULE_IDS } from '../../fixtures/error-code-routing/chain-answers.js';
 import {
   describeMigrationGaps,
   EmptyMigrationScopeError,
@@ -38,6 +38,10 @@ import {
  * roster is filled in by.
  */
 const MIGRATED_MODULES: readonly string[] = [
+  // The platform block: 100 codes, the one roster entry whose id is not the
+  // chain's answer for them. See the note on `CHAIN_ANSWER_ALIASES` in
+  // `test/fixtures/error-code-routing/chain-answers.ts`.
+  '_i18n',
   'assets_library',
   'blog',
   'carts',
@@ -116,7 +120,13 @@ describe('feature 090 Phase 3 — each migrated module declares exactly what it 
         const declared = (entry?.manifest.errorCodes ?? []).map(
           (declaration) => declaration.code,
         );
-        const gaps = findMigrationGaps(moduleId, declared, CHAIN_ROUTING_ANSWERS);
+        // The capture's answers as module ids. `findMigrationGaps` derives the
+        // module's `owned` set by filtering this map, and one of the capture's
+        // answers — `core` — is a bundle namespace, not a module id: handed the
+        // raw capture it would refuse `_i18n` with `EmptyMigrationScopeError`
+        // (nothing routes to it) while calling the block's completeness
+        // unmeasurable. See `chain-answers.ts`'s `CHAIN_ANSWER_ALIASES`.
+        const gaps = findMigrationGaps(moduleId, declared, CHAIN_ANSWERS_AS_MODULE_IDS);
         expect(
           gaps,
           gaps.length === 0

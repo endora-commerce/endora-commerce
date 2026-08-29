@@ -49,6 +49,168 @@ export const manifest = defineModuleManifest({
       'Every user-facing string on every surface is served from here, including the labels ' +
       'on the platform screen that holds the module switches.',
   },
+  /**
+   * The platform's own error codes — feature 090, Phase 3, the last owner
+   * (`specs/090-module-owned-error-codes/core-block-home.md`).
+   *
+   * **This list is the frozen chain capture, not a judgement.** It is the
+   * verbatim output of the runbook's step-1 derivation over
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts` — every code
+   * `moduleIdForErrorCode` answers `core` for, in the capture's order. Nothing
+   * was curated, added or dropped: `contracts/error-code-declaration.md` §6.2
+   * makes the migration answer-preserving over all 289 codes with no exception
+   * list, and §6.5 puts re-routing out of scope.
+   *
+   * **Why `_i18n` and not a module called `core`.** `core` is not a module id.
+   * It is the synthetic namespace this module's bundle is exposed under at the
+   * resolver boundary (`I18N_CHROME_MODULE_ID` / `CORE_NAMESPACE` in
+   * `backend/services/i18n-service.ts`), so the module that owns the platform
+   * bundle — the phrase §6.5 uses — is this one. Every sentence for these codes
+   * already lives in this package's `i18n/{en,pl}.json`; declaring them here
+   * moves no key. The alternatives, and why each was refused, are §4 of the
+   * design note: a residual set in `packages/contracts` (a second input to a
+   * derivation §4 says has one), `_lifecycle` (82 sentence keys moved for no
+   * operator-visible gain), and a new registered `_platform` module (a
+   * registry row, an install-order position and a `/platform/modules` row,
+   * invented to hold a list).
+   *
+   * **The codes a reader will look for here and not find are the opposite
+   * problem: most of these are not the platform's.** 68 of the 100 are named by
+   * exactly one module and by nothing else — `PIM_ERGONODE_*` by
+   * `pim_ergonode`, `KSEF_*` by `ksef`, `PROMPT_*` by `prompt_actions`,
+   * `SHOPPING_LIST_*` by `shopping_lists`, and so on across 17 modules. They
+   * are here because they fell off the end of the prefix chain, and moving them
+   * to their owners is `specs/082-error-code-ownership/rulings.md` §9's
+   * remaining sweep, measured at 68 codes over 17 modules in the design note's
+   * §1.3. Do not move one in passing: a code that leaves this list without
+   * arriving in its owner's manifest routes nowhere, and the collision rule
+   * makes a half-done move visible at composition rather than at an operator.
+   *
+   * **`tokens` is derived from the raise sites, not from the bundle**
+   * (runbook §5). Seven of these codes put a `details.code` on the wire; six of
+   * them are declared below, and the seventh is the exception the design note
+   * says whoever migrates this block inherits: `VALIDATION_FAILED` declares
+   * **no** tokens although 21 raise sites carry a `details.code`, because
+   * `localizeErrorEnvelope` returns before translating that code
+   * (`packages/platform/src/http/error-envelope.ts`) — its `details.code`
+   * values are machine-readable discriminators on the wire and can never key an
+   * `errors.VALIDATION_FAILED.<token>` sentence. Declaring them would declare
+   * sentences nothing can ever render. Of the tokens that are declared, four
+   * have a sentence in both languages today (`ADMIN_ROLE_IN_USE.assigned`,
+   * `.assigned_to_deleted`, `FORBIDDEN.organization_cannot_transact`,
+   * `.customer_outside_assignment_scope`) and five do not; a token a raise site
+   * can produce is a token whether or not anybody has written its sentence, and
+   * the missing ones become a Phase 4 finding rather than a silent absence.
+   */
+  errorCodes: [
+    { code: 'ACCOUNT_BLOCKED' },
+    { code: 'ACTIVE_RESERVATIONS_EXIST' },
+    { code: 'ADDRESS_IN_USE' },
+    { code: 'ADDRESS_NOT_OWNED' },
+    { code: 'ADJUSTMENT_BELOW_ACTIVE' },
+    { code: 'ADMIN_ROLE_CODE_TAKEN' },
+    { code: 'ADMIN_ROLE_IN_USE', tokens: ['assigned', 'assigned_to_deleted'] },
+    { code: 'ADMIN_ROLE_PROTECTED' },
+    { code: 'ALREADY_SUBSCRIBED' },
+    { code: 'API_KEY_CHANNEL_MISMATCH' },
+    { code: 'API_KEY_NOT_BOUND' },
+    { code: 'API_KEY_OUT_OF_SCOPE' },
+    { code: 'ASSISTANT_DISABLED' },
+    { code: 'ASSISTANT_NOT_CONFIGURED' },
+    { code: 'BULK_TOO_LARGE' },
+    { code: 'CANNOT_DEMOTE_LAST_ADMIN' },
+    { code: 'CANNOT_REMOVE_LAST_ADMIN' },
+    { code: 'CANNOT_REVOKE_LAST_ADMIN_INVITE' },
+    { code: 'CREDIT_LIMIT_ALREADY_GRANTED' },
+    { code: 'CREDIT_LIMIT_NOT_GRANTED' },
+    { code: 'CURRENCY_MISMATCH' },
+    { code: 'CURRENT_PASSWORD_INVALID' },
+    { code: 'CUSTOMER_ADDRESS_NOT_FOUND' },
+    { code: 'CUSTOMER_ALREADY_DELETED' },
+    { code: 'CUSTOMER_NOT_DELETED' },
+    { code: 'CUSTOMER_NOT_FOUND' },
+    { code: 'CUSTOMER_RESTORE_WINDOW_ELAPSED' },
+    { code: 'CUSTOM_FIELD_DEFINITION_INVALID' },
+    { code: 'CUSTOM_FIELD_HOST_MANAGED' },
+    { code: 'CUSTOM_FIELD_KEY_CONFLICT' },
+    { code: 'CUSTOM_FIELD_NOT_FOUND' },
+    { code: 'CUSTOM_FIELD_VALUE_INVALID' },
+    { code: 'EMAIL_ALREADY_IN_ORGANIZATION' },
+    { code: 'EMAIL_ALREADY_REGISTERED' },
+    { code: 'EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION' },
+    {
+      code: 'FORBIDDEN',
+      tokens: [
+        'organization_cannot_transact',
+        'customer_outside_assignment_scope',
+        'reorder_disabled',
+      ],
+    },
+    { code: 'IDEMPOTENCY_KEY_REQUIRED' },
+    { code: 'IDEMPOTENCY_KEY_REUSED' },
+    { code: 'INTERNAL', tokens: ['customer_account_organization_missing'] },
+    { code: 'INVALID_CREDENTIALS' },
+    { code: 'INVALID_TRANSITION' },
+    { code: 'KSEF_ALREADY_SUBMITTED' },
+    { code: 'KSEF_CREDENTIAL_EXISTS' },
+    { code: 'KSEF_CREDENTIAL_INVALID' },
+    { code: 'KSEF_ENROLLMENT_REJECTED' },
+    { code: 'KSEF_NOT_CONFIGURED' },
+    { code: 'KSEF_NOT_SUBMITTABLE' },
+    { code: 'KSEF_UNAVAILABLE' },
+    { code: 'LIMIT_INSUFFICIENT' },
+    { code: 'MODULE_ACTIVATION_PROTECTED' },
+    { code: 'MODULE_DEPENDENCIES_ABSENT' },
+    { code: 'MODULE_DEPENDENTS_PRESENT' },
+    { code: 'MODULE_DISABLED' },
+    { code: 'MODULE_NOT_DEACTIVATABLE' },
+    { code: 'MODULE_NOT_FOUND' },
+    { code: 'MODULE_SETTING_READ_ONLY' },
+    { code: 'NOT_FOUND' },
+    { code: 'ORGANIZATION_HAS_CHILDREN', tokens: ['has_children'] },
+    { code: 'ORGANIZATION_SUSPENDED' },
+    { code: 'ORGANIZATION_TAX_ID_EXISTS' },
+    { code: 'ORGANIZATION_TREE_INVALID', tokens: ['cycle', 'max_depth_exceeded'] },
+    { code: 'ORG_OWNER_DEPLETION' },
+    { code: 'PACKAGING_UNIT_NAME_CONFLICT' },
+    { code: 'PACKAGING_UNIT_NOT_FOUND' },
+    { code: 'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE' },
+    { code: 'PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE' },
+    { code: 'PIM_ERGONODE_BINDING_EXISTS' },
+    { code: 'PIM_ERGONODE_CONNECTION_DISABLED' },
+    { code: 'PIM_ERGONODE_CONNECTION_EXISTS' },
+    { code: 'PIM_ERGONODE_CURRENCY_INACTIVE' },
+    { code: 'PIM_ERGONODE_FIELD_PATH_INVALID' },
+    { code: 'PIM_ERGONODE_IMPORT_ALREADY_RUNNING' },
+    { code: 'PIM_ERGONODE_NOT_CONFIGURED' },
+    { code: 'PIM_ERGONODE_SCHEDULE_INVALID' },
+    { code: 'PIM_ERGONODE_TARGET_ALREADY_MAPPED' },
+    { code: 'PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND' },
+    { code: 'PIM_ERGONODE_TREE_REQUIRED' },
+    { code: 'PIM_ERGONODE_TYPE_INCOMPATIBLE' },
+    { code: 'PRICE_LIST_NOT_FOUND' },
+    { code: 'PRICE_UNAVAILABLE' },
+    { code: 'PROMOTION_INVALID' },
+    { code: 'PROMPT_PERMISSION_REVOKED' },
+    { code: 'PROMPT_PLAN_EXPIRED' },
+    { code: 'PROMPT_REQUEST_INVALID_STATE' },
+    { code: 'PROMPT_REQUEST_IN_FLIGHT' },
+    { code: 'RATE_LIMITED' },
+    { code: 'REGISTRATION_REQUIRES_ORGANIZATION' },
+    { code: 'SELECTION_TOO_LARGE' },
+    { code: 'SHOPPING_LIST_CANNOT_DELETE_DEFAULT' },
+    { code: 'SHOPPING_LIST_CANNOT_DELETE_LAST' },
+    { code: 'SYSTEM_ATTRIBUTE_SET_IMMUTABLE' },
+    { code: 'TERMS_VERSION_STALE' },
+    { code: 'TOKEN_INVALID_OR_EXPIRED' },
+    { code: 'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE' },
+    { code: 'TWO_FACTOR_REQUIRED' },
+    { code: 'TWO_FACTOR_REQUIRED_BY_ROLE' },
+    { code: 'UNAUTHORIZED' },
+    { code: 'VALIDATION_FAILED' },
+    { code: 'VERSION_CONFLICT', tokens: ['organization_version_mismatch'] },
+    { code: 'WEBHOOK_DELIVERY_NOT_REPLAYABLE' },
+  ],
 });
 
 /**
