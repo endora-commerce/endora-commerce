@@ -1296,6 +1296,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

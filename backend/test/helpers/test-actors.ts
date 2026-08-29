@@ -256,6 +256,48 @@ export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-tax-seeded-sales-rep-session': {
     adminUserId: '00000000-0000-4000-8000-0000000000e6',
   },
+  // `currencies` and `inventory` own their codes (2026-08-29) — the roles that
+  // prove it, on the same terms as the sets above and with ids of their own for
+  // the same reason: two files sharing an admin user id would make each one's
+  // fixtures depend on whether the other had booted first.
+  //
+  // For `currencies` the negative is the catalogue **editor**: all four
+  // currency routes enforced `catalog:write`, the list read included, so
+  // `catalog:read` never opened them. For `inventory` there are two negatives,
+  // because it borrowed two codes on two halves of one surface — an orders
+  // reader, who could enumerate every warehouse and its address, and a
+  // catalogue editor, who could delete one. The viewer and editor roles then
+  // show the new pair is *sufficient* and not merely newly required, and the
+  // read half is a capability that did not exist: seeing a currency, a stock
+  // level or a warehouse required nobody's read code before.
+  //
+  // All roles and users are created by
+  // `test/contract/currencies/permission-authority.test.ts` and
+  // `test/contract/inventory/permission-authority.test.ts`.
+  'stub-currencies-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e7',
+  },
+  'stub-currencies-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e8',
+  },
+  'stub-currencies-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e9',
+  },
+  'stub-inventory-orders-reader-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000ea',
+  },
+  'stub-inventory-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000eb',
+  },
+  'stub-inventory-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000ec',
+  },
+  'stub-inventory-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000ed',
+  },
+  'stub-inventory-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000ee',
+  },
 };
 
 declare module 'fastify' {

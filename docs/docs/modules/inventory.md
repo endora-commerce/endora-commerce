@@ -44,20 +44,56 @@ Seven keys under the `inventory` group:
 
 ## Public surface
 
-Admin routes are gated by `orders:read` (read) / `catalog:write` (write).
+Admin routes are gated by `inventory:read` (read) / `inventory:write` (write) —
+this module's own codes since 2026-08-29. All 21 used to enforce `orders:read`
+and `catalog:write`; see **Permissions** below.
 
-| Verb + Path | Purpose |
-| --- | --- |
-| `GET /api/v1/admin/inventory` | Landing KPIs: products tracked, total on-hand, out-of-stock count, low-stock count, per-warehouse totals |
-| `GET /api/v1/admin/inventory/levels` | Per-product roster with cumulative on-hand, per-warehouse breakdown, display band |
-| `PUT /api/v1/admin/inventory/levels` | Set absolute on-hand for `(productId, warehouseId, variantId?)`; emits `inventory.adjusted.v1` |
-| `GET /api/v1/admin/inventory/low-stock` | Products whose cumulative on-hand is at-or-below `lowStockThreshold` |
-| `GET/PATCH /api/v1/admin/inventory/thresholds` | Read or update global / per-category / per-product thresholds |
-| `GET/POST/PATCH/DELETE /api/v1/admin/warehouses[/:id]` | Warehouse CRUD; refuses delete when warehouse is a channel default or holds stock |
-| `GET/POST/PATCH/DELETE /api/v1/admin/sales-channels/:id/warehouses` | Sales channel ↔ warehouse binding with at most one default per channel |
-| `GET/PATCH /api/v1/admin/inventory/availability-notifications` | Admin browses the back-in-stock queue; PATCH cancels a subscription |
-| `POST /api/v1/admin/inventory/import` | CSV stock import (`?dryRun=true` validates without writing) |
-| `GET /api/v1/storefront/inventory/display-mode` | Storefront-public read: which display mode the channel uses |
+The table lists all 21 admin sites. It listed ten until 2026-08-29 and omitted
+the per-(product, warehouse) threshold write and both foundation-001
+backward-compatibility routes, which is the kind of gap the four preceding
+permission repairs each found in a module page.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/inventory` | `inventory:read` | Landing KPIs: products tracked, total on-hand, out-of-stock count, low-stock count, per-warehouse totals |
+| `GET /api/v1/admin/inventory/levels` | `inventory:read` | Per-product roster with cumulative on-hand, per-warehouse breakdown, display band |
+| `PUT /api/v1/admin/inventory/levels` | `inventory:write` | Set absolute on-hand for `(productId, warehouseId, variantId?)`; emits `inventory.adjusted.v1` |
+| `PUT /api/v1/admin/inventory/warehouse-low-stock-thresholds` | `inventory:write` | Per-(product, warehouse) low-stock thresholds |
+| `GET /api/v1/admin/inventory/low-stock` | `inventory:read` | Products whose cumulative on-hand is at-or-below `lowStockThreshold` |
+| `GET /api/v1/admin/inventory/thresholds` | `inventory:read` | Read global / per-category / per-product display-band thresholds |
+| `PATCH /api/v1/admin/inventory/thresholds` | `inventory:write` | Update them |
+| `GET /api/v1/admin/warehouses[/:id]` | `inventory:read` | Warehouse list and detail |
+| `POST/PATCH/DELETE /api/v1/admin/warehouses[/:id]` | `inventory:write` | Warehouse CRUD; refuses delete when warehouse is a channel default or holds stock |
+| `GET /api/v1/admin/sales-channels/:id/warehouses` | `inventory:read` | The channel's bound warehouses |
+| `POST/PATCH/DELETE /api/v1/admin/sales-channels/:id/warehouses[/:assignmentId]` | `inventory:write` | Sales channel ↔ warehouse binding with at most one default per channel |
+| `GET /api/v1/admin/inventory/availability-notifications` | `inventory:read` | Admin browses the back-in-stock queue |
+| `PATCH /api/v1/admin/inventory/availability-notifications/:id` | `inventory:write` | Cancels a subscription |
+| `POST /api/v1/admin/inventory/import` | `inventory:write` | CSV stock import (`?dryRun=true` validates without writing) |
+| `PUT /api/v1/admin/inventory` | `inventory:write` | **Deprecated** foundation-001 single-bucket write; delegates to `StockLevelService.setOnHand` against the seeded Default warehouse |
+| `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Deprecated** foundation-001 single-bucket list |
+| `GET /api/v1/storefront/inventory/display-mode` | — | Storefront-public read: which display mode the channel uses |
+
+## Permissions
+
+`inventory:read` and `inventory:write`, this module's own since 2026-08-29.
+
+Before that all 21 admin routes enforced two other modules' codes — nine reads
+on `orders:read` and twelve writes on `catalog:write`. So whoever could edit a
+product description could create, rename and delete a warehouse, rewrite a stock
+count, run a CSV import across every product's stock, and bind or unbind a
+warehouse from a sales channel; and whoever could read orders could enumerate
+every warehouse and the address on it. Neither code names the data being
+touched, which is the discriminator
+`specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 sets and
+`specs/first-deployment-window.md` §2 applies per route rather than per module.
+
+There is **no data migration**: a role that reached these screens through
+`catalog:write` or `orders:read` is granted the new codes explicitly, on
+`/admin-roles`, where the manifest puts them automatically. Granting them to
+every holder of the old codes would reproduce the over-grant the split removes.
+
+`test/contract/inventory/permission-authority.test.ts` pins both directions and
+both old codes.
 | `GET /api/v1/storefront/inventory/stock/:id` | Storefront-public per-product stock with cumulative on-hand summed only over the caller's channel-bound warehouses |
 | `POST /api/v1/catalog/products/:id/notify-when-available` | Customer subscribes to back-in-stock; signed-in callers have email pre-filled |
 

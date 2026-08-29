@@ -19,8 +19,16 @@ consume to render their language pickers, plus a small
 | `POST /api/v1/admin/languages/:code/default` | admin | Promote to default (atomically demotes the prior default) |
 | `DELETE /api/v1/admin/languages/:code` | admin | Remove (rejected for the default) |
 
-The same shape is exposed for currencies under `/api/v1/admin/currencies`;
-see [currencies](./currencies).
+The currency catalogue has the same shape under `/api/v1/admin/currencies`, and
+those routes are **`currencies`'** — see [currencies](./currencies). They were
+registered here until 2026-08-29, on `catalog:write`, serving another module's
+table for no caller in this repository. What this module still composes is
+`GET /api/v1/i18n/config`, which answers with both catalogues and both defaults
+in one public payload and reads the currency half over `currencyReadPort`.
+
+The four admin language routes above enforce `catalog:write`. That is a
+neighbourhood claim of the same kind, has not been repaired, and is recorded in
+`specs/first-deployment-window.md` §2 rather than here.
 
 ## Defaults
 

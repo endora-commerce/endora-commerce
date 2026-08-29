@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { Warehouse, WarehouseChannelAssignment } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import { warehousesClient } from './api/warehouses-client';
 
 interface ListResponse {
@@ -17,6 +18,25 @@ interface ListResponse {
  */
 export function ChannelMembershipPanel({ channelId }: { channelId: string }): ReactNode {
   const t = useTranslation('core');
+  /**
+   * This panel's own gate (2026-08-29), and it is the interesting one.
+   *
+   * The panel is mounted by `sales_channels`' edit screen, but the four routes
+   * behind it are `inventory`'s and they took `inventory:read` /
+   * `inventory:write` on 2026-08-29 — the assignment is fulfilment routing,
+   * which is not a fact about the channel's identity. So an operator who may
+   * edit a sales channel and not touch stock now gets **no panel** instead of a
+   * panel that answers 403 on load. That is the same treatment every other
+   * denied destination gets, applied to a composed one: the screen is the
+   * host's, the capability is this module's, and each is gated by its owner.
+   *
+   * The module axis is asked here too, and it is `inventory`'s rather than the
+   * host's: with stock management switched off, a channel↔warehouse binding is
+   * not a thing an operator can have an opinion about.
+   */
+  const isVisible = useSurfaceVisibility();
+  const canRead = isVisible({ module: 'inventory', requiredPermission: 'inventory:read' });
+  const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
   const [assignments, setAssignments] = useState<WarehouseChannelAssignment[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +46,10 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
   const [pendingWarehouseId, setPendingWarehouseId] = useState<string>('');
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -40,7 +64,7 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
     } finally {
       setLoading(false);
     }
-  }, [channelId, t]);
+  }, [canRead, channelId, t]);
 
   useEffect(() => {
     void refresh();
@@ -104,6 +128,11 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
     }
   };
 
+  // Absent, not disabled and not a 403 panel: this whole surface belongs to a
+  // module and a permission the operator editing the channel may not have.
+  // Ahead of the loading branch, so a denied operator never sees it flicker.
+  if (!canRead) return null;
+
   if (loading) return <div className="b2b-help">{t('warehouses.channel.loading')}</div>;
 
   return (
@@ -154,6 +183,11 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
                   <td>
                     {a.isDefault ? (
                       <span className="b2b-badge b2b-badge--success">{t('warehouses.channel.defaultBadge')}</span>
+                    ) : !canWrite ? (
+                      // Read-only: the row is simply not the default. Rendering
+                      // the promote button disabled would advertise a
+                      // capability; rendering the badge would misstate the row.
+                      <span className="b2b-muted">—</span>
                     ) : (
                       <button
                         type="button"
@@ -167,14 +201,16 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
                   </td>
                   <td>{a.sortOrder}</td>
                   <td className="actions">
-                    <button
-                      type="button"
-                      className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-                      onClick={(): void => { void handleUnassign(a.id, a.isDefault); }}
-                      disabled={busy === a.id}
-                    >
-                      {t('warehouses.channel.action.unassign')}
-                    </button>
+                    {canWrite ? (
+                      <button
+                        type="button"
+                        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                        onClick={(): void => { void handleUnassign(a.id, a.isDefault); }}
+                        disabled={busy === a.id}
+                      >
+                        {t('warehouses.channel.action.unassign')}
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))
@@ -183,7 +219,7 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
         </table>
       </div>
 
-      {candidates.length > 0 ? (
+      {canWrite && candidates.length > 0 ? (
         <div className="b2b-card">
           <div className="b2b-card__head"><h2>{t('warehouses.channel.addTitle')}</h2></div>
           <div className="b2b-card__body">

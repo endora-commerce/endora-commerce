@@ -191,11 +191,15 @@ const NAV: NavSection[] = [
     key: 'inventory',
     labelKey: 'appShell.section.inventory',
     items: [
-      { to: '/inventory', labelKey: 'appShell.nav.stockOverview', icon: Box, requiredPermission: 'orders:read', module: 'inventory' },
-      { to: '/warehouses', labelKey: 'appShell.nav.warehouses', icon: WarehouseIcon, requiredPermission: 'orders:read', module: 'inventory' },
-      { to: '/inventory/low-stock', labelKey: 'appShell.nav.lowStock', icon: TrendingDown, requiredPermission: 'orders:read', module: 'inventory' },
-      { to: '/inventory/notifications', labelKey: 'appShell.nav.notifyWhenAvailable', icon: BellOutline, requiredPermission: 'orders:read', module: 'inventory' },
-      { to: '/inventory/import', labelKey: 'appShell.nav.importStock', icon: PackageOpen, requiredPermission: 'catalog:write', module: 'inventory' },
+      // `inventory` took its own codes on 2026-08-29. Every one of these five
+      // used to name a module that owns none of the data behind them —
+      // `orders:read` for four screens about warehouses and stock, and
+      // `catalog:write` for the CSV importer.
+      { to: '/inventory', labelKey: 'appShell.nav.stockOverview', icon: Box, requiredPermission: 'inventory:read', module: 'inventory' },
+      { to: '/warehouses', labelKey: 'appShell.nav.warehouses', icon: WarehouseIcon, requiredPermission: 'inventory:read', module: 'inventory' },
+      { to: '/inventory/low-stock', labelKey: 'appShell.nav.lowStock', icon: TrendingDown, requiredPermission: 'inventory:read', module: 'inventory' },
+      { to: '/inventory/notifications', labelKey: 'appShell.nav.notifyWhenAvailable', icon: BellOutline, requiredPermission: 'inventory:read', module: 'inventory' },
+      { to: '/inventory/import', labelKey: 'appShell.nav.importStock', icon: PackageOpen, requiredPermission: 'inventory:write', module: 'inventory' },
     ],
   },
   {
@@ -1039,8 +1043,13 @@ function matchesQuery(needle: string, ...haystacks: string[]): boolean {
  * is how a wrong code gets propagated twice, and several of these are not what
  * the neighbourhood suggests:
  *
- *  - `/inventory` and `/warehouses` are gated by `orders:read`, not by anything
- *    named after inventory (`inventory/routes.admin.ts:103,183`);
+ *  - `/inventory`, `/warehouses`, `/inventory/low-stock` and
+ *    `/inventory/notifications` by `inventory:read`, and `/inventory/import` by
+ *    `inventory:write` — the module's own codes since 2026-08-29. Until then
+ *    all four reads said `orders:read` and the importer said `catalog:write`,
+ *    which is how a merchandiser came to be able to delete a warehouse and
+ *    anyone who could read orders came to be able to enumerate every warehouse
+ *    address (`packages/modules/inventory/src/backend/routes.admin.ts`);
  *  - `/payment-methods` by `payment_methods:read` and `/delivery-methods` by
  *    `delivery_methods:read`, each its owner's own code since 2026-08-28. They
  *    look like a pair and are not one: the codes are separate, they are granted
@@ -1084,7 +1093,7 @@ function matchesQuery(needle: string, ...haystacks: string[]): boolean {
 const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.home', sub: 'appShell.palette.sub.dashboard', icon: HomeIcon, to: '/', keywords: 'home dashboard strona główna pulpit' , module: null },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.products', sub: 'appShell.palette.sub.catalogRows', icon: Package, to: '/catalog/products', keywords: 'products catalog items produkty katalog', requiredPermission: 'catalog:read' , module: 'catalog' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.stockOverview', sub: 'appShell.palette.sub.stockLevels', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse magazyn stany', requiredPermission: 'orders:read' , module: 'inventory' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.stockOverview', sub: 'appShell.palette.sub.stockLevels', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse magazyn stany', requiredPermission: 'inventory:read', module: 'inventory' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.priceLists', sub: 'appShell.palette.sub.pricingRules', icon: CircleDollarSign, to: '/price-lists', keywords: 'pricing prices price list cennik', requiredPermission: 'price_lists:read' , module: 'price_lists' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.organizations', sub: 'appShell.palette.sub.customerAccounts', icon: Building2, to: '/organizations', keywords: 'org orgs customer organization organizacja klient', requiredPermission: ['customers:read', 'customers:manage'] , module: 'organizations' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.creditLimits', sub: 'appShell.palette.sub.creditLimits', icon: CreditCard, to: '/credit-limits', keywords: 'credit limit limits balance terms limity kredytowe saldo', requiredPermission: 'credit_limits:manage' , module: 'credit_limits' },
