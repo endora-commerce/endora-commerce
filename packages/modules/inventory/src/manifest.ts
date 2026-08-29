@@ -197,6 +197,47 @@ export const manifest = defineModuleManifest({
     { code: 'inventory:read', label: 'View stock and warehouses' },
     { code: 'inventory:write', label: 'Manage stock and warehouses' },
   ],
+  /**
+   * The thirteen error codes this module owns — feature 090 Phase 3
+   * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
+   * §1.1). This is where the sentence for each is looked up from: `errors.<CODE>`
+   * in this module's own `i18n/{en,pl}.json`, which already holds all thirteen in
+   * both languages.
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5): it is exactly
+   * what the prefix chain in `@endora-commerce/mod-i18n` routes here today,
+   * copied from the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts` rather than
+   * re-derived. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * **Two codes that look like they belong here and do not**, because the chain
+   * is ordered and `catalog`'s rule runs before this module's:
+   * `PRODUCT_UNMANAGED_STOCK` and `PRODUCT_IN_STOCK` are named in the chain's own
+   * `INVENTORY_MISC_ERROR_CODES` set and route to `catalog` regardless, so two of
+   * that set's three members are unreachable. An author who wrote this list from
+   * the chain's source rather than from its answer would have taken two of
+   * `catalog`'s codes.
+   *
+   * No `tokens`: no code here carries a refusal discriminator, which is derivable
+   * from this module's bundles holding no `errors.<CODE>.<token>` key.
+   */
+  errorCodes: [
+    { code: 'AVAILABILITY_NOTIFICATION_NOT_FOUND' },
+    { code: 'CHANNEL_NO_WAREHOUSES' },
+    { code: 'CHANNEL_WAREHOUSE_NOT_FOUND' },
+    { code: 'STOCK_IMPORT_INVALID_FILE' },
+    { code: 'STOCK_LEVEL_NOT_FOUND' },
+    { code: 'STOCK_UNAVAILABLE' },
+    { code: 'THRESHOLDS_INVALID' },
+    { code: 'WAREHOUSE_CANNOT_DELETE_DEFAULT' },
+    { code: 'WAREHOUSE_CODE_TAKEN' },
+    { code: 'WAREHOUSE_HAS_STOCK' },
+    { code: 'WAREHOUSE_INVALID_CODE' },
+    { code: 'WAREHOUSE_IS_DEFAULT_FOR_CHANNELS' },
+    { code: 'WAREHOUSE_NOT_FOUND' },
+  ],
   settings,
   // Feature 073 (Constitution XVII) — the operator's activation control.
   activation: { settingCode: 'inventory.enabled', default: true },

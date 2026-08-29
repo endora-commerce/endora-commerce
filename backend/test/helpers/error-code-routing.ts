@@ -97,3 +97,89 @@ export function describeRoutingDifferences(differences: readonly RoutingDifferen
     )
     .join('\n');
 }
+
+/**
+ * Why a module's declaration and the frozen chain capture disagree **about that
+ * module**.
+ *
+ * This is a different question from {@link compareErrorCodeRouting}, and the
+ * difference is the one trap feature 090's Phase 3 has that nothing else can
+ * see. The comparator above measures the map the composition roots inject, which
+ * is `composeErrorTranslationTargets` — the declarations laid **over** the chain.
+ * So a module that declares ten of the thirteen codes it owns produces a
+ * composed map that is still exactly right: the chain answers for the other
+ * three, and the comparator reports nothing. The migration is half done, the
+ * merge request is green, and the shortfall surfaces on the merge request that
+ * deletes the chain — eighteen merge requests later, as three codes that
+ * suddenly route nowhere.
+ *
+ * So completeness is asserted per module, against the capture, on the merge
+ * request that migrates it:
+ *
+ * - `undeclared` — the capture routes the code to this module and the manifest
+ *                  does not declare it. The migration is incomplete.
+ * - `not-owned`  — the manifest declares a code the capture routes somewhere
+ *                  else, or nowhere. `chainAnswer` names where, because the
+ *                  useful sentence is "`catalog` owns this", not "you should not
+ *                  have it".
+ */
+export type MigrationGapKind = 'undeclared' | 'not-owned';
+
+export interface MigrationGap {
+  readonly code: string;
+  readonly kind: MigrationGapKind;
+  /** The module the frozen capture routes the code to, or `null` for none. */
+  readonly chainAnswer: string | null;
+}
+
+/**
+ * Refused rather than reported, for the same reason
+ * {@link EmptyRoutingComparisonError} is: a module that owns no code in the
+ * capture has nothing to be complete about, so "no gaps" would be a green
+ * meaning "not looking" — which is what a misspelled roster entry produces.
+ */
+export class EmptyMigrationScopeError extends Error {}
+
+export function findMigrationGaps(
+  moduleId: string,
+  declaredCodes: readonly string[],
+  chainAnswers: RoutingAnswers,
+): MigrationGap[] {
+  const owned = Object.keys(chainAnswers).filter((code) => chainAnswers[code] === moduleId);
+  if (owned.length === 0) {
+    throw new EmptyMigrationScopeError(
+      `the frozen chain capture routes no code to "${moduleId}" — refusing to report a ` +
+        'vacuous completeness. Either the module id is misspelled, or it is not one of ' +
+        'the modules feature 090 Phase 3 migrates.',
+    );
+  }
+
+  const declared = new Set(declaredCodes);
+  const gaps: MigrationGap[] = [];
+  for (const code of owned) {
+    if (!declared.has(code)) {
+      gaps.push({ code, kind: 'undeclared', chainAnswer: moduleId });
+    }
+  }
+  for (const code of declaredCodes) {
+    if (chainAnswers[code] === moduleId) continue;
+    gaps.push({ code, kind: 'not-owned', chainAnswer: chainAnswers[code] ?? null });
+  }
+  return gaps.sort((a, b) => a.code.localeCompare(b.code));
+}
+
+/** One line per gap, in the words the migrating merge request needs. */
+export function describeMigrationGaps(
+  moduleId: string,
+  gaps: readonly MigrationGap[],
+): string {
+  return gaps
+    .map((gap) =>
+      gap.kind === 'undeclared'
+        ? `  - [undeclared] ${gap.code}: the chain routes it to ${moduleId} and the ` +
+          'manifest does not declare it'
+        : `  - [not-owned] ${gap.code}: ${moduleId} declares it and the chain routes it ` +
+          `to ${gap.chainAnswer ?? 'nothing'}`,
+    )
+    .join('\n');
+}
