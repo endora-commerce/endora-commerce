@@ -3,7 +3,7 @@ import type { Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@endora-commerce/contracts';
-import type { WorkerLogger } from '@endora-commerce/platform/kernel';
+import type { PlatformLogger } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -106,7 +106,7 @@ export interface NewsletterModuleOptions {
    * relative path. Taking the seam as an argument is the same gate reached the
    * sanctioned way.
    */
-  registerWorker: (worker: Worker, options?: { logger?: WorkerLogger }) => void;
+  registerWorker: (worker: Worker, options?: { logger?: PlatformLogger }) => void;
   /**
    * Feature 058 — resolves the `newsletter.email_credentials` reference into a
    * usable SMTP transport. Injected as a narrow port (Principle I); when absent

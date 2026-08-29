@@ -3,6 +3,7 @@ import { RateLimitError, type Worker } from 'bullmq';
 import { ERROR_CODES, type ModuleDisabledDetails } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import type { ModulePlugin } from '../../http/server.js';
+import type { PlatformLogger } from '../logging.js';
 import { effectiveState } from './effective-state.js';
 import { FALLBACK_TTL_MS, registryCache } from './registry-cache.js';
 
@@ -135,17 +136,6 @@ export function defineModuleRoutes(
   };
 }
 
-/**
- * Minimal structured-logger surface used for queue-consumer lifecycle logs.
- * Fastify's `app.log` (a pino instance) satisfies this; a console-style shim
- * does too. Kept narrow so `plugin-helpers` need not depend on Fastify types.
- */
-export interface WorkerLogger {
-  info(obj: object, msg: string): void;
-  warn(obj: object, msg: string): void;
-  error(obj: object, msg: string): void;
-}
-
 export interface DefineModuleWorkerOptions {
   /**
    * When provided, the worker's lifecycle events (ready / active / completed /
@@ -153,7 +143,7 @@ export interface DefineModuleWorkerOptions {
    * `worker` / `worker:dev` processes a visible heartbeat so operators can tell
    * a queue is actually consuming jobs (and see why one fails or stalls).
    */
-  logger?: WorkerLogger;
+  logger?: PlatformLogger;
 }
 
 /**
@@ -161,7 +151,7 @@ export interface DefineModuleWorkerOptions {
  * gets the same shape of log line — `{ module, queue, jobId, jobName, ... }` —
  * so the `worker` process output reads consistently across modules.
  */
-function attachWorkerLogging(moduleId: string, worker: Worker, logger: WorkerLogger): void {
+function attachWorkerLogging(moduleId: string, worker: Worker, logger: PlatformLogger): void {
   const queue = worker.name;
   const base = { module: moduleId, queue };
   logger.info(base, 'queue consumer registered');
