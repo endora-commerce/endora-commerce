@@ -9,13 +9,34 @@ FR-105). Mirrors the `languages` module.
 
 ## Public surface
 
-| Verb + Path | Audience | Purpose |
+| Verb + Path | Permission | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/i18n/config` | storefront / admin | Active currencies + default (shared with languages — see [languages](./languages)) |
-| `GET /api/v1/admin/currencies` | admin | Full list |
-| `PUT /api/v1/admin/currencies/:code` | admin | Upsert |
-| `POST /api/v1/admin/currencies/:code/default` | admin | Promote to default (atomically demotes the prior default) |
-| `DELETE /api/v1/admin/currencies/:code` | admin | Remove (rejected for the default) |
+| `GET /api/v1/admin/currencies` | `currencies:read` | Full list |
+| `PUT /api/v1/admin/currencies/:code` | `currencies:write` | Upsert |
+| `POST /api/v1/admin/currencies/:code/default` | `currencies:write` | Promote to default (atomically demotes the prior default) |
+| `DELETE /api/v1/admin/currencies/:code` | `currencies:write` | Remove (rejected for the default) |
+
+`GET /api/v1/i18n/config` also answers with the active currencies and the
+default, and is **`languages`'** route rather than this module's: it composes
+both catalogues into one public payload and reads this module's half over
+`currencyReadPort`. See [languages](./languages).
+
+## Permissions
+
+`currencies:read` and `currencies:write`, this module's own since 2026-08-29.
+
+The four routes above lived in `languages` until then and enforced
+`catalog:write` — all four, the list read included — so whoever could edit a
+product description could add a currency, deactivate one, delete one and
+promote one to the shop's default. Nothing in this repository calls these
+routes: the admin currency screen is `dictionaries`'
+(`/api/v1/admin/dictionary/currencies/*`, gated on `dictionary.write`), which is
+a second door to this table and a separate question.
+
+`test/contract/currencies/permission-authority.test.ts` pins both directions —
+a role holding the catalogue codes is refused, a role holding the pair is
+served — and asserts that the in-process `currencyReadPort` every other module
+reads a currency through is untouched by the move.
 
 ## Defaults
 

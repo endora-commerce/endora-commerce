@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 
 interface LowStockRow {
   productId: string;
@@ -25,11 +26,19 @@ interface LowStockResponse {
  */
 export function LowStockPage(): ReactNode {
   const t = useTranslation('core');
+  // The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
+  // in full.
+  const isVisible = useSurfaceVisibility();
+  const canRead = isVisible({ module: 'inventory', requiredPermission: 'inventory:read' });
   const [rows, setRows] = useState<LowStockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -40,11 +49,15 @@ export function LowStockPage(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [canRead, t]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  if (!canRead) {
+    return <div className="b2b-page">{t('inventory.noPermission')}</div>;
+  }
 
   return (
     <div className="b2b-page b2b-page--wide">

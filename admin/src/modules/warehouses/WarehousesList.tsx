@@ -6,6 +6,7 @@ import { ApiError } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import { warehousesClient } from './api/warehouses-client';
 import { normalize } from '@/lib/text-normalization';
 
@@ -14,6 +15,12 @@ import { normalize } from '@/lib/text-normalization';
  */
 export function WarehousesList(): ReactNode {
   const t = useTranslation('core');
+  // The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
+  // in full. Until then this list answered to `orders:read`, so anybody who
+  // could look at an order could enumerate every warehouse and its address.
+  const isVisible = useSurfaceVisibility();
+  const canRead = isVisible({ module: 'inventory', requiredPermission: 'inventory:read' });
+  const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
   const [rows, setRows] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +28,10 @@ export function WarehousesList(): ReactNode {
   const [query, setQuery] = useState('');
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -31,7 +42,7 @@ export function WarehousesList(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [activeOnly, t]);
+  }, [canRead, activeOnly, t]);
 
   useEffect(() => {
     void refresh();
@@ -47,6 +58,10 @@ export function WarehousesList(): ReactNode {
     );
   }, [rows, query]);
 
+  if (!canRead) {
+    return <div className="b2b-page">{t('inventory.noPermission')}</div>;
+  }
+
   return (
     <div className="b2b-page b2b-page--wide">
       <div className="b2b-page-head">
@@ -57,9 +72,11 @@ export function WarehousesList(): ReactNode {
           </div>
         </div>
         <div className="b2b-page-head__actions">
-          <Link to="/warehouses/new" className="b2b-btn b2b-btn--primary">
-            <Plus size={14} /> {t('warehouses.action.new')}
-          </Link>
+          {canWrite ? (
+            <Link to="/warehouses/new" className="b2b-btn b2b-btn--primary">
+              <Plus size={14} /> {t('warehouses.action.new')}
+            </Link>
+          ) : null}
         </div>
       </div>
 

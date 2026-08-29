@@ -163,6 +163,40 @@ export const manifest = defineModuleManifest({
         'optional assistant undeactivatable for as long as stock is tracked.',
     },
   ],
+  /**
+   * The module's own authority (2026-08-29).
+   *
+   * All 21 admin gates enforced a code somebody else owns — nine reads on
+   * `orders:read`, twelve writes on `catalog:write`. So whoever could edit a
+   * product description could create, rename and **delete a warehouse**,
+   * rewrite a stock count, run a CSV import over every product's stock and bind
+   * or unbind a warehouse from a sales channel, which decides what that channel
+   * can sell. And whoever could read orders could enumerate every warehouse and
+   * its address. Neither code names the data touched, which is the
+   * discriminator `payments-permission-ownership.md` §7.2 sets; the sweep
+   * applied it per module and `specs/first-deployment-window.md` §2 re-applies
+   * it per route, which is where authority is actually exercised.
+   *
+   * Nothing could see it. Both codes are real, declared and enforced, so the
+   * permission inventory's two directions were clean; D-173's `foreign-gate`
+   * sweep passes both sites deliberately, because `catalog` and `orders` are
+   * `nonDeactivatable` and the availability coupling that sweep asks about can
+   * never bite. `check:action-route-permissions` is the one check that *did*
+   * look here — this module declares the `open-inventory` action below — and it
+   * agreed, because the action correctly named the code the route enforced.
+   * That is the check working: it compares an action to its route and has no
+   * opinion about whether the route's code is the right authority.
+   *
+   * A pair and no third code, spelled `<module id>:<read|write>` like
+   * `payment_methods`, `delivery_methods`, `taxes`, `returns` and `invoices`.
+   *
+   * No data migration: see
+   * `test/contract/inventory/permission-authority.test.ts`.
+   */
+  permissions: [
+    { code: 'inventory:read', label: 'View stock and warehouses' },
+    { code: 'inventory:write', label: 'Manage stock and warehouses' },
+  ],
   settings,
   // Feature 073 (Constitution XVII) — the operator's activation control.
   activation: { settingCode: 'inventory.enabled', default: true },
@@ -194,12 +228,17 @@ export const manifest = defineModuleManifest({
       descriptionKey: 'actions.openInventory.description',
       icon: 'Boxes',
       targetRoute: '/inventory',
-      // `orders:read`, not anything named after inventory or the catalogue: the
-      // stock overview is gated by `requireAdmin('orders:read')`
-      // (`routes.admin.ts`). The `catalog:write` this used to declare was wrong
-      // in both directions at once — it hid the screen from operators who can
-      // open it and offered it to some who cannot (issue #232).
-      requiredPermission: 'orders:read',
+      // `inventory:read`, the code `GET /api/v1/admin/inventory` now enforces
+      // (`routes.admin.ts`). This has been corrected twice for two different
+      // reasons and both are worth keeping. Issue #232 replaced a `catalog:write`
+      // that was wrong in both directions at once — it hid the screen from
+      // operators who can open it and offered it to some who cannot — with
+      // `orders:read`, the code the route then enforced. That was right, and it
+      // is why `check:action-route-permissions` had nothing to say when the
+      // gates themselves were the defect: the check compares an action to its
+      // route, which is a derivation, and never asks whether the route's code is
+      // the right authority, which is a judgement.
+      requiredPermission: 'inventory:read',
       keywords: ['stock', 'inventory', 'warehouse', 'magazyn', 'zapasy'],
       weight: 230,
     },

@@ -2,7 +2,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import {
   LANGUAGE_CHANGED_EVENT,
-  type CurrencyAdminPort,
   type CurrencyReadPort,
   type DictionaryReferenceRegistryPort,
   type LanguageAdminPort,
@@ -158,15 +157,19 @@ export function registerModule(ctx: ModuleContext): void {
     const { languageService, localeService, requireAdmin } = ctx.cradle<LanguagesCradle>();
     await registerI18nRoutes(app, {
       languageService,
-      // Feature 075, Phase C — the admin surface here serves both catalogues,
-      // but `currencies` owns one of them. Its half arrives over the ports
-      // `currencies` publishes rather than over its service class, so this
-      // module names no file of theirs and the currency routes answer 503
-      // `MODULE_DISABLED` if `currencies` ever stops being present. The
-      // proxies resolve per call: a port captured in a singleton keeps
-      // answering after its owner is switched off.
+      // Feature 075, Phase C — `GET /api/v1/i18n/config` answers with both
+      // catalogues, and `currencies` owns one of them. Its half arrives over
+      // the port `currencies` publishes rather than over its service class, so
+      // this module names no file of theirs, and the endpoint answers 503
+      // `MODULE_DISABLED` if `currencies` ever stops being present. The proxy
+      // resolves per call: a port captured in a singleton keeps answering after
+      // its owner is switched off.
+      //
+      // `currencyAdminPort` went with the four `/api/v1/admin/currencies*`
+      // routes on 2026-08-29 — that was this module hosting another module's
+      // write surface, on the catalogue's permission code, for callers that do
+      // not exist. What is left is one composed read.
       currencyRead: lazyPort<CurrencyReadPort>(ctx, 'currencyReadPort'),
-      currencyAdmin: lazyPort<CurrencyAdminPort>(ctx, 'currencyAdminPort'),
       requireAdmin,
       onConfigChange: () => localeService.invalidateDefault(),
     });
