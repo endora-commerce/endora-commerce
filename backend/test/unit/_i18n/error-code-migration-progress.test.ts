@@ -47,6 +47,7 @@ const MIGRATED_MODULES: readonly string[] = [
   'mfa',
   'quote_requests',
   'sales_channels',
+  'search',
   'settings',
 ];
 
