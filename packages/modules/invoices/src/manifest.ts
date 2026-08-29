@@ -173,6 +173,73 @@ export const manifest = defineModuleManifest({
     { code: 'invoices:read', label: 'View invoices and download invoice PDFs' },
     { code: 'invoices:write', label: 'Issue/correct invoices, edit templates, and configure invoicing' },
   ],
+  /**
+   * The three error codes this module owns — feature 090 Phase 3
+   * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
+   * §1.1). This is where each sentence is looked up from: `errors.<CODE>` in this
+   * module's own `i18n/{en,pl}.json`, which already holds all three in both
+   * languages.
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5): it is exactly
+   * what the prefix chain in `@endora-commerce/mod-i18n` routes here today,
+   * copied from the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts` rather than
+   * re-derived. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * **This module's list and this module's `throw`s are two different sets, in
+   * both directions**, because ownership follows the domain noun and never the
+   * thrower (D-95.2). `INVOICE_NOT_READY` is declared here and raised **only** by
+   * `orders`, at both ends of its invoice-download path — `GET
+   * /api/v1/orders/:id/invoice` and `POST /api/v1/admin/orders/bulk/print-invoices`,
+   * both in that module's `routes.ts`. Going the other way, five
+   * codes this module does raise belong elsewhere and are absent below:
+   * `ORDER_NOT_FOUND` is `orders`', and `NOT_FOUND`, `VALIDATION_FAILED`,
+   * `VERSION_CONFLICT` and `INTERNAL` are the platform's.
+   *
+   * **One more code a reader will look for here and not find.**
+   * `PDF_GENERATION_FAILED` reads like this module's — it renders every invoice
+   * PDF — and is `comparisons`', by the chain's own `code ===
+   * ERROR_CODES.PDF_GENERATION_FAILED` rule. Nothing here raises it: this
+   * module's PDF path throws no `HttpError` at all.
+   *
+   * **The tokens come off the raise sites, not off the bundle.** The envelope's
+   * `refusalToken` (`packages/platform/src/http/error-envelope.ts`) reads exactly
+   * one member of `details` — `code` — as the tail of `errors.<CODE>.<token>`, so
+   * the token set is the set of values this module's raise sites can put there.
+   * Unlike `carts` there is no enum and no named type here: every value is a bare
+   * string literal, so the set is complete once the raise sites are enumerated,
+   * and enumerating them completely is the whole of the work. Each token list
+   * below is in raise-site order.
+   *
+   * - `INVOICE_NUMBER_ALREADY_ISSUED` — `duplicate-number-refusal.ts` throws it
+   *   twice. The second throw writes `code: sameChannel ? 'same_channel' :
+   *   'other_channel'`; the first, taken when the row holding the number has been
+   *   deleted between the constraint violation and the read, deliberately passes
+   *   no `code` and so answers the tokenless base sentence.
+   * - `INVOICE_NUMBER_PATTERN_COLLIDES` — `numbering-write-validator.ts` throws it
+   *   twice too, `{ code: 'no_sequence_token' }` for the self-collision and
+   *   `code: 'other_channel'` for the pairwise one. Two separate throws in one
+   *   file: an author who stopped at the first grep hit would declare one token
+   *   and lose the other.
+   * - `INVOICE_NOT_READY` — neither raise site passes `details` at all, so it
+   *   carries no token.
+   *
+   * The bundle holds a sentence for all four and for no fifth, and
+   * `backend/test/unit/invoices/error-sentences.test.ts` enumerates the same
+   * seven keys by hand. Both agree with the raise sites; neither is the
+   * authority, because a token nobody has written a sentence for is still a token
+   * (`specs/090-module-owned-error-codes/migration-runbook.md` §5).
+   */
+  errorCodes: [
+    { code: 'INVOICE_NOT_READY' },
+    { code: 'INVOICE_NUMBER_ALREADY_ISSUED', tokens: ['same_channel', 'other_channel'] },
+    {
+      code: 'INVOICE_NUMBER_PATTERN_COLLIDES',
+      tokens: ['no_sequence_token', 'other_channel'],
+    },
+  ],
   actions: [
     {
       id: 'open-invoices',
