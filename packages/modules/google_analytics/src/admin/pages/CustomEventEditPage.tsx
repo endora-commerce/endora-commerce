@@ -7,17 +7,21 @@ import type {
   GaCustomEventUpdate,
   GaTriggerAction,
 } from '@endora-commerce/contracts';
-import { ApiError } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
-import { PageHeader } from '@/components/ui/page-header';
-import { useTranslation } from '@/i18n/useTranslation';
-import { googleAnalyticsClient, type GaActionCatalogue } from '../api/google-analytics-client';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  Input,
+  Label,
+  PageHeader,
+  Select,
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { googleAnalyticsClient, type GaActionCatalogue } from '../api/google-analytics-client.js';
 
 const ACTIONS: GaTriggerAction[] = [
   'contact_form_submitted',
@@ -33,7 +37,7 @@ interface DynamicRow {
   payloadKey: string;
 }
 
-export function CustomEventEditPage(): ReactNode {
+export default function CustomEventEditPage(): ReactNode {
   const t = useTranslation('google_analytics');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

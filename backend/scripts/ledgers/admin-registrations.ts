@@ -33,6 +33,14 @@
  * `routes=149 nav=99 module-owned (routes=145 nav=96) over 51 modules`. Never
  * raise a number to make the build pass; this one fell.
  *
+ * **`google_analytics` is the second, and the first batch of the drain**
+ * (feature 091, Phase 4). It was chosen by `research.md` §6's rule — ascending
+ * incoming cross-module reach — and it has none in either direction, which is
+ * the property that lets a directory move on its own. Its three routes and one
+ * sidebar entry now live in
+ * `packages/modules/google_analytics/src/admin/index.ts`; the run after it
+ * reads `routes=146 nav=98 module-owned (routes=142 nav=95) over 50 modules`.
+ *
  * Two attributions, deliberately different, because the tree disagrees about
  * one screen: a **route** belongs to the module whose surface directory
  * `App.tsx` imports its component from, and a **nav entry** belongs to the
@@ -79,7 +87,6 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   delivery_methods: { routes: 1, nav: 2 },
   dhl_parcel: { routes: 1, nav: 0 },
   dictionaries: { routes: 3, nav: 4 },
-  google_analytics: { routes: 3, nav: 1 },
   // Arrived with the InPost integration (!1103), which landed between this
   // baseline being written and the check that reads it. Same shape as
   // `dhl_parcel` above: a carrier settings route the host registers and no nav

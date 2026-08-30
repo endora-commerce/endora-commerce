@@ -23,6 +23,12 @@ importers:
       eslint:
         specifier: ^10.2.1
         version: 10.2.1(jiti@2.6.1)
+      eslint-plugin-jsx-a11y:
+        specifier: ^6.10.2
+        version: 6.10.2(eslint@10.2.1(jiti@2.6.1))
+      eslint-plugin-react-hooks:
+        specifier: ^7.1.1
+        version: 7.1.1(eslint@10.2.1(jiti@2.6.1))
       prettier:
         specifier: ^3.8.3
         version: 3.8.3
@@ -47,6 +53,9 @@ importers:
       '@endora-commerce/email-components':
         specifier: workspace:^
         version: link:../packages/email-components
+      '@endora-commerce/mod-google-analytics':
+        specifier: workspace:*
+        version: link:../packages/modules/google_analytics
       '@endora-commerce/mod-import-export':
         specifier: workspace:*
         version: link:../packages/modules/import_export
@@ -1594,6 +1603,9 @@ importers:
 
   packages/modules/google_analytics:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1612,6 +1624,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -1621,6 +1636,12 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -3034,7 +3055,7 @@ importers:
         version: 1.9.4
       next:
         specifier: ^15.5.15
-        version: 15.5.15(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+        version: 15.5.15(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       react:
         specifier: ^19.2.5
         version: 19.2.5
@@ -22214,7 +22235,7 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  next@15.5.15(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
+  next@15.5.15(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
     dependencies:
       '@next/env': 15.5.15
       '@swc/helpers': 0.5.15
@@ -22222,7 +22243,7 @@ snapshots:
       postcss: 8.4.31
       react: 19.2.5
       react-dom: 19.2.5(react@19.2.5)
-      styled-jsx: 5.1.6(react@19.2.5)
+      styled-jsx: 5.1.6(@babel/core@7.29.0)(react@19.2.5)
     optionalDependencies:
       '@next/swc-darwin-arm64': 15.5.15
       '@next/swc-darwin-x64': 15.5.15
@@ -24220,10 +24241,12 @@ snapshots:
     dependencies:
       inline-style-parser: 0.2.7
 
-  styled-jsx@5.1.6(react@19.2.5):
+  styled-jsx@5.1.6(@babel/core@7.29.0)(react@19.2.5):
     dependencies:
       client-only: 0.0.1
       react: 19.2.5
+    optionalDependencies:
+      '@babel/core': 7.29.0
 
   stylehacks@6.1.1(postcss@8.5.10):
     dependencies:

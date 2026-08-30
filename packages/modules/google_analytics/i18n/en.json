@@ -3,6 +3,7 @@
   "actions.openGoogleAnalytics.description": "Configure Google Analytics custom events",
   "actions.newCustomEvent.label": "New Google Analytics event",
   "actions.newCustomEvent.description": "Create a custom Google Analytics event",
+  "nav.googleAnalytics.label": "Google Analytics",
   "customEvents.title": "Custom events",
   "customEvents.subtitle": "Map storefront actions to Google Analytics events",
   "customEvents.empty": "No custom events yet",

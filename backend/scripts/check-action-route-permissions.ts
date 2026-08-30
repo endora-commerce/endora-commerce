@@ -89,6 +89,7 @@ import {
   NO_HOST_RESIDENT_MODULES,
   type HostResidentModules,
 } from './lib/module-population.js';
+import { ADMIN_LAYER_DIRECTORY } from './lib/ui-layer.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
@@ -752,9 +753,24 @@ async function main(): Promise<void> {
   // from the core list and is added back below for the active deployment only.
   const layout = await requireModuleLayout('[action-route-permissions]');
   const overlayRoot = activeOverlayModulesRoot(process.env);
+  // A module package's admin layer is **browser** code and is skipped (feature
+  // 091, Phase 4). This walk's subject is Fastify registrations, and the two
+  // idioms are indistinguishable at the syntax this check reads: a screen's
+  // `api/*-client.ts` writes `apiClient.post(`${BASE}/custom-events`, body)`,
+  // which has a method, a path and no `preHandler` — so the first module to
+  // move its admin directory into its package produced a second, ungated
+  // candidate for a route it also registers for real, and the check reported
+  // the disagreement as `unresolvable`. It is right about the disagreement and
+  // wrong about the population; the layer is excluded rather than the shape
+  // guessed at, because a heuristic over the call would eventually exclude a
+  // real registration.
+  const uiLayers = layout.moduleRoots
+    .filter((root) => root.origin === 'workspace-package')
+    .map((root) => `${join(root.directory, 'src', ADMIN_LAYER_DIRECTORY)}/`);
   const coreFiles = layout.sourceRoots
     .flatMap((root) => walk(root))
-    .filter((file) => !file.startsWith(`${layout.overlayRoot}/`));
+    .filter((file) => !file.startsWith(`${layout.overlayRoot}/`))
+    .filter((file) => !uiLayers.some((layer) => file.startsWith(layer)));
 
   // Before anything is imported out of the tree, and before a finding count can
   // be printed: over a moved module tree the walk comes back with `src/kernel`

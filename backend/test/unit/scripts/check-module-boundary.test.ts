@@ -1455,6 +1455,12 @@ describe('the tree itself', () => {
     // 080's T040a the roots are resolved rather than spelled, so the count is
     // taken over the roots the layout answered with and a module that has left
     // `src/modules` is in both halves or in neither.
+    //
+    // `.tsx` counts since feature 091's Phase 4: a module's admin screen is one,
+    // and Story 3 moves it into a module walk root. An independent counter that
+    // stopped at `.ts` would have agreed with a walk that stopped there too,
+    // which is the laundering the widening exists to refuse — so the second
+    // author has to have learned the same thing.
     const layout = await resolveModuleLayout();
     const files = collectModuleFiles(layout.moduleWalkRoots);
     expect(layout.moduleWalkRoots.length).toBeGreaterThan(0);
@@ -1472,7 +1478,7 @@ function countTypeScriptFiles(dir: string): number {
       if (statSync(full).isDirectory()) {
         if (name === 'node_modules' || name === 'dist') continue;
         walk(full);
-      } else if (name.endsWith('.ts') && !name.endsWith('.d.ts')) {
+      } else if ((name.endsWith('.ts') || name.endsWith('.tsx')) && !name.endsWith('.d.ts')) {
         total += 1;
       }
     }

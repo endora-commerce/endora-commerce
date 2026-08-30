@@ -1,29 +1,30 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { GaCustomEventResponse } from '@endora-commerce/contracts';
-import { ApiError } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  PageHeader,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
-import { googleAnalyticsClient } from '../api/google-analytics-client';
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { googleAnalyticsClient } from '../api/google-analytics-client.js';
 
 /**
  * CustomEventsListPage (feature 049, US3). Lists the module's custom events and
  * links to the create/edit form. Per-channel Measurement ID / Enhanced
  * Ecommerce / server-side settings are managed on the generic Settings screen.
  */
-export function CustomEventsListPage(): ReactNode {
+export default function CustomEventsListPage(): ReactNode {
   const t = useTranslation('google_analytics');
   const [rows, setRows] = useState<GaCustomEventResponse[]>([]);
   const [loading, setLoading] = useState(true);
