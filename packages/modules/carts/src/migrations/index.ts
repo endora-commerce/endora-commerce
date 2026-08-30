@@ -25,15 +25,18 @@
 import { Migration20260611T140352CartsConsolidation } from './20260611T140352_carts_consolidation.js';
 import { Migration20260611T140413CartsCartItemPackaging } from './20260611T140413_carts_cart_item_packaging.js';
 import { Migration20260818T081253CartsCartCompletedOrderFk } from './20260818T081253_carts_cart_completed_order_fk.js';
+import { Migration20260830T112911CartsOrganizationAttributionCheck } from './20260830T112911_carts_organization_attribution_check.js';
 
 export const migrations = [
   Migration20260611T140352CartsConsolidation,
   Migration20260611T140413CartsCartItemPackaging,
   Migration20260818T081253CartsCartCompletedOrderFk,
+  Migration20260830T112911CartsOrganizationAttributionCheck,
 ];
 
 export {
   Migration20260611T140352CartsConsolidation,
   Migration20260611T140413CartsCartItemPackaging,
   Migration20260818T081253CartsCartCompletedOrderFk,
+  Migration20260830T112911CartsOrganizationAttributionCheck,
 };
