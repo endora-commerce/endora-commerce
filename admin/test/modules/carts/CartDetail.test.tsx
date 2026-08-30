@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -16,9 +17,14 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 const getSpy = vi.fn();
 const postSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(
-    '@/lib/api-client',
+// The kit's `lib` barrel, not `@/lib/api-client`: the screen is a package's now
+// and resolves `apiClient` through `@endora-commerce/admin-kit/lib`, which is
+// the same module specifier the admin application resolves, so one mock covers
+// both. Keyed on the specifier the component actually imports — `vi.mock` keys
+// on a resolved module id, and the old key would have silently mocked nothing.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
   );
   return {
     ...actual,
@@ -32,7 +38,18 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
-const { CartDetail } = await import('../../../src/modules/carts/CartDetail');
+/**
+ * The screen lives in `packages/modules/carts/src/admin/` since feature 091's
+ * Phase 4 batch four, so it takes `apiClient` from the published kit and is
+ * reached here through the **route factory the module declares** — the same
+ * entry point `admin/src/App.tsx` uses. Importing the package's source instead
+ * would evaluate a second copy of it beside its `dist`; going through
+ * `contributions.routes` also makes this test fail if the declaration ever
+ * stops naming the screen, which is the coupling the move creates.
+ */
+const { contributions } = await import('@endora-commerce/mod-carts/admin');
+const CartDetail = (await contributions.routes![1]!.component())
+  .default as () => ReactNode;
 
 const BUNDLE = passthroughBundle('carts', [
   'carts.detail.title',

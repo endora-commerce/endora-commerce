@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, ShieldAlert } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
-import { cn } from '@/lib/utils';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useTranslationContext } from '@/i18n/TranslationProvider';
-import { resolvePermissionLabel } from './permission-label';
+import { ApiError, apiClient, cn } from '@endora-commerce/admin-kit/lib';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  Input,
+  Label,
+  PageHeader,
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { resolvePermissionLabel } from '../permission-label.js';
 
 interface AdminRole {
   id: string;
@@ -31,7 +34,7 @@ interface PermissionRow {
 
 const NEW_ROLE_KEY = '__new__';
 
-export function AdminRolesPage(): ReactNode {
+export default function AdminRolesPage(): ReactNode {
   const t = useTranslation('core');
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [permissions, setPermissions] = useState<PermissionRow[]>([]);

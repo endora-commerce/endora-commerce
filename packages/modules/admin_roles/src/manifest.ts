@@ -69,6 +69,36 @@ export const manifest = defineModuleManifest({
    */
   i18n: { bundlesDir: 'i18n' },
   /**
+   * This module's first command-palette action — feature 091, Phase 4, batch
+   * four — and it points at a route **`admin_users` declares**.
+   *
+   * That is the same split `src/admin/index.ts` makes for the sidebar entry and
+   * it is made for the same reason: the roles editor is served by
+   * `GET /api/v1/admin/admin-roles` in `admin_users`, so that module owns the
+   * route, while the advertisement of the roles capability is this module's.
+   * `check:action-route-permissions` resolves a `targetRoute` by path and not
+   * by owner, so it holds this declaration to the gate `/admin-roles` really
+   * enforces — `admin_users:manage`, which is why the code below is not an
+   * `admin_roles:*` one. This module registers no admin route and declares no
+   * permission of its own.
+   *
+   * It pays one of the fifteen entries `specs/deferred-defects.md` still holds
+   * under *"Sixteen modules with an admin screen declare no command-palette
+   * action"*, and the two labels live in this module's own bundle above.
+   */
+  actions: [
+    {
+      id: 'open-admin-roles',
+      labelKey: 'actions.openAdminRoles.label',
+      descriptionKey: 'actions.openAdminRoles.description',
+      icon: 'ShieldCheck',
+      targetRoute: '/admin-roles',
+      requiredPermission: 'admin_users:manage',
+      keywords: ['roles', 'role', 'rbac', 'permissions', 'uprawnienia', 'access'],
+      weight: 300,
+    },
+  ],
+  /**
    * The three `ADMIN_ROLE_*` codes — D-129's remaining sweep, **Tier C**
    * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A; MR 6).
    *

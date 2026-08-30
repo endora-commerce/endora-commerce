@@ -39,7 +39,6 @@ import {
   Settings,
   Eraser,
   Smartphone,
-  ShieldCheck,
   Store,
   Tag,
   Sparkles,
@@ -392,13 +391,17 @@ const NAV: NavSection[] = [
         requiredPermission: 'platform.modules.read',
         module: null,
       },
-      { to: '/admin-users', labelKey: 'appShell.nav.users', icon: Users, requiredPermission: 'admin_users:manage', module: 'admin_users' },
-      // `admin_users:manage`, not an `admin_roles:*` code: `admin_roles` ships no
-      // routes at all, and the screen is fed by `/api/v1/admin/admin-roles` in
-      // `admin_users` (`admin_users/routes.admin.ts:177`). The module attribution
-      // and the permission answer to two different questions here, which is the
-      // whole reason they are two fields.
-      { to: '/admin-roles', labelKey: 'appShell.nav.roles', icon: ShieldCheck, requiredPermission: 'admin_users:manage', module: 'admin_roles' },
+      // `/admin-users`, `/admin-roles` and `/audit-log` are declared by the
+      // modules that own them since feature 091's Phase 4 batch four, and
+      // arrive through `composeNav` from `modules.generated.ts` — including the
+      // split this file used to carry a comment about: the roles row is
+      // `admin_roles`' while the screen it points at is `admin_users`'. Their
+      // declarations, and that comment's reasoning, are in
+      // `packages/modules/{admin_users,admin_roles,audit_logs}/src/admin/index.ts`.
+      //
+      // Unlike *Analytics & Ads*, this section still holds host entries, so a
+      // registry entry appends after every one of them whatever its weight says
+      // — the operator-visible consequence the batch records.
       // Bulk operations may span many domains (not just products), so the
       // entry lives under System. The URL stays `/catalog/bulk-operations`
       // to keep existing deep-links (e.g. the bulk-edit "queued" ack) valid.
@@ -418,7 +421,6 @@ const NAV: NavSection[] = [
         requiredPermission: 'custom_fields:read',
         module: 'custom_fields',
       },
-      { to: '/audit-log', labelKey: 'appShell.nav.auditLog', icon: ListChecks, requiredPermission: 'audit_log:read', module: 'audit_logs' },
       { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound, requiredPermission: 'integrations:manage', module: 'api_keys' },
       { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook, requiredPermission: 'integrations:manage', module: 'webhooks' },
       {
@@ -877,18 +879,16 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.channels', href: '/sales-channels' },
     { labelKey: 'appShell.nav.seo', href: null },
   ] },
-  { test: /^\/admin-users\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.users', href: null },
-  ] },
-  { test: /^\/admin-roles\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.roles', href: null },
-  ] },
-  { test: /^\/audit-log\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.auditLog', href: null },
-  ] },
+  // `/admin-users`, `/admin-roles` and `/audit-log` had a hand-written trail
+  // here until feature 091's Phase 4 batch four. They are the modules' own
+  // declarations now, so `registryCrumbs` derives the trail from the composed
+  // sidebar — the label and the section come off the nav contribution, which is
+  // what stops this third registry from being a fifth shared file every
+  // converted module has to edit. Two consequences, both operator-visible and
+  // both stated rather than discovered: the section crumb's href becomes
+  // *System*'s first host entry, `/platform/modules`, where these three trails
+  // named `/admin-users` by hand; and the leaf label resolves in the owning
+  // module's namespace rather than in `core`.
   { test: /^\/api-keys\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.apiKeys', href: null },

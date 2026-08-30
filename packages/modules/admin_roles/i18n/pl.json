@@ -1,4 +1,7 @@
 {
+  "nav.adminRoles.label": "Role",
+  "actions.openAdminRoles.label": "Role panelu",
+  "actions.openAdminRoles.description": "Uprawnienia przypisane do każdej roli",
   "errors.ADMIN_ROLE_CODE_TAKEN": "Rola o tym kodzie już istnieje. Wybierz inny kod albo edytuj istniejącą rolę.",
   "errors.ADMIN_ROLE_IN_USE": "Ta rola jest nadal przypisana, więc nie można jej usunąć. Najpierw zmień przypisanie kont, które ją mają.",
   "errors.ADMIN_ROLE_IN_USE.assigned": "Ta rola jest nadal przypisana do {assigned} kont administratorów, więc nie można jej usunąć. Najpierw zmień im przypisanie.",

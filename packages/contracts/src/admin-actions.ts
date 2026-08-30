@@ -75,6 +75,13 @@ export const KnownIconNameSchema = z.enum([
   'PanelLeft',
   // security
   'KeyRound',
+  // Feature 091 (Phase 4, batch four) — `admin_roles`' sidebar entry and
+  // palette action, which became module declarations and therefore have to name
+  // their icon rather than import it. The allowlist is what a nav entry's
+  // `icon` is validated against too, so the glyph `AppShell.tsx` rendered by
+  // hand joins it here instead of the entry silently changing to a name that
+  // happened to be on the list.
+  'ShieldCheck',
   // Feature 080 (D-163.1) — the six icons the dashboard's recent-activity
   // renderings used before they became manifest declarations. They were
   // lucide imports inside `admin/src/modules/home/activity-render.ts`, which

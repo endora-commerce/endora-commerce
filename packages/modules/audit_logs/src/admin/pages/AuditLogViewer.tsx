@@ -1,25 +1,24 @@
 import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { AdminUserPicker } from '@/components/admin-user-picker/AdminUserPicker';
-import { CustomerPicker } from '@/components/customer-picker/CustomerPicker';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useTranslationContext } from '@/i18n/TranslationProvider';
+import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  Input,
+  Label,
+  PageHeader,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@endora-commerce/admin-kit/ui';
+import { AdminUserPicker, CustomerPicker } from '@endora-commerce/admin-kit/components';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Audit Log viewer (T195 / FR-084). Append-only — no edit / delete UI.
@@ -48,7 +47,7 @@ interface AuditLogRow {
   requestId: string | null;
 }
 
-export function AuditLogViewer(): ReactNode {
+export default function AuditLogViewer(): ReactNode {
   const t = useTranslation('core');
   const { t: translate } = useTranslationContext();
   const [rows, setRows] = useState<AuditLogRow[]>([]);

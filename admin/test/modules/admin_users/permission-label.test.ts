@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
+// The helper moved into `admin_users`' package with the screen that uses it
+// (feature 091, Phase 4, batch four) and is reached at its **source**, which is
+// deliberate and narrow. It is not on the package's `./admin` subpath and must
+// not be: that subpath's contract is a contributions object (R2), and
+// publishing an internal helper so a test can import it would put it on the
+// package's contract surface, where `check:module-boundary`'s D-171 rule then
+// has to judge it. A source reach is safe here for the reason
+// `check:singleton-identity` states about this whole tree — its first conjunct
+// is false for `admin` by construction, there being no second copy in this
+// process to disagree with — and safer still for this file in particular:
+// `resolvePermissionLabel` and `scopeCarrying` are pure functions over their
+// arguments, holding no module-scope value and no React context.
 import {
   resolvePermissionLabel,
   scopeCarrying,
-} from '../../../src/modules/admin_users/permission-label';
+} from '../../../../packages/modules/admin_users/src/admin/permission-label';
 import type { Bundle } from '../../../src/i18n/types';
 
 /**
