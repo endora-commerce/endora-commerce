@@ -1,4 +1,28 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleErrorCodes,
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@endora-commerce/contracts';
+
+/**
+ * The error codes this module declares (D-182,
+ * `specs/090-module-owned-error-codes/`).
+ *
+ * Branded, so a typo at a raise site is a compile error rather than a code that
+ * travels the whole path and renders raw to whoever reads it. They live in this
+ * file because it is the one the package publishes at its root subpath: a
+ * sibling module under `src/` is reachable through no subpath at all, so the
+ * raise sites could name it and a consumer branching on the code could not.
+ *
+ * Declaring them in `errorCodes` below is a separate act and is what routes the
+ * sentence to this package's own `i18n/` bundle; the reasoning for the three is
+ * written there.
+ */
+export const paymentsErrorCodes = defineModuleErrorCodes([
+  'PAYMENT_NOT_DUE',
+  'PAYMENT_ORDER_CLOSED',
+  'PAYMENT_ADAPTER_UNAVAILABLE',
+]);
 
 export const paymentsSettingsManifest = defineModuleSettingsManifest({
   moduleCode: 'payments',
@@ -97,6 +121,58 @@ export const manifest = defineModuleManifest({
     { code: 'payments:write', label: 'Record and retry payments' },
   ],
   settings: paymentsSettingsManifest,
+  // Feature 090 / D-182 — the error codes this module owns, and the first three
+  // this package has ever declared. It is not a Phase 3 migration: the prefix
+  // chain routes nothing to `payments` and this module held no bundle at all,
+  // so these are new codes rather than a family changing hands.
+  //
+  // All three are the buyer's own payment-retry refusals, and every one of them
+  // wore `VALIDATION_FAILED` with a prose sentence. That is the one code
+  // `localizeErrorEnvelope` returns *before* translating — the code is
+  // overloaded and several services carry machine-readable tokens in its
+  // message — so a Polish buyer trying to pay a declined order was answered in
+  // the raise site's English, whichever language they asked for. Same defect as
+  // the order-cancellation route, one route over: the buyer's *retry* control
+  // beside their *cancel* control.
+  //
+  // **Three codes and not one**, which is the question that had to be answered
+  // before any of them was minted. The cancellation repair collapsed four
+  // branches into one code because they were one `throw` behind a conjunction
+  // and the buyer was told the same sentence either way. These are three
+  // separate raise sites behind three orthogonal predicates, and the buyer's
+  // next move differs in each:
+  //
+  //   * `PAYMENT_NOT_DUE` — the money is not the buyer's to pay: the order is
+  //     paid, drawn against a credit limit (`deferred`), or refunded. Nothing
+  //     to do.
+  //   * `PAYMENT_ORDER_CLOSED` — the order's lifecycle status is terminal, so
+  //     somebody cancelled it and the stock is already released. The buyer who
+  //     still wants the goods places a new order.
+  //   * `PAYMENT_ADAPTER_UNAVAILABLE` — the order is open and the money is
+  //     still owed; the shop can no longer *start* a session for the method it
+  //     was placed with. The buyer contacts the shop, and an operator repairs a
+  //     configuration.
+  //
+  // The first two are orthogonal rather than alternative: an order can be
+  // unpaid and cancelled, or paid and open, so neither implies the other. The
+  // third is reached only once both have passed.
+  //
+  // `PAYMENT_ADAPTER_UNAVAILABLE` names the adapter rather than the method on
+  // purpose. The registry it fails on is this module's; `PAYMENT_METHOD_*` is
+  // the family `payment_methods` would reach for, and two modules declaring one
+  // code routes it to neither of them (D-182's collision rule).
+  //
+  // No `tokens`: none of the three raise sites passes a fourth argument, so
+  // `refusalToken` has nothing to read, and the bundle keys are flat.
+  errorCodes: [
+    { code: paymentsErrorCodes.PAYMENT_NOT_DUE },
+    { code: paymentsErrorCodes.PAYMENT_ORDER_CLOSED },
+    { code: paymentsErrorCodes.PAYMENT_ADAPTER_UNAVAILABLE },
+  ],
+  // The bundle those sentences live in. This module shipped none until now —
+  // it has no admin screen of its own — so the directory and this declaration
+  // arrive together.
+  i18n: { bundlesDir: 'i18n' },
   // Feature 047 — admin-editable transactional email owned by this module.
   transactionalEmails: [
     {

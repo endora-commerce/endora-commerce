@@ -1,0 +1,5 @@
+{
+  "errors.PAYMENT_NOT_DUE": "To zamówienie nie oczekuje na płatność.",
+  "errors.PAYMENT_ORDER_CLOSED": "To zamówienie zostało zamknięte i nie można go już opłacić.",
+  "errors.PAYMENT_ADAPTER_UNAVAILABLE": "Metoda płatności wybrana przy składaniu tego zamówienia nie jest już dostępna."
+}

@@ -10,6 +10,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import { paymentsErrorCodes } from '../../manifest.js';
 import type { PaymentService } from './payment-service.js';
 
 /**
@@ -98,9 +99,14 @@ export class PaymentRetryService {
    *
    * @throws 404 when the order does not exist or carries no payment attempt.
    * @throws 403 when the caller did not place the order.
-   * @throws 409 when the order is already settled, when its lifecycle status is
-   *         terminal, or when the method it was placed with has no adapter
-   *         registered any more.
+   * @throws 409 `PAYMENT_NOT_DUE` when the money is not the buyer's to pay —
+   *         the order is paid, drawn against a credit limit, or refunded.
+   * @throws 409 `PAYMENT_ORDER_CLOSED` when the order's lifecycle status is
+   *         terminal. A different condition and so a different code: the money
+   *         may well still be owed, but the order it was owed on is over.
+   * @throws 409 `PAYMENT_ADAPTER_UNAVAILABLE` when the method the order was
+   *         placed with has no adapter registered any more. A third condition,
+   *         and the only one that is about the shop rather than the order.
    * @throws whatever `assertOrganizationCanTransact` throws for a suspended or
    *         blocked organisation — the route maps it, exactly as placement does.
    */
@@ -118,9 +124,20 @@ export class PaymentRetryService {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'This order does not belong to you.');
     }
     if (!BUYER_STILL_OWES.has(order.paymentStatus)) {
+      // The money term, and one code for all three of the statuses it refuses
+      // (`paid`, `deferred`, `refunded`): one predicate, one `throw`, one
+      // sentence the buyer reads either way.
+      //
+      // It answered `VALIDATION_FAILED`, which is worse than an untidy code —
+      // that is the one code `localizeErrorEnvelope` returns *before*
+      // translating (`@endora-commerce/platform/http`), because the code is
+      // overloaded and several services carry machine-readable tokens in its
+      // message. So a buyer read the English written here whatever language
+      // they asked for. The message below is now the raise-site fallback the
+      // envelope substitutes, reached only when no bundle answers.
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        paymentsErrorCodes.PAYMENT_NOT_DUE,
         'This order is not awaiting payment.',
       );
     }
@@ -131,9 +148,15 @@ export class PaymentRetryService {
     // the order was deleted between the two reads, and the attempt this would
     // open is the one that then answers.
     if ((await this.deps.orderTransition.isTerminal(order.id)) === true) {
+      // A second code rather than the money term's, because the two terms are
+      // orthogonal and so are the buyer's answers to them: `PAYMENT_NOT_DUE`
+      // says there is nothing to pay, this says the order is over and the
+      // stock its cancellation released is somebody else's now. A buyer who
+      // still wants the goods places a new order; a buyer told the other
+      // sentence does nothing at all.
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        paymentsErrorCodes.PAYMENT_ORDER_CLOSED,
         'This order is closed and can no longer be paid.',
       );
     }
@@ -158,9 +181,14 @@ export class PaymentRetryService {
         payment.id,
         'No payment adapter is available for this order.',
       );
+      // The third code, and the one refusal here that is not about the order:
+      // it is open, the money is still owed, and the platform cannot start a
+      // session because the adapter the method names is not registered any
+      // more. The buyer's move is to ask the shop, and the shop's is to repair
+      // a configuration — neither of the other two sentences says that.
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        paymentsErrorCodes.PAYMENT_ADAPTER_UNAVAILABLE,
         'The payment method this order was placed with is no longer available.',
       );
     }
