@@ -3,6 +3,7 @@
   "actions.openLinkedInAds.description": "Configure LinkedIn conversion mappings",
   "actions.newConversionMapping.label": "New LinkedIn conversion mapping",
   "actions.newConversionMapping.description": "Map a storefront action to a LinkedIn conversion",
+  "nav.linkedInAds.label": "LinkedIn Ads",
   "mappings.title": "Conversion mappings",
   "mappings.subtitle": "Report storefront actions against conversion rules defined in LinkedIn Campaign Manager.",
   "mappings.empty": "No conversion mappings yet",

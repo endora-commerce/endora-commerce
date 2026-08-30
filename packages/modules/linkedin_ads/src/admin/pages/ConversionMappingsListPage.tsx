@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { LinkedInConversionMapping, SalesChannelSummary } from '@endora-commerce/contracts';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/ui/page-header';
-import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
-import { ApiError } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
-import { linkedInAdsClient } from '../api/linkedin-ads-client';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  PageHeader,
+} from '@endora-commerce/admin-kit/ui';
+import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { linkedInAdsClient, listSalesChannels } from '../api/linkedin-ads-client.js';
 
 /**
  * Conversion mappings list (feature 063, US3). Per-channel Settings (Partner ID,
  * consent, server-side, access token) live on the generic Settings page.
  */
-export function ConversionMappingsListPage(): ReactNode {
+export default function ConversionMappingsListPage(): ReactNode {
   const t = useTranslation('linkedin_ads');
   const [items, setItems] = useState<LinkedInConversionMapping[]>([]);
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
@@ -36,7 +38,7 @@ export function ConversionMappingsListPage(): ReactNode {
         linkedInAdsClient.list(),
         // A channel read failure must not hide the mappings themselves — the
         // channel column simply falls back to the raw id.
-        salesChannelsClient.list({ activeOnly: false, pageSize: 100 }).catch(() => ({ items: [] })),
+        listSalesChannels().catch(() => ({ items: [] })),
       ]);
       setItems(rows);
       setChannels(chans.items);

@@ -5,21 +5,23 @@ import {
   type MetaCustomEventMapping,
   type SalesChannelSummary,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/ui/page-header';
-import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
-import { ApiError } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
-import { metaAdsClient } from '../api/meta-ads-client';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  PageHeader,
+} from '@endora-commerce/admin-kit/ui';
+import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { metaAdsClient, listSalesChannels } from '../api/meta-ads-client.js';
 
 /**
  * Meta custom events list (feature 064, US4). Per-channel Settings (Pixel ID,
  * consent) live on the generic Settings page.
  */
-export function CustomEventMappingsListPage(): ReactNode {
+export default function CustomEventMappingsListPage(): ReactNode {
   const t = useTranslation('meta_ads');
   const [items, setItems] = useState<MetaCustomEventMapping[]>([]);
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
@@ -40,7 +42,7 @@ export function CustomEventMappingsListPage(): ReactNode {
         metaAdsClient.list(),
         // A channel read failure must not hide the mappings — the channel
         // column falls back to the raw id.
-        salesChannelsClient.list({ activeOnly: false, pageSize: 100 }).catch(() => ({ items: [] })),
+        listSalesChannels().catch(() => ({ items: [] })),
       ]);
       setItems(rows);
       setChannels(chans.items);

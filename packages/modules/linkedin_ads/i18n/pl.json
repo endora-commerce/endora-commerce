@@ -3,6 +3,7 @@
   "actions.openLinkedInAds.description": "Konfiguruj mapowania konwersji LinkedIn",
   "actions.newConversionMapping.label": "Nowe mapowanie konwersji LinkedIn",
   "actions.newConversionMapping.description": "Przypisz akcję w Storefront do konwersji LinkedIn",
+  "nav.linkedInAds.label": "LinkedIn Ads",
   "mappings.title": "Mapowania konwersji",
   "mappings.subtitle": "Raportuj akcje w Storefront do reguł konwersji zdefiniowanych w LinkedIn Campaign Manager.",
   "mappings.empty": "Brak mapowań konwersji",

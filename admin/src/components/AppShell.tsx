@@ -360,22 +360,22 @@ const NAV: NavSection[] = [
   {
     key: 'analyticsAds',
     labelKey: 'appShell.section.analyticsAds',
-    items: [
-      {
-        to: '/linkedin-ads',
-        labelKey: 'appShell.nav.linkedinAds',
-        icon: Sparkles,
-        requiredPermission: 'linkedin_ads:read',
-        module: 'linkedin_ads',
-      },
-      {
-        to: '/meta-ads',
-        labelKey: 'appShell.nav.metaAds',
-        icon: Sparkles,
-        requiredPermission: 'meta_ads:read',
-        module: 'meta_ads',
-      },
-    ],
+    // **Empty on purpose, and the first section that is** (feature 091, Phase 4
+    // batch three). All four of this section's entries — `/analytics`,
+    // `/google-analytics`, `/linkedin-ads`, `/meta-ads` — are now declared by
+    // the modules that own them and arrive through `composeNav` from
+    // `modules.generated.ts`. The section itself stays here because the shell
+    // owns the section taxonomy: `composeNav` refuses a contribution naming a
+    // section this file does not declare, since an entry in a section nobody
+    // renders is a surface that silently appears nowhere.
+    //
+    // The consequence is worth stating rather than discovering: with no
+    // host-declared entry left, `registryNavFor`'s `weight` is the whole of
+    // this section's order, and the weights the four modules declare (100, 200,
+    // 300, 400) reproduce exactly the order the hand-written table had. Batch
+    // one and batch two each recorded the append-to-the-end ordering as an
+    // operator-visible regression; this is where it is repaired.
+    items: [],
   },
   {
     key: 'system',
@@ -896,12 +896,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/webhooks\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.webhooks', href: null },
-  ] },
-  { test: /^\/linkedin-ads(\/.*)?$/, build: () => [
-    { labelKey: 'appShell.nav.linkedinAds', href: '/linkedin-ads' },
-  ] },
-  { test: /^\/meta-ads(\/.*)?$/, build: () => [
-    { labelKey: 'appShell.nav.metaAds', href: '/meta-ads' },
   ] },
   { test: /^\/platform\/modules\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },

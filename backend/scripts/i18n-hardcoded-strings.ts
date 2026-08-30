@@ -35,8 +35,19 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  * here either: it is the workspace member whose manifest carries the name, so a
  * move costs no edit and a kit that is gone is exit 2 rather than a population
  * quietly halved.
+ *
+ * **Exported because the companion test has to ask the same question, not a
+ * similar one** (feature 091, Phase 4 batch three). It kept its own two-root
+ * list, and that list stopped describing this script the moment Phase 4's first
+ * batch added the third root family. Nothing showed it: batches one and two
+ * moved files that carried no baseline entry, so both walks agreed on the empty
+ * set. Batch three moved the first screen that does carry one — a LinkedIn URN
+ * placeholder — and the script read the entry at its new key while the test,
+ * walking two roots, reported it *drained*. Green script, red suite, over one
+ * ledger. Two derivations of one population are two answers waiting to
+ * disagree; there is one now.
  */
-function defaultRoots(): readonly string[] {
+export function defaultRoots(): readonly string[] {
   const members = workspaceMembers(REPO_ROOT, nodeWorkspaceFs());
   const kit = members.find((member) => member.name === ADMIN_KIT_PACKAGE);
   if (kit === undefined) {
@@ -228,7 +239,16 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'admin/src/modules/custom_fields/CustomFieldsPage.tsx': 4,
   'admin/src/modules/delivery_methods/DeliveryMethodsPage.tsx': 5,
   'admin/src/modules/invoices/templates/invoice-puck-config.tsx': 6,
-  'admin/src/modules/linkedin_ads/pages/ConversionMappingEditPage.tsx': 1,
+  // Feature 091, Phase 4 batch three: the screen moved into its module's
+  // package and the entry is **re-keyed**, not raised and not dropped. The
+  // finding is one LinkedIn URN format example in a `placeholder`, and it is
+  // the same finding at a new address — this check's two-way ratchet reported
+  // both halves in one run (unaccounted here, over-baselined there), which is
+  // the laundering FR-017 refuses arriving one check over. It is not drained
+  // here because `urn:lla:llaPartnerConversion:…` is a wire-format example and
+  // not a sentence: putting it in a bundle would invite a translator to
+  // translate a LinkedIn identifier.
+  'packages/modules/linkedin_ads/src/admin/pages/ConversionMappingEditPage.tsx': 1,
   'admin/src/modules/mfa/AdminSecuritySettings.tsx': 16,
   'admin/src/modules/newsletter/pages/AutomationBuilder.tsx': 6,
   'admin/src/modules/newsletter/pages/AutomationsPage.tsx': 4,

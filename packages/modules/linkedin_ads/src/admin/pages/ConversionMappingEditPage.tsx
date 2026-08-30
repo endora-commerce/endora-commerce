@@ -1,37 +1,40 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  META_STANDARD_EVENTS,
-  META_TRIGGER_ACTIONS,
-  type MetaCustomEventMapping,
-  type MetaTriggerAction,
+  LINKEDIN_TRIGGER_ACTIONS,
+  type LinkedInConversionMapping,
+  type LinkedInTriggerAction,
   type SalesChannelSummary,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
-import { Select } from '@/components/ui/select';
-import { ApiError } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
-import { metaAdsClient } from '../api/meta-ads-client';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  Input,
+  Label,
+  PageHeader,
+  Select,
+} from '@endora-commerce/admin-kit/ui';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { linkedInAdsClient, listSalesChannels } from '../api/linkedin-ads-client.js';
 
 const ALL_CHANNELS = '__all__';
 
-/** Create / edit one Meta custom event mapping (feature 064, US4). */
-export function CustomEventMappingEditPage(): ReactNode {
-  const t = useTranslation('meta_ads');
+/** Create / edit one conversion mapping (feature 063, US3). */
+export default function ConversionMappingEditPage(): ReactNode {
+  const t = useTranslation('linkedin_ads');
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isNew = id === undefined;
 
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
-  const [existing, setExisting] = useState<MetaCustomEventMapping | null>(null);
-  const [triggerAction, setTriggerAction] = useState<MetaTriggerAction>('purchase');
-  const [eventName, setEventName] = useState('');
+  const [existing, setExisting] = useState<LinkedInConversionMapping | null>(null);
+  const [triggerAction, setTriggerAction] = useState<LinkedInTriggerAction>('purchase');
+  const [conversionId, setConversionId] = useState('');
+  const [conversionRuleUrn, setConversionRuleUrn] = useState('');
   const [salesChannelId, setSalesChannelId] = useState<string>(ALL_CHANNELS);
   const [enabled, setEnabled] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -50,16 +53,15 @@ export function CustomEventMappingEditPage(): ReactNode {
 
   useEffect(() => {
     void (async (): Promise<void> => {
-      const chans = await salesChannelsClient
-        .list({ activeOnly: false, pageSize: 100 })
-        .catch(() => ({ items: [] }));
+      const chans = await listSalesChannels().catch(() => ({ items: [] }));
       setChannels(chans.items);
       if (isNew) return;
       try {
-        const row = await metaAdsClient.get(id);
+        const row = await linkedInAdsClient.get(id);
         setExisting(row);
         setTriggerAction(row.triggerAction);
-        setEventName(row.eventName);
+        setConversionId(row.conversionId);
+        setConversionRuleUrn(row.conversionRuleUrn ?? '');
         setSalesChannelId(row.salesChannelId ?? ALL_CHANNELS);
         setEnabled(row.enabled);
       } catch (err) {
@@ -72,24 +74,27 @@ export function CustomEventMappingEditPage(): ReactNode {
     setBusy(true);
     setError(null);
     const channel = salesChannelId === ALL_CHANNELS ? null : salesChannelId;
+    const urn = conversionRuleUrn.trim() || null;
     try {
       if (isNew) {
-        await metaAdsClient.create({
+        await linkedInAdsClient.create({
           triggerAction,
-          eventName: eventName.trim(),
+          conversionId: conversionId.trim(),
           salesChannelId: channel,
+          conversionRuleUrn: urn,
           enabled,
         });
       } else if (existing) {
-        await metaAdsClient.update(existing.id, {
+        await linkedInAdsClient.update(existing.id, {
           triggerAction,
-          eventName: eventName.trim(),
+          conversionId: conversionId.trim(),
           salesChannelId: channel,
+          conversionRuleUrn: urn,
           enabled,
           version: existing.version,
         });
       }
-      navigate('/meta-ads');
+      navigate('/linkedin-ads');
     } catch (err) {
       setError(messageFor(err));
     } finally {
@@ -97,11 +102,9 @@ export function CustomEventMappingEditPage(): ReactNode {
     }
   };
 
-  const standard = META_STANDARD_EVENTS[triggerAction];
-
   return (
     <div>
-      <PageHeader title={isNew ? t('customEvents.new') : t('customEvents.edit')} />
+      <PageHeader title={isNew ? t('mappings.new') : t('mappings.edit')} />
 
       {error ? (
         <Alert variant="destructive" className="mb-3">
@@ -112,44 +115,52 @@ export function CustomEventMappingEditPage(): ReactNode {
       <Card>
         <CardContent className="space-y-4 pt-6">
           <div>
-            <Label htmlFor="triggerAction">{t('customEvents.triggerAction')}</Label>
+            <Label htmlFor="triggerAction">{t('mappings.triggerAction')}</Label>
             <Select
               id="triggerAction"
               value={triggerAction}
-              onChange={(e) => setTriggerAction(e.target.value as MetaTriggerAction)}
+              onChange={(e) => setTriggerAction(e.target.value as LinkedInTriggerAction)}
             >
-              {META_TRIGGER_ACTIONS.map((a) => (
+              {LINKEDIN_TRIGGER_ACTIONS.map((a) => (
                 <option key={a} value={a}>
-                  {t(`customEvents.action.${a}`)}
+                  {t(`mappings.action.${a}`)}
                 </option>
               ))}
             </Select>
-            {/* Makes the additive semantics visible: the standard event keeps
-                firing whatever custom name is chosen here. */}
+          </div>
+
+          <div>
+            <Label htmlFor="conversionId">{t('mappings.conversionId')}</Label>
+            <Input
+              id="conversionId"
+              value={conversionId}
+              inputMode="numeric"
+              onChange={(e) => setConversionId(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t('mappings.conversionIdHint')}</p>
+          </div>
+
+          <div>
+            <Label htmlFor="conversionRuleUrn">{t('mappings.conversionRuleUrn')}</Label>
+            <Input
+              id="conversionRuleUrn"
+              value={conversionRuleUrn}
+              placeholder="urn:lla:llaPartnerConversion:…"
+              onChange={(e) => setConversionRuleUrn(e.target.value)}
+            />
             <p className="mt-1 text-xs text-muted-foreground">
-              {t('customEvents.standardEvent')}: {standard ?? t('customEvents.standardEventNone')}
+              {t('mappings.conversionRuleUrnHint')}
             </p>
           </div>
 
           <div>
-            <Label htmlFor="eventName">{t('customEvents.eventName')}</Label>
-            <Input
-              id="eventName"
-              value={eventName}
-              onChange={(e) => setEventName(e.target.value)}
-              placeholder="SubmitQuote"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">{t('customEvents.eventNameHint')}</p>
-          </div>
-
-          <div>
-            <Label htmlFor="salesChannelId">{t('customEvents.salesChannel')}</Label>
+            <Label htmlFor="salesChannelId">{t('mappings.salesChannel')}</Label>
             <Select
               id="salesChannelId"
               value={salesChannelId}
               onChange={(e) => setSalesChannelId(e.target.value)}
             >
-              <option value={ALL_CHANNELS}>{t('customEvents.allChannels')}</option>
+              <option value={ALL_CHANNELS}>{t('mappings.allChannels')}</option>
               {channels.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.code}
@@ -164,11 +175,11 @@ export function CustomEventMappingEditPage(): ReactNode {
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
             />
-            {t('customEvents.enabled')}
+            {t('mappings.enabled')}
           </label>
 
-          <Button disabled={busy || eventName.trim() === ''} onClick={() => void save()}>
-            {t('customEvents.save')}
+          <Button disabled={busy || conversionId.trim() === ''} onClick={() => void save()}>
+            {t('mappings.save')}
           </Button>
         </CardContent>
       </Card>

@@ -55,17 +55,19 @@ const coreBundle = {
     'appShell.brand.text',
     'appShell.section.analyticsAds',
     'appShell.section.system',
-    'appShell.nav.linkedinAds',
-    'appShell.nav.metaAds',
     'appShell.nav.users',
   ]),
-  // `google_analytics` owns its sidebar entry since feature 091's Phase 4, and
-  // `analytics` since batch two, so both labels resolve in the **module's** own
-  // namespace out of `packages/modules/<id>/i18n/` — not in the shared `core`
-  // bundle, whose `appShell.nav.googleAnalytics` and `appShell.nav.analytics`
-  // entries are gone.
+  // **All four labels resolve in a module's own namespace now**, out of
+  // `packages/modules/<id>/i18n/`. `google_analytics` took its own in batch
+  // one, `analytics` in batch two, and `linkedin_ads` and `meta_ads` in batch
+  // three — with which the shared `core` bundle holds no `appShell.nav.*` key
+  // for this section at all. That is the conversion visible in one place: the
+  // `core` list above shrank by two entries in the same merge request the
+  // sidebar stopped naming two modules.
   ...passthroughBundle('google_analytics', ['nav.googleAnalytics.label']),
   ...passthroughBundle('analytics', ['nav.analytics.label']),
+  ...passthroughBundle('linkedin_ads', ['nav.linkedInAds.label']),
+  ...passthroughBundle('meta_ads', ['nav.metaAds.label']),
 };
 
 const { AppShell } = await import('../../src/components/AppShell');
@@ -73,27 +75,26 @@ const { AppShell } = await import('../../src/components/AppShell');
 /**
  * The four entries the `Analytics & Ads` group owns, in sidebar order.
  *
- * **The two converted modules are last, and that is the conversion rather than
- * a regression.** `/analytics` used to be first and `/google-analytics` second,
- * both declared by hand in `NAV`; they now arrive from
- * `admin/src/modules.generated.ts`, and a module's entries append to their
- * section as a block until the host's own entries carry weights — which
- * `AppShell.tsx`'s `composeNav` states in place and Story 3 delivers as it
- * drains them.
+ * **This is the order the hand-written table had, and getting it back is what
+ * batch three delivered.** Batch one recorded that `/google-analytics` had
+ * moved from second to last, because a module's entries append to their section
+ * until the host's own carry weights; batch two recorded the same thing one
+ * entry further on and restored the relative order of the two converted modules
+ * by weight. With `linkedin_ads` and `meta_ads` converted, the section holds no
+ * host-declared entry at all — `AppShell.tsx`'s `analyticsAds` block is
+ * deliberately `items: []` — so `registryNavFor`'s `weight` is the whole of the
+ * order, and the four declared weights (100, 200, 300, 400) reproduce exactly
+ * what the hand-written table rendered.
  *
- * **Their order relative to each other is already restored**, and that is what
- * the weights are for: `analytics` declares 100 and `google_analytics` 200, so
- * `registryNavFor` sorts them back into the order the hand-written table had.
- * When batch two landed there was, for the first time, something to order
- * against — batch one's note that "there is nothing yet to order it against"
- * has an answer now, and it is asserted here rather than left to the next
- * batch's author to notice.
+ * So this list is not merely updated: it is the evidence that an
+ * operator-visible regression the two previous batches recorded is closed. If a
+ * later batch reorders it again, that is a finding and not a fixture to edit.
  */
 const ANALYTICS_LINKS = [
-  { href: '/linkedin-ads', labelKey: 'appShell.nav.linkedinAds' },
-  { href: '/meta-ads', labelKey: 'appShell.nav.metaAds' },
   { href: '/analytics', labelKey: 'nav.analytics.label' },
   { href: '/google-analytics', labelKey: 'nav.googleAnalytics.label' },
+  { href: '/linkedin-ads', labelKey: 'nav.linkedInAds.label' },
+  { href: '/meta-ads', labelKey: 'nav.metaAds.label' },
 ];
 
 function renderShell(): void {
@@ -143,4 +144,20 @@ describe('AppShell — Analytics & Ads navigation group', () => {
     }
   });
 
+  it('renders the section entirely from the registry, with no host entry left', () => {
+    // The property the order above rests on, asserted rather than inferred from
+    // it. `AppShell.tsx` declares `analyticsAds` with `items: []`, so every
+    // link in the group carries a `labelScope` — the field `composeNav` sets on
+    // a registry entry and never on a host one. A host entry re-appearing here
+    // would restore the append ordering and this file's first case would fail
+    // for a reason its own list could not explain; this one names it.
+    renderShell();
+    const group = groupByLabel('appShell.section.analyticsAds');
+    const labels = [...group.querySelectorAll('a')].map((a) => a.textContent ?? '');
+    // A registry entry's label resolves in its module's namespace, so every one
+    // of them reads as its module-relative key under `passthroughBundle`; a
+    // host entry would read as an `appShell.nav.*` one.
+    expect(labels.every((label) => !label.includes('appShell.nav.'))).toBe(true);
+    expect(labels).toHaveLength(ANALYTICS_LINKS.length);
+  });
 });
