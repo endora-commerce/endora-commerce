@@ -90,12 +90,33 @@ COPY scripts/ scripts/
 # `node_modules` at each package's `./dist`, exactly as an installed consumer does.
 RUN pnpm --filter "backend^..." run build
 
-# The application itself. `build` is `overlay:manifest` + `composer:generate` + `tsc -p
-# tsconfig.build.json` + `copy-runtime-assets`, and the last of those is not a convenience:
-# `tsc` compiles `.ts` and copies nothing else, so without it the built tree holds every
-# module's code and none of its data — which is D-165.3's first silence, and it is silent
-# because an absent bundles directory reads as "this module ships no translatable strings".
-# That step audits its own output against the registered manifests and fails the build.
+# The application itself. `build` is `tsc -p tsconfig.build.json` + `copy-runtime-assets`,
+# and the second of those is not a convenience: `tsc` compiles `.ts` and copies nothing
+# else, so without it the built tree holds every module's code and none of its data — which
+# is D-165.3's first silence, and it is silent because an absent bundles directory reads as
+# "this module ships no translatable strings". That step audits its own output against the
+# registered manifests and fails the build.
+#
+# **It compiles the committed tree; it does not re-derive it.** `build` used to run
+# `overlay:manifest` and `composer:generate` first, from the day feature 018 wrote the first
+# generator — and both of them read the *whole* workspace, while this stage holds a strict
+# subset of it. That went unnoticed for four months and then stopped the image dead: feature
+# 091's fifth artefact is `admin/src/modules.generated.ts`, whose path is derived from the
+# workspace member declaring the `"@/*"` tsconfig alias, and `admin/` is not copied here —
+# so `composer:generate` raised `AdminLayoutUnresolvableError`, correctly, and `tsc` never
+# ran. Tolerating the absence was rejected: `admin/package.json` *is* here (the manifests
+# stage collects every member's), so from inside the image "the admin application was not
+# copied" and "the admin application stopped declaring its alias" are the same observation,
+# and a tolerance would have to guess. Copying `admin/` was rejected too — this is the final
+# stage, so its sources would ship in the production image, and an admin-only commit would
+# invalidate both `RUN … build` layers.
+#
+# Nothing is lost by leaving generation out. All five composer artefacts and every override
+# manifest are committed, and `overlay:check` refuses a stale, non-deterministic or foreign
+# one in the `quality` job — which carries no `changes:` filter, so it runs on every merge
+# request and every push to the default branch. Re-deriving them here never *added* a
+# defence: it wrote its answer into the image and not into the tree, so a build over a
+# checkout whose artefacts were stale produced a working image and left the drift unreported.
 #
 # The heap is capped explicitly for the same reason `quality` caps it: Node sizes its
 # default old-space from what it believes is available, and inside a memory-limited build
