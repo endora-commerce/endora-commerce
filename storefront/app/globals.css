@@ -363,6 +363,22 @@
   .btn--ghost { @apply border-transparent bg-transparent text-[color:var(--ink-700)]; }
   .btn--ghost:hover { @apply bg-surface-alt; }
 
+  /* A refused `.btn` had no visual state at all: it kept its filled background,
+     its hover lift and a normal cursor, so a control the platform will not
+     accept looked exactly like one it would. Introduced with the quote-request
+     validity deadline, where Accept and Place order are disabled once the date
+     has passed.
+
+     Colour never carries the refusal on its own — the reason is always rendered
+     as text beside the control, because a `disabled` button is out of the tab
+     order and announces nothing. This only stops the control from *inviting* a
+     click it cannot honour. `--ink-500` on `--surface-alt` is 5.0:1, so the
+     label stays readable, and both tokens follow `:root.is-dark`. */
+  .btn:disabled {
+    @apply cursor-not-allowed border-line bg-surface-alt text-muted shadow-none;
+  }
+  .btn:disabled:hover { @apply translate-y-0 border-line bg-surface-alt shadow-none; }
+
   .btn--lg { @apply px-[18px] py-[12px] text-[14px]; }
   .btn--sm { @apply px-[10px] py-[6px] text-[12px]; }
   .btn--block { @apply w-full justify-center; }
