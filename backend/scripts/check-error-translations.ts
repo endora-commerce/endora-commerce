@@ -157,16 +157,20 @@ const LANGUAGES = ['en', 'pl'] as const;
  * exists at all.)
  *
  * **Read the `_i18n` block as "declared by the platform's own module", not
- * "owned by the kernel."** Fifty-nine of these sit in the platform bundle
- * because the deleted prefix chain had no rule for them and its last line was
- * `return 'core'`; feature 090's Phase 3 declared them where the chain answered,
- * verbatim, because an answer-preserving migration and a re-routing sweep in one
- * change is unreviewable (`contracts/error-code-declaration.md` §6.5). `KSEF_*`
- * and `PIM_ERGONODE_*` plainly belong to their modules, and moving them is
- * D-129's scheduled sweep — 68 codes over 17 modules, measured in
- * `specs/090-module-owned-error-codes/core-block-home.md` §1.3. Draining a block
- * therefore still means two edits: the declaration moves to the owning module's
- * manifest, and the sentences move to its bundle.
+ * "owned by the kernel."** They sit in the platform bundle because the deleted
+ * prefix chain had no rule for them and its last line was `return 'core'`;
+ * feature 090's Phase 3 declared them where the chain answered, verbatim,
+ * because an answer-preserving migration and a re-routing sweep in one change is
+ * unreviewable (`contracts/error-code-declaration.md` §6.5).
+ *
+ * **D-129's sweep is what re-routes them, and it is running.** D-121 decides each
+ * destination — 79 codes into 20 modules, 21 staying — and the batches land one
+ * merge request at a time (`specs/090-module-owned-error-codes/d129-sweep.md`
+ * §5.2, Appendix A). `KSEF_*` and `PIM_ERGONODE_*` went first, which is why they
+ * now have groups of their own below. Draining a block still means two edits: the
+ * declaration moves to the owning module's manifest, and the sentences move to
+ * its bundle. A group here whose codes carry no sentence needs only the first,
+ * and its entries stay — the debt is unchanged, only its owner is.
  *
  * `MFA_*` is the worked example, and it took both edits and two issues: #194
  * routed the family to `mfa`, #223 wrote the nine sentences in `mfa`'s own
@@ -188,24 +192,18 @@ const LANGUAGES = ['en', 'pl'] as const;
  * Grouped as measured, so a module can drain its own block.
  */
 export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
-  // _i18n (59)
+  // _i18n (39)
   'ACCOUNT_BLOCKED', 'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
   'ASSISTANT_DISABLED', 'ASSISTANT_NOT_CONFIGURED', 'BULK_TOO_LARGE',
   'CUSTOMER_ADDRESS_NOT_FOUND',
   'CUSTOMER_ALREADY_DELETED', 'CUSTOMER_NOT_DELETED', 'CUSTOMER_NOT_FOUND',
   'CUSTOMER_RESTORE_WINDOW_ELAPSED', 'CUSTOM_FIELD_DEFINITION_INVALID', 'CUSTOM_FIELD_HOST_MANAGED',
   'CUSTOM_FIELD_KEY_CONFLICT', 'CUSTOM_FIELD_NOT_FOUND', 'CUSTOM_FIELD_VALUE_INVALID',
-  'IDEMPOTENCY_KEY_REQUIRED', 'IDEMPOTENCY_KEY_REUSED', 'KSEF_ALREADY_SUBMITTED',
-  'KSEF_CREDENTIAL_EXISTS', 'KSEF_CREDENTIAL_INVALID', 'KSEF_ENROLLMENT_REJECTED',
-  'KSEF_NOT_CONFIGURED', 'KSEF_NOT_SUBMITTABLE', 'KSEF_UNAVAILABLE',
+  'IDEMPOTENCY_KEY_REQUIRED', 'IDEMPOTENCY_KEY_REUSED',
   'MODULE_ACTIVATION_PROTECTED', 'MODULE_DEPENDENCIES_ABSENT', 'MODULE_DEPENDENTS_PRESENT',
   'MODULE_NOT_DEACTIVATABLE', 'MODULE_NOT_FOUND', 'MODULE_SETTING_READ_ONLY',
   'ORG_OWNER_DEPLETION', 'PACKAGING_UNIT_NAME_CONFLICT', 'PACKAGING_UNIT_NOT_FOUND',
-  'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE', 'PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE', 'PIM_ERGONODE_BINDING_EXISTS',
-  'PIM_ERGONODE_CONNECTION_DISABLED', 'PIM_ERGONODE_CONNECTION_EXISTS', 'PIM_ERGONODE_CURRENCY_INACTIVE',
-  'PIM_ERGONODE_FIELD_PATH_INVALID', 'PIM_ERGONODE_IMPORT_ALREADY_RUNNING', 'PIM_ERGONODE_NOT_CONFIGURED',
-  'PIM_ERGONODE_SCHEDULE_INVALID', 'PIM_ERGONODE_TARGET_ALREADY_MAPPED', 'PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND',
-  'PIM_ERGONODE_TREE_REQUIRED', 'PIM_ERGONODE_TYPE_INCOMPATIBLE', 'PRICE_LIST_NOT_FOUND',
+  'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE', 'PRICE_LIST_NOT_FOUND',
   'PRICE_UNAVAILABLE', 'PROMPT_PERMISSION_REVOKED', 'PROMPT_PLAN_EXPIRED',
   'PROMPT_REQUEST_INVALID_STATE', 'PROMPT_REQUEST_IN_FLIGHT', 'REGISTRATION_REQUIRES_ORGANIZATION',
   'SELECTION_TOO_LARGE', 'SHOPPING_LIST_CANNOT_DELETE_DEFAULT', 'SHOPPING_LIST_CANNOT_DELETE_LAST',
@@ -214,6 +212,18 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   'ATTRIBUTE_NOT_MASS_EDITABLE', 'PRODUCT_FEED_CONFIRMATION_REQUIRED', 'PRODUCT_FEED_DISABLED',
   'PRODUCT_FEED_TAXONOMY_CONFLICT', 'PRODUCT_FEED_TEMPLATE_CONFLICT', 'PRODUCT_FEED_TEMPLATE_UNBOUND',
   'SKU_NOT_IN_ASSORTMENT',
+  // ksef (7) — re-homed from `_i18n` by D-129's sweep, MR 2 (Tier A). Membership
+  // is unchanged: none of the seven had a sentence in either language before the
+  // move and none has one after, so what moved is which module owes it.
+  'KSEF_ALREADY_SUBMITTED', 'KSEF_CREDENTIAL_EXISTS', 'KSEF_CREDENTIAL_INVALID',
+  'KSEF_ENROLLMENT_REJECTED', 'KSEF_NOT_CONFIGURED', 'KSEF_NOT_SUBMITTABLE',
+  'KSEF_UNAVAILABLE',
+  // pim_ergonode (13) — same move, same merge request, same terms.
+  'PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE', 'PIM_ERGONODE_BINDING_EXISTS',
+  'PIM_ERGONODE_CONNECTION_DISABLED', 'PIM_ERGONODE_CONNECTION_EXISTS', 'PIM_ERGONODE_CURRENCY_INACTIVE',
+  'PIM_ERGONODE_FIELD_PATH_INVALID', 'PIM_ERGONODE_IMPORT_ALREADY_RUNNING', 'PIM_ERGONODE_NOT_CONFIGURED',
+  'PIM_ERGONODE_SCHEDULE_INVALID', 'PIM_ERGONODE_TARGET_ALREADY_MAPPED', 'PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND',
+  'PIM_ERGONODE_TREE_REQUIRED', 'PIM_ERGONODE_TYPE_INCOMPATIBLE',
   // settings (1)
   'SETTING_SECRET_KEY_MISSING',
 ]);

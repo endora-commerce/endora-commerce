@@ -90,9 +90,16 @@ const MIGRATED_MODULES: readonly string[] = [
   'dictionaries',
   'inventory',
   'invoices',
+  // The first two receiving modules of D-129's remaining sweep (MR 2, Tier A).
+  // The frozen capture routes none of their codes to them — it says `core` for
+  // all twenty — so the reference side that makes this roster entry answerable
+  // is `capture ⊕ rehomed`, and each of the twenty carries a
+  // `REHOMED_ERROR_CODES` entry naming its tier and its reason.
+  'ksef',
   'megamenu',
   'mfa',
   'orders',
+  'pim_ergonode',
   // Minted after the chain was deleted (!1159), so the frozen capture holds none
   // of its three codes and `MINTED_ERROR_CODES` is what accounts for them. The
   // roster's question — does this module declare exactly what the reference says

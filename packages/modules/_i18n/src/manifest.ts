@@ -53,13 +53,24 @@ export const manifest = defineModuleManifest({
    * The platform's own error codes — feature 090, Phase 3, the last owner
    * (`specs/090-module-owned-error-codes/core-block-home.md`).
    *
-   * **This list is the frozen chain capture, not a judgement.** It is the
-   * verbatim output of the runbook's step-1 derivation over
+   * **This list opened as the frozen chain capture, not a judgement.** It was
+   * the verbatim output of the runbook's step-1 derivation over
    * `backend/test/fixtures/error-code-routing/chain-answers.ts` — every code
    * `moduleIdForErrorCode` answers `core` for, in the capture's order. Nothing
    * was curated, added or dropped: `contracts/error-code-declaration.md` §6.2
    * makes the migration answer-preserving over all 289 codes with no exception
    * list, and §6.5 puts re-routing out of scope.
+   *
+   * **D-129's remaining sweep is what re-routes them, and it has begun** — so
+   * this list is no longer the capture, and the difference is not a drift to be
+   * reconciled by reading it. Every code that has left carries an entry in
+   * `backend/test/fixtures/error-code-routing/reference-ledgers.ts`'
+   * `REHOMED_ERROR_CODES` naming where it went, which of D-121's tiers decided
+   * it and why; the capture itself is untouched, because a reference a
+   * migration may rewrite is one that agrees with whatever the migration did.
+   * `specs/090-module-owned-error-codes/d129-sweep.md` Appendix A is the design
+   * and D-186 (`specs/080-f4-real-scope/rulings.md`) settles the four questions
+   * it could not answer for itself.
    *
    * **Why `_i18n` and not a module called `core`.** `core` is not a module id.
    * It is the synthetic namespace this module's bundle is exposed under at the
@@ -75,16 +86,18 @@ export const manifest = defineModuleManifest({
    * invented to hold a list).
    *
    * **The codes a reader will look for here and not find are the opposite
-   * problem: most of these are not the platform's.** 68 of the 100 are named by
-   * exactly one module and by nothing else — `PIM_ERGONODE_*` by
-   * `pim_ergonode`, `KSEF_*` by `ksef`, `PROMPT_*` by `prompt_actions`,
-   * `SHOPPING_LIST_*` by `shopping_lists`, and so on across 17 modules. They
-   * are here because they fell off the end of the prefix chain, and moving them
-   * to their owners is `specs/082-error-code-ownership/rulings.md` §9's
-   * remaining sweep, measured at 68 codes over 17 modules in the design note's
-   * §1.3. Do not move one in passing: a code that leaves this list without
-   * arriving in its owner's manifest routes nowhere, and the collision rule
-   * makes a half-done move visible at composition rather than at an operator.
+   * problem: most of these are not the platform's.** 68 of the original 100
+   * are named by exactly one module and by nothing else — `PROMPT_*` by
+   * `prompt_actions`, `SHOPPING_LIST_*` by `shopping_lists`, and so on across
+   * 17 modules. They are here because they fell off the end of the prefix
+   * chain, and moving them to their owners is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining sweep. D-121
+   * decides each destination — 79 codes into 20 modules, 21 staying — and the
+   * sweep runs it in batches: `KSEF_*` and `PIM_ERGONODE_*` were the first
+   * families to leave. Do not move one in passing: a code that leaves this list
+   * without arriving in its owner's manifest routes nowhere, and the collision
+   * rule makes a half-done move visible at composition rather than at an
+   * operator.
    *
    * **`tokens` is derived from the raise sites, not from the bundle**
    * (runbook §5). Seven of these codes put a `details.code` on the wire; six of
@@ -151,13 +164,6 @@ export const manifest = defineModuleManifest({
     { code: 'INTERNAL', tokens: ['customer_account_organization_missing'] },
     { code: 'INVALID_CREDENTIALS' },
     { code: 'INVALID_TRANSITION' },
-    { code: 'KSEF_ALREADY_SUBMITTED' },
-    { code: 'KSEF_CREDENTIAL_EXISTS' },
-    { code: 'KSEF_CREDENTIAL_INVALID' },
-    { code: 'KSEF_ENROLLMENT_REJECTED' },
-    { code: 'KSEF_NOT_CONFIGURED' },
-    { code: 'KSEF_NOT_SUBMITTABLE' },
-    { code: 'KSEF_UNAVAILABLE' },
     { code: 'LIMIT_INSUFFICIENT' },
     { code: 'MODULE_ACTIVATION_PROTECTED' },
     { code: 'MODULE_DEPENDENCIES_ABSENT' },
@@ -175,19 +181,6 @@ export const manifest = defineModuleManifest({
     { code: 'PACKAGING_UNIT_NAME_CONFLICT' },
     { code: 'PACKAGING_UNIT_NOT_FOUND' },
     { code: 'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE' },
-    { code: 'PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE' },
-    { code: 'PIM_ERGONODE_BINDING_EXISTS' },
-    { code: 'PIM_ERGONODE_CONNECTION_DISABLED' },
-    { code: 'PIM_ERGONODE_CONNECTION_EXISTS' },
-    { code: 'PIM_ERGONODE_CURRENCY_INACTIVE' },
-    { code: 'PIM_ERGONODE_FIELD_PATH_INVALID' },
-    { code: 'PIM_ERGONODE_IMPORT_ALREADY_RUNNING' },
-    { code: 'PIM_ERGONODE_NOT_CONFIGURED' },
-    { code: 'PIM_ERGONODE_SCHEDULE_INVALID' },
-    { code: 'PIM_ERGONODE_TARGET_ALREADY_MAPPED' },
-    { code: 'PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND' },
-    { code: 'PIM_ERGONODE_TREE_REQUIRED' },
-    { code: 'PIM_ERGONODE_TYPE_INCOMPATIBLE' },
     { code: 'PRICE_LIST_NOT_FOUND' },
     { code: 'PRICE_UNAVAILABLE' },
     { code: 'PROMOTION_INVALID' },
