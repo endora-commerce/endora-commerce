@@ -3,17 +3,32 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { listRfqs, type RfqStatus, type RfqSummary } from '../../../lib/api/rfq';
 import { getSessionCookie } from '../../../lib/session';
+import { getServerContext } from '../../../lib/server-context';
 import { formatMoney } from '../../../lib/i18n/money';
+import { RfqValidityMeta } from '../../../components/rfq/RfqValidityMeta';
 
 /**
  * Customer Quote Requests list (feature 008 / T033). Renders every
  * RFQ visible to the caller with status, line count, total at the
  * customer's price list, and a deep-link to the detail page.
+ *
+ * `RfqSummary.expiresAt` has been on the wire since feature 008 and was
+ * rendered by nothing; !1137 turned it into a rule the buyer is refused by. It
+ * now rides in the status cell rather than in a column of its own: most
+ * requests carry no deadline at all, and a column would put a blank in every
+ * one of their rows — which is exactly the "empty field where a date goes"
+ * that an absent deadline must not be rendered as. As a line attached to the
+ * status it is simply absent when there is nothing to say, and it sits with
+ * the other fact about where this request stands (Law of Proximity).
  */
 export default async function QuoteRequestsPage(): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) redirect('/login?next=/quote-requests');
   const rfqs = await listRfqs(session);
+  const { locale } = await getServerContext();
+  // One instant for the whole table, so two rows dated a millisecond apart
+  // cannot be classified against two different "now"s.
+  const now = new Date();
 
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]" style={{ paddingTop: 24, paddingBottom: 48 }}>
@@ -66,6 +81,12 @@ export default async function QuoteRequestsPage(): Promise<ReactNode> {
                     <RfqStatusBadge
                       status={r.status}
                       awaiting={r.awaitingCustomerRevisionAcceptance}
+                    />
+                    <RfqValidityMeta
+                      expiresAt={r.expiresAt}
+                      now={now}
+                      locale={locale}
+                      display="block"
                     />
                   </td>
                   <td>

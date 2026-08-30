@@ -489,6 +489,73 @@ export const manifest = defineModuleManifest({
         'would kill `delivery_methods.enabled` for every deployment that takes orders.',
     },
   ],
+  /**
+   * The two error codes this module owns — feature 090 Phase 3
+   * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
+   * §1.1). This is where each sentence is looked up from: `errors.<CODE>` in
+   * this module's own `i18n/{en,pl}.json`, which already holds both in both
+   * languages.
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5): it is
+   * exactly what the prefix chain in `@endora-commerce/mod-i18n` routes here
+   * today, copied from the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts` rather than
+   * re-derived. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * **The list a reader expects is the long one, and it runs the other way.**
+   * Most modules' surprise is a code routed *here* that reads like somebody
+   * else's; `orders` has none of those — both codes below are plainly its own.
+   * Its surprise is the inverse, and it is large: this package throws eighteen
+   * distinct error codes and owns exactly one of them. `INVOICE_NOT_READY` is
+   * `invoices`' and is thrown twice in this module's `routes.ts` — the worked
+   * example in the runbook's step 2; `CART_EMPTY` is `carts`';
+   * `STOCK_UNAVAILABLE` is `inventory`'s. The remaining fourteen —
+   * `ADDRESS_NOT_OWNED`, `API_KEY_NOT_BOUND`, `CREDIT_LIMIT_NOT_GRANTED`,
+   * `CURRENCY_MISMATCH`, `CUSTOM_FIELD_VALUE_INVALID`, `FORBIDDEN`,
+   * `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`, `INTERNAL`,
+   * `INVALID_TRANSITION`, `LIMIT_INSUFFICIENT`, `NOT_FOUND`,
+   * `ORGANIZATION_SUSPENDED` and `VALIDATION_FAILED` — fall through the chain to
+   * the platform block. Two more of somebody else's codes appear here without
+   * being thrown at all: `SKU_NOT_IN_ASSORTMENT` (`catalog`'s) and
+   * `PRICE_UNAVAILABLE` (the platform block's) are per-line `issue`
+   * discriminators in the external intake service. Ownership follows the domain
+   * noun and never the thrower (D-95.2), so none of them belongs below.
+   *
+   * The same asymmetry holds once more in the opposite direction:
+   * `ORDER_NOT_FOUND` is raised from three *other* packages —
+   * `shipments/services/shipment-service.ts`,
+   * `payments/services/payment-service.ts` and
+   * `invoices/services/invoice-service.ts` — each resolving an order before
+   * doing its own work. Fifteen raise sites, twelve of them in this package.
+   *
+   * **No tokens, and that is derived rather than assumed.** Grepping both
+   * spellings the tree uses (`ERROR_CODES.<CODE>` and a bare `'<CODE>'` string
+   * literal) over `packages` and `backend/src`, every raise of `ORDER_NOT_FOUND`
+   * is a three-argument `new HttpError(404, …, 'Order not found.')` with no
+   * `details` object at all, so no raise site can put a `details.code` on the
+   * wire and `refusalToken` has nothing to read. The bundle agrees from the
+   * other side: `errors.ORDER_NOT_FOUND` and `errors.ORDER_NOT_CANCELLABLE` are
+   * flat keys with no `.<token>` tail.
+   *
+   * **`ORDER_NOT_CANCELLABLE` is raised by nothing, and the reason is not that
+   * the rule is missing.** Searched in all three spellings the runbook's T11–T13
+   * name — `ERROR_CODES.ORDER_NOT_CANCELLABLE`, the bare literal, and
+   * `OrderNotCancellable` as a bespoke error class — `git log --all -S` finds
+   * only the commit that declared the enumeration member, the feature 082 bundle
+   * move and feature 090's own capture. No commit ever added a `throw` and none
+   * ever removed one. The rule itself is live:
+   * `CustomerOrderCancellationService.cancelByCustomer` refuses a
+   * non-cancellable order on `POST /api/v1/orders/:id/cancel` — the very route
+   * `specs/001-b2b-platform-foundation/contracts/orders.contract.md` specifies
+   * as answering `409 ORDER_NOT_CANCELLABLE` — and answers `409
+   * VALIDATION_FAILED` instead. Contract and implementation disagree about the
+   * code, which is `MEGAMENU_REFERENCED`'s shape one module over. The code is
+   * declared here regardless: ownership follows the capture (runbook T10), and
+   * deciding *which* 289 codes exist is not this merge request's question.
+   */
+  errorCodes: [{ code: 'ORDER_NOT_CANCELLABLE' }, { code: 'ORDER_NOT_FOUND' }],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base. This module had
   // no activation declaration at all, which resolved as "always activated" and
