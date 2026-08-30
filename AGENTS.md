@@ -724,8 +724,12 @@ There is **no repo-wide sequential migration number**. Never write "the next fre
 number", never pick a number, never edit an execution list.
 
 1. **Scaffold it** — `pnpm --filter backend run migration:new -- --module <id> --name <slug>`.
-   The file lands in `backend/src/modules/<id>/migrations/` (or `backend/src/db/migrations/`
-   for `--module core`), named `<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts` with a UTC
+   The file lands in the module's own `migrations/` directory, **resolved** rather than
+   spelled: `--module core` is `backend/src/db/migrations/`, and a module package's is the
+   directory its own `exports` map publishes as `./migrations`. This step read
+   *"`backend/src/modules/<id>/migrations/`"* while the scaffolder rejected all 67 module
+   ids with `Valid ids are: core.`, because that is where the tool looked and F4 had emptied
+   it. The file is named `<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts` with a UTC
    timestamp. The class name is derived mechanically from the filename
    (`Migration<STAMP><PascalCaseTail>`); it is the name persisted in `mikro_orm_migrations`,
    so never rename an applied class. **The tail must begin with the owning module's

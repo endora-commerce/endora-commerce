@@ -186,17 +186,6 @@ describe('buildScaffold', () => {
     expect(scaffold.className).toBe(classNameFromFile(scaffold.filename));
   });
 
-  it('targets the owning module directory', () => {
-    expect(scaffold.relativePath).toBe(
-      'src/modules/orders/migrations/20260805T141530_orders_placement_intents.ts',
-    );
-  });
-
-  it('puts core migrations in src/db/migrations', () => {
-    const core = buildScaffold({ moduleId: 'core', slug: 'tenant_indexes', stamp: '20260805T141530' });
-    expect(core.relativePath).toBe('src/db/migrations/20260805T141530_core_tenant_indexes.ts');
-  });
-
   it('emits a compiling migration body with empty up/down', () => {
     expect(scaffold.contents).toContain("import { Migration } from '@mikro-orm/migrations';");
     expect(scaffold.contents).toContain(`export class ${scaffold.className} extends Migration {`);
@@ -210,19 +199,24 @@ describe('buildScaffold', () => {
   // scaffolded file up — under the module that owns it and with the class name
   // the scaffold exports. Both halves derive the name from the filename
   // independently, and this is where they are made to agree.
+  //
+  // Where the file lands is no longer `buildScaffold`'s answer: it is
+  // `migrationTargetFor`'s, resolved from the module layout, and it is driven
+  // over real trees in test/unit/scripts/migration-scaffold-roots.test.ts. The
+  // keys below are the application-tree paths the generator's own walk
+  // produces.
   it.each([
-    ['orders', 'placement intents'],
-    ['core', 'tenant_indexes'],
-  ])('scaffolds a file the registry generator registers (%s)', (moduleId, slug) => {
+    ['orders', 'placement intents', 'modules/orders/migrations'],
+    ['core', 'tenant_indexes', 'db/migrations'],
+  ])('scaffolds a file the registry generator registers (%s)', (moduleId, slug, directory) => {
     const built = buildScaffold({ moduleId, slug, stamp: '20260805T141530' });
-    const collected = collectMigrations(
-      coreSources({ [built.relativePath.replace(/^src\//, '')]: built.contents }),
-    );
+    const file = `${directory}/${built.filename}`;
+    const collected = collectMigrations(coreSources({ [file]: built.contents }));
     expect(collected).toEqual([
       {
         moduleId,
         className: built.className,
-        file: built.relativePath.replace(/^src\//, ''),
+        file,
         // The application's own tree, so no package owns it (feature 080, T041a).
         owner: null,
       },
