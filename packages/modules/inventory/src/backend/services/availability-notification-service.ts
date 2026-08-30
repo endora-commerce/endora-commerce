@@ -37,6 +37,53 @@ export interface AdminListRow {
 }
 
 /**
+ * The owner identity an `availability_notifications` row can be written from —
+ * feature 087 Group B, D-187.
+ *
+ * The customer arm carries the organisation because
+ * `availability_notifications_organization_attribution_chk` requires it, and it
+ * is a type of its own rather than a second optional field on
+ * {@link SubscribeInput} because the caller's identity genuinely does not
+ * include it: both storefront routes read the account off the session, and the
+ * organisation is a fact about that account which this service resolves through
+ * `customer_accounts`' read port.
+ *
+ * Keeping the two apart is what makes "an owned subscription with no
+ * organisation" an unrepresentable argument to {@link ownerColumns} rather than
+ * a line somebody has to remember. `SubscribeInput.customerAccountId` is
+ * optional and nullable and comes from a `catch` in the storefront route, so
+ * the shape a forgotten stamp needs is exactly the shape the caller hands in;
+ * this type is where it stops.
+ */
+type ResolvedNotificationOwner =
+  | { kind: 'customer'; customerAccountId: string; organizationId: string }
+  | { kind: 'anonymous' };
+
+/**
+ * The two attribution columns, written together from one resolved owner.
+ *
+ * This module has a single write — there is no association path that adopts an
+ * anonymous subscription into an account later, which is what makes one
+ * function enough here where `pwa` needs both directions of an upsert to go
+ * through it.
+ */
+function ownerColumns(owner: ResolvedNotificationOwner): {
+  customerAccountId: string | null;
+  organizationId: string | null;
+} {
+  return owner.kind === 'customer'
+    ? { customerAccountId: owner.customerAccountId, organizationId: owner.organizationId }
+    : {
+        customerAccountId: null,
+        // FR-011 — an anonymous subscription belongs to no organisation, and
+        // the constraint says nothing about it. `an_recipient_check` is what
+        // keeps such a row addressable: its `email` is the recipient. Who it
+        // *should* belong to is R-6's open question and is not answered here.
+        organizationId: null,
+      };
+}
+
+/**
  * AvailabilityNotificationService — feature 010 / US6 surface.
  *
  * The original foundation 001 service had a single `subscribe(customerId,
@@ -57,11 +104,62 @@ export class AvailabilityNotificationService {
     private readonly emFactory: () => EntityManager,
     /** `catalogProductReadPort`, owned by `catalog` (feature 075, Phase C). */
     private readonly catalogProducts: CatalogProductReadPort,
-    /** `customerAccountReadPort`, owned by `customer_accounts` (feature 075). */
+    /**
+     * `customerAccountReadPort`, owned by `customer_accounts` (feature 075).
+     *
+     * Feature 087 / D-187 gives it a second reader: the organisation an owned
+     * subscription carries. It was already **required** here before that
+     * ruling and stays so — this module has exactly one construction site
+     * (`plugin.ts`) and it holds the gated port, so a composition that cannot
+     * answer "which organisation owns this account" cannot build the service
+     * at all. Nothing had to be argued for; it is recorded because `pwa` had
+     * to widen its constructor for the same read and the two modules now sit
+     * in the same state.
+     *
+     * Resolved through `lazyPort`, so a switched-off `customer_accounts`
+     * refuses at the call with the 503 `MODULE_DISABLED` envelope rather than
+     * at composition time.
+     */
     private readonly customerAccounts: CustomerAccountReadPort,
     private readonly mailer?: EmailMailerPort,
     private readonly templateEmail?: InventoryTemplateEmailPort,
   ) {}
+
+  /**
+   * The organisation that owns a subscription belonging to this account —
+   * feature 087 Group B, D-187.
+   *
+   * Total, and refuses rather than returning `null`:
+   * `customer_accounts.organization_id` is `NOT NULL` (D-178), so an account
+   * that resolves always has one, and an account that does not resolve is a
+   * caller naming a row that is not there. Either way there is no organisation
+   * to stamp, and a subscription written without one is a buyer hidden from
+   * the representative who serves them — which is the whole defect this column
+   * exists to close. So the write stops here, where the message can name the
+   * account, instead of at the constraint.
+   */
+  async #organizationOf(customerAccountId: string): Promise<string> {
+    const account = await this.customerAccounts.findById(customerAccountId);
+    if (!account) {
+      throw new Error(
+        `AvailabilityNotificationService: customer account ${customerAccountId} does not resolve, ` +
+          'so the availability notification it would own has no organisation to carry.',
+      );
+    }
+    return account.organizationId;
+  }
+
+  /** The caller's owner input, with the organisation a customer owner implies. */
+  async #resolveOwner(
+    customerAccountId: string | null | undefined,
+  ): Promise<ResolvedNotificationOwner> {
+    if (customerAccountId === null || customerAccountId === undefined) return { kind: 'anonymous' };
+    return {
+      kind: 'customer',
+      customerAccountId,
+      organizationId: await this.#organizationOf(customerAccountId),
+    };
+  }
 
   /**
    * Subscribe a customer / anonymous email to a product's restock signal.
@@ -114,12 +212,22 @@ export class AvailabilityNotificationService {
     });
     if (existing) return existing;
 
+    // D-187 — resolved **before** the first managed entity is touched. `em.create`
+    // registers the row with the unit of work, so a refusal raised after it
+    // would leave an owned, unattributed subscription there for whatever
+    // flushes this request next.
+    const owner = await this.#resolveOwner(input.customerAccountId);
+
     const subscription = em.create(AvailabilityNotification, {
       productId: input.productId,
       ...(input.variantId !== undefined && input.variantId !== null
         ? { variantId: input.variantId }
         : {}),
-      ...(input.customerAccountId ? { customerAccountId: input.customerAccountId } : {}),
+      // D-187 — the only place a subscription is inserted, and the organisation
+      // goes in with the account. `ownerColumns` takes a *resolved* owner, so
+      // the customer branch has no shape in which the organisation could be
+      // omitted; the anonymous branch has none to carry (FR-011).
+      ...ownerColumns(owner),
       email: input.email,
       status: 'queued',
     });

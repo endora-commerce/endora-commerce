@@ -219,6 +219,13 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
         const notification = em.create(AvailabilityNotification, {
           productId: '00000000-0000-4000-8000-00000000f001',
           customerAccountId: account.id,
+          // Feature 087 Group B / D-187 — `availability_notifications` carries
+          // its organisation and
+          // `availability_notifications_organization_attribution_chk` refuses
+          // an owned row without one. This fixture cannot express the row the
+          // column exists to make visible without also expressing the
+          // attribution.
+          organizationId,
           email: `predicate-notify-${key}-${purpose}-${stamp}@audit.local`,
           status: 'queued',
         });
@@ -364,6 +371,36 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     );
     expect(res.statusCode).toBe(200);
     expect(res.body).not.toContain(`predicate-notify-foreign-read-${stamp}@audit.local`);
+  });
+
+  it('lists an availability notification owned inside the scope', async () => {
+    // The granting half, and the reason it has to be asserted beside the
+    // refusal above it: a filter that refused everybody would pass that one,
+    // and did — until feature 087 Group B gave this table its
+    // `organization_id`, `customerFilterCond`'s `allowed-set` arm matched
+    // nothing here at all, so the representative's own customer's back-in-stock
+    // subscription was as invisible as the foreign one. The pair is what tells
+    // "scoped" from "blank".
+    const res = await asRep(
+      'GET',
+      '/api/v1/admin/inventory/availability-notifications?pageSize=200',
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(`predicate-notify-own-read-${stamp}@audit.local`);
+    expect(res.body).not.toContain(`predicate-notify-foreign-read-${stamp}@audit.local`);
+  });
+
+  it('shows a platform administrator both organizations’ availability notifications', async () => {
+    // The control. Without it, a filter that had gone back to refusing the
+    // table whole would pass the case above by showing nothing at all — and a
+    // body that contains neither string satisfies the refusal on its own.
+    const res = await asPlatformAdmin(
+      'GET',
+      '/api/v1/admin/inventory/availability-notifications?pageSize=200',
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(`predicate-notify-own-read-${stamp}@audit.local`);
+    expect(res.body).toContain(`predicate-notify-foreign-read-${stamp}@audit.local`);
   });
 
   it('refuses cancelling an availability notification outside the scope, writing nothing', async () => {

@@ -23,6 +23,7 @@ export class AvailabilityNotification {
     | 'notifiedAt'
     | 'variantId'
     | 'customerAccountId'
+    | 'organizationId'
     | 'email'
     | 'status';
 
@@ -32,6 +33,34 @@ export class AvailabilityNotification {
   @Property({ type: 'uuid', nullable: true })
   @Index()
   customerAccountId?: string | null;
+
+  /**
+   * The organisation that owns this subscription — feature 087 Group B, ruling
+   * D-187.
+   *
+   * Derived from {@link customerAccountId}'s account and stamped at the write,
+   * never resolved on read: `customerOrganizationColumn` asks the ORM's own
+   * metadata whether this property exists, so its presence is what makes
+   * `customerFilterCond`'s `allowed-set` arm **grant** on this table rather
+   * than refuse it whole. A sales representative assigned to the buyer's
+   * organisation sees this subscription because this column is here.
+   *
+   * Nullable, and the constraint is an implication rather than an equivalence:
+   * `availability_notifications_organization_attribution_chk` requires an
+   * organisation of a row that names an account, and says nothing about a row
+   * that names none. An **anonymous** subscription is a representable state
+   * (FR-011) — `an_recipient_check` admits a row whose only recipient is an
+   * e-mail address, which is the storefront's "notify me" dialog with nobody
+   * signed in — and who such a row belongs to is R-6's open question, which a
+   * constraint must not answer.
+   *
+   * There is no association path to keep in step: nothing in this module ever
+   * assigns {@link customerAccountId} on an existing row, so unlike
+   * `comparisons` and `pwa` this column moves exactly once, at the insert.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  organizationId?: string | null;
 
   @Property({ type: 'uuid' })
   @Index()

@@ -47,6 +47,7 @@ describe('a scoped administrator is told why these lists are empty', () => {
 
   const stamp = Date.now();
   let ownEmail: string;
+  let ownNotifyEmail: string;
   let ownComparisonId: string;
 
   beforeAll(async () => {
@@ -142,11 +143,18 @@ describe('a scoped administrator is told why these lists are empty', () => {
       }),
     );
 
+    // Feature 087 Group B / D-187 — `availability_notifications` carries its
+    // organisation, so this row is *attributed* and the notice below is not
+    // emitted for it. The stamp is also mandatory:
+    // `availability_notifications_organization_attribution_chk` refuses an
+    // owned row without one.
+    ownNotifyEmail = `notice-notify-${stamp}@audit.local`;
     await em.persistAndFlush(
       em.create(AvailabilityNotification, {
         productId: '00000000-0000-4000-8000-00000000f001',
         customerAccountId: account.id,
-        email: `notice-notify-${stamp}@audit.local`,
+        organizationId: assignedOrgId,
+        email: ownNotifyEmail,
         status: 'queued',
       }),
     );
@@ -222,12 +230,22 @@ describe('a scoped administrator is told why these lists are empty', () => {
 
   // ── /inventory/availability-notifications ──────────────────────────────
 
-  it('tells the representative why the availability queue is empty', async () => {
+  it('has stopped explaining the availability queue, and shows the representative the row instead', async () => {
+    // The notice **retires itself**, per class, the day that class gains its
+    // `organization_id` — `scoped-empty-notice.md`'s third property. This is
+    // the second class in this file to exercise it (feature 087 Group B / B3,
+    // D-187); `/comparisons` above was the first.
+    //
+    // Inverted rather than deleted, for the reason the `/comparisons` case
+    // gives: the notice is emitted by the *refusing* arm of
+    // `customerFilterCond`, so "there is no notice" and "this screen is still
+    // refused whole and has stopped saying so" are the same absence. Asserting
+    // the row arrives is what tells them apart.
     const res = await asRep('/api/v1/admin/inventory/availability-notifications?pageSize=200');
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { items: unknown[]; total: number };
-    expect(body.items).toEqual([]);
-    expect(noticeOf(res)).toBe('ORGANIZATION_ATTRIBUTION_PENDING');
+    const body = res.json() as { items: Array<{ email: string }>; total: number };
+    expect(body.items.map((i) => i.email)).toContain(ownNotifyEmail);
+    expect(noticeOf(res)).toBeUndefined();
   });
 
   it('tells a platform administrator nothing about the availability queue', async () => {

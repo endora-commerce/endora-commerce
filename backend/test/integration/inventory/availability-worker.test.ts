@@ -47,6 +47,14 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     product = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-SIMPLE-001' });
+    // Every fixture below stamps `organizationId: customer.organizationId`
+    // beside the account: feature 087 Group B / D-187 gives this table an
+    // organisation and `availability_notifications_organization_attribution_chk`
+    // refuses an owned row without one, which is the stamp
+    // `AvailabilityNotificationService.subscribe` writes in production. The
+    // worker itself is untouched by that — it reads under `withSystemScope`, a
+    // deliberate cross-tenant grant, so the fan-out still reaches every
+    // organisation and these assertions mean exactly what they meant before.
     customer = await h.em().findOneOrFail(CustomerAccount, { role: 'organization_admin' });
   });
 
@@ -74,11 +82,13 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
     const em = h.em();
     em.create(AvailabilityNotification, {
       customerAccountId: customer.id,
+      organizationId: customer.organizationId,
       productId: product.id,
       variantId: null,
     });
     em.create(AvailabilityNotification, {
       customerAccountId: customer.id, // same customer subscribes twice (idempotent)
+      organizationId: customer.organizationId,
       productId: product.id,
       variantId: null,
     });
@@ -101,6 +111,7 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
     const em = h.em();
     em.create(AvailabilityNotification, {
       customerAccountId: customer.id,
+      organizationId: customer.organizationId,
       productId: product.id,
     });
     await em.flush();
@@ -119,10 +130,12 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
     const variantId = '99999999-9999-4999-8999-999999999999';
     em.create(AvailabilityNotification, {
       customerAccountId: customer.id,
+      organizationId: customer.organizationId,
       productId: product.id,
     });
     em.create(AvailabilityNotification, {
       customerAccountId: customer.id,
+      organizationId: customer.organizationId,
       productId: product.id,
       variantId,
     });
