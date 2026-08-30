@@ -70,7 +70,7 @@ import {
   PlatformRootUnresolvableError,
 } from './lib/platform-root.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
-import { findAliasMember } from './lib/admin-surfaces.js';
+import { ADMIN_REGISTRY_ARTEFACT, findAliasMember } from './lib/admin-surfaces.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -1587,7 +1587,7 @@ ${body}
 function adminRegistryOutputPath(): string {
   const members = workspaceMembers(repoRoot, nodeWorkspaceFs());
   const { member, target } = findAliasMember(members);
-  return join(resolve(member.dir, target), 'modules.generated.ts');
+  return join(resolve(member.dir, target), ADMIN_REGISTRY_ARTEFACT);
 }
 
 /** Pure render — the target path + expected content of the admin registry. */
