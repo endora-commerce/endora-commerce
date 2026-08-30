@@ -36,12 +36,19 @@ import { contributions as contributions0 } from '@endora-commerce/mod-admin-role
 import { contributions as contributions1 } from '@endora-commerce/mod-admin-users/admin';
 import { contributions as contributions2 } from '@endora-commerce/mod-analytics/admin';
 import { contributions as contributions3 } from '@endora-commerce/mod-audit-logs/admin';
-import { contributions as contributions4 } from '@endora-commerce/mod-carts/admin';
-import { contributions as contributions5 } from '@endora-commerce/mod-google-analytics/admin';
-import { contributions as contributions6 } from '@endora-commerce/mod-import-export/admin';
-import { contributions as contributions7 } from '@endora-commerce/mod-linkedin-ads/admin';
-import { contributions as contributions8 } from '@endora-commerce/mod-meta-ads/admin';
-import { contributions as contributions9 } from '@endora-commerce/mod-mfa/admin';
+import { contributions as contributions4 } from '@endora-commerce/mod-autopay/admin';
+import { contributions as contributions5 } from '@endora-commerce/mod-carts/admin';
+import { contributions as contributions6 } from '@endora-commerce/mod-dhl-parcel/admin';
+import { contributions as contributions7 } from '@endora-commerce/mod-google-analytics/admin';
+import { contributions as contributions8 } from '@endora-commerce/mod-import-export/admin';
+import { contributions as contributions9 } from '@endora-commerce/mod-inpost/admin';
+import { contributions as contributions10 } from '@endora-commerce/mod-linkedin-ads/admin';
+import { contributions as contributions11 } from '@endora-commerce/mod-meta-ads/admin';
+import { contributions as contributions12 } from '@endora-commerce/mod-mfa/admin';
+import { contributions as contributions13 } from '@endora-commerce/mod-paypal/admin';
+import { contributions as contributions14 } from '@endora-commerce/mod-payu/admin';
+import { contributions as contributions15 } from '@endora-commerce/mod-stripe/admin';
+import { contributions as contributions16 } from '@endora-commerce/mod-tpay/admin';
 
 /** One module's contribution set, keyed by the module id that shipped it. */
 export interface AdminRegistryEntry {
@@ -54,10 +61,17 @@ export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
   { moduleId: 'admin_users', contributions: contributions1 },
   { moduleId: 'analytics', contributions: contributions2 },
   { moduleId: 'audit_logs', contributions: contributions3 },
-  { moduleId: 'carts', contributions: contributions4 },
-  { moduleId: 'google_analytics', contributions: contributions5 },
-  { moduleId: 'import_export', contributions: contributions6 },
-  { moduleId: 'linkedin_ads', contributions: contributions7 },
-  { moduleId: 'meta_ads', contributions: contributions8 },
-  { moduleId: 'mfa', contributions: contributions9 },
+  { moduleId: 'autopay', contributions: contributions4 },
+  { moduleId: 'carts', contributions: contributions5 },
+  { moduleId: 'dhl_parcel', contributions: contributions6 },
+  { moduleId: 'google_analytics', contributions: contributions7 },
+  { moduleId: 'import_export', contributions: contributions8 },
+  { moduleId: 'inpost', contributions: contributions9 },
+  { moduleId: 'linkedin_ads', contributions: contributions10 },
+  { moduleId: 'meta_ads', contributions: contributions11 },
+  { moduleId: 'mfa', contributions: contributions12 },
+  { moduleId: 'paypal', contributions: contributions13 },
+  { moduleId: 'payu', contributions: contributions14 },
+  { moduleId: 'stripe', contributions: contributions15 },
+  { moduleId: 'tpay', contributions: contributions16 },
 ];

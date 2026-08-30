@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { PackageX } from 'lucide-react';
 import { ApiError, apiClient } from '@/lib/api-client';
-import { dhlParcelAdminClient } from '@/modules/dhl_parcel/api/dhl-parcel-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -16,7 +15,7 @@ import {
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useSurfaceVisibility } from '@/lib/surface-visibility';
-import { inpostAdminClient } from '@/modules/inpost/api/inpost-client';
+import { carrierDocumentsClient } from './api/carrier-documents-client';
 import { Section } from './Section';
 
 const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
@@ -155,7 +154,7 @@ export function OrderShipmentsTab(props: {
     async (shipmentId: string): Promise<void> => {
       setActionError(null);
       const res = await fetch(
-        `${API_BASE.replace(/\/+$/, '')}${inpostAdminClient.labelUrl(shipmentId)}`,
+        `${API_BASE.replace(/\/+$/, '')}${carrierDocumentsClient.inpostLabelPath(shipmentId)}`,
         { credentials: 'include', headers: { Accept: 'application/pdf' } },
       );
       if (!res.ok) {
@@ -175,7 +174,7 @@ export function OrderShipmentsTab(props: {
     setBusyAction('label');
     setActionError(null);
     try {
-      const data = await dhlParcelAdminClient.getLabel(latest.id);
+      const data = await carrierDocumentsClient.dhlLabel(latest.id);
       if (data.labelBase64) downloadBase64(`dhl-label-${latest.id}.pdf`, data.labelBase64);
     } catch (err) {
       setActionError(
@@ -193,7 +192,7 @@ export function OrderShipmentsTab(props: {
     setBusyAction('protocol');
     setActionError(null);
     try {
-      const data = await dhlParcelAdminClient.getProtocol(latest.id);
+      const data = await carrierDocumentsClient.dhlProtocol(latest.id);
       if (!data.protocolBase64) {
         setActionError(t('orderDetail.shipments.actions.protocolMissing'));
         return;
@@ -215,7 +214,7 @@ export function OrderShipmentsTab(props: {
     setBusyAction('courier');
     setActionError(null);
     try {
-      const data = await dhlParcelAdminClient.bookCourier({ shipmentIds: [latest.id] });
+      const data = await carrierDocumentsClient.dhlBookCourier({ shipmentIds: [latest.id] });
       if (data.protocolBase64) {
         downloadBase64(`dhl-protocol-${latest.id}.pdf`, data.protocolBase64);
       }
