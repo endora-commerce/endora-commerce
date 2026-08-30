@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { AnalyticsSummaryResponse } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
-import { Select } from '@/components/ui/select';
+import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageHeader,
+  Select,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 const RANGE_OPTION_VALUES = [7, 30, 90] as const;
 
@@ -24,12 +27,12 @@ interface SummaryEnvelope {
   data: AnalyticsSummaryResponse;
 }
 
-export function AnalyticsPage(): ReactNode {
-  const t = useTranslation('core');
+export default function AnalyticsPage(): ReactNode {
+  const t = useTranslation('analytics');
   const RANGE_OPTIONS = [
-    { value: 7, label: t('analytics.range.7days') },
-    { value: 30, label: t('analytics.range.30days') },
-    { value: 90, label: t('analytics.range.90days') },
+    { value: 7, label: t('range.7days') },
+    { value: 30, label: t('range.30days') },
+    { value: 90, label: t('range.90days') },
   ];
   void RANGE_OPTION_VALUES;
   const [rangeDays, setRangeDays] = useState<number>(30);
@@ -51,7 +54,7 @@ export function AnalyticsPage(): ReactNode {
       const res = await apiClient.get<SummaryEnvelope>(`/api/v1/admin/analytics/summary${qs}`);
       setSummary(res.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('analytics.error.load'));
+      setError(err instanceof ApiError ? err.envelope.error.message : t('error.load'));
     } finally {
       setLoading(false);
     }
@@ -70,10 +73,10 @@ export function AnalyticsPage(): ReactNode {
   return (
     <>
       <PageHeader
-        title={t('analytics.page.title')}
+        title={t('page.title')}
         description={
           <>
-            {t('analytics.page.descriptionPrefix')} {formatDateTime(window.fromIso)} –{' '}
+            {t('page.descriptionPrefix')} {formatDateTime(window.fromIso)} –{' '}
             {formatDateTime(window.toIso)}.
           </>
         }
@@ -98,7 +101,7 @@ export function AnalyticsPage(): ReactNode {
               }}
             >
               <RefreshCw />
-              {t('analytics.refresh')}
+              {t('refresh')}
             </Button>
           </>
         }
@@ -112,19 +115,19 @@ export function AnalyticsPage(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>{t('analytics.totals.title')}</CardTitle>
+          <CardTitle>{t('totals.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">{t('analytics.loading')}</p>
+            <p className="text-sm text-muted-foreground">{t('loading')}</p>
           ) : !summary || summary.totalsByType.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('analytics.empty')}</p>
+            <p className="text-sm text-muted-foreground">{t('empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('analytics.column.eventType')}</TableHead>
-                  <TableHead className="text-right">{t('analytics.column.count')}</TableHead>
+                  <TableHead>{t('column.eventType')}</TableHead>
+                  <TableHead className="text-right">{t('column.count')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -142,18 +145,18 @@ export function AnalyticsPage(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t('analytics.daily.title')}</CardTitle>
+          <CardTitle>{t('daily.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">{t('analytics.loading')}</p>
+            <p className="text-sm text-muted-foreground">{t('loading')}</p>
           ) : dailyByDay.size === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('analytics.empty')}</p>
+            <p className="text-sm text-muted-foreground">{t('empty')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('analytics.column.day')}</TableHead>
+                  <TableHead>{t('column.day')}</TableHead>
                   {allTypes.map((type) => (
                     <TableHead key={type} className="text-right font-mono text-xs">
                       {type}

@@ -32,8 +32,9 @@
 
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 
-import { contributions as contributions0 } from '@endora-commerce/mod-google-analytics/admin';
-import { contributions as contributions1 } from '@endora-commerce/mod-import-export/admin';
+import { contributions as contributions0 } from '@endora-commerce/mod-analytics/admin';
+import { contributions as contributions1 } from '@endora-commerce/mod-google-analytics/admin';
+import { contributions as contributions2 } from '@endora-commerce/mod-import-export/admin';
 
 /** One module's contribution set, keyed by the module id that shipped it. */
 export interface AdminRegistryEntry {
@@ -42,6 +43,7 @@ export interface AdminRegistryEntry {
 }
 
 export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
-  { moduleId: 'google_analytics', contributions: contributions0 },
-  { moduleId: 'import_export', contributions: contributions1 },
+  { moduleId: 'analytics', contributions: contributions0 },
+  { moduleId: 'google_analytics', contributions: contributions1 },
+  { moduleId: 'import_export', contributions: contributions2 },
 ];

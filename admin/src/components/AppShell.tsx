@@ -22,7 +22,6 @@ import {
   KeyRound,
   Languages,
   LayoutDashboard,
-  LineChart,
   ListChecks,
   LogOut,
   Newspaper,
@@ -362,13 +361,6 @@ const NAV: NavSection[] = [
     key: 'analyticsAds',
     labelKey: 'appShell.section.analyticsAds',
     items: [
-      {
-        to: '/analytics',
-        labelKey: 'appShell.nav.analytics',
-        icon: LineChart,
-        requiredPermission: 'analytics:read',
-        module: 'analytics',
-      },
       {
         to: '/linkedin-ads',
         labelKey: 'appShell.nav.linkedinAds',
@@ -910,10 +902,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   ] },
   { test: /^\/meta-ads(\/.*)?$/, build: () => [
     { labelKey: 'appShell.nav.metaAds', href: '/meta-ads' },
-  ] },
-  { test: /^\/analytics\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.analytics', href: null },
   ] },
   { test: /^\/platform\/modules\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },

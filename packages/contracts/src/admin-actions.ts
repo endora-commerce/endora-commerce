@@ -86,6 +86,12 @@ export const KnownIconNameSchema = z.enum([
   'Truck',
   'CircleDollarSign',
   'Activity',
+  // Feature 091 (Phase 4, batch two) — `analytics`' sidebar entry, which became
+  // a module declaration and therefore has to name its icon rather than import
+  // it. The allowlist is what a nav entry's `icon` is validated against too, so
+  // the glyph `AppShell.tsx` rendered by hand joins it here instead of the
+  // entry silently changing to a name that happened to be on the list.
+  'LineChart',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

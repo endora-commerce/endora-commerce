@@ -1,0 +1,19 @@
+{
+  "actions.openAnalytics.label": "Analityka",
+  "actions.openAnalytics.description": "Zagregowane liczniki zdarzeń sklepu",
+  "nav.analytics.label": "Analityka",
+  "page.title": "Analityka",
+  "page.descriptionPrefix": "Zagregowane liczniki zdarzeń sklepu. Okno:",
+  "range.7days": "Ostatnie 7 dni",
+  "range.30days": "Ostatnie 30 dni",
+  "range.90days": "Ostatnie 90 dni",
+  "refresh": "Odśwież",
+  "loading": "Ładowanie…",
+  "empty": "Brak zdarzeń zarejestrowanych w tym oknie.",
+  "error.load": "Nie udało się załadować podsumowania.",
+  "totals.title": "Sumy wg typu zdarzenia",
+  "daily.title": "Rozbicie dzienne",
+  "column.eventType": "Typ zdarzenia",
+  "column.count": "Liczba",
+  "column.day": "Dzień"
+}

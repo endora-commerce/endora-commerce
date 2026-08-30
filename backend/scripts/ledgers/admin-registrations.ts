@@ -41,6 +41,16 @@
  * `packages/modules/google_analytics/src/admin/index.ts`; the run after it
  * reads `routes=146 nav=98 module-owned (routes=142 nav=95) over 50 modules`.
  *
+ * **`analytics` is the third, and the second batch of the drain** (feature 091,
+ * Phase 4). Same rule, same tie-break: it has zero incoming cross-module reach
+ * and is the only remaining zero-incoming directory whose every host symbol
+ * `@endora-commerce/admin-kit` publishes — the rest of that rung reach either a
+ * Group A picker or the Group B session cluster, both of which
+ * `backend/scripts/ledgers/admin-surface.ts` records as unpublished. Its one
+ * route and one sidebar entry now live in
+ * `packages/modules/analytics/src/admin/index.ts`; the run after it reads
+ * `routes=145 nav=97 module-owned (routes=141 nav=94) over 49 modules`.
+ *
  * Two attributions, deliberately different, because the tree disagrees about
  * one screen: a **route** belongs to the module whose surface directory
  * `App.tsx` imports its component from, and a **nav entry** belongs to the
@@ -69,7 +79,6 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   host: { routes: 4, nav: 3 },
   admin_roles: { routes: 0, nav: 1 },
   admin_users: { routes: 2, nav: 1 },
-  analytics: { routes: 1, nav: 1 },
   api_keys: { routes: 1, nav: 2 },
   assets_library: { routes: 1, nav: 1 },
   audit_logs: { routes: 1, nav: 1 },

@@ -21,6 +21,7 @@
     "@endora-commerce/cms-components": "workspace:^",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/email-components": "workspace:^",
+    "@endora-commerce/mod-analytics": "workspace:*",
     "@endora-commerce/mod-google-analytics": "workspace:*",
     "@endora-commerce/mod-import-export": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:^",
