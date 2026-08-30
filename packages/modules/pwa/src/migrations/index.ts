@@ -23,11 +23,14 @@
  */
 
 import { Migration20260625T144228PwaInit } from './20260625T144228_pwa_init.js';
+import { Migration20260830T172022PwaOrganizationAttribution } from './20260830T172022_pwa_organization_attribution.js';
 
 export const migrations = [
   Migration20260625T144228PwaInit,
+  Migration20260830T172022PwaOrganizationAttribution,
 ];
 
 export {
   Migration20260625T144228PwaInit,
+  Migration20260830T172022PwaOrganizationAttribution,
 };

@@ -15,9 +15,13 @@ import {
   NewsletterSubscriber,
   Organization,
   OrganizationSalesRepAssignment,
+  PushSubscription,
 } from '../../helpers/package-entities.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import {
+  ensureSalesChannelId,
+  systemDefaultSalesChannelId,
+} from '../../helpers/sales-channel-fixtures.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
 import { resolveTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
@@ -64,6 +68,15 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
   const subscribers: Record<string, string> = {};
   const notifications: Record<string, string> = {};
   const carts: Record<string, string> = {};
+  const pushSubscriptions: Record<string, string> = {};
+  /**
+   * A channel of this file's own, for the `pwa` cases. The subscription admin
+   * surface answers with **counts** rather than rows, so an assertion over the
+   * platform's own numbers would be a claim about every other file's fixtures
+   * (`check:shared-table-wipes`' rule). A channel nothing else writes to makes
+   * the count exactly the rows created below.
+   */
+  let pushChannelId: string;
 
   const stamp = Date.now();
 
@@ -123,6 +136,10 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
       'carts:read',
       'inventory:read',
       'inventory:write',
+      // Feature 087 Group B / D-187 — `pwa`'s subscription surface, which
+      // starts granting for this representative the moment
+      // `push_subscriptions` carries its organisation.
+      'pwa:read',
     ];
     let role = await em.findOne(AdminRole, { code: 'sales_representative' });
     if (!role) {
@@ -157,6 +174,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     const unassignedRepId = await newRep(em, role.id, 'unassigned');
 
     const salesChannelId = await systemDefaultSalesChannelId(em);
+    pushChannelId = await ensureSalesChannelId(em, `pred-push-${stamp}`);
 
     for (const key of ['own', 'foreign'] as const) {
       const organizationId = key === 'own' ? assignedOrgId : foreignOrgId;
@@ -209,6 +227,23 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
       });
       await em.persistAndFlush(cart);
       carts[key] = cart.id;
+
+      // One subscribed device per organisation (feature 087 Group B, D-187).
+      // The organisation is written beside the account because
+      // `push_subscriptions_organization_attribution_chk` requires it — this
+      // fixture cannot express the row the column exists to make visible
+      // without also expressing the attribution.
+      const subscription = em.create(PushSubscription, {
+        salesChannelId: pushChannelId,
+        customerAccountId: account.id,
+        organizationId,
+        endpoint: `https://push.audit.local/predicate-${key}-${stamp}`,
+        p256dh: 'p',
+        auth: 'a',
+        status: 'active',
+      });
+      await em.persistAndFlush(subscription);
+      pushSubscriptions[key] = subscription.id;
     }
 
     repCookie = `stub-predicate-rep-${stamp}`;
@@ -316,6 +351,54 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     expect(res.statusCode).toBe(404);
     h.em().clear();
     expect((await h.em().findOne(AvailabilityNotification, { id }))?.status).toBe('queued');
+  });
+
+  // ── PushSubscription ───────────────────────────────────────────────────
+
+  /**
+   * The **granting** half, and the one the other cases in this file cannot
+   * show. Every assertion above is a refusal, and a filter that refused
+   * everything would satisfy all of them; `push_subscriptions` carries its
+   * organisation since D-187, so this representative is entitled to an answer
+   * rather than to silence, and the shape of that answer is the whole point of
+   * the column.
+   *
+   * It reads a **count**, because that is what this surface answers. The
+   * channel is this file's own (see `pushChannelId`), so the number is exactly
+   * the two rows the fixture created and never a claim about the platform.
+   */
+  it('counts only the subscribed devices of the assigned organization', async () => {
+    const res = await asRep(
+      'GET',
+      `/api/v1/admin/pwa/subscriptions?salesChannelId=${pushChannelId}`,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ active: 1, invalid: 0 });
+  });
+
+  it('shows a platform administrator the devices of both organizations', async () => {
+    // The control. Without it, a filter that had gone back to refusing the
+    // table whole would pass the case above by answering zero — and zero is
+    // one away from one.
+    const res = await asPlatformAdmin(
+      'GET',
+      `/api/v1/admin/pwa/subscriptions?salesChannelId=${pushChannelId}`,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ active: 2, invalid: 0 });
+  });
+
+  it('does not disclose a subscribed device to a representative with no assignment', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/pwa/subscriptions?salesChannelId=${pushChannelId}`,
+      cookies: { b2b_session: unassignedRepCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    // An empty allowed set is `$in: []` on the organisation column, which
+    // matches nothing — the same answer it gives on every `@OrgScoped` entity
+    // (FR-007), where before the column it gave the opposite one.
+    expect(res.json()).toEqual({ active: 0, invalid: 0 });
   });
 
   // ── The empty allowed-set (FR-007) ─────────────────────────────────────
