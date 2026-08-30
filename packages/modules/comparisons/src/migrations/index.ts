@@ -23,11 +23,14 @@
  */
 
 import { Migration20260501T185834ComparisonsInit } from './20260501T185834_comparisons_init.js';
+import { Migration20260830T163143ComparisonsOrganizationAttribution } from './20260830T163143_comparisons_organization_attribution.js';
 
 export const migrations = [
   Migration20260501T185834ComparisonsInit,
+  Migration20260830T163143ComparisonsOrganizationAttribution,
 ];
 
 export {
   Migration20260501T185834ComparisonsInit,
+  Migration20260830T163143ComparisonsOrganizationAttribution,
 };

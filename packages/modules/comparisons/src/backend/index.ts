@@ -105,6 +105,19 @@ export function registerModule(ctx: ModuleContext): void {
             // the channel price to a buyer who has negotiated one, which is
             // silently wrong rather than visibly refused.
             lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            // Feature 087 Group B / D-187 — the organisation an owned
+            // comparison is stamped with, derived from the owning account
+            // rather than from the ambient request context. Both write paths
+            // need it and only one of them has a request:
+            // `adoptAnonymousComparison` runs inside the post-login hook. The
+            // edge binds — a comparison this module cannot attribute is a row
+            // `comparisons_organization_attribution_chk` refuses, so failing
+            // closed at the port is the same answer arriving earlier and with
+            // the account named. Nothing to declare: the same port is already
+            // resolved for `comparisonAdminService` below, and
+            // `check:port-dependencies` reads the manifest's transitive
+            // closure.
+            lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
           ),
       )
       .singleton(),

@@ -99,6 +99,7 @@ import { Migration20260505T130214CmsInit } from '@endora-commerce/mod-cms/migrat
 
 // ── comparisons ─────────────────────────────────────────────────────────────
 import { Migration20260501T185834ComparisonsInit } from '@endora-commerce/mod-comparisons/migrations';
+import { Migration20260830T163143ComparisonsOrganizationAttribution } from '@endora-commerce/mod-comparisons/migrations';
 
 // ── core ────────────────────────────────────────────────────────────────────
 import { Migration20260424T165847CoreFoundationInit } from './migrations/20260424T165847_core_foundation_init.js';
@@ -389,6 +390,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── comparisons ─────────────────────────────────────────────────────────────
   migration('comparisons', Migration20260501T185834ComparisonsInit),
+  migration('comparisons', Migration20260830T163143ComparisonsOrganizationAttribution),
 
   // ── core ────────────────────────────────────────────────────────────────────
   migration('core', Migration20260424T165847CoreFoundationInit),

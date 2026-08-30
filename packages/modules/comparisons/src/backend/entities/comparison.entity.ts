@@ -31,6 +31,7 @@ export class Comparison {
     | 'updatedAt'
     | 'displayMode'
     | 'customerAccountId'
+    | 'organizationId'
     | 'anonymousToken';
 
   @PrimaryKey({ type: 'uuid' })
@@ -46,6 +47,29 @@ export class Comparison {
    */
   @Property({ type: 'uuid', nullable: true })
   customerAccountId?: string | null;
+
+  /**
+   * The organisation that owns this comparison — feature 087 Group B, ruling
+   * D-187.
+   *
+   * Derived from {@link customerAccountId}'s account and stamped at the write,
+   * never resolved on read: `customerOrganizationColumn` asks the ORM's own
+   * metadata whether this property exists, so its presence is what makes
+   * `customerFilterCond`'s `allowed-set` arm **grant** on this table rather
+   * than refuse it whole. A sales representative assigned to the buyer's
+   * organisation sees this row because this column is here.
+   *
+   * Nullable, and the constraint is an implication rather than an equivalence:
+   * `comparisons_organization_attribution_chk` requires an organisation of a
+   * row that names an account, and says nothing about a row that names none.
+   * An **anonymous** comparison is a representable state (FR-011) — this table
+   * enforces the owner XOR, so half of it is anonymous by construction — and
+   * who such a row belongs to is R-6's open question, which a constraint must
+   * not answer.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  organizationId?: string | null;
 
   /**
    * Set when the owner is an anonymous browser session. Same encoding as

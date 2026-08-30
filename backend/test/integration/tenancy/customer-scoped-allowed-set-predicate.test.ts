@@ -173,6 +173,12 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
       const comparison = em.create(Comparison, {
         shareToken: `pred${key}${String(stamp).slice(-10)}`.slice(0, 32),
         customerAccountId: account.id,
+        // Feature 087 Group B / D-187 — `comparisons` carries its organisation
+        // and `comparisons_organization_attribution_chk` refuses an owned row
+        // without one. This is the stamp `ComparisonService` writes on the
+        // owned-create path, done by hand because the fixture writes the row
+        // directly.
+        organizationId,
         salesChannelId,
         displayMode: 'all',
       });
@@ -250,6 +256,25 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
   it('refuses the detail of a comparison owned outside the scope', async () => {
     const res = await asRep('GET', `/api/v1/admin/comparisons/${comparisons['foreign']}`);
     expect(res.statusCode).toBe(404);
+  });
+
+  it('lists a comparison owned inside the scope', async () => {
+    // The granting half, and the reason it has to be asserted beside the two
+    // refusals above them: a filter that refused everybody would pass both, and
+    // did — until feature 087 Group B gave this table its `organization_id`,
+    // `customerFilterCond`'s `allowed-set` arm matched nothing here at all, so
+    // the representative's own customer's comparison was as invisible as the
+    // foreign one. The pair is what tells "scoped" from "blank".
+    const res = await asRep('GET', '/api/v1/admin/comparisons?limit=100');
+    expect(res.statusCode).toBe(200);
+    const ids = (res.json() as { data: Array<{ id: string }> }).data.map((c) => c.id);
+    expect(ids).toContain(comparisons['own']);
+    expect(ids).not.toContain(comparisons['foreign']);
+  });
+
+  it('serves the detail of a comparison owned inside the scope', async () => {
+    const res = await asRep('GET', `/api/v1/admin/comparisons/${comparisons['own']}`);
+    expect(res.statusCode).toBe(200);
   });
 
   // ── NewsletterSubscriber ───────────────────────────────────────────────
@@ -342,11 +367,11 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     expect(cartIds).not.toContain(carts['foreign']);
   });
 
-  // ── The filter itself, on the entity that already carries the column ───
+  // ── The filter itself, on the entities that carry the column ───────────
 
   it('confines a `Cart` read to the assigned organizations with no help from the surface', async () => {
-    // `carts` is the one `@CustomerScoped` class carrying `organization_id`
-    // today, so it is the one whose `allowed-set` arm **grants** rather than
+    // `carts` was the first `@CustomerScoped` class to carry `organization_id`,
+    // so it is one of those whose `allowed-set` arm **grants** rather than
     // refuses — and `CartAdminService` guards itself, which means no route can
     // show whether the filter did anything. This enters one layer in instead:
     // the resolved EntityManager, inside a context built by the production
@@ -370,10 +395,20 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     expect(ids).not.toContain(carts['foreign']);
   });
 
-  it('refuses a column-less `@CustomerScoped` read outright, on the same EntityManager', async () => {
+  it('confines a `Comparison` read to the assigned organizations, on the same EntityManager', async () => {
+    // The same assertion for `comparisons`, which gained its column in feature
+    // 087 Group B (B1, D-187). This case used to be the *refusal* one — with no
+    // column, a scoped actor assigned to **both** organizations still saw
+    // neither row — and it is the same three lines with the answer inverted,
+    // which is the whole shape of what a column buys.
+    //
+    // It enters at the EntityManager for the reason the `Cart` case above does:
+    // the two route cases assert refusals, so a `customerOrganizationColumn`
+    // that regressed to `absent` would leave them green while every comparison
+    // screen went blank for a sales representative.
     const scoped = resolveTenantContext(
       { kind: 'admin', adminUserId: 'irrelevant-the-scope-is-passed' },
-      { allowAll: false, allowedOrganizationIds: [assignedOrgId, foreignOrgId] },
+      { allowAll: false, allowedOrganizationIds: [assignedOrgId] },
     );
     const ids = await runWithTenantContext(scoped, async () => {
       h.em().clear();
@@ -382,10 +417,28 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
         .find(Comparison, { id: { $in: [comparisons['own']!, comparisons['foreign']!] } });
       return rows.map((c) => c.id);
     });
+    expect(ids).toContain(comparisons['own']);
+    expect(ids).not.toContain(comparisons['foreign']);
+  });
+
+  it('refuses a column-less `@CustomerScoped` read outright, on the same EntityManager', async () => {
+    const scoped = resolveTenantContext(
+      { kind: 'admin', adminUserId: 'irrelevant-the-scope-is-passed' },
+      { allowAll: false, allowedOrganizationIds: [assignedOrgId, foreignOrgId] },
+    );
+    const ids = await runWithTenantContext(scoped, async () => {
+      h.em().clear();
+      const rows = await h.em().find(NewsletterSubscriber, {
+        id: { $in: [subscribers['own-read']!, subscribers['foreign-read']!] },
+      });
+      return rows.map((s) => s.id);
+    });
     // Both organizations are assigned, and the answer is still nothing:
-    // `comparisons` carries no `organization_id`, so no row in it is inside any
-    // scoped actor's authority (FR-011). It stops being nothing when feature
-    // 087 gives the table its column — with no further edit to the filter.
+    // `newsletter_subscribers` carries no `organization_id`, so no row in it is
+    // inside any scoped actor's authority (FR-011). It stops being nothing when
+    // feature 087 Group B gives that table its column — with no further edit to
+    // the filter. `Comparison` stood here until B1 landed, and this is what its
+    // case looked like.
     expect(ids).toEqual([]);
   });
 

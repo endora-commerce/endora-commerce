@@ -10,6 +10,7 @@ import {
   type ComparisonOwnerView,
   type ComparisonDisplayMode,
   type ComparisonPricedFor,
+  type CustomerAccountReadPort,
   type ListingPrice,
   type ListingPricePort,
   type OrganizationDetailsPort,
@@ -147,6 +148,24 @@ export class ComparisonService {
      * different lists and quote different figures for one product.
      */
     private readonly organizationDetails?: OrganizationDetailsPort,
+    /**
+     * Feature 087 Group B / D-187 — `customer_accounts`' read model, for the
+     * one field the owner stamp needs: the organisation the owning account
+     * belongs to.
+     *
+     * The organisation is derived from the **row**, never from the ambient
+     * request context, and that is what makes one implementation serve both
+     * write paths: `addProduct` runs on a storefront request and
+     * `adoptAnonymousComparison` runs inside another module's login hook, where
+     * there is no comparison caller to read a context from.
+     *
+     * Optional in the constructor and required at the two call sites, in the
+     * shape {@link organizationDetails} already takes here. A rig that wired no
+     * port cannot stamp, and the honest answer to that is a refusal at the
+     * write rather than a row `comparisons_organization_attribution_chk` will
+     * reject with a message about a constraint the caller never heard of.
+     */
+    private readonly customerAccounts?: CustomerAccountReadPort,
   ) {}
 
   #requireListingPrices(): ListingPricePort {
@@ -165,6 +184,46 @@ export class ComparisonService {
       );
     }
     return this.organizationDetails;
+  }
+
+  /**
+   * The organisation that owns a comparison belonging to this account — feature
+   * 087 Group B, D-187.
+   *
+   * Total, and refuses rather than returning `null`: `customer_accounts.organization_id`
+   * is `NOT NULL` (D-178), so an account that resolves always has one, and an
+   * account that does not resolve is a caller naming a row that is not there.
+   * Either way there is no organisation to stamp, and a comparison written
+   * without one is a row hidden from the representative who serves its buyer —
+   * which is the whole defect this column exists to close. So the write stops
+   * here, where the message can name the account, instead of at the constraint.
+   */
+  async #organizationOf(customerAccountId: string): Promise<string> {
+    if (!this.customerAccounts) {
+      throw new Error(
+        'ComparisonService: the customer-account read port is not wired — an owned comparison cannot be attributed to an organisation.',
+      );
+    }
+    const account = await this.customerAccounts.findById(customerAccountId);
+    if (!account) {
+      throw new Error(
+        `ComparisonService: customer account ${customerAccountId} does not resolve, so the comparison it would own has no organisation to carry.`,
+      );
+    }
+    return account.organizationId;
+  }
+
+  /**
+   * The owner identity a row can be written from — the caller's, plus the
+   * organisation a customer owner's account belongs to (D-187).
+   */
+  async #resolveOwner(owner: ComparisonOwner): Promise<ResolvedComparisonOwner> {
+    if (owner.kind === 'anonymous') return owner;
+    return {
+      kind: 'customer',
+      customerAccountId: owner.customerAccountId,
+      organizationId: await this.#organizationOf(owner.customerAccountId),
+    };
   }
 
   /**
@@ -233,6 +292,16 @@ export class ComparisonService {
    *     identity).
    *
    * No-op when neither side resolves.
+   *
+   * **This is the one place in the platform where a comparison becomes owned**
+   * — `Cart` has no counterpart, because its anonymous merge *completes* the
+   * anonymous cart rather than re-owning it. So it is the write feature 087's
+   * invariant would have been forgotten at: the row arrives here with a null
+   * `organization_id` that was correct while it was anonymous, and the
+   * organisation is set in the same unit of work as the account, from the same
+   * account. Nothing here is conditional on the column being null — an
+   * anonymous row's organisation is null by construction, and if it ever is
+   * not, the account it is being handed to is the truth.
    */
   async adoptAnonymousComparison(
     customerAccountId: string,
@@ -250,7 +319,14 @@ export class ComparisonService {
       return;
     }
 
+    // D-187 — resolved **before** the row is touched, not between the account
+    // and the flush. The entity is managed, so a throw after the assignment
+    // would leave an owned, unattributed comparison in the unit of work for
+    // whatever flushes this request next.
+    const organizationId = await this.#organizationOf(customerAccountId);
+
     anon.customerAccountId = customerAccountId;
+    anon.organizationId = organizationId;
     anon.anonymousToken = null;
     anon.updatedAt = new Date();
     await em.flush();
@@ -315,9 +391,13 @@ export class ComparisonService {
 
     let comparison = await em.findOne(Comparison, ownerWhere(owner));
     if (!comparison) {
+      // D-187 — the only place a comparison is inserted, and the organisation
+      // goes in with the account. `ownerColumns` takes a *resolved* owner, so
+      // the customer branch has no shape in which the organisation could be
+      // omitted; the anonymous branch has none to carry (FR-011).
       comparison = em.create(Comparison, {
         shareToken: this.tokens.generate(),
-        ...ownerColumns(owner),
+        ...ownerColumns(await this.#resolveOwner(owner)),
         salesChannelId,
         displayMode: 'all' as ComparisonDisplayMode,
       });
@@ -591,19 +671,49 @@ export type ComparisonOwner =
   | { kind: 'customer'; customerAccountId: string }
   | { kind: 'anonymous'; anonymousToken: string };
 
+/**
+ * A {@link ComparisonOwner} with everything a row needs to be written from —
+ * feature 087 Group B, D-187.
+ *
+ * The customer arm carries the organisation because
+ * `comparisons_organization_attribution_chk` requires it, and it is a separate
+ * type rather than a second field on {@link ComparisonOwner} because the
+ * caller's identity genuinely does not include it: a route reads the account
+ * off the session, and the organisation is a fact about that account which the
+ * service resolves through `customer_accounts`' read port. Keeping the two
+ * types apart is what makes "an owned comparison with no organisation" an
+ * unrepresentable argument to {@link ownerColumns} rather than a line somebody
+ * has to remember.
+ */
+type ResolvedComparisonOwner =
+  | { kind: 'customer'; customerAccountId: string; organizationId: string }
+  | { kind: 'anonymous'; anonymousToken: string };
+
 function ownerWhere(owner: ComparisonOwner): Record<string, unknown> {
   return owner.kind === 'customer'
     ? { customerAccountId: owner.customerAccountId }
     : { anonymousToken: owner.anonymousToken };
 }
 
-function ownerColumns(owner: ComparisonOwner): {
+function ownerColumns(owner: ResolvedComparisonOwner): {
   customerAccountId: string | null;
+  organizationId: string | null;
   anonymousToken: string | null;
 } {
   return owner.kind === 'customer'
-    ? { customerAccountId: owner.customerAccountId, anonymousToken: null }
-    : { customerAccountId: null, anonymousToken: owner.anonymousToken };
+    ? {
+        customerAccountId: owner.customerAccountId,
+        organizationId: owner.organizationId,
+        anonymousToken: null,
+      }
+    : {
+        customerAccountId: null,
+        // FR-011 — an anonymous comparison belongs to no organisation, and the
+        // constraint says nothing about it. Who it *should* belong to is R-6's
+        // open question and is not answered here.
+        organizationId: null,
+        anonymousToken: owner.anonymousToken,
+      };
 }
 
 // ---------------------------------------------------------------------------

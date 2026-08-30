@@ -47,6 +47,7 @@ describe('a scoped administrator is told why these lists are empty', () => {
 
   const stamp = Date.now();
   let ownEmail: string;
+  let ownComparisonId: string;
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -115,14 +116,21 @@ describe('a scoped administrator is told why these lists are empty', () => {
     });
     await em.persistAndFlush(account);
 
-    await em.persistAndFlush(
-      em.create(Comparison, {
-        shareToken: `note${String(stamp).slice(-10)}`.slice(0, 32),
-        customerAccountId: account.id,
-        salesChannelId,
-        displayMode: 'all',
-      }),
-    );
+    // Feature 087 Group B / D-187 — `comparisons` carries its organisation, so
+    // this row is *attributed* and the notice below is not emitted for it. It
+    // is here as the standing proof of the other half: the disclosure retires
+    // per class, and this class has retired it. The stamp is also mandatory —
+    // `comparisons_organization_attribution_chk` refuses an owned row without
+    // one.
+    const comparison = em.create(Comparison, {
+      shareToken: `note${String(stamp).slice(-10)}`.slice(0, 32),
+      customerAccountId: account.id,
+      organizationId: assignedOrgId,
+      salesChannelId,
+      displayMode: 'all',
+    });
+    await em.persistAndFlush(comparison);
+    ownComparisonId = comparison.id;
 
     ownEmail = `notice-sub-${stamp}@audit.local`;
     await em.persistAndFlush(
@@ -163,14 +171,25 @@ describe('a scoped administrator is told why these lists are empty', () => {
 
   // ── /comparisons ───────────────────────────────────────────────────────
 
-  it('tells the representative why `/comparisons` is empty', async () => {
+  it('has stopped explaining `/comparisons`, and shows the representative the row instead', async () => {
+    // The notice **retires itself**, per class, the day that class gains its
+    // `organization_id` — `scoped-empty-notice.md`'s third property, and this
+    // is the first class to exercise it (feature 087 Group B / B1, D-187).
+    //
+    // This case is deliberately the old one inverted rather than deleted. The
+    // notice is emitted by the *refusing* arm of `customerFilterCond`, so
+    // "there is no notice" and "this screen is still refused whole and has
+    // stopped saying so" are the same absence — which is the failure D-187
+    // exists to prevent. Asserting the row arrives is what tells them apart.
     const res = await asRep('/api/v1/admin/comparisons?limit=100');
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { data: unknown[]; meta: Record<string, unknown> };
-    expect(body.data).toEqual([]);
-    expect(body.meta['scopeNotice']).toBe('ORGANIZATION_ATTRIBUTION_PENDING');
-    // The pagination the screen already reads is still there — the disclosure
-    // joins `meta`, it does not replace it.
+    const body = res.json() as {
+      data: Array<{ id: string }>;
+      meta: Record<string, unknown>;
+    };
+    expect(body.data.map((c) => c.id)).toContain(ownComparisonId);
+    expect(body.meta).not.toHaveProperty('scopeNotice');
+    // The pagination the screen already reads is untouched by any of this.
     expect(body.meta).toHaveProperty('limit');
     expect(body.meta).toHaveProperty('nextCursor');
   });
