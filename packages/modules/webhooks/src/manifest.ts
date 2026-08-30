@@ -44,4 +44,48 @@ export const manifest = defineModuleManifest({
   // `webhooks/routes.ts` went on enforcing it — a gate nobody can be granted.
   permissions: [{ code: 'integrations:manage', label: 'Manage API keys + webhooks' }],
   activation: { settingCode: 'webhooks.enabled', default: true },
+  /**
+   * This module's first i18n bundle — D-129's remaining sweep, MR 5.
+   *
+   * It exists because a **declaring** module that contributes no bundle file is
+   * `check:error-translations` exit 2 for the whole tree rather than a finding
+   * (`specs/090-module-owned-error-codes/contracts/error-translation-population.md`
+   * §2.1, §2.3; `d129-sweep.md` §3.4). The bundle lives at the **package
+   * root**, not under `dist`: `manifest-locations.ts` resolves a packaged
+   * module's `manifestPath` to its `package.json`, so `dirname` is the package
+   * directory. The file is a **flat** `{"a.b.c": "text"}` map, because a nested
+   * object fails `TranslationBundleEntriesSchema` and the boot reconciler logs
+   * and skips it — silently.
+   */
+  i18n: { bundlesDir: 'i18n' },
+  /**
+   * `WEBHOOK_DELIVERY_NOT_REPLAYABLE` — D-129's remaining sweep, Tier B
+   * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;
+   * MR 5).
+   *
+   * It was declared by `_i18n` until this merge request, not because anybody
+   * judged it the platform's but because the deleted prefix chain had no rule
+   * for it and its last line was `return 'core'`. **D-121 T1 puts it here**:
+   * the noun is a webhook delivery, this module's own `webhook_deliveries` row,
+   * and the refusal is an invariant of that row's status — only `failed` and
+   * `dead_lettered` can be re-queued. This module is also the only one that
+   * raises it, from `services/webhook-service.ts`.
+   *
+   * **It arrives with a sentence.** It carried a placeholder in `_i18n`'s
+   * bundle — `"Webhook Delivery Not Replayable."` /
+   * `"Błąd: webhook delivery not replayable."` — which D-186 §2 deletes rather
+   * than carries, because in this module's own bundle it would read as this
+   * module's answer. §5.4 keeps writing the prose available and is not a
+   * re-opening of that ruling, and this is the case for taking it: the reader
+   * is an operator looking at the delivery row on the Webhooks screen, so the
+   * one thing the raise site's message carries that a fixed sentence cannot —
+   * `status=<status>` — is already on the screen beside the button they
+   * pressed.
+   *
+   * **`tokens` is derived from the raise sites, not from the bundle**
+   * (runbook §5), and there are none: the one raise is a bare
+   * `HttpError(409, code, message)` with no `details` argument, measured by
+   * balanced-paren extraction of the call's own arguments.
+   */
+  errorCodes: [{ code: 'WEBHOOK_DELIVERY_NOT_REPLAYABLE' }],
 });

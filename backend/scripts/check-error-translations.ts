@@ -170,7 +170,9 @@ const LANGUAGES = ['en', 'pl'] as const;
  * rest of Tier A — `custom_fields`, `customers`, `price_lists`,
  * `prompt_actions`, `shopping_lists` and `transactional_emails` (MR 3) — then
  * Tier B's six receivers that already ship a bundle: `catalog`,
- * `customer_accounts`, `orders`, `mfa`, `newsletter` and `promotions` (MR 4).
+ * `customer_accounts`, `orders`, `mfa`, `newsletter` and `promotions` (MR 4) —
+ * then Tier B's four that had to create one: `credit_limits`, `api_keys`,
+ * `addresses` and `webhooks` (MR 5).
  * That is why those modules now have groups of their own below. Draining a block
  * still means two edits: the declaration moves to the owning module's manifest,
  * and the sentences move to its bundle. A group here whose codes carry no
@@ -207,6 +209,21 @@ const LANGUAGES = ['en', 'pl'] as const;
  * could only have been invented from the code's own name, which is the
  * placeholder again in longer words. Those four are the +4.
  *
+ * **MR 5 moved it 69 to 72, and one of the three is a shape this ledger has not
+ * held before.** Its four receivers each created their first bundle in that
+ * change, and nine placeholders left `_i18n`'s: six were written as prose and
+ * three were not. Two of the three are MR 4's grounds again —
+ * `ACTIVE_RESERVATIONS_EXIST` and `ADDRESS_IN_USE` are raised by nothing in the
+ * tree. `API_KEY_OUT_OF_SCOPE` is the new one: it **has** a live raise site, and
+ * it is ledgered because its reader is an integration rather than a person and
+ * because the raise names the scope the key is missing
+ * (`API key lacks the required scope: <scope>.`). `localizeErrorEnvelope`
+ * substitutes the message wholesale, and that raise passes no `details` for a
+ * placeholder to be filled from, so writing the sentence would take information
+ * away from the only audience that meets it. An entry here for that reason is
+ * not "nobody has written it yet" either — the note on its group says what would
+ * retire it.
+ *
  * So the rule is unchanged and is worth stating in the form the sweep needs it:
  * never add an entry to make a build pass, and never carry a placeholder to
  * avoid adding one.
@@ -231,12 +248,26 @@ const LANGUAGES = ['en', 'pl'] as const;
  * Grouped as measured, so a module can drain its own block.
  */
 export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
-  // _i18n (10)
-  'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
+  // _i18n (8)
   'MODULE_ACTIVATION_PROTECTED', 'MODULE_DEPENDENCIES_ABSENT', 'MODULE_DEPENDENTS_PRESENT',
   'MODULE_NOT_DEACTIVATABLE', 'MODULE_NOT_FOUND', 'MODULE_SETTING_READ_ONLY',
   'ORG_OWNER_DEPLETION',
   'PRICE_UNAVAILABLE',
+  // addresses (1) — MR 5. `ADDRESS_NOT_OWNED` moved with it and is not here: it
+  // carried a placeholder and arrives with prose in this module's own bundle.
+  // This one is unraised, so its placeholder was deleted rather than rewritten.
+  'ADDRESS_IN_USE',
+  // api_keys (3) — MR 5, and the whole of that module's declaration. The first
+  // two never had a sentence and were listed under `_i18n` above until this
+  // batch. `API_KEY_OUT_OF_SCOPE` is the third and is the first entry in this
+  // ledger whose code **has** a live raise site: its reader is an integration
+  // rather than a person, and the raise names the scope the key is missing,
+  // which a fixed sentence would replace with a vaguer one — the envelope
+  // substitutes the message wholesale and the raise passes no `details` for a
+  // placeholder to be filled from. All three ledgered means `api_keys`' new
+  // bundle installs zero entries, which is `d129-sweep.md` §5.4's default and
+  // the reason that merge request ran `scripts/boot-gate.sh --with-negatives`.
+  'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND', 'API_KEY_OUT_OF_SCOPE',
   // catalog (12) — seven from Phase 3, five re-homed from `_i18n` by D-129's
   // sweep, MR 4 (Tier B). The five had no sentence in either language before
   // the move and none after, so what moved is which module owes it. The batch's
@@ -250,6 +281,11 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   'PRODUCT_FEED_CONFIRMATION_REQUIRED', 'PRODUCT_FEED_DISABLED',
   'PRODUCT_FEED_TAXONOMY_CONFLICT', 'PRODUCT_FEED_TEMPLATE_CONFLICT', 'PRODUCT_FEED_TEMPLATE_UNBOUND',
   'SELECTION_TOO_LARGE', 'SKU_NOT_IN_ASSORTMENT',
+  // credit_limits (1) — MR 5. The batch's other four `credit_limits` codes all
+  // carried placeholders and arrive with prose in that module's own bundle, so
+  // they are not here. This one is unraised: nothing in the tree throws it, so
+  // there was no refusal to describe.
+  'ACTIVE_RESERVATIONS_EXIST',
   // custom_fields (5) — re-homed from `_i18n` by D-129's sweep, MR 3 (Tier A),
   // on the same terms as MR 2's two families: none of the five had a sentence
   // in either language before the move and none has one after, so what moved is

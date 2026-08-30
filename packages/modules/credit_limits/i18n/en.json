@@ -1,0 +1,6 @@
+{
+  "errors.ADJUSTMENT_BELOW_ACTIVE": "The credit limit cannot be lowered below the amount that active reservations are already holding. Release or settle those reservations first, or set a higher amount.",
+  "errors.CREDIT_LIMIT_ALREADY_GRANTED": "This organization already has a credit limit. Adjust the existing limit instead of granting a second one.",
+  "errors.CREDIT_LIMIT_NOT_GRANTED": "No credit limit has been granted for this organization.",
+  "errors.LIMIT_INSUFFICIENT": "The available credit limit does not cover this order. Reduce the order or choose a different payment method."
+}

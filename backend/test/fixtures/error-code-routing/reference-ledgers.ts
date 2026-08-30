@@ -757,4 +757,145 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
       'part of it. Unraised, so the placeholder is deleted rather than rewritten and the ' +
       'code joins `UNTRANSLATED_ERROR_CODES` under `promotions`.',
   },
+  // ---- Tier B, MR 5 of the sweep: the four receivers that had to **create** an
+  // i18n bundle — `credit_limits` (5), `api_keys` (3), `addresses` (2) and
+  // `webhooks` (1). Nine of the eleven carried a placeholder in `_i18n`'s
+  // bundle; D-186 §2 deletes those rather than carrying them, and §5.4 keeps
+  // writing the prose available. Six were written and three were not, and every
+  // one of the three says below which of the two grounds put it there: no raise
+  // site at all, or a raise whose reader is a program and whose message names
+  // something a fixed sentence would take away.
+  ACTIVE_RESERVATIONS_EXIST: {
+    from: '_i18n',
+    to: 'credit_limits',
+    tier: 'T1',
+    reason:
+      'The noun is a reservation against a credit limit, and `credit_limit_reservations` is ' +
+      "this module's own table — the only `*Reservation` entity in the tree. The sweep calls " +
+      'the attribution weak because nothing raises the code; that is also why the placeholder ' +
+      'is deleted rather than rewritten and the code joins `UNTRANSLATED_ERROR_CODES` under ' +
+      '`credit_limits`. With no raise site there is no refusal to describe.',
+  },
+  ADJUSTMENT_BELOW_ACTIVE: {
+    from: '_i18n',
+    to: 'credit_limits',
+    tier: 'T1',
+    reason:
+      'The noun is the credit-limit adjustment, and both halves of the refusal — the granted ' +
+      'amount and the sum of active reservations — are this module\'s rows. Its one raise is ' +
+      "in this module's own routes. It carried a placeholder and arrives with prose (§5.4): " +
+      'the reader is an operator lowering a limit on the Credit Limits screen, and the raise ' +
+      'site states the refusal in full.',
+  },
+  CREDIT_LIMIT_ALREADY_GRANTED: {
+    from: '_i18n',
+    to: 'credit_limits',
+    tier: 'T1',
+    reason:
+      'The noun is the credit limit itself, and the uniqueness it refuses — one limit per ' +
+      "organization — is an invariant of this module's table. Raised only here. Placeholder " +
+      'deleted, prose written: the reader is the operator who just pressed Grant, and the ' +
+      'remedy is to adjust the existing limit instead.',
+  },
+  CREDIT_LIMIT_NOT_GRANTED: {
+    from: '_i18n',
+    to: 'credit_limits',
+    tier: 'T1',
+    reason:
+      'Same noun, read rather than written. Six raise sites, five of them in this module and ' +
+      'one in `orders`, which asks this module for the organization\'s limit before deciding ' +
+      'whether a deferred-payment order can be placed — the caller reporting the absence of ' +
+      "the owner's row, D-95.2's shape. Placeholder deleted, prose written: the sentence is " +
+      'true of both readers, because the refusal is the same fact in each.',
+  },
+  LIMIT_INSUFFICIENT: {
+    from: '_i18n',
+    to: 'credit_limits',
+    tier: 'T1',
+    reason:
+      'The noun is the credit limit, and the family it belongs with — `CREDIT_LIMIT_*`, ' +
+      '`ADJUSTMENT_BELOW_ACTIVE`, `ACTIVE_RESERVATIONS_EXIST` — is this module\'s. `orders` ' +
+      'is its only raiser because this module\'s reserve seam *returns* ' +
+      "`{ ok: false, code: 'LIMIT_INSUFFICIENT' }` as a typed result rather than throwing: a " +
+      '`readonly code` claim is not a raise. Placeholder deleted, prose written: the reader ' +
+      'is a buyer stopped at checkout, and the two amounts the raise interpolates are already ' +
+      'on the page — the checkout renders the available credit beside the order total.',
+  },
+  API_KEY_CHANNEL_MISMATCH: {
+    from: '_i18n',
+    to: 'api_keys',
+    tier: 'T1',
+    reason:
+      'The noun is the API key and its distributor binding, both columns of this module\'s ' +
+      'row, and homing it here keeps the `API_KEY_*` family in one bundle. It is the sweep\'s ' +
+      'one code raised by the **platform** — the sales-channel resolver middleware — which ' +
+      'D-186 §3 settles in favour of T1 as written, because the alternative is the thrower ' +
+      'rule D-121 rejected by measurement. The coupling it creates is real and is the ' +
+      'condition of the ruling: this merge request asserts the raise is unreachable while ' +
+      '`api_keys` is absent, in ' +
+      '`test/integration/_lifecycle/non-binding-degradation.integration.test.ts`. It had no ' +
+      'sentence before the move and has none after; it stays on ' +
+      '`UNTRANSLATED_ERROR_CODES`, under `api_keys`.',
+  },
+  API_KEY_NOT_BOUND: {
+    from: '_i18n',
+    to: 'api_keys',
+    tier: 'T1',
+    reason:
+      'The noun is the API key\'s distributor binding. Three modules raise it — this one, ' +
+      '`catalog` and `orders` — each gating its own external namespace with the identical ' +
+      'sentence, which is what makes T2 inapplicable and T1 decisive: they are all asking ' +
+      'the same question about somebody else\'s row. No sentence before the move and none ' +
+      'after.',
+  },
+  API_KEY_OUT_OF_SCOPE: {
+    from: '_i18n',
+    to: 'api_keys',
+    tier: 'T1',
+    reason:
+      'The noun is the API key\'s scope set, a column on this module\'s row, and this module ' +
+      'raises it from its own authentication gate. It is the first code in the sweep ' +
+      'ledgered **despite** a live raise site, on two grounds: its reader is an integration ' +
+      'rather than a person, and the raise names the scope the key is missing — ' +
+      '`API key lacks the required scope: <scope>.` — which a fixed sentence would replace ' +
+      'with a vaguer one, because the envelope substitutes the message wholesale and this ' +
+      'raise passes no `details` for a placeholder to be filled from. Writing the sentence ' +
+      'would take information away from the only audience that meets it, so the placeholder ' +
+      'is deleted and the code joins `UNTRANSLATED_ERROR_CODES` under `api_keys`. What ' +
+      'would retire the entry is the raise passing its scope in `details`, at which point ' +
+      'a sentence can name it.',
+  },
+  ADDRESS_IN_USE: {
+    from: '_i18n',
+    to: 'addresses',
+    tier: 'T1',
+    reason:
+      'The noun is an address, which this module owns. Nothing in the tree raises it — T10 ' +
+      'already ruled that ownership follows the noun rather than a raise site, so T1 runs ' +
+      'before T3 here. Unraised is also why the placeholder is deleted rather than ' +
+      'rewritten: with no raise site there is no refusal to describe, and the code joins ' +
+      '`UNTRANSLATED_ERROR_CODES` under `addresses`.',
+  },
+  ADDRESS_NOT_OWNED: {
+    from: '_i18n',
+    to: 'addresses',
+    tier: 'T1',
+    reason:
+      'The noun is an address and the refusal is about who owns it, which is this module\'s ' +
+      'question about its own row. `orders` is the only raiser and reaches the row through ' +
+      'this module\'s read port before placing an order, which makes it the caller and not ' +
+      "the owner — D-95.2's `INVOICE_NOT_READY` shape. Placeholder deleted, prose written " +
+      '(§5.4): the reader is a buyer at checkout and the refusal has one remedy to offer.',
+  },
+  WEBHOOK_DELIVERY_NOT_REPLAYABLE: {
+    from: '_i18n',
+    to: 'webhooks',
+    tier: 'T1',
+    reason:
+      'The noun is a webhook delivery, this module\'s `webhook_deliveries` row, and the ' +
+      'refusal is an invariant of that row\'s status — only `failed` and `dead_lettered` can ' +
+      'be re-queued. Raised only here. Placeholder deleted, prose written (§5.4): the reader ' +
+      'is an operator on the Webhooks screen, and the one thing the raise interpolates — the ' +
+      'delivery\'s status — is on the row they pressed the button on.',
+  },
 };
