@@ -74,6 +74,32 @@ import type { WorkspaceMember } from './workspace-packages.js';
 /** The alias every admin file writes its own host imports through. */
 export const ADMIN_SOURCE_ALIAS = '@/*';
 
+/**
+ * The owner id of the admin application itself.
+ *
+ * Not a module, and it has to be spelled somewhere: `check:admin-registrations`
+ * attributes a route or a nav entry no module claims to it, and since P1 of
+ * `specs/091-module-owned-admin-surfaces/` § *Phase 4* `check:module-boundary`
+ * attributes an admin **host** file to it, so a reach out of one has a consumer
+ * to be ledgered under. One spelling, here, because the two instruments must not
+ * come to disagree about what the application is called — and because
+ * `admin-registrations.ts`, where the constant used to live, is deleted by batch
+ * 12 (SC-007) while the boundary ledger outlives it.
+ */
+export const ADMIN_HOST_OWNER = 'host';
+
+/**
+ * The generated admin contribution registry, by name.
+ *
+ * `generate-composer.ts` renders it into {@link AdminSurfaceLayout.sourceRoot},
+ * and `check:module-boundary` exempts it: a generated registry naming every
+ * contributing module package by a bare specifier is a composition root doing
+ * its job, exactly as `composition.generated.ts` is in the backend. Both derive
+ * the path from this constant and from the alias member, so neither can end up
+ * looking at a file the other has stopped writing.
+ */
+export const ADMIN_REGISTRY_ARTEFACT = 'modules.generated.ts';
+
 /** Raised when the admin layout cannot be resolved; a caller turns it into exit 2. */
 export class AdminLayoutUnresolvableError extends Error {
   override readonly name = 'AdminLayoutUnresolvableError';
@@ -120,6 +146,27 @@ export interface AdminSurfaceLayout {
   readonly nav: readonly AdminNavDeclaration[];
   /** Component name → the module directory `App.tsx` imports it from. */
   readonly componentDirectories: ReadonlyMap<string, string>;
+  /**
+   * The two hand-written registries this layout is read out of — `App.tsx` and
+   * `components/AppShell.tsx`, absolute.
+   *
+   * Returned rather than left implicit because a consumer has to be able to
+   * exclude them **without spelling them a second time**. They are the whole
+   * population of `check:admin-registrations` (`files=2`), they are what Story 3
+   * deletes, and `App.tsx` imports one component per module screen — so a
+   * boundary ledger that counted them would record the feature's own subject as
+   * its debt, one entry per route, churning with every batch.
+   */
+  readonly registryFiles: readonly string[];
+  /**
+   * The generated contribution registry — {@link ADMIN_REGISTRY_ARTEFACT} under
+   * {@link sourceRoot}, absolute.
+   *
+   * Named whether or not it is on disk: the path is where the generator puts
+   * it, and a checkout that has not run `composer:generate` has no artefact and
+   * nothing to exclude.
+   */
+  readonly generatedRegistryFile: string;
 }
 
 /**
@@ -479,8 +526,13 @@ export function resolveAdminSurfaces(
     .filter((entry) => !PRUNED.has(entry) && statSync(join(moduleRoot, entry)).isDirectory())
     .sort();
 
-  const appSource = readText(join(sourceRoot, 'App.tsx'));
-  const shellSource = readText(join(sourceRoot, 'components', 'AppShell.tsx'));
+  // The two hand-written registries, spelled once. `registryFiles` below is
+  // these same two paths, so a consumer that has to exclude them — the boundary
+  // check's host population — never writes a second copy of the pair.
+  const routeTableFile = join(sourceRoot, 'App.tsx');
+  const navFile = join(sourceRoot, 'components', 'AppShell.tsx');
+  const appSource = readText(routeTableFile);
+  const shellSource = readText(navFile);
   if (appSource === null || shellSource === null) {
     throw new AdminLayoutUnresolvableError(
       `${member.name} has no App.tsx or no components/AppShell.tsx under ${sourceRoot} — the ` +
@@ -510,5 +562,7 @@ export function resolveAdminSurfaces(
     routes,
     nav,
     componentDirectories,
+    registryFiles: [routeTableFile, navFile],
+    generatedRegistryFile: join(sourceRoot, ADMIN_REGISTRY_ARTEFACT),
   };
 }

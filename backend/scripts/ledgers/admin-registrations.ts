@@ -79,6 +79,7 @@
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.
  */
+import { ADMIN_HOST_OWNER } from '../lib/admin-surfaces.js';
 
 /** What one owner still declares. */
 export interface AdminRegistrationCounts {
@@ -88,8 +89,16 @@ export interface AdminRegistrationCounts {
   readonly nav: number;
 }
 
-/** The admin application's own registrations, as opposed to a module's. */
-export const HOST_OWNER = 'host';
+/**
+ * The admin application's own registrations, as opposed to a module's.
+ *
+ * The spelling lives in `lib/admin-surfaces.ts` since P1 of
+ * `specs/091-module-owned-admin-surfaces/`, because `check:module-boundary`
+ * needs the same id to attribute an admin **host** file's reaches, and this
+ * ledger is deleted by batch 12 while that one outlives it. Re-exported under
+ * the name this check's consumers already use.
+ */
+export const HOST_OWNER = ADMIN_HOST_OWNER;
 
 export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistrationCounts>> = {
   host: { routes: 4, nav: 3 },

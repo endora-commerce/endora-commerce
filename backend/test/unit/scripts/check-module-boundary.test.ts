@@ -3,11 +3,13 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  adminHostFilesWalked,
   adminSurfacesOf,
   analyzeSource,
   CANONICAL_SHARD_ENTRY_TYPE,
   checkModuleBoundary,
   collectAdminFiles,
+  collectAdminHostFiles,
   collectModuleFiles,
   collectSchemaFiles,
   schemaKeyOf,
@@ -25,9 +27,11 @@ import {
   shardShapeIssue,
   sourcesOf,
   vacuousReason,
+  type AdminBoundarySurfaces,
   type LedgerEntry,
   type LedgerShard,
 } from '../../../scripts/check-module-boundary.js';
+import { ADMIN_HOST_OWNER } from '../../../scripts/lib/admin-surfaces.js';
 import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
 import {
   runtimeExportsOfEmittedModule,
@@ -640,6 +644,307 @@ describe('analyzeSource — what it must not flag', () => {
         'manifest-index.generated.ts',
       ),
     ).toEqual([]);
+  });
+});
+
+
+/**
+ * The admin host population (feature 091, P1).
+ *
+ * Every fixture below enters at the top of the analysis — source text and a
+ * path, or a source map and shards — and never a resolved owner the check
+ * normally computes (issue #130). The layout is a literal because the
+ * derivation that produces it is `lib/admin-surfaces.ts`' and has its own test;
+ * what is proven here is what this check does with the answer.
+ */
+const ADMIN_LAYOUT: AdminBoundarySurfaces = {
+  sourceRoot: 'admin/src',
+  moduleRoot: 'admin/src/modules',
+  aliasPrefix: '@/',
+  // `warehouses` is `inventory`'s under another name, which is the derivation
+  // this check must not second-guess; `_shared` is claimed by no nav entry and
+  // is therefore absent, which is what makes it host-owned.
+  moduleOfDirectory: new Map([
+    ['settings', 'settings'],
+    ['inventory', 'inventory'],
+    ['warehouses', 'inventory'],
+  ]),
+  registryFiles: new Set(['admin/src/App.tsx', 'admin/src/components/AppShell.tsx']),
+  generatedRegistryFile: 'admin/src/modules.generated.ts',
+};
+
+const IDLE_LOGOUT = 'admin/src/components/IdleLogout.tsx';
+const SETTINGS_CLIENT_IMPORT =
+  "import { settingsClient } from '@/modules/settings/api/settings-client';";
+const IDLE_LOGOUT_KEY = `${IDLE_LOGOUT}:settings/api/settings-client`;
+
+function hostTree(files: Record<string, string>): Map<string, string> {
+  return new Map([
+    ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
+    ['admin/src/modules/settings/api/settings-client.ts', 'export const settingsClient = {};'],
+    ...Object.entries(files),
+  ]);
+}
+
+function hostCheck(
+  files: Record<string, string>,
+  shards: readonly LedgerShard[] = [],
+): ReturnType<typeof checkModuleBoundary> {
+  return checkModuleBoundary(
+    { sources: hostTree(files), adminSurfaces: ADMIN_LAYOUT },
+    shards,
+  );
+}
+
+describe('analyzeSource — the admin application is a consumer too (feature 091, P1)', () => {
+  it('sees a host file reaching a module, and attributes it to `host`', () => {
+    // The red proof for the first finding kind. `IdleLogout.tsx` is the reach
+    // `research.md` §6.6 found by looking: no module owns the file, so before
+    // P1 it was judged by nobody and was in no ledger at all.
+    const found = analyzeSource(
+      SETTINGS_CLIENT_IMPORT,
+      IDLE_LOGOUT,
+      undefined,
+      undefined,
+      undefined,
+      ADMIN_LAYOUT,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      moduleId: 'host',
+      target: 'settings',
+      targetPath: 'api/settings-client',
+      kind: 'value-import',
+    });
+    expect(keyOf(found[0]!)).toBe(IDLE_LOGOUT_KEY);
+  });
+
+  it('sees a type-only host reach, on the same terms as a value one (FR-003)', () => {
+    // Four of the nine seeded files reach `organizations` for a type alone. A
+    // type edge is a real edge in a `package.json`, and ESLint's
+    // `prefer: 'type-imports'` would otherwise launder value imports into it.
+    const found = analyzeSource(
+      "import type { Filter } from '@/modules/settings/api/settings-client';",
+      IDLE_LOGOUT,
+      undefined,
+      undefined,
+      undefined,
+      ADMIN_LAYOUT,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]?.kind).toBe('type-only-import');
+  });
+
+  it('sees a host reach written as a bare module-package specifier', () => {
+    // The laundering this whole population exists to refuse, in its final form:
+    // once `settings` is a package the host would name it by npm name, and the
+    // reach has to survive the rewrite as a finding rather than vanish from the
+    // walk.
+    const found = analyzeSource(
+      "import { settingsClient } from '@endora-commerce/mod-settings/admin';",
+      IDLE_LOGOUT,
+      new Map([['@endora-commerce/mod-settings', 'settings']]),
+      undefined,
+      undefined,
+      ADMIN_LAYOUT,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ moduleId: 'host', target: 'settings', targetPath: 'admin' });
+  });
+
+  it('does not attribute the host at the target position — a module reaching host code is not this rule', () => {
+    // The direction is the whole design. Asked at both ends this would turn
+    // every module→host reach in `admin/src/modules` into a finding — roughly
+    // 1700 of them, into published kit surface, which is
+    // `check:admin-surface`'s population.
+    expect(
+      analyzeSource(
+        "import { Button } from '@/components/ui/button';",
+        'admin/src/modules/settings/SettingsPage.tsx',
+        undefined,
+        undefined,
+        undefined,
+        ADMIN_LAYOUT,
+      ),
+    ).toEqual([]);
+  });
+
+  it('leaves `_shared` alone in both directions', () => {
+    // Deliberate, and the reason is the ledger shard's: where `_shared` goes is
+    // an open owner decision, and attributing it to a module to make the walk
+    // produce findings would put a false owner into an artefact three checks
+    // read. Neither direction is a finding until that question is answered.
+    expect(
+      analyzeSource(
+        "import { cmsClient } from '@/modules/cms/api/cms-client';",
+        'admin/src/modules/_shared/email-builder/EmailBuilder.tsx',
+        undefined,
+        undefined,
+        undefined,
+        ADMIN_LAYOUT,
+      ),
+      'a reach out of `_shared`',
+    ).toEqual([]);
+    expect(
+      analyzeSource(
+        "import { EmailBuilder } from '@/modules/_shared/email-builder/EmailBuilder';",
+        'admin/src/modules/settings/SettingsPage.tsx',
+        undefined,
+        undefined,
+        undefined,
+        ADMIN_LAYOUT,
+      ),
+      'a reach into `_shared`',
+    ).toEqual([]);
+  });
+
+  it('ignores the two hand-written registries and the generated one', () => {
+    // All three are named by the layout, never spelled in the check. `App.tsx`
+    // imports one component per module screen, so ledgering it would record
+    // this feature's own subject as its debt.
+    for (const file of [
+      'admin/src/App.tsx',
+      'admin/src/components/AppShell.tsx',
+      'admin/src/modules.generated.ts',
+    ]) {
+      expect(
+        analyzeSource(
+          SETTINGS_CLIENT_IMPORT,
+          file,
+          undefined,
+          undefined,
+          undefined,
+          ADMIN_LAYOUT,
+        ),
+        file,
+      ).toEqual([]);
+    }
+  });
+
+  it('reads a host file as nobody’s when the workspace declares no admin', () => {
+    // The behaviour that shipped, and what every fixture with no frontend means.
+    expect(analyzeSource(SETTINGS_CLIENT_IMPORT, IDLE_LOGOUT)).toEqual([]);
+  });
+});
+
+describe('checkModuleBoundary — the host shard (feature 091, P1)', () => {
+  it('reports an unledgered host reach as a violation', () => {
+    const result = hostCheck({ [IDLE_LOGOUT]: SETTINGS_CLIENT_IMPORT });
+    expect(result.violations.map(keyOf)).toEqual([IDLE_LOGOUT_KEY]);
+  });
+
+  it('accepts it once the host shard accounts for it', () => {
+    const result = hostCheck({ [IDLE_LOGOUT]: SETTINGS_CLIENT_IMPORT }, [
+      shard('host', { [IDLE_LOGOUT_KEY]: 'recorded by P1' }),
+    ]);
+    expect(result.violations).toEqual([]);
+    expect(result.ledgered.map(keyOf)).toEqual([IDLE_LOGOUT_KEY]);
+    expect(result.orphanShards).toEqual([]);
+  });
+
+  it('reports a host entry that no longer describes a reach as stale', () => {
+    // The red proof for the second finding kind — and the one that matters
+    // most, because it is what fires when a batch rewrites the specifier
+    // instead of repairing the reach.
+    const result = hostCheck(
+      { [IDLE_LOGOUT]: 'export function IdleLogout(): null { return null; }' },
+      [shard('host', { [IDLE_LOGOUT_KEY]: 'recorded by P1' })],
+    );
+    expect(result.stale).toEqual([IDLE_LOGOUT_KEY]);
+  });
+
+  it('reports the host shard as an orphan when the walk produced no host file', () => {
+    // `host` is a legitimate shard name exactly while the walk produced an
+    // admin host file, and never because the name is written down.
+    const result = checkModuleBoundary(
+      {
+        sources: new Map([['modules/orders/backend.ts', '']]),
+        adminSurfaces: ADMIN_LAYOUT,
+      },
+      [shard('host', { [IDLE_LOGOUT_KEY]: 'recorded by P1' })],
+    );
+    expect(result.orphanShards).toEqual(['host']);
+  });
+
+  it('refuses a module’s key filed in the host shard', () => {
+    const result = hostCheck({ [IDLE_LOGOUT]: SETTINGS_CLIENT_IMPORT }, [
+      shard('host', { 'modules/orders/services/order-service.ts:catalog/x': 'parked here' }),
+    ]);
+    expect(result.misfiledEntries).toEqual([
+      'host: modules/orders/services/order-service.ts:catalog/x',
+    ]);
+  });
+});
+
+describe('the host population’s floors (issues #113 and #215, over feature 091 P1)', () => {
+  const READ_SOMETHING = {
+    moduleFiles: ['modules/orders/a.ts', 'modules/catalog/b.ts'],
+    registeredModules: ['orders', 'catalog'],
+    ledgerDirectoryExists: true,
+    entityTables: 220,
+    migrationTables: 241,
+  };
+
+  it('refuses a resolved admin layout whose host walk opened nothing', () => {
+    expect(
+      vacuousReason({
+        ...READ_SOMETHING,
+        adminSurfaces: ADMIN_LAYOUT,
+        adminHostFiles: [],
+      }),
+    ).toMatch(/host walk outside its module root opened no file/);
+  });
+
+  it('is silent for a caller that performs no host walk at all', () => {
+    // `undefined` is a fixture handing in source files and no filesystem — the
+    // behaviour that shipped. An empty array is a real run saying it looked and
+    // found nothing, which is the refusal above.
+    expect(vacuousReason({ ...READ_SOMETHING, adminSurfaces: ADMIN_LAYOUT })).toBeNull();
+  });
+
+  it('is silent when the host walk produced files', () => {
+    expect(
+      vacuousReason({
+        ...READ_SOMETHING,
+        adminSurfaces: ADMIN_LAYOUT,
+        adminHostFiles: [IDLE_LOGOUT],
+      }),
+    ).toBeNull();
+  });
+
+  it('expects every ledgered host file and counts the ones the walk opened', () => {
+    // The short-walk floor. Its independent author is the ledger — a key is
+    // written by the merge request that recorded the reach, not by the
+    // derivation being checked — so the expectation moves when a human moves it
+    // and the coverage moves when the walk does.
+    const keys = [IDLE_LOGOUT_KEY, 'modules/orders/x.ts:catalog/y'];
+    expect(
+      adminHostFilesWalked(ADMIN_LAYOUT, keys, new Set([IDLE_LOGOUT]), () => true),
+    ).toEqual({ expected: 1, covered: 1 });
+    expect(
+      adminHostFilesWalked(ADMIN_LAYOUT, keys, new Set(), () => true),
+      'a walk that lost the file the ledger names',
+    ).toEqual({ expected: 1, covered: 0 });
+  });
+
+  it('does not expect a ledgered host file that has genuinely gone', () => {
+    // An entry describing a file that is no longer there is staleness, which
+    // the two-way ledger reports in its own words. Counting it here would turn
+    // one defect into an exit 2 for a reason that is not what happened.
+    expect(
+      adminHostFilesWalked(ADMIN_LAYOUT, [IDLE_LOGOUT_KEY], new Set(), () => false),
+    ).toEqual({ expected: 0, covered: 0 });
+  });
+
+  it('expects nothing from a key under the module root — that is the other floor', () => {
+    expect(
+      adminHostFilesWalked(
+        ADMIN_LAYOUT,
+        ['admin/src/modules/settings/SettingsPage.tsx:inventory/x'],
+        new Set(),
+        () => true,
+      ),
+    ).toEqual({ expected: 0, covered: 0 });
   });
 });
 
@@ -1420,8 +1725,18 @@ describe('the tree itself', () => {
     expect(admin, 'no admin surfaces resolved — a vacuous pass').not.toBeNull();
     const adminFiles = collectAdminFiles(admin, layout.repoRoot);
     expect(adminFiles.length, 'no admin sources found — a vacuous pass').toBeGreaterThan(100);
+    // The host half joins on the same terms (feature 091, P1): `admin/src`
+    // outside the module root, walked through the function the CLI calls rather
+    // than through a second list of roots written here. A test that derived its
+    // own population would be the defect !1182 measured in `i18n:hardcoded` —
+    // script and companion disagreeing in opposite directions in one run.
+    const adminHostFiles = collectAdminHostFiles(admin, layout.repoRoot);
+    expect(
+      adminHostFiles.length,
+      'no admin host sources found — the host shard would read entirely stale',
+    ).toBeGreaterThan(50);
     const moduleFiles = collectModuleFiles(layout.moduleWalkRoots);
-    const sources = sourcesOf([...moduleFiles, ...adminFiles], layout.keyOf);
+    const sources = sourcesOf([...moduleFiles, ...adminFiles, ...adminHostFiles], layout.keyOf);
     const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
     expect(sources.size, 'no module sources found — a vacuous pass').toBeGreaterThan(1000);
     // The schema walk is the wider of the two over the **backend**, which is
@@ -1432,6 +1747,12 @@ describe('the tree itself', () => {
     // the schema walk does not read `admin/` at all.
     expect(schema.size, 'no schema sources found — a vacuous pass').toBeGreaterThan(
       moduleFiles.length,
+    );
+
+    // The two walks are complements within one source root, so no admin file
+    // falls between them and none is read twice.
+    expect(new Set([...adminFiles, ...adminHostFiles]).size).toBe(
+      adminFiles.length + adminHostFiles.length,
     );
 
     const result = checkModuleBoundary({ sources, schema, adminSurfaces: admin }, shards);
@@ -1533,14 +1854,21 @@ describe('the ledger shards on disk', () => {
     for (const [key, sites] of counted) expect(sites, key).toBeGreaterThan(1);
   });
 
-  it('is a directory of module-named files and nothing else', async () => {
+  it('is a directory of module-named files, plus the host while it has host code', async () => {
     const layout = await resolveModuleLayout();
     const names = readdirSync(ledgerDirectory());
     expect(names.filter((name) => !name.endsWith('.ts'))).toEqual([]);
-    const modules = new Set(
+    const owners = new Set(
       collectModuleFiles(layout.moduleWalkRoots).map((file) => layout.moduleIdOfPath(file)),
     );
-    expect(names.map((name) => name.replace(/\.ts$/, '')).filter((id) => !modules.has(id))).toEqual(
+    // The admin application is a consumer too (feature 091, P1), and it earns a
+    // shard on the check's own terms: `host` is legitimate exactly while the
+    // walk produced an admin host file, which is what makes the shard an orphan
+    // the day the drain finishes. Derived here through the same collector and
+    // the same shared constant the check uses, never a name written down.
+    const admin = await adminSurfacesOf(layout);
+    if (collectAdminHostFiles(admin, layout.repoRoot).length > 0) owners.add(ADMIN_HOST_OWNER);
+    expect(names.map((name) => name.replace(/\.ts$/, '')).filter((id) => !owners.has(id))).toEqual(
       [],
     );
   });

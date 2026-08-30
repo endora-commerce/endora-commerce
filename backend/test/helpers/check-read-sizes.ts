@@ -347,7 +347,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-module-boundary.ts': {
     prefix: '[module-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-module-boundary.ts', args: [] },
-    files: 3529,
+    // 3529 -> 3699 with feature 091's P1: `admin/src` outside the module root
+    // joins the walk as a **source** population, and it is 100 `.ts`/`.tsx`
+    // files. Re-recorded in the merge request that grew the tree, which is the
+    // rule; the remaining 70 are the module tree's own growth since the number
+    // was last written down.
+    files: 3699,
     sites: null,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
@@ -362,7 +367,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // admin directory moves into its module's package. Its expectation is the
     // surface directories the route table and the nav attribute to a module —
     // an independent derivation, and not the walk counting itself.
-    sources: ['manifest-index', 'module-packages', 'admin-surfaces'],
+    // `admin-host` joined with P1 and is the host population's short-walk floor.
+    // Its independent author is the **ledger**: a key is written by the merge
+    // request that recorded the reach, not by the derivation being checked, so
+    // the expectation moves when a human moves it and the coverage moves when
+    // the walk does. It is printed only while there is host debt — `expected=0`
+    // is a refusal in this grammar — so the day the last host reach drains this
+    // entry goes with the token, and that staleness is the two-way property
+    // rather than a defect.
+    sources: ['manifest-index', 'module-packages', 'admin-surfaces', 'admin-host'],
   },
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',

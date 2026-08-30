@@ -77,6 +77,7 @@ import {
   vacuousReason as adminRegistrationsVacuousReason,
   type AdminRegistrationFinding,
 } from '../../../scripts/check-admin-registrations.js';
+import { ADMIN_HOST_OWNER } from '../../../scripts/lib/admin-surfaces.js';
 import type {
   AdminNavDeclaration,
   AdminRouteDeclaration,
@@ -92,10 +93,12 @@ import {
   type AdminSurfaceFindingKind,
 } from '../../../scripts/check-admin-surface.js';
 import {
+  adminHostFilesWalked,
   adminPopulationLost,
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
   findCrossModuleSql,
+  vacuousReason as moduleBoundaryVacuous,
   type AdminBoundarySurfaces,
   type CrossModuleImport,
   type CrossModuleImportKind,
@@ -1718,7 +1721,32 @@ const ADMIN_SURFACES: AdminBoundarySurfaces = {
     ['warehouses', 'inventory'],
     ['assets_library', 'assets_library'],
   ]),
+  // The three registries, named by the layout in the real tree and spelled here
+  // because this is the fixture that stands in for it (feature 091, P1).
+  registryFiles: new Set(['admin/src/App.tsx', 'admin/src/components/AppShell.tsx']),
+  generatedRegistryFile: 'admin/src/modules.generated.ts',
 };
+
+/**
+ * The host reach P1 records, and the tree that carries it.
+ *
+ * `IdleLogout.tsx` is the reach `specs/091-module-owned-admin-surfaces/research.md`
+ * §6.6 found by looking: no module owns the file, so before P1 it was judged by
+ * nobody and was in no ledger at all. The fixture is source text and a path,
+ * with the layout as the only pre-computed input — the attribution that decides
+ * the finding is the thing under test.
+ */
+const HOST_FILE = 'admin/src/components/IdleLogout.tsx';
+const HOST_REACH = "import { assetsClient } from '@/modules/assets_library/api/assets-client';";
+const HOST_KEY = `${HOST_FILE}:assets_library/api/assets-client`;
+
+function hostBoundaryTree(source: string): Map<string, string> {
+  return new Map([
+    ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
+    ['admin/src/modules/assets_library/api/assets-client.ts', 'export const assetsClient = {};'],
+    [HOST_FILE, source],
+  ]);
+}
 
 function adminReaches(source: string, file: string): readonly CrossModuleImport[] {
   return moduleBoundaryAnalyze(
@@ -4042,6 +4070,82 @@ const CHECKS: readonly CheckEntry[] = [
           ['admin/src/modules/catalog/ProductEditor.tsx:assets_library/components/AssetPicker'],
           () => false,
         ) === null
+          ? 1
+          : 0,
+      ),
+
+      // --- the admin **host** population (feature 091, P1) -----------------
+      //
+      // FR-017 judges a reach between two modules, so a file the module root
+      // does not hold is judged as nobody's — right for the file, and it leaves
+      // the reach unrecorded. Nine files under `admin/src/components` reach a
+      // module's admin code that way. That is the shape with the *worse*
+      // failure mode: a ledgered reach rewritten as a package specifier goes
+      // stale loudly, while an unrecorded one is rewritten and nothing goes red
+      // anywhere, because there was no entry to strand.
+      //
+      // Two finding kinds, two proofs, both through `checkModuleBoundary` with
+      // the source map *and* the shards — handing the comparison two ready-made
+      // sets would prove the set difference and nothing above it.
+      'host-reach-unledgered-fails': top(
+        () =>
+          checkModuleBoundary(
+            { sources: hostBoundaryTree(HOST_REACH), adminSurfaces: ADMIN_SURFACES },
+            [{ moduleId: 'orders', entries: { [CROSS_MODULE_KEY]: 'another edge' } }],
+          ).violations.filter((finding) => finding.moduleId === ADMIN_HOST_OWNER).length,
+      ),
+      // The direction that fires when a batch rewrites the specifier instead of
+      // repairing the reach — which is precisely what P1 exists to make
+      // possible for these nine files.
+      'host-shard-stale-entry-fails': top(
+        () =>
+          checkModuleBoundary(
+            {
+              sources: hostBoundaryTree('export function IdleLogout(): null { return null; }'),
+              adminSurfaces: ADMIN_SURFACES,
+            },
+            [{ moduleId: ADMIN_HOST_OWNER, entries: { [HOST_KEY]: 'recorded by P1' } }],
+          ).stale.length,
+      ),
+      // Its discrimination, and the one that keeps the population honest in the
+      // other direction: `App.tsx` imports one component per module screen, so
+      // a host walk that judged the registries would record this feature's own
+      // subject as its debt. The control is the same specifier in a file that
+      // is not a registry, so the proof cannot pass by seeing nothing.
+      'host-registry-files-are-not-consumers': top(() =>
+        adminReaches(HOST_REACH, 'admin/src/App.tsx').length === 0 &&
+        adminReaches(HOST_REACH, 'admin/src/modules.generated.ts').length === 0 &&
+        adminReaches(HOST_REACH, HOST_FILE).length === 1
+          ? 1
+          : 0,
+      ),
+      // Issue #113 over the new population: the layout only resolves because it
+      // read `App.tsx` and `AppShell.tsx`, both of which sit in the host walk,
+      // so an empty host walk is a walk that stopped working. `undefined` is the
+      // caller that performs no host walk at all — every fixture — and must not
+      // refuse.
+      'empty-host-walk-refuses': top(() => {
+        const read = {
+          moduleFiles: ['modules/orders/a.ts'],
+          registeredModules: ['orders'],
+          ledgerDirectoryExists: true,
+          entityTables: 220,
+          migrationTables: 241,
+          adminSurfaces: ADMIN_SURFACES,
+        };
+        return moduleBoundaryVacuous({ ...read, adminHostFiles: [] }) !== null &&
+          moduleBoundaryVacuous(read) === null
+          ? 1
+          : 0;
+      }),
+      // Issue #215 over the new population, and its floor's author is the
+      // **ledger** — a key is written by the merge request that recorded the
+      // reach, not by the derivation being checked. A walk that lost the file a
+      // host entry names is short, and `reportReadSize` refuses it.
+      'short-host-walk-refuses': top(() =>
+        adminHostFilesWalked(ADMIN_SURFACES, [HOST_KEY], new Set(), () => true).covered === 0 &&
+        adminHostFilesWalked(ADMIN_SURFACES, [HOST_KEY], new Set([HOST_FILE]), () => true)
+          .covered === 1
           ? 1
           : 0,
       ),
@@ -6633,7 +6737,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // emitted module cannot be read is refused rather than exempted — the one
       // direction in which issue #113's silence grants standing instead of
       // withholding it.
-      'backend/scripts/check-module-boundary.ts': 50,
+      // Plus feature 091 P1's five for the admin **host** population: the two
+      // finding kinds (an unledgered host reach and a stale host entry), the
+      // discrimination that keeps the three registries out of it, and the two
+      // floors — an empty host walk and a short one.
+      'backend/scripts/check-module-boundary.ts': 55,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue
