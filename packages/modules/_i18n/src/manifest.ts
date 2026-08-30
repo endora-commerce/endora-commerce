@@ -87,17 +87,19 @@ export const manifest = defineModuleManifest({
    *
    * **The codes a reader will look for here and not find are the opposite
    * problem: most of these are not the platform's.** 68 of the original 100
-   * are named by exactly one module and by nothing else — `PROMPT_*` by
-   * `prompt_actions`, `SHOPPING_LIST_*` by `shopping_lists`, and so on across
+   * are named by exactly one module and by nothing else — `CUSTOMER_*` by
+   * `customer_accounts`, `ORGANIZATION_*` by `organizations`, and so on across
    * 17 modules. They are here because they fell off the end of the prefix
    * chain, and moving them to their owners is
    * `specs/082-error-code-ownership/rulings.md` §9's remaining sweep. D-121
    * decides each destination — 79 codes into 20 modules, 21 staying — and the
-   * sweep runs it in batches: `KSEF_*` and `PIM_ERGONODE_*` were the first
-   * families to leave. Do not move one in passing: a code that leaves this list
-   * without arriving in its owner's manifest routes nowhere, and the collision
-   * rule makes a half-done move visible at composition rather than at an
-   * operator.
+   * sweep runs it in batches: `KSEF_*` and `PIM_ERGONODE_*` went first (MR 2),
+   * then the rest of Tier A — `PROMPT_*`/`ASSISTANT_*` to `prompt_actions`,
+   * `CUSTOM_FIELD_*` to `custom_fields`, `SHOPPING_LIST_*` to `shopping_lists`,
+   * and four singletons (MR 3). Do not move one in passing: a code that leaves
+   * this list without arriving in its owner's manifest routes nowhere, and the
+   * collision rule makes a half-done move visible at composition rather than at
+   * an operator.
    *
    * **`tokens` is derived from the raise sites, not from the bundle**
    * (runbook §5). Seven of these codes put a `details.code` on the wire; six of
@@ -114,6 +116,14 @@ export const manifest = defineModuleManifest({
    * `.customer_outside_assignment_scope`) and five do not; a token a raise site
    * can produce is a token whether or not anybody has written its sentence, and
    * the missing ones become a Phase 4 finding rather than a silent absence.
+   *
+   * That count of seven is **true of this list and was not true when it was
+   * written**: `TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` was an eighth, putting
+   * the refused email's own registry code in `details.code`, and it left for
+   * `transactional_emails` in the sweep's MR 3. Its manifest says there why it
+   * still declares no tokens — the set is the email registry's, not a fixed
+   * vocabulary — and the arithmetic here is only accidentally right as a
+   * result. Re-derive it from the raise sites if a code arrives or leaves.
    */
   errorCodes: [
     { code: 'ACCOUNT_BLOCKED' },
@@ -128,8 +138,6 @@ export const manifest = defineModuleManifest({
     { code: 'API_KEY_CHANNEL_MISMATCH' },
     { code: 'API_KEY_NOT_BOUND' },
     { code: 'API_KEY_OUT_OF_SCOPE' },
-    { code: 'ASSISTANT_DISABLED' },
-    { code: 'ASSISTANT_NOT_CONFIGURED' },
     { code: 'BULK_TOO_LARGE' },
     { code: 'CANNOT_DEMOTE_LAST_ADMIN' },
     { code: 'CANNOT_REMOVE_LAST_ADMIN' },
@@ -138,16 +146,10 @@ export const manifest = defineModuleManifest({
     { code: 'CREDIT_LIMIT_NOT_GRANTED' },
     { code: 'CURRENCY_MISMATCH' },
     { code: 'CURRENT_PASSWORD_INVALID' },
-    { code: 'CUSTOMER_ADDRESS_NOT_FOUND' },
     { code: 'CUSTOMER_ALREADY_DELETED' },
     { code: 'CUSTOMER_NOT_DELETED' },
     { code: 'CUSTOMER_NOT_FOUND' },
     { code: 'CUSTOMER_RESTORE_WINDOW_ELAPSED' },
-    { code: 'CUSTOM_FIELD_DEFINITION_INVALID' },
-    { code: 'CUSTOM_FIELD_HOST_MANAGED' },
-    { code: 'CUSTOM_FIELD_KEY_CONFLICT' },
-    { code: 'CUSTOM_FIELD_NOT_FOUND' },
-    { code: 'CUSTOM_FIELD_VALUE_INVALID' },
     { code: 'EMAIL_ALREADY_IN_ORGANIZATION' },
     { code: 'EMAIL_ALREADY_REGISTERED' },
     { code: 'EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION' },
@@ -181,22 +183,13 @@ export const manifest = defineModuleManifest({
     { code: 'PACKAGING_UNIT_NAME_CONFLICT' },
     { code: 'PACKAGING_UNIT_NOT_FOUND' },
     { code: 'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE' },
-    { code: 'PRICE_LIST_NOT_FOUND' },
     { code: 'PRICE_UNAVAILABLE' },
     { code: 'PROMOTION_INVALID' },
-    { code: 'PROMPT_PERMISSION_REVOKED' },
-    { code: 'PROMPT_PLAN_EXPIRED' },
-    { code: 'PROMPT_REQUEST_INVALID_STATE' },
-    { code: 'PROMPT_REQUEST_IN_FLIGHT' },
     { code: 'RATE_LIMITED' },
-    { code: 'REGISTRATION_REQUIRES_ORGANIZATION' },
     { code: 'SELECTION_TOO_LARGE' },
-    { code: 'SHOPPING_LIST_CANNOT_DELETE_DEFAULT' },
-    { code: 'SHOPPING_LIST_CANNOT_DELETE_LAST' },
     { code: 'SYSTEM_ATTRIBUTE_SET_IMMUTABLE' },
     { code: 'TERMS_VERSION_STALE' },
     { code: 'TOKEN_INVALID_OR_EXPIRED' },
-    { code: 'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE' },
     { code: 'TWO_FACTOR_REQUIRED' },
     { code: 'TWO_FACTOR_REQUIRED_BY_ROLE' },
     { code: 'UNAUTHORIZED' },

@@ -87,6 +87,15 @@ const MIGRATED_MODULES: readonly string[] = [
   'cms',
   'comparisons',
   'credentials',
+  // The remaining six receiving modules of Tier A (MR 3), on exactly the terms
+  // the MR 2 note below states: the capture says `core` for all seventeen of
+  // their codes, so `capture ⊕ rehomed` is what makes these entries answerable,
+  // and each of the seventeen carries a `REHOMED_ERROR_CODES` entry naming its
+  // tier and its reason. `shopping_lists` is the first receiver in the sweep to
+  // create an i18n bundle, and the only one so far whose codes arrive with a
+  // sentence rather than a ledger entry.
+  'custom_fields',
+  'customers',
   'dictionaries',
   'inventory',
   'invoices',
@@ -107,10 +116,14 @@ const MIGRATED_MODULES: readonly string[] = [
   // the ledger entry without the roster line would leave the declaration
   // unmeasured.
   'payments',
+  'price_lists',
+  'prompt_actions',
   'quote_requests',
   'sales_channels',
   'search',
   'settings',
+  'shopping_lists',
+  'transactional_emails',
 ];
 
 describe('feature 090 Phase 3 — each migrated module declares exactly what it owns', () => {

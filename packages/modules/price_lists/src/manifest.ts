@@ -110,6 +110,43 @@ export const manifest = defineModuleManifest({
       'platform a B2C shop rather than a reduced B2B one.',
   },
   i18n: { bundlesDir: 'i18n' },
+  /**
+   * `PRICE_LIST_NOT_FOUND` — D-129's remaining sweep, Tier A
+   * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;
+   * MR 3).
+   *
+   * Declared by `_i18n` until this merge request, not because anybody judged
+   * it the platform's but because the deleted prefix chain had no rule for it
+   * and its last line was `return 'core'`. **D-121 T1 puts it here**: the noun
+   * is a price list, which is this module's own entity.
+   *
+   * **It is the sweep's cleanest disagreement with the raise-site count**
+   * (`d129-sweep.md` §2.2). The one place that raises it is
+   * `pim_ergonode`'s mapping service, which asks this module's read port for a
+   * price list, gets a 404 and re-answers it under a name of its own; that
+   * makes `pim_ergonode` the caller and not the owner. It is why the prefix
+   * split in MR 2 was deliberate: `pim_ergonode` took thirteen codes in that
+   * batch and left this one behind precisely because it does not name an
+   * Ergonode noun.
+   *
+   * **No sentence moves with it.** It has none in either language anywhere in
+   * the tree; it was already on `UNTRANSLATED_ERROR_CODES` under `_i18n` and
+   * moves to this module's group there, so the bundle this module already
+   * ships gains no key. The admin's Ergonode price-binding screen maps the
+   * code to its own copy (`admin/src/modules/pim_ergonode/api.ts`), which is a
+   * surface string and not the envelope's sentence.
+   *
+   * **`tokens` is derived from the raise sites, not from the bundle**
+   * (runbook §5), and there are none: the single raise is a bare
+   * `HttpError(404, code, message)` with no `details`.
+   *
+   * **The neighbouring code that does *not* come here is `PRICE_UNAVAILABLE`**,
+   * and the reason is written down so nobody moves it in passing: the noun
+   * "price" is claimed by `catalog` and by this module both, which is D-122's
+   * condition, and nothing raises it. It stays with the platform (`d129-sweep.md`
+   * §2.4).
+   */
+  errorCodes: [{ code: 'PRICE_LIST_NOT_FOUND' }],
 });
 
 /** Legacy export retained for backward compatibility. */

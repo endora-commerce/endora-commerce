@@ -348,4 +348,179 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
       'carry it. The judgement belongs to the mapping, which is the noun `pim_ergonode` ' +
       'owns; neither of the two type systems involved is the platform.',
   },
+  // ---- Tier A, MR 3 of the sweep: the rest of the sentence-free block —
+  // `prompt_actions` (6), `custom_fields` (5), `customers` (2),
+  // `shopping_lists` (2), `price_lists` (1), `transactional_emails` (1).
+  // Seventeen codes with no sentence in either language anywhere in the tree,
+  // so nothing operator-visible moves with them; each was on
+  // `UNTRANSLATED_ERROR_CODES` under `_i18n`. Fifteen are on it under their own
+  // module's group now; the two `SHOPPING_LIST_*` codes leave the ledger
+  // instead, because that module had to create a bundle anyway and §5.4's
+  // recommended answer — write the sentence rather than ship `{}` — was taken.
+  ASSISTANT_DISABLED: {
+    from: '_i18n',
+    to: 'prompt_actions',
+    tier: 'T1',
+    reason:
+      'The noun is the prompt assistant, the LLM capability `prompt_actions` configures, ' +
+      'gates and calls. It is not the module switch: this refuses a submission while the ' +
+      'module is present and on and its own `assistant_enabled` kill switch is off, which is ' +
+      'a state only this module has.',
+  },
+  ASSISTANT_NOT_CONFIGURED: {
+    from: '_i18n',
+    to: 'prompt_actions',
+    tier: 'T1',
+    reason:
+      'Same noun and same owner as `ASSISTANT_DISABLED`, one condition along: the assistant ' +
+      'is enabled but its provider, model or API key is missing. Both are decided in this ' +
+      "module's `LlmProviderFactory` and nowhere else.",
+  },
+  PROMPT_PERMISSION_REVOKED: {
+    from: '_i18n',
+    to: 'prompt_actions',
+    tier: 'T1',
+    reason:
+      'The noun is a prompt action plan whose step lost the permission it was planned under. ' +
+      'The permission belongs to whichever module the step targets, but the refusal is about ' +
+      'the plan — a `PromptActionRequest` this module owns — being abandoned mid-execution, ' +
+      'which is why it is not `FORBIDDEN`.',
+  },
+  PROMPT_PLAN_EXPIRED: {
+    from: '_i18n',
+    to: 'prompt_actions',
+    tier: 'T1',
+    reason:
+      'The noun is the plan again, and the expiry is this module\'s own lazy deadline on it: ' +
+      'no sweeper, checked exactly at confirm. Nothing outside `prompt_actions` knows a plan ' +
+      'has a lifetime.',
+  },
+  PROMPT_REQUEST_INVALID_STATE: {
+    from: '_i18n',
+    to: 'prompt_actions',
+    tier: 'T1',
+    reason:
+      'The noun is the prompt action request and the refusal is its state machine — clarify, ' +
+      'confirm and cancel each admit one status and answer this for the rest. The machine is ' +
+      "this module's entity and this module's alone, which is what makes it not " +
+      '`INVALID_TRANSITION` (the platform code D-122 keeps for a contested noun).',
+  },
+  PROMPT_REQUEST_IN_FLIGHT: {
+    from: '_i18n',
+    to: 'prompt_actions',
+    tier: 'T1',
+    reason:
+      'Same noun: one in-flight request per operator, counted over this module\'s own rows. ' +
+      'It is a 429 and is still not `RATE_LIMITED` — that code is a platform declaration ' +
+      '(`GENERIC_ERROR_CODES`) about request volume, this one is a concurrency invariant of ' +
+      'one entity.',
+  },
+  CUSTOM_FIELD_DEFINITION_INVALID: {
+    from: '_i18n',
+    to: 'custom_fields',
+    tier: 'T1',
+    reason:
+      'The noun is a custom-field definition, an entity `custom_fields` owns outright. It ' +
+      'refuses a definition change the registry does not admit — a locked value type, an ' +
+      'option still in use — and every one of those rules lives in this module.',
+  },
+  CUSTOM_FIELD_HOST_MANAGED: {
+    from: '_i18n',
+    to: 'custom_fields',
+    tier: 'T1',
+    reason:
+      'The noun is the definition again, and the refusal is entity-agnostic by construction: ' +
+      'the generic route checks only that the entity type carries a `managedBy` marker, never ' +
+      'which module it names. So it is a rule of this registry and not of the host module the ' +
+      'message happens to mention.',
+  },
+  CUSTOM_FIELD_KEY_CONFLICT: {
+    from: '_i18n',
+    to: 'custom_fields',
+    tier: 'T1',
+    reason:
+      'The noun is a custom-field key, and its uniqueness within an entity type is an ' +
+      "invariant of this module's own table.",
+  },
+  CUSTOM_FIELD_NOT_FOUND: {
+    from: '_i18n',
+    to: 'custom_fields',
+    tier: 'T1',
+    reason:
+      'The absence of a definition this module owns, raised from its own admin routes.',
+  },
+  CUSTOM_FIELD_VALUE_INVALID: {
+    from: '_i18n',
+    to: 'custom_fields',
+    tier: 'T1',
+    reason:
+      'The word in the code is not what decides the owner, and here they happen to agree ' +
+      'while the raise sites do not. Five modules raise it — `catalog`, `customers`, ' +
+      '`orders`, `organizations`, `quote_requests` — and not one decides it: each hands its ' +
+      "host row's values to this module's validation seam and re-answers the failures it gets " +
+      'back. The judgement, the rules and the definitions the rules come from are all here ' +
+      '(D-121 T1; `d129-sweep.md` §2.3 flags it by name).',
+  },
+  CUSTOMER_ADDRESS_NOT_FOUND: {
+    from: '_i18n',
+    to: 'customers',
+    tier: 'T1',
+    reason:
+      'The prefix is `CUSTOMER_` and the noun is not the customer: it is a `CustomerAddress`, ' +
+      'whose entity this module owns. D-186 §1 settles the split — `customer_accounts` owns ' +
+      'the customer record, `customers` owns the address — so the four `CUSTOMER_*` record ' +
+      'codes go elsewhere and this one comes here, on the same rule that separates them.',
+  },
+  REGISTRATION_REQUIRES_ORGANIZATION: {
+    from: '_i18n',
+    to: 'customers',
+    tier: 'T2',
+    reason:
+      'T1 does not decide it: the code names a registration and an Organization, and ' +
+      '`organizations` owns the second noun. T2 does. The code names a mechanism — the ' +
+      "storefront's standalone self-registration path — which this module implements in " +
+      '`customer-registration-service.ts` and is the only thing in the tree that raises. What ' +
+      "it refuses is this module's own setting being off, not a judgement `organizations` " +
+      'makes.',
+  },
+  SHOPPING_LIST_CANNOT_DELETE_DEFAULT: {
+    from: '_i18n',
+    to: 'shopping_lists',
+    tier: 'T1',
+    reason:
+      "The noun is a shopping list, this module's own entity, and the refusal is an invariant " +
+      "of it: the default list is the customer's permanent anchor, so it can be emptied but " +
+      'never deleted. It arrives with a sentence in both languages rather than a ledger entry ' +
+      "— §5.4's recommended answer for a module that has to create a bundle anyway.",
+  },
+  SHOPPING_LIST_CANNOT_DELETE_LAST: {
+    from: '_i18n',
+    to: 'shopping_lists',
+    tier: 'T1',
+    reason:
+      'Same noun and same owner: an account always keeps at least one list. Also written ' +
+      'rather than ledgered.',
+  },
+  PRICE_LIST_NOT_FOUND: {
+    from: '_i18n',
+    to: 'price_lists',
+    tier: 'T1',
+    reason:
+      "The noun is a price list, which `price_lists` owns; `pim_ergonode` raises it from its " +
+      'mapping service after this module\'s read port answers 404, which makes it the caller ' +
+      'and not the owner. The cleanest disagreement in the sweep between D-121 and the ' +
+      'sole-raiser count (`d129-sweep.md` §2.2), and the reason MR 2 left it behind while ' +
+      "moving thirteen of `pim_ergonode`'s own codes.",
+  },
+  TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE: {
+    from: '_i18n',
+    to: 'transactional_emails',
+    tier: 'T1',
+    reason:
+      'The word `NOT_DEACTIVATABLE` reads like the module lifecycle and is not: the noun is ' +
+      'one transactional email that the registry marks always-on, not a module an operator ' +
+      "may not switch off — that is the platform's `MODULE_NOT_DEACTIVATABLE`, which stays. " +
+      'The per-email control exists precisely because this module\'s own activation is ' +
+      "`nonDeactivatable` (issue #89), and the registry it is read from is this module's.",
+  },
 };
