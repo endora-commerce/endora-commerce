@@ -224,6 +224,16 @@ const LANGUAGES = ['en', 'pl'] as const;
  * not "nobody has written it yet" either — the note on its group says what would
  * retire it.
  *
+ * **MR 6 moved it not at all, and that is the third answer this ledger can
+ * give.** Tier C's `admin_roles` took three codes and wrote all three as prose
+ * in its own new bundle: each has a live raise site in that module, and each
+ * has a reader — an operator on `/admin-roles` saving a role or pressing
+ * Delete on a row — so there was a refusal to describe and somebody to describe
+ * it to. Two of the three replaced a placeholder here; the third,
+ * `ADMIN_ROLE_IN_USE`, already carried prose and moved it. A batch whose codes
+ * all arrive translated leaves this list where it found it, which is what the
+ * sweep is for.
+ *
  * So the rule is unchanged and is worth stating in the form the sweep needs it:
  * never add an entry to make a build pass, and never carry a placeholder to
  * avoid adding one.

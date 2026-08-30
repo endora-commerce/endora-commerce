@@ -898,4 +898,45 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
       'is an operator on the Webhooks screen, and the one thing the raise interpolates — the ' +
       'delivery\'s status — is on the row they pressed the button on.',
   },
+  // ---- Tier C, MR 6 of the sweep: `admin_roles` (3). The first of the two
+  // batches the sweep keeps unbatched because they carry prose somebody wrote,
+  // and the module creates its i18n bundle in the same change. Noun and thrower
+  // agree for all three — every raise site is in this module's
+  // `services/admin-role-service.ts` — so the judgement here is not about the
+  // destination but about what each sentence should say.
+  ADMIN_ROLE_CODE_TAKEN: {
+    from: '_i18n',
+    to: 'admin_roles',
+    tier: 'T1',
+    reason:
+      'The noun is an admin role and the refusal is of a second row under a code this ' +
+      "module's `admin_roles` table already holds — a unique constraint of its own table, " +
+      'raised from its own upsert. Placeholder deleted, prose written (§5.4): the reader is ' +
+      'an operator saving a role on `/admin-roles`, and the remedy is one sentence long.',
+  },
+  ADMIN_ROLE_IN_USE: {
+    from: '_i18n',
+    to: 'admin_roles',
+    tier: 'T1',
+    reason:
+      'The noun is an admin role and the refusal is of deleting one that assignees still ' +
+      "hold. The sweep's only multi-token sentence: two raise sites, both passing a " +
+      '`details.code` (`assigned`, `assigned_to_deleted`), so four of its six bundle keys ' +
+      'are the sentences an operator actually reads and the base pair is unreachable. All ' +
+      'six moved — carrying the base key rather than deleting it is measured and argued in ' +
+      "this module's manifest, because P1 asks its question at `errors.<CODE>` and at no " +
+      'other key.',
+  },
+  ADMIN_ROLE_PROTECTED: {
+    from: '_i18n',
+    to: 'admin_roles',
+    tier: 'T1',
+    reason:
+      'Same noun and same owner: it refuses deleting a role another module seeded, and the ' +
+      "protected set is this module's own `SYSTEM_ROLE_CODES` registry. Placeholder " +
+      'deleted, prose written (§5.4) — with one repair first, since the raise interpolated ' +
+      'the role code into its English message and passed no `details`, so a translated ' +
+      'sentence would have rendered cleanly and lost it. The raise now carries ' +
+      '`{ role: role.code }` and both sentences name it.',
+  },
 };

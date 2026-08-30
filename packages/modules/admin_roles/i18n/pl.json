@@ -1,0 +1,7 @@
+{
+  "errors.ADMIN_ROLE_CODE_TAKEN": "Rola o tym kodzie już istnieje. Wybierz inny kod albo edytuj istniejącą rolę.",
+  "errors.ADMIN_ROLE_IN_USE": "Ta rola jest nadal przypisana, więc nie można jej usunąć. Najpierw zmień przypisanie kont, które ją mają.",
+  "errors.ADMIN_ROLE_IN_USE.assigned": "Ta rola jest nadal przypisana do {assigned} kont administratorów, więc nie można jej usunąć. Najpierw zmień im przypisanie.",
+  "errors.ADMIN_ROLE_IN_USE.assigned_to_deleted": "Ta rola jest nadal przypisana do {deleted} usuniętych kont. Przywrócenie takiego konta przywraca też jego rolę, więc roli nie można usunąć, dopóki konta są w koszu.",
+  "errors.ADMIN_ROLE_PROTECTED": "Rola „{role}” pochodzi z modułu i nie można jej usunąć. Aby usunąć rolę, usuń moduł."
+}
