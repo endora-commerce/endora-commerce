@@ -71,6 +71,13 @@ describe('inventory — the cut edges fail closed (feature 075, Phase C)', () =>
     em.create(AvailabilityNotification, {
       productId: SEED_PRODUCT_101_ID,
       customerAccountId: customer.id,
+      // Feature 087 Group B / D-187 — `availability_notifications` carries its
+      // organisation and
+      // `availability_notifications_organization_attribution_chk` refuses an
+      // owned row without one. This is the stamp
+      // `AvailabilityNotificationService.subscribe` writes, done by hand
+      // because the fixture writes the row directly.
+      organizationId: customer.organizationId,
       email: customer.email,
       status: 'queued',
     });
