@@ -6,6 +6,7 @@ import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delive
 import { entities as mfaEntities } from '@endora-commerce/mod-mfa/backend';
 import { entities as newsletterEntities } from '@endora-commerce/mod-newsletter/backend';
 import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
+import { entities as pwaEntities } from '@endora-commerce/mod-pwa/backend';
 import { entities as returnsEntities } from '@endora-commerce/mod-returns/backend';
 import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping-lists/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
@@ -101,6 +102,7 @@ import type { TransactionalEmailContent as TransactionalEmailContentRow } from '
 import type { Webhook as WebhookRow } from '../../../packages/modules/webhooks/src/backend/entities/webhook.entity.js';
 import type { WebhookDelivery as WebhookDeliveryRow } from '../../../packages/modules/webhooks/src/backend/entities/webhook-delivery.entity.js';
 import type { Comparison as ComparisonRow } from '../../../packages/modules/comparisons/src/backend/entities/comparison.entity.js';
+import type { PushSubscription as PushSubscriptionRow } from '../../../packages/modules/pwa/src/backend/entities/push-subscription.entity.js';
 import type { ComparisonProduct as ComparisonProductRow } from '../../../packages/modules/comparisons/src/backend/entities/comparison-product.entity.js';
 import type { CredentialConfiguration as CredentialConfigurationRow } from '../../../packages/modules/credentials/src/backend/entities/credential-configuration.entity.js';
 import type { Country as CountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/country.entity.js';
@@ -483,6 +485,10 @@ export const WebhookDelivery = classNamed<WebhookDeliveryRow>(webhooksEntities, 
  * different object on purpose, and one no ORM ever sees.
  */
 export const Comparison = classNamed<ComparisonRow>(comparisonsEntities, 'Comparison');
+export const PushSubscription = classNamed<PushSubscriptionRow>(
+  pwaEntities,
+  'PushSubscription',
+);
 export const ComparisonProduct = classNamed<ComparisonProductRow>(
   comparisonsEntities,
   'ComparisonProduct',

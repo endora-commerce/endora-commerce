@@ -113,7 +113,16 @@ export interface PwaModuleResult {
 export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   const configResolver = new PwaConfigResolver(options.settings, options.emFactory);
   const iconService = new PwaIconService(options.emFactory, options.assetUpload);
-  const subscriptionService = new PushSubscriptionService(options.emFactory);
+  // Feature 087 Group B / D-187 — the subscription registry stamps the
+  // organisation an owned device belongs to, derived from the owning account
+  // through the gated port this module already resolves. Passed rather than
+  // optional: `push_subscriptions_organization_attribution_chk` refuses a row
+  // this service could not attribute, so a composition with no way to answer
+  // the question cannot write the table at all.
+  const subscriptionService = new PushSubscriptionService(
+    options.emFactory,
+    options.customerAccounts,
+  );
 
   const providerRegistry = new PushProviderRegistry();
   providerRegistry.register(new WebPushProvider(options.settings, options.vapidSubject));
