@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import { CHAIN_ANSWERS_AS_MODULE_IDS } from '../../fixtures/error-code-routing/chain-answers.js';
-import { MINTED_ERROR_CODES } from '../../fixtures/error-code-routing/reference-ledgers.js';
+import {
+  MINTED_ERROR_CODES,
+  REHOMED_ERROR_CODES,
+} from '../../fixtures/error-code-routing/reference-ledgers.js';
 import {
   describeLedgerFaults,
   describeMigrationGaps,
@@ -13,11 +16,16 @@ import {
   intendedRouting,
   type LedgerReferences,
   type MintedCode,
+  type OwnershipTier,
   type ReferenceLedgers,
+  type RehomedCode,
 } from '../../helpers/error-code-routing.js';
 
 /** The declared addends of the reference side, as every reader takes them. */
-const LEDGERS: ReferenceLedgers = { minted: MINTED_ERROR_CODES };
+const LEDGERS: ReferenceLedgers = {
+  rehomed: REHOMED_ERROR_CODES,
+  minted: MINTED_ERROR_CODES,
+};
 
 /**
  * Feature 090 Phase 3 — **a migrated module has migrated completely.**
@@ -56,6 +64,13 @@ const LEDGERS: ReferenceLedgers = { minted: MINTED_ERROR_CODES };
  * the equality harness uses: `capture ⊕ minted`
  * (`test/fixtures/error-code-routing/reference-ledgers.ts`). The refusal itself
  * is untouched, so a module *nothing* routes to is still refused.
+ *
+ * **And this is where D-129's sweep is measured** (`d129-sweep.md` §3.3). The
+ * completeness question is asked against `capture ⊕ rehomed ⊕ minted`, which is
+ * what stops the same refusal from firing for the seventeen of the sweep's twenty
+ * receiving modules the capture routes nothing to. The roster grows to 35 over
+ * the sweep, one receiving module per merge request, on exactly the terms Phase 3
+ * used.
  *
  * `specs/090-module-owned-error-codes/migration-runbook.md` is the procedure the
  * roster is filled in by.
@@ -165,7 +180,8 @@ describe('feature 090 Phase 3 — each migrated module declares exactly what it 
         // while calling the block's completeness unmeasurable. See
         // `chain-answers.ts`'s `CHAIN_ANSWER_ALIASES`. `intendedRouting` is the
         // second reconciliation at the same edge, for a module whose codes were
-        // minted after the chain was deleted.
+        // minted after the chain was deleted and for one D-129's sweep re-homes a
+        // code to.
         const gaps = findMigrationGaps(
           moduleId,
           declared,
@@ -176,8 +192,8 @@ describe('feature 090 Phase 3 — each migrated module declares exactly what it 
           gaps.length === 0
             ? ''
             : `${moduleId}'s error-code migration is not answer-preserving. The frozen ` +
-              'capture plus the minting ledger is the reference, and neither is edited ' +
-              'to agree with a migration ' +
+              'capture plus the two reference ledgers is the reference, and none of the ' +
+              'three is edited to agree with a migration ' +
               '(specs/090-module-owned-error-codes/migration-runbook.md):\n' +
               describeMigrationGaps(moduleId, gaps),
         ).toEqual([]);
@@ -202,65 +218,180 @@ describe('feature 090 Phase 3 — each migrated module declares exactly what it 
 });
 
 /**
- * **The minting ledger is a claim the tree agrees with.**
+ * **The reference ledgers are claims the tree agrees with.**
  *
- * `test/fixtures/error-code-routing/reference-ledgers.ts` declares the codes that
- * are outside the frozen capture's subject: the ones minted after the chain was
- * deleted. Both harnesses read it as the overlay on the capture, which is what
- * lets a code the chain never answered for be green without re-freezing the
- * reference or relaxing the comparison to a subset check.
+ * `test/fixtures/error-code-routing/reference-ledgers.ts` declares the two things
+ * the frozen capture cannot say: which codes are outside its subject because they
+ * were minted after the chain was deleted, and where D-129's sweep deliberately
+ * moves a routing answer. Both harnesses read them as the overlay on the capture,
+ * which is what lets either be green without re-freezing the reference or
+ * relaxing the comparison to a subset check.
  *
  * That overlay has authority over the reference side of two tests, so the entries
  * themselves are the thing to check. **Two directions, one implementation each**:
  *
- * - *entry → world*, here: an entry the frozen capture contradicts, whose `to` no
- *   manifest declares, whose destination is not a module, or that carries no
- *   reason.
- * - *world → entry*, in `error-code-routing-equality.test.ts`: a code minted and
- *   not ledgered is `unexpected` in the comparison and is named by the
- *   enumeration-coverage assertion in the words an author needs.
+ * - *entry → world*, here: an entry the frozen capture contradicts, whose `from`
+ *   it puts elsewhere, whose `to` no manifest declares, whose destination is not
+ *   a module, whose tier is not D-121's, that carries no reason, or that is in
+ *   both ledgers at once.
+ * - *world → entry*, in `error-code-routing-equality.test.ts`: a move the
+ *   manifests made and no ledger holds is `rerouted`, a code minted and not
+ *   ledgered is `unexpected` and is named by the enumeration-coverage assertion
+ *   in the words an author needs.
  *
  * The second is deliberately **not** implemented twice. It is the same question,
  * and two implementations of one question are two answers waiting to disagree.
  */
-describe('the minting ledger', () => {
+describe('the reference ledgers', () => {
   /**
    * The red proofs, over references and entries handed to the predicate whole
    * (`AGENTS.md`, issue #130). They enter at the top of the analysis: nothing
    * here is a value the tree computes, and each proof isolates one fault kind so
-   * that three of the four cannot go blind behind the fourth's red.
+   * that eight of the nine cannot go blind behind the ninth's red.
    */
   describe('the ledger predicate can go red — one proof per fault it reports', () => {
     const references: LedgerReferences = {
-      // A code the chain answered for; and — absent from the capture — one the
-      // manifests declare and one nobody declares at all.
-      capture: { OLD_CODE: 'catalog' },
-      declaredBy: { OLD_CODE: ['catalog'], NEW_CODE: ['payments'] },
-      registeredModuleIds: ['_i18n', 'catalog', 'payments'],
+      // Codes the chain answered for — one of them moved, one stayed, one nobody
+      // declares — and, absent from the capture, one the manifests declare, which
+      // is what a minted code looks like.
+      capture: { OLD_CODE: 'catalog', MOVED_CODE: '_i18n', ORPHAN_CODE: '_i18n' },
+      declaredBy: {
+        OLD_CODE: ['catalog'],
+        MOVED_CODE: ['price_lists'],
+        NEW_CODE: ['payments'],
+        STRAY_CODE: ['price_lists'],
+      },
+      registeredModuleIds: ['_i18n', 'catalog', 'payments', 'price_lists'],
     };
     const wellFormed: MintedCode = {
       to: 'payments',
       reason: 'A fixture entry, so each fault is measured on input that enters above it.',
     };
+    const wellMoved: RehomedCode = {
+      from: '_i18n',
+      to: 'price_lists',
+      tier: 'T1',
+      reason: 'A fixture entry, for the same reason.',
+    };
     const ledger = (entries: Record<string, MintedCode>): ReferenceLedgers => ({
+      rehomed: {},
       minted: entries,
     });
-
-    it('reports nothing for an entry the capture and the manifests both agree with', () => {
-      expect(findLedgerFaults(ledger({ NEW_CODE: wellFormed }), references)).toEqual([]);
+    const moves = (entries: Record<string, RehomedCode>): ReferenceLedgers => ({
+      rehomed: entries,
+      minted: {},
     });
 
-    it('reports `captured-code` for an entry the chain answered for', () => {
+    it('reports nothing for entries the capture and the manifests both agree with', () => {
+      expect(
+        findLedgerFaults(
+          { rehomed: { MOVED_CODE: wellMoved }, minted: { NEW_CODE: wellFormed } },
+          references,
+        ),
+      ).toEqual([]);
+    });
+
+    it('reports `captured-code` for a minting entry the chain answered for', () => {
       const entry: MintedCode = { ...wellFormed, to: 'catalog' };
       expect(findLedgerFaults(ledger({ OLD_CODE: entry }), references)).toEqual([
-        { code: 'OLD_CODE', kind: 'captured-code', to: 'catalog', observed: 'catalog' },
+        {
+          code: 'OLD_CODE',
+          ledger: 'minted',
+          kind: 'captured-code',
+          from: null,
+          to: 'catalog',
+          observed: 'catalog',
+        },
+      ]);
+    });
+
+    it('reports `unknown-code` for a re-homing entry the frozen capture does not hold', () => {
+      expect(findLedgerFaults(moves({ STRAY_CODE: wellMoved }), references)).toEqual([
+        {
+          code: 'STRAY_CODE',
+          ledger: 'rehomed',
+          kind: 'unknown-code',
+          from: '_i18n',
+          to: 'price_lists',
+          observed: null,
+        },
+      ]);
+    });
+
+    it('reports `wrong-origin`, naming where the capture had it', () => {
+      const entry: RehomedCode = { ...wellMoved, from: 'catalog' };
+      expect(findLedgerFaults(moves({ MOVED_CODE: entry }), references)).toEqual([
+        {
+          code: 'MOVED_CODE',
+          ledger: 'rehomed',
+          kind: 'wrong-origin',
+          from: 'catalog',
+          to: 'price_lists',
+          observed: '_i18n',
+        },
+      ]);
+    });
+
+    it('reports `not-a-move` for an entry whose origin and destination are the same module', () => {
+      const entry: RehomedCode = { ...wellMoved, from: 'catalog', to: 'catalog' };
+      expect(findLedgerFaults(moves({ OLD_CODE: entry }), references)).toEqual([
+        {
+          code: 'OLD_CODE',
+          ledger: 'rehomed',
+          kind: 'not-a-move',
+          from: 'catalog',
+          to: 'catalog',
+          observed: null,
+        },
+      ]);
+    });
+
+    it('reports `unknown-tier` for a tier that is not one of D-121\'s three', () => {
+      const entry: RehomedCode = { ...wellMoved, tier: 'T4' as OwnershipTier };
+      expect(findLedgerFaults(moves({ MOVED_CODE: entry }), references)).toEqual([
+        {
+          code: 'MOVED_CODE',
+          ledger: 'rehomed',
+          kind: 'unknown-tier',
+          from: '_i18n',
+          to: 'price_lists',
+          observed: null,
+        },
+      ]);
+    });
+
+    it('reports `double-entry` once for a code both ledgers claim', () => {
+      expect(
+        findLedgerFaults(
+          {
+            rehomed: { MOVED_CODE: wellMoved },
+            minted: { MOVED_CODE: { to: 'price_lists', reason: 'A fixture entry.' } },
+          },
+          references,
+        ),
+      ).toEqual([
+        {
+          code: 'MOVED_CODE',
+          ledger: 'rehomed',
+          kind: 'double-entry',
+          from: '_i18n',
+          to: 'price_lists',
+          observed: null,
+        },
       ]);
     });
 
     it('reports `unknown-destination` for a module that is not registered', () => {
       const entry: MintedCode = { ...wellFormed, to: 'not_a_module' };
       expect(findLedgerFaults(ledger({ NEW_CODE: entry }), references)).toEqual([
-        { code: 'NEW_CODE', kind: 'unknown-destination', to: 'not_a_module', observed: null },
+        {
+          code: 'NEW_CODE',
+          ledger: 'minted',
+          kind: 'unknown-destination',
+          from: null,
+          to: 'not_a_module',
+          observed: null,
+        },
       ]);
     });
 
@@ -269,7 +400,9 @@ describe('the minting ledger', () => {
       expect(findLedgerFaults(ledger({ NEW_CODE: entry }), references)).toEqual([
         {
           code: 'NEW_CODE',
+          ledger: 'minted',
           kind: 'undeclared-destination',
+          from: null,
           to: '_i18n',
           observed: 'payments',
         },
@@ -280,7 +413,9 @@ describe('the minting ledger', () => {
       expect(findLedgerFaults(ledger({ UNDECLARED_CODE: wellFormed }), references)).toEqual([
         {
           code: 'UNDECLARED_CODE',
+          ledger: 'minted',
           kind: 'undeclared-destination',
+          from: null,
           to: 'payments',
           observed: null,
         },
@@ -290,7 +425,14 @@ describe('the minting ledger', () => {
     it('reports `unreasoned` for an entry whose reason is blank', () => {
       const entry: MintedCode = { ...wellFormed, reason: '   ' };
       expect(findLedgerFaults(ledger({ NEW_CODE: entry }), references)).toEqual([
-        { code: 'NEW_CODE', kind: 'unreasoned', to: 'payments', observed: null },
+        {
+          code: 'NEW_CODE',
+          ledger: 'minted',
+          kind: 'unreasoned',
+          from: null,
+          to: 'payments',
+          observed: null,
+        },
       ]);
     });
 
@@ -298,6 +440,7 @@ describe('the minting ledger', () => {
       const described = describeLedgerFaults(
         findLedgerFaults(
           {
+            rehomed: {},
             minted: {
               OLD_CODE: { to: 'catalog', reason: '' },
               UNDECLARED_CODE: wellFormed,
@@ -307,11 +450,11 @@ describe('the minting ledger', () => {
         ),
       );
       expect(described).toContain(
-        '[captured-code] OLD_CODE: the frozen capture routes it to catalog, so the chain ' +
-          'answered for it and it was not minted.',
+        '[captured-code] OLD_CODE (minted): the frozen capture routes it to catalog, so the ' +
+          'chain answered for it and it was not minted.',
       );
-      expect(described).toContain('[unreasoned] OLD_CODE');
-      expect(described).toContain('[undeclared-destination] UNDECLARED_CODE');
+      expect(described).toContain('[unreasoned] OLD_CODE (minted)');
+      expect(described).toContain('[undeclared-destination] UNDECLARED_CODE (minted)');
     });
 
     /**
@@ -346,8 +489,8 @@ describe('the minting ledger', () => {
       ).toThrow(EmptyLedgerReferenceError);
     });
 
-    it('accepts an empty ledger — nothing has been minted, and that is not a fault', () => {
-      expect(findLedgerFaults(ledger({}), references)).toEqual([]);
+    it('accepts empty ledgers — the sweep has not started and nothing has been minted', () => {
+      expect(findLedgerFaults({ rehomed: {}, minted: {} }, references)).toEqual([]);
     });
   });
 
@@ -385,7 +528,8 @@ describe('the minting ledger', () => {
 
       // eslint-disable-next-line no-console -- the population is the point of the assertion
       console.log(
-        `[reference-ledgers] read: minted=${Object.keys(MINTED_ERROR_CODES).length} ` +
+        `[reference-ledgers] read: rehomed=${Object.keys(REHOMED_ERROR_CODES).length} ` +
+          `minted=${Object.keys(MINTED_ERROR_CODES).length} ` +
           `codes=${captured.length} modules=${references.registeredModuleIds.length} ` +
           `sources=error-codes:${accounted.length}/${enumerated.length},` +
           `declarations:${capturedDeclared.length}/${captured.length}`,
@@ -403,7 +547,7 @@ describe('the minting ledger', () => {
       expect(accounted).toHaveLength(enumerated.length);
       expect(
         captured.filter((code) => references.declaredBy[code] === undefined),
-        'a code the frozen capture holds is declared by no module, so the ledger is being ' +
+        'a code the frozen capture holds is declared by no module, so the ledgers are being ' +
           'judged against a manifest set that is short',
       ).toEqual([]);
     });
@@ -415,9 +559,10 @@ describe('the minting ledger', () => {
         faults,
         faults.length === 0
           ? ''
-          : 'the minting ledger disagrees with the tree. An entry declares a code the chain ' +
-            'never answered for, owned by the module that declares it today, with the ' +
-            `reason it exists:\n${describeLedgerFaults(faults)}`,
+          : 'a reference ledger disagrees with the tree. An entry records a change that ' +
+            '**has been made** — a code the chain never answered for, or a routing answer ' +
+            "D-129's sweep has moved — owned by the module that declares it today, with " +
+            `the reason a reviewer can disagree with:\n${describeLedgerFaults(faults)}`,
       ).toEqual([]);
     });
   });

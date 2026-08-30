@@ -6,7 +6,10 @@ import {
   CHAIN_ANSWERS_AS_MODULE_IDS,
   CHAIN_ROUTING_ANSWERS,
 } from '../../fixtures/error-code-routing/chain-answers.js';
-import { MINTED_ERROR_CODES } from '../../fixtures/error-code-routing/reference-ledgers.js';
+import {
+  MINTED_ERROR_CODES,
+  REHOMED_ERROR_CODES,
+} from '../../fixtures/error-code-routing/reference-ledgers.js';
 import {
   compareErrorCodeRouting,
   describeRoutingDifferences,
@@ -18,7 +21,10 @@ import {
 } from '../../helpers/error-code-routing.js';
 
 /** The declared addends of the reference side, as every reader takes them. */
-const LEDGERS: ReferenceLedgers = { minted: MINTED_ERROR_CODES };
+const LEDGERS: ReferenceLedgers = {
+  rehomed: REHOMED_ERROR_CODES,
+  minted: MINTED_ERROR_CODES,
+};
 
 /**
  * Feature 090 — the equality harness, now that the chain is gone.
@@ -54,6 +60,15 @@ const LEDGERS: ReferenceLedgers = { minted: MINTED_ERROR_CODES };
  * this harness stop being able to say what the chain did — and the boundary is
  * asserted in both directions instead: nothing in `ERROR_CODES` is unaccounted
  * for, and nothing the ledger declares is in the capture.
+ *
+ * **A routing answer D-129's sweep deliberately moves is the other addend**
+ * (`d129-sweep.md` §3.3). The sweep's whole job is to move answers this harness
+ * exists to refuse moving, so every move is recorded per code with its D-121 tier
+ * and its reason, and the reference is the capture with those moves applied. Same
+ * two refusals as above: the capture is not re-frozen, which would make this
+ * comparison agree with whatever the sweep did, and this file is not deleted,
+ * which would withdraw the protection from the 210 codes outside the sweep. A
+ * move no ledger holds is still `rerouted`, in the words it always was.
  */
 describe('error-code routing equality harness (feature 090)', () => {
   describe('the comparison can go red — one proof per difference it reports', () => {
@@ -113,13 +128,19 @@ describe('error-code routing equality harness (feature 090)', () => {
   });
 
   /**
-   * **The reference side, `capture ⊕ minted`** — red proofs over maps handed to
-   * the overlay whole (issue #130) rather than over the tree's own capture and
-   * ledger, which are the values the blocks below consume.
+   * **The reference side, `capture ⊕ rehomed ⊕ minted`** — red proofs over maps
+   * handed to the overlay whole (issue #130) rather than over the tree's own
+   * capture and ledgers, which are the values the blocks below consume.
+   *
+   * Two of these are D-129's sweep's stated deliverable: *a move nobody
+   * declared*, and *a declaration nobody made*. They are the sweep's two failure
+   * directions and they must stay distinguishable, because their repairs are
+   * opposite — write the entry, or undo the manifest change.
    */
-  describe('the minting ledger, applied to the reference side', () => {
+  describe('the reference ledgers, applied to the reference side', () => {
     const capture: RoutingAnswers = { A_CODE: '_i18n', B_CODE: '_i18n' };
     const minted: ReferenceLedgers = {
+      rehomed: {},
       minted: {
         NEW_CODE: {
           to: 'payments',
@@ -127,7 +148,18 @@ describe('error-code routing equality harness (feature 090)', () => {
         },
       },
     };
-    const empty: ReferenceLedgers = { minted: {} };
+    const rehomed: ReferenceLedgers = {
+      rehomed: {
+        A_CODE: {
+          from: '_i18n',
+          to: 'price_lists',
+          tier: 'T1',
+          reason: 'A fixture entry, for the same reason.',
+        },
+      },
+      minted: {},
+    };
+    const empty: ReferenceLedgers = { rehomed: {}, minted: {} };
 
     it('adds a minted code the capture cannot hold, and moves no other answer', () => {
       expect(intendedRouting(capture, minted)).toEqual({
@@ -164,23 +196,40 @@ describe('error-code routing equality harness (feature 090)', () => {
       ).toEqual([{ code: 'NEW_CODE', kind: 'unrouted', expected: 'payments', actual: null }]);
     });
 
-    it('still reports `rerouted` for a code the chain answered for that has moved', () => {
+    it('reports `rerouted` for a move nobody declared — the code moved, the ledger is empty', () => {
       expect(
-        compareErrorCodeRouting(intendedRouting(capture, minted), {
+        compareErrorCodeRouting(intendedRouting(capture, empty), {
           A_CODE: 'price_lists',
           B_CODE: '_i18n',
-          NEW_CODE: 'payments',
         }),
       ).toEqual([{ code: 'A_CODE', kind: 'rerouted', expected: '_i18n', actual: 'price_lists' }]);
     });
 
-    it('reports nothing when the ledger and the declarations agree', () => {
+    it('points a re-homed code at its new owner and leaves every other answer alone', () => {
+      expect(intendedRouting(capture, rehomed)).toEqual({
+        A_CODE: 'price_lists',
+        B_CODE: '_i18n',
+      });
+    });
+
+    it('reports `unrouted` for a declaration nobody made — the ledger moved it, no module declares it', () => {
       expect(
-        compareErrorCodeRouting(intendedRouting(capture, minted), {
-          A_CODE: '_i18n',
-          B_CODE: '_i18n',
-          NEW_CODE: 'payments',
-        }),
+        compareErrorCodeRouting(intendedRouting(capture, rehomed), { B_CODE: '_i18n' }),
+      ).toEqual([{ code: 'A_CODE', kind: 'unrouted', expected: 'price_lists', actual: null }]);
+    });
+
+    it('reports `rerouted` for a re-homing entry written ahead of its move', () => {
+      expect(compareErrorCodeRouting(intendedRouting(capture, rehomed), capture)).toEqual([
+        { code: 'A_CODE', kind: 'rerouted', expected: 'price_lists', actual: '_i18n' },
+      ]);
+    });
+
+    it('reports nothing when the ledgers and the declarations agree', () => {
+      expect(
+        compareErrorCodeRouting(
+          intendedRouting(capture, { rehomed: rehomed.rehomed, minted: minted.minted }),
+          { A_CODE: 'price_lists', B_CODE: '_i18n', NEW_CODE: 'payments' },
+        ),
       ).toEqual([]);
     });
   });
@@ -317,10 +366,11 @@ describe('error-code routing equality harness (feature 090)', () => {
       // alias lives at the capture's edge because the capture is the only thing
       // left that speaks the chain's vocabulary.
       //
-      // `intendedRouting` is the same reconciliation for the other thing the
+      // `intendedRouting` is the same reconciliation for the two other things the
       // capture cannot express: a code minted after the chain was deleted, which
-      // the chain gave no answer for and which the ledger declares with its owner
-      // and its reason. The capture itself is untouched by it.
+      // the chain gave no answer for, and a routing answer D-129's sweep
+      // deliberately moves. Each is declared per code with its reason. The
+      // capture itself is untouched by either.
       const differences = compareErrorCodeRouting(
         intendedRouting(CHAIN_ANSWERS_AS_MODULE_IDS, LEDGERS),
         composed,
@@ -333,9 +383,10 @@ describe('error-code routing equality harness (feature 090)', () => {
             'chain answered. Feature 090 is answer-preserving over the whole of ' +
             'ERROR_CODES with no exception list (FR-041), so a module has declared a ' +
             'code that is not the one the chain routed to it, or has declared a code ' +
-            'another module owns. A code minted after the chain was deleted is a ' +
-            'different case and needs an entry in ' +
-            'test/fixtures/error-code-routing/reference-ledgers.ts. Fix the declaration; ' +
+            'another module owns. A deliberate change is a different case and needs an ' +
+            'entry in test/fixtures/error-code-routing/reference-ledgers.ts: ' +
+            'REHOMED_ERROR_CODES for a code D-129\'s sweep moves, MINTED_ERROR_CODES for ' +
+            'one minted after the chain was deleted. Fix the declaration; ' +
             `do not edit the frozen capture:\n${describeRoutingDifferences(differences)}`,
       ).toEqual([]);
       // The other half of the same call. A collision would show up above as an
