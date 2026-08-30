@@ -819,3 +819,4 @@ export type Payment = PaymentRow;
 export type InpostWebhookEvent = InpostWebhookEventRow;
 export type InpostShipmentLink = InpostShipmentLinkRow;
 export type Shipment = ShipmentRow;
+export type NewsletterSubscriber = NewsletterSubscriberRow;
