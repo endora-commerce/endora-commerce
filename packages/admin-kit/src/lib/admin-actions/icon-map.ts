@@ -20,6 +20,7 @@ import {
   KeyRound,
   Layers,
   LayoutDashboard,
+  LineChart,
   ListChecks,
   Menu,
   Package,
@@ -100,6 +101,10 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   Truck,
   CircleDollarSign,
   Activity,
+  // Feature 091 (Phase 4, batch two) — `analytics` declares its sidebar icon by
+  // name now, and this is the map that turns the name back into the same glyph
+  // `AppShell.tsx` used to import directly.
+  LineChart,
 };
 
 export function resolveIcon(name: string): LucideIcon {

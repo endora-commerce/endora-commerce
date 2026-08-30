@@ -55,16 +55,17 @@ const coreBundle = {
     'appShell.brand.text',
     'appShell.section.analyticsAds',
     'appShell.section.system',
-    'appShell.nav.analytics',
     'appShell.nav.linkedinAds',
     'appShell.nav.metaAds',
     'appShell.nav.users',
   ]),
-  // `google_analytics` owns its sidebar entry since feature 091's Phase 4, so
-  // its label resolves in the **module's** namespace out of
-  // `packages/modules/google_analytics/i18n/` — not in the shared `core`
-  // bundle, whose `appShell.nav.googleAnalytics` entry is gone.
+  // `google_analytics` owns its sidebar entry since feature 091's Phase 4, and
+  // `analytics` since batch two, so both labels resolve in the **module's** own
+  // namespace out of `packages/modules/<id>/i18n/` — not in the shared `core`
+  // bundle, whose `appShell.nav.googleAnalytics` and `appShell.nav.analytics`
+  // entries are gone.
   ...passthroughBundle('google_analytics', ['nav.googleAnalytics.label']),
+  ...passthroughBundle('analytics', ['nav.analytics.label']),
 };
 
 const { AppShell } = await import('../../src/components/AppShell');
@@ -72,19 +73,26 @@ const { AppShell } = await import('../../src/components/AppShell');
 /**
  * The four entries the `Analytics & Ads` group owns, in sidebar order.
  *
- * **`/google-analytics` is last, and that is the conversion rather than a
- * regression.** Its entry used to sit second, declared by hand in `NAV`; it now
- * arrives from `admin/src/modules.generated.ts`, and a module's entries append
- * to their section until the host's own entries carry weights — which
+ * **The two converted modules are last, and that is the conversion rather than
+ * a regression.** `/analytics` used to be first and `/google-analytics` second,
+ * both declared by hand in `NAV`; they now arrive from
+ * `admin/src/modules.generated.ts`, and a module's entries append to their
+ * section as a block until the host's own entries carry weights — which
  * `AppShell.tsx`'s `composeNav` states in place and Story 3 delivers as it
- * drains them. The module already declares the weight that will restore the
- * position (200, `packages/modules/google_analytics/src/admin/index.ts`); there
- * is nothing yet to order it against.
+ * drains them.
+ *
+ * **Their order relative to each other is already restored**, and that is what
+ * the weights are for: `analytics` declares 100 and `google_analytics` 200, so
+ * `registryNavFor` sorts them back into the order the hand-written table had.
+ * When batch two landed there was, for the first time, something to order
+ * against — batch one's note that "there is nothing yet to order it against"
+ * has an answer now, and it is asserted here rather than left to the next
+ * batch's author to notice.
  */
 const ANALYTICS_LINKS = [
-  { href: '/analytics', labelKey: 'appShell.nav.analytics' },
   { href: '/linkedin-ads', labelKey: 'appShell.nav.linkedinAds' },
   { href: '/meta-ads', labelKey: 'appShell.nav.metaAds' },
+  { href: '/analytics', labelKey: 'nav.analytics.label' },
   { href: '/google-analytics', labelKey: 'nav.googleAnalytics.label' },
 ];
 
