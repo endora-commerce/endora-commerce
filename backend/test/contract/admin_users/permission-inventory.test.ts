@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { SUPPORTED_LANGUAGES } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   REGISTERED_MANIFESTS,
@@ -7,7 +6,21 @@ import {
 } from '../../../src/lifecycle/registered-manifests.js';
 import { scanEnforcedPermissionGates } from '../../../../packages/modules/admin_roles/src/backend/permission-inventory.js';
 import { permissionScanRoots } from '../../helpers/permission-scan-roots.js';
-import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
+import {
+  PermissionCatalogueService,
+  listAssignablePermissionCodes,
+} from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
+import {
+  LEGACY_LABEL_MODULE_ID,
+  LEGACY_PERMISSION_LABELS,
+  compareToLegacyBlock,
+  countLegacyLabelsByOwner,
+  findPermissionLabelDefects,
+  permissionLabelReadSize,
+  walkPermissionLabels,
+  type PermissionLabelInput,
+} from '../../helpers/permission-labels.js';
+import { readSizeLine, readSizeRefusal } from '../../../scripts/lib/read-size.js';
 
 /**
  * The `/admin-roles` catalogue and the server's gates have to describe the same
@@ -19,6 +32,11 @@ import { listAssignablePermissionCodes } from '../../../../packages/modules/admi
  *  - a code with no `adminRoles.permission.<code>` entry falls back to the
  *    manifest label, which is English-only however many languages ship.
  *
+ * The last of the four is the second `describe` below, and since feature 091's
+ * Phase 3 it asks a sharper question than "is the label in `_i18n`": a module
+ * owns its own labels, and what is left in the shared bundle is a ratcheted
+ * legacy block.
+ *
  * These sweeps replace a `toBe(<count>)` assertion that carried a per-feature
  * changelog: a number cannot say which side of the pair moved, and every feature
  * had to edit it whether or not anything was wrong.
@@ -27,15 +45,6 @@ import { listAssignablePermissionCodes } from '../../../../packages/modules/admi
  * overlay root and the manifests discovered for it (feature 057, FR-009) — so
  * `DEPLOYMENT=<name>` checks that deployment and a bare-core run checks core.
  */
-
-const I18N_DIR = fileURLToPath(
-  new URL('../../../../packages/modules/_i18n/i18n/', import.meta.url),
-);
-const SHIPPED_LANGUAGES = ['en', 'pl'] as const;
-
-function bundleFor(language: string): Record<string, string> {
-  return JSON.parse(readFileSync(`${I18N_DIR}${language}.json`, 'utf8')) as Record<string, string>;
-}
 
 /**
  * Deployment-resolved at module scope, with a top-level `await`: since D-104 the
@@ -60,13 +69,6 @@ const SCAN_ROOTS = await permissionScanRoots();
 describe('permission inventory (SC-001)', () => {
   const scan = scanEnforcedPermissionGates(SCAN_ROOTS);
   const assignable = listAssignablePermissionCodes(RESOLVED_MANIFESTS);
-  /**
-   * The `adminRoles.permission.<code>` keys live in the `core` namespace, and
-   * `AdminRolesPage` falls back to the manifest `label` when a key is absent.
-   * An overlay module ships its own bundle and takes that fallback by design,
-   * so the label sweeps run over the core-owned codes only.
-   */
-  const coreAssignable = listAssignablePermissionCodes(REGISTERED_MANIFESTS);
 
   it('resolves every enforcement site to a code, a bare admin gate or a runtime value', () => {
     const unresolved = scan.unresolved.map((site) => `${site.file}: ${site.expression}`);
@@ -106,19 +108,86 @@ describe('permission inventory (SC-001)', () => {
     ).toEqual([]);
   });
 
-  it.each(SHIPPED_LANGUAGES)('every core assignable code has a %s label', (language) => {
-    const bundle = bundleFor(language);
-    const missing = coreAssignable.filter((code) => !(`adminRoles.permission.${code}` in bundle));
-    expect(missing, `missing adminRoles.permission.<code> entries in ${language}.json`).toEqual([]);
+});
+
+/**
+ * A module owns its own permission labels — feature 091, Phase 3.
+ *
+ * `/admin-roles` translates every catalogue row through
+ * `adminRoles.permission.<code>`, and until this phase that key had one home:
+ * `_i18n`'s bundle, which no module installed from a registry can edit. The
+ * rule is now the one every other module-owned string already follows, and
+ * `_i18n`'s remaining labels are {@link LEGACY_PERMISSION_LABELS}, a two-way
+ * ratchet in `test/helpers/permission-labels.ts`.
+ *
+ * The sweep is **core-only**, for the reason the inventory's label sweeps
+ * always were: an overlay module is deployment-resolved and its bundle is not
+ * in this repository's tree under a bare-core run.
+ */
+describe('permission labels (feature 091, Phase 3)', () => {
+  const walk = walkPermissionLabels(REGISTERED_MANIFESTS);
+  const owners = new PermissionCatalogueService({
+    registryEntries: REGISTERED_MANIFESTS,
+  }).listOwnersByCode();
+  const input: PermissionLabelInput = {
+    owners,
+    bundles: walk.bundles,
+    languages: SUPPORTED_LANGUAGES,
+  };
+  const findings = findPermissionLabelDefects(input);
+  const counts = countLegacyLabelsByOwner(input);
+
+  /**
+   * What the sweep read, beside what it found (issue #244) — and the three
+   * refusals that make "found nothing" distinguishable from "read nothing".
+   *
+   * The independent derivation is the generated manifest index: it says how
+   * many modules declare a permission, the walk says how many of their
+   * directories it located. A module tree that moved leaves every
+   * `dirname(filePath)` pointing at nothing, so the walk comes back short
+   * rather than clean over the remainder (issue #215).
+   */
+  it('discloses what it read, and refuses a walk that came back short', () => {
+    const record = permissionLabelReadSize(walk);
+    const refusal = readSizeRefusal(record);
+    expect(
+      refusal === null ? null : `${refusal.kind}: ${refusal.message}`,
+      'the label sweep may not report on a population it did not read',
+    ).toBeNull();
+    // eslint-disable-next-line no-console -- the disclosure is the point (issue #244).
+    console.log(readSizeLine(record));
   });
 
-  it.each(SHIPPED_LANGUAGES)('the %s bundle carries no label for a dropped code', (language) => {
-    const assignableSet = new Set(coreAssignable);
-    const prefix = 'adminRoles.permission.';
-    const orphaned = Object.keys(bundleFor(language))
-      .filter((key) => key.startsWith(prefix))
-      .map((key) => key.slice(prefix.length))
-      .filter((code) => !assignableSet.has(code));
-    expect(orphaned, `${language}.json labels codes no module declares`).toEqual([]);
+  it('every code is labelled by its owner, or by the legacy block, in every language', () => {
+    const missing = findings
+      .filter((f) => f.kind === 'missing-label' || f.kind === 'split-label')
+      .map((f) => `${f.kind} ${f.code} [${f.module}] ${f.language ?? ''}: ${f.detail}`);
+    expect(
+      missing,
+      `a code with no label falls back to the manifest \`label\`, which is English-only ` +
+        `however many languages ship`,
+    ).toEqual([]);
+  });
+
+  it('no module labels a code it does not own, and the shared bundle labels no dropped code', () => {
+    const foreign = findings
+      .filter((f) => f.kind === 'foreign-label' || f.kind === 'orphan-legacy-label')
+      .map((f) => `${f.kind} ${f.code} [${f.module}]: ${f.detail}`);
+    expect(foreign).toEqual([]);
+  });
+
+  it('the legacy block records exactly what is left in the shared bundle', () => {
+    const drift = compareToLegacyBlock(counts, LEGACY_PERMISSION_LABELS);
+    expect(
+      drift.unrecorded.map((d) => `${d.owner}: ${d.actual} labels, block records ${d.declared}`),
+      `a permission label was added to \`${LEGACY_LABEL_MODULE_ID}\`'s bundle instead of the ` +
+        `owning module's own — put it in packages/modules/<owner>/i18n/{en,pl}.json. Do not ` +
+        `raise a number in LEGACY_PERMISSION_LABELS to make this pass.`,
+    ).toEqual([]);
+    expect(
+      drift.stale.map((d) => `${d.owner}: ${d.actual} labels, block still records ${d.declared}`),
+      `labels moved out of the shared bundle and LEGACY_PERMISSION_LABELS still claims them — ` +
+        `lower the number, or delete the entry when the owner has drained`,
+    ).toEqual([]);
   });
 });

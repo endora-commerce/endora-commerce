@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useTranslationContext } from '@/i18n/TranslationProvider';
+import { resolvePermissionLabel } from './permission-label';
 
 interface AdminRole {
   id: string;
@@ -230,6 +232,10 @@ interface RoleEditorProps {
 
 function RoleEditor(props: RoleEditorProps): ReactNode {
   const t = useTranslation('core');
+  // Not `t`: a permission label may live in the owning module's own namespace
+  // since feature 091's Phase 3, and `t` is bound to one scope. See
+  // `permission-label.ts` for why the lookup is over the merged bundle.
+  const { language, bundle, fallbackBundle } = useTranslationContext();
   const [code, setCode] = useState(props.role.code);
   const [name, setName] = useState(props.role.name);
   const [permissions, setPermissions] = useState<Set<string>>(
@@ -344,7 +350,16 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
                         }}
                       />
                       <code className="font-mono text-xs">{p.code}</code>
-                      <span className="text-muted-foreground">— {translatePermissionLabel(t, p)}</span>
+                      <span className="text-muted-foreground">
+                        —{' '}
+                        {resolvePermissionLabel({
+                          code: p.code,
+                          fallbackLabel: p.label,
+                          language,
+                          bundle,
+                          fallbackBundle,
+                        })}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -373,13 +388,4 @@ function translateRoleName(
   const key = `adminRoles.seeded.${role.code}`;
   const label = t(key);
   return label === `core.${key}` ? role.name : label;
-}
-
-function translatePermissionLabel(
-  t: (key: string, params?: Record<string, string | number>) => string,
-  permission: PermissionRow,
-): string {
-  const key = `adminRoles.permission.${permission.code}`;
-  const label = t(key);
-  return label === `core.${key}` ? permission.label : label;
 }
