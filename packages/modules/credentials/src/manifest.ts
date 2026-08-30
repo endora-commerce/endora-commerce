@@ -61,6 +61,79 @@ export const manifest = defineModuleManifest({
   // exactly the "additional capability" ruling 1 means. Default `true` so that
   // merging this changes no deployment's state (FR-012).
   activation: { settingCode: CREDENTIALS_ACTIVATION_SETTING_CODE, default: true },
+  /**
+   * Feature 090 Phase 3 — the six error codes the incumbent prefix chain routes
+   * to this module.
+   *
+   * The list is copied from the frozen capture
+   * (`backend/test/fixtures/error-code-routing/chain-answers.ts`), which records
+   * what `moduleIdForErrorCode` answered, and is not a judgement about where a
+   * code belongs. Reading the chain's *source* would have coincided here — the
+   * `CREDENTIAL_` branch is unshadowed and no later branch claims a
+   * `CREDENTIAL_`-prefixed code — but that is a conclusion of having read the
+   * whole chain, never a premise (trap T1), and the six below still come off the
+   * answer.
+   *
+   * **Three read like somebody else's and all three stay** (trap T2).
+   * `CREDENTIAL_TYPE_UNKNOWN` refuses a configuration *type* that no module has
+   * contributed to `ConfigurationTypeRegistry`, so the module a reader would
+   * blame is whichever one was supposed to register it; `CREDENTIAL_IN_USE` is
+   * decided entirely by a `settings` read — `listReferencesToConfiguration`,
+   * whose result is the refusal's `referencedBy` list; and
+   * `CREDENTIAL_VALIDATION_FAILED` is a field-level validation refusal of the
+   * shape `core` owns as `VALIDATION_FAILED`. All three are refusals *about a
+   * credential configuration*, which is the noun the chain follows (D-95.2).
+   *
+   * **The inverse is the larger half, and every code in it is somebody else's.**
+   * `INVALID_CREDENTIALS` is auth's sign-in failure and routes to `core` — the
+   * chain says so in its own comment above the `CREDENTIAL_` branch, because the
+   * plural noun is a password and not a stored configuration.
+   * `KSEF_CREDENTIAL_EXISTS` and `KSEF_CREDENTIAL_INVALID` route to `core` as
+   * well, which surprises twice over: not here, and not `ksef` either.
+   * `MFA_SOCIAL_LAST_CREDENTIAL` is `mfa`'s. And `SETTING_SECRET_KEY_MISSING` is
+   * `settings`' (!1133) although it is raised out of a secret codec that
+   * `@endora-commerce/platform`, this module and `ksef` each ship a byte-identical
+   * copy of — see `services/secret-value-codec.ts`, whose own header calls the
+   * duplication debt. This module raises one code it does not own in the other
+   * direction: `VERSION_CONFLICT`, in the optimistic-concurrency guard of
+   * `update-configuration.command.ts`, which routes to `core` and is not declared
+   * here. Re-routing any of this is out of scope (§6.5); disagreement belongs in
+   * `specs/082-error-code-ownership/rulings.md` §9.
+   *
+   * **All six are raised**, in both spellings (trap T12): `ERROR_CODES.<CODE>`
+   * and the bare quoted literal, over `packages`, `backend/src`, `admin` and
+   * `storefront`. Every raise is inside this package — twelve `HttpError`
+   * throws — so unlike `settings` and `invoices` this module's raise sites and
+   * its package coincide. No entry for the deferred-defect register. The
+   * thirteenth mention is not a throw and is worth naming, because a grep counts
+   * it as one: `ConfigurationTypeUnknown` in
+   * `services/configuration-type-registry.ts` carries
+   * `readonly code = ERROR_CODES.CREDENTIAL_TYPE_UNKNOWN` on a plain `Error`
+   * subclass, and that field is read by nothing — the envelope's error handler
+   * takes `code` off an `HttpError` and off nothing else. What makes the code
+   * reach a client is the `instanceof` catch in
+   * `commands/create-configuration.command.ts`, which rethrows as an `HttpError`
+   * by hand.
+   *
+   * **No `tokens`, derived rather than assumed.** `refusalToken`
+   * (`packages/platform/src/http/error-envelope.ts`) reads `details.code` off a
+   * free-form object and nothing else. Of the twelve throws, nine pass no
+   * fourth argument at all; the two `CREDENTIAL_VALIDATION_FAILED` raises pass
+   * the Zod-style `Array<{path, issue}>`, which `refusalToken` returns `null`
+   * for by construction; and the one `CREDENTIAL_IN_USE` raise passes
+   * `{ referencedBy }`, a free-form object with no `code` member. The runbook's
+   * §5 raise-site scan attributes the tree's ten token-carrying codes over 41
+   * sites to `core`, `invoices` and `carts`, naming none of these, and the
+   * bundles hold no `errors.<CODE>.<token>` key in the other direction.
+   */
+  errorCodes: [
+    { code: 'CREDENTIAL_CODE_TAKEN' },
+    { code: 'CREDENTIAL_IN_USE' },
+    { code: 'CREDENTIAL_NOT_FOUND' },
+    { code: 'CREDENTIAL_TYPE_IMMUTABLE' },
+    { code: 'CREDENTIAL_TYPE_UNKNOWN' },
+    { code: 'CREDENTIAL_VALIDATION_FAILED' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     {
