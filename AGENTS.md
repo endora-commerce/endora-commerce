@@ -468,12 +468,36 @@ so they appear on `/admin-roles` and pass the CI inventory.
    permission-map member, and a `hasPermission` capability check), and **fails on an
    argument it cannot resolve** rather than skipping it. Write the code as a literal or
    a resolvable constant; do not compute it.
-4. **i18n** — `adminRoles.permission.<code>` in `_i18n/i18n/en.json` and `pl.json`.
+4. **i18n** — `adminRoles.permission.<code>` in **your own module's** `i18n/en.json` and
+   `i18n/pl.json`, flat, in both shipped languages
+   (`specs/091-module-owned-admin-surfaces/`, Phase 3). This item said `_i18n/i18n/{en,pl}.json`
+   until 2026-08-30, and that instruction cannot be followed by a module installed from a
+   registry: `_i18n`'s bundle is a file in this repository. The **89** labels still in it are
+   the legacy block, a per-owner two-way ratchet in
+   `backend/test/helpers/permission-labels.ts` — a label added there fails, and a number left
+   standing after that owner's labels moved fails too. Never raise one to make the build pass;
+   an owner retires by having its entry deleted, and when the last one goes the block goes with
+   it. Whether the resolution reaches your bundle is not a matter of taste either: it did not
+   until Phase 3, so `mfa`, `pwa`, `stripe` and `prompt_actions` each shipped their labels in
+   their own bundle *and* in `_i18n`'s and only the second copy ever rendered — the screen
+   looked the key up in the synthetic `core` namespace alone. It now resolves over the merged
+   bundle (`admin/src/modules/admin_users/permission-label.ts`), so one home is enough and two
+   is a duplicate.
 5. **AppShell** — `requiredPermission` on nav entries where applicable.
 6. **CI** — `pnpm --filter backend exec vitest run test/contract/admin_users/permission-inventory.test.ts`
    before opening the MR. It sweeps **both** directions — enforced ⇒ grantable and
    grantable ⇒ enforced — plus the label coverage, so a permission declared before its
-   gate lands fails just as loudly as one gated before it is declared.
+   gate lands fails just as loudly as one gated before it is declared. The label half is the
+   file's second `describe` and answers item 4's rule rather than a second question of its own:
+   `missing-label` and `split-label` (a label in one shipped language and not the other),
+   `foreign-label` (a module labelling a code its manifest does not declare),
+   `orphan-legacy-label`, and the ratchet. It discloses what it read in the estate's grammar —
+   `[permission-labels] read: files=… sites=… sources=manifest-index:…` — with the generated
+   manifest index as the independent author, so a module tree that moved refuses instead of
+   reporting clean over the modules it can still find (issues #244 and #215). It carries the
+   ratchet rather than a new `check-*` script because it is already the instrument that answers
+   "does this code have a label", and two derivations of one population are two answers waiting
+   to disagree.
 
 Do not duplicate shared codes from core `PERMISSION_CATALOGUE`
 (`packages/contracts/src/admin.ts`). Contract:
