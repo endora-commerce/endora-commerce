@@ -1,5 +1,3 @@
-import { ERROR_CODES, type ErrorCode } from '@endora-commerce/contracts';
-
 export interface ErrorTranslationTarget {
   moduleId: string;
   /**
@@ -8,160 +6,6 @@ export interface ErrorTranslationTarget {
    * code either way.
    */
   key: `errors.${string}`;
-}
-
-const GENERIC_ERROR_CODES = new Set<ErrorCode>([
-  ERROR_CODES.VERSION_CONFLICT,
-  ERROR_CODES.VALIDATION_FAILED,
-  ERROR_CODES.INTERNAL,
-  ERROR_CODES.NOT_FOUND,
-  ERROR_CODES.UNAUTHORIZED,
-  ERROR_CODES.FORBIDDEN,
-  ERROR_CODES.RATE_LIMITED,
-]);
-
-const CATALOG_MISC_ERROR_CODES = new Set<ErrorCode>([
-  ERROR_CODES.FILTER_NOT_ALLOWED,
-  ERROR_CODES.FIELD_IMMUTABLE,
-  ERROR_CODES.ASSET_KIND_NOT_SUPPORTED,
-  ERROR_CODES.NESTED_COMPOSITE_NOT_ALLOWED,
-  ERROR_CODES.INVALID_QUANTITY_RANGE,
-  ERROR_CODES.OPTION_ALREADY_EXISTS,
-  ERROR_CODES.MIN_NOT_MET,
-  ERROR_CODES.MAX_EXCEEDED,
-  ERROR_CODES.UNKNOWN_OPTION,
-  // Feature 086 — named one by one rather than by a `PRICE_` prefix, which
-  // would take the whole `PRICE_LIST_*` family off `price_lists`. Routed to
-  // `catalog` because that is the module whose route refuses: the price is not
-  // an attribute and neither code is a price-list error.
-  ERROR_CODES.PRICE_ORDERING_UNAVAILABLE,
-  ERROR_CODES.PRICE_RANGE_INVALID,
-]);
-
-const SEARCH_MISC_ERROR_CODES = new Set<ErrorCode>([
-  ERROR_CODES.LIMIT_OUT_OF_RANGE,
-  ERROR_CODES.RESULT_COUNT_INVALID,
-  ERROR_CODES.LLM_CONFIG_INCOMPLETE,
-]);
-
-const SALES_CHANNEL_MISC_ERROR_CODES = new Set<ErrorCode>([
-  ERROR_CODES.INACTIVE_SALES_CHANNEL,
-  ERROR_CODES.MISSING_SALES_CHANNEL_CONTEXT,
-  ERROR_CODES.DUPLICATE_SALES_CHANNEL_CODE,
-  ERROR_CODES.CANNOT_MODIFY_SYSTEM_DEFAULT,
-  ERROR_CODES.ENTITY_WOULD_HAVE_ZERO_CHANNELS,
-  ERROR_CODES.STALE_SALES_CHANNEL_WRITE,
-]);
-
-const INVENTORY_MISC_ERROR_CODES = new Set<ErrorCode>([
-  ERROR_CODES.PRODUCT_UNMANAGED_STOCK,
-  ERROR_CODES.AVAILABILITY_NOTIFICATION_NOT_FOUND,
-  ERROR_CODES.PRODUCT_IN_STOCK,
-]);
-
-export const ERROR_TRANSLATION_KEYS = Object.fromEntries(
-  Object.values(ERROR_CODES).map((code): [ErrorCode, ErrorTranslationTarget] => [
-    code,
-    {
-      moduleId: moduleIdForErrorCode(code),
-      key: `errors.${code}`,
-    },
-  ]),
-) as Record<ErrorCode, ErrorTranslationTarget>;
-
-function moduleIdForErrorCode(code: ErrorCode): string {
-  if (code.startsWith('SETTING_')) return 'settings';
-  if (GENERIC_ERROR_CODES.has(code)) {
-    return 'core';
-  }
-  if (
-    code.startsWith('PRODUCT_') ||
-    code.startsWith('SKU_') ||
-    code.startsWith('VARIANT_') ||
-    code.startsWith('ATTRIBUTE_') ||
-    code.startsWith('GALLERY_') ||
-    code.startsWith('ATTACHMENT_') ||
-    code.startsWith('SELF_LINK_') ||
-    code.startsWith('LINK_') ||
-    code.startsWith('TARGET_PRODUCT_') ||
-    code.startsWith('BUNDLE_') ||
-    code.startsWith('GROUPED_') ||
-    CATALOG_MISC_ERROR_CODES.has(code)
-  ) {
-    return 'catalog';
-  }
-  if (code.startsWith('RFQ_') || code.startsWith('QUOTE_')) return 'quote_requests';
-  if (
-    code.startsWith('QUERY_') ||
-    code.startsWith('SEARCH_') ||
-    code.startsWith('PHRASE_') ||
-    SEARCH_MISC_ERROR_CODES.has(code)
-  ) {
-    return 'search';
-  }
-  if (
-    code.startsWith('UNKNOWN_') ||
-    code.startsWith('SALES_CHANNEL_') ||
-    SALES_CHANNEL_MISC_ERROR_CODES.has(code)
-  ) {
-    return 'sales_channels';
-  }
-  if (code.startsWith('COMPARISON_') || code === ERROR_CODES.PDF_GENERATION_FAILED) return 'comparisons';
-  if (
-    code.startsWith('WAREHOUSE_') ||
-    code.startsWith('CHANNEL_') ||
-    code.startsWith('STOCK_') ||
-    code.startsWith('THRESHOLDS_') ||
-    INVENTORY_MISC_ERROR_CODES.has(code)
-  ) {
-    return 'inventory';
-  }
-  // Feature 078, D-95.2 — routing is by **semantic owner**, not by thrower:
-  // `INVOICE_NUMBER_PATTERN_COLLIDES` is thrown inside `settings`' write path
-  // and `INVOICE_NOT_READY` inside `orders`' download route, exactly as
-  // `PRODUCT_*` codes are thrown from modules other than `catalog`. `_i18n`
-  // loads every registered module's bundle regardless of activation, so a
-  // switched-off `invoices` does not cost another module its sentence. Keeping
-  // the family in one bundle is how the next sentence stops going missing.
-  if (code.startsWith('INVOICE_')) return 'invoices';
-  // Issue #231 — the `CART_*` family is exactly three codes (`CART_EMPTY`,
-  // `CART_LINE_CAP_EXCEEDED`, `CART_COUPON_REJECTED`) and `carts` holds a
-  // written sentence for all three in both languages, while `_i18n` held one
-  // for `CART_EMPTY` alone — so the other two rendered as a raw code to the
-  // buyer, and `CART_COUPON_REJECTED`'s seven refusal tokens could not be
-  // reached at all. Same rule as `INVOICE_*` above: the bundle follows the
-  // domain noun, not the thrower, even though `orders` throws `CART_EMPTY` at
-  // checkout. `_i18n`'s stranded `CART_EMPTY` pair is deleted with this line;
-  // routing only the two unreachable codes would split a three-member family
-  // across two bundles, which is the arrangement that hid this.
-  if (code.startsWith('CART_')) return 'carts';
-  // Feature 082, D-125 — the `ORDER_*` family is exactly two codes
-  // (`ORDER_NOT_FOUND`, `ORDER_NOT_CANCELLABLE`). T1 of D-121 answers directly:
-  // the noun is an order and `orders` owns orders, so the sentence leaves
-  // `invoices` — which throws the code once and wrote the only real sentence
-  // for it — exactly as D-95.2 sent `INVOICE_NOT_READY` the other way from
-  // `orders` to `invoices`. Unlike `CART_*` this family has a member that the
-  // move would strand: `ORDER_NOT_CANCELLABLE` had only `_i18n`'s placeholder,
-  // so `orders` gains a written sentence for it in the same change rather than
-  // a ledger entry or an exception to the rule.
-  if (code.startsWith('ORDER_')) return 'orders';
-  if (code.startsWith('ASSET_')) return 'assets_library';
-  if (code.startsWith('CMS_')) return 'cms';
-  if (code.startsWith('MEGAMENU_')) return 'megamenu';
-  if (code.startsWith('BLOG_')) return 'blog';
-  if (code.startsWith('DICTIONARY_')) return 'dictionaries';
-  // `INVALID_CREDENTIALS` is auth's sign-in failure and does not start with this
-  // prefix, so it keeps routing to core. Only the credential-configuration
-  // family lands here.
-  if (code.startsWith('CREDENTIAL_')) return 'credentials';
-  // Issue #194 — `MFA_*` routed to `core` by falling off the end of this
-  // function, which is where its sentences would have gone missing unnoticed
-  // (see `check-error-translations.ts`). The family belongs to the module that
-  // owns it; the codes already ledgered as untranslated stay untranslated,
-  // they simply look for their sentence in the right bundle now.
-  if (code.startsWith('MFA_')) return 'mfa';
-  if (code.startsWith('MODULE_')) return 'core';
-  return 'core';
 }
 
 // ---------------------------------------------------------------------------
@@ -235,12 +79,21 @@ export interface ErrorTranslationTargets {
  * **Deterministic**: the answer does not depend on the order the manifests
  * arrive in. Claims are sorted by module id, collisions by code.
  *
- * **This is the end state, and it is not what the roots inject today.** No module
- * has migrated yet, so over the resolved manifest set this function returns an
- * empty map — injecting it alone would take every operator-visible sentence in
- * both shipped languages out of reach at once. {@link composeErrorTranslationTargets}
- * is what the roots call while the migration is in flight; it is deleted with
- * the chain, and the roots then call this.
+ * **There is no fall-through** (§4.1). A code no registered manifest declares is
+ * *absent* from `targets`: it is not routed to the platform, to `core`, or to
+ * anything else, and the envelope answers the raising code's own English. That
+ * is `specs/082-error-code-ownership/rulings.md` §9 (D-129) delivered — *"`core`
+ * is only ever reached by being named"* — and it is what the deleted prefix
+ * chain could not do, because its last line was `return 'core'`.
+ *
+ * **The chain and `composeErrorTranslationTargets` are gone** (feature 090
+ * Phase 4). The transitional composition laid these declarations over
+ * `moduleIdForErrorCode` so that the migration could be delivered one module per
+ * merge request while staying answer-preserving; all eighteen owners have
+ * declared, so both roots call this directly. The answer it gives for every
+ * member of `ERROR_CODES` is still measured against the frozen capture in
+ * `backend/test/fixtures/error-code-routing/chain-answers.ts`, which is now the
+ * only record of what the chain said.
  */
 export function buildErrorTranslationTargets(
   manifests: readonly ErrorCodeDeclarationSource[],
@@ -273,55 +126,6 @@ export function buildErrorTranslationTargets(
     });
   }
   return { targets, collisions: collisions.sort((a, b) => a.code.localeCompare(b.code)) };
-}
-
-/**
- * The map both composition roots inject **while the migration is in flight** —
- * the declarations, over the incumbent chain (feature 090, Phase 2).
- *
- * `contracts/error-code-declaration.md` §6.4 makes the migration one merge
- * request per owning module, and §6.2 makes it answer-preserving over all of
- * `ERROR_CODES`. Those two together are only satisfiable if a code the owner has
- * not declared yet keeps the answer the chain gives it. So this is a transitional
- * shape with a scheduled death: the last merge request of Phase 3 deletes
- * {@link ERROR_TRANSLATION_KEYS}, deletes this function, and points both roots at
- * {@link buildErrorTranslationTargets}. Nothing new should be built on it.
- *
- * Three rules, and the reason for each is why they are not interchangeable:
- *
- *  1. **A declaration wins over the chain.** Chain-first is the one arrangement
- *     in which a declaration that disagrees with the chain changes nothing until
- *     the chain is deleted — which is the last merge request of the migration and
- *     the worst possible place to discover eighteen merge requests' worth of
- *     drift. Declaration-first makes the equality harness
- *     (`backend/test/unit/_i18n/error-code-routing-equality.test.ts`) report the
- *     disagreement on the day it lands.
- *  2. **The chain answers for a code nobody has declared.** That is the whole
- *     reason this function exists rather than the roots injecting the derivation.
- *  3. **A contested code is absent, chain or no chain.** §3.1 rule 1 says a code
- *     more than one module declares routes to none of them; letting the incumbent
- *     answer instead would be exactly the origin precedence §3.4 refuses by name —
- *     the platform's own table quietly outranking a claim it cannot see, which
- *     renders one raiser's condition under another's sentence.
- *
- * The collisions come out of the one `buildErrorTranslationTargets` call this
- * makes, so the routing and the report still cannot disagree (D-100).
- */
-export function composeErrorTranslationTargets(
-  manifests: readonly ErrorCodeDeclarationSource[],
-): ErrorTranslationTargets {
-  const declared = buildErrorTranslationTargets(manifests);
-  const contested = new Set(declared.collisions.map((collision) => collision.code));
-
-  const targets: Record<string, ErrorTranslationTarget> = {};
-  for (const [code, target] of Object.entries(ERROR_TRANSLATION_KEYS)) {
-    if (contested.has(code)) continue;
-    targets[code] = target;
-  }
-  for (const [code, target] of Object.entries(declared.targets)) {
-    targets[code] = target;
-  }
-  return { targets, collisions: declared.collisions };
 }
 
 /** One line per claimant, in the words an operator reads on `/platform/modules`. */

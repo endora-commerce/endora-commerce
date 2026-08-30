@@ -11,7 +11,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 
-import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
 
 import { RFQ_SHIPPED_ORDER_ID, seedShippedOrder } from '../../helpers/seed-commerce.js';
 
@@ -186,7 +186,9 @@ describe('an error code renders the sentence its owning module wrote (issue #229
     }
 
     it('routes to orders, the module that owns the noun', () => {
-      expect(ERROR_TRANSLATION_KEYS[ERROR_CODES.ORDER_NOT_FOUND].moduleId).toBe('orders');
+      expect(
+        DECLARED_ERROR_TRANSLATION_TARGETS[ERROR_CODES.ORDER_NOT_FOUND]?.moduleId,
+      ).toBe('orders');
     });
 
     it('en — "Order not found.", not the title-cased placeholder', async () => {
@@ -207,7 +209,7 @@ describe('an error code renders the sentence its owning module wrote (issue #229
    * reason D-125 writes it two lines rather than a ledger entry.
    */
   it('ORDER_NOT_CANCELLABLE has a sentence in the bundle the family moved to', async () => {
-    const target = ERROR_TRANSLATION_KEYS[ERROR_CODES.ORDER_NOT_CANCELLABLE];
+    const target = DECLARED_ERROR_TRANSLATION_TARGETS[ERROR_CODES.ORDER_NOT_CANCELLABLE]!;
     expect(target.moduleId).toBe('orders');
     expect(await h.adminI18n.i18nService.translate(target.moduleId, target.key, 'en')).toBe(
       'This order can no longer be cancelled.',
@@ -240,7 +242,11 @@ describe('an error code renders the sentence its owning module wrote (issue #229
     }
 
     it('stays platform-owned', () => {
-      expect(ERROR_TRANSLATION_KEYS[ERROR_CODES.INVALID_TRANSITION].moduleId).toBe('core');
+      // `_i18n` is the module that declares the platform block (feature 090
+      // Phase 3); its bundle is the one clients ask for as `core`.
+      expect(
+        DECLARED_ERROR_TRANSLATION_TARGETS[ERROR_CODES.INVALID_TRANSITION]?.moduleId,
+      ).toBe('_i18n');
     });
 
     it('en — "This status change is not allowed."', async () => {

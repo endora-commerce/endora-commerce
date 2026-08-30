@@ -29,17 +29,23 @@
  * "
  * ```
  *
- * It is **not** regenerated. `test/unit/_i18n/error-code-routing-equality.test.ts`
- * reconciles it against the live chain on every run, so a hand edit that
- * disagrees with the chain fails, and a chain edit that disagrees with this file
- * fails — which is the point. A migration that deliberately re-routes a code is
- * a change to this file **and** an argument in its merge request, never a
- * regeneration.
+ * It is **not** regenerated. **There is nothing left to regenerate it from**:
+ * feature 090's Phase 4 deleted `moduleIdForErrorCode` and
+ * `ERROR_TRANSLATION_KEYS`, so this file is the only record of what the chain
+ * said, which is exactly what a reference is for.
+ * `test/unit/_i18n/error-code-routing-equality.test.ts` reconciles it against
+ * the map the composition roots now derive from the modules' own declarations,
+ * on every run and in both directions — so a hand edit here fails, and a
+ * declaration that disagrees with it fails. A change that deliberately re-routes
+ * a code (D-129's scheduled sweep is the one in prospect) is a change to this
+ * file **and** an argument in its merge request, never a regeneration.
  *
  * `core` is a routing answer and not a module directory: the platform-wide
- * bundle is `_i18n`'s own. Feature 090 FR-042 replaces the fall-through that
- * produces most of this block with an explicit declaration; until then the
- * answer is recorded as the chain gives it.
+ * bundle is `_i18n`'s own. Feature 090 FR-042 replaced the fall-through that
+ * produced most of this block with `_i18n`'s explicit declaration, and
+ * {@link CHAIN_ANSWERS_AS_MODULE_IDS} is where the two vocabularies are
+ * reconciled — at this file's edge, because a reference a migration may rewrite
+ * is a reference that agrees with whatever the migration did.
  */
 export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
   // assets_library (15)

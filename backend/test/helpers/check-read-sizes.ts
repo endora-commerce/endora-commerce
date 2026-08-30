@@ -239,15 +239,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-error-translations.ts': {
     prefix: '[error-translations]',
     run: { kind: 'tsx', path: 'scripts/check-error-translations.ts', args: [] },
-    // The bundles the walk opens, and the two predicates' units together: the
-    // 287 routed codes P1 judges plus the 468 written `errors.*` keys P2 walks.
+    // The bundles the walk opens, and the predicates' units together: the
+    // declared codes P1 and P3 judge plus the written `errors.*` keys P2 walks.
+    //
+    // **Not re-recorded by feature 090's Phase 4**, which is the measurement
+    // worth keeping: deleting the prefix chain moved neither number. The check
+    // read 289 routed codes before and reads 289 declared codes after, because
+    // the migration was answer-preserving over the whole enumeration — so the
+    // band that was recorded against the chain is the band the derivation meets.
     files: 90,
     sites: 763,
-    // Feature 080's T010. The expectation is the module directories
-    // `ERROR_TRANSLATION_KEYS` routes a code to — 18 of the registered 66 —
-    // and both halves of that intersection are static imports, so neither is
-    // the filesystem walk being reconciled.
-    sources: ['manifest-index'],
+    // Feature 080's T010, and feature 090's Phase 4 for the second entry.
+    // `manifest-index` expects the module directories that declare a code — 18
+    // of the registered 66 — reconciled against the ids the generated index
+    // registers. `error-codes` is the second, independent derivation: the
+    // platform's published enumeration in `@endora-commerce/contracts`, against
+    // the manifests, which is P3's population. Neither is the filesystem walk
+    // being reconciled, and an enumerated code nobody declares is a *finding*
+    // that names the code rather than a short walk.
+    sources: ['manifest-index', 'error-codes'],
   },
   'backend/scripts/check-fixture-substitution.ts': {
     prefix: '[fixture-substitution]',

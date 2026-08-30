@@ -15,7 +15,6 @@ import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DISCOVERED_MANIFESTS } from '../../src/manifest-index.generated.js';
-import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
 import { discoverModulePackages } from '../../scripts/lib/module-packages.js';
 import { MANIFEST_INDEX_FILENAME } from '../../scripts/lib/module-roots.js';
 
@@ -163,10 +162,7 @@ interface KeptBundle {
 }
 
 function routedModuleShippingABundle(): KeptBundle {
-  const routed = [
-    ...new Set(Object.values(ERROR_TRANSLATION_KEYS).map((target) => target.moduleId)),
-  ].sort();
-  for (const moduleId of routed) {
+  for (const moduleId of routedModuleIds()) {
     const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === moduleId);
     if (entry === undefined) continue;
     const directory = join(dirname(entry.manifestPath), 'i18n');
@@ -175,10 +171,10 @@ function routedModuleShippingABundle(): KeptBundle {
     }
   }
   throw new Error(
-    '[moved-module-tree-fixture] no module that `ERROR_TRANSLATION_KEYS` routes a code to ' +
-      'ships an i18n bundle anywhere the manifest index can find one. The fixture needs one ' +
-      "to stage check-error-translations' per-module shortfall; with none, its proof would " +
-      'pass on the pre-existing empty-walk guard instead.',
+    '[moved-module-tree-fixture] no module that declares an error code ships an i18n bundle ' +
+      'anywhere the manifest index can find one. The fixture needs one to stage ' +
+      "check-error-translations' per-module shortfall; with none, its proof would pass on " +
+      'the pre-existing empty-walk guard instead.',
   );
 }
 
@@ -246,11 +242,24 @@ export function packagedModuleIds(): readonly string[] {
     .map((pkg) => pkg.moduleId);
 }
 
-/** The modules `ERROR_TRANSLATION_KEYS` routes an operator-visible code to. */
+/**
+ * The modules `check:error-translations` requires a bundle from — the ones that
+ * **declare** an operator-visible error code.
+ *
+ * Read off the generated manifest index, which is what the check's own floor
+ * reads since feature 090's Phase 4 deleted the prefix chain. It was
+ * `ERROR_TRANSLATION_KEYS`' distinct `moduleId` values, and that set carried
+ * `core` — a bundle namespace, not a module — so the loop above silently skipped
+ * it (`DISCOVERED_MANIFESTS` has no entry with that id) and the split fixture's
+ * candidate pool was one module short of what the check actually asks for. It is
+ * eighteen module ids now, all of them real.
+ */
 export function routedModuleIds(): readonly string[] {
-  return [
-    ...new Set(Object.values(ERROR_TRANSLATION_KEYS).map((target) => target.moduleId)),
-  ].sort();
+  return DISCOVERED_MANIFESTS.filter(
+    (entry) => (entry.manifest.errorCodes ?? []).length > 0,
+  )
+    .map((entry) => entry.id)
+    .sort();
 }
 
 /**
@@ -330,6 +339,29 @@ function realActivation(id: string): unknown {
   return (entry?.manifest as { activation?: unknown } | undefined)?.activation;
 }
 
+/**
+ * The real `errorCodes` declaration of a registered module, or `undefined`.
+ *
+ * Carried across for the same reason `activation` is, and it was measured the
+ * same way (feature 090, Phase 4). `check-error-translations` derives its
+ * population floor's **exclusion** from the modules that declare a code — a
+ * module that declares none is not required to ship a bundle — so a stub that
+ * dropped the field made every registered module excluded, which switched the
+ * floor off entirely and left the check exiting 2 on "no manifest declares an
+ * error code": a refusal with nothing to do with the residue, in place of the
+ * residue refusal this fixture exists to prove.
+ *
+ * Only the codes are copied, not the `tokens` beside them: the floor and the
+ * exclusion read `code` and nothing else, and copying a module's whole
+ * declaration would make this stub a second copy of eighteen manifests.
+ */
+function realErrorCodes(id: string): readonly { code: string }[] | undefined {
+  const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === id);
+  const declared = (entry?.manifest as { errorCodes?: readonly { code: string }[] } | undefined)
+    ?.errorCodes;
+  return declared === undefined ? undefined : declared.map(({ code }) => ({ code }));
+}
+
 /** The stub the fixture puts where the generated index lives. */
 function stubManifestIndex(ids: readonly string[], backendRoot: string): string {
   // Feature 080, T041a — the real generator emits `manifestPath` per entry and
@@ -361,12 +393,13 @@ function stubManifestIndex(ids: readonly string[], backendRoot: string): string 
     '// fixture reads ids, and importing 65 real manifests would import 65 module',
     '// trees the fixture deliberately does not have.',
     '//',
-    '// `activation` is the one field carried across verbatim (issue #216).',
-    '// `lib/switchable-modules.ts` derives the locked set from it, and two checks',
-    '// already read that set; a stub that dropped it made "no module is locked"',
-    '// the answer in the fixture, which is a state those checks are right to',
-    '// refuse — so they exited 2 over the residue for a reason that had nothing',
-    '// to do with the residue, and their controls exited 2 as well.',
+    '// `activation` and `errorCodes` are carried across verbatim (issue #216,',
+    '// feature 090 Phase 4). `lib/switchable-modules.ts` derives the locked set',
+    '// from the first and two checks read it; `check-error-translations` derives',
+    '// its floor exclusion from the second. A stub that dropped either made the',
+    '// derived answer empty in the fixture, which is a state those checks are',
+    '// right to refuse — so they exited 2 over the residue for a reason that had',
+    '// nothing to do with the residue, and their controls exited 2 as well.',
     'export interface DiscoveredManifestEntry {',
     '  id: string;',
     '  manifestPath: string;',
@@ -381,13 +414,17 @@ function stubManifestIndex(ids: readonly string[], backendRoot: string): string 
     '      nonDeactivatable?: boolean;',
     '      reason?: string;',
     '    };',
+    '    errorCodes?: { code: string }[];',
     '  };',
     '}',
     '',
     'export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [',
     ...ids.map((id) => {
       const activation = realActivation(id);
-      const tail = activation === undefined ? '' : `, activation: ${JSON.stringify(activation)}`;
+      const errorCodes = realErrorCodes(id);
+      const tail =
+        (activation === undefined ? '' : `, activation: ${JSON.stringify(activation)}`) +
+        (errorCodes === undefined ? '' : `, errorCodes: ${JSON.stringify(errorCodes)}`);
       return (
         `  { id: '${id}', manifestPath: '${pathFor(id)}', ` +
         `manifest: { id: '${id}', name: '${id}', ` +
@@ -839,7 +876,7 @@ export function createSplitModuleTreeFixture(
   // Until now it could only be staged out of `backend/src/modules`: relocate a
   // module the application tree still owns and withhold its `package.json`. That
   // pool shrank with every batch — its members have to be routed by
-  // `ERROR_TRANSLATION_KEYS` *and* unkeyed by any check's ledger *and* still
+  // `routedModuleIds()` *and* unkeyed by any check's ledger *and* still
   // unmoved — and batch four measured it down to one. Batch five took that one.
   //
   // A module that has **already** become a package stages the identical state

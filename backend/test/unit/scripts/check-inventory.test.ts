@@ -50,9 +50,11 @@ import {
 import {
   findUnreachableSentences,
   findUntranslatedErrorCodes,
-  unroutedModules,
+  nonDeclaringModules,
+  reconcileEnumeration,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
+import { buildErrorTranslationTargets } from '@endora-commerce/mod-i18n/backend';
 import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
 import { checkFixtureSubstitution } from '../../../scripts/check-fixture-substitution.js';
 import {
@@ -377,7 +379,7 @@ const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
 /**
  * A whole tree for `check:error-translations`, keyed `<directory>.<language>`.
  *
- * The routing table is fixed and deliberately points `BLOG_POST_NOT_FOUND` at a
+ * The routing map is fixed and deliberately points `BLOG_POST_NOT_FOUND` at a
  * module that is **not** the one the proofs write it in — that gap is the
  * finding. Both members are built from one map, so the proof cannot describe a
  * tree where P1's reader and P2's walk disagree.
@@ -385,6 +387,8 @@ const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
 function errorSentenceTree(bundles: Record<string, Record<string, string>>): TranslationInput {
   return {
     keys: { BLOG_POST_NOT_FOUND: { moduleId: 'cms', key: 'errors.BLOG_POST_NOT_FOUND' } },
+    collisions: [],
+    enumeratedCodes: ['BLOG_POST_NOT_FOUND'],
     readBundle: (moduleId, language) => bundles[`${moduleId}.${language}`] ?? {},
     listBundleKeys: () =>
       Object.entries(bundles).flatMap(([slot, bundle]) => {
@@ -474,7 +478,7 @@ function bundleResidueRefusal(bundleFiles: readonly string[]): number {
   const reason = vacuousModulePopulation({
     registered,
     files: bundleFiles,
-    excluded: unroutedModules(keys, registered),
+    excluded: nonDeclaringModules(keys, registered),
   });
   // Named, not counted: a refusal that listed `catalog` and `orders` would mean
   // the exclusion derived nothing, and would be just as non-zero.
@@ -3022,14 +3026,22 @@ const CHECKS: readonly CheckEntry[] = [
     // rather than as a clean tree" — true, and the wrong half of the question:
     // loud is not the same as right, and those violations say "write nineteen
     // sentences" about sentences that already exist. The floor now reconciles
-    // the walk against the modules the routing table names, so a residue exits
-    // 2. The walk itself deliberately stays a listing of `src/modules` rather
-    // than a resolution of the index — P2 asks whether every sentence written
-    // *anywhere* is reachable, and a bundle left behind by a dropped
+    // the walk against the modules that **declare** an error code, so a residue
+    // exits 2. The walk itself deliberately stays a listing of `src/modules`
+    // rather than a resolution of the index — P2 asks whether every sentence
+    // written *anywhere* is reachable, and a bundle left behind by a dropped
     // registration is exactly that question.
+    //
+    // Feature 090's Phase 4 changed what the floor is derived *from*, not what
+    // it refuses: routing was `ERROR_TRANSLATION_KEYS`, a static table built by
+    // a prefix chain, and is now the modules' own `errorCodes` declarations read
+    // off the generated manifest index. The same eighteen modules, because the
+    // migration was answer-preserving over all 289 codes — and one fewer copy of
+    // the `core` → `_i18n` identity, which the table needed and a declaration
+    // does not.
     readSize: 'reported',
     residueGuard: 'derived-population',
-    // Two predicates, and the second (feature 082, D-127) has **no ledger** —
+    // Four predicates now. The second (feature 082, D-127) has **no ledger** —
     // not an empty one. Every P2 repair is a JSON line moved or deleted plus at
     // most one routing line, so there is nothing a ledger could schedule. Four
     // candidate exceptions were tested and refuted in `rulings.md` § 7: a
@@ -3040,13 +3052,16 @@ const CHECKS: readonly CheckEntry[] = [
     // its code (refused by Principle II, which lands the contract first). If a
     // fifth is found, record it there and add the ledger then. Do not add one
     // here to make a build pass.
+    //
+    // P3 and P4 have no ledger either, and for different reasons than P2's:
+    // every P3 repair is one line in a manifest, and a P4 collision is never
+    // right to stand, so an entry could only license one.
     red: {
       'missing-in-both-languages': top(
         () =>
           findUntranslatedErrorCodes({
             keys: { BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' } },
             readBundle: () => ({}),
-            listBundleKeys: () => [],
           }).length,
       ),
       // "Both shipped languages" is the rule: an English-only sentence is still
@@ -3057,7 +3072,6 @@ const CHECKS: readonly CheckEntry[] = [
             keys: { BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' } },
             readBundle: (_moduleId, language) =>
               language === 'en' ? { 'errors.BLOG_POST_NOT_FOUND': 'Post not found.' } : {},
-            listBundleKeys: () => [],
           }).length,
       ),
       // P2's three kinds, one proof each, because four of a check's signals can
@@ -3097,6 +3111,62 @@ const CHECKS: readonly CheckEntry[] = [
       // refusal that has to fire *before* P1 turns a residue into nineteen
       // pieces of writing nobody needs to do.
       'bundle-residue': top(() => bundleResidueRefusal(['modules/catalog/i18n/en.json'])),
+      // P3 and P4, landed by feature 090's Phase 4 with the prefix chain's
+      // deletion (FR-031 and the collision rule). Each is a signal the other
+      // four cannot go red for, which is why each has its own proof: P1 and P2
+      // read *bundles*, and both of these read the manifests against the
+      // platform's own enumeration.
+      //
+      // The chain's last line was `return 'core'`, so an enumerated code nobody
+      // declared used to be routed and silently untranslated for ever. There is
+      // no fall-through now, so it is this finding — and it names the code,
+      // because "something is undeclared" over 289 of them sends its reader
+      // nowhere.
+      'enumerated-code-undeclared': top(
+        () =>
+          reconcileEnumeration({
+            keys: { A_CODE: { moduleId: 'blog', key: 'errors.A_CODE' } },
+            collisions: [],
+            enumeratedCodes: ['A_CODE', 'B_CODE'],
+          }).filter((f) => f.kind === 'undeclared-enum-member' && f.code === 'B_CODE').length,
+      ),
+      // The other direction, which no set sweep of the first would catch:
+      // `ERROR_CODES` stays closed and stays the vocabulary of what this
+      // repository's modules declare (FR-043).
+      'declared-code-not-enumerated': top(
+        () =>
+          reconcileEnumeration({
+            keys: {
+              A_CODE: { moduleId: 'blog', key: 'errors.A_CODE' },
+              B_CODE: { moduleId: 'catalog', key: 'errors.B_CODE' },
+            },
+            collisions: [],
+            enumeratedCodes: ['A_CODE'],
+          }).filter((f) => f.kind === 'undeclared-in-enum' && f.moduleId === 'catalog').length,
+      ),
+      // P4, which was `test/unit/_i18n/error-code-declaration-uniqueness.test.ts`
+      // until this phase — that file's own header scheduled the handover, and
+      // shipping both would be two readers of one derivation. The proof enters
+      // at the top: two manifests go in, and the contested code has to be absent
+      // from the routing **and** present in the report, because a tie-break
+      // shows up as the first and a report nobody can act on as the second.
+      'code-declared-twice': top(() => {
+        const { targets, collisions } = buildErrorTranslationTargets([
+          {
+            manifest: { id: 'fixture_alpha', errorCodes: [{ code: 'FIXTURE_SYNC_FAILED' }] },
+            filePath: '/fixture/alpha/manifest.ts',
+          },
+          {
+            manifest: { id: 'fixture_beta', errorCodes: [{ code: 'FIXTURE_SYNC_FAILED' }] },
+            filePath: '/fixture/beta/manifest.ts',
+          },
+        ]);
+        const named = collisions[0]?.claims.map((claim) => claim.moduleId) ?? [];
+        return targets['FIXTURE_SYNC_FAILED'] === undefined &&
+          named.join(',') === 'fixture_alpha,fixture_beta'
+          ? collisions.length
+          : 0;
+      }),
     },
   },
   {
@@ -6516,7 +6586,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // cannot be a red proof; it is in the companion test.
       // Plus T010's one: the population floor under the bundle walk, which is
       // a refusal rather than a finding and fires before either predicate runs.
-      'backend/scripts/check-error-translations.ts': 6,
+      // Plus feature 090's Phase 4: P3's two directions and P4's collision. All
+      // three read the **manifests** against the platform's enumeration, which
+      // is a population the other six never open, so none of them could go red
+      // for any of these.
+      'backend/scripts/check-error-translations.ts': 9,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is
       // their union rather than their product. Plus issue #275's five: three

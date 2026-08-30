@@ -103,15 +103,21 @@ export function describeRoutingDifferences(differences: readonly RoutingDifferen
  * module**.
  *
  * This is a different question from {@link compareErrorCodeRouting}, and the
- * difference is the one trap feature 090's Phase 3 has that nothing else can
- * see. The comparator above measures the map the composition roots inject, which
- * is `composeErrorTranslationTargets` — the declarations laid **over** the chain.
- * So a module that declares ten of the thirteen codes it owns produces a
- * composed map that is still exactly right: the chain answers for the other
- * three, and the comparator reports nothing. The migration is half done, the
- * merge request is green, and the shortfall surfaces on the merge request that
- * deletes the chain — eighteen merge requests later, as three codes that
- * suddenly route nowhere.
+ * difference is the one trap feature 090's Phase 3 had that nothing else could
+ * see. While the migration was in flight the comparator above measured
+ * `composeErrorTranslationTargets` — the declarations laid **over** the prefix
+ * chain — so a module that declared ten of the thirteen codes it owned produced
+ * a composed map that was still exactly right: the chain answered for the other
+ * three and the comparator reported nothing. The migration was half done, the
+ * merge request green, and the shortfall would have surfaced on the merge
+ * request that deleted the chain, eighteen merge requests later, as three codes
+ * that suddenly routed nowhere.
+ *
+ * Phase 4 has deleted the chain, so the comparator now measures the declarations
+ * alone and would catch such a gap directly. This stays because it is the
+ * per-module question and the comparator's is the whole-map one: it says *which*
+ * module is short and by which codes, which is what a re-routing sweep (D-129,
+ * scheduled) needs just as much as the migration did.
  *
  * So completeness is asserted per module, against the capture, on the merge
  * request that migrates it:
