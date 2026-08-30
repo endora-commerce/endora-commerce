@@ -568,6 +568,7 @@
   "errors.PRODUCT_IN_STOCK": "Product In Stock.",
   "errors.PRODUCT_NOT_IN_COMPARISON": "Product Not In Comparison.",
   "errors.PRODUCT_UNMANAGED_STOCK": "Product Unmanaged Stock.",
+  "errors.SYSTEM_ATTRIBUTE_SET_IMMUTABLE": "This attribute set is part of the platform's own configuration. Its code is a stable integration key and cannot be changed, and the set itself cannot be deleted. Create your own attribute set and move the products onto it if you need a different one.",
   "auditLog.product.update": "Product updated",
   "auditLog.attribute_set.create": "Attribute set created",
   "auditLog.attribute_set.update": "Attribute set updated",

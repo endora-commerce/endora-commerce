@@ -96,10 +96,26 @@ export const manifest = defineModuleManifest({
    * sweep runs it in batches: `KSEF_*` and `PIM_ERGONODE_*` went first (MR 2),
    * then the rest of Tier A — `PROMPT_*`/`ASSISTANT_*` to `prompt_actions`,
    * `CUSTOM_FIELD_*` to `custom_fields`, `SHOPPING_LIST_*` to `shopping_lists`,
-   * and four singletons (MR 3). Do not move one in passing: a code that leaves
-   * this list without arriving in its owner's manifest routes nowhere, and the
+   * and four singletons (MR 3), then Tier B's six modules that already ship a
+   * bundle — `catalog`, `customer_accounts`, `orders`, `mfa`, `newsletter` and
+   * `promotions` (MR 4). Do not move one in passing: a code that leaves this
+   * list without arriving in its owner's manifest routes nowhere, and the
    * collision rule makes a half-done move visible at composition rather than at
    * an operator.
+   *
+   * **MR 4 is the first batch that deletes from this package's own bundle**,
+   * and the deletion is the point rather than a side effect. Eight of its
+   * twenty codes carried a sentence here that was the code rewritten twice —
+   * `"Currency Mismatch."` and `"Błąd: currency mismatch."` — which D-186 §2
+   * refuses to carry into a module's bundle, because there it reads as that
+   * module's own answer and every instrument counts the code as translated.
+   * Four of the eight were rewritten as prose in the receiving module's bundle
+   * (`SYSTEM_ATTRIBUTE_SET_IMMUTABLE`, `CANNOT_DEMOTE_LAST_ADMIN`,
+   * `CANNOT_REMOVE_LAST_ADMIN`, `CURRENCY_MISMATCH`), which
+   * `d129-sweep.md` §5.4 says is always available and is not a re-opening of
+   * that ruling; the other four are raised by nothing in the tree, so there was
+   * no refusal to describe and they went to `UNTRANSLATED_ERROR_CODES` under
+   * their new owners.
    *
    * **`tokens` is derived from the raise sites, not from the bundle**
    * (runbook §5). Seven of these codes put a `details.code` on the wire; six of
@@ -123,10 +139,12 @@ export const manifest = defineModuleManifest({
    * `transactional_emails` in the sweep's MR 3. Its manifest says there why it
    * still declares no tokens — the set is the email registry's, not a fixed
    * vocabulary — and the arithmetic here is only accidentally right as a
-   * result. Re-derive it from the raise sites if a code arrives or leaves.
+   * result. Re-derive it from the raise sites if a code arrives or leaves. MR 4
+   * took twenty codes out of this list and moved none of the six: every one of
+   * its raise sites was measured by balanced-paren extraction of the call's own
+   * arguments, and not one passes a `details` object carrying a `code`.
    */
   errorCodes: [
-    { code: 'ACCOUNT_BLOCKED' },
     { code: 'ACTIVE_RESERVATIONS_EXIST' },
     { code: 'ADDRESS_IN_USE' },
     { code: 'ADDRESS_NOT_OWNED' },
@@ -134,22 +152,13 @@ export const manifest = defineModuleManifest({
     { code: 'ADMIN_ROLE_CODE_TAKEN' },
     { code: 'ADMIN_ROLE_IN_USE', tokens: ['assigned', 'assigned_to_deleted'] },
     { code: 'ADMIN_ROLE_PROTECTED' },
-    { code: 'ALREADY_SUBSCRIBED' },
     { code: 'API_KEY_CHANNEL_MISMATCH' },
     { code: 'API_KEY_NOT_BOUND' },
     { code: 'API_KEY_OUT_OF_SCOPE' },
-    { code: 'BULK_TOO_LARGE' },
-    { code: 'CANNOT_DEMOTE_LAST_ADMIN' },
-    { code: 'CANNOT_REMOVE_LAST_ADMIN' },
     { code: 'CANNOT_REVOKE_LAST_ADMIN_INVITE' },
     { code: 'CREDIT_LIMIT_ALREADY_GRANTED' },
     { code: 'CREDIT_LIMIT_NOT_GRANTED' },
-    { code: 'CURRENCY_MISMATCH' },
     { code: 'CURRENT_PASSWORD_INVALID' },
-    { code: 'CUSTOMER_ALREADY_DELETED' },
-    { code: 'CUSTOMER_NOT_DELETED' },
-    { code: 'CUSTOMER_NOT_FOUND' },
-    { code: 'CUSTOMER_RESTORE_WINDOW_ELAPSED' },
     { code: 'EMAIL_ALREADY_IN_ORGANIZATION' },
     { code: 'EMAIL_ALREADY_REGISTERED' },
     { code: 'EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION' },
@@ -161,8 +170,6 @@ export const manifest = defineModuleManifest({
         'reorder_disabled',
       ],
     },
-    { code: 'IDEMPOTENCY_KEY_REQUIRED' },
-    { code: 'IDEMPOTENCY_KEY_REUSED' },
     { code: 'INTERNAL', tokens: ['customer_account_organization_missing'] },
     { code: 'INVALID_CREDENTIALS' },
     { code: 'INVALID_TRANSITION' },
@@ -180,18 +187,10 @@ export const manifest = defineModuleManifest({
     { code: 'ORGANIZATION_TAX_ID_EXISTS' },
     { code: 'ORGANIZATION_TREE_INVALID', tokens: ['cycle', 'max_depth_exceeded'] },
     { code: 'ORG_OWNER_DEPLETION' },
-    { code: 'PACKAGING_UNIT_NAME_CONFLICT' },
-    { code: 'PACKAGING_UNIT_NOT_FOUND' },
-    { code: 'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE' },
     { code: 'PRICE_UNAVAILABLE' },
-    { code: 'PROMOTION_INVALID' },
     { code: 'RATE_LIMITED' },
-    { code: 'SELECTION_TOO_LARGE' },
-    { code: 'SYSTEM_ATTRIBUTE_SET_IMMUTABLE' },
     { code: 'TERMS_VERSION_STALE' },
     { code: 'TOKEN_INVALID_OR_EXPIRED' },
-    { code: 'TWO_FACTOR_REQUIRED' },
-    { code: 'TWO_FACTOR_REQUIRED_BY_ROLE' },
     { code: 'UNAUTHORIZED' },
     { code: 'VALIDATION_FAILED' },
     { code: 'VERSION_CONFLICT', tokens: ['organization_version_mismatch'] },

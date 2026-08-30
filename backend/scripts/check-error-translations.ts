@@ -168,8 +168,10 @@ const LANGUAGES = ['en', 'pl'] as const;
  * merge request at a time (`specs/090-module-owned-error-codes/d129-sweep.md`
  * §5.2, Appendix A). `KSEF_*` and `PIM_ERGONODE_*` went first (MR 2), then the
  * rest of Tier A — `custom_fields`, `customers`, `price_lists`,
- * `prompt_actions`, `shopping_lists` and `transactional_emails` (MR 3) — which
- * is why those modules now have groups of their own below. Draining a block
+ * `prompt_actions`, `shopping_lists` and `transactional_emails` (MR 3) — then
+ * Tier B's six receivers that already ship a bundle: `catalog`,
+ * `customer_accounts`, `orders`, `mfa`, `newsletter` and `promotions` (MR 4).
+ * That is why those modules now have groups of their own below. Draining a block
  * still means two edits: the declaration moves to the owning module's manifest,
  * and the sentences move to its bundle. A group here whose codes carry no
  * sentence needs only the first, and its entries stay — the debt is unchanged,
@@ -183,9 +185,31 @@ const LANGUAGES = ['en', 'pl'] as const;
  * that position and says in terms that writing the prose instead is always
  * available and is not a re-opening of D-186 §2, which refuses *carrying* a
  * placeholder rather than *writing* a sentence. Both were written, so the two
- * codes left this ledger instead of joining a new group in it: **65 entries,
- * down from 67**, which is the one direction this list is ever allowed to move
- * on its own.
+ * codes left this ledger instead of joining a new group in it: 67 entries down
+ * to 65, which is the one direction this list is ever allowed to move on its
+ * own.
+ *
+ * **MR 4 moved it the other way, 65 to 69, and that direction is authorised
+ * rather than excused.** Tier B is where the sweep first meets codes that
+ * already *have* a sentence, and twenty-four of the sweep's twenty-seven are the
+ * code rewritten twice — `"Promotion Invalid."` / `"Błąd: promotion invalid."`.
+ * D-186 §2 deletes such a placeholder instead of moving it, because in the
+ * receiving module's own bundle it reads as that module's answer, every
+ * instrument then counts the code as translated, and it is never reportable
+ * again; the ruling authorises the resulting growth here explicitly, as a
+ * reclassification of debt that already existed rather than a ratchet being
+ * raised. MR 4 carried eight such placeholders and **wrote four of them as
+ * prose** instead of ledgering them — `SYSTEM_ATTRIBUTE_SET_IMMUTABLE`,
+ * `CANNOT_DEMOTE_LAST_ADMIN`, `CANNOT_REMOVE_LAST_ADMIN` and
+ * `CURRENCY_MISMATCH`, each with a raise site that says what the refusal means
+ * and a reader who meets it. The other four are codes **nothing in the tree
+ * raises**: with no raise site there is no refusal to describe, and a sentence
+ * could only have been invented from the code's own name, which is the
+ * placeholder again in longer words. Those four are the +4.
+ *
+ * So the rule is unchanged and is worth stating in the form the sweep needs it:
+ * never add an entry to make a build pass, and never carry a placeholder to
+ * avoid adding one.
  *
  * `MFA_*` is the worked example, and it took both edits and two issues: #194
  * routed the family to `mfa`, #223 wrote the nine sentences in `mfa`'s own
@@ -207,31 +231,44 @@ const LANGUAGES = ['en', 'pl'] as const;
  * Grouped as measured, so a module can drain its own block.
  */
 export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
-  // _i18n (22)
-  'ACCOUNT_BLOCKED', 'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
-  'BULK_TOO_LARGE',
-  'CUSTOMER_ALREADY_DELETED', 'CUSTOMER_NOT_DELETED', 'CUSTOMER_NOT_FOUND',
-  'CUSTOMER_RESTORE_WINDOW_ELAPSED',
-  'IDEMPOTENCY_KEY_REQUIRED', 'IDEMPOTENCY_KEY_REUSED',
+  // _i18n (10)
+  'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
   'MODULE_ACTIVATION_PROTECTED', 'MODULE_DEPENDENCIES_ABSENT', 'MODULE_DEPENDENTS_PRESENT',
   'MODULE_NOT_DEACTIVATABLE', 'MODULE_NOT_FOUND', 'MODULE_SETTING_READ_ONLY',
-  'ORG_OWNER_DEPLETION', 'PACKAGING_UNIT_NAME_CONFLICT', 'PACKAGING_UNIT_NOT_FOUND',
-  'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE',
+  'ORG_OWNER_DEPLETION',
   'PRICE_UNAVAILABLE',
-  'SELECTION_TOO_LARGE',
-  // catalog (7)
-  'ATTRIBUTE_NOT_MASS_EDITABLE', 'PRODUCT_FEED_CONFIRMATION_REQUIRED', 'PRODUCT_FEED_DISABLED',
+  // catalog (12) — seven from Phase 3, five re-homed from `_i18n` by D-129's
+  // sweep, MR 4 (Tier B). The five had no sentence in either language before
+  // the move and none after, so what moved is which module owes it. The batch's
+  // sixth `catalog` code, `SYSTEM_ATTRIBUTE_SET_IMMUTABLE`, is not here: it
+  // carried a placeholder in `_i18n`'s bundle and arrives with real prose in
+  // this module's own, which is `d129-sweep.md` §5.4's available option taken
+  // rather than a re-opening of D-186 §2.
+  'ATTRIBUTE_NOT_MASS_EDITABLE', 'BULK_TOO_LARGE',
+  'PACKAGING_UNIT_NAME_CONFLICT', 'PACKAGING_UNIT_NOT_FOUND',
+  'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE',
+  'PRODUCT_FEED_CONFIRMATION_REQUIRED', 'PRODUCT_FEED_DISABLED',
   'PRODUCT_FEED_TAXONOMY_CONFLICT', 'PRODUCT_FEED_TEMPLATE_CONFLICT', 'PRODUCT_FEED_TEMPLATE_UNBOUND',
-  'SKU_NOT_IN_ASSORTMENT',
+  'SELECTION_TOO_LARGE', 'SKU_NOT_IN_ASSORTMENT',
   // custom_fields (5) — re-homed from `_i18n` by D-129's sweep, MR 3 (Tier A),
   // on the same terms as MR 2's two families: none of the five had a sentence
   // in either language before the move and none has one after, so what moved is
   // which module owes it.
   'CUSTOM_FIELD_DEFINITION_INVALID', 'CUSTOM_FIELD_HOST_MANAGED', 'CUSTOM_FIELD_KEY_CONFLICT',
   'CUSTOM_FIELD_NOT_FOUND', 'CUSTOM_FIELD_VALUE_INVALID',
-  // customers (2) — same move, same merge request. The other four `CUSTOMER_*`
-  // codes stay under `_i18n` above until their own batch: D-186 §1 sends them to
-  // `customer_accounts`, and only the address one is this module's.
+  // customer_accounts (5) — MR 4, same terms. The batch's other two
+  // `customer_accounts` codes, `CANNOT_DEMOTE_LAST_ADMIN` and
+  // `CANNOT_REMOVE_LAST_ADMIN`, carried placeholders and arrive with prose, so
+  // they are not here. Two of the five — `CUSTOMER_ALREADY_DELETED` and
+  // `CUSTOMER_NOT_FOUND` — are raised by `customers` and owned here, which is
+  // D-186 §1's split of the `CUSTOMER_*` family and D-95.2's shape.
+  'ACCOUNT_BLOCKED',
+  'CUSTOMER_ALREADY_DELETED', 'CUSTOMER_NOT_DELETED', 'CUSTOMER_NOT_FOUND',
+  'CUSTOMER_RESTORE_WINDOW_ELAPSED',
+  // customers (2) — same move, same merge request. The four `CUSTOMER_*` record
+  // codes went to `customer_accounts` in MR 4, which is D-186 §1's split: the
+  // record is that module's and only the address one is this module's — even
+  // though this module raises two of the four.
   'CUSTOMER_ADDRESS_NOT_FOUND', 'REGISTRATION_REQUIRES_ORGANIZATION',
   // ksef (7) — re-homed from `_i18n` by D-129's sweep, MR 2 (Tier A). Membership
   // is unchanged: none of the seven had a sentence in either language before the
@@ -239,6 +276,21 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   'KSEF_ALREADY_SUBMITTED', 'KSEF_CREDENTIAL_EXISTS', 'KSEF_CREDENTIAL_INVALID',
   'KSEF_ENROLLMENT_REJECTED', 'KSEF_NOT_CONFIGURED', 'KSEF_NOT_SUBMITTABLE',
   'KSEF_UNAVAILABLE',
+  // mfa (2) — MR 4, and the two entries whose reason is not "nobody has written
+  // it yet". Nothing in the tree raises either code, so the placeholder each
+  // carried in `_i18n`'s bundle was deleted rather than rewritten: with no
+  // raise site there is no refusal to describe, and a sentence would have to be
+  // invented from the code's own name. That is the growth D-186 §2 authorises
+  // explicitly — a reclassification of debt that already existed, not a ratchet
+  // being raised.
+  'TWO_FACTOR_REQUIRED', 'TWO_FACTOR_REQUIRED_BY_ROLE',
+  // newsletter (1) — MR 4, on the mfa entries' terms: unraised, so the
+  // placeholder went rather than becoming this module's answer.
+  'ALREADY_SUBSCRIBED',
+  // orders (2) — MR 4. Both are answered to a machine posting orders over the
+  // external intake API. The batch's third `orders` code, `CURRENCY_MISMATCH`,
+  // carried a placeholder and arrives with prose, so it is not here.
+  'IDEMPOTENCY_KEY_REQUIRED', 'IDEMPOTENCY_KEY_REUSED',
   // pim_ergonode (13) — same move, same merge request, same terms.
   'PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE', 'PIM_ERGONODE_BINDING_EXISTS',
   'PIM_ERGONODE_CONNECTION_DISABLED', 'PIM_ERGONODE_CONNECTION_EXISTS', 'PIM_ERGONODE_CURRENCY_INACTIVE',
@@ -248,6 +300,9 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   // price_lists (1) — MR 3. `pim_ergonode` raises it and does not own it, which
   // is why MR 2 moved thirteen of that module's codes and left this one.
   'PRICE_LIST_NOT_FOUND',
+  // promotions (1) — MR 4, same terms as `mfa` and `newsletter`: nothing raises
+  // it, so the placeholder was deleted rather than rewritten.
+  'PROMOTION_INVALID',
   // prompt_actions (6) — MR 3, same terms.
   'ASSISTANT_DISABLED', 'ASSISTANT_NOT_CONFIGURED', 'PROMPT_PERMISSION_REVOKED',
   'PROMPT_PLAN_EXPIRED', 'PROMPT_REQUEST_INVALID_STATE', 'PROMPT_REQUEST_IN_FLIGHT',

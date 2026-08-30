@@ -523,4 +523,238 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
       'The per-email control exists precisely because this module\'s own activation is ' +
       "`nonDeactivatable` (issue #89), and the registry it is read from is this module's.",
   },
+  // ---- Tier B, MR 4 of the sweep: twenty codes into the six receivers that
+  // already ship an i18n bundle — `catalog` (6), `customer_accounts` (7),
+  // `orders` (3), `mfa` (2), `newsletter` (1), `promotions` (1). This is the
+  // first batch that **deletes** from `_i18n`'s bundle: eight of the twenty
+  // carried a placeholder there, the code rewritten twice, which D-186 §2
+  // refuses to carry into a module's own bundle. Four were rewritten as prose
+  // in the receiver's bundle (`d129-sweep.md` §5.4, which keeps that option
+  // open and is not a re-opening of the ruling) and four were deleted and
+  // ledgered in `UNTRANSLATED_ERROR_CODES`, every one of those four being a
+  // code nothing in the tree raises.
+  BULK_TOO_LARGE: {
+    from: '_i18n',
+    to: 'catalog',
+    tier: 'T2',
+    reason:
+      'T1 does not decide it: "bulk" names no entity, so there is no noun to own. T2 does. ' +
+      'The code names a mechanism — the 200-product ceiling on ' +
+      '`POST /admin/catalog/products/bulk-update` — which `catalog` implements in ' +
+      '`catalog-bulk-update.service.ts` and is the only thing in the tree that raises. Its ' +
+      '`details` carry `{ maxBatchSize, recommendedSplitInto }` and no `code`, so the ' +
+      'sentence it still owes belongs at the base key.',
+  },
+  PACKAGING_UNIT_NAME_CONFLICT: {
+    from: '_i18n',
+    to: 'catalog',
+    tier: 'T1',
+    reason:
+      'The noun is a packaging unit, a row on a Product that `catalog` owns outright, and ' +
+      'the uniqueness it refuses — one name per product — is an invariant of that table.',
+  },
+  PACKAGING_UNIT_NOT_FOUND: {
+    from: '_i18n',
+    to: 'catalog',
+    tier: 'T1',
+    reason:
+      'Same noun and same owner, and this is the one of the three where the raise sites ' +
+      'disagree with the answer: `carts` raises it too, from `cart-service.ts`, resolving ' +
+      "the unit a line is being added in before it can price it. That is the caller reading " +
+      "`catalog`'s row and renaming its absence, which D-95.2 already ruled is not " +
+      'ownership.',
+  },
+  PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE: {
+    from: '_i18n',
+    to: 'catalog',
+    tier: 'T1',
+    reason:
+      'The noun is the packaging unit again, and the rule it refuses is about the product ' +
+      "type it would hang from — virtual, bundle and grouped products take none. Both " +
+      'halves of that judgement are `catalog`\'s.',
+  },
+  SELECTION_TOO_LARGE: {
+    from: '_i18n',
+    to: 'catalog',
+    tier: 'T2',
+    reason:
+      '`BULK_TOO_LARGE`\'s twin one tier down the same reasoning: "selection" is nobody\'s ' +
+      'entity, and the mechanism is the 10 000-match ceiling on ' +
+      '`POST /admin/catalog/products/resolve-ids`, implemented and raised only in ' +
+      "`catalog-admin.service.ts`. Kept with its sibling for the same reason a family is " +
+      'kept whole: an operator meeting one of the two ceilings should not find the other ' +
+      'answered by a different module.',
+  },
+  SYSTEM_ATTRIBUTE_SET_IMMUTABLE: {
+    from: '_i18n',
+    to: 'catalog',
+    tier: 'T1',
+    reason:
+      "The noun is an Attribute Set, this module's own entity, and the refusal is the " +
+      'system set\'s two invariants — its `code` is a stable integration key and cannot be ' +
+      'changed, and the set itself cannot be deleted. It is the one code in this batch\'s ' +
+      '`catalog` six that carried a placeholder (`"System Attribute Set Immutable."`), and ' +
+      'it arrives with real prose in both languages instead: the meaning is plain at both ' +
+      'raise sites and the reader is an operator on the Attribute Sets screen, so §5.4\'s ' +
+      'available option was taken and the code leaves the untranslated ledger rather than ' +
+      'joining it under a new owner.',
+  },
+  ACCOUNT_BLOCKED: {
+    from: '_i18n',
+    to: 'customer_accounts',
+    tier: 'T1',
+    reason:
+      'The noun is the account, and the refusal is a `CustomerAccount` status column this ' +
+      "module owns, checked in its own `customer-auth-service.ts` at sign-in. Nothing " +
+      'outside the module knows an account can be blocked.',
+  },
+  CANNOT_DEMOTE_LAST_ADMIN: {
+    from: '_i18n',
+    to: 'customer_accounts',
+    tier: 'T1',
+    reason:
+      'It reads like `organizations` and is not: the invariant is counted over ' +
+      '`CustomerAccount.role` within one organization, in this module\'s `role-service.ts`, ' +
+      'which is the only thing in the tree that raises it. `organizations` owns the ' +
+      'organization; this module owns its membership. It carried a placeholder and arrives ' +
+      'with prose instead (§5.4): the reader is an organization administrator managing ' +
+      'their own company\'s users and the refusal has one remedy to offer.',
+  },
+  CANNOT_REMOVE_LAST_ADMIN: {
+    from: '_i18n',
+    to: 'customer_accounts',
+    tier: 'T1',
+    reason:
+      'Same noun, same service and the same invariant read as a removal rather than a ' +
+      'demotion. Also written rather than ledgered.',
+  },
+  CUSTOMER_ALREADY_DELETED: {
+    from: '_i18n',
+    to: 'customer_accounts',
+    tier: 'T1',
+    reason:
+      'D-186 §1 settles the noun: `customer_accounts` owns the customer **record** and ' +
+      '`customers` owns `CustomerAddress`. This is the record\'s soft-delete state. It is ' +
+      'also one of the two codes in this batch that the *other* module raises — ' +
+      '`customers`\' `customer-deletion-service.ts` throws it, and so does this module\'s ' +
+      '`customer-account-lifecycle-ports.ts` — which is D-95.2\'s shape and is accepted in ' +
+      'terms by the ruling: the owner of a noun is not required to be the module that ' +
+      'throws about it.',
+  },
+  CUSTOMER_NOT_DELETED: {
+    from: '_i18n',
+    to: 'customer_accounts',
+    tier: 'T1',
+    reason:
+      'The same record state read the other way round, raised only here, from ' +
+      '`customer-account-lifecycle-ports.ts`: a restore refused because there is nothing ' +
+      'to restore.',
+  },
+  CUSTOMER_NOT_FOUND: {
+    from: '_i18n',
+    to: 'customer_accounts',
+    tier: 'T1',
+    reason:
+      'The second of the two codes the sibling module raises more often than the owner ' +
+      'does: four of the six raise sites are in `customers` (`routes.self.ts`, ' +
+      '`customer-deletion-service.ts`, `customer-moderation-service.ts`, ' +
+      '`customer-org-assignment-service.ts`) and two are here. In every one of the four, ' +
+      '`customers` is resolving a `CustomerAccount` before doing its own work — the caller ' +
+      'reporting the absence of the owner\'s row. D-186 §1 puts the record here and ' +
+      'accepts that consequence deliberately.',
+  },
+  CUSTOMER_RESTORE_WINDOW_ELAPSED: {
+    from: '_i18n',
+    to: 'customer_accounts',
+    tier: 'T1',
+    reason:
+      'The noun is the record again and the window is a property of it: after the retention ' +
+      'period the row is anonymized and there is nothing left to restore. Raised only in ' +
+      'this module\'s `customer-account-lifecycle-ports.ts`.',
+  },
+  CURRENCY_MISMATCH: {
+    from: '_i18n',
+    to: 'orders',
+    tier: 'T2',
+    reason:
+      'T1 does not decide it and the sweep marks it a judgement: the noun is a currency, ' +
+      'which `currencies` owns, and the condition is detected by `credit_limits`. But ' +
+      '`credit_limits` does not raise it — its reserve port returns ' +
+      "`{ ok: false, code: 'CURRENCY_MISMATCH' }` as a typed result, a `readonly code` " +
+      'claim rather than a throw — and `orders` is what turns that into a 422 inside the ' +
+      'placement transaction, so that a refusal rolls the Order row back. The mechanism the ' +
+      'code names is the currency agreement between an order and the credit limit paying ' +
+      'for it, and that agreement exists nowhere else. It carried a placeholder and arrives ' +
+      'with prose (§5.4): the reader is a buyer stopped at checkout with one remedy to ' +
+      'offer.',
+  },
+  IDEMPOTENCY_KEY_REQUIRED: {
+    from: '_i18n',
+    to: 'orders',
+    tier: 'T2',
+    reason:
+      'T1 does not decide it: an idempotency key is nobody\'s entity. T2 does. The code ' +
+      'names a mechanism — the `Idempotency-Key` header contract on the external order ' +
+      'intake — which `orders` implements in `order-api-intake-service.ts` and alone ' +
+      'raises. Its reader is a machine posting orders over the API, which is why it stays ' +
+      'an `UNTRANSLATED_ERROR_CODES` entry rather than gaining a sentence with the move.',
+  },
+  IDEMPOTENCY_KEY_REUSED: {
+    from: '_i18n',
+    to: 'orders',
+    tier: 'T2',
+    reason:
+      'Same mechanism and same service, one step further in: the key was seen before with a ' +
+      'different payload hash, which is the intake\'s own stored state. Kept with its ' +
+      'sibling.',
+  },
+  TWO_FACTOR_REQUIRED: {
+    from: '_i18n',
+    to: 'mfa',
+    tier: 'T1',
+    reason:
+      "The noun is the second factor, which is this module's entire subject; it reached the " +
+      'platform block only because it does not carry the `MFA_` prefix the deleted chain ' +
+      'keyed on, and `mfa`\'s own manifest has recorded it as the code a reader would look ' +
+      'for there and not find since Phase 3. **Nothing in the tree raises it**, so its ' +
+      'placeholder is deleted and not rewritten: with no raise site, a sentence could only ' +
+      'be invented from the code\'s name, which is the placeholder again in longer words. ' +
+      'It joins `UNTRANSLATED_ERROR_CODES` under `mfa`.',
+  },
+  TWO_FACTOR_REQUIRED_BY_ROLE: {
+    from: '_i18n',
+    to: 'mfa',
+    tier: 'T1',
+    reason:
+      'Same subject, and `_BY_ROLE` names `MfaOrganizationPolicy` — the per-role enforcement ' +
+      'this module owns outright. Also unraised, also deleted rather than rewritten, also ' +
+      'ledgered under `mfa`.',
+  },
+  ALREADY_SUBSCRIBED: {
+    from: '_i18n',
+    to: 'newsletter',
+    tier: 'T1',
+    reason:
+      'The noun is a subscription, and `NewsletterSubscriber` with its double opt-in — which ' +
+      'is what decides when a second sign-up is a duplicate rather than a re-confirmation — ' +
+      'is this module\'s entity. The sweep calls the attribution weak and it is: nothing ' +
+      'raises the code, and the one competing claim in the tree is a doc comment in ' +
+      "`inventory`'s `availability-notification-service.ts` promising a 409 for a duplicate " +
+      'restock subscribe, which that method does not issue — it returns the existing row. So ' +
+      'the competing claim is a refusal nobody implemented. Unraised, so the placeholder is ' +
+      'deleted rather than rewritten and the code joins `UNTRANSLATED_ERROR_CODES` under ' +
+      '`newsletter`.',
+  },
+  PROMOTION_INVALID: {
+    from: '_i18n',
+    to: 'promotions',
+    tier: 'T1',
+    reason:
+      'The noun is a promotion, which this module owns along with its rules and its Rule ' +
+      'Builder. Nothing raises it: `carts` answers every coupon refusal it makes with ' +
+      '`CART_COUPON_REJECTED` and a `details.code` from `couponDropReasonSchema`, and its ' +
+      'manifest already records this code as one that reads like the coupon path and is not ' +
+      'part of it. Unraised, so the placeholder is deleted rather than rewritten and the ' +
+      'code joins `UNTRANSLATED_ERROR_CODES` under `promotions`.',
+  },
 };

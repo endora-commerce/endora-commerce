@@ -490,13 +490,13 @@ export const manifest = defineModuleManifest({
     },
   ],
   /**
-   * The two error codes this module owns — feature 090 Phase 3
+   * The error codes this module owns — two from feature 090 Phase 3
    * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
-   * §1.1). This is where each sentence is looked up from: `errors.<CODE>` in
-   * this module's own `i18n/{en,pl}.json`, which already holds both in both
-   * languages.
+   * §1.1) and three from D-129's remaining sweep, described at the end of this
+   * block. This is where each sentence is looked up from: `errors.<CODE>` in
+   * this module's own `i18n/{en,pl}.json`.
    *
-   * The list is answer-preserving, not a judgement (§6.2 and §6.5): it is
+   * The Phase 3 pair is answer-preserving, not a judgement (§6.2 and §6.5): it is
    * exactly what the prefix chain in `@endora-commerce/mod-i18n` routes here
    * today, copied from the frozen capture at
    * `backend/test/fixtures/error-code-routing/chain-answers.ts` rather than
@@ -506,7 +506,8 @@ export const manifest = defineModuleManifest({
    *
    * **The list a reader expects is the long one, and it runs the other way.**
    * Most modules' surprise is a code routed *here* that reads like somebody
-   * else's; `orders` has none of those — both codes below are plainly its own.
+   * else's; `orders` has none of those — the two codes Phase 3 declared are
+   * plainly its own.
    * Its surprise is the inverse, and it is large: this package throws eighteen
    * distinct error codes and owns exactly one of them. `INVOICE_NOT_READY` is
    * `invoices`' and is thrown twice in this module's `routes.ts` — the worked
@@ -554,8 +555,51 @@ export const manifest = defineModuleManifest({
    * code, which is `MEGAMENU_REFERENCED`'s shape one module over. The code is
    * declared here regardless: ownership follows the capture (runbook T10), and
    * deciding *which* 289 codes exist is not this merge request's question.
+   *
+   * **Three of the fourteen came back in D-129's remaining sweep, MR 4**
+   * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A), and
+   * all three are D-121 **T2** rather than T1 — which is why the paragraph above
+   * is still right about them and no longer complete. In each the noun is
+   * claimed by somebody else or by nobody, so the tier that decides is "the code
+   * names a mechanism and one module implements it".
+   *
+   * - `IDEMPOTENCY_KEY_REQUIRED` and `IDEMPOTENCY_KEY_REUSED` name the
+   *   `Idempotency-Key` header contract on `POST /api/v1/orders` for an external
+   *   caller. "Idempotency key" is nobody's entity; the mechanism is this
+   *   module's `order-api-intake-service.ts`, which stores the key and its
+   *   payload hash against the order it created and is the only thing in the
+   *   tree that raises either.
+   * - `CURRENCY_MISMATCH` is the one to argue with. The noun is a currency,
+   *   which `currencies` owns, and the refusal is produced by
+   *   `credit_limits`' reserve port. But `credit_limits` does not *raise* it —
+   *   it returns `{ ok: false, code: 'CURRENCY_MISMATCH' }` as a typed result,
+   *   and this module is what turns that into a 422 during order placement,
+   *   inside the placement transaction so a refusal rolls the Order row back.
+   *   The mechanism the code names is the currency agreement between an order
+   *   and the credit limit paying for it, and that agreement exists only here.
+   *
+   * `CURRENCY_MISMATCH` arrives with a sentence and it is a new one: it carried
+   * `"Currency Mismatch."` / `"Błąd: currency mismatch."` in `_i18n`'s bundle,
+   * which D-186 §2 deletes rather than moves. §5.4 keeps writing the prose
+   * available, and here the reader is a buyer stopped at checkout with one
+   * remedy to offer, so it is written rather than ledgered. The two
+   * `IDEMPOTENCY_KEY_*` codes had no sentence in either language before the move
+   * and have none after — they are answered to a machine posting orders over the
+   * API, and they stay `UNTRANSLATED_ERROR_CODES` entries under `orders`
+   * instead of under `_i18n`.
+   *
+   * **None of the three carries a token**, on the same derivation as
+   * `ORDER_NOT_FOUND` above and measured the same way — the arguments of each
+   * raising call extracted by balancing its parentheses, none of the five sites
+   * passing a `details` object at all.
    */
-  errorCodes: [{ code: 'ORDER_NOT_CANCELLABLE' }, { code: 'ORDER_NOT_FOUND' }],
+  errorCodes: [
+    { code: 'CURRENCY_MISMATCH' },
+    { code: 'IDEMPOTENCY_KEY_REQUIRED' },
+    { code: 'IDEMPOTENCY_KEY_REUSED' },
+    { code: 'ORDER_NOT_CANCELLABLE' },
+    { code: 'ORDER_NOT_FOUND' },
+  ],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base. This module had
   // no activation declaration at all, which resolved as "always activated" and

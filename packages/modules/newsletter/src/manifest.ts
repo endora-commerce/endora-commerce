@@ -106,6 +106,50 @@ export const manifest = defineModuleManifest({
   ],
   settings: newsletterSettingsManifest,
   activation: { settingCode: 'newsletter.enabled', default: true },
+  /**
+   * `ALREADY_SUBSCRIBED` — D-129's remaining sweep, MR 4
+   * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;
+   * D-186 in `specs/080-f4-real-scope/rulings.md`). The first error code this
+   * module declares.
+   *
+   * It was `_i18n`'s until now, not because anybody judged it the platform's
+   * but because the deleted prefix chain had no rule for it and its last line
+   * was `return 'core'`. **D-121 T1 puts it here**: the noun is a subscription,
+   * and `NewsletterSubscriber` — with the double opt-in that decides when a
+   * second sign-up is a duplicate rather than a re-confirmation — is this
+   * module's own entity.
+   *
+   * **The attribution is the sweep's own word "weakly", and the reason to
+   * record it here is that the tree holds one counter-signal.** Nothing raises
+   * this code anywhere (class D). The only place it is named outside a
+   * declaration is a doc comment in `inventory`'s
+   * `availability-notification-service.ts`, which says the restock subscribe
+   * refuses `409 ALREADY_SUBSCRIBED` for an idempotent re-subscribe — and that
+   * method does not refuse at all: it returns the existing row
+   * (`if (existing) return existing;`). So the comment describes a refusal that
+   * does not exist, and the one competing claim on the noun is a claim nothing
+   * implements. If a back-in-stock subscription ever does start refusing, the
+   * question is open again and `REHOMED_ERROR_CODES` is where this decision is
+   * written down.
+   *
+   * **It arrives without a sentence, deliberately.** It carried a placeholder
+   * in `_i18n`'s bundle, the code rewritten twice —
+   * `"Already Subscribed."` and `"Błąd: already subscribed."` — which D-186 §2
+   * deletes rather than moves: in this module's own bundle it would read as
+   * this module's
+   * answer and every instrument would count the code as translated for good.
+   * `d129-sweep.md` §5.4 keeps writing real prose available and calls it the
+   * better outcome, and it is available whenever a raise site says what the
+   * refusal means. There is no raise site here, so a sentence could only be
+   * invented from the code's own name — the placeholder again in longer words,
+   * rendered for nobody. It is a `check-error-translations.ts`
+   * `UNTRANSLATED_ERROR_CODES` entry under `newsletter` instead, where the debt
+   * is findable and attached to whoever implements the refusal.
+   *
+   * No `tokens`, for the same reason and from the same direction: there is no
+   * raise site to put a `details.code` on the wire.
+   */
+  errorCodes: [{ code: 'ALREADY_SUBSCRIBED' }],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'newsletter:read', label: 'View newsletter' },

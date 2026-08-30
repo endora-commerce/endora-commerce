@@ -1,4 +1,6 @@
 {
+  "errors.CANNOT_DEMOTE_LAST_ADMIN": "To jedyny administrator w tej organizacji, a organizacja zawsze musi mieć co najmniej jednego — po odebraniu mu tej roli nikt nie mógłby zarządzać użytkownikami, adresami ani akceptacjami. Najpierw nadaj rolę administratora innemu użytkownikowi, a potem tę rolę będzie można zmienić.",
+  "errors.CANNOT_REMOVE_LAST_ADMIN": "To jedyny administrator w tej organizacji, a organizacja zawsze musi mieć co najmniej jednego — po jego usunięciu nikt nie mógłby zarządzać użytkownikami, adresami ani akceptacjami. Najpierw nadaj rolę administratora innemu użytkownikowi, a potem tego będzie można usunąć.",
   "actions.openCustomerGroups.label": "Grupy klientów",
   "actions.openCustomerGroups.description": "Zarządzaj grupami segmentacji przypisywanymi klientom i organizacjom",
   "groups.page.title": "Grupy klientów",

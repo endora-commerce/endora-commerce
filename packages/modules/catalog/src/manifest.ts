@@ -231,22 +231,23 @@ export const manifest = defineModuleManifest({
       'different product, not a reduced one.',
   },
   /**
-   * The forty-seven error codes this module owns — feature 090 Phase 3
+   * The error codes this module owns — forty-seven from feature 090 Phase 3
    * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
-   * §1.1). This is where the sentence for each is looked up from:
-   * `errors.<CODE>` in this module's own `i18n/{en,pl}.json`, which holds forty
-   * of them in both languages. The other seven are already entries in
-   * `check-error-translations.ts`'s `UNTRANSLATED_ERROR_CODES` ledger and stay
-   * there — declaring a code writes no sentence (runbook §7 case 1).
+   * §1.1) and six more from D-129's remaining sweep, MR 4, described at the end
+   * of this block. This is where the sentence for each is looked up from:
+   * `errors.<CODE>` in this module's own `i18n/{en,pl}.json`. Every code with
+   * no sentence there is an entry in `check-error-translations.ts`'s
+   * `UNTRANSLATED_ERROR_CODES` ledger and stays one — declaring a code writes no
+   * sentence (runbook §7 case 1).
    *
-   * The list is answer-preserving, not a judgement (§6.2 and §6.5). It was not
-   * written by hand: it is the output of the runbook's step-1 derivation over
-   * the frozen capture at
+   * The Phase 3 forty-seven are answer-preserving, not a judgement (§6.2 and
+   * §6.5), and that list was not written by hand: it is the output of the
+   * runbook's step-1 derivation over the frozen capture at
    * `backend/test/fixtures/error-code-routing/chain-answers.ts`, which records
    * what the prefix chain in `@endora-commerce/mod-i18n` answered at
-   * `49f3c6817`. Re-routing a code to a better owner is
-   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
-   * deliberately not done here.
+   * `49f3c6817`. Re-routing a code to a better owner was
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work, deliberately
+   * not done in Phase 3; it is what the six additions below are.
    *
    * **Four codes are here because an earlier rule in that ordered chain shadows
    * a later one that names them.** Read from the chain's source they look like
@@ -269,12 +270,46 @@ export const manifest = defineModuleManifest({
    * `SKU_NOT_IN_ASSORTMENT` (raised by `orders`), and
    * `PRICE_ORDERING_UNAVAILABLE` / `PRICE_RANGE_INVALID`, which the chain names
    * one by one rather than by a `PRICE_` prefix precisely so that the
-   * `PRICE_LIST_*` family stays with `price_lists`.
+   * `PRICE_LIST_*` family stays with `price_lists`. `SKU_NOT_IN_ASSORTMENT` is
+   * the one of those ten the sweep does **not** revisit: D-121 T1 puts it here
+   * on the same reading the chain reached by accident, so there is nothing to
+   * re-home.
    *
    * No `tokens`: no code here carries a refusal discriminator. Derived from the
    * raise sites rather than from this module's bundles, per the runbook's §5 —
    * the nine codes in the tree that reach the envelope's `refusalToken` are
    * `core`'s seven, `invoices`' two and `carts`' one, and none of them is here.
+   *
+   * **Six more arrived from `_i18n` in D-129's remaining sweep, MR 4**
+   * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A) —
+   * and unlike the forty-seven above these are a judgement rather than a
+   * transcription. The three `PACKAGING_UNIT_*` codes and
+   * `SYSTEM_ATTRIBUTE_SET_IMMUTABLE` are D-121 T1: a packaging unit is a row on
+   * a Product and an Attribute Set is this module's entity, so the noun decides
+   * and the raise site does not — `PACKAGING_UNIT_NOT_FOUND` is raised by
+   * `carts` as well as by this module, resolving a unit before adding a line,
+   * which makes `carts` the caller. `BULK_TOO_LARGE` and `SELECTION_TOO_LARGE`
+   * are T2: "bulk" and "selection" name no entity anybody owns, so T1 does not
+   * answer, and each names a mechanism this module implements and alone raises
+   * — the 200-product ceiling on `POST /products/bulk-update` and the
+   * 10 000-match ceiling on `POST /products/resolve-ids`.
+   *
+   * `SYSTEM_ATTRIBUTE_SET_IMMUTABLE` is the only one of the six that arrives
+   * with a sentence, and it is a new one. It carried a placeholder in `_i18n`'s
+   * bundle — `"System Attribute Set Immutable."` — which D-186 §2 deletes
+   * rather than moves; §5.4 keeps writing the prose available, and here the
+   * meaning is plain at both raise sites (the system set's `code` is immutable,
+   * and the set itself cannot be deleted) and the reader is an operator on the
+   * Attribute Sets screen. So it is written, and the code does not join
+   * `UNTRANSLATED_ERROR_CODES`. The other five had no sentence in either
+   * language before the move and have none after; they were ledgered under
+   * `_i18n` and are ledgered under `catalog`.
+   *
+   * None of the six carries a token either, measured the same way: every raise
+   * site's own arguments were extracted by balancing parentheses, and the two
+   * that pass a `details` object pass `{ maxBatchSize, recommendedSplitInto }`
+   * and `{ total, maxSelectionSize }` — neither holds a `code`, which is the
+   * only key `refusalToken` reads.
    */
   errorCodes: [
     { code: 'ASSET_KIND_NOT_SUPPORTED' },
@@ -288,6 +323,7 @@ export const manifest = defineModuleManifest({
     { code: 'ATTRIBUTE_SET_IN_USE' },
     { code: 'ATTRIBUTE_SET_NOT_FOUND' },
     { code: 'ATTRIBUTE_VALUE_REJECTED' },
+    { code: 'BULK_TOO_LARGE' },
     { code: 'BUNDLE_SLOT_NOT_FOUND' },
     { code: 'BUNDLE_SLOT_OPTION_NOT_FOUND' },
     { code: 'FIELD_IMMUTABLE' },
@@ -302,6 +338,9 @@ export const manifest = defineModuleManifest({
     { code: 'MIN_NOT_MET' },
     { code: 'NESTED_COMPOSITE_NOT_ALLOWED' },
     { code: 'OPTION_ALREADY_EXISTS' },
+    { code: 'PACKAGING_UNIT_NAME_CONFLICT' },
+    { code: 'PACKAGING_UNIT_NOT_FOUND' },
+    { code: 'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE' },
     { code: 'PRICE_ORDERING_UNAVAILABLE' },
     { code: 'PRICE_RANGE_INVALID' },
     { code: 'PRODUCT_ARCHIVED' },
@@ -317,9 +356,11 @@ export const manifest = defineModuleManifest({
     { code: 'PRODUCT_NOT_IN_COMPARISON' },
     { code: 'PRODUCT_TYPE_MISMATCH' },
     { code: 'PRODUCT_UNMANAGED_STOCK' },
+    { code: 'SELECTION_TOO_LARGE' },
     { code: 'SELF_LINK_NOT_ALLOWED' },
     { code: 'SKU_ALREADY_EXISTS' },
     { code: 'SKU_NOT_IN_ASSORTMENT' },
+    { code: 'SYSTEM_ATTRIBUTE_SET_IMMUTABLE' },
     { code: 'TARGET_PRODUCT_NOT_FOUND' },
     { code: 'UNKNOWN_OPTION' },
     { code: 'VARIANT_AXIS_MISSING' },

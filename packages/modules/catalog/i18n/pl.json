@@ -568,6 +568,7 @@
   "errors.PRODUCT_IN_STOCK": "Błąd: product in stock.",
   "errors.PRODUCT_NOT_IN_COMPARISON": "Błąd: product not in comparison.",
   "errors.PRODUCT_UNMANAGED_STOCK": "Błąd: product unmanaged stock.",
+  "errors.SYSTEM_ATTRIBUTE_SET_IMMUTABLE": "Ten zestaw atrybutów należy do konfiguracji samej platformy. Jego kod jest stałym kluczem integracyjnym i nie można go zmienić, a samego zestawu nie można usunąć. Jeśli potrzebujesz innego, utwórz własny zestaw atrybutów i przenieś na niego produkty.",
   "auditLog.product.update": "Zaktualizowano produkt",
   "auditLog.attribute_set.create": "Utworzono zestaw atrybutów",
   "auditLog.attribute_set.update": "Zaktualizowano zestaw atrybutów",

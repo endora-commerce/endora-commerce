@@ -70,7 +70,11 @@ const LEDGERS: ReferenceLedgers = {
  * what stops the same refusal from firing for the seventeen of the sweep's twenty
  * receiving modules the capture routes nothing to. The roster grows to 35 over
  * the sweep, one receiving module per merge request, on exactly the terms Phase 3
- * used.
+ * used — except for a receiver that is on it already, which grows in place
+ * instead. Three of MR 4's six are that case (`catalog`, `orders` and `mfa` all
+ * declared codes in Phase 3): the equality below is per module, so those three
+ * are measured by this file before and after the batch while their roster line
+ * never moves.
  *
  * `specs/090-module-owned-error-codes/migration-runbook.md` is the procedure the
  * roster is filled in by.
@@ -95,6 +99,15 @@ const MIGRATED_MODULES: readonly string[] = [
   // create an i18n bundle, and the only one so far whose codes arrive with a
   // sentence rather than a ledger entry.
   'custom_fields',
+  // Tier B, MR 4 — the first batch of the sweep whose receivers all already ship
+  // an i18n bundle, and the first that deletes from one. `catalog`, `orders` and
+  // `mfa` were on this roster from Phase 3 and simply grow; `customer_accounts`,
+  // `newsletter` and `promotions` declare their first code here. Eight
+  // placeholder sentences left `_i18n`'s bundle with the twenty codes: four were
+  // rewritten as prose in the receiving module's own bundle and four were
+  // deleted and ledgered, D-186 §2 refusing to *carry* a placeholder while
+  // `d129-sweep.md` §5.4 keeps *writing* one available.
+  'customer_accounts',
   'customers',
   'dictionaries',
   'inventory',
@@ -115,8 +128,10 @@ const MIGRATED_MODULES: readonly string[] = [
   // it owns — is the same one, and asking it of a minting module is the point:
   // the ledger entry without the roster line would leave the declaration
   // unmeasured.
+  'newsletter',
   'payments',
   'price_lists',
+  'promotions',
   'prompt_actions',
   'quote_requests',
   'sales_channels',

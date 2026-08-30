@@ -1,4 +1,6 @@
 {
+  "errors.CANNOT_DEMOTE_LAST_ADMIN": "This is the only administrator in the organization, and an organization always keeps at least one — demoting them would leave nobody able to manage members, addresses or approvals. Promote another member to administrator first, and then this role can be changed.",
+  "errors.CANNOT_REMOVE_LAST_ADMIN": "This is the only administrator in the organization, and an organization always keeps at least one — removing them would leave nobody able to manage members, addresses or approvals. Promote another member to administrator first, and then this one can be removed.",
   "actions.openCustomerGroups.label": "Customer groups",
   "actions.openCustomerGroups.description": "Manage the segmentation groups customers and organizations are assigned to",
   "groups.page.title": "Customer groups",

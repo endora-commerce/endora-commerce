@@ -28,5 +28,6 @@
   "reorder.disabled": "Reordering is disabled for this sales channel",
   "cloneToQuote.action": "Create quote request from order",
   "errors.ORDER_NOT_FOUND": "Order not found.",
-  "errors.ORDER_NOT_CANCELLABLE": "This order can no longer be cancelled."
+  "errors.ORDER_NOT_CANCELLABLE": "This order can no longer be cancelled.",
+  "errors.CURRENCY_MISMATCH": "The credit limit paying for this order is held in a different currency than the order itself, and a limit can only cover an order in its own currency. Pay with another method, or ask your account manager to set up a credit limit in this currency."
 }

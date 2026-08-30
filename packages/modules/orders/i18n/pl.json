@@ -28,5 +28,6 @@
   "reorder.disabled": "Ponowne składanie zamówień jest wyłączone dla tego kanału sprzedaży",
   "cloneToQuote.action": "Utwórz zapytanie ofertowe z zamówienia",
   "errors.ORDER_NOT_FOUND": "Nie znaleziono zamówienia.",
-  "errors.ORDER_NOT_CANCELLABLE": "Tego zamówienia nie można już anulować."
+  "errors.ORDER_NOT_CANCELLABLE": "Tego zamówienia nie można już anulować.",
+  "errors.CURRENCY_MISMATCH": "Limit kupiecki, z którego ma być opłacone to zamówienie, jest prowadzony w innej walucie niż samo zamówienie, a limit może pokryć zamówienie tylko we własnej walucie. Wybierz inną metodę płatności albo poproś swojego opiekuna handlowego o limit kupiecki w tej walucie."
 }
