@@ -6,12 +6,19 @@ import {
   CHAIN_ANSWERS_AS_MODULE_IDS,
   CHAIN_ROUTING_ANSWERS,
 } from '../../fixtures/error-code-routing/chain-answers.js';
+import { MINTED_ERROR_CODES } from '../../fixtures/error-code-routing/reference-ledgers.js';
 import {
   compareErrorCodeRouting,
   describeRoutingDifferences,
+  EmptyLedgerReferenceError,
   EmptyRoutingComparisonError,
+  intendedRouting,
+  type ReferenceLedgers,
   type RoutingAnswers,
 } from '../../helpers/error-code-routing.js';
+
+/** The declared addends of the reference side, as every reader takes them. */
+const LEDGERS: ReferenceLedgers = { minted: MINTED_ERROR_CODES };
 
 /**
  * Feature 090 — the equality harness, now that the chain is gone.
@@ -37,6 +44,16 @@ import {
  * capture, over the whole of `ERROR_CODES` and in both directions. A green here
  * is the standing proof that deleting the chain moved no operator-visible
  * sentence.
+ *
+ * **A code minted after the chain was deleted is outside that claim's subject**,
+ * and saying so is what this file's reference side gained with
+ * `test/fixtures/error-code-routing/reference-ledgers.ts`. FR-041 is about the
+ * answers the chain *gave*; a code created afterwards has none to preserve. So
+ * the comparison still runs over the capture's own key set — the capture is
+ * neither re-frozen nor relaxed to a subset check, either of which would make
+ * this harness stop being able to say what the chain did — and the boundary is
+ * asserted in both directions instead: nothing in `ERROR_CODES` is unaccounted
+ * for, and nothing the ledger declares is in the capture.
  */
 describe('error-code routing equality harness (feature 090)', () => {
   describe('the comparison can go red — one proof per difference it reports', () => {
@@ -96,25 +113,143 @@ describe('error-code routing equality harness (feature 090)', () => {
   });
 
   /**
-   * The frozen capture, against the platform's own enumeration.
+   * **The reference side, `capture ⊕ minted`** — red proofs over maps handed to
+   * the overlay whole (issue #130) rather than over the tree's own capture and
+   * ledger, which are the values the blocks below consume.
+   */
+  describe('the minting ledger, applied to the reference side', () => {
+    const capture: RoutingAnswers = { A_CODE: '_i18n', B_CODE: '_i18n' };
+    const minted: ReferenceLedgers = {
+      minted: {
+        NEW_CODE: {
+          to: 'payments',
+          reason: 'A fixture entry, so the overlay is measured on input that enters above it.',
+        },
+      },
+    };
+    const empty: ReferenceLedgers = { minted: {} };
+
+    it('adds a minted code the capture cannot hold, and moves no other answer', () => {
+      expect(intendedRouting(capture, minted)).toEqual({
+        A_CODE: '_i18n',
+        B_CODE: '_i18n',
+        NEW_CODE: 'payments',
+      });
+    });
+
+    it('is byte-identical to the capture while the ledger is empty', () => {
+      expect(intendedRouting(capture, empty)).toEqual(capture);
+    });
+
+    it('refuses an empty capture rather than building a reference out of nothing', () => {
+      expect(() => intendedRouting({}, minted)).toThrow(EmptyLedgerReferenceError);
+    });
+
+    it('reports `unexpected` for a minted code nobody ledgered', () => {
+      expect(
+        compareErrorCodeRouting(intendedRouting(capture, empty), {
+          A_CODE: '_i18n',
+          B_CODE: '_i18n',
+          NEW_CODE: 'payments',
+        }),
+      ).toEqual([{ code: 'NEW_CODE', kind: 'unexpected', expected: null, actual: 'payments' }]);
+    });
+
+    it('reports `unrouted` for a ledgered code no module declares', () => {
+      expect(
+        compareErrorCodeRouting(intendedRouting(capture, minted), {
+          A_CODE: '_i18n',
+          B_CODE: '_i18n',
+        }),
+      ).toEqual([{ code: 'NEW_CODE', kind: 'unrouted', expected: 'payments', actual: null }]);
+    });
+
+    it('still reports `rerouted` for a code the chain answered for that has moved', () => {
+      expect(
+        compareErrorCodeRouting(intendedRouting(capture, minted), {
+          A_CODE: 'price_lists',
+          B_CODE: '_i18n',
+          NEW_CODE: 'payments',
+        }),
+      ).toEqual([{ code: 'A_CODE', kind: 'rerouted', expected: '_i18n', actual: 'price_lists' }]);
+    });
+
+    it('reports nothing when the ledger and the declarations agree', () => {
+      expect(
+        compareErrorCodeRouting(intendedRouting(capture, minted), {
+          A_CODE: '_i18n',
+          B_CODE: '_i18n',
+          NEW_CODE: 'payments',
+        }),
+      ).toEqual([]);
+    });
+  });
+
+  /**
+   * The reference side, against the platform's own enumeration.
    *
    * It used to sit inside the live-chain block and compare three sizes: what
    * `ERROR_CODES` enumerates, what the chain routed, and what the capture
    * records. Two of the three are gone with the chain; the third is still worth
-   * asserting, because the capture is the reference every remaining claim in
-   * this file and in `error-code-migration-progress.test.ts` rests on, and a
-   * capture that has drifted from the enumeration is a reference that answers
-   * for a population nobody has.
+   * asserting, because the capture is the reference every remaining claim in this
+   * file and in `error-code-migration-progress.test.ts` rests on, and a reference
+   * that has drifted from the enumeration answers for a population nobody has.
+   *
+   * **It was one length equality until the minting ledger existed**, and that
+   * shape could not survive its own success: the chain is deleted, so every code
+   * minted afterwards is a member of `ERROR_CODES` the capture can never hold,
+   * and the assertion reds forever over a tree that is entirely correct —
+   * measured on `master` over !1159's three `payments` codes,
+   * `expected […289] to have a length of 292`.
+   *
+   * The repair is not a waiver. It is the same equality, stated over the
+   * population the harness always had, in the two directions that make *"no
+   * exception list"* true in substance:
+   *
+   * - nothing in `ERROR_CODES` is in neither the capture nor the ledger;
+   * - nothing the capture holds has left the enumeration.
+   *
+   * The third direction — that every ledger entry is absent from the capture — is
+   * `findLedgerFaults`' `captured-code`, asserted in
+   * `error-code-migration-progress.test.ts`. It is the one that stops a red being
+   * cleared by backfilling an answer the chain never gave, which is why it is a
+   * fault with a sentence rather than a line here.
+   *
+   * A fourth — that every ledger entry is a member of `ERROR_CODES` — is
+   * deliberately somebody else's: `check:error-translations` reports a code a
+   * module declares and the enumeration does not hold, as `undeclaredInEnum`
+   * (FR-043), and a second author of one claim is two answers waiting to
+   * disagree.
    */
-  describe('the frozen capture', () => {
-    it('covers every member of ERROR_CODES, with no exception list', () => {
-      const enumerated = Object.values(ERROR_CODES);
+  describe('the frozen capture and the minting ledger', () => {
+    it('together cover every member of ERROR_CODES, with no exception list', () => {
+      const enumerated: readonly string[] = Object.values(ERROR_CODES);
       expect(enumerated.length).toBeGreaterThan(0);
+      const referenced = new Set([
+        ...Object.keys(CHAIN_ROUTING_ANSWERS),
+        ...Object.keys(MINTED_ERROR_CODES),
+      ]);
       // The number itself is deliberately not written down here (D-100) — it
       // grows with every code a module adds, and a literal would be the first
       // thing to go stale.
-      expect(Object.keys(CHAIN_ROUTING_ANSWERS)).toHaveLength(enumerated.length);
-      expect(Object.keys(CHAIN_ROUTING_ANSWERS).sort()).toEqual([...enumerated].sort());
+      const unaccounted = enumerated.filter((code) => !referenced.has(code));
+      expect(
+        unaccounted,
+        unaccounted.length === 0
+          ? ''
+          : 'these codes are in ERROR_CODES and in neither the frozen chain capture nor ' +
+            'the minting ledger. A code minted after the chain was deleted needs an entry ' +
+            'in test/fixtures/error-code-routing/reference-ledgers.ts naming its owner and ' +
+            'why it exists. Do not write it into the frozen capture — the chain never ' +
+            `answered for it: ${unaccounted.join(', ')}`,
+      ).toEqual([]);
+    });
+
+    it('records nothing the enumeration has dropped', () => {
+      const enumerated = new Set<string>(Object.values(ERROR_CODES));
+      const captured = Object.keys(CHAIN_ROUTING_ANSWERS);
+      expect(captured.length).toBeGreaterThan(0);
+      expect(captured.filter((code) => !enumerated.has(code))).toEqual([]);
     });
   });
 
@@ -163,7 +298,7 @@ describe('error-code routing equality harness (feature 090)', () => {
       expect(Object.keys(targets).length).toBeGreaterThanOrEqual(enumerated.length);
     });
 
-    it('answers exactly what the frozen chain capture records, in both directions', async () => {
+    it('answers exactly what the frozen capture and the minting ledger record, in both directions', async () => {
       const { targets, collisions } = buildErrorTranslationTargets(
         await resolvedManifestEntries(),
       );
@@ -181,7 +316,15 @@ describe('error-code routing equality harness (feature 090)', () => {
       // `specs/090-module-owned-error-codes/core-block-home.md` §4(d)). The
       // alias lives at the capture's edge because the capture is the only thing
       // left that speaks the chain's vocabulary.
-      const differences = compareErrorCodeRouting(CHAIN_ANSWERS_AS_MODULE_IDS, composed);
+      //
+      // `intendedRouting` is the same reconciliation for the other thing the
+      // capture cannot express: a code minted after the chain was deleted, which
+      // the chain gave no answer for and which the ledger declares with its owner
+      // and its reason. The capture itself is untouched by it.
+      const differences = compareErrorCodeRouting(
+        intendedRouting(CHAIN_ANSWERS_AS_MODULE_IDS, LEDGERS),
+        composed,
+      );
       expect(
         differences,
         differences.length === 0
@@ -190,8 +333,10 @@ describe('error-code routing equality harness (feature 090)', () => {
             'chain answered. Feature 090 is answer-preserving over the whole of ' +
             'ERROR_CODES with no exception list (FR-041), so a module has declared a ' +
             'code that is not the one the chain routed to it, or has declared a code ' +
-            'another module owns. Fix the declaration; do not edit the frozen ' +
-            `capture:\n${describeRoutingDifferences(differences)}`,
+            'another module owns. A code minted after the chain was deleted is a ' +
+            'different case and needs an entry in ' +
+            'test/fixtures/error-code-routing/reference-ledgers.ts. Fix the declaration; ' +
+            `do not edit the frozen capture:\n${describeRoutingDifferences(differences)}`,
       ).toEqual([]);
       // The other half of the same call. A collision would show up above as an
       // `unrouted` code, but only for a code the capture also holds — a
