@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CHECK_LIB_ROOT } from './check-lib-root.js';
+
 /**
  * A synthetic repository with a copy of `check-nul-bytes` inside it.
  *
@@ -27,7 +29,7 @@ const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const TSX = join(REPO_ROOT, 'backend', 'node_modules', '.bin', 'tsx');
 const SCRIPT = join(REPO_ROOT, 'backend', 'scripts', 'check-nul-bytes.ts');
 /** The shared read-size reporter the check imports (issue #244). */
-const READ_SIZE_LIB = join(REPO_ROOT, 'backend', 'scripts', 'lib', 'read-size.ts');
+const READ_SIZE_LIB = join(CHECK_LIB_ROOT, 'read-size.ts');
 
 export interface NulBytesFixture {
   readonly root: string;

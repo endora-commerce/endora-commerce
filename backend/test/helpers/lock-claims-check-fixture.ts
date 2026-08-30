@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CHECK_LIB_ROOT } from './check-lib-root.js';
+
 /**
  * A synthetic repository with a copy of `check-lock-claims` inside it (issue
  * #279).
@@ -31,7 +33,11 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const TSX = join(REPO_ROOT, 'backend', 'node_modules', '.bin', 'tsx');
 const SCRIPT = join(REPO_ROOT, 'backend', 'scripts', 'check-lock-claims.ts');
-/** The libraries the check imports by relative path. */
+/**
+ * The libraries the check imports by relative path, copied out of the package
+ * that owns them — `backend/scripts/lib/` holds re-export shims naming a bare
+ * specifier no staged tree can resolve (see {@link CHECK_LIB_ROOT}).
+ */
 const LIBS: readonly string[] = [
   'module-population.ts',
   'module-roots.ts',
@@ -88,7 +94,7 @@ export function createLockClaimsFixture(): LockClaimsFixture {
   mkdirSync(contracts, { recursive: true });
   copyFileSync(SCRIPT, join(scripts, 'check-lock-claims.ts'));
   for (const lib of LIBS) {
-    copyFileSync(join(REPO_ROOT, 'backend', 'scripts', 'lib', lib), join(scripts, 'lib', lib));
+    copyFileSync(join(CHECK_LIB_ROOT, lib), join(scripts, 'lib', lib));
   }
   // Without it tsx compiles the copy as CommonJS and its dynamic import of the
   // stub index dies at transform time — a failure that looks like a red proof
