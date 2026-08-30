@@ -191,8 +191,32 @@ export function describeMigrationGaps(
 }
 
 /* -------------------------------------------------------------------------- *
- * The minting ledger — a code the frozen capture predates
+ * The reference ledgers — what the frozen capture cannot say
  * -------------------------------------------------------------------------- */
+
+/**
+ * Which of D-121's three tiers decided a code's owner: **T1** the noun, **T2**
+ * the sole thrower where the code names a mechanism, **T3** platform by
+ * declaration.
+ */
+export type OwnershipTier = 'T1' | 'T2' | 'T3';
+
+/** One deliberate re-home: where the code was, where it is, and why. */
+export interface RehomedCode {
+  /** The module the frozen capture routes the code to. */
+  readonly from: string;
+  /** The module that declares it after the move. */
+  readonly to: string;
+  /** The D-121 tier that decided it. */
+  readonly tier: OwnershipTier;
+  /** The sentence a reviewer of the move can disagree with. */
+  readonly reason: string;
+}
+
+/** The re-homing ledger: one entry per deliberately moved code, keyed by the code. */
+export type RehomedErrorCodes = Readonly<Record<string, RehomedCode>>;
+
+const OWNERSHIP_TIERS: ReadonlySet<string> = new Set<OwnershipTier>(['T1', 'T2', 'T3']);
 
 /**
  * One code minted after the chain was deleted: an owner, and no history.
@@ -214,11 +238,11 @@ export type MintedErrorCodes = Readonly<Record<string, MintedCode>>;
 /**
  * The declared addends of the reference side, which the harnesses read together.
  *
- * One today. D-129's remaining sweep adds a second — the re-homing ledger of
- * `specs/090-module-owned-error-codes/d129-sweep.md` §3.3 — and this is the shape
- * it joins.
+ * Two, and they answer different questions about the same reference: *did this
+ * code move* (`rehomed`, D-129's sweep) and *did it exist yet* (`minted`).
  */
 export interface ReferenceLedgers {
+  readonly rehomed: RehomedErrorCodes;
   readonly minted: MintedErrorCodes;
 }
 
@@ -230,30 +254,40 @@ export interface ReferenceLedgers {
  * for the routing reference, and with a page of invented findings for the ledger
  * faults. Neither is a result (issue #113).
  *
- * The **ledger itself** is deliberately not guarded. A tree in which nothing has
- * been minted since the chain was deleted has an empty one, and that switches
- * nothing off, because `capture ⊕ {}` is the capture — every floor the two
- * harnesses carry bites exactly as it did. The ledger is read **after** the
- * references are checked, so an emptiness of its own can never be what makes a
- * judgement vacuous (issue #215, the shape !1158 met).
+ * The **ledgers themselves** are deliberately not guarded. Either may legally be
+ * empty — the re-homing one is, until the sweep's first code-moving merge
+ * request, and the minting one is on a tree where nothing has been minted since
+ * the chain was deleted — and neither switches anything off by being so, because
+ * `capture ⊕ {} ⊕ {}` is the capture and every floor the two harnesses carry
+ * bites exactly as it did. They are read **after** the references are checked,
+ * so an emptiness of their own can never be what makes a judgement vacuous
+ * (issue #215, the shape !1158 met).
  */
 export class EmptyLedgerReferenceError extends Error {}
 
 /**
- * The reference side of both harnesses: the frozen capture, plus the codes it
- * predates.
+ * The reference side of both harnesses: the frozen capture, plus the two things a
+ * frozen capture cannot say.
  *
  * `compareErrorCodeRouting` and `findMigrationGaps` are untouched by this — they
  * keep their difference kinds, their gap kinds and their vacuity refusals, and
- * they are simply handed a reference that also knows which codes were minted
- * after the chain was deleted. The comparison still runs over the capture's own
- * key set for everything the chain answered, so FR-041's claim is unweakened; a
- * minted code nobody ledgered is still `unexpected` — *"chain said nothing,
- * declarations say <module>"* — which is the finding, not a defect in it.
+ * they are simply handed a reference that also knows where a code has
+ * deliberately moved and which codes were minted after the chain was deleted.
+ * Three consequences are the point:
+ *
+ * - a move **nobody wrote down** is still `rerouted`, in the same words, because
+ *   the reference still says what the chain said;
+ * - a re-homing entry whose move **has not been made** is `rerouted` too (the
+ *   code is still declared where it was) or `unrouted` (nobody declares it at
+ *   all), so an entry cannot be written ahead of its move and sit there green;
+ * - a **minted** code nobody ledgered is still `unexpected` — *"chain said
+ *   nothing, declarations say <module>"* — which is the finding, not a defect in
+ *   it.
  *
  * And `findMigrationGaps` stops throwing `EmptyMigrationScopeError` for a module
- * whose every code is minted, which is exactly the module the capture cannot
- * speak for. The refusal is not weakened: it still fires for a module *nothing*
+ * exactly when a ledger routes it a code: the module whose every code is minted,
+ * and the seventeen of D-129's twenty receiving modules the capture routes
+ * nothing to. The refusal is not weakened: it still fires for a module *nothing*
  * routes to, which is what it is for.
  */
 export function intendedRouting(
@@ -268,7 +302,9 @@ export function intendedRouting(
     );
   }
   const destinations = Object.fromEntries(
-    Object.entries(ledgers.minted).map(([code, entry]) => [code, entry.to]),
+    [...Object.entries(ledgers.rehomed), ...Object.entries(ledgers.minted)].map(
+      ([code, entry]) => [code, entry.to],
+    ),
   );
   return { ...capture, ...destinations };
 }
@@ -276,30 +312,59 @@ export function intendedRouting(
 /**
  * Why a ledger entry is not a claim anybody can check.
  *
- * - `captured-code`          — the frozen capture **does** hold the code, so the
- *                              chain answered for it and it was not minted. This
- *                              is the direction that matters most: it is what
- *                              stops a red being cleared by backfilling an answer
- *                              the chain never gave.
+ * Shared by both ledgers:
+ *
  * - `unknown-destination`    — `to` is not a registered module.
  * - `undeclared-destination` — the module named by `to` does not declare the
  *                              code. An entry records the tree as it **is**; this
  *                              refuses a claim written ahead of its manifest
  *                              change, or left behind after one was reverted.
- * - `unreasoned`             — no reason. The diff that mints a code is two lines
- *                              in a manifest and one in an enumeration; the
- *                              reason is the only part of it a reviewer can
- *                              disagree with.
+ * - `unreasoned`             — no reason. The diff of either change is two or
+ *                              three lines; the reason is the only part of it a
+ *                              reviewer can disagree with.
+ * - `double-entry`           — the code is in both ledgers, which cannot both be
+ *                              true: it was either in the block the chain routed
+ *                              or it was minted after the chain was deleted.
+ *
+ * Minting entries only:
+ *
+ * - `captured-code`          — the frozen capture **does** hold the code, so the
+ *                              chain answered for it and it was not minted. This
+ *                              is the direction that matters most: it is what
+ *                              stops a red being cleared by backfilling an answer
+ *                              the chain never gave. If the code is moving, it is
+ *                              a re-home.
+ *
+ * Re-homing entries only:
+ *
+ * - `unknown-code`           — the frozen capture does not hold the code, so this
+ *                              is not a move out of the block. A code minted
+ *                              after the chain was deleted belongs in the minting
+ *                              ledger.
+ * - `wrong-origin`           — `from` is not where the capture had it.
+ * - `not-a-move`             — `from` and `to` are the same module.
+ * - `unknown-tier`           — `tier` is not one of D-121's three.
  */
 export type LedgerFaultKind =
-  | 'captured-code'
   | 'unknown-destination'
   | 'undeclared-destination'
-  | 'unreasoned';
+  | 'unreasoned'
+  | 'double-entry'
+  | 'captured-code'
+  | 'unknown-code'
+  | 'wrong-origin'
+  | 'not-a-move'
+  | 'unknown-tier';
+
+/** Which ledger the entry is in. */
+export type LedgerName = 'rehomed' | 'minted';
 
 export interface LedgerFault {
   readonly code: string;
+  readonly ledger: LedgerName;
   readonly kind: LedgerFaultKind;
+  /** The origin the entry claims, or `null` for a minted code, which has none. */
+  readonly from: string | null;
   /** The owner the entry claims. */
   readonly to: string;
   /**
@@ -320,16 +385,17 @@ export interface LedgerReferences {
 }
 
 /**
- * **The ledger, judged against the tree — the entry → world direction.**
+ * **The ledgers, judged against the tree — the entry → world direction.**
  *
- * The other direction is not implemented twice: a code minted and not ledgered is
- * exactly what `compareErrorCodeRouting` reports as `unexpected` once its
- * reference side is {@link intendedRouting}, and what the enumeration-coverage
- * assertion names in the words an author needs. A second implementation of the
- * same question is two answers waiting to disagree. So the two-way property is
- * *"an entry no manifest agrees with fails, and a code no entry accounts for
- * fails"* — this function is the first half, the equality harness is the second,
- * and both run in the same suite.
+ * The other direction is not implemented twice: a move the manifests made and no
+ * ledger holds is exactly what `compareErrorCodeRouting` reports as `rerouted`
+ * once its reference side is {@link intendedRouting}, a code minted and not
+ * ledgered is what it reports as `unexpected`, and the enumeration-coverage
+ * assertion names the second in the words an author needs. A second
+ * implementation of the same question is two answers waiting to disagree. So the
+ * two-way property is *"an entry no manifest agrees with fails, and a change no
+ * entry accounts for fails"* — this function is the first half, the equality
+ * harness is the second, and both run in the same suite.
  *
  * All three references are refused when empty, because each is what a whole class
  * of fault is measured against and an empty one turns that class into invented
@@ -342,8 +408,9 @@ export function findLedgerFaults(
   const { capture, declaredBy, registeredModuleIds } = references;
   if (Object.keys(capture).length === 0) {
     throw new EmptyLedgerReferenceError(
-      'the frozen chain capture is empty — no entry could be judged against it at all, ' +
-        'and `captured-code` would be unreachable for every one of them',
+      'the frozen chain capture is empty — every re-homing entry would be reported as ' +
+        '`unknown-code` and `captured-code` would be unreachable for every minting entry, ' +
+        'which is a page of invented findings rather than a measurement',
     );
   }
   if (Object.keys(declaredBy).length === 0) {
@@ -361,26 +428,63 @@ export function findLedgerFaults(
 
   const registered = new Set(registeredModuleIds);
   const faults: LedgerFault[] = [];
-  for (const code of Object.keys(ledgers.minted).sort()) {
-    const entry = ledgers.minted[code]!;
+
+  const judgeShared = (
+    code: string,
+    ledger: LedgerName,
+    from: string | null,
+    to: string,
+    reason: string,
+  ): void => {
     const push = (kind: LedgerFaultKind, observed: string | null = null): void => {
-      faults.push({ code, kind, to: entry.to, observed });
+      faults.push({ code, ledger, kind, from, to, observed });
     };
-
-    const captured = capture[code] ?? null;
-    if (captured !== null) push('captured-code', captured);
-
-    if (!registered.has(entry.to)) {
+    if (!registered.has(to)) {
       push('unknown-destination');
     } else {
       const declarers = declaredBy[code] ?? [];
-      if (!declarers.includes(entry.to)) {
+      if (!declarers.includes(to)) {
         push('undeclared-destination', declarers.length === 0 ? null : declarers.join(', '));
       }
     }
+    if (reason.trim() === '') push('unreasoned');
+  };
 
-    if (entry.reason.trim() === '') push('unreasoned');
+  for (const code of Object.keys(ledgers.rehomed).sort()) {
+    const entry = ledgers.rehomed[code]!;
+    const push = (kind: LedgerFaultKind, observed: string | null = null): void => {
+      faults.push({ code, ledger: 'rehomed', kind, from: entry.from, to: entry.to, observed });
+    };
+    if (code in ledgers.minted) push('double-entry');
+
+    const captured = capture[code] ?? null;
+    if (captured === null) push('unknown-code');
+    else if (captured !== entry.from) push('wrong-origin', captured);
+
+    if (entry.from === entry.to) push('not-a-move');
+    if (!OWNERSHIP_TIERS.has(entry.tier)) push('unknown-tier');
+
+    judgeShared(code, 'rehomed', entry.from, entry.to, entry.reason);
   }
+
+  for (const code of Object.keys(ledgers.minted).sort()) {
+    const entry = ledgers.minted[code]!;
+    // `double-entry` is reported once, under the re-homing ledger, so a code in
+    // both produces one fault rather than a pair a reader has to reconcile.
+    const captured = capture[code] ?? null;
+    if (captured !== null && !(code in ledgers.rehomed)) {
+      faults.push({
+        code,
+        ledger: 'minted',
+        kind: 'captured-code',
+        from: null,
+        to: entry.to,
+        observed: captured,
+      });
+    }
+    judgeShared(code, 'minted', null, entry.to, entry.reason);
+  }
+
   return faults;
 }
 
@@ -388,23 +492,39 @@ export function findLedgerFaults(
 export function describeLedgerFaults(faults: readonly LedgerFault[]): string {
   return faults
     .map((fault) => {
-      const { code, to, observed } = fault;
-      const head = `  - [${fault.kind}] ${code}`;
+      const { code, from, to, observed } = fault;
+      const claim = from === null ? `minted into ${to}` : `${from} -> ${to}`;
+      const head = `  - [${fault.kind}] ${code} (${fault.ledger})`;
       switch (fault.kind) {
-        case 'captured-code':
-          return `${head}: the frozen capture routes it to ${observed ?? 'nothing'}, so the ` +
-            'chain answered for it and it was not minted. Do not clear a red by writing an ' +
-            'answer the chain never gave.';
         case 'unknown-destination':
           return `${head}: ${to} is not a registered module`;
         case 'undeclared-destination':
-          return `${head}: the ledger says ${to} declares it and ` +
-            `${observed === null ? 'no module does' : `${observed} does`}. An entry records ` +
-            'the tree as it is — write it in the merge request that changes the manifest, ' +
-            'not before.';
+          return `${head}: the ledger claims ${claim} and ` +
+            `${observed === null ? 'no module declares it' : `${observed} declares it`}. An ` +
+            'entry records the tree as it is — write it in the merge request that changes ' +
+            'the manifest, not before.';
         case 'unreasoned':
-          return `${head}: minted into ${to} with no reason. The diff that mints a code is ` +
-            'three lines; the reason is the only part of it a reviewer can disagree with.';
+          return `${head}: ${claim} with no reason. The diff of the change is two or three ` +
+            'lines; the reason is the only part of it a reviewer can disagree with.';
+        case 'double-entry':
+          return `${head}: the code is in both ledgers. It was either in the block the ` +
+            'chain routed, or it was minted after the chain was deleted — never both.';
+        case 'captured-code':
+          return `${head}: the frozen capture routes it to ${observed ?? 'nothing'}, so the ` +
+            'chain answered for it and it was not minted. If it is moving, it is a re-home; ' +
+            'do not clear a red by writing an answer the chain never gave.';
+        case 'unknown-code':
+          return `${head}: the ledger claims ${claim} and the frozen capture does not hold ` +
+            'the code at all. A code minted after the chain was deleted belongs in ' +
+            'MINTED_ERROR_CODES.';
+        case 'wrong-origin':
+          return `${head}: the ledger says it came from ${from ?? 'nothing'} and the frozen ` +
+            `capture routes it to ${observed ?? 'nothing'}`;
+        case 'not-a-move':
+          return `${head}: ${from ?? 'nothing'} to itself is not a re-home`;
+        case 'unknown-tier':
+          return `${head}: the tier is not one of D-121's three (T1 the noun, T2 the sole ` +
+            'thrower, T3 platform by declaration)';
       }
     })
     .join('\n');
