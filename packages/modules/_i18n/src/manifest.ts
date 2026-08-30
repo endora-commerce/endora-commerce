@@ -98,7 +98,9 @@ export const manifest = defineModuleManifest({
    * `CUSTOM_FIELD_*` to `custom_fields`, `SHOPPING_LIST_*` to `shopping_lists`,
    * and four singletons (MR 3), then Tier B's six modules that already ship a
    * bundle — `catalog`, `customer_accounts`, `orders`, `mfa`, `newsletter` and
-   * `promotions` (MR 4). Do not move one in passing: a code that leaves this
+   * `promotions` (MR 4) — then Tier B's four that had to create one:
+   * `credit_limits`, `api_keys`, `addresses` and `webhooks` (MR 5). Do not move
+   * one in passing: a code that leaves this
    * list without arriving in its owner's manifest routes nowhere, and the
    * collision rule makes a half-done move visible at composition rather than at
    * an operator.
@@ -116,6 +118,18 @@ export const manifest = defineModuleManifest({
    * that ruling; the other four are raised by nothing in the tree, so there was
    * no refusal to describe and they went to `UNTRANSLATED_ERROR_CODES` under
    * their new owners.
+   *
+   * **MR 5 deleted nine more pairs and wrote six of them back.** Its four
+   * receivers each created their first i18n bundle in that change, which is
+   * what `d129-sweep.md` §3.4 requires of a declaring module. The three that
+   * stayed deleted are `ACTIVE_RESERVATIONS_EXIST` and `ADDRESS_IN_USE`, which
+   * nothing in the tree raises, and `API_KEY_OUT_OF_SCOPE`, which is the first
+   * code in the sweep to be ledgered *despite* a live raise site: its reader is
+   * an integration rather than a person, and the raise names the scope the key
+   * is missing (`API key lacks the required scope: <scope>.`), which a
+   * fixed sentence would replace with a vaguer one. That leaves `api_keys` the
+   * first module in the platform to ship a bundle installing zero entries, so
+   * MR 5 ran `scripts/boot-gate.sh --with-negatives` (§5.4).
    *
    * **`tokens` is derived from the raise sites, not from the bundle**
    * (runbook §5). Seven of these codes put a `details.code` on the wire; six of
@@ -142,22 +156,14 @@ export const manifest = defineModuleManifest({
    * result. Re-derive it from the raise sites if a code arrives or leaves. MR 4
    * took twenty codes out of this list and moved none of the six: every one of
    * its raise sites was measured by balanced-paren extraction of the call's own
-   * arguments, and not one passes a `details` object carrying a `code`.
+   * arguments, and not one passes a `details` object carrying a `code`. MR 5's
+   * eleven were measured the same way, with the same answer.
    */
   errorCodes: [
-    { code: 'ACTIVE_RESERVATIONS_EXIST' },
-    { code: 'ADDRESS_IN_USE' },
-    { code: 'ADDRESS_NOT_OWNED' },
-    { code: 'ADJUSTMENT_BELOW_ACTIVE' },
     { code: 'ADMIN_ROLE_CODE_TAKEN' },
     { code: 'ADMIN_ROLE_IN_USE', tokens: ['assigned', 'assigned_to_deleted'] },
     { code: 'ADMIN_ROLE_PROTECTED' },
-    { code: 'API_KEY_CHANNEL_MISMATCH' },
-    { code: 'API_KEY_NOT_BOUND' },
-    { code: 'API_KEY_OUT_OF_SCOPE' },
     { code: 'CANNOT_REVOKE_LAST_ADMIN_INVITE' },
-    { code: 'CREDIT_LIMIT_ALREADY_GRANTED' },
-    { code: 'CREDIT_LIMIT_NOT_GRANTED' },
     { code: 'CURRENT_PASSWORD_INVALID' },
     { code: 'EMAIL_ALREADY_IN_ORGANIZATION' },
     { code: 'EMAIL_ALREADY_REGISTERED' },
@@ -173,7 +179,6 @@ export const manifest = defineModuleManifest({
     { code: 'INTERNAL', tokens: ['customer_account_organization_missing'] },
     { code: 'INVALID_CREDENTIALS' },
     { code: 'INVALID_TRANSITION' },
-    { code: 'LIMIT_INSUFFICIENT' },
     { code: 'MODULE_ACTIVATION_PROTECTED' },
     { code: 'MODULE_DEPENDENCIES_ABSENT' },
     { code: 'MODULE_DEPENDENTS_PRESENT' },
@@ -194,7 +199,6 @@ export const manifest = defineModuleManifest({
     { code: 'UNAUTHORIZED' },
     { code: 'VALIDATION_FAILED' },
     { code: 'VERSION_CONFLICT', tokens: ['organization_version_mismatch'] },
-    { code: 'WEBHOOK_DELIVERY_NOT_REPLAYABLE' },
   ],
 });
 

@@ -1,0 +1,6 @@
+{
+  "errors.ADJUSTMENT_BELOW_ACTIVE": "Nie można obniżyć limitu kredytowego poniżej kwoty, którą blokują aktywne rezerwacje. Najpierw zwolnij lub rozlicz te rezerwacje albo ustaw wyższą kwotę.",
+  "errors.CREDIT_LIMIT_ALREADY_GRANTED": "Ta organizacja ma już przyznany limit kredytowy. Zmień istniejący limit zamiast przyznawać drugi.",
+  "errors.CREDIT_LIMIT_NOT_GRANTED": "Tej organizacji nie przyznano limitu kredytowego.",
+  "errors.LIMIT_INSUFFICIENT": "Dostępny limit kredytowy nie pokrywa wartości tego zamówienia. Zmniejsz zamówienie albo wybierz inną metodę płatności."
+}

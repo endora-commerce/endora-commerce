@@ -84,6 +84,17 @@ const MIGRATED_MODULES: readonly string[] = [
   // chain's answer for them. See the note on `CHAIN_ANSWER_ALIASES` in
   // `test/fixtures/error-code-routing/chain-answers.ts`.
   '_i18n',
+  // Tier B, MR 5 — the four receivers that had to **create** an i18n bundle.
+  // `credit_limits`, `api_keys`, `addresses` and `webhooks` declare their first
+  // code here, and each of the eleven carries a `REHOMED_ERROR_CODES` entry, so
+  // `capture ⊕ rehomed` is again what makes these four roster entries
+  // answerable. Nine placeholder sentences left `_i18n`'s bundle with them: six
+  // were written as prose in the receiving module's own bundle and three were
+  // deleted and ledgered. `api_keys` is the first module in the platform whose
+  // bundle installs zero entries, which is `d129-sweep.md` §5.4's default and
+  // the reason that merge request ran the boot gate.
+  'addresses',
+  'api_keys',
   'assets_library',
   'blog',
   'carts',
@@ -91,6 +102,7 @@ const MIGRATED_MODULES: readonly string[] = [
   'cms',
   'comparisons',
   'credentials',
+  'credit_limits',
   // The remaining six receiving modules of Tier A (MR 3), on exactly the terms
   // the MR 2 note below states: the capture says `core` for all seventeen of
   // their codes, so `capture ⊕ rehomed` is what makes these entries answerable,
@@ -139,6 +151,7 @@ const MIGRATED_MODULES: readonly string[] = [
   'settings',
   'shopping_lists',
   'transactional_emails',
+  'webhooks',
 ];
 
 describe('feature 090 Phase 3 — each migrated module declares exactly what it owns', () => {

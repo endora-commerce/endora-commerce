@@ -1,0 +1,3 @@
+{
+  "errors.WEBHOOK_DELIVERY_NOT_REPLAYABLE": "Only a delivery that failed or was dead-lettered can be replayed. This one is still pending or has already succeeded."
+}
