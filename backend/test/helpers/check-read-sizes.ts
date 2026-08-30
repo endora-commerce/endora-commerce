@@ -250,9 +250,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     files: 90,
     sites: 763,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
-    // `manifest-index` expects the module directories that declare a code — 18
-    // of the registered 66 — reconciled against the ids the generated index
-    // registers. `error-codes` is the second, independent derivation: the
+    // `manifest-index` expects the module directories that declare a code:
+    // every id the generated index registers, less the ones whose manifest
+    // declares none, reconciled against the directories the walk opened a
+    // bundle in. **Both halves of that move, and neither is written down here**
+    // — the registered set grows with each module, and the declaring set is
+    // what D-129's sweep spent eight merge requests changing. This comment
+    // carried the answer instead ("18 of the registered 66"), which was already
+    // wrong when Phase 4 deleted `ERROR_TRANSLATION_KEYS`, stayed wrong through
+    // seven batches of the sweep, and was flagged in three of them: a
+    // hand-written copy of a figure three checks re-derive (D-100), surviving
+    // only because the band is ±50%. The run prints the current pair.
+    //
+    // `error-codes` is the second, independent derivation: the
     // platform's published enumeration in `@endora-commerce/contracts`, against
     // the manifests, which is P3's population. Neither is the filesystem walk
     // being reconciled, and an enumerated code nobody declares is a *finding*

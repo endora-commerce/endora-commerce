@@ -1,5 +1,6 @@
 import type {
   MintedErrorCodes,
+  PlatformOwnedErrorCodes,
   RehomedErrorCodes,
 } from '../../helpers/error-code-routing.js';
 
@@ -19,6 +20,14 @@ import type {
  * {@link REHOMED_ERROR_CODES} says *this code deliberately moved*
  * (D-129's remaining sweep, `d129-sweep.md` §3.3). A code is in one or the other
  * and never both — `findLedgerFaults` reports `double-entry` for one that is.
+ *
+ * A third artefact lives here for a different reason.
+ * {@link PLATFORM_OWNED_ERROR_CODES} says nothing about the capture: it answers
+ * *why this code stayed*, which is the one thing the capture cannot say, because
+ * what the capture recorded there was a `return 'core'` fall-through and not a
+ * decision. It is the sweep's closing gate (D-186 §4) and it is the reason the
+ * pair above becomes, at the end, one artefact saying **where every code was,
+ * where each one moved, and why the rest did not**.
  *
  * **Neither has any authority over the running platform.** Routing is the
  * manifests' and nothing else's (`contracts/error-code-declaration.md` §4,
@@ -1045,5 +1054,245 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
       'rather than with the service that throws about it. It had **no** sentence in either ' +
       'language and was on `UNTRANSLATED_ERROR_CODES`; one was written here (§5.4), which is ' +
       'the first time that ledger shrinks in this sweep.',
+  },
+};
+
+/**
+ * **Why a code stayed with the platform** — the closing gate of D-129's sweep
+ * (D-186 §4, `d129-sweep.md` §6.3).
+ *
+ * **The problem this exists for.** The other two ledgers describe departures
+ * from the frozen capture; this one describes what the capture *held*, and the
+ * capture is the weakest possible evidence about it. `moduleIdForErrorCode`
+ * ended in `return 'core'`, so reaching the platform block was the **default**,
+ * achieved by writing nothing — a hundred codes arrived there and not one of
+ * them was a decision anybody recorded. Phase 4 killed the default: a member of
+ * `ERROR_CODES` that nobody declares is now a build failure naming the code. What
+ * it did not kill is the habit, and the sixty-ninth code can still reach the
+ * block by somebody typing one line into `_i18n`'s manifest.
+ *
+ * **Why an entry here and not a check.** The sweep measured the two obvious
+ * scanners — *"the platform declares it and exactly one module raises it"* and
+ * the family-split signal — and refused both (§6.1, §6.2): three findings and
+ * four findings respectively, and every one of them correct as it stands. A
+ * ledger that is 100% exceptions on the day it is written has met
+ * `check:diacritic-folds`' own retiring condition before the check exists. D-186
+ * accepts that argument **for the scanner and not for the gate**: what makes the
+ * convention enforceable is that the block is 21 lines a reviewer reads in full,
+ * and what makes a reviewer able to disagree with a line is the sentence beside
+ * it.
+ *
+ * **What keeps it from being a hand-written list of 21** (D-100).
+ * `findPlatformBlockFaults` never takes this key set as the answer. It is
+ * compared against two things its author does not control: what `_i18n` declares
+ * in the resolved manifest set, and `intendedRouting(capture, ledgers)` — the
+ * frozen capture with both ledgers laid over it, which is the same reference
+ * side the equality harness is measured by. Both directions fail. A
+ * twenty-second entry is `outside-the-block` unless the capture or a ledger
+ * genuinely puts the code with the platform; a code the block holds and this
+ * ledger does not is `unannotated`, named in the words the gate's message gives.
+ *
+ * **Writing an entry.** One per code, keyed by the code:
+ *
+ * - `tier` — always `T3`, and a field rather than a constant because the fault
+ *   it makes reachable is the interesting one: an entry written `T1` or `T2` is
+ *   an author who decided the code belongs to a module and filed it here anyway.
+ * - `reason` — why **no module owns the noun**. That is the only question T3
+ *   answers, and it is not the same as *"the platform throws it"*: D-121
+ *   rejected the thrower rule by measurement, and four of the entries below name
+ *   a code exactly one module raises.
+ *
+ * The four grounds the twenty-one divide into are the four D-186 §4's
+ * measurement names — the platform's own `MODULE_*` vocabulary (7), the
+ * envelope's generic vocabulary (6), a noun with two claimants or none under
+ * D-122 (7, `INVALID_TRANSITION` among them), and one platform-wide mechanism
+ * declared generic before this sweep began (`RATE_LIMITED`). §2.5 of
+ * `d129-sweep.md` writes that first group as six; the block holds seven, and the
+ * arithmetic of the section it is in (6 + 6 + 1 + 1 + 6 = 20) is what shows the
+ * miscount rather than any recount here.
+ */
+export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
+  // ---- The platform's own `MODULE_*` vocabulary (7). The noun is a module, and
+  // the platform is what installs, composes, gates and switches one. `settings`,
+  // `audit_logs` and `carts` raise four of these seven and own none of them:
+  // §2.2 lists all four as disagreements between D-121 and the sole raiser, on
+  // the ground that the deleted chain reached them through a rule that **named**
+  // them (`startsWith('MODULE_')`), which is a decision rather than the
+  // fall-through the rest of the block arrived by.
+  MODULE_ACTIVATION_PROTECTED: {
+    tier: 'T3',
+    reason:
+      'The noun is a module activation Setting, whose read-only protection the lifecycle ' +
+      'imposes on every module. `settings` is its only raiser and owns the settings store, ' +
+      'not the rule: the rule is that an activation control may not be edited as an ' +
+      'ordinary Setting, which is Principle XVII and the platform\'s.',
+  },
+  MODULE_DEPENDENCIES_ABSENT: {
+    tier: 'T3',
+    reason:
+      "The noun is a module's declared dependency set, which the lifecycle orchestrator " +
+      'reads off manifests and refuses an install or an activation against. Raised only ' +
+      'from the platform, and no module can own a refusal about the composition it is ' +
+      'part of.',
+  },
+  MODULE_DEPENDENTS_PRESENT: {
+    tier: 'T3',
+    reason:
+      'The mirror of the code above, on the withdrawal side: the same dependency graph, ' +
+      'read the other way, refusing to remove a module something else needs. Same owner ' +
+      'for the same reason, and the pair belongs in one bundle.',
+  },
+  MODULE_DISABLED: {
+    tier: 'T3',
+    reason:
+      'The one code every gated port in the platform answers with, so its sentence has to ' +
+      'be generic and its module named by interpolation (issue #161). Thirty-two modules ' +
+      'name it and `carts` is the only one the raise-site scan attributed it to; the gate ' +
+      'that produces it is `di.providePort`, which is the platform\'s.',
+  },
+  MODULE_NOT_DEACTIVATABLE: {
+    tier: 'T3',
+    reason:
+      "The noun is a module's own `activation.nonDeactivatable` declaration, which the " +
+      'orchestrator enforces on both axes and with no `--force` (D-69). The declaration is ' +
+      "each module's; the refusal is the platform's, and a module cannot own the sentence " +
+      'that refuses its own withdrawal.',
+  },
+  MODULE_NOT_FOUND: {
+    tier: 'T3',
+    reason:
+      'The noun is a module id the registry does not hold. `audit_logs` and `product_feeds` ' +
+      'name it about modules that are not theirs, which is the caller reading rather than ' +
+      'the owner deciding — the registry is the platform\'s.',
+  },
+  MODULE_SETTING_READ_ONLY: {
+    tier: 'T3',
+    reason:
+      'The twin of `MODULE_ACTIVATION_PROTECTED` one layer out: a manifest-declared Setting ' +
+      'a module owns is not editable through the generic settings surface. `settings` ' +
+      'raises it and the rule it enforces is the manifest contract, which is the ' +
+      "platform's.",
+  },
+
+  // ---- The envelope's generic vocabulary (6). Every one of these is the answer
+  // a hundred raise sites in dozens of modules give to a condition that is about
+  // the request rather than about a noun. A sentence for one of them has to be
+  // generic by construction, and homing it anywhere would put one module's
+  // bundle in the path of every other module's refusals.
+  FORBIDDEN: {
+    tier: 'T3',
+    reason:
+      'The platform\'s permission refusal, raised in seventeen modules and by the admin ' +
+      'guard itself. Its sentence is deliberately generic and the specific cases are ' +
+      'tokens on it (issue #65) — three are declared, and the transact gates in `orders`, ' +
+      '`carts` and `quote_requests` all publish the same one, which is the argument ' +
+      'against homing the code with any of them.',
+  },
+  INTERNAL: {
+    tier: 'T3',
+    reason:
+      'The envelope\'s own answer to an unhandled failure, which is a fact about the ' +
+      'request pipeline and not about any noun. Twenty modules name it; none of them can ' +
+      'own the condition, because the condition is that nobody handled it.',
+  },
+  NOT_FOUND: {
+    tier: 'T3',
+    reason:
+      'The unqualified absence, named in fifty modules plus the platform\'s 404 fallback. ' +
+      'Every module that owns an entity also owns a specific `*_NOT_FOUND`; what is left ' +
+      'here is the case where the noun is not known at the point of the refusal.',
+  },
+  UNAUTHORIZED: {
+    tier: 'T3',
+    reason:
+      'The absence of an authenticated identity, decided by the authentication hooks before ' +
+      'any module\'s route runs. `auth`, `customer_accounts` and `api_keys` each own a way ' +
+      'of establishing one; none owns the refusal that applies when none did.',
+  },
+  VALIDATION_FAILED: {
+    tier: 'T3',
+    reason:
+      'The Zod refusal the platform raises for every route it validates, and the code the ' +
+      'envelope returns from before translating anything — its `details.code` values are ' +
+      'machine discriminators, not sentence keys, which is why it declares no tokens. ' +
+      'Forty-three modules reuse it and none of them owns the schema layer.',
+  },
+  VERSION_CONFLICT: {
+    tier: 'T3',
+    reason:
+      'The optimistic-concurrency refusal, which is a property of how this platform writes ' +
+      'rather than of what is being written: nineteen modules raise it about nineteen ' +
+      'different entities. D-126 also makes it the code `TRANSLATION_PROOF` is pinned to, ' +
+      'so a module owning it would own that proof as well.',
+  },
+
+  // ---- A noun with two claimants or none (7), which is D-122's rule: a noun no
+  // single module owns is platform-owned, and identical claimants are the proof.
+  // Six of these are §2.5's list; `INVALID_TRANSITION` is D-122 in terms — it is
+  // the code the ruling was written about.
+  CURRENT_PASSWORD_INVALID: {
+    tier: 'T3',
+    reason:
+      'The noun is an account password, and two modules own an account with one: ' +
+      '`admin_users` for an operator and `customer_accounts` for a buyer. Both raise it, ' +
+      'about their own kind of account, which is D-122\'s identical-claimants proof.',
+  },
+  EMAIL_ALREADY_REGISTERED: {
+    tier: 'T3',
+    reason:
+      'Three claimants rather than two: `admin_users`, `customer_accounts` and ' +
+      '`organizations` each enforce uniqueness of an e-mail address over their own table. ' +
+      'The noun is the address, which none of the three owns.',
+  },
+  INVALID_CREDENTIALS: {
+    tier: 'T3',
+    reason:
+      'The sign-in failure, raised by `customer_accounts` and by `mfa`\'s self-service ' +
+      're-authentication. The word also names a different noun entirely — `credentials` ' +
+      'owns stored integration credentials — so the code cannot be read as that module\'s ' +
+      'either, which its manifest already says in place.',
+  },
+  TOKEN_INVALID_OR_EXPIRED: {
+    tier: 'T3',
+    reason:
+      'The noun is a single-use token, and two modules mint one for unrelated purposes: ' +
+      '`customer_accounts` for password reset and verification, `organizations` for ' +
+      'invitations. The refusal is the same sentence for both and belongs to neither.',
+  },
+  TERMS_VERSION_STALE: {
+    tier: 'T3',
+    reason:
+      'The noun is the accepted terms version, which is a property of the platform\'s ' +
+      'consent record rather than of a module. Nothing raises it today, which under T10 is ' +
+      'not evidence of an owner — ownership follows the noun, and no module claims this ' +
+      'one. It is on the defect register as an unraised code, which is a separate question ' +
+      'from whose it is.',
+  },
+  PRICE_UNAVAILABLE: {
+    tier: 'T3',
+    reason:
+      'The noun "price" is claimed by `catalog` and by `price_lists` both, which is D-122\'s ' +
+      'condition exactly. Nothing raises it — its one hit is a mention in `orders` — so ' +
+      'there is no thrower to break the tie either. §2.4 records it as the one code in this ' +
+      'block the sweep left explicitly unsettled: it is a register item, not a sweep item.',
+  },
+  INVALID_TRANSITION: {
+    tier: 'T3',
+    reason:
+      'The code D-122 was written about. Two identical claimants — `orders` and `returns` ' +
+      'both raise it about their own state machine — and the ruling promoted the ' +
+      'demonstrated sentence to the platform and deleted both copies. Re-homing it now ' +
+      'would reverse a ruling this sweep is not entitled to reopen.',
+  },
+
+  // ---- Declared generic before the sweep began (1).
+  RATE_LIMITED: {
+    tier: 'T3',
+    reason:
+      'The deleted chain named it in an explicit generic list rather than reaching it by ' +
+      'fall-through, which makes it the counter-example `core-block-home.md` §1.3 uses: an ' +
+      'explicit T3 declaration that happens to have one raiser today. `product_feeds` is ' +
+      'that raiser; the noun is a request budget, which the platform imposes and no module ' +
+      'owns.',
   },
 };

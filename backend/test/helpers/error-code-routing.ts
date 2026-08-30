@@ -529,3 +529,228 @@ export function describeLedgerFaults(faults: readonly LedgerFault[]): string {
     })
     .join('\n');
 }
+
+/* ---------------------------------------------------------------------------
+ * The platform block's completeness gate — D-186 §4
+ * ------------------------------------------------------------------------- */
+
+/**
+ * One code the platform owns, with the tier that decided it and why.
+ *
+ * D-121 T3 requires two things of a platform-owned code: that it be **named in
+ * an explicit list** and that the declaration say **which tier put it there**.
+ * `_i18n`'s manifest is the first half and has been since the sweep began; this
+ * is the second, in a form a test can read — a manifest comment does not survive
+ * `tsc`, and the gate reads the block out of the built package.
+ */
+export interface PlatformOwnedCode {
+  /**
+   * Always `T3`. The field is not a constant because the fault it makes
+   * reachable is the one that matters: an entry written with T1 or T2 is an
+   * entry whose author decided the code belongs to a *module* and filed it here
+   * anyway.
+   */
+  readonly tier: OwnershipTier;
+  /** Why no module owns the noun, in the sentence a reviewer can disagree with. */
+  readonly reason: string;
+}
+
+/** The platform block's annotations: one entry per code, keyed by the code. */
+export type PlatformOwnedErrorCodes = Readonly<Record<string, PlatformOwnedCode>>;
+
+/**
+ * Why the platform block and its annotations disagree.
+ *
+ * - `unannotated`        — the block holds the code and no entry says which tier
+ *                          put it there or why. This is the sixty-ninth code:
+ *                          it lands in `_i18n`'s manifest beside reasoned
+ *                          entries and with none of its own, and the gate names
+ *                          it rather than a reviewer having to notice.
+ * - `undeclared`         — an entry names a code `_i18n` does not declare. An
+ *                          annotation records the block as it **is**; this
+ *                          refuses one left behind after its code moved out.
+ * - `declared-elsewhere` — a module also declares an annotated code. Two
+ *                          claimants route it to neither, and a code the
+ *                          platform owns is not a code a module may claim.
+ * - `outside-the-block`  — the routing reference (`capture ⊕ ledgers`) does not
+ *                          route the code to `_i18n`, so nothing but this entry
+ *                          says the platform owns it.
+ * - `unreasoned`         — no reason. The whole value of the block being 21
+ *                          reviewable lines is the sentence beside each.
+ * - `wrong-tier`         — the tier is not `T3`. T1 and T2 name a module owner;
+ *                          an entry claiming one and sitting here contradicts
+ *                          itself.
+ */
+export type PlatformBlockFaultKind =
+  | 'unannotated'
+  | 'undeclared'
+  | 'declared-elsewhere'
+  | 'outside-the-block'
+  | 'unreasoned'
+  | 'wrong-tier';
+
+export interface PlatformBlockFault {
+  readonly code: string;
+  readonly kind: PlatformBlockFaultKind;
+  /**
+   * What the independent side says: the modules that declare the code, the
+   * module the routing reference routes it to, or the tier the entry carries —
+   * whichever the fault is about. `null` where the fault is an absence.
+   */
+  readonly observed: string | null;
+}
+
+/** The two independently derived answers an annotation is judged against. */
+export interface PlatformBlockReferences {
+  /** The module id that owns the platform bundle. `_i18n` today. */
+  readonly platformModuleId: string;
+  /** Code → the modules whose manifests declare it. Says where a code **is**. */
+  readonly declaredBy: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The routing reference, `capture ⊕ ledgers` — {@link intendedRouting}'s
+   * answer. The block's *derived* membership: every code the frozen chain left
+   * with the platform and the sweep did not move away.
+   */
+  readonly reference: RoutingAnswers;
+}
+
+/**
+ * **The completeness gate: the platform declares exactly the codes annotated as
+ * platform-owned** (D-186 §4).
+ *
+ * D-129's sweep argued that the residual question — *"the platform declares it
+ * and exactly one module raises it"* — is not worth a scanner, and the
+ * measurement supports it: three findings, all three correct as they stand, so
+ * the ledger would be 100% exceptions on the day it is written
+ * (`d129-sweep.md` §6.1). D-186 accepts that **for the scanner and not for the
+ * gate**, and this is the gate. Without it the sixty-ninth code reaches the
+ * platform block the way the first hundred did: by nobody deciding.
+ *
+ * **Nothing here is a hand-written list of the block** (D-100). The annotations
+ * carry the judgement — the tier and the reason, which nothing can derive — and
+ * their *membership* is held against two things neither they nor the manifest
+ * author control: what `_i18n` declares, read from the resolved manifest set,
+ * and the routing reference, which is the frozen capture with both ledgers laid
+ * over it. A twenty-second entry is `outside-the-block` unless the capture or a
+ * ledger puts the code there; a code declared with no entry is `unannotated`.
+ *
+ * **The vacuity refusals are the two references, not the annotations.** An empty
+ * annotation set is loud rather than silent — every declared code is reported
+ * `unannotated`, naming itself — but an empty `declaredBy` or an empty reference
+ * turns the judgement into a page of invented findings, which is worse than
+ * silence and is not a measurement (issue #113).
+ */
+export function findPlatformBlockFaults(
+  annotations: PlatformOwnedErrorCodes,
+  references: PlatformBlockReferences,
+): PlatformBlockFault[] {
+  const { platformModuleId, declaredBy, reference } = references;
+  if (Object.keys(declaredBy).length === 0) {
+    throw new EmptyLedgerReferenceError(
+      'no module declares any error code — the manifest set failed to resolve, so every ' +
+        'annotation would be reported as `undeclared` and the block would look empty ' +
+        'rather than unmeasured',
+    );
+  }
+  if (Object.keys(reference).length === 0) {
+    throw new EmptyLedgerReferenceError(
+      'the routing reference is empty — every annotation would be reported as ' +
+        '`outside-the-block`, which is a page of invented findings rather than a measurement',
+    );
+  }
+
+  const declaredByPlatform = new Set(
+    Object.keys(declaredBy).filter((code) => (declaredBy[code] ?? []).includes(platformModuleId)),
+  );
+  if (declaredByPlatform.size === 0) {
+    throw new EmptyLedgerReferenceError(
+      `${platformModuleId} declares no error code — the platform block is what this gate ` +
+        'compares the annotations against, and an empty one calls every entry stale while ' +
+        'making the completeness question unanswerable',
+    );
+  }
+
+  const faults: PlatformBlockFault[] = [];
+  for (const code of Object.keys(annotations).sort()) {
+    const entry = annotations[code]!;
+    const declarers = declaredBy[code] ?? [];
+    if (!declarers.includes(platformModuleId)) {
+      faults.push({
+        code,
+        kind: 'undeclared',
+        observed: declarers.length === 0 ? null : declarers.join(', '),
+      });
+    }
+    const foreign = declarers.filter((moduleId) => moduleId !== platformModuleId);
+    if (foreign.length > 0) {
+      faults.push({ code, kind: 'declared-elsewhere', observed: foreign.join(', ') });
+    }
+    const routed = reference[code] ?? null;
+    if (routed !== platformModuleId) {
+      faults.push({ code, kind: 'outside-the-block', observed: routed });
+    }
+    if (entry.reason.trim() === '') faults.push({ code, kind: 'unreasoned', observed: null });
+    if (entry.tier !== 'T3') faults.push({ code, kind: 'wrong-tier', observed: entry.tier });
+  }
+
+  // The other direction, over the block as the tree has it **and** as the
+  // reference derives it: a code either side puts with the platform and no entry
+  // annotates is the one this gate exists for.
+  const blockMembers = new Set([
+    ...declaredByPlatform,
+    ...Object.keys(reference).filter((code) => reference[code] === platformModuleId),
+  ]);
+  for (const code of [...blockMembers].sort()) {
+    if (code in annotations) continue;
+    const declared = declaredByPlatform.has(code);
+    const routed = reference[code] === platformModuleId;
+    faults.push({
+      code,
+      kind: 'unannotated',
+      observed: declared && routed ? 'declared and routed' : declared ? 'declared' : 'routed',
+    });
+  }
+
+  return faults.sort(
+    (a, b) => a.code.localeCompare(b.code) || a.kind.localeCompare(b.kind),
+  );
+}
+
+/** One line per fault, in the words the merge request that touched the block needs. */
+export function describePlatformBlockFaults(
+  platformModuleId: string,
+  faults: readonly PlatformBlockFault[],
+): string {
+  return faults
+    .map((fault) => {
+      const head = `  - [${fault.kind}] ${fault.code}`;
+      switch (fault.kind) {
+        case 'unannotated':
+          return `${head}: the platform block holds it (${fault.observed ?? 'unknown'}) and ` +
+            'no entry says which of D-121\'s tiers put it there or why. A code owned by the ' +
+            'platform is owned by decision, never by default — write the annotation, or ' +
+            'declare the code in the module whose noun it names.';
+        case 'undeclared':
+          return `${head}: annotated platform-owned and ${platformModuleId} does not declare ` +
+            `it — ${fault.observed === null ? 'no module does' : `${fault.observed} does`}. An ` +
+            'annotation records the block as it is: write it in the merge request that ' +
+            'changes the manifest, and remove it in the one that moves the code out.';
+        case 'declared-elsewhere':
+          return `${head}: annotated platform-owned and also declared by ${fault.observed}. ` +
+            'Two claimants route it to neither.';
+        case 'outside-the-block':
+          return `${head}: annotated platform-owned and the routing reference routes it to ` +
+            `${fault.observed ?? 'nothing'}. The capture and the two ledgers are what put a ` +
+            'code in the block; an annotation cannot put one there by itself.';
+        case 'unreasoned':
+          return `${head}: annotated with no reason. The block is a short list a reviewer ` +
+            'reads in full, and the sentence beside each entry is the whole of what makes ' +
+            'that worth anything.';
+        case 'wrong-tier':
+          return `${head}: annotated \`${fault.observed ?? 'nothing'}\`, which names a module ` +
+            'owner. Platform ownership is D-121 T3; an entry claiming T1 or T2 and sitting ' +
+            'in the platform block contradicts itself.';
+      }
+    })
+    .join('\n');
+}

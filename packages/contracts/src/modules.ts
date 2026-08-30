@@ -248,8 +248,16 @@ export type ReducedDeploymentDeclaration = z.infer<
  * Refusal-token grammar for {@link ModuleErrorCodeDeclarationSchema}.
  *
  * One code, several reasons — `specs/082-error-code-ownership/contracts/error-code-ownership.md`
- * §1.4. The envelope reads `details.code` and looks up
- * `errors.<CODE>.<token>`, falling back to `errors.<CODE>`.
+ * §1.4. The envelope reads `details.code` and looks up `errors.<CODE>.<token>`,
+ * or `errors.<CODE>` when the raise carries no token.
+ *
+ * **It is a choice between two keys and not a fall-back**, which this note said
+ * it was until D-190 (`specs/080-f4-real-scope/rulings.md`) measured it:
+ * `localizeErrorEnvelope` composes one key, asks for it once and never re-asks.
+ * So a code every raise of which carries a token has no reader for its
+ * `errors.<CODE>` sentence — the operator never sees it, and deleting it is
+ * still wrong, because `check:error-translations` asks its P1 question at that
+ * key and at no other.
  */
 export const errorCodeTokenRe = /^[a-z][a-z0-9_]*$/;
 

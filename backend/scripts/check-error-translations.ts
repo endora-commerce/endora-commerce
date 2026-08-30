@@ -674,8 +674,15 @@ export function findUntranslatedErrorCodes(
  * The key grammar, in full: `errors.<CODE>` and `errors.<CODE>.<token>`.
  *
  * The token shape is issue #65's refusal discriminator — the envelope reads
- * `details.code`, looks up `errors.<CODE>.<token>` and falls back to
- * `errors.<CODE>` — so a token key is attributed to its **base** code. Getting
+ * `details.code` and looks up `errors.<CODE>.<token>`, or `errors.<CODE>` when
+ * the raise carries no token. **That is a choice between two keys and not a
+ * fall-back, and the sentence here said otherwise until D-190.** The envelope
+ * composes one key, asks for it once and never re-asks
+ * (`localizeErrorEnvelope`, `packages/platform/src/http/error-envelope.ts`), so
+ * for an always-tokened code the base key is unreachable — which is exactly the
+ * state P1 below reads it in, since `findUntranslatedErrorCodes` asks at
+ * `errors.<CODE>` and at no other key. Either way a token key is attributed to
+ * its **base** code here. Getting
  * that wrong would report fourteen live sentences in `invoices` and `carts` as
  * naming no code, and the repair a `no-code` finding invites is deletion.
  */

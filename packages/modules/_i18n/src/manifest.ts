@@ -50,168 +50,101 @@ export const manifest = defineModuleManifest({
       'on the platform screen that holds the module switches.',
   },
   /**
-   * The platform's own error codes — feature 090, Phase 3, the last owner
-   * (`specs/090-module-owned-error-codes/core-block-home.md`).
+   * **The platform's error-code block — 21 codes, and this is their home** rather
+   * than the residue of a migration (feature 090,
+   * `specs/090-module-owned-error-codes/core-block-home.md`; D-186 §4).
    *
-   * **This list opened as the frozen chain capture, not a judgement.** It was
-   * the verbatim output of the runbook's step-1 derivation over
-   * `backend/test/fixtures/error-code-routing/chain-answers.ts` — every code
-   * `moduleIdForErrorCode` answers `core` for, in the capture's order. Nothing
-   * was curated, added or dropped: `contracts/error-code-declaration.md` §6.2
-   * makes the migration answer-preserving over all 289 codes with no exception
-   * list, and §6.5 puts re-routing out of scope.
+   * A code is here because **no module owns its noun** — D-121 T3, and nothing
+   * weaker. Not because the platform throws it: D-121 rejected the thrower rule
+   * by measurement, and four of the entries below name a code exactly one module
+   * raises. Each carries its tier and the sentence that argues it in
+   * `PLATFORM_OWNED_ERROR_CODES`
+   * (`backend/test/fixtures/error-code-routing/reference-ledgers.ts`), which is
+   * where a reason can live in a form a test reads — a comment does not survive
+   * `tsc`, and the gate reads this list out of the built package.
    *
-   * **D-129's remaining sweep is what re-routes them, and it has begun** — so
-   * this list is no longer the capture, and the difference is not a drift to be
-   * reconciled by reading it. Every code that has left carries an entry in
-   * `backend/test/fixtures/error-code-routing/reference-ledgers.ts`'
-   * `REHOMED_ERROR_CODES` naming where it went, which of D-121's tiers decided
-   * it and why; the capture itself is untouched, because a reference a
-   * migration may rewrite is one that agrees with whatever the migration did.
-   * `specs/090-module-owned-error-codes/d129-sweep.md` Appendix A is the design
-   * and D-186 (`specs/080-f4-real-scope/rulings.md`) settles the four questions
-   * it could not answer for itself.
+   * **The gate, and what it is derived from.**
+   * `backend/test/unit/_i18n/platform-error-code-block.test.ts` holds this list
+   * and those annotations equal in **both** directions: a code added here with no
+   * reason of its own is `unannotated` and names itself, and an annotation this
+   * list no longer backs is `undeclared`. Neither side is a written-down list of
+   * twenty-one (D-100) — the annotations' membership is itself held against
+   * `intendedRouting(capture, ledgers)`, the frozen chain capture with the
+   * re-homing and minting ledgers laid over it, so what belongs here is the
+   * hundred the deleted chain answered `core` for minus the seventy-nine D-129's
+   * sweep moved. D-186 §4 chose that over a scanner because both scanners were
+   * measured and both are ledgers of exceptions (`d129-sweep.md` §6.1–§6.2),
+   * and because a block of twenty-one lines is one a reviewer reads in full.
    *
-   * **Why `_i18n` and not a module called `core`.** `core` is not a module id.
-   * It is the synthetic namespace this module's bundle is exposed under at the
+   * **How it came to be twenty-one.** The list opened as the frozen chain
+   * capture and not as a judgement: the verbatim output of the runbook's step-1
+   * derivation over `test/fixtures/error-code-routing/chain-answers.ts`, every
+   * code `moduleIdForErrorCode` answered `core` for, because
+   * `contracts/error-code-declaration.md` §6.2 makes the migration
+   * answer-preserving over all 289 codes with no exception list and §6.5 puts
+   * re-routing out of scope. Most of that hundred was never the platform's: they
+   * fell off the end of a prefix chain that ended in `return 'core'`, which is
+   * the defect `specs/082-error-code-ownership/rulings.md` §9 opened the sweep
+   * for. D-129's sweep then moved **79 codes into 20 modules** over six batches —
+   * Tier A's `KSEF_*` and `PIM_ERGONODE_*` (MR 2) and its six remaining modules
+   * (MR 3), Tier B's six that already shipped a bundle (MR 4) and its four that
+   * had to create one (MR 5), then Tier C's `admin_roles` (MR 6) and
+   * `organizations` (MR 7) — and every one of the 79 carries a
+   * `REHOMED_ERROR_CODES` entry naming where it went, which tier decided it and
+   * why. The capture itself is untouched, because a reference a migration may
+   * rewrite is one that agrees with whatever the migration did.
+   *
+   * **Do not move one in passing.** A code that leaves this list without arriving
+   * in its owner's manifest routes nowhere; one that arrives in both routes to
+   * neither, and the collision rule makes that visible at composition rather than
+   * at an operator. The three ledgers and the two harnesses all read the same
+   * reference, so a half-done move is red in the merge request that made it.
+   *
+   * **Why `_i18n` and not a module called `core`.** `core` is not a module id. It
+   * is the synthetic namespace this module's bundle is exposed under at the
    * resolver boundary (`I18N_CHROME_MODULE_ID` / `CORE_NAMESPACE` in
    * `backend/services/i18n-service.ts`), so the module that owns the platform
    * bundle — the phrase §6.5 uses — is this one. Every sentence for these codes
-   * already lives in this package's `i18n/{en,pl}.json`; declaring them here
-   * moves no key. The alternatives, and why each was refused, are §4 of the
-   * design note: a residual set in `packages/contracts` (a second input to a
-   * derivation §4 says has one), `_lifecycle` (82 sentence keys moved for no
-   * operator-visible gain), and a new registered `_platform` module (a
-   * registry row, an install-order position and a `/platform/modules` row,
-   * invented to hold a list).
+   * already lives in this package's `i18n/{en,pl}.json`. The alternatives, and
+   * why each was refused, are §4 of the design note: a residual set in
+   * `packages/contracts` (a second input to a derivation §4 says has one),
+   * `_lifecycle` (82 sentence keys moved for no operator-visible gain), and a new
+   * registered `_platform` module (a registry row, an install-order position and
+   * a `/platform/modules` row, invented to hold a list).
    *
-   * **The codes a reader will look for here and not find are the opposite
-   * problem: most of these are not the platform's.** 68 of the original 100
-   * are named by exactly one module and by nothing else — `CUSTOMER_*` by
-   * `customer_accounts`, `ORGANIZATION_*` by `organizations`, and so on across
-   * 17 modules. They are here because they fell off the end of the prefix
-   * chain, and moving them to their owners is
-   * `specs/082-error-code-ownership/rulings.md` §9's remaining sweep. D-121
-   * decides each destination — 79 codes into 20 modules, 21 staying — and the
-   * sweep runs it in batches: `KSEF_*` and `PIM_ERGONODE_*` went first (MR 2),
-   * then the rest of Tier A — `PROMPT_*`/`ASSISTANT_*` to `prompt_actions`,
-   * `CUSTOM_FIELD_*` to `custom_fields`, `SHOPPING_LIST_*` to `shopping_lists`,
-   * and four singletons (MR 3), then Tier B's six modules that already ship a
-   * bundle — `catalog`, `customer_accounts`, `orders`, `mfa`, `newsletter` and
-   * `promotions` (MR 4) — then Tier B's four that had to create one:
-   * `credit_limits`, `api_keys`, `addresses` and `webhooks` (MR 5), then Tier
-   * C's two modules, `admin_roles` (MR 6) and `organizations` (MR 7). Do not
-   * move one in passing: a code that leaves this
-   * list without arriving in its owner's manifest routes nowhere, and the
-   * collision rule makes a half-done move visible at composition rather than at
-   * an operator.
+   * **`tokens` is derived from the raise sites, not from the bundle** (runbook
+   * §5), and the arithmetic below is **re-derived on this tree rather than
+   * decremented** — which is the instruction each batch of the sweep followed and
+   * the reason the numbers survived it. Measured over the 21 by balanced-paren
+   * extraction of every `new HttpError(...)` call's own arguments: **794 raise
+   * sites, four of the codes carrying a `details.code`**. Three of the four
+   * declare their tokens here — five tokens in total, of which **two have a
+   * sentence in both languages** (`FORBIDDEN.organization_cannot_transact`,
+   * `.customer_outside_assignment_scope`) and three do not, each of those three
+   * being a Phase 4 finding rather than a silent absence. The fourth is
+   * `VALIDATION_FAILED`, which declares **none** although 19 distinct tokens are
+   * passed at its raise sites: `localizeErrorEnvelope` returns before translating
+   * that code (`packages/platform/src/http/error-envelope.ts`), so its
+   * `details.code` values are machine-readable discriminators on the wire and can
+   * never key an `errors.VALIDATION_FAILED.<token>` sentence. Declaring them
+   * would declare sentences nothing can render. If a code arrives or leaves,
+   * re-run the scan; do not adjust the number.
    *
-   * **MR 4 is the first batch that deletes from this package's own bundle**,
-   * and the deletion is the point rather than a side effect. Eight of its
-   * twenty codes carried a sentence here that was the code rewritten twice —
-   * `"Currency Mismatch."` and `"Błąd: currency mismatch."` — which D-186 §2
-   * refuses to carry into a module's bundle, because there it reads as that
-   * module's own answer and every instrument counts the code as translated.
-   * Four of the eight were rewritten as prose in the receiving module's bundle
-   * (`SYSTEM_ATTRIBUTE_SET_IMMUTABLE`, `CANNOT_DEMOTE_LAST_ADMIN`,
-   * `CANNOT_REMOVE_LAST_ADMIN`, `CURRENCY_MISMATCH`), which
-   * `d129-sweep.md` §5.4 says is always available and is not a re-opening of
-   * that ruling; the other four are raised by nothing in the tree, so there was
-   * no refusal to describe and they went to `UNTRANSLATED_ERROR_CODES` under
-   * their new owners.
-   *
-   * **MR 5 deleted nine more pairs and wrote six of them back.** Its four
-   * receivers each created their first i18n bundle in that change, which is
-   * what `d129-sweep.md` §3.4 requires of a declaring module. The three that
-   * stayed deleted are `ACTIVE_RESERVATIONS_EXIST` and `ADDRESS_IN_USE`, which
-   * nothing in the tree raises, and `API_KEY_OUT_OF_SCOPE`, which is the first
-   * code in the sweep to be ledgered *despite* a live raise site: its reader is
-   * an integration rather than a person, and the raise names the scope the key
-   * is missing (`API key lacks the required scope: <scope>.`), which a
-   * fixed sentence would replace with a vaguer one. That leaves `api_keys` the
-   * first module in the platform to ship a bundle installing zero entries, so
-   * MR 5 ran `scripts/boot-gate.sh --with-negatives` (§5.4).
-   *
-   * **MR 6 took the three `ADMIN_ROLE_*` codes to `admin_roles`** (Tier C), and
-   * one of them is the sweep's only multi-token sentence: `ADMIN_ROLE_IN_USE`
-   * carried `errors.ADMIN_ROLE_IN_USE.assigned` and `.assigned_to_deleted` in
-   * this package's bundle as well as its base key, six keys in two languages.
-   * All six moved. The base pair is **unreachable** — both raise sites pass a
-   * token, and `localizeErrorEnvelope` looks up `errors.<CODE>.<token>` with no
-   * fall-back to `errors.<CODE>` — and `admin_roles`' manifest says at length
-   * why it was carried rather than deleted. Its other two codes were
-   * placeholders and were rewritten as prose there, so nothing this batch
-   * touches enters `UNTRANSLATED_ERROR_CODES`.
-   *
-   * **MR 7 took the eight `organizations` codes and is the largest batch in the
-   * sweep**, the second and last of Tier C. Two of them are the sweep's other
-   * always-tokened codes: every raise of `ORGANIZATION_HAS_CHILDREN` passes
-   * `has_children` and every raise of `ORGANIZATION_TREE_INVALID` passes `cycle`
-   * or `max_depth_exceeded`, so all four sentences written here were unreachable
-   * — the base pair of each is what the check reads and what an operator never
-   * sees. D-190 rules that the base keys move rather than being deleted, and the
-   * sub-keys the raises actually ask for were written for the first time in
-   * `organizations`' own bundle. The other six arrive with prose too: five
-   * carried a placeholder here and one, `ORG_OWNER_DEPLETION`, had no sentence
-   * at all and was on `UNTRANSLATED_ERROR_CODES` under this module's group, so
-   * that ledger **shrinks** by one for the first time in the sweep.
-   *
-   * **`tokens` is derived from the raise sites, not from the bundle**
-   * (runbook §5). Four of these codes put a `details.code` on the wire; three of
-   * them are declared below, and the fourth is the exception the design note
-   * says whoever migrates this block inherits: `VALIDATION_FAILED` declares
-   * **no** tokens although 21 raise sites carry a `details.code`, because
-   * `localizeErrorEnvelope` returns before translating that code
-   * (`packages/platform/src/http/error-envelope.ts`) — its `details.code`
-   * values are machine-readable discriminators on the wire and can never key an
-   * `errors.VALIDATION_FAILED.<token>` sentence. Declaring them would declare
-   * sentences nothing can ever render. Eight tokens were declared here before MR
-   * 7 and five are left; **two** of the five have a sentence in both languages
-   * (`FORBIDDEN.organization_cannot_transact`,
-   * `.customer_outside_assignment_scope`) and three do not. Re-measured on this
-   * tree on every batch rather than adjusted, which is what caught an earlier
-   * version of this sentence reading *"four have … and five do not"* over a
-   * list of ten: `FORBIDDEN.reorder_disabled` arrived after it was written and
-   * was counted by neither side. A token a raise site can produce is a token
-   * whether or not anybody has written its sentence, and the missing ones become
-   * a Phase 4 finding rather than a silent absence.
-   *
-   * That count is **true of this list and was not true when it was written**,
-   * which is why every batch re-derives it from the raise sites rather than
-   * decrementing it — MR 7 measured `details` at all 816 raises of the codes
-   * left here and found four. The sentence read *"seven"* once, and
-   * `TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` was an eighth, putting
-   * the refused email's own registry code in `details.code`, until it left for
-   * `transactional_emails` in the sweep's MR 3. Its manifest says there why it
-   * still declares no tokens — the set is the email registry's, not a fixed
-   * vocabulary. Re-derive this from the raise sites if a code arrives or
-   * leaves; do not adjust the number. MR 4
-   * took twenty codes out of this list and moved none of the six: every one of
-   * its raise sites was measured by balanced-paren extraction of the call's own
-   * arguments, and not one passes a `details` object carrying a `code`. MR 5's
-   * eleven were measured the same way, with the same answer. MR 6 is the first
-   * batch that moves a tokened code, and the same scan is what found the token
-   * set — `assigned` and `assigned_to_deleted`, at both of the two raise sites
-   * and at no other site in the tree. MR 7 moved the remaining two tokened
-   * codes, `ORGANIZATION_HAS_CHILDREN` and `ORGANIZATION_TREE_INVALID`, with
-   * their three tokens measured at all three raise sites the same way — and
-   * measured its other six as carrying no `details` at all, which is why they
-   * left with no `tokens` field.
+   * **What the bundle holds for these 21**: 16 `errors.*` keys in each language —
+   * 14 base sentences and the two token keys above. The seven codes with no
+   * sentence are the six `MODULE_*` refusals an operator meets through the
+   * lifecycle CLI rather than through the envelope, plus `PRICE_UNAVAILABLE`,
+   * which nothing raises. All seven are on `UNTRANSLATED_ERROR_CODES` under this
+   * module's group and are drained by writing a sentence, never by moving a code.
    */
   errorCodes: [
-    { code: 'CURRENT_PASSWORD_INVALID' },
-    { code: 'EMAIL_ALREADY_REGISTERED' },
-    {
-      code: 'FORBIDDEN',
-      tokens: [
-        'organization_cannot_transact',
-        'customer_outside_assignment_scope',
-        'reorder_disabled',
-      ],
-    },
-    { code: 'INTERNAL', tokens: ['customer_account_organization_missing'] },
-    { code: 'INVALID_CREDENTIALS' },
-    { code: 'INVALID_TRANSITION' },
+    // T3 — the platform's own `MODULE_*` vocabulary (7). The noun is a module,
+    // and what installs, composes, gates and withdraws one is the platform.
+    // `settings`, `audit_logs`, `product_feeds` and `carts` raise four of these
+    // seven and own none of them; the deleted chain reached them through a rule
+    // that **named** them (`startsWith('MODULE_')`), which is a decision rather
+    // than the fall-through the rest of the block arrived by (`d129-sweep.md`
+    // §2.2).
     { code: 'MODULE_ACTIVATION_PROTECTED' },
     { code: 'MODULE_DEPENDENCIES_ABSENT' },
     { code: 'MODULE_DEPENDENTS_PRESENT' },
@@ -219,14 +152,40 @@ export const manifest = defineModuleManifest({
     { code: 'MODULE_NOT_DEACTIVATABLE' },
     { code: 'MODULE_NOT_FOUND' },
     { code: 'MODULE_SETTING_READ_ONLY' },
+
+    // T3 — the envelope's generic vocabulary (6). Each of these is what dozens
+    // of modules answer with for a condition that is about the request rather
+    // than about a noun, so its sentence has to be generic and the specific case
+    // is a token on it (issue #65) or an interpolated value (issue #161).
+    { code: 'FORBIDDEN', tokens: [
+      'organization_cannot_transact',
+      'customer_outside_assignment_scope',
+      'reorder_disabled',
+    ] },
+    { code: 'INTERNAL', tokens: ['customer_account_organization_missing'] },
     { code: 'NOT_FOUND' },
-    { code: 'PRICE_UNAVAILABLE' },
-    { code: 'RATE_LIMITED' },
-    { code: 'TERMS_VERSION_STALE' },
-    { code: 'TOKEN_INVALID_OR_EXPIRED' },
     { code: 'UNAUTHORIZED' },
     { code: 'VALIDATION_FAILED' },
     { code: 'VERSION_CONFLICT', tokens: ['organization_version_mismatch'] },
+
+    // T3 by D-122 — a noun with two claimants or none (7). Identical claimants
+    // are the proof: `admin_users` and `customer_accounts` each own an account
+    // with a password, `orders` and `returns` each own a state machine, and
+    // `catalog` and `price_lists` both claim the noun "price".
+    // `INVALID_TRANSITION` is the code D-122 was written about.
+    { code: 'CURRENT_PASSWORD_INVALID' },
+    { code: 'EMAIL_ALREADY_REGISTERED' },
+    { code: 'INVALID_CREDENTIALS' },
+    { code: 'INVALID_TRANSITION' },
+    { code: 'PRICE_UNAVAILABLE' },
+    { code: 'TERMS_VERSION_STALE' },
+    { code: 'TOKEN_INVALID_OR_EXPIRED' },
+
+    // T3 by declaration (1). The deleted chain named `RATE_LIMITED` in an
+    // explicit generic list rather than reaching it by fall-through, which makes
+    // it `core-block-home.md` §1.3's counter-example: an explicit T3 with one
+    // raiser today. The noun is a request budget, which the platform imposes.
+    { code: 'RATE_LIMITED' },
   ],
 });
 
