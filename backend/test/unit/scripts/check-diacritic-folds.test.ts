@@ -22,6 +22,7 @@ import {
   SLUG_RUNS_ALLOWED,
   type ScannedFile,
 } from '../../../scripts/check-diacritic-folds.js';
+import { CHECK_LIB_ROOT } from '../../helpers/check-lib-root.js';
 
 /**
  * Companion test for `check-diacritic-folds` (issue #240).
@@ -49,7 +50,7 @@ const BACKEND_ROOT = join(REPO_ROOT, 'backend');
 const TSX = join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx');
 const SCRIPT = join(BACKEND_ROOT, 'scripts', 'check-diacritic-folds.ts');
 /** The shared read-size reporter the check imports (issue #244). */
-const READ_SIZE_LIB = join(BACKEND_ROOT, 'scripts', 'lib', 'read-size.ts');
+const READ_SIZE_LIB = join(CHECK_LIB_ROOT, 'read-size.ts');
 const TYPESCRIPT = join(BACKEND_ROOT, 'node_modules', 'typescript');
 
 /** U+0300–U+036F written as the characters themselves, the way one backend slugifier does. */

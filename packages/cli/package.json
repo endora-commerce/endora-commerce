@@ -14,6 +14,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./lib/*.js": {
+      "types": "./dist/lib/*.d.ts",
+      "default": "./dist/lib/*.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -29,11 +33,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@endora-commerce/contracts": "workspace:*"
+    "@endora-commerce/contracts": "workspace:*",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
-    "typescript": "^5.9.3",
     "vitest": "^2.1.4"
   }
 }
