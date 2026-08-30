@@ -1,0 +1,4 @@
+{
+  "errors.SHOPPING_LIST_CANNOT_DELETE_DEFAULT": "Your default shopping list is the one new items are saved to, so it cannot be deleted. Empty it if you no longer need what is on it, or make another list the default first — then this one can go.",
+  "errors.SHOPPING_LIST_CANNOT_DELETE_LAST": "This is your only shopping list, and an account always keeps at least one. Create another list first, and then this one can be deleted."
+}

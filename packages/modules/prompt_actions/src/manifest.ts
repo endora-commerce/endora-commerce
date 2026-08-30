@@ -133,6 +133,51 @@ export const manifest = defineModuleManifest({
   // starts talking to an LLM because of this.
   activation: { settingCode: PROMPT_ACTIONS_SETTING_CODES.ACTIVATION, default: true },
   i18n: { bundlesDir: 'i18n' },
+  /**
+   * The `ASSISTANT_*` and `PROMPT_*` codes — D-129's remaining sweep, Tier A
+   * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;
+   * MR 3).
+   *
+   * All six were declared by `_i18n` until this merge request, not because
+   * anybody judged them the platform's but because the deleted prefix chain
+   * had no rule for them and its last line was `return 'core'`. **D-121 T1
+   * puts them here**: the noun in each is either the prompt assistant — the
+   * LLM capability this module configures, gates and calls — or a prompt
+   * action request, the `PromptActionRequest` row this module owns and whose
+   * whole state machine it runs. This module is also the only one that raises
+   * them, so T1 and the raise-site count agree.
+   *
+   * **`ASSISTANT_*` is not `MODULE_DISABLED`, and the distinction is the
+   * reason it is a code of its own.** `ASSISTANT_DISABLED` refuses a
+   * submission while this module is *present and switched on* and its own
+   * `prompt_actions.assistant_enabled` kill switch is off; a switched-off
+   * module answers `MODULE_DISABLED`, which is the platform's vocabulary and
+   * stays with it (Constitution XVII, `d129-sweep.md` §2.5).
+   *
+   * **No sentence moves with them.** None of the six has a sentence in either
+   * language anywhere in the tree; all six were already on
+   * `UNTRANSLATED_ERROR_CODES` under `_i18n` and move to this module's group
+   * there, so the bundle this module already ships gains no key. The admin's
+   * prompt panel maps four of them to its own copy
+   * (`admin/src/components/prompt-actions/PromptModePanel.tsx`), which is a
+   * surface string and not the envelope's sentence — that mapping is untouched
+   * and unaffected by which bundle the envelope reads.
+   *
+   * **`tokens` is derived from the raise sites, not from the bundle**
+   * (runbook §5), and there are none to declare: every raise is a bare
+   * `HttpError(status, code, message)` or a `readonly code =` on an `Error`
+   * subclass in `services/llm/provider-factory.ts` and
+   * `services/plan-executor.service.ts`, and no site puts a `details.code` on
+   * the wire.
+   */
+  errorCodes: [
+    { code: 'ASSISTANT_DISABLED' },
+    { code: 'ASSISTANT_NOT_CONFIGURED' },
+    { code: 'PROMPT_PERMISSION_REVOKED' },
+    { code: 'PROMPT_PLAN_EXPIRED' },
+    { code: 'PROMPT_REQUEST_INVALID_STATE' },
+    { code: 'PROMPT_REQUEST_IN_FLIGHT' },
+  ],
   permissions: [
     {
       code: PROMPT_ACTIONS_USE_PERMISSION,

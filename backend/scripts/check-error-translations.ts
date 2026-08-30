@@ -166,11 +166,26 @@ const LANGUAGES = ['en', 'pl'] as const;
  * **D-129's sweep is what re-routes them, and it is running.** D-121 decides each
  * destination — 79 codes into 20 modules, 21 staying — and the batches land one
  * merge request at a time (`specs/090-module-owned-error-codes/d129-sweep.md`
- * §5.2, Appendix A). `KSEF_*` and `PIM_ERGONODE_*` went first, which is why they
- * now have groups of their own below. Draining a block still means two edits: the
- * declaration moves to the owning module's manifest, and the sentences move to
- * its bundle. A group here whose codes carry no sentence needs only the first,
- * and its entries stay — the debt is unchanged, only its owner is.
+ * §5.2, Appendix A). `KSEF_*` and `PIM_ERGONODE_*` went first (MR 2), then the
+ * rest of Tier A — `custom_fields`, `customers`, `price_lists`,
+ * `prompt_actions`, `shopping_lists` and `transactional_emails` (MR 3) — which
+ * is why those modules now have groups of their own below. Draining a block
+ * still means two edits: the declaration moves to the owning module's manifest,
+ * and the sentences move to its bundle. A group here whose codes carry no
+ * sentence needs only the first, and its entries stay — the debt is unchanged,
+ * only its owner is.
+ *
+ * **`shopping_lists` is the exception, and it is the shape to copy rather than
+ * the shape to note.** Its two codes had no sentence either, and it is one of
+ * the seven receiving modules that had to create an i18n bundle in the same
+ * merge request — a declaring module that contributes no bundle file is exit 2
+ * for this whole check. `d129-sweep.md` §5.4 makes an empty `{}` the default in
+ * that position and says in terms that writing the prose instead is always
+ * available and is not a re-opening of D-186 §2, which refuses *carrying* a
+ * placeholder rather than *writing* a sentence. Both were written, so the two
+ * codes left this ledger instead of joining a new group in it: **65 entries,
+ * down from 67**, which is the one direction this list is ever allowed to move
+ * on its own.
  *
  * `MFA_*` is the worked example, and it took both edits and two issues: #194
  * routed the family to `mfa`, #223 wrote the nine sentences in `mfa`'s own
@@ -192,26 +207,32 @@ const LANGUAGES = ['en', 'pl'] as const;
  * Grouped as measured, so a module can drain its own block.
  */
 export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
-  // _i18n (39)
+  // _i18n (22)
   'ACCOUNT_BLOCKED', 'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
-  'ASSISTANT_DISABLED', 'ASSISTANT_NOT_CONFIGURED', 'BULK_TOO_LARGE',
-  'CUSTOMER_ADDRESS_NOT_FOUND',
+  'BULK_TOO_LARGE',
   'CUSTOMER_ALREADY_DELETED', 'CUSTOMER_NOT_DELETED', 'CUSTOMER_NOT_FOUND',
-  'CUSTOMER_RESTORE_WINDOW_ELAPSED', 'CUSTOM_FIELD_DEFINITION_INVALID', 'CUSTOM_FIELD_HOST_MANAGED',
-  'CUSTOM_FIELD_KEY_CONFLICT', 'CUSTOM_FIELD_NOT_FOUND', 'CUSTOM_FIELD_VALUE_INVALID',
+  'CUSTOMER_RESTORE_WINDOW_ELAPSED',
   'IDEMPOTENCY_KEY_REQUIRED', 'IDEMPOTENCY_KEY_REUSED',
   'MODULE_ACTIVATION_PROTECTED', 'MODULE_DEPENDENCIES_ABSENT', 'MODULE_DEPENDENTS_PRESENT',
   'MODULE_NOT_DEACTIVATABLE', 'MODULE_NOT_FOUND', 'MODULE_SETTING_READ_ONLY',
   'ORG_OWNER_DEPLETION', 'PACKAGING_UNIT_NAME_CONFLICT', 'PACKAGING_UNIT_NOT_FOUND',
-  'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE', 'PRICE_LIST_NOT_FOUND',
-  'PRICE_UNAVAILABLE', 'PROMPT_PERMISSION_REVOKED', 'PROMPT_PLAN_EXPIRED',
-  'PROMPT_REQUEST_INVALID_STATE', 'PROMPT_REQUEST_IN_FLIGHT', 'REGISTRATION_REQUIRES_ORGANIZATION',
-  'SELECTION_TOO_LARGE', 'SHOPPING_LIST_CANNOT_DELETE_DEFAULT', 'SHOPPING_LIST_CANNOT_DELETE_LAST',
-  'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE',
+  'PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE',
+  'PRICE_UNAVAILABLE',
+  'SELECTION_TOO_LARGE',
   // catalog (7)
   'ATTRIBUTE_NOT_MASS_EDITABLE', 'PRODUCT_FEED_CONFIRMATION_REQUIRED', 'PRODUCT_FEED_DISABLED',
   'PRODUCT_FEED_TAXONOMY_CONFLICT', 'PRODUCT_FEED_TEMPLATE_CONFLICT', 'PRODUCT_FEED_TEMPLATE_UNBOUND',
   'SKU_NOT_IN_ASSORTMENT',
+  // custom_fields (5) — re-homed from `_i18n` by D-129's sweep, MR 3 (Tier A),
+  // on the same terms as MR 2's two families: none of the five had a sentence
+  // in either language before the move and none has one after, so what moved is
+  // which module owes it.
+  'CUSTOM_FIELD_DEFINITION_INVALID', 'CUSTOM_FIELD_HOST_MANAGED', 'CUSTOM_FIELD_KEY_CONFLICT',
+  'CUSTOM_FIELD_NOT_FOUND', 'CUSTOM_FIELD_VALUE_INVALID',
+  // customers (2) — same move, same merge request. The other four `CUSTOMER_*`
+  // codes stay under `_i18n` above until their own batch: D-186 §1 sends them to
+  // `customer_accounts`, and only the address one is this module's.
+  'CUSTOMER_ADDRESS_NOT_FOUND', 'REGISTRATION_REQUIRES_ORGANIZATION',
   // ksef (7) — re-homed from `_i18n` by D-129's sweep, MR 2 (Tier A). Membership
   // is unchanged: none of the seven had a sentence in either language before the
   // move and none has one after, so what moved is which module owes it.
@@ -224,8 +245,19 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   'PIM_ERGONODE_FIELD_PATH_INVALID', 'PIM_ERGONODE_IMPORT_ALREADY_RUNNING', 'PIM_ERGONODE_NOT_CONFIGURED',
   'PIM_ERGONODE_SCHEDULE_INVALID', 'PIM_ERGONODE_TARGET_ALREADY_MAPPED', 'PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND',
   'PIM_ERGONODE_TREE_REQUIRED', 'PIM_ERGONODE_TYPE_INCOMPATIBLE',
+  // price_lists (1) — MR 3. `pim_ergonode` raises it and does not own it, which
+  // is why MR 2 moved thirteen of that module's codes and left this one.
+  'PRICE_LIST_NOT_FOUND',
+  // prompt_actions (6) — MR 3, same terms.
+  'ASSISTANT_DISABLED', 'ASSISTANT_NOT_CONFIGURED', 'PROMPT_PERMISSION_REVOKED',
+  'PROMPT_PLAN_EXPIRED', 'PROMPT_REQUEST_INVALID_STATE', 'PROMPT_REQUEST_IN_FLIGHT',
   // settings (1)
   'SETTING_SECRET_KEY_MISSING',
+  // transactional_emails (1) — MR 3. Draining this one is not a plain sentence:
+  // every raise carries a `details.code`, so the envelope looks up
+  // `errors.TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE.<email code>` and a base key
+  // would never render. See the code's own note in that module's manifest.
+  'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE',
 ]);
 
 export interface Finding {

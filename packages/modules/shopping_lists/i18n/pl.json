@@ -1,0 +1,4 @@
+{
+  "errors.SHOPPING_LIST_CANNOT_DELETE_DEFAULT": "Domyślna lista zakupowa to ta, na której zapisują się nowe produkty, dlatego nie można jej usunąć. Opróżnij ją, jeśli nie potrzebujesz już jej zawartości, albo najpierw ustaw jako domyślną inną listę — wtedy tę będzie można usunąć.",
+  "errors.SHOPPING_LIST_CANNOT_DELETE_LAST": "To Twoja jedyna lista zakupowa, a na koncie zawsze musi pozostać co najmniej jedna. Najpierw utwórz kolejną listę, a potem tę będzie można usunąć."
+}
