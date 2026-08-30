@@ -24,6 +24,8 @@
     "@endora-commerce/mod-analytics": "workspace:*",
     "@endora-commerce/mod-google-analytics": "workspace:*",
     "@endora-commerce/mod-import-export": "workspace:*",
+    "@endora-commerce/mod-linkedin-ads": "workspace:*",
+    "@endora-commerce/mod-meta-ads": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:^",
     "@measured/puck": "^0.20.2",
     "@radix-ui/react-checkbox": "^1.3.3",

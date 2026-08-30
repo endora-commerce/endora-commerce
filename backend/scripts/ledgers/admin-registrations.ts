@@ -51,6 +51,22 @@
  * `packages/modules/analytics/src/admin/index.ts`; the run after it reads
  * `routes=145 nav=97 module-owned (routes=141 nav=94) over 49 modules`.
  *
+ * **`linkedin_ads` and `meta_ads` are the fourth and fifth, and the third batch
+ * of the drain** (feature 091, Phase 4). They are the first pair to be taken
+ * together and the first batch to *pay* a boundary debt rather than to find
+ * none. The entry above says the zero-incoming rung was exhausted; re-measured,
+ * that reading had enumerated the directories with zero reach in **both**
+ * directions, and eighteen more carry zero incoming reach with one or more
+ * outgoing. These two sit at the top of that set: every host symbol their six
+ * files take is published by `@endora-commerce/admin-kit`, and their four
+ * outgoing reaches all land on one target — `sales_channels`' admin client —
+ * and are retired by the exit their ledger shards name, the caller building the
+ * request from the published `apiClient` and the contract's own types. Both
+ * shards are deleted with the reaches. Their six routes and two sidebar entries
+ * now live in `packages/modules/{linkedin_ads,meta_ads}/src/admin/index.ts`;
+ * the run after them reads
+ * `routes=139 nav=95 module-owned (routes=135 nav=92) over 47 modules`.
+ *
  * Two attributions, deliberately different, because the tree disagrees about
  * one screen: a **route** belongs to the module whose surface directory
  * `App.tsx` imports its component from, and a **nav entry** belongs to the
@@ -104,9 +120,7 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   inventory: { routes: 7, nav: 6 },
   invoices: { routes: 4, nav: 1 },
   ksef: { routes: 1, nav: 1 },
-  linkedin_ads: { routes: 3, nav: 1 },
   megamenu: { routes: 2, nav: 1 },
-  meta_ads: { routes: 3, nav: 1 },
   mfa: { routes: 1, nav: 0 },
   newsletter: { routes: 11, nav: 9 },
   orders: { routes: 4, nav: 4 },

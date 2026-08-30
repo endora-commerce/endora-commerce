@@ -3,6 +3,7 @@
   "actions.openMetaAds.description": "Configure Meta Pixel custom events",
   "actions.newCustomEvent.label": "New Meta custom event",
   "actions.newCustomEvent.description": "Report a storefront action as a custom Meta event",
+  "nav.metaAds.label": "Meta Ads",
   "customEvents.title": "Custom events",
   "customEvents.subtitle": "Report a storefront action under your own Meta event name. Standard events (ViewContent, AddToCart, Purchase…) are always reported and are not affected by these.",
   "customEvents.empty": "No custom events yet",

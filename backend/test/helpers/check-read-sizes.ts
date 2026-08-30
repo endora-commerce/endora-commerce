@@ -306,10 +306,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     run: { kind: 'tsx', path: 'scripts/check-admin-registrations.ts', args: [] },
     // Two, and it is the honest number rather than a rounding of one: this
     // check's subject is exactly the admin's two hand-written registries.
-    // `sites` is what moves — 149 routes plus 100 nav entries today, shrinking
-    // with every Story 3 batch.
+    // `sites` is what moves — 139 routes plus 95 nav entries today, shrinking
+    // with every Story 3 batch, and **re-recorded downwards by the batch that
+    // shrinks it**. The band's floor is what refuses a walk that came back
+    // short, so leaving a number the drain has outgrown widens that floor's
+    // distance from the truth batch by batch until it stops refusing anything.
+    // Three batches took it from 249 to 234; this is 234.
     files: 2,
-    sites: 249,
+    sites: 234,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],

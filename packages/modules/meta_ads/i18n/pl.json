@@ -3,6 +3,7 @@
   "actions.openMetaAds.description": "Konfiguruj własne zdarzenia Meta Pixel",
   "actions.newCustomEvent.label": "Nowe zdarzenie własne Meta",
   "actions.newCustomEvent.description": "Raportuj akcję w Storefront jako własne zdarzenie Meta",
+  "nav.metaAds.label": "Meta Ads",
   "customEvents.title": "Zdarzenia własne",
   "customEvents.subtitle": "Raportuj akcję w Storefront pod własną nazwą zdarzenia Meta. Zdarzenia standardowe (ViewContent, AddToCart, Purchase…) są wysyłane zawsze i nie zależą od tych ustawień.",
   "customEvents.empty": "Brak zdarzeń własnych",
