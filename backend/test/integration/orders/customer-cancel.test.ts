@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -110,8 +111,27 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
     return (placed.json() as { data: { id: string } }).data.id;
   }
 
-  const cancel = (orderId: string, as = BUYER) =>
-    h.app.inject({ method: 'POST', url: `/api/v1/orders/${orderId}/cancel`, ...as });
+  const cancel = (orderId: string, as = BUYER, headers: Record<string, string> = {}) =>
+    h.app.inject({ method: 'POST', url: `/api/v1/orders/${orderId}/cancel`, headers, ...as });
+
+  /**
+   * The refusal as the buyer's client actually receives it — the code it
+   * branches on and the sentence it shows.
+   *
+   * Asserting the status alone is what let this route answer
+   * `409 VALIDATION_FAILED` for two years while the contract
+   * (`specs/001-b2b-platform-foundation/contracts/orders.contract.md`) said
+   * `409 ORDER_NOT_CANCELLABLE`, and `VALIDATION_FAILED` is the one code
+   * `localizeErrorEnvelope` returns *before* translating — so every refused
+   * buyer read the raise site's English whatever language they asked for.
+   */
+  const refusal = async (orderId: string, as = BUYER, headers: Record<string, string> = {}) => {
+    const res = await cancel(orderId, as, headers);
+    return {
+      statusCode: res.statusCode,
+      ...(res.json() as { error: { code: string; message: string } }).error,
+    };
+  };
 
   const readAsBuyer = async (orderId: string, as = BUYER) => {
     const res = await h.app.inject({ method: 'GET', url: `/api/v1/orders/${orderId}`, ...as });
@@ -195,9 +215,10 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
     await advance(orderId, ['paid', 'processing', 'shipment_ready', 'shipment_sent']);
     expect((await orderNow(orderId)).paymentStatus).toBe('awaiting_payment');
 
-    const res = await cancel(orderId);
+    const refused = await refusal(orderId);
 
-    expect(res.statusCode).toBe(409);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.code).toBe(ERROR_CODES.ORDER_NOT_CANCELLABLE);
     expect((await orderNow(orderId)).status).toBe('shipment_sent');
     // The point of the refusal: the goods are in transit and their stock stays
     // allocated against the order that dispatched them.
@@ -223,9 +244,10 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
     await em.flush();
 
     expect((await orderNow(orderId)).status).toBe('new');
-    const res = await cancel(orderId);
+    const refused = await refusal(orderId);
 
-    expect(res.statusCode).toBe(409);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.code).toBe(ERROR_CODES.ORDER_NOT_CANCELLABLE);
     expect((await orderNow(orderId)).status).toBe('new');
     expect((await readAsBuyer(orderId)).body.data['customerCancellable']).toBe(false);
   });
@@ -249,9 +271,10 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
     const orderId = await place(await bankTransferMethod('processing'));
     await advance(orderId, ['paid', 'processing', 'on_hold']);
 
-    const res = await cancel(orderId);
+    const refused = await refusal(orderId);
 
-    expect(res.statusCode).toBe(409);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.code).toBe(ERROR_CODES.ORDER_NOT_CANCELLABLE);
     expect((await orderNow(orderId)).status).toBe('on_hold');
     expect((await readAsBuyer(orderId)).body.data['customerCancellable']).toBe(false);
   });
@@ -268,10 +291,76 @@ describe('a buyer cancels their own order (085 Phase F)', () => {
     });
     expect(paid.statusCode).toBe(200);
 
-    const res = await cancel(orderId);
+    const refused = await refusal(orderId);
 
-    expect(res.statusCode).toBe(409);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.code).toBe(ERROR_CODES.ORDER_NOT_CANCELLABLE);
     expect((await orderNow(orderId)).status).toBe('new');
+  });
+
+  /**
+   * The refusal reaches the buyer in the language they asked for.
+   *
+   * **Why an exact Polish sentence and not a `not.toBe(english)`.** The
+   * degradation *is* English: when the code is one the envelope declines to
+   * translate, or the routing answer stops reaching a bundle, the buyer is
+   * served the raise site's own English prose — a perfectly plausible-looking
+   * answer that no English-only assertion can distinguish from a working
+   * translation. That is exactly the reasoning of
+   * `test/integration/_i18n/platform-error-sentences.test.ts`, and this route
+   * is the case it was written about: `VALIDATION_FAILED` is the one code
+   * `localizeErrorEnvelope` returns before translating
+   * (`packages/platform/src/http/error-envelope.ts`, and rightly — the code is
+   * overloaded and its message carries machine-readable tokens), so a domain
+   * refusal wearing it is untranslatable by construction.
+   *
+   * The sentences are written out rather than read from
+   * `packages/modules/orders/i18n/*.json`: a test that loads the file it is
+   * checking asserts only that JSON parses.
+   */
+  describe('the refusal is answered in the buyer’s own language', () => {
+    const PL_NOT_CANCELLABLE = 'Tego zamówienia nie można już anulować.';
+    const EN_NOT_CANCELLABLE = 'This order can no longer be cancelled.';
+    /**
+     * What the raise site used to write, and what a buyer asking for Polish
+     * was served. Named here so the assertions can say *not this* as well as
+     * *this* — the regression is a fall back to raiser prose, not an empty
+     * message.
+     */
+    const RAISED_PROSE =
+      'This order can no longer be cancelled here. Please contact us and we will help.';
+
+    /** A refused order, built the cheapest way the predicate admits. */
+    async function refusedOrder(): Promise<string> {
+      const orderId = await place(await bankTransferMethod());
+      const em = h.em();
+      const order = await em.findOneOrFail(Order, { id: orderId });
+      // The money term, as the credit-limit case above reproduces it.
+      order.paymentStatus = 'deferred';
+      await em.flush();
+      return orderId;
+    }
+
+    it('a buyer asking for Polish gets the Polish sentence, not the raise site’s English', async () => {
+      const refused = await refusal(await refusedOrder(), BUYER, { 'accept-language': 'pl' });
+
+      expect(refused.statusCode).toBe(409);
+      expect(refused.code).toBe(ERROR_CODES.ORDER_NOT_CANCELLABLE);
+      expect(refused.message).toBe(PL_NOT_CANCELLABLE);
+      // Said twice on purpose: both English strings are what this regresses to.
+      expect(refused.message).not.toBe(RAISED_PROSE);
+      expect(refused.message).not.toBe(EN_NOT_CANCELLABLE);
+    });
+
+    it('and English is still English — the assertion above is about the language, not about any sentence', async () => {
+      const refused = await refusal(await refusedOrder(), BUYER, { 'accept-language': 'en' });
+
+      expect(refused.statusCode).toBe(409);
+      expect(refused.code).toBe(ERROR_CODES.ORDER_NOT_CANCELLABLE);
+      // The bundle's sentence, not the one the service wrote inline.
+      expect(refused.message).toBe(EN_NOT_CANCELLABLE);
+      expect(refused.message).not.toBe(RAISED_PROSE);
+    });
   });
 
   /**

@@ -96,8 +96,13 @@ export class CustomerOrderCancellationService {
    * Cancel `orderId` on behalf of the account that placed it.
    *
    * @throws 404 when there is no such order **for this buyer**.
-   * @throws 409 when the platform would not accept the cancellation — the money
-   *         is not the buyer's to owe any more, or the shop has started.
+   * @throws 409 `ORDER_NOT_CANCELLABLE` when the platform would not accept the
+   *         cancellation — the money is not the buyer's to owe any more, or the
+   *         shop has started.
+   * @throws 409 `INVALID_TRANSITION` when the rules admit the cancellation and
+   *         the configured graph refuses the move anyway. A different
+   *         condition, so a different code: nothing about the *order* forbids
+   *         cancelling it, an edge or a guard does.
    */
   async cancelByCustomer(orderId: string, customerAccountId: string): Promise<Order> {
     const em = this.deps.emFactory();
@@ -112,10 +117,26 @@ export class CustomerOrderCancellationService {
     if (order.status === ORDER_STATUS_CANCELLED) return order;
 
     if (!(await this.isCancellableByCustomer(order, customerAccountId))) {
+      // One refusal, one code. Whichever of the predicate's two terms failed —
+      // the money is not the buyer's to owe any more, or the shop has started
+      // — the answer to the buyer is the same sentence, and the contract
+      // (`specs/001-b2b-platform-foundation/contracts/orders.contract.md`) has
+      // always specified `409 ORDER_NOT_CANCELLABLE` for this route.
+      //
+      // It answered `VALIDATION_FAILED`, which is worse than an untidy code:
+      // that is the one code `localizeErrorEnvelope` returns *before*
+      // translating (`@endora-commerce/platform/http`), because the code is
+      // overloaded and several services carry machine-readable tokens in its
+      // message. So a refused buyer read the English written here whatever
+      // language they asked for, while `errors.ORDER_NOT_CANCELLABLE` sat
+      // written and translated in this module's own bundle, unreachable.
+      //
+      // The message is now the raise-site fallback the envelope substitutes,
+      // reached only when no bundle answers.
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
-        'This order can no longer be cancelled here. Please contact us and we will help.',
+        ERROR_CODES.ORDER_NOT_CANCELLABLE,
+        'This order can no longer be cancelled.',
       );
     }
 
