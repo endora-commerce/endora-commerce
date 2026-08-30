@@ -25,6 +25,70 @@ function pathSegments(path: string): string[] {
   return path.split('/').filter((s) => s.length > 0);
 }
 
+/**
+ * The three refusals this module's tree rules produce, as pure functions —
+ * D-129's remaining sweep, MR 7.
+ *
+ * Extracted for the reason `admin_roles`' `roleInUseRefusal` was (issue #168):
+ * `check:error-translations` verifies that a code has a sentence and can see
+ * neither the token the raise writes nor a `{placeholder}` nothing fills, and
+ * the envelope's own `hasUnfilledPlaceholder` fall-back then hides the miss
+ * behind the written English. Only a test that builds a **real** refusal and
+ * renders the bundle's sentence from its `details` sees all three agree, and a
+ * refusal it can build without an `EntityManager` is what makes that test a unit
+ * test — `test/unit/organizations/error-code-sentences.test.ts`.
+ *
+ * Every one of them is tokened, which is the whole shape here: the base key
+ * `errors.<CODE>` renders for nobody, because `localizeErrorEnvelope` composes
+ * `errors.<CODE>.<token>` whenever `details.code` is present and never re-asks.
+ * The base sentences are carried anyway, and this module's manifest records
+ * D-190's measurement of why.
+ */
+export function cycleRefusal(): HttpError {
+  return new HttpError(
+    422,
+    ERROR_CODES.ORGANIZATION_TREE_INVALID,
+    'Cannot set a parent that would create a cycle (the target is inside this organization\'s own subtree).',
+    { code: 'cycle' },
+  );
+}
+
+/**
+ * The depth refusal, carrying the bound it refused against.
+ *
+ * `maxDepth` and never a second `code`: `details.code` is the refusal token, so
+ * a value written there would re-key the sentence lookup instead of filling the
+ * sentence. Before MR 7 this raise interpolated the bound into its English
+ * message and passed the token alone, so the translated sentence — which
+ * replaces the message wholesale — had no way to say how deep is too deep
+ * (!1181's finding).
+ */
+export function maxDepthRefusal(maxDepth: number = MAX_TREE_DEPTH_SEGMENTS): HttpError {
+  return new HttpError(
+    422,
+    ERROR_CODES.ORGANIZATION_TREE_INVALID,
+    `Re-parent would exceed the maximum organization tree depth (${maxDepth} levels).`,
+    { code: 'max_depth_exceeded', maxDepth },
+  );
+}
+
+/**
+ * Deleting an organization that still has sub-organizations (FR-010), backed by
+ * the database's own `parent_id ON DELETE RESTRICT`.
+ *
+ * It lives beside the two above because it is the same rule read from the other
+ * end — a child is an edge of this tree — and because the admin route that
+ * raises it already imports this service.
+ */
+export function hasChildrenRefusal(): HttpError {
+  return new HttpError(
+    409,
+    ERROR_CODES.ORGANIZATION_HAS_CHILDREN,
+    'This organization has sub-organizations. Reassign or remove the children first.',
+    { code: 'has_children' },
+  );
+}
+
 export class OrganizationTreeService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
@@ -100,12 +164,7 @@ export class OrganizationTreeService {
   assertNoCycle(node: Organization, newParent: Organization | null): void {
     if (!newParent) return; // detach → root, never a cycle
     if (newParent.id === node.id || newParent.path.startsWith(node.path)) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.ORGANIZATION_TREE_INVALID,
-        'Cannot set a parent that would create a cycle (the target is inside this organization\'s own subtree).',
-        { code: 'cycle' },
-      );
+      throw cycleRefusal();
     }
   }
 
@@ -133,12 +192,7 @@ export class OrganizationTreeService {
     const newNodeSegs = newParent ? pathSegments(newParent.path).length + 1 : 1;
     const newDeepestSegs = newNodeSegs + relativeMax;
     if (newDeepestSegs > MAX_TREE_DEPTH_SEGMENTS) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.ORGANIZATION_TREE_INVALID,
-        `Re-parent would exceed the maximum organization tree depth (${MAX_TREE_DEPTH_SEGMENTS} levels).`,
-        { code: 'max_depth_exceeded' },
-      );
+      throw maxDepthRefusal();
     }
   }
 

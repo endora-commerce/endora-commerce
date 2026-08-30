@@ -330,4 +330,111 @@ export const manifest = defineModuleManifest({
       ],
     },
   ],
+  /**
+   * This module's first i18n bundle — D-129's remaining sweep, MR 7.
+   *
+   * It exists because a **declaring** module that contributes no bundle file is
+   * `check:error-translations` exit 2 for the whole tree rather than a finding
+   * (`specs/090-module-owned-error-codes/contracts/error-translation-population.md`
+   * §2.1, §2.3; `d129-sweep.md` §3.4). The bundle lives at the **package
+   * root**, not under `dist`: `manifest-locations.ts` resolves a packaged
+   * module's `manifestPath` to its `package.json`, so `dirname` is the package
+   * directory. The file is a **flat** `{"a.b.c": "text"}` map, because a nested
+   * object fails `TranslationBundleEntriesSchema` and the boot reconciler logs
+   * and skips it — silently.
+   */
+  i18n: { bundlesDir: 'i18n' },
+  /**
+   * The eight codes whose noun is an organization — D-129's remaining sweep,
+   * **Tier C** (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2,
+   * Appendix A; MR 7, the largest batch in the sweep).
+   *
+   * They were declared by `_i18n` until this merge request, not because anybody
+   * judged them the platform's but because the deleted prefix chain had no rule
+   * for them and its last line was `return 'core'`. **D-121 T1 puts all eight
+   * here**: the noun in each is this module's `organizations` row, its
+   * invitation, its administrator or its tree.
+   *
+   * **Two of the eight are raised by a module that does not own them**, which is
+   * the shape D-95.2 already ruled for `INVOICE_NOT_READY` and D-186 §1 re-took
+   * for `CUSTOMER_*`: the owner of a noun is not required to be the module that
+   * throws about it. `ORG_OWNER_DEPLETION` is raised three times in `customers`
+   * — deleting, blocking and unassigning the last organization administrator —
+   * and the invariant it protects is this module's, not that module's: an
+   * organization is the unit of tenancy and may not be left with nobody able to
+   * manage it. `ORGANIZATION_SUSPENDED` is raised once in `orders`, at
+   * placement, and is a statement about the organization's `status` column,
+   * which this module owns and moderates. Homing either with its thrower would
+   * split the sentence from the rule it describes and put it in a bundle that
+   * says nothing else about organizations.
+   *
+   * **Two are always tokened, and their token sets were measured rather than
+   * read off the bundle** (runbook §5): the arguments of every `HttpError` call
+   * naming them were extracted by balancing the call's own parentheses,
+   * resolving `ERROR_CODES.<CODE>` and the bare literal alike, and `details`
+   * read as the **positional fourth argument** it is — the correction MR 6
+   * recorded, because looking for a named `details:` property reports `(none)`
+   * for a raise that plainly carries a token. `ORGANIZATION_HAS_CHILDREN` has
+   * one raise and it passes `has_children`; `ORGANIZATION_TREE_INVALID` has two
+   * and they pass `cycle` and `max_depth_exceeded`. The other six carry no
+   * `details` at all, at any raise site, which is why they declare no tokens.
+   *
+   * **So all four sentences these two codes had were unreachable, and this
+   * change is the first time either renders anything.**
+   * `localizeErrorEnvelope` composes `` `${target.key}.${token}` `` whenever
+   * `details.code` is present and has **no** fall-back to the base key
+   * (`packages/platform/src/http/error-envelope.ts`), so `_i18n`'s two prose
+   * pairs were read by nobody. The three sub-keys are written here for the
+   * first time and are the ones an operator meets.
+   *
+   * **The base pairs move anyway, and D-190 is why.** They are unreachable for
+   * the operator and load-bearing for the instrument at the same time:
+   * `findUntranslatedErrorCodes` asks its question at
+   * `read(target.moduleId, language)[target.key]` and at **no other key**, so a
+   * bundle without them reports both codes as untranslated and exits 1 — MR 6
+   * measured exactly that when it tried. `UNTRANSLATED_ERROR_CODES` would be a
+   * false entry for a code with five written sentences, and widening P1 to
+   * accept "every declared token answered" is a tree-wide instrument changed by
+   * the merge request that benefits from it, which D-190 refuses in terms. So
+   * the base sentence is carried, and the sub-key beside it is the one to edit
+   * when the wording changes.
+   *
+   * **The other six arrive with prose.** Five carried a placeholder in `_i18n`'s
+   * bundle — `"Organization Suspended."` / `"Błąd: organization suspended."`
+   * and four like it — which D-186 §2 deletes rather than carries,
+   * because in this module's own bundle it would read as this module's answer
+   * and every instrument would then count the code as translated.
+   * `d129-sweep.md` §5.4 keeps writing the prose available and is not a
+   * re-opening of that ruling; every one of the six has a live raise site whose
+   * English states the refusal and a reader who meets it — an organization
+   * administrator inviting a member, a buyer whose organization was suspended,
+   * a company registering with a tax ID somebody already used, an operator on
+   * `/customers` removing the last administrator. The sixth,
+   * `ORG_OWNER_DEPLETION`, had no sentence at all and sat on
+   * `UNTRANSLATED_ERROR_CODES`; writing it is what makes that ledger **shrink**
+   * for the first time in the sweep.
+   *
+   * `ORGANIZATION_TREE_INVALID.max_depth_exceeded` needed one repair before its
+   * sentence could be written: the raise interpolates the depth bound into its
+   * English message and passed only the token, so a translated sentence with no
+   * placeholder would have rendered cleanly and lost the number — the shape
+   * !1181 measured at 85 codes tree-wide. The raise now carries
+   * `{ code: 'max_depth_exceeded', maxDepth: MAX_TREE_DEPTH_SEGMENTS }` and both
+   * sentences name it as `{maxDepth}`. The member is `maxDepth` and not `code`
+   * deliberately: `details.code` is the refusal **token**, and a second value
+   * written there would re-key the lookup rather than fill the sentence.
+   * `test/unit/organizations/error-code-sentences.test.ts` renders a real
+   * refusal against these keys, which is the three-way agreement issue #168
+   * found nothing was checking and which `check:error-translations` cannot see.
+   */
+  errorCodes: [
+    { code: 'CANNOT_REVOKE_LAST_ADMIN_INVITE' },
+    { code: 'EMAIL_ALREADY_IN_ORGANIZATION' },
+    { code: 'EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION' },
+    { code: 'ORGANIZATION_HAS_CHILDREN', tokens: ['has_children'] },
+    { code: 'ORGANIZATION_SUSPENDED' },
+    { code: 'ORGANIZATION_TAX_ID_EXISTS' },
+    { code: 'ORGANIZATION_TREE_INVALID', tokens: ['cycle', 'max_depth_exceeded'] },
+    { code: 'ORG_OWNER_DEPLETION' },
+  ],
 });

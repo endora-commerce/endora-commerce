@@ -24,6 +24,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import type { OrganizationTreeService } from './services/organization-tree-service.js';
+import { hasChildrenRefusal } from './services/organization-tree-service.js';
 import { makeSetParentCommand } from './commands/set-parent.command.js';
 import { makeMoveCommand } from './commands/move.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
@@ -926,12 +927,7 @@ export async function registerOrganizationsAdminRoutes(
           deletedAt: null,
         });
         if (childCount > 0) {
-          throw new HttpError(
-            409,
-            ERROR_CODES.ORGANIZATION_HAS_CHILDREN,
-            'This organization has sub-organizations. Reassign or remove the children first.',
-            { code: 'has_children' },
-          );
+          throw hasChildrenRefusal();
         }
         const before = serializeOrg(org);
         org.deletedAt = new Date();

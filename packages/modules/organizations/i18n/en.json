@@ -1,0 +1,13 @@
+{
+  "errors.CANNOT_REVOKE_LAST_ADMIN_INVITE": "This is the last pending administrator invitation and the organization has no active administrator, so it cannot be revoked. Send another administrator invitation first.",
+  "errors.EMAIL_ALREADY_IN_ORGANIZATION": "That email address is already in your organization, either as a member or as a pending invitation.",
+  "errors.EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION": "That email address belongs to a member of another organization, so it cannot be invited here.",
+  "errors.ORGANIZATION_HAS_CHILDREN": "This organization has sub-organizations. Reassign or remove the children first.",
+  "errors.ORGANIZATION_HAS_CHILDREN.has_children": "This organization has sub-organizations, so it cannot be deleted. Reassign or delete them first.",
+  "errors.ORGANIZATION_SUSPENDED": "This organization is not active, so orders cannot be placed. Contact your sales representative to have it reactivated.",
+  "errors.ORGANIZATION_TAX_ID_EXISTS": "An organization with this tax ID is already registered. Sign in instead, or ask its administrator to invite you.",
+  "errors.ORGANIZATION_TREE_INVALID": "The requested organization move is invalid (it would create a cycle or exceed the maximum depth).",
+  "errors.ORGANIZATION_TREE_INVALID.cycle": "The chosen parent is inside this organization's own subtree, so the move would create a cycle. Pick a parent outside it.",
+  "errors.ORGANIZATION_TREE_INVALID.max_depth_exceeded": "The move would take the organization tree past its maximum depth of {maxDepth} levels. Move the branch higher up, or flatten part of it first.",
+  "errors.ORG_OWNER_DEPLETION": "This account is the organization's last active administrator, so it cannot be deleted, blocked or moved out. Give the administrator role to another member first."
+}

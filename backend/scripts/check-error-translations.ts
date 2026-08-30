@@ -234,6 +234,18 @@ const LANGUAGES = ['en', 'pl'] as const;
  * all arrive translated leaves this list where it found it, which is what the
  * sweep is for.
  *
+ * **MR 7 moved it down, 72 to 71, and that is the fourth answer and the one
+ * this list exists for.** Tier C's `organizations` took eight codes and wrote
+ * all eight as prose in its own new bundle. Five replaced a placeholder here
+ * and two already carried prose — but `ORG_OWNER_DEPLETION` had no sentence in
+ * either language and was an entry in the `_i18n` group below, so it **leaves**
+ * this list. Nothing about the code changed to allow that: it had three live
+ * raise sites in `customers` all along, each naming what it refuses (deleting,
+ * blocking or unassigning an organization's last administrator), and a reader —
+ * an operator on `/customers`. What it did not have was an owner who would
+ * notice, which is the whole of D-129. The one direction this list may move on
+ * its own is down, and this is it.
+ *
  * So the rule is unchanged and is worth stating in the form the sweep needs it:
  * never add an entry to make a build pass, and never carry a placeholder to
  * avoid adding one.
@@ -258,10 +270,13 @@ const LANGUAGES = ['en', 'pl'] as const;
  * Grouped as measured, so a module can drain its own block.
  */
 export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
-  // _i18n (8)
+  // _i18n (7) — `ORG_OWNER_DEPLETION` was the eighth until D-129's sweep, MR 7:
+  // it went to `organizations` with a sentence written in that module's own new
+  // bundle, so it left this list rather than moving group. Of the seven left,
+  // six are the platform's own `MODULE_*` vocabulary and the seventh is the one
+  // code the sweep leaves with two claimants (`d129-sweep.md` §2.4).
   'MODULE_ACTIVATION_PROTECTED', 'MODULE_DEPENDENCIES_ABSENT', 'MODULE_DEPENDENTS_PRESENT',
   'MODULE_NOT_DEACTIVATABLE', 'MODULE_NOT_FOUND', 'MODULE_SETTING_READ_ONLY',
-  'ORG_OWNER_DEPLETION',
   'PRICE_UNAVAILABLE',
   // addresses (1) — MR 5. `ADDRESS_NOT_OWNED` moved with it and is not here: it
   // carried a placeholder and arrives with prose in this module's own bundle.

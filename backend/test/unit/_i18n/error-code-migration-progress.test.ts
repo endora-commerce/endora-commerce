@@ -141,6 +141,15 @@ const MIGRATED_MODULES: readonly string[] = [
   'megamenu',
   'mfa',
   'orders',
+  // Tier C, MR 7 — the sweep's largest batch and the last of Tier C. Eight
+  // codes, of which two are raised by a module that does not own them
+  // (`ORG_OWNER_DEPLETION` by `customers`, `ORGANIZATION_SUSPENDED` by
+  // `orders`) and two are always tokened, so their four written sentences were
+  // unreachable and the three sub-keys an operator meets are new. The module
+  // creates its i18n bundle in the same change, all eight arrive with prose,
+  // and `UNTRANSLATED_ERROR_CODES` **shrinks** by one — `ORG_OWNER_DEPLETION`
+  // had no sentence anywhere and now has one.
+  'organizations',
   'pim_ergonode',
   // Minted after the chain was deleted (!1159), so the frozen capture holds none
   // of its three codes and `MINTED_ERROR_CODES` is what accounts for them. The

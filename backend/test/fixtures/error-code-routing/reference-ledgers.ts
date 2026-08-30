@@ -939,4 +939,111 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
       'sentence would have rendered cleanly and lost it. The raise now carries ' +
       '`{ role: role.code }` and both sentences name it.',
   },
+  // ---- Tier C, MR 7 of the sweep: `organizations` (8), the largest batch and
+  // the last of Tier C. The module creates its i18n bundle in the same change.
+  // Two of the eight are raised by a module that does not own them
+  // (`ORG_OWNER_DEPLETION` by `customers`, `ORGANIZATION_SUSPENDED` by
+  // `orders`), which is D-95.2's shape and D-186 §1's: the owner of a noun is
+  // not required to be the module that throws about it. Two more are the
+  // sweep's remaining always-tokened codes, so every sentence they had was
+  // unreachable and the sub-keys an operator meets are written here for the
+  // first time — D-190 is why the base pairs moved rather than being deleted.
+  CANNOT_REVOKE_LAST_ADMIN_INVITE: {
+    from: '_i18n',
+    to: 'organizations',
+    tier: 'T1',
+    reason:
+      "The noun is an organization invitation, this module's `organization_invitations` " +
+      'row, and the invariant is this module\'s too: an organization may not be left with ' +
+      'neither an active administrator nor a pending invitation for one. Raised once, in ' +
+      "this module's `services/invitation-service.ts`. Placeholder deleted, prose written " +
+      '(§5.4): the reader is an organization administrator revoking an invitation, and the ' +
+      'remedy — send another one first — is one sentence long.',
+  },
+  EMAIL_ALREADY_IN_ORGANIZATION: {
+    from: '_i18n',
+    to: 'organizations',
+    tier: 'T1',
+    reason:
+      'The noun is membership of an organization, which this module owns and invites into. ' +
+      'Two raise sites, both in `services/invitation-service.ts` and both untokened — the ' +
+      'address already belongs to a member, or a pending invitation for it already exists — ' +
+      'so the one sentence written here has to cover both, and says so. Placeholder ' +
+      'deleted, prose written (§5.4).',
+  },
+  EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION: {
+    from: '_i18n',
+    to: 'organizations',
+    tier: 'T1',
+    reason:
+      'The same noun one refusal over: the address is a member of a *different* ' +
+      "organization, which only this module can know. Raised once, in this module's " +
+      'invitation service. Placeholder deleted, prose written (§5.4) — the reader is the ' +
+      'same organization administrator, and the two codes are deliberately different ' +
+      'sentences because the remedy differs.',
+  },
+  ORGANIZATION_HAS_CHILDREN: {
+    from: '_i18n',
+    to: 'organizations',
+    tier: 'T1',
+    reason:
+      'The noun is an organization and its sub-organizations, this module\'s own tree over ' +
+      'the materialized `path` column; the refusal is backed by that table\'s ' +
+      '`parent_id ON DELETE RESTRICT`. Raised once, from this module\'s admin delete route, ' +
+      'and **always tokened** (`has_children`) — so the prose pair `_i18n` held rendered for ' +
+      'nobody. The base pair moved under D-190 because P1 asks its question at ' +
+      '`errors.<CODE>` and at no other key, and the `has_children` sentence an operator ' +
+      'actually reads is written here for the first time.',
+  },
+  ORGANIZATION_SUSPENDED: {
+    from: '_i18n',
+    to: 'organizations',
+    tier: 'T1',
+    reason:
+      "The noun is the organization's `status`, a column this module owns and moderates. " +
+      '`orders` raises it once, at placement, which makes that module the caller and not ' +
+      'the owner — D-95.2\'s shape for `INVOICE_NOT_READY` and D-186 §1\'s for `CUSTOMER_*`. ' +
+      'Homing it with its thrower would put a sentence about an organization\'s lifecycle in ' +
+      'a bundle that says nothing else about organizations. Placeholder deleted, prose ' +
+      'written (§5.4): the reader is a buyer who cannot check out.',
+  },
+  ORGANIZATION_TAX_ID_EXISTS: {
+    from: '_i18n',
+    to: 'organizations',
+    tier: 'T1',
+    reason:
+      "The noun is an organization's tax id — a unique constraint of this module's own " +
+      'table, raised twice in `services/registration-service.ts` (the pre-check and the ' +
+      'unique-violation catch behind it). Placeholder deleted, prose written (§5.4): the ' +
+      'reader is a company registering an account, and the remedy is to sign in or ask the ' +
+      'existing organization for an invitation.',
+  },
+  ORGANIZATION_TREE_INVALID: {
+    from: '_i18n',
+    to: 'organizations',
+    tier: 'T1',
+    reason:
+      "The noun is the organization tree, this module's `path` mechanism and its two " +
+      'invariants. Two raise sites, both in `services/organization-tree-service.ts` and ' +
+      '**both tokened** (`cycle`, `max_depth_exceeded`), so its prose pair was unreachable ' +
+      'as well; the base pair moved under D-190 and the two sub-keys are new. The depth ' +
+      'raise also needed !1181\'s repair before its sentence could be written — it ' +
+      'interpolated the bound into its English message and passed only the token, so a ' +
+      'translated sentence would have rendered cleanly and lost the number. It now carries ' +
+      '`maxDepth` beside the token, and never a second `code`.',
+  },
+  ORG_OWNER_DEPLETION: {
+    from: '_i18n',
+    to: 'organizations',
+    tier: 'T1',
+    reason:
+      "The noun is an organization's administrator, and the invariant — an organization may " +
+      'never be left with nobody able to manage it — is this module\'s, an organization ' +
+      'being the unit of tenancy. All three raise sites are in `customers` (delete, block, ' +
+      'unassign the last administrator), which makes that module the caller: the same ' +
+      'reading D-186 §1 took for `CUSTOMER_NOT_FOUND`, homed with the owner of the record ' +
+      'rather than with the service that throws about it. It had **no** sentence in either ' +
+      'language and was on `UNTRANSLATED_ERROR_CODES`; one was written here (§5.4), which is ' +
+      'the first time that ledger shrinks in this sweep.',
+  },
 };

@@ -100,8 +100,8 @@ export const manifest = defineModuleManifest({
    * bundle — `catalog`, `customer_accounts`, `orders`, `mfa`, `newsletter` and
    * `promotions` (MR 4) — then Tier B's four that had to create one:
    * `credit_limits`, `api_keys`, `addresses` and `webhooks` (MR 5), then Tier
-   * C's first module, `admin_roles` (MR 6). Do not move
-   * one in passing: a code that leaves this
+   * C's two modules, `admin_roles` (MR 6) and `organizations` (MR 7). Do not
+   * move one in passing: a code that leaves this
    * list without arriving in its owner's manifest routes nowhere, and the
    * collision rule makes a half-done move visible at composition rather than at
    * an operator.
@@ -143,47 +143,64 @@ export const manifest = defineModuleManifest({
    * placeholders and were rewritten as prose there, so nothing this batch
    * touches enters `UNTRANSLATED_ERROR_CODES`.
    *
+   * **MR 7 took the eight `organizations` codes and is the largest batch in the
+   * sweep**, the second and last of Tier C. Two of them are the sweep's other
+   * always-tokened codes: every raise of `ORGANIZATION_HAS_CHILDREN` passes
+   * `has_children` and every raise of `ORGANIZATION_TREE_INVALID` passes `cycle`
+   * or `max_depth_exceeded`, so all four sentences written here were unreachable
+   * — the base pair of each is what the check reads and what an operator never
+   * sees. D-190 rules that the base keys move rather than being deleted, and the
+   * sub-keys the raises actually ask for were written for the first time in
+   * `organizations`' own bundle. The other six arrive with prose too: five
+   * carried a placeholder here and one, `ORG_OWNER_DEPLETION`, had no sentence
+   * at all and was on `UNTRANSLATED_ERROR_CODES` under this module's group, so
+   * that ledger **shrinks** by one for the first time in the sweep.
+   *
    * **`tokens` is derived from the raise sites, not from the bundle**
-   * (runbook §5). Six of these codes put a `details.code` on the wire; five of
-   * them are declared below, and the sixth is the exception the design note
+   * (runbook §5). Four of these codes put a `details.code` on the wire; three of
+   * them are declared below, and the fourth is the exception the design note
    * says whoever migrates this block inherits: `VALIDATION_FAILED` declares
    * **no** tokens although 21 raise sites carry a `details.code`, because
    * `localizeErrorEnvelope` returns before translating that code
    * (`packages/platform/src/http/error-envelope.ts`) — its `details.code`
    * values are machine-readable discriminators on the wire and can never key an
    * `errors.VALIDATION_FAILED.<token>` sentence. Declaring them would declare
-   * sentences nothing can ever render. Ten tokens were declared here before MR
-   * 6 and eight are left; **two** of the eight have a sentence in both
-   * languages (`FORBIDDEN.organization_cannot_transact`,
-   * `.customer_outside_assignment_scope`) and six do not. Re-measured on this
-   * tree rather than adjusted: the sentence this replaces read *"four have …
-   * and five do not"*, which was nine of ten — `FORBIDDEN.reorder_disabled`
-   * arrived after it was written and was counted by neither side. A token a
-   * raise site can produce is a token whether or not anybody has written its
-   * sentence, and the missing ones become a Phase 4 finding rather than a
-   * silent absence.
+   * sentences nothing can ever render. Eight tokens were declared here before MR
+   * 7 and five are left; **two** of the five have a sentence in both languages
+   * (`FORBIDDEN.organization_cannot_transact`,
+   * `.customer_outside_assignment_scope`) and three do not. Re-measured on this
+   * tree on every batch rather than adjusted, which is what caught an earlier
+   * version of this sentence reading *"four have … and five do not"* over a
+   * list of ten: `FORBIDDEN.reorder_disabled` arrived after it was written and
+   * was counted by neither side. A token a raise site can produce is a token
+   * whether or not anybody has written its sentence, and the missing ones become
+   * a Phase 4 finding rather than a silent absence.
    *
-   * That count of seven is **true of this list and was not true when it was
-   * written**: `TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` was an eighth, putting
-   * the refused email's own registry code in `details.code`, and it left for
+   * That count is **true of this list and was not true when it was written**,
+   * which is why every batch re-derives it from the raise sites rather than
+   * decrementing it — MR 7 measured `details` at all 816 raises of the codes
+   * left here and found four. The sentence read *"seven"* once, and
+   * `TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` was an eighth, putting
+   * the refused email's own registry code in `details.code`, until it left for
    * `transactional_emails` in the sweep's MR 3. Its manifest says there why it
    * still declares no tokens — the set is the email registry's, not a fixed
-   * vocabulary — and the arithmetic here is only accidentally right as a
-   * result. Re-derive it from the raise sites if a code arrives or leaves. MR 4
+   * vocabulary. Re-derive this from the raise sites if a code arrives or
+   * leaves; do not adjust the number. MR 4
    * took twenty codes out of this list and moved none of the six: every one of
    * its raise sites was measured by balanced-paren extraction of the call's own
    * arguments, and not one passes a `details` object carrying a `code`. MR 5's
    * eleven were measured the same way, with the same answer. MR 6 is the first
    * batch that moves a tokened code, and the same scan is what found the token
    * set — `assigned` and `assigned_to_deleted`, at both of the two raise sites
-   * and at no other site in the tree.
+   * and at no other site in the tree. MR 7 moved the remaining two tokened
+   * codes, `ORGANIZATION_HAS_CHILDREN` and `ORGANIZATION_TREE_INVALID`, with
+   * their three tokens measured at all three raise sites the same way — and
+   * measured its other six as carrying no `details` at all, which is why they
+   * left with no `tokens` field.
    */
   errorCodes: [
-    { code: 'CANNOT_REVOKE_LAST_ADMIN_INVITE' },
     { code: 'CURRENT_PASSWORD_INVALID' },
-    { code: 'EMAIL_ALREADY_IN_ORGANIZATION' },
     { code: 'EMAIL_ALREADY_REGISTERED' },
-    { code: 'EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION' },
     {
       code: 'FORBIDDEN',
       tokens: [
@@ -203,11 +220,6 @@ export const manifest = defineModuleManifest({
     { code: 'MODULE_NOT_FOUND' },
     { code: 'MODULE_SETTING_READ_ONLY' },
     { code: 'NOT_FOUND' },
-    { code: 'ORGANIZATION_HAS_CHILDREN', tokens: ['has_children'] },
-    { code: 'ORGANIZATION_SUSPENDED' },
-    { code: 'ORGANIZATION_TAX_ID_EXISTS' },
-    { code: 'ORGANIZATION_TREE_INVALID', tokens: ['cycle', 'max_depth_exceeded'] },
-    { code: 'ORG_OWNER_DEPLETION' },
     { code: 'PRICE_UNAVAILABLE' },
     { code: 'RATE_LIMITED' },
     { code: 'TERMS_VERSION_STALE' },
