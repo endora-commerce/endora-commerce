@@ -1,24 +1,24 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { formatMoney } from '@/lib/money';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
+import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
 import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  Input,
+  Label,
+  PageHeader,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * CartDetail (feature 027 US6).
@@ -73,7 +73,7 @@ interface AuditRow {
   reason: string | null;
 }
 
-export function CartDetail(): ReactNode {
+export default function CartDetail(): ReactNode {
   const { id } = useParams<{ id: string }>();
   const t = useTranslation('carts');
   const [cart, setCart] = useState<AdminCartDetail | null>(null);

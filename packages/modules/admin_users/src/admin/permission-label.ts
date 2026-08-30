@@ -24,8 +24,8 @@
  * by the catalogue row's `module` field, which is a **display grouping** and is
  * `module_lifecycle` for a module whose id is `_lifecycle`.
  */
-import { resolve } from '@/i18n/resolver';
-import type { Bundle, SupportedAdminLanguage } from '@/i18n/types';
+import { resolve } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle, SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 
 /** The key `/admin-roles` builds for every catalogue row. */
 export const PERMISSION_LABEL_PREFIX = 'adminRoles.permission.';

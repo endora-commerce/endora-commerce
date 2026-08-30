@@ -32,6 +32,7 @@ import {
   Rss,
   Search,
   Settings,
+  ShieldCheck,
   ShoppingCart,
   Sparkles,
   Tag,
@@ -105,6 +106,9 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // name now, and this is the map that turns the name back into the same glyph
   // `AppShell.tsx` used to import directly.
   LineChart,
+  // Feature 091 (Phase 4, batch four) — the same, for `admin_roles`' sidebar
+  // entry and palette action.
+  ShieldCheck,
 };
 
 export function resolveIcon(name: string): LucideIcon {

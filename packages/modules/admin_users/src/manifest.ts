@@ -111,6 +111,42 @@ export const manifest = defineModuleManifest({
   // The label decides which repair applies: *"Impersonate customers"* reads as
   // a sentence about this module's own screen, so the code is shared rather
   // than replaced by one of this module's own.
+  /**
+   * This module's first i18n bundle and its first command-palette action —
+   * feature 091, Phase 4, batch four.
+   *
+   * The bundle exists because the sidebar entry moved into this package with
+   * the two screens and a nav declaration's `labelKey` is **module-relative**
+   * (R8): `appShell.nav.users` was one of `_i18n`'s and is
+   * `nav.adminUsers.label` here. It is a **flat** `{"a.b.c": "text"}` map at
+   * the **package root**, for the reason `admin_roles`' bundle records.
+   *
+   * The action pays one of the fifteen entries `specs/deferred-defects.md`
+   * still holds under *"Sixteen modules with an admin screen declare no
+   * command-palette action"*. `admin_users:manage` is the code every endpoint
+   * under `/api/v1/admin/admin-users` enforces, which is what
+   * `check:action-route-permissions` holds this declaration to.
+   *
+   * **There is exactly one action and it points at `/admin-users`, not at
+   * `/admin-roles`.** This module declares the roles editor's *route* — the
+   * screen's API is its own — but the roles *advertisement* is `admin_roles`',
+   * which ships the sidebar entry and the palette action for it. See
+   * `src/admin/index.ts` for the split and for why it is inert while both
+   * modules are locked.
+   */
+  i18n: { bundlesDir: 'i18n' },
+  actions: [
+    {
+      id: 'open-admin-users',
+      labelKey: 'actions.openAdminUsers.label',
+      descriptionKey: 'actions.openAdminUsers.description',
+      icon: 'Users',
+      targetRoute: '/admin-users',
+      requiredPermission: 'admin_users:manage',
+      keywords: ['admin', 'users', 'uzytkownicy', 'operators', 'operatorzy', 'staff', 'konta'],
+      weight: 200,
+    },
+  ],
   permissions: [{ code: 'customers:impersonate', label: 'Impersonate customers' }],
   // Feature 072/073 (Constitution XVII) — this module owns the admin login
   // route, the admin session and the impersonation flow. Switched off, nobody

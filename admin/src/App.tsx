@@ -2,7 +2,6 @@ import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType, type 
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
-import { AdminSecuritySettings } from './modules/mfa/AdminSecuritySettings.js';
 import { IdleLogout } from './components/IdleLogout.js';
 import { useAuth } from './lib/auth.js';
 import { TranslationProvider } from './i18n/TranslationProvider.js';
@@ -40,9 +39,6 @@ import { BlogTagListPage } from './modules/blog/pages/BlogTagListPage.js';
 import { RfqList } from './modules/quote_requests/RfqList.js';
 import { RfqCreatePage } from './modules/quote_requests/RfqCreatePage.js';
 import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
-import { AdminUsersPage } from './modules/admin_users/AdminUsersPage.js';
-import { AdminRolesPage } from './modules/admin_users/AdminRolesPage.js';
-import { AuditLogViewer } from './modules/audit_logs/AuditLogViewer.js';
 import { ProductsList } from './modules/catalog/ProductsList.js';
 import { ProductEditor } from './modules/catalog/ProductEditor.js';
 import { CategoriesTree } from './modules/catalog/CategoriesTree.js';
@@ -83,8 +79,6 @@ import { CustomFieldsPage } from './modules/custom_fields/CustomFieldsPage.js';
 import { ReturnDeliveryMethodsPage } from './modules/returns/ReturnDeliveryMethodsPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalfPage.js';
-import { CartsList } from './modules/carts/CartsList.js';
-import { CartDetail } from './modules/carts/CartDetail.js';
 import { InvoicesList } from './modules/invoices/InvoicesList.js';
 import { InvoiceDetail } from './modules/invoices/InvoiceDetail.js';
 import { InvoiceTemplatesPage } from './modules/invoices/templates/InvoiceTemplatesPage.js';
@@ -250,7 +244,6 @@ export function App(): ReactNode {
         <Routes>
           <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
-        <Route path="/security" element={<AdminSecuritySettings />} />
         <Route path="/catalog/products" element={<ProductsList />} />
         <Route path="/catalog/products/:id" element={<ProductEditor />} />
         <Route path="/catalog/categories" element={<CategoriesTree />} />
@@ -294,8 +287,6 @@ export function App(): ReactNode {
         <Route path="/newsletter/tags" element={<NewsletterTagsPage />} />
         <Route path="/newsletter/blocks" element={<NewsletterBlocksPage />} />
         <Route path="/newsletter/provider" element={<NewsletterProviderPage />} />
-        <Route path="/carts" element={<CartsList />} />
-        <Route path="/carts/:id" element={<CartDetail />} />
         <Route path="/invoices" element={<InvoicesList />} />
         <Route path="/invoices/templates" element={<InvoiceTemplatesPage />} />
         <Route path="/invoices/templates/:id" element={<InvoiceTemplateEditor />} />
@@ -367,9 +358,6 @@ export function App(): ReactNode {
         <Route path="/quote-requests/:id" element={<RfqDetail />} />
         <Route path="/comparisons" element={<ComparisonsListPage />} />
         <Route path="/comparisons/:id" element={<ComparisonDetailPage />} />
-        <Route path="/admin-users" element={<AdminUsersPage />} />
-        <Route path="/admin-roles" element={<AdminRolesPage />} />
-        <Route path="/audit-log" element={<AuditLogViewer />} />
         <Route path="/api-keys" element={<ApiKeysPage />} />
         <Route path="/webhooks" element={<WebhooksPage />} />
         <Route path="/seo" element={<SeoPage />} />

@@ -249,7 +249,17 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // not a sentence: putting it in a bundle would invite a translator to
   // translate a LinkedIn identifier.
   'packages/modules/linkedin_ads/src/admin/pages/ConversionMappingEditPage.tsx': 1,
-  'admin/src/modules/mfa/AdminSecuritySettings.tsx': 16,
+  // Feature 091, Phase 4 batch four: the screen moved into `mfa`'s package and
+  // the entry is **re-keyed**, not raised and not dropped — the same sixteen
+  // strings at a new address. This check's two-way ratchet reported both halves
+  // in one run again (unaccounted at the new key, over-baselined at the old
+  // one), which is what the ratchet is for. The debt itself is untouched and is
+  // real: `/security` is the signed-in admin's own two-factor screen and every
+  // one of its sixteen strings is English-only, so a Polish-speaking operator
+  // sets up their second factor in English. Translating them is a screen's
+  // worth of keys and belongs to whoever is repairing this screen, not to a
+  // batch whose subject is where the file lives.
+  'packages/modules/mfa/src/admin/pages/AdminSecuritySettings.tsx': 16,
   'admin/src/modules/newsletter/pages/AutomationBuilder.tsx': 6,
   'admin/src/modules/newsletter/pages/AutomationsPage.tsx': 4,
   'admin/src/modules/newsletter/pages/BlocksPage.tsx': 8,

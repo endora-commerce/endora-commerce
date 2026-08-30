@@ -1,0 +1,5 @@
+{
+  "nav.auditLog.label": "Audit log",
+  "actions.openAuditLog.label": "Audit log",
+  "actions.openAuditLog.description": "Who changed what, and when"
+}

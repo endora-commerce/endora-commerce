@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { formatMoney } from '@/lib/money';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
-import { Select } from '@/components/ui/select';
-import { ResponsiveTable } from '@/components/ResponsiveTable';
-import { useTranslation } from '@/i18n/useTranslation';
+import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  Label,
+  PageHeader,
+  Select,
+} from '@endora-commerce/admin-kit/ui';
+import { ResponsiveTable } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * CartsList (feature 027 US6).
@@ -57,7 +59,7 @@ const APPROVAL_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'wa
   rejected_by_org_admin: 'destructive',
 };
 
-export function CartsList(): ReactNode {
+export default function CartsList(): ReactNode {
   const t = useTranslation('carts');
   const [rows, setRows] = useState<AdminCartRow[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,0 +1,5 @@
+{
+  "nav.adminUsers.label": "Users",
+  "actions.openAdminUsers.label": "Admin users",
+  "actions.openAdminUsers.description": "Accounts that can sign in to the Admin UI"
+}

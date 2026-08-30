@@ -67,13 +67,47 @@
  * the run after them reads
  * `routes=139 nav=95 module-owned (routes=135 nav=92) over 47 modules`.
  *
+ * **`mfa`, `carts`, `audit_logs`, `admin_users` and `admin_roles` are the
+ * sixth through tenth, and the fourth batch of the drain** (feature 091, Phase
+ * 4). It is the **zero-drain** rung — none of the five carries a cross-module
+ * admin reach in either direction, and none has an entry in
+ * `admin-surface.ts`, so `check:module-boundary` reads the same numbers on both
+ * sides and that agreement is the measurement rather than a silence.
+ *
+ * The rung existed all along and the previous batches could not see it. Both of
+ * them rejected candidates on two criteria — a module contributing **no nav
+ * entry**, and a module declaring **`activation.nonDeactivatable`** — which
+ * `plan.md`'s two rulings measure as sound *pilot-evidence* criteria and wrong
+ * as *selection* criteria: applied as selection they exclude 22 of the 47
+ * remaining owners, and this check is then never deleted, which is SC-007 not
+ * happening. `admin/src/App.tsx`'s `ModuleRoute` gates **every** registry route
+ * on `useSurfaceVisibility`, so a nav-less module's off-state test drives the
+ * route — a stronger subject than the sidebar, being what an operator following
+ * a stale deep link meets — and a locked module is outside Constitution XVII
+ * item 6's population by the owner's own measurement in
+ * `specs/deferred-defects.md`, so its test asserts the permission axis it has
+ * and asserts the missing axis as a fact read from its manifest.
+ *
+ * **Both halves of the ratchet move, including the zeros.**
+ * `mfa: { routes: 1, nav: 0 }` and `admin_roles: { routes: 0, nav: 1 }` are
+ * removed like any other entry: a zero that stays zero is a passing assertion,
+ * not a missing one, which is the arithmetic the *"only half the ratchet would
+ * move"* objection had wrong. The run after them reads
+ * `routes=133 nav=92 module-owned (routes=129 nav=89) over 42 modules`.
+ *
  * Two attributions, deliberately different, because the tree disagrees about
  * one screen: a **route** belongs to the module whose surface directory
  * `App.tsx` imports its component from, and a **nav entry** belongs to the
  * `module` field it already carries — `/admin-roles` renders a component
  * `admin_users` holds while its sidebar row declares `module: 'admin_roles'`,
  * and forcing one attribution on both would lose whichever fact it did not
- * pick.
+ * pick. **Batch four moved that screen and kept the split**, which is
+ * `plan.md`'s open question 3 answered as it recommended: `admin_users`'
+ * package declares the `/admin-roles` route because the screen's API is its
+ * own, `admin_roles`' package declares the sidebar entry and the palette action
+ * because the advertisement is the roles capability's, and each says so in its
+ * own `src/admin/index.ts`. Both modules are `nonDeactivatable`, so it is inert
+ * today and stops being inert the day either is unlocked.
  *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
@@ -102,14 +136,10 @@ export const HOST_OWNER = ADMIN_HOST_OWNER;
 
 export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistrationCounts>> = {
   host: { routes: 4, nav: 3 },
-  admin_roles: { routes: 0, nav: 1 },
-  admin_users: { routes: 2, nav: 1 },
   api_keys: { routes: 1, nav: 2 },
   assets_library: { routes: 1, nav: 1 },
-  audit_logs: { routes: 1, nav: 1 },
   autopay: { routes: 1, nav: 0 },
   blog: { routes: 7, nav: 3 },
-  carts: { routes: 2, nav: 0 },
   catalog: { routes: 8, nav: 9 },
   cms: { routes: 11, nav: 4 },
   comparisons: { routes: 2, nav: 2 },
@@ -130,7 +160,6 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   invoices: { routes: 4, nav: 1 },
   ksef: { routes: 1, nav: 1 },
   megamenu: { routes: 2, nav: 1 },
-  mfa: { routes: 1, nav: 0 },
   newsletter: { routes: 11, nav: 9 },
   orders: { routes: 4, nav: 4 },
   organizations: { routes: 2, nav: 2 },

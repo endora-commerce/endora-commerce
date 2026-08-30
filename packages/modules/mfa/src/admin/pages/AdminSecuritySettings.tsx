@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ShieldCheck, ShieldAlert } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ApiError, apiClient } from '@/lib/api-client';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+} from '@endora-commerce/admin-kit/ui';
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
  * Admin self-service 2FA (feature 042, US2). Lets the signed-in admin enable
@@ -21,7 +29,7 @@ interface MfaStatus {
 
 const BASE = '/api/v1/admin/account/mfa';
 
-export function AdminSecuritySettings(): ReactNode {
+export default function AdminSecuritySettings(): ReactNode {
   const [status, setStatus] = useState<MfaStatus | null>(null);
   const [setup, setSetup] = useState<{ secret: string; otpauthUri: string } | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
