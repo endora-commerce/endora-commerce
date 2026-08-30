@@ -71,11 +71,30 @@
  * `ACTION_PERMISSION_DISAGREEMENTS` holds those three with the question that
  * would retire each.
  *
+ * ## The artefact this reads, and when it refuses to judge it
+ *
+ * The route half is source text, walked. The **manifest** half is imported, and
+ * a module that has become a workspace package resolves through its own
+ * `exports` map at its build output (D-164) — so an action edited in
+ * `packages/modules/<id>/src/manifest.ts` and not rebuilt is not the action
+ * this check sees. Measured three consecutive times on
+ * `specs/091-module-owned-admin-surfaces/`'s admin drain, most sharply on
+ * !1203, where a `requiredPermission` changed from `payu:read` to `payu:write`
+ * reported `findings=3 violations=0` and exit 0 before
+ * `pnpm --filter @endora-commerce/mod-payu run build`, and `findings=4
+ * violations=1` and exit 1 after it. So a run whose manifest artefact is older
+ * than the source it was emitted from **exits 2** and names the package: the
+ * tree is not in violation, this run could not see it. See
+ * `scripts/lib/emitted-freshness.ts`, where the derivation lives, and the
+ * `emitted-manifests` token on the `read:` line, which is how a clean run says
+ * which artefact it read.
+ *
  * Usage: `tsx scripts/check-action-route-permissions.ts [--list]`
  * Exit 0 = every action's declared code is the one its target enforces (or the
  * disagreement is ledgered); exit 1 = at least one is not, or a ledger entry is
- * stale; exit 2 = the scan read no route or no action, so a green would have
- * meant "not looking" (issue #113).
+ * stale; exit 2 = the scan read no route or no action, or the manifest artefact
+ * it read has been outrun by its source — a green would have meant "not
+ * looking" (issue #113).
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -91,7 +110,12 @@ import {
 } from './lib/module-population.js';
 import { ADMIN_LAYER_DIRECTORY } from './lib/ui-layer.js';
 import { requireModuleLayout } from './lib/module-roots.js';
-import { reportReadSize } from './lib/read-size.js';
+import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
+import {
+  checkEmittedFreshness,
+  emittingPackages,
+  refuseStaleEmittedArtefacts,
+} from './lib/emitted-freshness.js';
 
 
 /** Every admin API path starts here; nothing else is an admin surface. */
@@ -724,7 +748,20 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-async function loadActions(): Promise<ActionRecord[]> {
+/**
+ * The manifest half of the comparison, and **where each manifest came from**.
+ *
+ * The locations are returned alongside the actions because they are the answer
+ * to a question this check could not previously ask: a packaged module's
+ * manifest is imported by bare specifier and therefore read out of the
+ * package's build output, so an action edited in `src/manifest.ts` and not
+ * rebuilt is invisible here. See `scripts/lib/emitted-freshness.ts`.
+ */
+async function loadActions(): Promise<{
+  readonly actions: readonly ActionRecord[];
+  /** One per registered module: the location its manifest was imported from. */
+  readonly manifestLocations: readonly string[];
+}> {
   const { resolvedManifestEntries } = await import('../src/lifecycle/registered-manifests.js');
   const entries = await resolvedManifestEntries();
   const actions: ActionRecord[] = [];
@@ -740,7 +777,7 @@ async function loadActions(): Promise<ActionRecord[]> {
       });
     }
   }
-  return actions;
+  return { actions, manifestLocations: entries.map((entry) => entry.filePath) };
 }
 
 async function main(): Promise<void> {
@@ -794,7 +831,21 @@ async function main(): Promise<void> {
   // turn an exit 2 into an unhandled rejection.
   const { ConstantResolver } = await import('@endora-commerce/mod-admin-roles/backend');
   const resolver = new ConstantResolver();
-  const actions = await loadActions();
+  const { actions, manifestLocations } = await loadActions();
+
+  // The third floor, and the one the other two cannot see: the manifests above
+  // were **imported**, and a module that has become a workspace package
+  // resolves through its own `exports` map at its build output. So an author
+  // who edits `packages/modules/<id>/src/manifest.ts` and runs this check is
+  // answered about the previous build — measured three consecutive times on
+  // `specs/091-module-owned-admin-surfaces/`'s admin drain, and green every
+  // time. Exit 2 rather than 1: the tree is not in violation, this run could
+  // not see it (issue #113).
+  const freshness = checkEmittedFreshness({
+    read: manifestLocations,
+    packages: emittingPackages(layout.repoRoot),
+  });
+  refuseStaleEmittedArtefacts('[action-route-permissions]', freshness, layout.displayOf);
 
   const result = analyse({
     sources,
@@ -840,11 +891,27 @@ async function main(): Promise<void> {
   // the unit judged — one action, one declared permission, one target route —
   // so they are the `sites` number; the route index they are compared against
   // stays on the line below.
+  // Which artefact the manifest half came from is a fact this line owes its
+  // reader (issue #244): `files` counts the source text the route walk opened,
+  // and says nothing about the 60-odd manifests that were imported rather than
+  // walked. The token is omitted — not printed as `0/0`, which `read-size.ts`
+  // refuses as `no-expectation` — on a tree where every manifest was read from
+  // source, because then there is no emitted artefact to disclose.
+  const emittedManifests: readonly ReadCoverage[] =
+    freshness.emitted.length === 0
+      ? []
+      : [
+          {
+            source: 'emitted-manifests',
+            expected: freshness.emitted.length,
+            covered: freshness.compared.length,
+          },
+        ];
   reportReadSize({
     prefix: '[action-route-permissions]',
     files: sources.size,
     sites: actions.length,
-    coverage: [coverage],
+    coverage: [coverage, ...emittedManifests],
   });
   console.log(
     `[action-route-permissions] actions=${actions.length} admin-routes=${result.scan.routes.length} ` +

@@ -137,7 +137,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     run: { kind: 'tsx', path: 'scripts/check-action-route-permissions.ts', args: [] },
     files: 1536,
     sites: 54,
-    sources: ['manifest-index'],
+    // `emitted-manifests` is this check saying which artefact its manifest half
+    // came from: the manifests are imported rather than walked, and a packaged
+    // module's resolves at its build output. It is the disclosure half of the
+    // staleness refusal; see `scripts/lib/emitted-freshness.ts`.
+    sources: ['manifest-index', 'emitted-manifests'],
   },
   'backend/scripts/check-channel-resolution.ts': {
     prefix: '[channel-resolution]',
