@@ -466,6 +466,24 @@ export const ERROR_CODES = {
   PRICE_LIST_NOT_FOUND: 'PRICE_LIST_NOT_FOUND',
   /** A protected field path does not match the grammar (data-model.md §8). */
   PIM_ERGONODE_FIELD_PATH_INVALID: 'PIM_ERGONODE_FIELD_PATH_INVALID',
+
+  // Payments — the buyer's retry refusals (!1159). Three codes and not one,
+  // because the money term and the lifecycle term are orthogonal rather than
+  // alternative: an order can be unpaid and cancelled, or paid and open, so
+  // neither implies the other and a cancelled-but-unpaid buyer told "there is
+  // nothing to pay" is told something false.
+  /** The order owes nothing — already paid, deferred to credit, or refunded. */
+  PAYMENT_NOT_DUE: 'PAYMENT_NOT_DUE',
+  /** The order's lifecycle is over, so no payment can be started against it. */
+  PAYMENT_ORDER_CLOSED: 'PAYMENT_ORDER_CLOSED',
+  /**
+   * The money is still owed and the order is open; the shop cannot start a
+   * session because the method it was placed with is gone. Named for the
+   * adapter and not the method, because `PAYMENT_METHOD_*` is the family
+   * `payment_methods` would reach for and D-182 routes a contested code to
+   * neither claimant.
+   */
+  PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
