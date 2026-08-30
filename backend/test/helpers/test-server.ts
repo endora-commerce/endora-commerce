@@ -104,7 +104,7 @@ import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 // does, so a second way of building this map would be a second answer to "which
 // bundle holds this code's sentence" that only one of the two roots ever gives.
 import {
-  composeErrorTranslationTargets,
+  buildErrorTranslationTargets,
   describeErrorCodeCollisions,
 } from '@endora-commerce/mod-i18n/backend';
 // Type-only, and off the package's **source** rather than its `./backend`
@@ -919,12 +919,12 @@ export async function setupBackendServer(
   // refuses.
   const packageModuleEntries = await loadPackageModuleEntries(overlayEnv);
 
-  // Feature 090 Phase 2 — mirrors `composition.ts`: the error-code routing map,
+  // Feature 090 — mirrors `composition.ts`: the error-code routing map,
   // derived from the manifests this run resolved, with the collisions reported
   // out of the same call (D-100). A collision is a `warn` and never a refused
   // boot, here for the same reason as in production — the harness's job is to be
   // the composition production is.
-  const errorTranslation = composeErrorTranslationTargets(resolvedRegistry);
+  const errorTranslation = buildErrorTranslationTargets(resolvedRegistry);
   if (errorTranslation.collisions.length > 0) {
     platformLogger().warn(
       { collisions: errorTranslation.collisions.length },

@@ -370,15 +370,37 @@ const I18N_CHROME_MODULE_ID = '_i18n';
 const CORE_NAMESPACE = 'core';
 
 /**
- * `_i18n` -> `core`, written once.
+ * `_i18n` -> `core`, written once — and this is now the **only** statement of it
+ * in the tree (D-185, feature 090 Phase 4).
  *
- * The identity was spelled as the same ternary in two places here and, with its
- * own separately declared constant, three more times in
- * `backend/scripts/check-error-translations.ts` — five copies of one fact
- * across two files. Feature 090's platform-block migration needed a **third**
- * application in this file (`translate`, below), which is what made writing it
- * once worth the three lines: the check's three go with the prefix chain they
- * read, and this is then the only statement of the alias in the tree.
+ * It was eight applications over four files from four independently declared
+ * constants. Six of them read the prefix chain — three in
+ * `backend/scripts/check-error-translations.ts` and three in two of its tests —
+ * and went with it when Phase 4 deleted the chain; the two here had already been
+ * collapsed into this one function by the platform-block migration. Reaching one
+ * copy was therefore done by deleting, never by rewriting.
+ *
+ * **A module with a legacy client-facing namespace is what needs this, and there
+ * is exactly one.** `_i18n`'s bundle has answered to `core` since feature 019
+ * and the admin SPA calls it that at 132 sites in 81 files, so the module id the
+ * routing map carries and the namespace a client asks for are two different
+ * words for one bundle. **A module written today has no such history and needs
+ * nothing equivalent** — its id *is* its namespace, and copying this function
+ * into another module would invent a second name for a bundle that has one.
+ *
+ * It is deliberately on the **read** side. The merged bundle map is the payload
+ * `GET /api/v1/admin/i18n/bundles` serves, so aliasing it would change the wire
+ * shape and duplicate the largest bundle for every admin boot; and the
+ * placeholder `translate` returns is not aliased either, because both
+ * composition roots recognise a miss by comparing that placeholder to the id
+ * they passed in.
+ *
+ * Without it, 41 codes lose their sentences in **both** shipped languages,
+ * silently: `translate('_i18n', …)` would return the raw key and the roots would
+ * map a placeholder-equal result back to the raiser's untranslated English, with
+ * no log and no finding.
+ * `backend/test/integration/_i18n/platform-error-sentences.test.ts` is the
+ * assertion, and it is a Polish one on purpose — the degradation is English.
  */
 function exposedBundleNamespace(moduleId: string): string {
   return moduleId === I18N_CHROME_MODULE_ID ? CORE_NAMESPACE : moduleId;

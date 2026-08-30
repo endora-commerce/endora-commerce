@@ -72,8 +72,8 @@ export interface ErrorEnvelopeOptions {
    * kernel cannot compile without it, so a peer permitted to import a module is
    * a kernel importing modules with one extra hop, and in package terms it is
    * the cycle `kernel → http → mod-i18n → kernel`. Nothing was broken at
-   * runtime — `_i18n` is `nonDeactivatable` and the map is a static table — but
-   * F4's precondition is that packages are not cyclic.
+   * runtime — `_i18n` is `nonDeactivatable` and the map was then a static table
+   * — but F4's precondition is that packages are not cyclic.
    *
    * **It stays injected rather than moving into `@endora-commerce/contracts`**, for symmetry
    * with the two functions below and because a routing table frozen into a
@@ -85,9 +85,14 @@ export interface ErrorEnvelopeOptions {
    * reconciled into `translation_bundles` at boot and re-read on reload, and no
    * admin route edits one — so a deployment genuinely cannot change a sentence
    * by configuration. But re-routing a family through this map does not help:
-   * both composition roots pass the same static `ERROR_TRANSLATION_KEYS`, and a
-   * deployment cannot substitute it without editing a core file, which is the
-   * thing the overlay pattern exists to avoid. What a deployment *can* already
+   * both composition roots pass the same derivation, and a deployment cannot
+   * substitute it without editing a core file, which is the thing the overlay
+   * pattern exists to avoid. **A deployment's own overlay module can now change
+   * the answer honestly** (feature 090): the map is
+   * `buildErrorTranslationTargets` over the resolved manifest set, so an overlay
+   * module that declares a code owns it — and one that declares a code a core
+   * module already declares collides with it, and the code routes to neither.
+   * What a deployment *can* already
    * do, with no new machinery, is decorate the `adminI18nService` registration
    * from its own overlay module (`ctx.di.decorate`, D-103) and answer
    * differently for the keys it cares about — a lever that reaches every string

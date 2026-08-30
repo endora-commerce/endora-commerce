@@ -154,14 +154,16 @@ import { configuredMigrations } from './db/configured-migrations.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
 // kernel-obeying platform peer and may not name a module (D-52). A root may.
 //
-// Feature 090 Phase 2 — and the map is now *derived* rather than imported whole:
-// `composeErrorTranslationTargets` lays the modules' own `errorCodes`
-// declarations over the incumbent prefix chain. Which modules a deployment
-// resolved is a composition-root input, which is why the call is here and not
-// inside `_i18n` — the same sentence that puts `resolvedModuleRegistry` in this
-// file.
+// Feature 090 — and the map is *derived* rather than imported whole:
+// `buildErrorTranslationTargets` is nothing but the modules' own `errorCodes`
+// declarations. Which modules a deployment resolved is a composition-root
+// input, which is why the call is here and not inside `_i18n` — the same
+// sentence that puts `resolvedModuleRegistry` in this file. Phase 4 deleted the
+// prefix chain and the transitional composition that laid the declarations over
+// it; a code no registered manifest declares now routes nowhere and the
+// envelope answers the raising code's own English (§4.1).
 import {
-  composeErrorTranslationTargets,
+  buildErrorTranslationTargets,
   describeErrorCodeCollisions,
   type AdminI18nCradle,
 } from '@endora-commerce/mod-i18n/backend';
@@ -348,7 +350,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // the first request that renders wrong — and it is `warn` rather than a
   // refusal: §3.3's severity gradient reserves a refused boot for the
   // irreversible, and the blast radius of a contested code is one sentence.
-  const errorTranslation = composeErrorTranslationTargets(resolvedRegistry);
+  const errorTranslation = buildErrorTranslationTargets(resolvedRegistry);
   if (errorTranslation.collisions.length > 0) {
     platformLogger().warn(
       { collisions: errorTranslation.collisions.length },

@@ -5,18 +5,39 @@
  * Two predicates over one population, and they are two halves of a bijection
  * (feature 082, D-127):
  *
- *   **P1** every routed key exists. For each code in `ERROR_TRANSLATION_KEYS`,
- *          the bundle it routes to has `errors.<CODE>` in `en` and `pl`.
+ *   **P1** every routed key exists. For each code a registered module declares,
+ *          the declarer's bundle has `errors.<CODE>` in `en` and `pl`.
  *          Ledgered by `UNTRANSLATED_ERROR_CODES`, two-way, may only shrink.
  *   **P2** every written key is a routed key. For each `errors.*` key in any
- *          module bundle, the module holding it is the module the routing table
+ *          module bundle, the module holding it is the module the routing map
  *          points at. Three kinds — `unreachable`, `duplicate`, `no-code` — and
  *          **no ledger**, deliberately: every repair is a JSON line moved or
- *          deleted plus at most one routing line, so there is nothing to
+ *          deleted plus at most one declaration line, so there is nothing to
  *          schedule. Four candidate exceptions were tested and refuted
  *          (`specs/082-error-code-ownership/rulings.md` § 7). If a fifth is
  *          found, record it there and add the ledger then — do not ship an
  *          empty one.
+ *
+ * Two more landed with feature 090's Phase 4, when the routing stopped being a
+ * table this repository writes and became the modules' own declarations
+ * (`specs/090-module-owned-error-codes/contracts/error-translation-population.md`
+ * §2.2):
+ *
+ *   **P3** the platform's enumeration and the declarations agree, **in both
+ *          directions** (FR-031). `undeclared-enum-member` is a member of
+ *          `ERROR_CODES` no manifest declares; `undeclared-in-enum` is a code a
+ *          module in this repository declares that `ERROR_CODES` does not hold.
+ *          No ledger — every repair is one line in a manifest. It is also what
+ *          replaces the thing the deleted prefix chain provided for free: the
+ *          next `INVOICE_*` code nobody declares fails the build **naming the
+ *          code**, instead of routing silently to `core`.
+ *   **P4** no code is declared by two registered modules (`collision`). A
+ *          contested code routes to neither claimant and the operator reads the
+ *          raising code's own English, so it is never right to stand; no ledger,
+ *          because an entry could only license one. This predicate was
+ *          `test/unit/_i18n/error-code-declaration-uniqueness.test.ts` until
+ *          Phase 4 — that file's own header scheduled the handover, and shipping
+ *          both would be two readers of one derivation.
  *
  * P1 alone cannot see a sentence written in a bundle the table does not name,
  * and that is where issue #229's five defects lived: `carts` had finished
@@ -25,8 +46,8 @@
  * `Błąd: order not found.` standing over `Nie znaleziono zamówienia.`
  *
  * The envelope's `preSerialization` hook replaces an error's message wholesale
- * with the bundle string for `errors.<CODE>`, resolved in the module
- * `ERROR_TRANSLATION_KEYS` routes the code to. When that key is absent the
+ * with the bundle string for `errors.<CODE>`, resolved in the module that
+ * declares the code. When that key is absent the
  * operator is shown the raw code — `CREDENTIAL_TYPE_IMMUTABLE` rather than a
  * sentence — and nothing anywhere reports it. That is how `credentials` came to
  * ship eight perfectly good sentences under `error.<camelCase>` keys, written
@@ -61,20 +82,46 @@
  * modules' bundles produces between 2 and 41 such findings and never zero — so
  * the old behaviour was loud, and loudly wrong.
  *
- * So the walk is reconciled against a population **two static imports** derive
- * and the filesystem does not: the module ids the generated manifest index
- * registers, intersected with the module directories `ERROR_TRANSLATION_KEYS`
- * routes a code to. Every one of those must contribute a bundle file, or the
- * run exits 2 rather than reporting on a residue. A registered module the
- * routing table does **not** name is outside the floor by design — nothing
- * requires a module to ship an i18n bundle at all, and 45 of the 66 registered
- * modules ship one — which is the claim {@link unroutedModules} makes and the
- * only exclusion the floor takes.
+ * So the walk is reconciled against a population the generated manifest index
+ * derives and the filesystem does not: the module ids it registers, intersected
+ * with the modules that **declare** an error code. Every one of those must
+ * contribute a bundle file, or the run exits 2 rather than reporting on a
+ * residue. A registered module that declares no code is outside the floor by
+ * design — nothing requires a module to ship an i18n bundle at all, and 45 of
+ * the 66 registered modules ship one — which is the claim
+ * {@link nonDeclaringModules} makes and the only exclusion the floor takes.
+ *
+ * It was *"the module directories `ERROR_TRANSLATION_KEYS` routes a code to"*
+ * until Phase 4, and the two answers are the same eighteen modules on this tree
+ * — the migration was answer-preserving over all 289 codes. What changed is what
+ * the derivation reads: the manifests, per run, rather than a table with the
+ * platform's own `core` in it.
+ *
+ * **The second reconciliation is `ERROR_CODES`** (P3, issue #244's grammar).
+ * `sources` prints `error-codes:<accounted>/<enumerated>`, where a member is
+ * accounted for by being declared **or** by being reported as
+ * `undeclared-enum-member`. Two independent artefacts — the published
+ * enumeration and the committed manifests — so it is a real corroboration and
+ * not the same number twice; and a member that nobody declares stays a
+ * *finding* that names the code rather than becoming a short walk, because
+ * "nobody declares `NOT_FOUND`" is a defect to repair and a refusal that names
+ * no code sends its reader nowhere. The token can only fall short if the
+ * reconciliation stopped iterating the enumeration, which is this population's
+ * #215.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import {
+  buildErrorTranslationTargets,
+  describeErrorCodeCollisions,
+  type ErrorCodeCollision,
+} from '@endora-commerce/mod-i18n/backend';
+import {
+  loadManifestErrorCodes,
+  type ManifestErrorCodeDeclaration,
+} from './lib/manifest-error-codes.js';
 import {
   loadRegisteredModuleIds,
   refuseVacuousModulePopulation,
@@ -97,12 +144,6 @@ export type ModuleDirectories = ReadonlyMap<string, string>;
 const LANGUAGES = ['en', 'pl'] as const;
 
 /**
- * `ERROR_TRANSLATION_KEYS` names the owning module; `core` is not a directory.
- * The platform-wide bundle is `_i18n`'s own.
- */
-const CORE_BUNDLE_MODULE = '_i18n';
-
-/**
  * Codes with no sentence in either language, first measured on 2026-08-16.
  *
  * They are listed rather than swept because writing a sentence in two languages
@@ -115,21 +156,25 @@ const CORE_BUNDLE_MODULE = '_i18n';
  * rather than dropped because the placeholder story is the reason this ledger
  * exists at all.)
  *
- * **Read the `core` block as "unrouted", not "owned by the kernel."** Sixty-one
- * of these reach `core` by falling off the end of `moduleIdForErrorCode`, which
- * matches on code prefixes and has no rule for them — `KSEF_*` and
- * `PIM_ERGONODE_*` plainly belong to their modules. So draining a block usually
- * means two edits: a routing rule, and the sentences in the module's own bundle.
- * The routing gap is the reason the sentences went missing unnoticed, because a
- * code routed to `core` looks like somebody else's problem.
+ * **Read the `_i18n` block as "declared by the platform's own module", not
+ * "owned by the kernel."** Fifty-nine of these sit in the platform bundle
+ * because the deleted prefix chain had no rule for them and its last line was
+ * `return 'core'`; feature 090's Phase 3 declared them where the chain answered,
+ * verbatim, because an answer-preserving migration and a re-routing sweep in one
+ * change is unreviewable (`contracts/error-code-declaration.md` §6.5). `KSEF_*`
+ * and `PIM_ERGONODE_*` plainly belong to their modules, and moving them is
+ * D-129's scheduled sweep — 68 codes over 17 modules, measured in
+ * `specs/090-module-owned-error-codes/core-block-home.md` §1.3. Draining a block
+ * therefore still means two edits: the declaration moves to the owning module's
+ * manifest, and the sentences move to its bundle.
  *
  * `MFA_*` is the worked example, and it took both edits and two issues: #194
- * added the routing rule, #223 the nine sentences in `mfa`'s own bundle. In
- * between, the family was routed correctly and still untranslated, and this
- * ledger read exactly as it had before — which is the thing to notice. Nothing
- * *in this list* distinguishes "no sentence written yet" from "no sentence could
- * ever have been found", so a code listed under `core` says nothing about
- * whether its bundle is reachable at all.
+ * routed the family to `mfa`, #223 wrote the nine sentences in `mfa`'s own
+ * bundle. In between, the family was routed correctly and still untranslated,
+ * and this ledger read exactly as it had before — which is the thing to notice.
+ * Nothing *in this list* distinguishes "no sentence written yet" from "no
+ * sentence could ever have been found", so a code listed under `_i18n` says
+ * nothing about whether its bundle is reachable at all.
  *
  * **P2 is what distinguishes them now**, and it is not a ledger. Two entries
  * that stood here until issue #231 were the second kind — `CART_COUPON_REJECTED`
@@ -143,7 +188,7 @@ const CORE_BUNDLE_MODULE = '_i18n';
  * Grouped as measured, so a module can drain its own block.
  */
 export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
-  // core (59)
+  // _i18n (59)
   'ACCOUNT_BLOCKED', 'API_KEY_CHANNEL_MISMATCH', 'API_KEY_NOT_BOUND',
   'ASSISTANT_DISABLED', 'ASSISTANT_NOT_CONFIGURED', 'BULK_TOO_LARGE',
   'CUSTOMER_ADDRESS_NOT_FOUND',
@@ -187,23 +232,56 @@ export interface ErrorTranslationTarget {
 
 /**
  * What the analysis reads, injected so the rule's own test can drive it red on a
- * routing table the tree does not contain. Defaults are the real ones, so the
- * CLI and the test share one implementation.
+ * tree this repository does not contain. Every member enters at the top of the
+ * analysis (issue #130): none of them is a value the check would otherwise
+ * compute for itself.
  */
 export interface TranslationInput {
+  /**
+   * P1 and P2: where each declared code's sentence lives — the `targets` half of
+   * `buildErrorTranslationTargets`, keyed by code.
+   */
   readonly keys: Readonly<Record<string, ErrorTranslationTarget>>;
+  /**
+   * P4: the codes more than one registered module declares, from the **same**
+   * call that produced {@link TranslationInput.keys}.
+   *
+   * One derivation, so the routing and the report cannot come to disagree about
+   * which codes are contested (D-100). A contested code is absent from `keys`,
+   * which is why the report has to travel beside it rather than be recomputed
+   * from it — from `keys` alone a contested code is indistinguishable from one
+   * nobody declared.
+   */
+  readonly collisions: readonly ErrorCodeCollision[];
+  /**
+   * P3's reference side: the platform's published vocabulary, `ERROR_CODES`.
+   *
+   * Injected rather than imported inside the analysis so a proof can hand the
+   * reconciliation an enumeration the tree does not have — and so the "the
+   * enumeration came back empty" refusal is reachable at all.
+   */
+  readonly enumeratedCodes: readonly string[];
   /** P1: the bundle for `moduleId` in `language`, as a flat key → value map. */
   readonly readBundle: (moduleId: string, language: string) => Record<string, unknown>;
   /**
    * P2: every `errors.*` key written anywhere, with the bundle that holds it.
    *
    * A separate member because `readBundle(moduleId, language)` can only read the
-   * bundle the routing table names, and P2's whole question is about the bundles
-   * it does not name. `moduleId` here is the **directory** — `_i18n`, never
-   * `core`; the rename is applied to the table's answer, which is the only place
-   * it means anything.
+   * bundle the routing map names, and P2's whole question is about the bundles
+   * it does not name.
    */
   readonly listBundleKeys: () => Iterable<BundleKey>;
+}
+
+/** Which way the enumeration and the declarations disagree (P3, FR-031). */
+export type ReconciliationFindingKind = 'undeclared-enum-member' | 'undeclared-in-enum';
+
+export interface ReconciliationFinding {
+  readonly code: string;
+  readonly kind: ReconciliationFindingKind;
+  /** The declaring module, for `undeclared-in-enum`; `null` the other way. */
+  readonly moduleId: string | null;
+  readonly repair: string;
 }
 
 /** One `errors.*` key as it is written on disk. */
@@ -220,46 +298,49 @@ export interface SentenceFinding extends BundleKey {
   /** The base code, with any `.<token>` suffix resolved away. */
   readonly code: string;
   readonly kind: SentenceFindingKind;
-  /** The directory the routing table points at, or `null` for `no-code`. */
+  /** The directory the routing map points at, or `null` for `no-code`. */
   readonly routedModuleId: string | null;
   readonly repair: string;
 }
 
 /**
- * The module **directories** the routing table names — `core` resolved to the
- * bundle that actually holds it.
+ * The module **directories** the routing map names.
  *
- * These are the bundles P1 reads, so they are the ones a run has to have
- * opened. Derived on every run from the table itself, never written down: a
- * module that stops routing a code leaves this set in the same run (D-100).
+ * These are the bundles P1 reads, so they are the ones a run has to have opened.
+ * Derived on every run from the map itself, never written down: a module that
+ * stops declaring a code leaves this set in the same run (D-100).
+ *
+ * **There is no rename left to apply.** It carried `core` -> `_i18n` until
+ * Phase 4, because the prefix chain answered a bundle *namespace* where every
+ * other answer was a module id. The map is now the modules' own declarations, so
+ * every `moduleId` in it is a registered module and `core` is produced by
+ * nothing. The one surviving statement of that identity is on the resolver's
+ * read side, in `_i18n`'s own `i18n-service.ts` (D-185) — a client asks for
+ * `core` because the admin SPA has called the bundle that since feature 019, and
+ * no other module has a legacy namespace.
  */
-export function routedBundleDirectories(
-  keys: Readonly<Record<string, ErrorTranslationTarget>> = ERROR_TRANSLATION_KEYS,
+export function declaringBundleDirectories(
+  keys: Readonly<Record<string, ErrorTranslationTarget>>,
 ): string[] {
-  const directories = new Set(
-    Object.values(keys).map((target) =>
-      target.moduleId === 'core' ? CORE_BUNDLE_MODULE : target.moduleId,
-    ),
-  );
-  return [...directories].sort();
+  return [...new Set(Object.values(keys).map((target) => target.moduleId))].sort();
 }
 
 /**
  * Registered modules the population floor does not ask for — the complement of
- * {@link routedBundleDirectories} inside the registered set.
+ * {@link declaringBundleDirectories} inside the registered set.
  *
  * This is the check's one exclusion claim, and it is a claim rather than a
- * convenience: a module that routes no error code is not required to ship an
+ * convenience: a module that declares no error code is not required to ship an
  * i18n bundle, and most do not carry an `errors.*` key even when they ship one.
  * Asking every registered module for a bundle would make the floor a list of
  * twenty exceptions, which is a floor nobody can read.
  */
-export function unroutedModules(
+export function nonDeclaringModules(
   keys: Readonly<Record<string, ErrorTranslationTarget>>,
   registered: readonly string[],
 ): string[] {
-  const routed = new Set(routedBundleDirectories(keys));
-  return registered.filter((id) => !routed.has(id));
+  const declaring = new Set(declaringBundleDirectories(keys));
+  return registered.filter((id) => !declaring.has(id));
 }
 
 function bundlePath(
@@ -267,7 +348,7 @@ function bundlePath(
   moduleId: string,
   language: string,
 ): string | null {
-  const dir = directories.get(moduleId === 'core' ? CORE_BUNDLE_MODULE : moduleId);
+  const dir = directories.get(moduleId);
   return dir === undefined ? null : join(dir, 'i18n', `${language}.json`);
 }
 
@@ -326,28 +407,99 @@ export function diskBundleKeyWalker(
 }
 
 /**
- * The tree's own input, over the layout's module directories.
+ * The tree's own input, over the layout's module directories and the manifests
+ * the generated index registers.
  *
  * Async since feature 080's T040a, because "where does module `x` keep its
- * bundle" is now a question about the workspace rather than about one path.
- * Every caller that means *this repository* — the CLI and the tree tests —
- * goes through it, so there is one derivation and not a default beside it.
+ * bundle" is now a question about the workspace rather than about one path —
+ * and since Phase 4 for a second reason: "which module owns code `x`" is a
+ * question about the manifests rather than about a static table. Every caller
+ * that means *this repository* — the CLI and the tree tests — goes through it,
+ * so there is one derivation and not a default beside it.
  */
 export async function treeTranslationInput(): Promise<TranslationInput> {
   const layout = await resolveModuleLayout();
-  return translationInputFor(layout.moduleDirectories);
+  const declarations = await loadManifestErrorCodes(layout.manifestIndexPath);
+  return translationInputFor(declarations, layout.moduleDirectories);
 }
 
-/** The same input over a given set of module directories. */
-export function translationInputFor(directories: ModuleDirectories): TranslationInput {
+/**
+ * The same input over a given set of declarations and module directories.
+ *
+ * The routing is derived here, by the **same** function the composition roots
+ * call, so the gate and the running platform cannot come to disagree about where
+ * a sentence is looked for. `collisions` travels out of that one call for the
+ * same reason (D-100).
+ */
+export function translationInputFor(
+  declarations: readonly ManifestErrorCodeDeclaration[],
+  directories: ModuleDirectories,
+  enumeratedCodes: readonly string[] = Object.values(ERROR_CODES),
+): TranslationInput {
+  const { targets, collisions } = buildErrorTranslationTargets(declarations);
   return {
-    keys: ERROR_TRANSLATION_KEYS,
+    keys: targets,
+    collisions,
+    enumeratedCodes,
     readBundle: diskBundleReader(directories),
     listBundleKeys: diskBundleKeyWalker(directories),
   };
 }
 
-export function findUntranslatedErrorCodes(input: TranslationInput): Finding[] {
+/**
+ * P3 — the platform's enumeration and the modules' declarations, reconciled in
+ * both directions (FR-031).
+ *
+ * A **contested** code counts as declared: it is P4's finding, and reporting it
+ * here as well would send its author to write a declaration that already exists
+ * twice.
+ *
+ * This is what replaces the one thing the deleted prefix chain gave for free.
+ * The chain's last line was `return 'core'`, so a new code nobody thought about
+ * routed silently to the platform bundle and rendered as a raw code forever; the
+ * derivation has no fall-through (§4.1), so the same code now fails the build
+ * with its own name in the message.
+ */
+export function reconcileEnumeration(
+  input: Pick<TranslationInput, 'keys' | 'collisions' | 'enumeratedCodes'>,
+): ReconciliationFinding[] {
+  const declared = new Map<string, string | null>(
+    Object.entries(input.keys).map(([code, target]) => [code, target.moduleId]),
+  );
+  for (const collision of input.collisions) declared.set(collision.code, null);
+
+  const enumerated = new Set(input.enumeratedCodes);
+  const findings: ReconciliationFinding[] = [];
+  for (const code of input.enumeratedCodes) {
+    if (declared.has(code)) continue;
+    findings.push({
+      code,
+      kind: 'undeclared-enum-member',
+      moduleId: null,
+      repair:
+        'ERROR_CODES holds it and no manifest declares it, so it routes nowhere and the ' +
+        "operator reads the raising code's own English — add { code: '" +
+        `${code}' } to the errorCodes of the module that owns it`,
+    });
+  }
+  for (const [code, moduleId] of declared) {
+    if (enumerated.has(code)) continue;
+    findings.push({
+      code,
+      kind: 'undeclared-in-enum',
+      moduleId,
+      repair:
+        `${moduleId ?? 'more than one module'} declares it and ERROR_CODES does not hold ` +
+        'it — a module this repository ships declares out of the platform vocabulary ' +
+        '(FR-043), so add it to packages/contracts/src/errors.ts or drop the declaration',
+    });
+  }
+  return findings.sort((a, b) => a.kind.localeCompare(b.kind) || a.code.localeCompare(b.code));
+}
+
+export function findUntranslatedErrorCodes(
+  input: Pick<TranslationInput, 'keys' | 'readBundle'>,
+): Finding[] {
   const read = input.readBundle;
 
   const findings: Finding[] = [];
@@ -374,11 +526,15 @@ const ERROR_KEY = /^errors\.([A-Z][A-Z0-9_]*)(?:\.([a-z][a-z0-9_]*))?$/;
 /**
  * P2 — every written key is a routed key.
  *
- * The comparison is between **directories**: the walk yields `_i18n`, and the
- * routing table's `core` is mapped onto it here rather than in the walk, because
- * `core` is a routing answer and never a place on disk.
+ * The comparison is between **directories**, and since Phase 4 that is a plain
+ * equality: the walk yields `_i18n` and the routing map says `_i18n`, because a
+ * declaration is keyed on a module id. It used to map the table's `core` onto
+ * the directory here — one of the three copies of that identity the chain's
+ * deletion took with it.
  */
-export function findUnreachableSentences(input: TranslationInput): SentenceFinding[] {
+export function findUnreachableSentences(
+  input: Pick<TranslationInput, 'keys' | 'readBundle' | 'listBundleKeys'>,
+): SentenceFinding[] {
   const findings: SentenceFinding[] = [];
   for (const written of input.listBundleKeys()) {
     const match = ERROR_KEY.exec(written.key);
@@ -395,7 +551,7 @@ export function findUnreachableSentences(input: TranslationInput): SentenceFindi
       });
       continue;
     }
-    const routedModuleId = target.moduleId === 'core' ? CORE_BUNDLE_MODULE : target.moduleId;
+    const routedModuleId = target.moduleId;
     if (routedModuleId === written.moduleId) continue;
 
     const routedHasIt =
@@ -425,8 +581,22 @@ export interface AnalysisResult {
   readonly stale: readonly string[];
   /** P2 findings — no ledger, so every one of these fails the build. */
   readonly sentences: readonly SentenceFinding[];
+  /** P3 findings — the two directions of the enumeration reconciliation. */
+  readonly reconciliations: readonly ReconciliationFinding[];
+  /** P4 findings — a code more than one registered module declares. */
+  readonly collisions: readonly ErrorCodeCollision[];
   /** What the bundle walk actually read, so a vacuous pass has a name. */
   readonly keysWalked: readonly BundleKey[];
+  /**
+   * Enumerated codes this run **accounted for** — declared, or reported as
+   * `undeclared-enum-member`.
+   *
+   * The `sources=error-codes:<this>/<enumerated>` half of the read line. It can
+   * only fall short of the enumeration if the reconciliation stopped iterating
+   * it, which is #215 over this population; an undeclared member is a finding
+   * that names the code, never a short walk (see the header).
+   */
+  readonly enumeratedCodesAccountedFor: number;
   readonly exitCode: 0 | 1 | 2;
   readonly summary: string;
 }
@@ -446,23 +616,57 @@ export function analyseErrorTranslations(
   const stale = [...ledger].filter((code) => !found.has(code)).sort();
   const keysWalked = [...input.listBundleKeys()];
   const sentences = findUnreachableSentences(input);
+  const reconciliations = reconcileEnumeration(input);
+  const collisions = input.collisions;
   const total = Object.keys(input.keys).length;
+  const declaredCodes = total + collisions.length;
+  // The `sources=error-codes:` half of the read line, as two real counts rather
+  // than one number restated: enumerated members the manifests declare, plus
+  // enumerated members this run **reported** as undeclared. Their sum is the
+  // whole enumeration on any run where the reconciliation went over all of it,
+  // and falls short exactly when it did not — which is #215 for this
+  // population. An undeclared member is deliberately not a shortfall: it is a
+  // finding that names the code (FR-031), and a refusal naming no code sends
+  // its reader nowhere.
+  const contestedCodes = new Set(collisions.map((collision) => collision.code));
+  const declaredEnumMembers = input.enumeratedCodes.filter(
+    (code) => code in input.keys || contestedCodes.has(code),
+  ).length;
+  const enumeratedCodesAccountedFor =
+    declaredEnumMembers +
+    reconciliations.filter((finding) => finding.kind === 'undeclared-enum-member').length;
+  const empty = {
+    findings, unledgered, stale, sentences, reconciliations, collisions, keysWalked,
+    enumeratedCodesAccountedFor,
+  };
 
-  // Two vacuity guards, independent on purpose (§ 3.3). The routing table is a
-  // static import and the bundles are a filesystem walk, so either can come
-  // back empty while the other is full; a single guard over one of them lets
-  // the other report a clean tree while looking at nothing (issue #113).
-  if (total === 0) {
+  // Three vacuity guards, independent on purpose (§2.3). The declarations, the
+  // enumeration and the bundles are three different reads: any one can come
+  // back empty while the others are full, and a single guard over one of them
+  // lets the others report a clean tree while looking at nothing (issue #113).
+  //
+  // The first counts a **contested** code as declared. "No manifest declares
+  // anything" is the state this guard exists for; a platform whose every
+  // declaration collided has declarations, and P4 is what says so.
+  if (declaredCodes === 0) {
     return {
-      findings, unledgered, stale, sentences, keysWalked, exitCode: 2,
+      ...empty, exitCode: 2,
       summary:
-        '[error-translations] ERROR_TRANSLATION_KEYS routes no code — ' +
+        '[error-translations] no registered manifest declares an error code — ' +
         'refusing to report a vacuous pass',
+    };
+  }
+  if (input.enumeratedCodes.length === 0) {
+    return {
+      ...empty, exitCode: 2,
+      summary:
+        '[error-translations] ERROR_CODES enumerates no code, so the two-way ' +
+        'reconciliation compares against nothing — refusing to report a vacuous pass',
     };
   }
   if (keysWalked.length === 0) {
     return {
-      findings, unledgered, stale, sentences, keysWalked, exitCode: 2,
+      ...empty, exitCode: 2,
       summary:
         '[error-translations] the bundle walk read no errors.* key — ' +
         'refusing to report a vacuous pass',
@@ -471,19 +675,27 @@ export function analyseErrorTranslations(
 
   const byKind = (kind: SentenceFindingKind): number =>
     sentences.filter((f) => f.kind === kind).length;
+  const byReconciliation = (kind: ReconciliationFindingKind): number =>
+    reconciliations.filter((f) => f.kind === kind).length;
   return {
-    findings,
-    unledgered,
-    stale,
-    sentences,
-    keysWalked,
-    exitCode: unledgered.length > 0 || stale.length > 0 || sentences.length > 0 ? 1 : 0,
+    ...empty,
+    exitCode:
+      unledgered.length > 0 ||
+      stale.length > 0 ||
+      sentences.length > 0 ||
+      reconciliations.length > 0 ||
+      collisions.length > 0
+        ? 1
+        : 0,
     summary:
       `[error-translations] codes=${total} translated=${total - findings.length} ` +
       `violations=${unledgered.length} ledgered=${findings.length - unledgered.length} ` +
       `ledger-size=${ledger.size} stale=${stale.length} ` +
       `written=${keysWalked.length} unreachable=${byKind('unreachable')} ` +
-      `duplicate=${byKind('duplicate')} noCode=${byKind('no-code')}`,
+      `duplicate=${byKind('duplicate')} noCode=${byKind('no-code')} ` +
+      `undeclaredEnumMember=${byReconciliation('undeclared-enum-member')} ` +
+      `undeclaredInEnum=${byReconciliation('undeclared-in-enum')} ` +
+      `collision=${collisions.length}`,
   };
 }
 
@@ -518,40 +730,60 @@ async function main(): Promise<void> {
   // than two derivations: the ids are needed *here* to compute the exclusion,
   // and the shared guard is the only place the refusal is written.
   let registered: readonly string[];
+  let declarations: readonly ManifestErrorCodeDeclaration[];
   try {
     registered = await loadRegisteredModuleIds(layout.manifestIndexPath);
+    declarations = await loadManifestErrorCodes(layout.manifestIndexPath);
   } catch (error: unknown) {
     console.error(
       `[error-translations] the module index at ${layout.manifestIndexPath} could not be read ` +
-        `(${String(error)}) — the routed bundles are derived from it, so there is nothing ` +
-        'to compare the walk against; refusing to report a vacuous pass',
+        `(${String(error)}) — both the routing map and the bundles it names are derived from ` +
+        'it, so there is nothing to compare the walk against; refusing to report a vacuous pass',
     );
+    process.exit(2);
+  }
+  const input = translationInputFor(declarations, layout.moduleDirectories);
+  // The floor's exclusion is "modules that declare no code", so an empty
+  // routing map excludes **everything** and switches the floor off — a check
+  // reporting on a residue while looking like a normal run. So the declaration
+  // guard is asked first and separately, and the analysis asks it again over
+  // the same input, which is where a red proof can enter it.
+  if (Object.keys(input.keys).length + input.collisions.length === 0) {
+    console.error(analyseErrorTranslations(input).summary);
     process.exit(2);
   }
   const coverage = await refuseVacuousModulePopulation({
     prefix: '[error-translations]',
     manifestIndexPath: layout.manifestIndexPath,
     files,
-    excluded: unroutedModules(ERROR_TRANSLATION_KEYS, registered),
+    excluded: nonDeclaringModules(input.keys, registered),
     moduleIdOf: layout.moduleIdOfPath,
   });
 
-  const result = analyseErrorTranslations(translationInputFor(layout.moduleDirectories));
+  const result = analyseErrorTranslations(input);
   if (result.exitCode === 2) {
     console.error(result.summary);
     process.exit(2);
   }
   // What was read, beside what was found (issue #244). `sites` is the union of
-  // the two predicates' units — the routed codes P1 judges and the written
+  // the predicates' units — the declared codes P1 and P3 judge and the written
   // `errors.*` keys P2 walks — because either population can empty while the
-  // other is full, which is the reason the two vacuity guards above are
-  // independent in the first place. `sources` is the reconciliation the floor
-  // just enforced: the routed modules, out of the registered set.
+  // other is full, which is the reason the vacuity guards above are independent
+  // in the first place. `sources` carries both reconciliations: the floor this
+  // run just enforced (the declaring modules, out of the registered set) and the
+  // platform's own enumeration against those declarations.
   reportReadSize({
     prefix: '[error-translations]',
     files: files.length,
-    sites: Object.keys(ERROR_TRANSLATION_KEYS).length + result.keysWalked.length,
-    coverage: [coverage],
+    sites: Object.keys(input.keys).length + result.keysWalked.length,
+    coverage: [
+      coverage,
+      {
+        source: 'error-codes',
+        expected: input.enumeratedCodes.length,
+        covered: result.enumeratedCodesAccountedFor,
+      },
+    ],
   });
   console.log(result.summary);
 
@@ -575,9 +807,9 @@ async function main(): Promise<void> {
 
   if (result.sentences.length > 0) {
     console.error(
-      '\nThese sentences are written where the routing table does not look, so ' +
+      '\nThese sentences are written where the routing map does not look, so ' +
         'nothing reads them. There is no ledger for this — every repair is a ' +
-        'JSON line moved or deleted, plus at most one routing line:',
+        'JSON line moved or deleted, plus at most one declaration line:',
     );
     for (const f of result.sentences) {
       const routed = f.routedModuleId ?? 'nothing';
@@ -586,6 +818,28 @@ async function main(): Promise<void> {
           `(routed: ${routed}) — ${f.repair}`,
       );
     }
+  }
+
+  if (result.reconciliations.length > 0) {
+    console.error(
+      '\nERROR_CODES and the modules\' declarations disagree. The prefix chain used to ' +
+        'absorb this by answering `core` for anything it had no rule for; there is no ' +
+        'fall-through any more, so a code on either side of this list routes nowhere ' +
+        '(FR-031). There is no ledger — every repair is one line in a manifest:',
+    );
+    for (const f of result.reconciliations) {
+      console.error(`  - [${f.kind}] ${f.code} — ${f.repair}`);
+    }
+  }
+
+  if (result.collisions.length > 0) {
+    console.error(
+      '\nTwo modules this repository ships claim the same error code. At runtime it ' +
+        "would route to neither and the operator would read the raising code's own " +
+        'English. One of them has to give the code up — the domain noun decides, not ' +
+        'the thrower (specs/082-error-code-ownership/):\n' +
+        describeErrorCodeCollisions(result.collisions),
+    );
   }
 
   if (result.exitCode !== 0) process.exit(result.exitCode);

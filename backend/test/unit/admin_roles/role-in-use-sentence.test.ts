@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
 import { roleInUseRefusal } from '../../../../packages/modules/admin_roles/src/backend/services/admin-role-service.js';
 
 /**
@@ -52,10 +52,12 @@ function paramsOf(details: unknown): Record<string, string | number> {
 }
 
 describe('the ADMIN_ROLE_IN_USE sentences', () => {
-  const target = ERROR_TRANSLATION_KEYS.ADMIN_ROLE_IN_USE;
+  // Asserted, not assumed: the first `it` below compares this to the whole
+  // expected target, so an undeclared code fails there rather than here.
+  const target = DECLARED_ERROR_TRANSLATION_TARGETS['ADMIN_ROLE_IN_USE']!;
 
   it('is routed to a bundle this test can read', () => {
-    expect(target).toEqual({ moduleId: 'core', key: 'errors.ADMIN_ROLE_IN_USE' });
+    expect(target).toEqual({ moduleId: '_i18n', key: 'errors.ADMIN_ROLE_IN_USE' });
   });
 
   it('answers nothing when the role has no assignees at all', () => {

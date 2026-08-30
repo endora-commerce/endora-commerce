@@ -208,17 +208,18 @@ export const entities = [
  * everything module-scoped in it. Publishing the names is what gives those
  * callers a spelling that lands on the copy the platform holds.
  *
- *   * `ERROR_TRANSLATION_KEYS` / `ErrorTranslationTarget` — the routing table
- *     both composition roots inject into the error envelope (D-54), and the
- *     table `check:error-translations` reads as code.
- *   * `buildErrorTranslationTargets` and its shapes — the same answer derived
- *     from the modules' own `errorCodes` declarations instead (feature 090,
- *     D-182), together with the collisions that derivation refuses to resolve.
- *     Published for the same reason the table is: the composition roots inject
- *     it, and the in-repository collision refusal reads it as code.
- *   * `composeErrorTranslationTargets` — the two of them together, which is what
- *     the roots actually inject while the migration is in flight (Phase 2). It
- *     is deleted with the chain, and the roots then inject the derivation alone.
+ *   * `buildErrorTranslationTargets` / `ErrorTranslationTarget` and their shapes
+ *     — the routing map both composition roots inject into the error envelope
+ *     (D-54), derived from the modules' own `errorCodes` declarations (feature
+ *     090, D-182), together with the collisions the derivation refuses to
+ *     resolve. `check:error-translations` reads the same derivation as code, so
+ *     the gate and the platform answer out of one function.
+ *
+ *     `ERROR_TRANSLATION_KEYS` and `composeErrorTranslationTargets` stood here
+ *     and are **deleted** (Phase 4): the first was the prefix chain's static
+ *     table, the second the transitional composition that laid the declarations
+ *     over it so the migration could be delivered one module per merge request.
+ *     All eighteen owners have declared, so there is nothing left to lay over.
  *   * `I18nService` — the resolver the reconciler, the CLI commands and the
  *     acceptance probe construct over an `EntityManager` of their own.
  *   * `MissingKeyLogger` — the resolver's collaborator, constructed the same way.
@@ -230,9 +231,7 @@ export const entities = [
  *     against a bare Fastify instance by its own contract test.
  */
 export {
-  ERROR_TRANSLATION_KEYS,
   buildErrorTranslationTargets,
-  composeErrorTranslationTargets,
   describeErrorCodeCollisions,
   type ErrorCodeClaim,
   type ErrorCodeCollision,

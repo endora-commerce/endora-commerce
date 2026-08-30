@@ -241,18 +241,18 @@ const PACKAGED_MODULES = modulesInTheApplicationTree(PACKAGED_MODULE_CANDIDATES)
  * not the pool above.
  *
  * `check-error-translations` declares an **exclusion**: its floor is the
- * eighteen modules `ERROR_TRANSLATION_KEYS` routes a code to, because most
- * modules ship no error sentence and asking every one of them for a bundle
- * would make the floor a list of exceptions. So a module outside that eighteen
- * is *correctly* absent from its expectation, and stranding one would leave
- * that check green while the other fifteen went red — a per-check answer, which
- * is exactly what a shared fixture must not have. Every candidate here is
- * therefore routed, which every floor in the estate then covers, **free** on the
- * same terms as the pool above, and disjoint from it so the passing tree is
- * unaffected. The routedness is not left to memory: it is asserted below
- * against `ERROR_TRANSLATION_KEYS` itself, for the whole pool rather than for
- * today's pick, so a successor that stopped being routed is a red here rather
- * than one check silently disagreeing with the other sixteen. The rest of each
+ * eighteen modules that **declare** an error code, because most modules ship no
+ * error sentence and asking every one of them for a bundle would make the floor
+ * a list of exceptions. So a module outside that eighteen is *correctly* absent
+ * from its expectation, and stranding one would leave that check green while the
+ * other fifteen went red — a per-check answer, which is exactly what a shared
+ * fixture must not have. Every candidate here is therefore a declaring module,
+ * which every floor in the estate then covers, **free** on the same terms as the
+ * pool above, and disjoint from it so the passing tree is unaffected. That
+ * property is not left to memory: it is asserted below against
+ * `routedModuleIds()` itself, for the whole pool rather than for today's pick,
+ * so a successor that stopped declaring is a red here rather than one check
+ * silently disagreeing with the other sixteen. The rest of each
  * successor's fitness was **measured once**, in the merge request that added
  * them — all four stranded in turn, all seventeen checks exiting 2 on each —
  * and is deliberately not a standing test: four more half-moved fixtures would
@@ -296,8 +296,8 @@ const STRANDED_MODULE_CANDIDATES: readonly string[] = [
   // the replenishment treadmill four batches have now paid for.
   //
   // The two remaining conditions are unchanged and are what this list still
-  // exists for: `ERROR_TRANSLATION_KEYS` must route a code to the member (the
-  // paragraph above, asserted below for the whole pool), and no check script's
+  // exists for: the member must declare an error code (the paragraph above,
+  // asserted below for the whole pool), and no check script's
   // ledger may key on its path — withholding the manifest takes the module out
   // of every walk, so a key on it would go stale and produce an exit 1 where
   // this fixture asserts the missing-population exit 2. Derived on 2026-08-26
@@ -320,8 +320,7 @@ const STRANDED_MODULE = ((): string => {
   throw new Error(
     'no member of STRANDED_MODULE_CANDIDATES is under backend/src/modules or is a module ' +
       'package this repository ships, so the half-moved tree has nothing to strand. Add a ' +
-      'module that `ERROR_TRANSLATION_KEYS` routes a code to and that no check script keys ' +
-      'on its path.',
+      'module that declares an error code and that no check script keys on its path.',
   );
 })();
 
@@ -421,12 +420,12 @@ describe('the split fixture selects its modules rather than naming them', () => 
     expect(outside.size).toBeGreaterThanOrEqual(MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE);
   });
 
-  it('strands a module the routing table really routes a code to', () => {
+  it('strands a module that really declares an error code', () => {
     // The constraint that made `comparisons` the choice, enforced for every
     // successor rather than remembered for the incumbent.
     const routed = routedModuleIds();
     for (const candidate of STRANDED_MODULE_CANDIDATES) {
-      expect(routed, `${candidate} is not routed by ERROR_TRANSLATION_KEYS`).toContain(candidate);
+      expect(routed, `${candidate} declares no error code`).toContain(candidate);
     }
     expect(routed).toContain(STRANDED_MODULE);
   });

@@ -333,11 +333,12 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // which modules a deployment ships is not this module's business — so that
   // one stays.
   // `_i18n`'s entry (wave 1, T089) was deleted here by T040b, which packaged the
-  // module: `composition.ts` still imports the cradle type and the
-  // `ERROR_TRANSLATION_KEYS` map D-54 makes it inject into the error envelope,
-  // and both now arrive by bare specifier — which is not a reference into
-  // `backend/src/modules/`, the same reason every other packaged module's entry
-  // went. What the entry recorded is unchanged and still true: that map used to
+  // module: `composition.ts` still imports the cradle type and the routing map
+  // D-54 makes it inject into the error envelope (a `buildErrorTranslationTargets`
+  // call since feature 090's Phase 4, a static table before it), and both arrive
+  // by bare specifier — which is not a reference into `backend/src/modules/`,
+  // the same reason every other packaged module's entry went. What the entry
+  // recorded is unchanged and still true: that map used to
   // be imported by `src/http/error-envelope.ts` itself, which made a
   // kernel-obeying platform peer name a module (D-52) and put the cycle
   // `kernel → http → mod-i18n → kernel` in F4's package graph. A root naming a

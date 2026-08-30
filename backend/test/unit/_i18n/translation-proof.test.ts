@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { TRANSLATION_PROOF } from '../../helpers/translation-proof.js';
 
@@ -18,22 +18,20 @@ import { TRANSLATION_PROOF } from '../../helpers/translation-proof.js';
  * family there. A correct tree would then have failed this assertion and
  * reported a broken harness where there was none.
  *
- * So the properties are asserted against the real routing table and the real
+ * So the properties are asserted against the real routing map and the real
  * bundles, not restated:
  *
  *   1. it routes to the module the constant names, so the proof still walks the
  *      `_i18n` → `core` namespace rename that sits between the two;
- *   2. it is routed by **explicit** membership rather than by fall-through, so
- *      no future `startsWith` family rule can capture it;
+ *   2. its whole code family is declared by that same module, so D-129's
+ *      re-routing sweep cannot take the proof code without taking the family
+ *      with it — a change nobody could make by accident;
  *   3. its sentence exists in the routed bundle in **both** shipped languages;
  *   4. its sentence exists in **no other** bundle — an uncontested code is one
  *      no ownership ruling under D-121 can ever re-point.
  */
 
 const LANGUAGES = ['en', 'pl'] as const;
-
-/** `ERROR_TRANSLATION_KEYS` names the owning module; `core` is not a directory. */
-const CORE_BUNDLE_DIRECTORY = '_i18n';
 
 /**
  * Every registered module's own directory, by id (feature 080, T040b).
@@ -69,12 +67,10 @@ function bundleOf(moduleId: string, language: string): Record<string, unknown> {
 
 describe('TRANSLATION_PROOF — the harness proves translation with a code nobody can claim', () => {
   const code = TRANSLATION_PROOF.key.replace(/^errors\./, '');
-  const routed = ERROR_TRANSLATION_KEYS[code as keyof typeof ERROR_TRANSLATION_KEYS] as
-    | { moduleId: string; key: string }
-    | undefined;
+  const routed = DECLARED_ERROR_TRANSLATION_TARGETS[code];
 
-  it('names a code the routing table knows', () => {
-    expect(routed, `${code} is not in ERROR_CODES`).toBeDefined();
+  it('names a code some module declares', () => {
+    expect(routed, `no module declares ${code}`).toBeDefined();
     expect(routed?.key).toBe(TRANSLATION_PROOF.key);
   });
 
@@ -83,16 +79,17 @@ describe('TRANSLATION_PROOF — the harness proves translation with a code nobod
   });
 
   /**
-   * Property 2, checked the only way a caller can: a code routed by
-   * fall-through and a code routed by an explicit set are indistinguishable in
-   * the table's output, so what is asserted is the consequence — no prefix rule
-   * in the function can match this code, because none of the codes sharing its
-   * first token route anywhere else. A future `startsWith` rule that captured
-   * it would have to move it off `core`, which property 1 already refuses.
+   * Property 2. Until feature 090's Phase 4 this asked whether a `startsWith`
+   * rule in the prefix chain could capture the code; there is no chain and no
+   * fall-through any more, so every code reaches its bundle by being named in
+   * exactly one manifest. What is worth asserting instead is the **family**: if
+   * D-129's re-routing sweep ever moves `VERSION_CONFLICT` off the platform
+   * block, it moves every `VERSION_*` code with it, and this goes red beside
+   * property 1 rather than the proof quietly resolving somewhere else.
    */
-  it('property 2 — no family prefix in the table claims it', () => {
+  it('property 2 — its whole family is declared by the one module', () => {
     const prefix = `${code.split('_')[0]}_`;
-    const family = Object.entries(ERROR_TRANSLATION_KEYS).filter(([other]) =>
+    const family = Object.entries(DECLARED_ERROR_TRANSLATION_TARGETS).filter(([other]) =>
       other.startsWith(prefix),
     );
     expect(family.length).toBeGreaterThan(0);
@@ -100,14 +97,13 @@ describe('TRANSLATION_PROOF — the harness proves translation with a code nobod
       expect(
         target.moduleId,
         `${other} shares the "${prefix}" prefix and routes to ${target.moduleId}, ` +
-          `so a family rule for it would capture the proof code too`,
-      ).toBe('core');
+          'so the family is split and the proof code is one ownership ruling from moving',
+      ).toBe(TRANSLATION_PROOF.moduleId);
     }
   });
 
   it.each(LANGUAGES)('property 3 — the routed bundle has the sentence in %s', (language) => {
-    const directory =
-      routed?.moduleId === 'core' ? CORE_BUNDLE_DIRECTORY : (routed?.moduleId ?? '');
+    const directory = routed?.moduleId ?? '';
     const value = bundleOf(directory, language)[TRANSLATION_PROOF.key];
     expect(typeof value, `${directory}/i18n/${language}.json has no ${TRANSLATION_PROOF.key}`).toBe(
       'string',
@@ -120,8 +116,7 @@ describe('TRANSLATION_PROOF — the harness proves translation with a code nobod
    * every bundle in the tree rather than over a list of likely claimants.
    */
   it('property 4 — the key is spelled in no other bundle', () => {
-    const routedDirectory =
-      routed?.moduleId === 'core' ? CORE_BUNDLE_DIRECTORY : (routed?.moduleId ?? '');
+    const routedDirectory = routed?.moduleId ?? '';
     const elsewhere: string[] = [];
     for (const [moduleId, directory] of moduleDirectories()) {
       if (moduleId === routedDirectory) continue;
@@ -141,6 +136,6 @@ describe('TRANSLATION_PROOF — the harness proves translation with a code nobod
   it('the walk read something — a bundle-free tree would pass every assertion above', () => {
     expect(moduleDirectories().size).toBe(REGISTERED_MANIFESTS.length);
     expect(moduleDirectories().size).toBeGreaterThan(40);
-    expect(Object.keys(bundleOf(CORE_BUNDLE_DIRECTORY, 'en')).length).toBeGreaterThan(0);
+    expect(Object.keys(bundleOf(TRANSLATION_PROOF.moduleId, 'en')).length).toBeGreaterThan(0);
   });
 });

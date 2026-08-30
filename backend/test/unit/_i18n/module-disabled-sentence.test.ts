@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ERROR_TRANSLATION_KEYS } from '@endora-commerce/mod-i18n/backend';
+import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 
 /**
@@ -47,13 +47,16 @@ function interpolate(template: string, params: Record<string, string | number>):
 }
 
 describe('the MODULE_DISABLED sentence', () => {
-  const target = ERROR_TRANSLATION_KEYS.MODULE_DISABLED;
+  // Asserted, not assumed: the first `it` below compares this to the whole
+  // expected target, so an undeclared code fails there rather than here.
+  const target = DECLARED_ERROR_TRANSLATION_TARGETS['MODULE_DISABLED']!;
   const details = new ModuleDisabledError('stripe').details as Record<string, string>;
 
   it('is routed to a bundle this test can read', () => {
-    // `core` is the exposed name of `_i18n`'s own bundle. If the routing ever
-    // moves, the assertions below would be reading a bundle nobody serves.
-    expect(target).toEqual({ moduleId: 'core', key: 'errors.MODULE_DISABLED' });
+    // `_i18n` declares the platform block (feature 090 Phase 3), and its bundle
+    // is the one exposed to clients as `core`. If the routing ever moves, the
+    // assertions below would be reading a bundle nobody serves.
+    expect(target).toEqual({ moduleId: '_i18n', key: 'errors.MODULE_DISABLED' });
   });
 
   for (const language of LANGUAGES) {

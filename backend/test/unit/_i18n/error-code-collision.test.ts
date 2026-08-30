@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   buildErrorTranslationTargets,
   describeErrorCodeCollisions,
   type ErrorCodeDeclarationSource,
 } from '@endora-commerce/mod-i18n/backend';
+import { packageModuleManifestsUnder } from '../../../src/packages/package-runtime.js';
 
 /**
  * Feature 090 — `contracts/error-code-declaration.md` §3, the collision rule:
@@ -167,5 +171,98 @@ describe('buildErrorTranslationTargets — the declared routing map (feature 090
       // asks it of the registered set, and the check asks it of the tree.
       expect(buildErrorTranslationTargets([])).toEqual({ targets: {}, collisions: [] });
     });
+  });
+});
+
+/**
+ * The instance path — `plan.md` Phase 2: *"the instance path with a fixture
+ * installed package"*.
+ *
+ * The population the derivation exists for is the one no file in this repository
+ * can hold: a module package an operator installed. This drives the same
+ * discovery the composition roots drive — a `node_modules` tree on disk,
+ * enumerated, `exports`-resolved and imported by `package-runtime.ts` — and
+ * feeds what comes out of it straight into the derived map, because the entry
+ * shape `resolvedManifestEntries()` produces **is**
+ * `ErrorCodeDeclarationSource`'s. A fixture handed to the derivation as a
+ * literal would prove the function and not the seam.
+ *
+ * It lived in `error-code-composition.test.ts` until feature 090's Phase 4,
+ * beside the proofs for `composeErrorTranslationTargets` — the transitional
+ * function that laid these declarations over the prefix chain. That function and
+ * the chain are gone; this seam is not, so it moved here rather than going with
+ * them.
+ */
+describe("an installed package's declaration reaches the derived map", () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), 'endora-error-code-package-'));
+    const dir = join(root, 'node_modules', '@vendor', 'mod-acme-sync');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'package.json'),
+      `${JSON.stringify(
+        {
+          name: '@vendor/mod-acme-sync',
+          version: '1.0.0',
+          type: 'module',
+          endora: { type: 'module', id: 'acme_sync', platform: '0.x' },
+          exports: { '.': './lib/manifest.js', './package.json': './package.json' },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    mkdirSync(join(dir, 'lib'), { recursive: true });
+    // A published manifest is a plain object: a third-party author has no
+    // `@endora-commerce/contracts` to import at runtime.
+    writeFileSync(
+      join(dir, 'lib', 'manifest.js'),
+      [
+        'export const manifest = {',
+        "  id: 'acme_sync',",
+        "  name: 'Acme Sync',",
+        "  version: '1.0.0',",
+        '  errorCodes: [',
+        "    { code: 'ACME_SYNC_NOT_CONFIGURED' },",
+        "    { code: 'ACME_SYNC_REJECTED', tokens: ['expired', 'quota'] },",
+        '  ],',
+        '};',
+        'export default manifest;',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("routes both of the package's codes to it, and invents nothing else", async () => {
+    const discovered = await packageModuleManifestsUnder([join(root, 'node_modules')]);
+    expect(discovered.map((entry) => entry.id)).toEqual(['acme_sync']);
+
+    const { targets, collisions } = buildErrorTranslationTargets(discovered);
+
+    expect(targets['ACME_SYNC_NOT_CONFIGURED']).toEqual({
+      moduleId: 'acme_sync',
+      key: 'errors.ACME_SYNC_NOT_CONFIGURED',
+    });
+    expect(targets['ACME_SYNC_REJECTED']).toEqual({
+      moduleId: 'acme_sync',
+      key: 'errors.ACME_SYNC_REJECTED',
+    });
+    expect(collisions).toEqual([]);
+    // The declaring file is the package's own `package.json`, which is what a
+    // collision report has to name for an operator to find it on disk.
+    expect(discovered[0]?.filePath).toContain(join('mod-acme-sync', 'package.json'));
+    // Only the package's own two codes: the derivation has no fall-through and
+    // nothing else was handed in, so a third entry would mean the map had
+    // acquired an answer from somewhere this call cannot see (§4.1).
+    expect(Object.keys(targets).sort()).toEqual([
+      'ACME_SYNC_NOT_CONFIGURED',
+      'ACME_SYNC_REJECTED',
+    ]);
   });
 });

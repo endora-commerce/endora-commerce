@@ -71,7 +71,7 @@ describe('registered module i18n bundles — real filesystem shape', () => {
   /**
    * Issue #65 — refusal-token sentences (`errors.<CODE>.<token>`).
    *
-   * `check:error-translations` walks `ERROR_TRANSLATION_KEYS`, so it sees
+   * `check:error-translations` walks the declared codes, so it sees
    * `errors.<CODE>` and nothing below it. A token key is therefore invisible to
    * that ratchet, and a token that ships in one language only degrades quietly:
    * the missing side falls back to the route's written English message instead

@@ -11,28 +11,30 @@ import {
  * Feature 090 Phase 3 — **a migrated module has migrated completely.**
  *
  * `specs/090-module-owned-error-codes/contracts/error-code-declaration.md` §6.4
- * makes the migration one merge request per owning module, and
- * `error-code-routing-equality.test.ts` is what each of those merge requests is
+ * made the migration one merge request per owning module, and
+ * `error-code-routing-equality.test.ts` is what each of those merge requests was
  * measured by. That harness compares the map the composition roots inject to the
- * frozen chain capture, and it is exactly right about what it measures — but the
- * injected map is `composeErrorTranslationTargets`, the declarations laid *over*
- * the chain (§6.7), so **it cannot see an incomplete migration**. A module that
- * declares ten of the thirteen codes it owns still produces a composed map that
- * answers correctly for all thirteen: the chain covers the other three. The
- * harness reports nothing, the merge request is green, and the shortfall arrives
- * on the merge request that deletes the chain, as three codes that route
- * nowhere and one reviewer with eighteen merge requests to re-read.
+ * frozen chain capture, and it was exactly right about what it measured — but
+ * while the migration was in flight the injected map was
+ * `composeErrorTranslationTargets`, the declarations laid *over* the chain
+ * (§6.7), so **it could not see an incomplete migration**. A module that
+ * declared ten of the thirteen codes it owned still produced a composed map that
+ * answered correctly for all thirteen: the chain covered the other three. The
+ * harness reported nothing, the merge request was green, and the shortfall would
+ * have arrived on the merge request that deleted the chain, as three codes that
+ * route nowhere and one reviewer with eighteen merge requests to re-read.
  *
  * This file closes that. For every module on the roster below, the codes its
  * manifest declares are **exactly** the codes the frozen capture routes to it,
  * in both directions.
  *
- * **The roster is the Phase 3 progress ledger.** Adding a module to it is the
- * one line each migration merge request adds here; the ratchet below refuses a
+ * **The roster was the Phase 3 progress ledger.** Adding a module to it was the
+ * one line each migration merge request added here; the ratchet below refuses a
  * module that declares codes without being on it, so the roster cannot drift
- * behind the manifests. When it holds all eighteen, Phase 3 is complete and the
- * chain can go — and this file becomes the standing proof that the deletion
- * loses nothing.
+ * behind the manifests. It holds all eighteen, Phase 3 is complete, and Phase 4
+ * has deleted the chain — so this file is now the standing proof that the
+ * deletion lost nothing, per module, and the ratchet is what will refuse a
+ * silent re-homing when D-129's sweep runs.
  *
  * `specs/090-module-owned-error-codes/migration-runbook.md` is the procedure the
  * roster is filled in by.
