@@ -99,7 +99,8 @@ export const manifest = defineModuleManifest({
    * and four singletons (MR 3), then Tier B's six modules that already ship a
    * bundle — `catalog`, `customer_accounts`, `orders`, `mfa`, `newsletter` and
    * `promotions` (MR 4) — then Tier B's four that had to create one:
-   * `credit_limits`, `api_keys`, `addresses` and `webhooks` (MR 5). Do not move
+   * `credit_limits`, `api_keys`, `addresses` and `webhooks` (MR 5), then Tier
+   * C's first module, `admin_roles` (MR 6). Do not move
    * one in passing: a code that leaves this
    * list without arriving in its owner's manifest routes nowhere, and the
    * collision rule makes a half-done move visible at composition rather than at
@@ -131,21 +132,36 @@ export const manifest = defineModuleManifest({
    * first module in the platform to ship a bundle installing zero entries, so
    * MR 5 ran `scripts/boot-gate.sh --with-negatives` (§5.4).
    *
+   * **MR 6 took the three `ADMIN_ROLE_*` codes to `admin_roles`** (Tier C), and
+   * one of them is the sweep's only multi-token sentence: `ADMIN_ROLE_IN_USE`
+   * carried `errors.ADMIN_ROLE_IN_USE.assigned` and `.assigned_to_deleted` in
+   * this package's bundle as well as its base key, six keys in two languages.
+   * All six moved. The base pair is **unreachable** — both raise sites pass a
+   * token, and `localizeErrorEnvelope` looks up `errors.<CODE>.<token>` with no
+   * fall-back to `errors.<CODE>` — and `admin_roles`' manifest says at length
+   * why it was carried rather than deleted. Its other two codes were
+   * placeholders and were rewritten as prose there, so nothing this batch
+   * touches enters `UNTRANSLATED_ERROR_CODES`.
+   *
    * **`tokens` is derived from the raise sites, not from the bundle**
-   * (runbook §5). Seven of these codes put a `details.code` on the wire; six of
-   * them are declared below, and the seventh is the exception the design note
+   * (runbook §5). Six of these codes put a `details.code` on the wire; five of
+   * them are declared below, and the sixth is the exception the design note
    * says whoever migrates this block inherits: `VALIDATION_FAILED` declares
    * **no** tokens although 21 raise sites carry a `details.code`, because
    * `localizeErrorEnvelope` returns before translating that code
    * (`packages/platform/src/http/error-envelope.ts`) — its `details.code`
    * values are machine-readable discriminators on the wire and can never key an
    * `errors.VALIDATION_FAILED.<token>` sentence. Declaring them would declare
-   * sentences nothing can ever render. Of the tokens that are declared, four
-   * have a sentence in both languages today (`ADMIN_ROLE_IN_USE.assigned`,
-   * `.assigned_to_deleted`, `FORBIDDEN.organization_cannot_transact`,
-   * `.customer_outside_assignment_scope`) and five do not; a token a raise site
-   * can produce is a token whether or not anybody has written its sentence, and
-   * the missing ones become a Phase 4 finding rather than a silent absence.
+   * sentences nothing can ever render. Ten tokens were declared here before MR
+   * 6 and eight are left; **two** of the eight have a sentence in both
+   * languages (`FORBIDDEN.organization_cannot_transact`,
+   * `.customer_outside_assignment_scope`) and six do not. Re-measured on this
+   * tree rather than adjusted: the sentence this replaces read *"four have …
+   * and five do not"*, which was nine of ten — `FORBIDDEN.reorder_disabled`
+   * arrived after it was written and was counted by neither side. A token a
+   * raise site can produce is a token whether or not anybody has written its
+   * sentence, and the missing ones become a Phase 4 finding rather than a
+   * silent absence.
    *
    * That count of seven is **true of this list and was not true when it was
    * written**: `TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` was an eighth, putting
@@ -157,12 +173,12 @@ export const manifest = defineModuleManifest({
    * took twenty codes out of this list and moved none of the six: every one of
    * its raise sites was measured by balanced-paren extraction of the call's own
    * arguments, and not one passes a `details` object carrying a `code`. MR 5's
-   * eleven were measured the same way, with the same answer.
+   * eleven were measured the same way, with the same answer. MR 6 is the first
+   * batch that moves a tokened code, and the same scan is what found the token
+   * set — `assigned` and `assigned_to_deleted`, at both of the two raise sites
+   * and at no other site in the tree.
    */
   errorCodes: [
-    { code: 'ADMIN_ROLE_CODE_TAKEN' },
-    { code: 'ADMIN_ROLE_IN_USE', tokens: ['assigned', 'assigned_to_deleted'] },
-    { code: 'ADMIN_ROLE_PROTECTED' },
     { code: 'CANNOT_REVOKE_LAST_ADMIN_INVITE' },
     { code: 'CURRENT_PASSWORD_INVALID' },
     { code: 'EMAIL_ALREADY_IN_ORGANIZATION' },

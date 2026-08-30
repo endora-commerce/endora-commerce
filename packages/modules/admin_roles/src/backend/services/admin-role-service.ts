@@ -106,6 +106,28 @@ export function roleInUseRefusal(live: number, deleted: number): HttpError | nul
   return null;
 }
 
+/**
+ * The refusal a seeded role's deletion earns, with the role's own code on it.
+ *
+ * Exported and pure for the reason {@link roleInUseRefusal} is: the sentence
+ * that replaces this message carries a `{role}` placeholder, and only a test
+ * that renders a **real** refusal against the bundle can see that the
+ * placeholder has something to fill it (issue #161, and !1181's finding that a
+ * translated sentence with no placeholder loses an interpolated value silently).
+ *
+ * `details.role`, never `details.code`: the latter is the refusal token the
+ * envelope keys `errors.<CODE>.<token>` on, so putting a role code there would
+ * send it looking for a sentence named after the role.
+ */
+export function protectedRoleRefusal(code: string): HttpError {
+  return new HttpError(
+    409,
+    ERROR_CODES.ADMIN_ROLE_PROTECTED,
+    `Cannot delete the system-protected role "${code}". Modules' seeded roles are immutable.`,
+    { role: code },
+  );
+}
+
 export class AdminRoleService {
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -185,13 +207,7 @@ export class AdminRoleService {
     const em = this.emFactory();
     const role = await em.findOne(AdminRole, { id });
     if (!role) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin role not found.');
-    if (SYSTEM_ROLE_CODES.has(role.code)) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.ADMIN_ROLE_PROTECTED,
-        `Cannot delete the system-protected role "${role.code}". Modules' seeded roles are immutable.`,
-      );
-    }
+    if (SYSTEM_ROLE_CODES.has(role.code)) throw protectedRoleRefusal(role.code);
     // Every assignee a restore returns, live or binned (issue #168).
     //
     // A soft delete does not release the assignment: the row keeps its

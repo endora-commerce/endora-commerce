@@ -1,0 +1,7 @@
+{
+  "errors.ADMIN_ROLE_CODE_TAKEN": "A role with that code already exists. Pick a different code, or edit the existing role.",
+  "errors.ADMIN_ROLE_IN_USE": "This role is still assigned, so it cannot be deleted. Reassign the accounts that hold it first.",
+  "errors.ADMIN_ROLE_IN_USE.assigned": "This role is still assigned to {assigned} admin account(s), so it cannot be deleted. Reassign them first.",
+  "errors.ADMIN_ROLE_IN_USE.assigned_to_deleted": "This role is still assigned to {deleted} deleted account(s). Restoring one of them restores the role with it, so the role cannot be deleted while they are in the bin.",
+  "errors.ADMIN_ROLE_PROTECTED": "The \"{role}\" role is seeded by a module and cannot be deleted. Remove the module to remove its role."
+}

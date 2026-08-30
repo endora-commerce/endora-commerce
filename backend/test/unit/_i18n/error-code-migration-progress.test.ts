@@ -94,6 +94,14 @@ const MIGRATED_MODULES: readonly string[] = [
   // bundle installs zero entries, which is `d129-sweep.md` §5.4's default and
   // the reason that merge request ran the boot gate.
   'addresses',
+  // Tier C, MR 6 — the first of the two batches the sweep keeps unbatched
+  // because they move prose somebody wrote. Three codes, and one of them,
+  // `ADMIN_ROLE_IN_USE`, is the sweep's only multi-token sentence: four of its
+  // six bundle keys are the ones the envelope reads, the base pair being
+  // unreachable at both raise sites. The module creates its i18n bundle in the
+  // same change and every code arrives with prose, so
+  // `UNTRANSLATED_ERROR_CODES` does not move.
+  'admin_roles',
   'api_keys',
   'assets_library',
   'blog',
