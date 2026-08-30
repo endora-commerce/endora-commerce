@@ -11,8 +11,12 @@ import {
   type RfqStatus,
 } from '../../../../lib/api/rfq';
 import { getSessionCookie } from '../../../../lib/session';
+import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { formatMoney } from '../../../../lib/i18n/money';
+import { rfqValidity, rfqValidityGate } from '../../../../lib/quote-requests/validity';
+import { RfqValidityMeta } from '../../../../components/rfq/RfqValidityMeta';
+import { RfqDetailActions } from '../../../../components/rfq/RfqDetailActions';
 
 /**
  * Customer Quote Request detail (feature 008 / T034). Mode-driven UI:
@@ -24,6 +28,18 @@ import { formatMoney } from '../../../../lib/i18n/money';
  * Approve-revision and reject-revision are server actions that hand
  * the request to `/api/v1/quote-requests/:id/{accept,reject}-revision`
  * with `expectedRevisionNumber`.
+ *
+ * Since !1137 the operator's per-request validity deadline is a rule: past
+ * `expiresAt`, accept-revision answers 410 `RFQ_EXPIRED` and convert-to-order
+ * 410 `QUOTE_VALIDITY_ENDED`. Nothing here rendered `expiresAt` at all, so the
+ * buyer's first sight of the deadline was the refusal. The date now renders
+ * first — in the header meta, unconditionally, whatever the status — and only
+ * then do the two controls it binds refuse to be pressed, with the reason and
+ * the remedy in text beside them.
+ *
+ * The classification runs on the **server's** clock, because this is a Server
+ * Component and there is no client boundary here that could substitute the
+ * buyer's. See `lib/quote-requests/validity.ts`.
  */
 export default async function QuoteRequestDetailPage({
   params,
@@ -53,6 +69,16 @@ export default async function QuoteRequestDetailPage({
     throw err;
   }
   const sp = await searchParams;
+  const { locale } = await getServerContext();
+  // The server's clock, taken once so the meta sentence and the gate below it
+  // cannot disagree about which side of the deadline this render is on.
+  const now = new Date();
+  const validity = rfqValidity(rfq.expiresAt, now);
+  const gate = rfqValidityGate({
+    status: rfq.status,
+    awaitingCustomerRevisionAcceptance: rfq.awaitingCustomerRevisionAcceptance,
+    validity,
+  });
 
   const total = rfq.items.every((it) => it.agreedUnitPrice !== null)
     ? rfq.items.reduce((s, it) => s + (it.agreedUnitPrice ?? 0) * it.quantity, 0)
@@ -85,6 +111,17 @@ export default async function QuoteRequestDetailPage({
         {rfq.submittedAt
           ? ` · zgłoszone ${new Date(rfq.submittedAt).toLocaleString('pl-PL')}`
           : null}
+        {/*
+          The deadline reads as a third instant of the same kind, beside the two
+          the buyer already looks here for (Law of Proximity), and it renders on
+          every status — a Completed or Canceled request still carries the date
+          it was dated to, and hiding it would make the field look like one this
+          page cannot show. It renders *nothing* when there is none: an absent
+          `expiresAt` means the operator set no deadline and nothing refuses
+          this buyer, and a blank where a date goes cannot be told apart from a
+          date that failed to load.
+        */}
+        <RfqValidityMeta expiresAt={rfq.expiresAt} now={now} locale={locale} />
       </p>
 
       {sp.error ? (
@@ -208,53 +245,25 @@ export default async function QuoteRequestDetailPage({
         </table>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {rfq.awaitingCustomerRevisionAcceptance ? (
-          <>
-            <form action={acceptAction}>
-              <input type="hidden" name="rfqId" value={rfq.id} />
-              <input type="hidden" name="expectedRevisionNumber" value={rfq.currentRevisionNumber} />
-              <button type="submit" className="btn btn--dark">
-                Akceptuj wersję
-              </button>
-            </form>
-            <form action={rejectAction} style={{ display: 'flex', gap: 8 }}>
-              <input type="hidden" name="rfqId" value={rfq.id} />
-              <input type="hidden" name="expectedRevisionNumber" value={rfq.currentRevisionNumber} />
-              <input
-                type="text"
-                name="reason"
-                placeholder="Powód odrzucenia (opcjonalny)"
-                style={{
-                  border: '1px solid var(--line)',
-                  borderRadius: 'var(--r-sm)',
-                  padding: '8px 10px',
-                  width: 240,
-                }}
-              />
-              <button type="submit" className="btn btn--outline">
-                Odrzuć
-              </button>
-            </form>
-          </>
-        ) : null}
-
-        {rfq.status === 'Approved' ? (
-          <form action={convertAction}>
-            <input type="hidden" name="rfqId" value={rfq.id} />
-            <button type="submit" className="btn btn--dark">
-              Złóż zamówienie z tej oferty
-            </button>
-          </form>
-        ) : null}
-
-        <form action={resubmitAction}>
-          <input type="hidden" name="rfqId" value={rfq.id} />
-          <button type="submit" className="btn btn--outline">
-            Złóż ponownie
-          </button>
-        </form>
-      </div>
+      {/*
+        The action row is a component so that the one thing this change decides
+        — which controls refuse to be pressed, and whether the reason is on
+        screen beside them — is assertable from rendered markup. This page is an
+        async Server Component that reads a session and calls the API; the
+        storefront harness is SSR-only.
+      */}
+      <RfqDetailActions
+        rfqId={rfq.id}
+        status={rfq.status}
+        currentRevisionNumber={rfq.currentRevisionNumber}
+        awaitingCustomerRevisionAcceptance={rfq.awaitingCustomerRevisionAcceptance}
+        gate={gate}
+        locale={locale}
+        acceptAction={acceptAction}
+        rejectAction={rejectAction}
+        convertAction={convertAction}
+        resubmitAction={resubmitAction}
+      />
 
       {rfq.events.length > 0 ? (
         <section style={{ marginTop: 32 }}>
