@@ -47,6 +47,7 @@ const MIGRATED_MODULES: readonly string[] = [
   'carts',
   'catalog',
   'cms',
+  'dictionaries',
   'inventory',
   'invoices',
   'megamenu',
