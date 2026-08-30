@@ -12,7 +12,7 @@
     "acceptance:package-schema:ci": "tsx scripts/acceptance/package-schema.ts --against-expectation",
     "admin:create": "tsx --env-file-if-exists=.env src/cli.ts admin_users create",
     "audit:read": "tsx --env-file-if-exists=.env src/cli.ts audit_logs read",
-    "build": "pnpm run overlay:manifest && pnpm run composer:generate && tsc -p tsconfig.build.json && tsx scripts/copy-runtime-assets.ts",
+    "build": "tsc -p tsconfig.build.json && tsx scripts/copy-runtime-assets.ts",
     "cache:clear": "tsx --env-file-if-exists=.env src/cli.ts settings cache-clear",
     "cart:abandonment-sweep": "tsx --env-file-if-exists=.env src/cli.ts carts abandonment-sweep",
     "channel:resolution": "tsx scripts/check-channel-resolution.ts",

@@ -232,10 +232,13 @@ registry and one command that refreshes it. Regenerate and commit the result:
 pnpm --filter backend run composer:generate
 ```
 
-The generator is also wired into `pnpm --filter backend run build`, and
-`pnpm --filter backend run overlay:check` fails the build when a committed artefact is stale
-with respect to the tree — which is the one drift that is still possible now that the array
-is the walk.
+It is **not** wired into `pnpm --filter backend run build`, and it used to be: a build that
+re-derives a committed artefact writes its answer into its own output rather than into the
+tree, so a checkout with a stale artefact builds cleanly and reports nothing — and the
+production image, which holds only `backend/`, `packages/` and `scripts/`, cannot run a
+generator that walks the whole workspace at all. `pnpm --filter backend run overlay:check`
+is what fails the build when a committed artefact is stale with respect to the tree — the
+one drift that is still possible now that the array is the walk.
 
 ### 5. Wire the routes through the gating wrapper
 
