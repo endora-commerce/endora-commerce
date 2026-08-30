@@ -16,6 +16,13 @@ export const InsertBlock: ComponentConfig<InsertBlockProps> = {
     code: '',
   },
   render: ({ code }) => {
+    // Puck calls `render` as a React component — it is mounted, not invoked —
+    // so a hook here obeys the rules of hooks. The linter cannot see that
+    // through `ComponentConfig`, and it is the field's name rather than the
+    // call that it objects to. Surfaced when feature 091 registered
+    // `react-hooks` for every `.tsx` in the repository rather than for the
+    // admin application alone; the call has always been correct.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const { blocks } = useCmsRenderEmbeds();
     const rendered = code ? blocks[code] : null;
 

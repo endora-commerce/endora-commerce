@@ -1456,6 +1456,12 @@ export function vacuousReason(input: {
    * fixture handing in keys and no filesystem means.
    */
   readonly fileExists?: (repoRelativePath: string) => boolean;
+  /**
+   * The keys of the files the **module** walk produced, so a `.tsx` that has
+   * already moved into a module package is not mistaken for admin code — see
+   * {@link adminPopulationLost}. Omitted is a fixture with no module walk.
+   */
+  readonly moduleFileKeys?: ReadonlySet<string>;
 }): string | null {
   if (input.moduleFiles.length === 0) {
     return 'no module sources under src/ — refusing to report a vacuous pass';
@@ -1491,6 +1497,7 @@ export function vacuousReason(input: {
     input.adminSurfaces ?? null,
     input.ledgerKeys ?? [],
     input.fileExists ?? (() => true),
+    input.moduleFileKeys ?? new Set<string>(),
   );
   if (adminAnchor !== null) return adminAnchor;
   return null;
@@ -1516,18 +1523,27 @@ export function adminPopulationLost(
   admin: AdminBoundarySurfaces | null,
   ledgerKeys: readonly string[],
   exists: (repoRelativePath: string) => boolean = () => true,
+  moduleFileKeys: ReadonlySet<string> = new Set<string>(),
 ): string | null {
   if (admin !== null) return null;
   // With the layout gone there is no module root to match a key against, so
   // the discriminator is the **extension**: every walk this check performs over
   // the backend collects `.ts` and every module source in the tree is one, so a
   // ledger key naming a `.tsx` file can only have come from a frontend
-  // population. It is exact rather than heuristic — measured, zero `.tsx` files
-  // under `backend/src` and zero under any module package — and its one blind
-  // spot is stated rather than discovered: an admin ledger holding only `.ts`
-  // keys would not anchor, which is why the coverage floor above is the
-  // instrument for a walk that came back *short* and this one is for a walk
-  // that came back with no admin at all.
+  // population. Its one blind spot is stated rather than discovered: an admin
+  // ledger holding only `.ts` keys would not anchor, which is why the coverage
+  // floor above is the instrument for a walk that came back *short* and this
+  // one is for a walk that came back with no admin at all.
+  //
+  // **The extension alone stopped being exact when the drain started** (feature
+  // 091, Phase 4). It rested on a measurement — "zero `.tsx` files under
+  // `backend/src` and zero under any module package" — that Story 3 falsifies
+  // one directory at a time, and the direction it fails in is the wrong one: a
+  // packaged screen would anchor the admin population it is no longer part of,
+  // so a genuinely lost derivation would be reported as fine. The module walk's
+  // own keys are the discriminator, and they are exact for the same reason the
+  // extension was: a key the module walk produced is module code by
+  // construction, whatever it is called.
   //
   // And the file has to still **be there**. The anchor's question is "the
   // derivation broke while the tree it derives from stayed", not "these entries
@@ -1536,9 +1552,11 @@ export function adminPopulationLost(
   // refusal fires on every synthetic backend that copies the real ledger
   // shards, which is `test/helpers/moved-module-tree-fixture.ts` and which is
   // exit 2 for a reason that has nothing to do with the module tree.
-  const adminKeys = ledgerKeys.filter(
-    (key) => /\.tsx:/.test(key) && exists(key.slice(0, key.indexOf(':'))),
-  );
+  const adminKeys = ledgerKeys.filter((key) => {
+    if (!/\.tsx:/.test(key)) return false;
+    const file = key.slice(0, key.indexOf(':'));
+    return !moduleFileKeys.has(file) && exists(file);
+  });
   if (adminKeys.length === 0) return null;
   return (
     `${adminKeys.length} ledger entries name a .ts/.tsx file under a module surface directory ` +
@@ -1602,9 +1620,20 @@ export async function loadLedgerShards(directory: string): Promise<LedgerShard[]
  * `*.test.ts` is **included**: `src/modules/orders/prompt-tools.test.ts` is a
  * test file living under `src/` and is therefore in scope (it moves to
  * `backend/test/`). Declaration files are not, because they are emitted.
+ *
+ * **`.tsx` as well as `.ts`, and that is not symmetry for its own sake**
+ * (feature 091, Phase 4). A module's admin screen is a `.tsx` file, and Story 3
+ * moves it from `admin/src/modules/<id>/` — where {@link collectAdminFiles}
+ * reads it — into `packages/modules/<id>/src/admin/`, which is a module walk
+ * root. A `.ts`-only walk here would therefore make the move itself delete the
+ * file from every boundary population in the repository: exactly the laundering
+ * FR-017 exists to refuse, arriving one layer over, inside the instrument built
+ * to prevent it. `google_analytics` was the first batch and carried no
+ * cross-module reach, so nothing was lost; `cms`, `catalog`, `invoices` and
+ * `orders` each carry several, and each would have gone silently.
  */
 export function collectModuleFiles(roots: readonly string[]): string[] {
-  return roots.flatMap((root) => walk(root));
+  return roots.flatMap((root) => walk(root, [], ['.ts', '.tsx']));
 }
 
 /**
@@ -1967,6 +1996,7 @@ async function main(): Promise<void> {
     adminSurfaces: admin,
     ledgerKeys: shards.flatMap((shard) => Object.keys(shard.entries)),
     fileExists: (path) => existsSync(join(layout.repoRoot, path)),
+    moduleFileKeys: new Set(files.map((file) => layout.keyOf(file))),
   });
   if (vacuous !== null) {
     console.error(`[module-boundary] ${vacuous}`);

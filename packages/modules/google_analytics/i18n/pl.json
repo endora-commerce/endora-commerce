@@ -3,6 +3,7 @@
   "actions.openGoogleAnalytics.description": "Konfiguruj własne zdarzenia Google Analytics",
   "actions.newCustomEvent.label": "Nowe zdarzenie Google Analytics",
   "actions.newCustomEvent.description": "Utwórz własne zdarzenie Google Analytics",
+  "nav.googleAnalytics.label": "Google Analytics",
   "customEvents.title": "Zdarzenia własne",
   "customEvents.subtitle": "Przypisz akcje w Storefront do zdarzeń Google Analytics",
   "customEvents.empty": "Brak zdarzeń własnych",

@@ -1,16 +1,16 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { reportReadSize } from './lib/read-size.js';
-import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
+import { modulePackages, nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
 /** The checkout, whichever one this file was loaded from. */
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
 /**
- * The two roots the admin's user-visible strings live in, and the reason there
- * are two (feature 091, Phase 1b).
+ * The roots the admin's user-visible strings live in, and the reason there is
+ * more than one (feature 091, Phase 1b and Phase 4).
  *
  * The population was `admin/src` alone, and the key was relative to it. Then 57
  * of those files moved into `@endora-commerce/admin-kit` — the admin's own
@@ -20,16 +20,25 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  * exists to refuse, one check over, and the answer is the same one: the
  * instrument follows the code.
  *
- * The keys are therefore repository-relative, so the ledger names one file in
- * one namespace whichever root it sits under. The kit's directory is not
- * spelled here: it is the workspace member whose manifest carries the name, so
- * a move costs no edit and a kit that is gone is exit 2 rather than a
- * population quietly halved.
+ * **Story 3 opens the same channel a third time, one module directory per merge
+ * request**, which is why the module packages' own `src/admin` layers are here
+ * too. A screen moving from `admin/src/modules/<id>/` into
+ * `packages/modules/<id>/src/admin/` is the identical relocation at the
+ * identical granularity, and the batch that performs it is — by construction —
+ * the batch that cannot see the entry describing it go stale. Neither the
+ * directory nor the package name is spelled: a member declares
+ * `endora: { type: 'module' }` about itself, and the layer is a root when the
+ * package actually has one.
+ *
+ * The keys are repository-relative, so the ledger names one file in one
+ * namespace whichever root it sits under. The kit's directory is not spelled
+ * here either: it is the workspace member whose manifest carries the name, so a
+ * move costs no edit and a kit that is gone is exit 2 rather than a population
+ * quietly halved.
  */
 function defaultRoots(): readonly string[] {
-  const kit = workspaceMembers(REPO_ROOT, nodeWorkspaceFs()).find(
-    (member) => member.name === ADMIN_KIT_PACKAGE,
-  );
+  const members = workspaceMembers(REPO_ROOT, nodeWorkspaceFs());
+  const kit = members.find((member) => member.name === ADMIN_KIT_PACKAGE);
   if (kit === undefined) {
     process.stderr.write(
       `[i18n:hardcoded] no workspace member is ${ADMIN_KIT_PACKAGE} — half the admin's own ` +
@@ -38,7 +47,13 @@ function defaultRoots(): readonly string[] {
     );
     process.exit(2);
   }
-  return [join(REPO_ROOT, 'admin', 'src'), join(kit.dir, 'src')];
+  const moduleAdminLayers = modulePackages(members)
+    .map((pkg) => join(pkg.dir, 'src', 'admin'))
+    // A module package with no admin layer is the ordinary case and contributes
+    // nothing — an empty set is legitimate here, unlike the kit's absence,
+    // because before Story 3 there were no layers at all.
+    .filter((dir) => existsSync(dir));
+  return [join(REPO_ROOT, 'admin', 'src'), join(kit.dir, 'src'), ...moduleAdminLayers];
 }
 
 /** The package the admin's design system lives in since feature 091, Phase 1b. */

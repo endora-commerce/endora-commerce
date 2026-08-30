@@ -619,11 +619,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/i18n-hardcoded-strings.ts': {
     prefix: '[i18n:hardcoded]',
     run: { kind: 'tsx', path: 'scripts/i18n-hardcoded-strings.ts', args: [] },
-    // Two roots since feature 091's Phase 1b: `admin/src` plus the admin kit,
-    // because 57 of the admin's own components moved into the package and a
+    // Three root families since feature 091: `admin/src`, the admin kit (Phase
+    // 1b — 57 of the admin's own components moved into the package, and a
     // ratchet that stopped at the application would have read their entries as
-    // drained rather than relocated.
-    files: 362,
+    // drained rather than relocated) and every module package's own `src/admin`
+    // layer (Phase 4 — the drain relocates a screen at a time, which is the
+    // same laundering at a finer granularity). The number grows with each batch.
+    files: 364,
     sites: null,
     sources: [],
   },

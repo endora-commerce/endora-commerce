@@ -21,8 +21,6 @@ import type { SupportedAdminLanguage } from './i18n/types.js';
 import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
 import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
 import { AnalyticsPage } from './modules/analytics/AnalyticsPage.js';
-import { CustomEventsListPage } from './modules/google_analytics/pages/CustomEventsListPage.js';
-import { CustomEventEditPage } from './modules/google_analytics/pages/CustomEventEditPage.js';
 import { ConversionMappingsListPage } from './modules/linkedin_ads/pages/ConversionMappingsListPage.js';
 import { ConversionMappingEditPage } from './modules/linkedin_ads/pages/ConversionMappingEditPage.js';
 import { CustomEventMappingsListPage as MetaEventsListPage } from './modules/meta_ads/pages/CustomEventMappingsListPage.js';
@@ -380,9 +378,6 @@ export function App(): ReactNode {
         <Route path="/api-keys" element={<ApiKeysPage />} />
         <Route path="/webhooks" element={<WebhooksPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/google-analytics" element={<CustomEventsListPage />} />
-        <Route path="/google-analytics/new" element={<CustomEventEditPage />} />
-        <Route path="/google-analytics/:id" element={<CustomEventEditPage />} />
         <Route path="/linkedin-ads" element={<ConversionMappingsListPage />} />
         <Route path="/linkedin-ads/new" element={<ConversionMappingEditPage />} />
         <Route path="/linkedin-ads/:id" element={<ConversionMappingEditPage />} />

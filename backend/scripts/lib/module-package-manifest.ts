@@ -75,6 +75,7 @@
  */
 import { readdirSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
+
 import { join, relative } from 'node:path';
 
 import ts from 'typescript';
@@ -89,6 +90,7 @@ import {
 import { findAliasMember } from './admin-surfaces.js';
 import { readEmitLayout, type EmitLayout } from './module-packages.js';
 import { namedSpecifiers, type SpecifierKind } from './specifiers.js';
+import { ADMIN_LAYER_DIRECTORY } from './ui-layer.js';
 import {
   classifyWorkspaceMembers,
   expandWorkspaceGlob,
@@ -155,8 +157,6 @@ export interface PackageLayer {
  * **not** here is a layer no subpath covers, which is refused rather than
  * skipped.
  */
-/** The layer that compiles under `tsconfig.ui.json` rather than the backend build. */
-const ADMIN_LAYER_DIRECTORY = 'admin';
 
 const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string]> = [
   ['backend', './backend'],

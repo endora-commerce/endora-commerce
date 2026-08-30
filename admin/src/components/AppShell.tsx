@@ -370,13 +370,6 @@ const NAV: NavSection[] = [
         module: 'analytics',
       },
       {
-        to: '/google-analytics',
-        labelKey: 'appShell.nav.googleAnalytics',
-        icon: Sparkles,
-        requiredPermission: 'google_analytics:read',
-        module: 'google_analytics',
-      },
-      {
         to: '/linkedin-ads',
         labelKey: 'appShell.nav.linkedinAds',
         icon: Sparkles,
@@ -912,9 +905,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.webhooks', href: null },
   ] },
-  { test: /^\/google-analytics(\/.*)?$/, build: () => [
-    { labelKey: 'appShell.nav.googleAnalytics', href: '/google-analytics' },
-  ] },
   { test: /^\/linkedin-ads(\/.*)?$/, build: () => [
     { labelKey: 'appShell.nav.linkedinAds', href: '/linkedin-ads' },
   ] },
@@ -988,13 +978,25 @@ function registryCrumbs(pathname: string): Crumb[] | null {
   const path = pathname.replace(/\/+$/, '') || '/';
   for (const section of COMPOSED_NAV) {
     for (const item of section.items) {
-      if (item.labelScope === undefined || item.to !== path) continue;
+      if (item.labelScope === undefined) continue;
+      // The entry's own destination, or anything beneath it. A module's second
+      // and third routes (`/x/new`, `/x/:id`) have no sidebar row of their own
+      // and never will — a nav entry is a landing surface — so matching only
+      // the exact `to` would drop every converted module's sub-screens onto the
+      // humanised-segment fallback below. The hand-written trails this table is
+      // draining already covered subpaths that way, with the same shape.
+      const own = item.to === path;
+      if (!own && !path.startsWith(`${item.to}/`)) continue;
       const parent = section.items.find((other) => other.labelScope === undefined);
       const trail: Crumb[] = [];
       if (section.labelKey) {
         trail.push({ labelKey: section.labelKey, href: parent?.to ?? null });
       }
-      trail.push({ labelKey: item.labelKey, labelScope: item.labelScope, href: null });
+      trail.push({
+        labelKey: item.labelKey,
+        labelScope: item.labelScope,
+        href: own ? null : item.to,
+      });
       return trail;
     }
   }

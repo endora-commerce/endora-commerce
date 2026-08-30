@@ -9,6 +9,8 @@
 
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
+import reactHooks from 'eslint-plugin-react-hooks';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 
 export default [
   {
@@ -100,6 +102,34 @@ export default [
           ],
         },
       ],
+    },
+  },
+  // React rules, in the shared root and scoped to `.tsx` (feature 091, Phase 4).
+  //
+  // The header above calls this config framework-agnostic, and it still is for
+  // `.ts`: every rule below applies only to files that are JSX by extension, of
+  // which this repository has none outside a frontend.
+  //
+  // They live here rather than in `admin/eslint.config.js` because a module's
+  // admin screens no longer live in the admin. Story 3 moves them one directory
+  // at a time into `packages/modules/<id>/src/admin/`, where nothing had
+  // registered `react-hooks` — so the first converted screen carrying an
+  // `eslint-disable-next-line react-hooks/exhaustive-deps` failed with
+  // *"Definition for rule was not found"*, and the obvious local repair — delete
+  // the directive — would have been the screen quietly leaving a rule it had
+  // been held to since it was written. That is the laundering FR-017 refuses,
+  // in the linter. The rule follows the code; the levels are the admin's own,
+  // unchanged.
+  {
+    files: ['**/*.tsx'],
+    plugins: {
+      'react-hooks': reactHooks,
+      'jsx-a11y': jsxA11y,
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+      'jsx-a11y/alt-text': 'warn',
     },
   },
 ];
