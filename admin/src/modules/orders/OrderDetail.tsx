@@ -37,7 +37,7 @@ import { OrderPaymentsTab } from './OrderPaymentsTab';
 import { OrderShipmentsTab } from './OrderShipmentsTab';
 import { Section } from './Section';
 import { orderStatusBadgeStyle } from './orderStatusColor';
-import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
+import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
 import {
   SELECTABLE_PAYMENT_STATUSES,
   paymentStatusLabelKey,

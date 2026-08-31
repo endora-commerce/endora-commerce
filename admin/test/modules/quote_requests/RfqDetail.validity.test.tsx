@@ -28,9 +28,18 @@ vi.mock('@/lib/api-client', async () => {
 vi.mock('@/modules/catalog/components/ProductPicker', () => ({
   ProductPicker: () => null,
 }));
-vi.mock('@/modules/custom_fields/CustomFieldValuesPanel', () => ({
-  CustomFieldValuesPanel: () => null,
-}));
+// `CustomFieldValuesPanel` is `@endora-commerce/admin-kit/components`' since
+// feature 091's P4e — a published component, not `custom_fields`' fragment
+// (`admin-component-contribution.md` §9.1) — so the mock names the subpath the
+// screen now imports. `vi.mock` keys on a resolved module id; the old
+// `@/modules/custom_fields/…` spelling is a shim over this file and would leave
+// the real panel mounted here, fetching its definitions.
+vi.mock('@endora-commerce/admin-kit/components', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/components')>(
+    '@endora-commerce/admin-kit/components',
+  );
+  return { ...actual, CustomFieldValuesPanel: () => null };
+});
 
 const { RfqDetail } = await import('../../../src/modules/quote_requests/RfqDetail');
 

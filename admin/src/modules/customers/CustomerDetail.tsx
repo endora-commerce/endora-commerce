@@ -15,7 +15,7 @@ import {
   AddressesPanel,
 } from './panels/ManagementPanels';
 import { DefaultPreferencesPanel } from '../quick_order/DefaultPreferencesPanel';
-import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
+import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
 
 interface AdminCustomerDetail {
   id: string;

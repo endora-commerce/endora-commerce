@@ -195,6 +195,22 @@
  * owner's data?* — is one a route count cannot ask and a reach count only asks
  * when somebody reads the reaches.
  *
+ * **`custom_fields`' 4 are paid too** (P4e), and the reason is worth more than
+ * the count, because the paragraph above got it wrong in a way a reach count
+ * cannot get right. It files those four under *"reached as components by
+ * screens other modules own, which is FR-007's contribution-zone question"*.
+ * `admin-component-contribution.md` §9.1 read the reaches instead of counting
+ * them and measured the opposite: `CustomFieldValuesPanel`'s props are
+ * `(entityType, values, save)` — data in, edited data back — so all four call
+ * sites hand it the **host's own** stored bag and the host's own writer, and
+ * `custom_fields`' admin API serves definitions and no values at all. Nothing
+ * of the owner's crosses that seam, so it was never a zone question and never a
+ * fragment the owner mounts; it is a published component, and it is
+ * `@endora-commerce/admin-kit`'s now. The module's incoming reach count is
+ * **zero**. That is the same question this ranking's point turns on — *is this
+ * the owner's code, or only the owner's data?* — answered for the second time
+ * against the classification a count had suggested.
+ *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.

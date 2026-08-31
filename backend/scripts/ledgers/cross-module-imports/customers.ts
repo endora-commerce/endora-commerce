@@ -40,23 +40,4 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
     'package subpath, retires nothing — it is the same coupling under a supported name, ' +
     'which is what recording this entry before the move exists to prevent.',
-  'admin/src/modules/customers/CustomerDetail.tsx:custom_fields/CustomFieldValuesPanel':
-    'Admin surface reach: `customers/CustomerDetail.tsx` imports ' +
-    '`CustomFieldValuesPanel` from `../custom_fields/CustomFieldValuesPanel`, which ' +
-    '`custom_fields` owns.\n\n' +
-    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
-    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
-    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
-    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
-    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
-    'describing it as stale and asked the author to remove the record of a debt nobody ' +
-    'had paid. There are 72 of these, and every one would have gone that way, one ' +
-    'directory at a time, in the direction that looks like progress.\n\n' +
-    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
-    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
-    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
-    'and the owner contributes into it, so the dependency reverses and neither module ' +
-    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
-    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
-    'which is what recording this entry before the move exists to prevent.',
 };
