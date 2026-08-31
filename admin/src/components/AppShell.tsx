@@ -186,15 +186,6 @@ const NAV: NavSection[] = [
         requiredPermission: 'pim_ergonode:read',
         module: 'pim_ergonode',
       },
-      // Feature 089 — Pimcore PIM. Same Catalog placement as Ergonode: one
-      // sidebar row; mapping surfaces arrive as tabs in later stories.
-      {
-        to: '/pim-pimcore',
-        labelKey: 'appShell.nav.pimPimcore',
-        icon: PlugZap,
-        requiredPermission: 'pim_pimcore:read',
-        module: 'pim_pimcore',
-      },
       // A feed publishes the catalogue, so it belongs beside the catalogue
       // rather than under Channels. Templates are a view of the same surface
       // and are reached through the tab strip there, not a second sidebar row.
@@ -608,22 +599,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/pim-ergonode\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimErgonode', href: null },
-  ] },
-  // Feature 089 — Pimcore PIM. Deepest trail first.
-  { test: /^\/pim-pimcore\/runs\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimPimcore', href: '/pim-pimcore' },
-    { labelKey: 'appShell.nav.pimPimcoreRuns', href: '/pim-pimcore/runs' },
-    { labelKey: 'appShell.crumb.importRun', href: null },
-  ] },
-  { test: /^\/pim-pimcore\/runs\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimPimcore', href: '/pim-pimcore' },
-    { labelKey: 'appShell.nav.pimPimcoreRuns', href: null },
-  ] },
-  { test: /^\/pim-pimcore\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimPimcore', href: null },
   ] },
   { test: /^\/product-feeds\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
@@ -1187,8 +1162,6 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.transactionalEmails', sub: 'appShell.palette.sub.transactionalEmails', icon: Inbox, to: '/transactional-emails', keywords: 'transactional emails notifications maile transakcyjne powiadomienia', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailBlocks', sub: 'appShell.palette.sub.emailBlocks', icon: Inbox, to: '/transactional-emails/blocks', keywords: 'email blocks fragments bloki maili', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailTemplates', sub: 'appShell.palette.sub.emailTemplates', icon: Inbox, to: '/transactional-emails/templates', keywords: 'email templates layout szablony maili', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.pimPimcore', sub: 'appShell.palette.sub.pimPimcore', icon: PlugZap, to: '/pim-pimcore', keywords: 'pimcore pim ingress hmac bootstrap', requiredPermission: 'pim_pimcore:read' , module: 'pim_pimcore' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.pimPimcoreRuns', sub: 'appShell.palette.sub.pimPimcoreRuns', icon: PlugZap, to: '/pim-pimcore/runs', keywords: 'pimcore runs history delivery', requiredPermission: 'pim_pimcore:read' , module: 'pim_pimcore' },
   // Feature 020 — the Actions group is now sourced from the module
   // registry via useAdminActions(); the previously-hardcoded "New
   // product" and "Import products" entries are declared by the

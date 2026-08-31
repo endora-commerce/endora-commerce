@@ -36,6 +36,7 @@
     "@endora-commerce/mod-mfa": "workspace:*",
     "@endora-commerce/mod-paypal": "workspace:*",
     "@endora-commerce/mod-payu": "workspace:*",
+    "@endora-commerce/mod-pim-pimcore": "workspace:*",
     "@endora-commerce/mod-stripe": "workspace:*",
     "@endora-commerce/mod-tpay": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:^",

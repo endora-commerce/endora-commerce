@@ -25,6 +25,7 @@ import {
   Menu,
   Package,
   PanelLeft,
+  PlugZap,
   Plus,
   PlusCircle,
   PlusSquare,
@@ -58,6 +59,7 @@ import type { KnownIconName } from '@endora-commerce/contracts';
  */
 const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   Plus,
+  PlugZap,
   Sparkles,
   Settings,
   Search,

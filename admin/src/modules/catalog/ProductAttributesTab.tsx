@@ -7,11 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelect } from '@/components/ui/multi-select';
-// Feature 068 / US4 + 076 / US5 — the PIM overwrite-protection control. Renders
-// `null` unless that PIM's connection is enabled (FR-058 / FR-069), so no
-// condition is needed here; at most one PIM is enabled (FR-075).
+// Feature 068 / US4 — the Ergonode overwrite-protection control. Renders `null`
+// unless an Ergonode connection is enabled (FR-058), so no condition is needed
+// here; it also decides on its own whether the attribute takes one toggle or one
+// per language (FR-052).
 import { ErgonodeAttributeValueProtection } from '../pim_ergonode/components/FieldProtectionToggle';
-import { PimcoreAttributeValueProtection } from '../pim_pimcore/components/FieldProtectionToggle';
 
 /**
  * Feature: product Attributes tab.
@@ -277,22 +277,16 @@ function AttributeField({
       break;
   }
 
-  // Feature 068 / US4 + 076 / US5 — one control per attribute value. At most one
-  // PIM connection is enabled (FR-075), so each control hides itself when its
-  // module is off.
+  // Feature 068 / US4 — one control per attribute value, because that is the
+  // granularity FR-052 asks for: an operator curates *this* value, not "the
+  // attributes". A language-scoped value is curated one language at a time, and
+  // the control below renders itself accordingly.
   const protection = (
-    <>
-      <ErgonodeAttributeValueProtection
-        productId={productId}
-        attributeKey={attr.key}
-        languageScoped={attr.languageScoped === true}
-      />
-      <PimcoreAttributeValueProtection
-        productId={productId}
-        attributeKey={attr.key}
-        languageScoped={attr.languageScoped === true}
-      />
-    </>
+    <ErgonodeAttributeValueProtection
+      productId={productId}
+      attributeKey={attr.key}
+      languageScoped={attr.languageScoped === true}
+    />
   );
 
   // The boolean control renders its own inline label.
