@@ -1381,17 +1381,7 @@ agent reads that path directly. Update it in place; never fork a second copy.
 See "Repo map" above.
 
 ## Recent Changes
-<<<<<<< HEAD
-<<<<<<< HEAD
-- 076-pimcore-pim-sync: Added PostgreSQL — 11 new tables owned by `pim_pimcore` (see [data-model.md](./data-model.md)).
+- 089-pimcore-pim-sync: Added TypeScript 5.x strict on Node.js >= 22.17 for Endora; PHP 8.2+ package code in the sibling `pim-integrations` workspace + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; PHP uses the existing Pimcore/Symfony/Composer stack; **no new runtime dependency**
 - 068-inpost-shipping: InPost ShipX PL module (`inpost`) — dual shipping adapters, Geowidget v5, BullMQ poll, PDF labels; orders `shipping_adapter_data`.
 - 072-module-kernel-di: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ. **One new runtime dependency: `awilix`** — see Complexity Tracking
 - 073-lifecycle-gating-completion: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15 App Router + React 19 (storefront). **No new runtime dependency** (Constitution IV, FR-062)
-=======
-- 076-pimcore-pim-sync: Added TypeScript 5.x strict on Node.js >= 22.17 for Endora; PHP 8.2+ package code in the sibling `pim-integrations` workspace + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; PHP uses the existing Pimcore/Symfony/Composer stack; **no new runtime dependency**
-=======
-- 089-pimcore-pim-sync: Added TypeScript 5.x strict on Node.js >= 22.17 for Endora; PHP 8.2+ package code in the sibling `pim-integrations` workspace + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; PHP uses the existing Pimcore/Symfony/Composer stack; **no new runtime dependency**
->>>>>>> 253091488 (docs(089): take the next free spec number after rebase onto master)
-- 072-module-kernel-di: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ. **One new runtime dependency: `awilix`** — see Complexity Tracking
-
->>>>>>> f956daf08 (feat(076): reshape Pimcore sync to complete-record send/apply)

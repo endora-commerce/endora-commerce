@@ -493,7 +493,15 @@ export const ERROR_CODES = {
   PIM_PIMCORE_CURRENCY_INACTIVE: 'PIM_PIMCORE_CURRENCY_INACTIVE',
   PIM_PIMCORE_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_PIMCORE_ATTRIBUTE_NOT_PRICE_TYPE',
   PIM_PIMCORE_BINDING_EXISTS: 'PIM_PIMCORE_BINDING_EXISTS',
-<<<<<<< HEAD
+  /** A protected field path does not match the grammar (data-model.md §9). */
+  PIM_PIMCORE_FIELD_PATH_INVALID: 'PIM_PIMCORE_FIELD_PATH_INVALID',
+  /**
+   * Push / manual object sync refused because the connection has not finished
+   * its first full import yet (FR-083 / FR-087).
+   */
+  PIM_PIMCORE_BOOTSTRAP_INCOMPLETE: 'PIM_PIMCORE_BOOTSTRAP_INCOMPLETE',
+  /** Inbound push rejected: missing or invalid HMAC signature (FR-088). */
+  PIM_PIMCORE_PUSH_AUTH_REJECTED: 'PIM_PIMCORE_PUSH_AUTH_REJECTED',
 
   // Payments — the buyer's retry refusals (!1159). Three codes and not one,
   // because the money term and the lifecycle term are orthogonal rather than
@@ -512,20 +520,6 @@ export const ERROR_CODES = {
    * neither claimant.
    */
   PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
-=======
-  /** A protected field path does not match the grammar (data-model.md §9). */
-  PIM_PIMCORE_FIELD_PATH_INVALID: 'PIM_PIMCORE_FIELD_PATH_INVALID',
-<<<<<<< HEAD
->>>>>>> abe54b512 (feat(076): add US4 attribute-set mappings for Pimcore classes)
-=======
-  /**
-   * Push / manual object sync refused because the connection has not finished
-   * its first full import yet (FR-083 / FR-087).
-   */
-  PIM_PIMCORE_BOOTSTRAP_INCOMPLETE: 'PIM_PIMCORE_BOOTSTRAP_INCOMPLETE',
-  /** Inbound push rejected: missing or invalid HMAC signature (FR-088). */
-  PIM_PIMCORE_PUSH_AUTH_REJECTED: 'PIM_PIMCORE_PUSH_AUTH_REJECTED',
->>>>>>> 7befafdf7 (feat(076): add US6 media ingest with allowlist and gallery/attachments)
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
