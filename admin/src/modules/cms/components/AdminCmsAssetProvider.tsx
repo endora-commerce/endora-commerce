@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Data } from '@measured/puck';
 import { CmsRenderProvider, walkAssetIds, type CmsRenderEmbeds } from '@endora-commerce/cms-components';
-import { assetsLibraryClient } from '@/modules/assets_library/api/assets-library-client';
-import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
+import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 
 const apiBaseUrl =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
@@ -36,7 +36,7 @@ export function AdminCmsAssetProvider({
       const entries = await Promise.all(
         ids.map(async (id) => {
           try {
-            const detail = await assetsLibraryClient.getAsset(id);
+            const detail = await fetchAssetDetail(id);
             return [
               id,
               {

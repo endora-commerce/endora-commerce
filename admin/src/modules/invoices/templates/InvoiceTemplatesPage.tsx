@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
 import { PageHeader } from '@/components/ui/page-header';
-import { InvoiceSectionTabs } from '@/components/InvoiceSectionTabs';
+import { InvoiceSectionTabs } from '../components/InvoiceSectionTabs';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
   Table,

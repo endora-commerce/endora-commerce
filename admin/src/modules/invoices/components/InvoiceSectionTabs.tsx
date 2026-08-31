@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { RouteTabs } from './ui/route-tabs.js';
-import { useTranslation } from '../i18n/useTranslation.js';
-import { useModulePresence } from '../lib/module-presence/index.js';
+import { RouteTabs } from '@/components/ui/route-tabs';
+import { useTranslation } from '@/i18n/useTranslation';
+import { useModulePresence } from '@/lib/module-presence';
 
 /**
  * The switch between invoices and the templates they are rendered with.
@@ -13,6 +13,14 @@ import { useModulePresence } from '../lib/module-presence/index.js';
  *
  * Both tabs belong to `invoices`, so the whole strip is the module's
  * contribution and goes with it (feature 073 / FR-031).
+ *
+ * **It lives here since feature 091's P4c**, and until then it did not. The
+ * `admin-surface` ledger recorded it as a host component that *"renders on two
+ * modules' pages and belongs to neither"*, retiring with P4 as a two-contributor
+ * zone — the sentence `OrderEntryTabs` earns and this one never did. Measured:
+ * both tabs are `/invoices*`, the presence gate asks about `invoices`, and both
+ * consumers are `invoices`' own screens. There was nothing here for a mechanism
+ * to do; it was a file in the wrong directory.
  */
 export function InvoiceSectionTabs(): ReactNode {
   const t = useTranslation('core');

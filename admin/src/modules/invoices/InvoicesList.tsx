@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
-import { InvoiceSectionTabs } from '@/components/InvoiceSectionTabs';
+import { InvoiceSectionTabs } from './components/InvoiceSectionTabs';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { SendInvoiceEmailResult } from '@endora-commerce/contracts';

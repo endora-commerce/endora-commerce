@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { DisplayModeOverrideRow } from '../price_lists/DisplayModeOverrideRow';
-import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
+import { AssetPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useTranslationContext } from '@/i18n/TranslationProvider';
 import {

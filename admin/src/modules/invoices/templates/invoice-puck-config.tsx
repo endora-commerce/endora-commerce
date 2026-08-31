@@ -6,8 +6,8 @@ import {
   createImageSourceField,
   createImageUrlField,
 } from '@/modules/cms/components/AssetPickers';
-import { assetsLibraryClient } from '@/modules/assets_library/api/assets-library-client';
-import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
+import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 
 /**
  * Dedicated Puck config for invoice PDF templates (feature 047, US6). Kept in
@@ -1050,7 +1050,7 @@ const InvoiceLogo = invoiceSection({
     const assetId = typeof props['assetId'] === 'string' ? props['assetId'] : '';
     if (source === 'library' && assetId) {
       try {
-        const detail = await assetsLibraryClient.getAsset(assetId);
+        const detail = await fetchAssetDetail(assetId);
         src = toAbsoluteAssetUrl(detail.url);
       } catch {
         /* keep previous src */

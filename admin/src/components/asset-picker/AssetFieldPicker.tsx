@@ -1,111 +1,20 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
-import {
-  assetsLibraryClient,
-  type AssetSummary,
-  type AssetDetail,
-} from '@/modules/assets_library/api/assets-library-client';
-
 /**
- * Field-style asset picker.
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/components` (feature 091, P4c).
  *
- * Replaces "paste an asset UUID" inputs: shows the chosen asset's label /
- * filename in a read-only field with a button that toggles the existing
- * Assets-Library grid picker (search + optional inline upload). The
- * committed value is the asset UUID; for a pre-existing value the asset's
- * filename is resolved once so editors see a friendly name instead of a
- * bare UUID.
+ * The field picker stayed in `admin/src` through Phase 1b and through P2 on the
+ * reading that its module knowledge was a **component** — `assets_library`' own
+ * `AssetPicker` — so there was no request to rebuild and it had to wait for a
+ * zone. `admin-component-contribution.md` Z1.1 measured one level deeper:
+ * `AssetPicker` is 153 lines over one `GET`, `AssetUploader` posts multipart to
+ * the origin the kit already publishes, and every type all three name is
+ * `@endora-commerce/contracts`'. The whole cluster is P2's shape, and it took
+ * P2's exit.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's
+ * own bindings; `admin/test/kit/admin-kit-identity.test.ts` asserts reference
+ * equality across the seam, because a second React context or a second class
+ * passes every structural comparison and still breaks at runtime.
  */
-
-export interface AssetFieldPickerProps {
-  value: string;
-  onChange: (assetId: string) => void;
-  acceptMimePrefix?: 'image/' | 'video/';
-  allowUpload?: boolean;
-  disabled?: boolean;
-  id?: string;
-  placeholder?: string;
-  ariaLabel?: string;
-}
-
-export function AssetFieldPicker(props: AssetFieldPickerProps): ReactNode {
-  const { value, onChange } = props;
-  const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState<string | null>(null);
-
-  // Resolve a friendly name for a value the user didn't pick this session
-  // (e.g. when editing an existing record).
-  useEffect(() => {
-    if (!value) {
-      setLabel(null);
-      return;
-    }
-    let alive = true;
-    void assetsLibraryClient
-      .getAsset(value)
-      .then((a) => {
-        if (alive) setLabel(a.label ?? a.filename);
-      })
-      .catch(() => {
-        /* unknown / deleted asset — fall back to showing the raw id */
-      });
-    return (): void => {
-      alive = false;
-    };
-  }, [value]);
-
-  const onPick = (asset: AssetSummary | AssetDetail): void => {
-    onChange(asset.id);
-    setLabel(asset.label ?? asset.filename);
-    setOpen(false);
-  };
-
-  return (
-    <div className="space-y-2">
-      {open ? (
-        <AssetPicker
-          {...(props.acceptMimePrefix ? { acceptMimePrefix: props.acceptMimePrefix } : {})}
-          allowUpload={props.allowUpload ?? false}
-          onSelect={onPick}
-          onClose={(): void => setOpen(false)}
-        />
-      ) : null}
-      <div className="flex items-center gap-2">
-        <Input
-          {...(props.id ? { id: props.id } : {})}
-          value={label ?? value}
-          readOnly
-          placeholder={props.placeholder ?? 'No asset selected'}
-          aria-label={props.ariaLabel ?? 'Selected asset'}
-          className={label ? '' : 'font-mono'}
-        />
-        {value && !props.disabled ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={(): void => {
-              onChange('');
-              setLabel(null);
-            }}
-            aria-label="Clear asset"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={props.disabled ?? false}
-          onClick={(): void => setOpen((v) => !v)}
-        >
-          {value ? 'Change' : 'Choose'}
-        </Button>
-      </div>
-    </div>
-  );
-}
+export { AssetFieldPicker } from '@endora-commerce/admin-kit/components';
+export type { AssetFieldPickerProps } from '@endora-commerce/admin-kit/components';

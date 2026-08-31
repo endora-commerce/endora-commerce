@@ -1,22 +1,20 @@
 // Drag-and-drop / file-input uploader — feature 013 / US1.
-// Streams a single file to the Library via the typed client and emits the
-// resulting AssetDetail on success.
+// Streams a single file to the Library and emits the resulting AssetDetail on
+// success. The request is the kit's own since feature 091's P4c — see
+// `./assets-api.ts`.
 
 import { useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useTranslation } from '@/i18n/useTranslation';
-import {
-  assetsLibraryClient,
-  type AssetDetail,
-  type UploadFields,
-} from '../api/assets-library-client';
+import type { AssetDetail } from '@endora-commerce/contracts';
+import { Button } from '../../ui/button.js';
+import { Alert, AlertDescription } from '../../ui/alert.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
+import { uploadAsset, type AssetUploadFields } from './assets-api.js';
 
 export interface AssetUploaderProps {
   /** File MIME prefix to accept — e.g. 'image/' for image-only inputs. */
   acceptPrefix?: 'image/' | 'video/' | undefined;
   /** Default upload fields (folder, label, visibility). */
-  defaults?: UploadFields;
+  defaults?: AssetUploadFields;
   /** Called after a successful upload. */
   onUploaded: (asset: AssetDetail) => void;
   /** Optional inline label for the trigger button. */
@@ -38,15 +36,17 @@ export function AssetUploader({
   const handleFile = async (file: File): Promise<void> => {
     setError(null);
     if (acceptPrefix && !file.type.startsWith(acceptPrefix)) {
-      setError(t('uploader.error.wrongType', {
-        expected: acceptPrefix.replace('/', ''),
-        actual: file.type || file.name,
-      }));
+      setError(
+        t('uploader.error.wrongType', {
+          expected: acceptPrefix.replace('/', ''),
+          actual: file.type || file.name,
+        }),
+      );
       return;
     }
     setBusy(true);
     try {
-      const asset = await assetsLibraryClient.uploadAsset(file, defaults ?? {});
+      const asset = await uploadAsset(file, defaults ?? {});
       onUploaded(asset);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -68,20 +68,16 @@ export function AssetUploader({
     if (f) void handleFile(f);
   };
 
-  const accept = acceptPrefix
-    ? acceptPrefix === 'image/'
-      ? 'image/*'
-      : 'video/*'
-    : undefined;
+  const accept = acceptPrefix ? (acceptPrefix === 'image/' ? 'image/*' : 'video/*') : undefined;
 
   return (
     <div className="space-y-2">
       <div
-        onDragOver={(e) => {
+        onDragOver={(e): void => {
           e.preventDefault();
           setDragHover(true);
         }}
-        onDragLeave={() => setDragHover(false)}
+        onDragLeave={(): void => setDragHover(false)}
         onDrop={onDrop}
         className={`rounded-md border-2 border-dashed p-4 text-center text-sm ${
           dragHover ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'
@@ -96,9 +92,7 @@ export function AssetUploader({
           onChange={onChange}
         />
         <p className="text-muted-foreground">
-          {busy
-            ? t('uploader.uploading')
-            : t('uploader.dropCopy')}
+          {busy ? t('uploader.uploading') : t('uploader.dropCopy')}
         </p>
         <Button
           type="button"
@@ -106,7 +100,7 @@ export function AssetUploader({
           size="sm"
           className="mt-2"
           disabled={busy}
-          onClick={() => fileInput.current?.click()}
+          onClick={(): void => fileInput.current?.click()}
         >
           {busy ? t('uploader.uploading') : (triggerLabel ?? t('uploader.trigger'))}
         </Button>
