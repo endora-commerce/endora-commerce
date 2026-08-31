@@ -4,18 +4,24 @@
 // as a modal because the admin app has no Dialog primitive yet.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useTranslation } from '@/i18n/useTranslation';
-import { AssetUploader } from './AssetUploader';
-import { toAbsoluteAssetUrl } from '../lib/asset-url';
-import {
-  assetsLibraryClient,
-  type AssetDetail,
-  type AssetSummary,
-} from '../api/assets-library-client';
+import type { AssetDetail, AssetSummary } from '@endora-commerce/contracts';
+import { Button } from '../../ui/button.js';
+import { Card, CardContent } from '../../ui/card.js';
+import { Input } from '../../ui/input.js';
+import { Alert, AlertDescription } from '../../ui/alert.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
+import { toAbsoluteAssetUrl } from '../../lib/index.js';
+import { AssetUploader } from './AssetUploader.js';
+import { listAssets } from './assets-api.js';
+
+/**
+ * **The request is built here** (feature 091, P4c). Until this component moved
+ * into the kit it called `assets_library`' own admin API client, which is a
+ * reach out of the platform's frontend into a module's admin code.
+ * `AssetSummary` and `AssetDetail` are `@endora-commerce/contracts`', so only
+ * the one `GET` is rebuilt; the shape is the module's published one and is not
+ * duplicated.
+ */
 
 export interface AssetPickerProps {
   /** Filter the picker grid by MIME prefix — e.g. 'image/' for images-only. */
@@ -38,13 +44,12 @@ export function AssetPicker(props: AssetPickerProps): ReactNode {
   const reload = (): void => {
     setLoading(true);
     setError(null);
-    assetsLibraryClient
-      .listAssets({
-        folderId: null,
-        ...(q ? { q } : {}),
-        ...(props.acceptMimePrefix ? { mime: props.acceptMimePrefix } : {}),
-        limit: 24,
-      })
+    listAssets({
+      folderId: null,
+      ...(q ? { q } : {}),
+      ...(props.acceptMimePrefix ? { mime: props.acceptMimePrefix } : {}),
+      limit: 24,
+    })
       .then((res) => setItems(res.data))
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));

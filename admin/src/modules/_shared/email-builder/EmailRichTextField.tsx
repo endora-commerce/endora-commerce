@@ -3,7 +3,7 @@ import type { CustomField } from '@measured/puck';
 import { sanitizeEmailHtml } from '@endora-commerce/email-components';
 import { htmlFromTiptap } from '@endora-commerce/cms-components';
 import { Button } from '@/components/ui/button';
-import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { useEmailVariables } from './EmailVariablesProvider';
 
 /**

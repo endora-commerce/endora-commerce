@@ -5,13 +5,9 @@ import type { CustomField } from '@measured/puck';
 import { FieldLabel } from '@measured/puck';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
-import {
-  assetsLibraryClient,
-  type AssetDetail,
-  type AssetSummary,
-} from '@/modules/assets_library/api/assets-library-client';
-import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
+import type { AssetDetail, AssetSummary } from '@endora-commerce/contracts';
+import { AssetPicker, fetchAssetDetail } from '@endora-commerce/admin-kit/components';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 
 const inputClassName = '_Input-input_bsxfo_26';
 export const pickerButtonClass = 'h-9 shrink-0';
@@ -86,7 +82,7 @@ function AssetModalFieldControl({
     let cancelled = false;
     void (async (): Promise<void> => {
       try {
-        const asset = await assetsLibraryClient.getAsset(selected);
+        const asset = await fetchAssetDetail(selected);
         if (!cancelled) {
           setPreviewUrl(toAbsoluteAssetUrl(asset.url));
           setPreviewLabel(asset.label ?? asset.filename);

@@ -58,46 +58,6 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     '`specs/091-module-owned-admin-surfaces/contracts/admin-kit-surface.md` R5 states, ' +
     'so the kit never holds a component the admin application does not use. Six pickers ' +
     'are already published there and this one is not, which is the whole of the debt.',
-  'admin/src/modules/invoices/templates/invoice-puck-config.tsx:assets_library/api/assets-library-client':
-    'Admin surface reach: `invoices/templates/invoice-puck-config.tsx` imports ' +
-    '`assetsLibraryClient` from `@/modules/assets_library/api/assets-library-client`, ' +
-    'which `assets_library` owns.\n\n' +
-    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
-    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
-    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
-    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
-    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
-    'describing it as stale and asked the author to remove the record of a debt nobody ' +
-    'had paid. There are 72 of these, and every one would have gone that way, one ' +
-    'directory at a time, in the direction that looks like progress.\n\n' +
-    'Retired by: the reach is the **client module**, not the HTTP call — the request ' +
-    'and response shapes are already in `@endora-commerce/contracts`, which both sides ' +
-    'compile. The Phase 4 batch that moves this consumer\'s admin surface into its ' +
-    'package has to take one of two exits rather than rewrite the specifier: the caller ' +
-    'builds the request from the published `apiClient` and the contract\'s own types, or ' +
-    'the owner publishes the client on a surface a stranger can name. A bare specifier ' +
-    'into the owner\'s `./admin` subpath is neither — that subpath exports the ' +
-    'contributions object and nothing else ' +
-    '(`specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md` R2), so ' +
-    'it cannot carry a client and a reach through it would still be counted here.',
-  'admin/src/modules/invoices/templates/invoice-puck-config.tsx:assets_library/lib/asset-url':
-    'Admin surface reach: `invoices/templates/invoice-puck-config.tsx` imports ' +
-    '`toAbsoluteAssetUrl` from `@/modules/assets_library/lib/asset-url`, which ' +
-    '`assets_library` owns.\n\n' +
-    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
-    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
-    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
-    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
-    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
-    'describing it as stale and asked the author to remove the record of a debt nobody ' +
-    'had paid. There are 72 of these, and every one would have gone that way, one ' +
-    'directory at a time, in the direction that looks like progress.\n\n' +
-    'Retired by: the reach is a **helper** rather than a screen: a pure function or a ' +
-    'small module of the owner\'s that this consumer re-uses. What retires it is ' +
-    'whichever of two answers its owner takes — the helper is generic and moves into ' +
-    'the kit (`admin-kit-surface.md` R5), or it encodes the owner\'s domain and this ' +
-    'consumer asks for the rendered result through a zone contribution (FR-007) instead ' +
-    'of recomputing it.',
   'admin/src/modules/invoices/templates/InvoiceTemplateEditor.tsx:cms/components/PageBuilderHeaderActions':
     'Admin surface reach: `invoices/templates/InvoiceTemplateEditor.tsx` imports ' +
     '`PageBuilderHeaderActions` from ' +
@@ -110,13 +70,22 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'describing it as stale and asked the author to remove the record of a debt nobody ' +
     'had paid. There are 72 of these, and every one would have gone that way, one ' +
     'directory at a time, in the direction that looks like progress.\n\n' +
-    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
-    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
-    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
-    'and the owner contributes into it, so the dependency reverses and neither module ' +
-    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
-    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
-    'which is what recording this entry before the move exists to prevent.',
+    'Retired by: **not a zone**, and this entry said it was. The sentence it carried was ' +
+    'written once by feature 091 Phase 0 and pasted across all 24 of its component ' +
+    'reaches — the right thing to have done then, before anybody had read a signature, ' +
+    'and a stale retiring condition by the time `admin-component-contribution.md` Z1 ' +
+    'existed to decide the question mechanically. Nothing went red for it: the ratchet on ' +
+    'this ledger is two-way on the **key**, never on the reason.\n\n' +
+    'Z1 is the rule: a reach is a zone contribution when the *owner* decides that the ' +
+    'component appears, and a published component when the *consumer* does. ' +
+    '`PageBuilderHeaderActions` takes `fullscreen` / `onToggleFullscreen`, `currentData`, ' +
+    '`onCopyFromLanguage`, `onClearCanvas` and its own translator `t`: every one of them a ' +
+    'value handed in with a callback back, which is Z1 question 1. The **consumer** decides ' +
+    'it appears, so it is a published component and not a contribution.\n\n' +
+    'Its home is D-192\'s `page-builder`-family package, with `PageBuilderEditor` and the ' +
+    'rest of the builder — not the kit and not a zone. What retires this entry is that ' +
+    'package existing and this screen naming it. Moving the file, or rewriting the ' +
+    'specifier as `cms`\' own package subpath, still retires nothing.',
   'admin/src/modules/invoices/templates/InvoiceTemplateEditor.tsx:cms/components/PageBuilderOverlayBridge':
     'Admin surface reach: `invoices/templates/InvoiceTemplateEditor.tsx` imports ' +
     '`PageBuilderOverlayBridge` from ' +
@@ -129,11 +98,21 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'describing it as stale and asked the author to remove the record of a debt nobody ' +
     'had paid. There are 72 of these, and every one would have gone that way, one ' +
     'directory at a time, in the direction that looks like progress.\n\n' +
-    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
-    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
-    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
-    'and the owner contributes into it, so the dependency reverses and neither module ' +
-    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
-    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
-    'which is what recording this entry before the move exists to prevent.',
+    'Retired by: **not a zone**, and this entry said it was. The sentence it carried was ' +
+    'written once by feature 091 Phase 0 and pasted across all 24 of its component ' +
+    'reaches — the right thing to have done then, before anybody had read a signature, ' +
+    'and a stale retiring condition by the time `admin-component-contribution.md` Z1 ' +
+    'existed to decide the question mechanically. Nothing went red for it: the ratchet on ' +
+    'this ledger is two-way on the **key**, never on the reason.\n\n' +
+    'Z1 is the rule: a reach is a zone contribution when the *owner* decides that the ' +
+    'component appears, and a published component when the *consumer* does. ' +
+    '`PageBuilderOverlayBridge` wraps `children` and is told `hover`, `isSelected`, ' +
+    '`componentId` and `componentType`. Nothing is handed back, so Z1 question 1 does not ' +
+    'fire — but question 2 does not either: the consumer positions it explicitly and ' +
+    'supplies everything it renders from, which is question 3, a display wrapper the ' +
+    'consumer places and does not control. Published component, not a zone.\n\n' +
+    'It already imports `@endora-commerce/page-builder-core/editor`, so its home is ' +
+    'D-192\'s `page-builder`-family package rather than the kit. What retires this entry ' +
+    'is that package existing and this screen naming it. Moving the file, or rewriting the ' +
+    'specifier as `cms`\' own package subpath, still retires nothing.',
 };

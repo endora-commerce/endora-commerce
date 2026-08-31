@@ -9,10 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
+import { AssetUploader } from '@endora-commerce/admin-kit/components';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { FolderTree } from '../components/FolderTree';
-import { AssetUploader } from '../components/AssetUploader';
 import { AssetDetailDrawer } from '../components/AssetDetailDrawer';
-import { toAbsoluteAssetUrl } from '../lib/asset-url';
 import {
   assetsLibraryClient,
   type AssetFolder,

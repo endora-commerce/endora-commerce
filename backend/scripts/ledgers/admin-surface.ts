@@ -9,40 +9,46 @@
  *
  * R15 said this ledger opens **empty**. It does not, and the correction is
  * recorded in the contract: Phase 1b publishes 1690 of the 1782 measured host
- * reaches, and the 92 that remain fall into exactly two groups, each with a
- * retiring condition that is somebody's next merge request rather than a
- * sentence of intent.
+ * reaches, and the 92 that remained fell into two groups, each with a retiring
+ * condition that is somebody's next merge request rather than a sentence of
+ * intent. **Both groups are now down to one entry each way**: what is left is
+ * two keys, one component, and a mechanism that genuinely does not exist yet.
  *
- * ## Group A — the pickers over another module's data (4 sites)
+ * ## Group A — the pickers over another module's data (0 sites)
  *
  * `organization-picker`, `sales-channel-picker`, `asset-picker` and
  * `cms-picker` each fetched from **another module's** API client, so publishing
  * them as they stood would have made the kit depend on module code and broken
  * R6 (*"the kit holds no module knowledge"*).
  *
- * **P2 answered three of the four, and the answer was not the one written
- * here.** This entry said the group *"retires with Phase 2"*, when a module
- * package could contribute the picker to a zone. Phase 2 landed and retired
- * none of them, because the zone mechanism it would need is P4's and does not
- * exist. What P2 did instead is the exit batches three and five took for a
- * module screen: the component rebuilds its request from the published
- * `apiClient` and the owner's **contract** types, at which point it holds no
- * module code to publish and moves into the kit like any other composite. 15 of
- * the 19 keys went that way, and `admin/src` keeps a re-export shim at each old
- * path, so the reach is repaired rather than reclassified.
+ * **This group is empty, and it took two corrections to get there — both of
+ * them to a retiring condition written here.** The first said the group
+ * *"retires with Phase 2"*, when a module package could contribute the picker
+ * to a zone; Phase 2 landed and retired none of them that way, because the zone
+ * mechanism it would need is P4's and does not exist. What P2 did instead is
+ * the exit batches three and five took for a module screen: the component
+ * rebuilds its request from the published `apiClient` and the owner's
+ * **contract** types, at which point it holds no module code to publish and
+ * moves into the kit like any other composite. 15 of the 19 keys went that way.
  *
- * **What is left is `asset-picker`, and it is left for a reason of kind rather
- * than of size.** Its module knowledge is `assets_library`' `AssetPicker`
- * **component**, not a request, so there is no URL to rebuild and no contract
- * type that replaces it. It is FR-007's own worked example and **retires with
- * P4** — `registryZones()`, an `<AdminZone>` renderer and the visibility gate —
- * which is what `plan.md` § *Phase 4* means by *"P2 does not cover
- * `asset-picker`"*. Its second half, the `assets_library` admin client the field
- * picker calls to resolve an id, takes the client exit and can be paid first;
- * both are recorded from the picker's own side in
- * `backend/scripts/ledgers/cross-module-imports/host.ts`.
+ * The second correction is `asset-picker`'s, and it is the one worth keeping in
+ * view. This entry said the picker was left *"for a reason of kind rather than
+ * of size"* — its module knowledge was `assets_library`' `AssetPicker`
+ * **component**, so there was no URL to rebuild — and that it *"retires with
+ * P4"*. `admin-component-contribution.md` Z1.1 measured one level deeper and
+ * found the reason false: `AssetPicker` is 153 lines over one `GET`,
+ * `AssetUploader` posts multipart to the origin the kit already publishes, and
+ * every type all three name is `@endora-commerce/contracts`'. The whole cluster
+ * was the P2 shape with one more component in the way, and P4c took P2's exit
+ * with it — 19 keys, of which 4 were this ledger's and 15 the cross-module one's.
+ * `admin/src` keeps a re-export shim at `components/asset-picker/AssetFieldPicker`;
+ * the other three had no consumer outside a module directory and so no old path
+ * left to forward.
  *
- * ## Group B — the admin's session and module-presence state (4 sites)
+ * A reason that survives its own refutation is the thing this file is for, so
+ * both corrections are recorded here rather than deleted with the keys.
+ *
+ * ## Group B — the admin's session and module-presence state (2 sites)
  *
  * **P3 paid 64 of this group's 68 keys**, and the four hooks it was named for —
  * `lib/auth`, `lib/module-presence`, `lib/surface-visibility` and
@@ -76,15 +82,20 @@
  * permission gate asserted against a stub of the predicate asserts that the stub
  * was consulted.
  *
- * **What is left is the two tab components**, which are not hooks and were never
- * blocked by the same thing. Each renders on two modules' pages and belongs to
- * neither, so publishing one would put that pairing — module knowledge — in the
- * kit. They retire with **P4**, like `asset-picker`: a tab strip over two
- * modules' surfaces is a zone with two contributions.
+ * **What is left is one tab component, and it is not two.** This entry read
+ * *"the two tab components … each renders on two modules' pages and belongs to
+ * neither"*. Measured, that was true of one of them. `InvoiceSectionTabs`' two
+ * tabs are both `/invoices*`, its presence gate asks about `invoices`, and both
+ * of its consumers are `invoices`' own screens — so it belonged to `invoices`
+ * entirely and needed no mechanism at all. P4c moved the file into
+ * `admin/src/modules/invoices/components/` and its two keys went with it.
+ * `OrderEntryTabs` is the real case and keeps the sentence: it spans `orders`
+ * and `quick_order`, and its own comment says the strip must lose one tab rather
+ * than the strip when `quick_order` goes off.
  *
  * Nothing here is an exception to a rule. Every entry is a reach that should
- * one day be a bare specifier into a published subpath, and both groups have a
- * named event that removes them.
+ * one day be a bare specifier into a published subpath, and it has a named
+ * event that removes it.
  */
 
 export interface UnpublishedAdminReach {
@@ -94,30 +105,22 @@ export interface UnpublishedAdminReach {
   readonly reason: string;
 }
 
-const PICKERS =
-  'A picker over another module’s data: the component renders that module’s own ' +
-  '`AssetPicker`, so publishing it would put module knowledge in the kit (R6). It is ' +
-  'FR-007’s worked example, and the one member of this group a request cannot answer — ' +
-  'P2 retired the other three by rebuilding their calls from the published `apiClient`. ' +
-  'Retires with **P4**, when a zone lets `assets_library` contribute the component and ' +
-  'the host render a slot.';
-
-const SESSION =
+const ORDER_ENTRY_TABS =
   'A host component that reads module presence to decide which of its tabs to render. The ' +
-  'four hooks this group was named for are the kit’s since P3; what is left is two ' +
-  'components that sit in `admin/src/components/` because each renders on two modules’ ' +
-  'pages and belongs to neither — `InvoiceSectionTabs` on `invoices` and its templates ' +
-  'screen, `OrderEntryTabs` on `orders` and `quick_order`. Publishing one would put that ' +
-  'pairing in the kit, which is module knowledge (R6). Retires with **P4**: a tab strip over ' +
-  'two modules’ surfaces is a zone with two contributions.';
+  'four hooks this group was named for are the kit’s since P3, and its other tab component ' +
+  '(`InvoiceSectionTabs`) turned out to be `invoices`’ own and moved there in P4c. This one ' +
+  'is the genuine case: `OrderEntryTabs` sits in `admin/src/components/` because it renders ' +
+  'on `orders`’ and `quick_order`’s pages and belongs to neither, and its own comment says ' +
+  'the strip must lose one tab rather than the whole strip when `quick_order` goes off. ' +
+  'Publishing it would put that pairing in the kit, which is module knowledge (R6). ' +
+  'Retires with **P4**, in batch 10: a tab strip over two modules’ surfaces is a zone with ' +
+  'two contributions — the kit renders `<RouteTabsZone name="order.entry.tabs" />` over ' +
+  '`useAdminZone`, `orders` contributes the standard tab and `quick_order` the quick one, ' +
+  'and *“fewer than two tabs is not a choice”* becomes the strip counting contributions the ' +
+  'hook has already filtered. At that point this ledger is empty and its two-way ratchet is ' +
+  'the ordinary kind.';
 
 export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdminReach>> = {
-  'admin/src/modules/blog/pages/BlogCategoryEditor.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
-  'admin/src/modules/invoices/InvoicesList.tsx::admin/src/components/InvoiceSectionTabs.tsx': { symbols: ['InvoiceSectionTabs'], reason: SESSION },
-  'admin/src/modules/invoices/templates/InvoiceTemplatesPage.tsx::admin/src/components/InvoiceSectionTabs.tsx': { symbols: ['InvoiceSectionTabs'], reason: SESSION },
-  'admin/src/modules/megamenu/components/MenuItemConfigPanel.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
-  'admin/src/modules/orders/OrderCreatePage.tsx::admin/src/components/OrderEntryTabs.tsx': { symbols: ['OrderEntryTabs'], reason: SESSION },
-  'admin/src/modules/quick_order/QuickOrderOnBehalfPage.tsx::admin/src/components/OrderEntryTabs.tsx': { symbols: ['OrderEntryTabs'], reason: SESSION },
-  'admin/src/modules/settings/components/AssetIdSettingInput.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
-  'admin/src/modules/transactional_emails/components/BrandingPanel.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
+  'admin/src/modules/orders/OrderCreatePage.tsx::admin/src/components/OrderEntryTabs.tsx': { symbols: ['OrderEntryTabs'], reason: ORDER_ENTRY_TABS },
+  'admin/src/modules/quick_order/QuickOrderOnBehalfPage.tsx::admin/src/components/OrderEntryTabs.tsx': { symbols: ['OrderEntryTabs'], reason: ORDER_ENTRY_TABS },
 };

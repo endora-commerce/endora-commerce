@@ -21,24 +21,6 @@
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'admin/src/modules/transactional_emails/components/BrandingPanel.tsx:assets_library/lib/asset-url':
-    'Admin surface reach: `transactional_emails/components/BrandingPanel.tsx` imports ' +
-    '`toAbsoluteAssetUrl` from `@/modules/assets_library/lib/asset-url`, which ' +
-    '`assets_library` owns.\n\n' +
-    'Recorded by feature 091 Phase 0, **before any admin directory moves**, and that ' +
-    'ordering is the entry\'s whole reason for existing rather than a note about it. ' +
-    '`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0 measured ' +
-    'the backend precedent: rewriting a ledgered relative import as a package specifier ' +
-    '*deleted* the reach from the walk, whereupon the two-way ledger reported the entry ' +
-    'describing it as stale and asked the author to remove the record of a debt nobody ' +
-    'had paid. There are 72 of these, and every one would have gone that way, one ' +
-    'directory at a time, in the direction that looks like progress.\n\n' +
-    'Retired by: the reach is a **helper** rather than a screen: a pure function or a ' +
-    'small module of the owner\'s that this consumer re-uses. What retires it is ' +
-    'whichever of two answers its owner takes — the helper is generic and moves into ' +
-    'the kit (`admin-kit-surface.md` R5), or it encodes the owner\'s domain and this ' +
-    'consumer asks for the rendered result through a zone contribution (FR-007) instead ' +
-    'of recomputing it.',
   'admin/src/modules/transactional_emails/pages/EmailEditor.tsx:sales_channels/api/sales-channels-client':
     'Admin surface reach: `transactional_emails/pages/EmailEditor.tsx` imports ' +
     '`salesChannelsClient` from `@/modules/sales_channels/api/sales-channels-client`, ' +

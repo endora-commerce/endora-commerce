@@ -22,15 +22,22 @@
  * instrument's population: `check:module-boundary`'s admin half judges a reach between
  * two modules, and a file the module root does not hold is judged as nobody's.
  *
- * **P2 retired seven of those ten keys**, leaving two files and three keys. The three
- * data-fetching pickers with no zone requirement — `sales-channel-picker`, `cms-picker`
- * and `organization-picker` — each rebuilt its request from the published `apiClient`
- * and the owner's contract types and moved into `@endora-commerce/admin-kit`, which is
- * the client exit named below and not a rewritten specifier. `admin/src` keeps a
- * re-export shim at each old path, so the reaches were **repaired**, not relocated: a
- * shim exports nothing but the package's own bindings and reaches no module at all.
- * What is left is `IdleLogout.tsx`, which is batch 11's, and `asset-picker`, whose
- * component half needs P4.
+ * **P2 retired seven of those ten keys and P4c the last two**, leaving one file and one
+ * key. The three data-fetching pickers with no zone requirement — `sales-channel-picker`,
+ * `cms-picker` and `organization-picker` — each rebuilt its request from the published
+ * `apiClient` and the owner's contract types and moved into
+ * `@endora-commerce/admin-kit`, which is the client exit named below and not a rewritten
+ * specifier. `admin/src` keeps a re-export shim at each old path, so the reaches were
+ * **repaired**, not relocated: a shim exports nothing but the package's own bindings and
+ * reaches no module at all.
+ *
+ * `asset-picker` was recorded here as the picker the client exit could not answer,
+ * because its module knowledge was a **component** (`assets_library`' `AssetPicker`) and
+ * no URL replaces one. That reason was measured and found false:
+ * `admin-component-contribution.md` Z1.1 read the component itself — 153 lines over one
+ * `GET`, with every type already `@endora-commerce/contracts`' — so the cluster was the
+ * same client exit one component deeper, and P4c took it. What is left is
+ * `IdleLogout.tsx`, which is batch 11's.
  *
  * That is the shape with the *worse* failure mode, which is why P1 goes before the
  * batches rather than inside one.
@@ -76,27 +83,6 @@
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
-/**
- * The four pickers, from their **own** side.
- *
- * `backend/scripts/ledgers/admin-surface.ts` records these components from the
- * *consumer's* side — 19 Group A keys, each a module screen importing a host picker — and
- * has done since Phase 1b. What it never recorded is the picker's own reach into the
- * module whose data it fetches, because that direction is this check's and this check was
- * not looking. So the two ledgers now describe the same coupling from both ends, which is
- * what makes a repair visible in both.
- */
-const PICKER =
-  'A host picker over another module’s data, reaching that module’s admin code from ' +
-  '`admin/src/components`. Recorded from the consumer’s side in ' +
-  '`backend/scripts/ledgers/admin-surface.ts` (Group A) since Phase 1b and from the ' +
-  'picker’s own side only since P1 — publishing it *as it stands* would put module ' +
-  'knowledge in the kit and break R6, so the answer is a design one and not a `git mv`. ' +
-  'P2 answered it for the three pickers whose module knowledge is a **request**: rebuild ' +
-  'the call from the published `apiClient` and the owner’s contract types, and the ' +
-  'component holds no module code to publish. `asset-picker` is the one left because its ' +
-  'module knowledge is a **component** (`AssetPicker`), which no URL replaces.';
-
 export const entries: Readonly<Record<string, LedgerEntry>> = {
   'admin/src/components/IdleLogout.tsx:settings/api/settings-client':
     'The admin’s idle-logout timer reads `admin.idle_logout_minutes` through `settings`’ ' +
@@ -111,23 +97,4 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'admin directory while this entry stands: the specifier would be rewritten into ' +
     '`@endora-commerce/mod-settings/…`, this key would go stale, and the coupling would ' +
     'read as supported rather than as paid.',
-
-  'admin/src/components/asset-picker/AssetFieldPicker.tsx:assets_library/components/AssetPicker':
-    `${PICKER}\n\n` +
-    'This one is a **component** reach and not a client reach, which is why ' +
-    '`plan.md` § *Phase 4* records that *"P2 does not cover `asset-picker`"*. There is no ' +
-    'request to rebuild: the host renders `assets_library`’ own `AssetPicker`.\n\n' +
-    'Retired by: **P4**, the zone mechanism — `registryZones()`, an `<AdminZone>` ' +
-    'renderer, the visibility gate for a contributed component, and the two-way refusal ' +
-    '`admin-contributions.ts` promises and nothing implements. Then `assets_library` ' +
-    'contributes the picker and the host renders a slot.',
-
-  'admin/src/components/asset-picker/AssetFieldPicker.tsx:assets_library/api/assets-library-client':
-    `${PICKER}\n\n` +
-    'The second half of the same file’s reach, and it is the ordinary client shape: the ' +
-    'field picker resolves an asset id to its metadata through `assets_library`’ admin ' +
-    'client.\n\n' +
-    'Retired by: the **client exit** — rebuilt from the published `apiClient` and the ' +
-    'assets contract. It is separable from the component reach above and can be paid ' +
-    'first; the file stops reaching `assets_library` only when both are.',
 };

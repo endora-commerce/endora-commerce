@@ -50,11 +50,21 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'describing it as stale and asked the author to remove the record of a debt nobody ' +
     'had paid. There are 72 of these, and every one would have gone that way, one ' +
     'directory at a time, in the direction that looks like progress.\n\n' +
-    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
-    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
-    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
-    'and the owner contributes into it, so the dependency reverses and neither module ' +
-    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
-    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
-    'which is what recording this entry before the move exists to prevent.',
+    'Retired by: **not a zone**, and this entry said it was. The sentence it carried was ' +
+    'written once by feature 091 Phase 0 and pasted across all 24 of its component ' +
+    'reaches — the right thing to have done then, before anybody had read a signature, ' +
+    'and a stale retiring condition by the time `admin-component-contribution.md` Z1 ' +
+    'existed to decide the question mechanically. Nothing went red for it: the ratchet on ' +
+    'this ledger is two-way on the **key**, never on the reason.\n\n' +
+    'Z1 is the rule: a reach is a zone contribution when the *owner* decides that the ' +
+    'component appears, and a published component when the *consumer* does. ' +
+    '`StatusTransitionGraph` takes `statuses`, `transitions`, `statusLabel`, `onAdd`, ' +
+    '`onRemove` and `t` — data in, callbacks out, and its own translator — with zero ' +
+    '`orders` knowledge left inside it. Z1 question 1, so a published component.\n\n' +
+    'What retires it is publication in `@endora-commerce/admin-kit` on `./components`, ' +
+    'with a re-export shim at the old path. The `t` prop is what R6\'s extension of ' +
+    '2026-08-31 permits and is not an obstacle to it: a kit component may receive ' +
+    'behaviour from the caller that **owns** the thing behind it, and here `returns` owns ' +
+    'the status vocabulary being labelled. Moving the file, or rewriting the specifier as ' +
+    '`orders`\' package subpath, still retires nothing.',
 };

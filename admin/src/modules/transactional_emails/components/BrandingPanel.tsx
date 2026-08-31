@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { ColorPicker } from '@/components/ui/color-picker';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
-import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { useAuth } from '@/lib/auth';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
 

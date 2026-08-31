@@ -1,3 +1,5 @@
+import { apiBaseUrl } from './api-client.js';
+
 /**
  * Resolve an asset URL returned by the backend into one the admin can load.
  *
@@ -9,10 +11,13 @@
  * browser fetches them from the backend.
  *
  * Absolute URLs (`http(s)://…`, `data:`, `blob:`) are returned unchanged.
+ *
+ * **Published by feature 091's P4c.** It lived in `assets_library`' admin
+ * directory and was named by five other modules plus two `_shared` files, which
+ * is seven reaches into module code for a two-branch string function whose only
+ * input is the API origin the kit already publishes. Nothing about it is the
+ * owner's: `admin-component-contribution.md` Z1.1.
  */
-const apiBaseUrl =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
-
 export function toAbsoluteAssetUrl(url: string | null | undefined): string {
   if (!url) return '';
   if (/^(https?:|data:|blob:)/i.test(url)) return url;

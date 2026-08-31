@@ -183,6 +183,18 @@
  * rebuilding both calls from the published `apiClient` in the module's own
  * `api.ts`. That shard is deleted.
  *
+ * **`assets_library`'s 15 are paid** (P4c), so its row is no longer held out of a
+ * batch by this paragraph. All fifteen were `AssetPicker`, `AssetUploader`,
+ * `toAbsoluteAssetUrl` and one `getAsset` — a picker, an uploader, a two-branch
+ * URL helper and a single `GET`, none of which turned out to be
+ * `assets_library`' *code* once `admin-component-contribution.md` Z1.1 read
+ * them rather than counting them. They are `@endora-commerce/admin-kit`'s now
+ * and the module's incoming reach count is **zero**. The ranking's point is
+ * unchanged and is if anything sharper: a reach count says whether a directory
+ * can move, and the question behind it — *is this the owner's code, or only the
+ * owner's data?* — is one a route count cannot ask and a reach count only asks
+ * when somebody reads the reaches.
+ *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.

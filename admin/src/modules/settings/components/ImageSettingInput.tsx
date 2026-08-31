@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTranslation } from '@/i18n/useTranslation';
-import { AssetUploader } from '@/modules/assets_library/components/AssetUploader';
+import { AssetUploader } from '@endora-commerce/admin-kit/components';
 
 interface Props {
   /** The current value — a resolvable image URL (may be empty). */

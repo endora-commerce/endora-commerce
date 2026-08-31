@@ -19,13 +19,6 @@ import type {
 
 export type { AssetSummary, AssetDetail, AssetFolder };
 
-export interface UploadFields {
-  /** UUID of the target folder, or null for "Unsorted". */
-  folderId?: string | null;
-  label?: string | null;
-  visibility?: 'public' | 'private';
-}
-
 export const assetsLibraryClient = {
   async listAssets(query: {
     folderId?: string | null;
@@ -128,37 +121,5 @@ export const assetsLibraryClient = {
       headers: { 'content-type': 'application/json' },
     });
     return out.data;
-  },
-
-  /**
-   * Upload a single file via multipart/form-data. We bypass the typed
-   * `apiClient` here because it is JSON-only — multipart goes through a
-   * direct `fetch`. Visibility / folderId / label are sent as fields BEFORE
-   * the file part so the server-side pipeline picks them up before
-   * finalising the asset.
-   */
-  async uploadAsset(file: File, fields: UploadFields = {}): Promise<AssetDetail> {
-    const baseUrl =
-      (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
-    const fd = new FormData();
-    if (fields.visibility) fd.append('visibility', fields.visibility);
-    if (fields.folderId !== undefined && fields.folderId !== null) {
-      fd.append('folderId', fields.folderId);
-    }
-    if (fields.label !== undefined && fields.label !== null) {
-      fd.append('label', fields.label);
-    }
-    fd.append('file', file, file.name);
-    const r = await fetch(`${baseUrl}/api/v1/admin/assets`, {
-      method: 'POST',
-      credentials: 'include',
-      body: fd,
-    });
-    if (!r.ok) {
-      const text = await r.text();
-      throw new Error(`Upload failed (${r.status}): ${text}`);
-    }
-    const json = (await r.json()) as { data: AssetDetail };
-    return json.data;
   },
 };

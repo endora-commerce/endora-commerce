@@ -68,13 +68,22 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'describing it as stale and asked the author to remove the record of a debt nobody ' +
     'had paid. There are 72 of these, and every one would have gone that way, one ' +
     'directory at a time, in the direction that looks like progress.\n\n' +
-    'Retired by: the reach mounts the owner\'s own screen fragment inside this module\'s ' +
-    'screen, which is the case FR-007 exists for. What retires it is the owner ' +
-    'declaring an **admin contribution zone**: the host screen publishes the zone name ' +
-    'and the owner contributes into it, so the dependency reverses and neither module ' +
-    'names the other. Moving the file, or rewriting the specifier as the owner\'s ' +
-    'package subpath, retires nothing — it is the same coupling under a supported name, ' +
-    'which is what recording this entry before the move exists to prevent.',
+    'Retired by: **not a zone**, and this entry said it was. The sentence it carried was ' +
+    'written once by feature 091 Phase 0 and pasted across all 24 of its component ' +
+    'reaches — the right thing to have done then, before anybody had read a signature, ' +
+    'and a stale retiring condition by the time `admin-component-contribution.md` Z1 ' +
+    'existed to decide the question mechanically. Nothing went red for it: the ratchet on ' +
+    'this ledger is two-way on the **key**, never on the reason.\n\n' +
+    'Z1 is the rule: a reach is a zone contribution when the *owner* decides that the ' +
+    'component appears, and a published component when the *consumer* does. ' +
+    '`Section` is `title`, `action`, `className` and `children` — a heading and a slot, ' +
+    'with nothing of `orders` inside it. Z1 question 1 does not fire and question 2 does ' +
+    'not either: this screen decides entirely where and whether the block appears, and ' +
+    'names it five times. That is question 3, a published component.\n\n' +
+    'Being a layout primitive rather than a composite, its home is ' +
+    '`@endora-commerce/admin-kit/ui` and not `./components`. What retires it is that ' +
+    'publication, with a re-export shim at the old path. Moving the file, or rewriting ' +
+    'the specifier as `orders`\' package subpath, still retires nothing.',
   'admin/src/modules/quote_requests/RfqDetail.tsx:custom_fields/CustomFieldValuesPanel':
     'Admin surface reach: `quote_requests/RfqDetail.tsx` imports ' +
     '`CustomFieldValuesPanel` from `../custom_fields/CustomFieldValuesPanel`, which ' +

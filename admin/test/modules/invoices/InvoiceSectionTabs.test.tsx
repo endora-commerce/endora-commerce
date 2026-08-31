@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { setMobileViewport } from '../setup';
-import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
-import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
-import { InvoiceSectionTabs } from '../../src/components/InvoiceSectionTabs';
+import { setMobileViewport } from '../../setup';
+import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+import { InvoiceSectionTabs } from '../../../src/modules/invoices/components/InvoiceSectionTabs';
 
 
 // Feature 073 — every admin surface resolves its own presence from the module
@@ -94,7 +94,7 @@ describe('InvoiceSectionTabs', () => {
   });
 });
 
-const { AppShell } = await import('../../src/components/AppShell');
+const { AppShell } = await import('../../../src/components/AppShell');
 
 describe('AppShell — invoice templates leave the sidebar', () => {
   it('keeps Invoices and drops Invoice templates', () => {

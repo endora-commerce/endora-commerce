@@ -24,6 +24,7 @@
  */
 export { resolveIcon } from './admin-actions/icon-map.js';
 export { ApiError, apiBaseUrl, apiClient, onUnauthorized } from './api-client.js';
+export { toAbsoluteAssetUrl } from './asset-url.js';
 export { AuthProvider, useAuth } from './auth.js';
 export type { AdminMe, AuthProviderProps } from './auth.js';
 export { formatDateTime } from './format.js';

@@ -58,6 +58,7 @@ import { CmsBlockPicker } from '@/components/cms-picker/CmsBlockPicker';
 import { CmsPagePicker } from '@/components/cms-picker/CmsPagePicker';
 import { OrganizationPicker, OrganizationStatusBadge } from '@/components/organization-picker';
 import { OrganizationPickerMulti } from '@/components/organization-picker/OrganizationPickerMulti';
+import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -85,6 +86,18 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     expect(OrganizationPicker).toBe(kitComponents.OrganizationPicker);
     expect(OrganizationPickerMulti).toBe(kitComponents.OrganizationPickerMulti);
     expect(OrganizationStatusBadge).toBe(kitComponents.OrganizationStatusBadge);
+  });
+
+  it('serves the asset field picker through both spellings', () => {
+    // Feature 091's P4c published the asset cluster on the terms P2 set: the
+    // components rebuild their own requests from `apiClient` / `apiBaseUrl` and
+    // the contract types, so nothing about them is `assets_library`' code any
+    // more. `AssetFieldPicker` is the one of the three that keeps a shim, four
+    // modules naming it at its old host path; `AssetPicker`, `AssetUploader`
+    // and `toAbsoluteAssetUrl` were reached from module directories only, so
+    // their consumers name the subpath directly and there is no old path left
+    // to forward.
+    expect(AssetFieldPicker).toBe(kitComponents.AssetFieldPicker);
   });
 
   it('serves the same API client singleton, and the same error class', () => {

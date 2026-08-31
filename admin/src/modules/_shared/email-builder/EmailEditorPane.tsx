@@ -52,8 +52,8 @@ import {
 import { PageBuilderOverlayBridge } from '@/modules/cms/components/PageBuilderOverlayBridge';
 import { cmsClient } from '@/modules/cms/api/cms-client';
 import { transactionalEmailsClient } from '@/modules/transactional_emails/api/transactional-emails-client';
-import { assetsLibraryClient } from '@/modules/assets_library/api/assets-library-client';
-import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
+import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@/i18n/useTranslation';
 import { emailRichTextContentField, emailHtmlFromRichContent } from './EmailRichTextField';
 import { emailTextareaWithVariablesField } from './EmailVariableFields';
@@ -206,7 +206,7 @@ async function resolveProductForCard(slug: string): Promise<{
       ordered.find((g) => g.labels?.includes('base_image')) ??
       ordered[0];
     if (preferred?.assetId) {
-      const asset = await assetsLibraryClient.getAsset(preferred.assetId);
+      const asset = await fetchAssetDetail(preferred.assetId);
       imageSrc = toAbsoluteAssetUrl(asset.url);
     }
   } catch {
@@ -253,7 +253,7 @@ async function resolveCategoryForGrid(slug: string): Promise<{
   let imageSrc = '';
   if (category.mainImageAssetId) {
     try {
-      const asset = await assetsLibraryClient.getAsset(category.mainImageAssetId);
+      const asset = await fetchAssetDetail(category.mainImageAssetId);
       imageSrc = toAbsoluteAssetUrl(asset.url);
     } catch {
       /* ignore */
@@ -330,7 +330,7 @@ function withEditorFields(base: Config): Config {
         const assetId = typeof props.assetId === 'string' ? props.assetId : '';
         if (source === 'library' && assetId) {
           try {
-            const detail = await assetsLibraryClient.getAsset(assetId);
+            const detail = await fetchAssetDetail(assetId);
             src = toAbsoluteAssetUrl(detail.url);
           } catch {
             /* keep */

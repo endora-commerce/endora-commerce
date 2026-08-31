@@ -32,9 +32,9 @@ import {
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 import { useTranslation } from '@/i18n/useTranslation';
-import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
-import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
-import type { AssetSummary, AssetDetail } from '@/modules/assets_library/api/assets-library-client';
+import type { AssetSummary, AssetDetail } from '@endora-commerce/contracts';
+import { AssetPicker } from '@endora-commerce/admin-kit/components';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { StickyFormActions } from '@/components/StickyFormActions';
 import { TouchReorderButtons } from '@/components/TouchReorderButtons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
