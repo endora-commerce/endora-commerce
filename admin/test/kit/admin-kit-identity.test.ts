@@ -50,6 +50,11 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { AppLanguageContext } from '@/i18n/app-language-context';
 import { ResponsiveTable } from '@/components/ResponsiveTable';
 import { EChart } from '@/components/charts/echart';
+import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
+import { CmsBlockPicker } from '@/components/cms-picker/CmsBlockPicker';
+import { CmsPagePicker } from '@/components/cms-picker/CmsPagePicker';
+import { OrganizationPicker, OrganizationStatusBadge } from '@/components/organization-picker';
+import { OrganizationPickerMulti } from '@/components/organization-picker/OrganizationPickerMulti';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -62,6 +67,21 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     expect(Table).toBe(kitUi.Table);
     expect(ResponsiveTable).toBe(kitComponents.ResponsiveTable);
     expect(EChart).toBe(kitComponents.EChart);
+  });
+
+  it('serves the three P2 pickers through both spellings, directory index included', () => {
+    // Feature 091's P2 published `sales-channel-picker`, `cms-picker` and
+    // `organization-picker` — the three Phase 1b left in `admin/src` because
+    // they fetched from another module's admin client. Two of the five reaches
+    // below go through a **directory `index.ts`**, which is a shim of a shape
+    // the other entries here do not cover: a barrel forwarding four names at
+    // once is the file most likely to be "helpfully" re-implemented.
+    expect(SalesChannelPicker).toBe(kitComponents.SalesChannelPicker);
+    expect(CmsBlockPicker).toBe(kitComponents.CmsBlockPicker);
+    expect(CmsPagePicker).toBe(kitComponents.CmsPagePicker);
+    expect(OrganizationPicker).toBe(kitComponents.OrganizationPicker);
+    expect(OrganizationPickerMulti).toBe(kitComponents.OrganizationPickerMulti);
+    expect(OrganizationStatusBadge).toBe(kitComponents.OrganizationStatusBadge);
   });
 
   it('serves the same API client singleton, and the same error class', () => {

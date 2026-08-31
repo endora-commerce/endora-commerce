@@ -10,7 +10,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 | Subpath | What it is |
 | --- | --- |
 | `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
-| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>`, the generic pickers, the reorder helpers |
+| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>`, the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt, the icon map, the page-size options |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
 | `./contributions` | the declaration types, re-exported from `@endora-commerce/contracts` so a module needs one import for the shapes and not two |
@@ -56,18 +56,25 @@ impossible.
 
 ## What Phase 1b does not publish, and why
 
-Two groups, 92 reaches, every one of them in `backend/scripts/ledgers/admin-surface.ts`
+Two groups, 77 reaches, every one of them in `backend/scripts/ledgers/admin-surface.ts`
 with its retiring condition. `check:admin-surface` holds the ledger both ways, so neither
 group can grow quietly and neither can be left behind once it is repaired.
 
-**The six pickers (19 reaches).** `organization-picker`, `sales-channel-picker`,
-`asset-picker` and `cms-picker` each fetch from **another module's** API client, so
-publishing them would put module knowledge in the kit and break R6. They are FR-007's own
-worked example — a picker over another module's data is that module's contribution, not
-the platform's. **Retires with Phase 2**, when a module package can ship an `./admin`
-layer and contribute the picker to a zone. Inverting them to take their data by prop was
-considered and rejected: it rewrites six public component APIs and fifteen consumers in a
-merge request whose subject is a file move, and it is work Phase 2 would then undo.
+**`asset-picker` (4 reaches).** Phase 1b left four pickers here, on the ground that each
+fetched from **another module's** API client and publishing it would put module knowledge
+in the kit and break R6. **P2 retired three of the four** — `sales-channel-picker`,
+`cms-picker` and `organization-picker` are published above, because a picker whose module
+knowledge is a *request* stops having any once the request is rebuilt from the published
+`apiClient` and the owner's contract types. That is the same exit Phase 4's batches three
+and five took for a module screen, and it is not the exit this section predicted: it said
+the group *"retires with Phase 2"* through a zone contribution, and Phase 2 landed and
+retired none of them, because the zone mechanism is P4's and does not exist yet.
+
+`asset-picker` is left, and for a reason of kind rather than of size: its module knowledge
+is `assets_library`' `AssetPicker` **component**, which no URL replaces. It is FR-007's
+worked example and **retires with P4**. Inverting the pickers to take their data by prop
+was considered and rejected in Phase 1b and stays rejected: it moves the module knowledge
+to the consumer, which owns the data no more than the kit does.
 
 **The admin's session and module-presence state (73 reaches).** `lib/auth`,
 `lib/module-presence`, `lib/surface-visibility`, `lib/use-page-size-preference` and the two
@@ -85,6 +92,32 @@ instead of replacing the modules** — a better test either way, and its own mer
 the **constant** is design-system and the **preference** is application state, so the
 constant lives here and `usePageSizePreference` re-exports it. One array, two homes for the
 two things it was doing.
+
+## How a kit component gets its data
+
+**It builds the request itself, from the published `apiClient` and the owner's contract
+types.** That is not a new rule — five components did it before P2 (`CustomerPicker`,
+`AdminUserPicker`, `CustomerGroupPicker`, `CategorySelect` and `useCountriesQuery`, the
+last of them over `dictionaries`' public dictionary facade) — but it had never been
+written down, which is how four pickers came to be blocked on a mechanism nobody was
+building.
+
+The rule R6 states is *no module knowledge*, and an HTTP path plus a schema out of
+`@endora-commerce/contracts` is not module knowledge: the kit already depends on that
+package, both sides compile it, and Principle II makes it the one place the shape is
+defined. What R6 refuses is a **module's code** — its admin API client, its components, a
+module id in a branch — and that is exactly what a rebuilt request removes.
+
+Two alternatives were weighed and rejected. **Taking the data by prop** moves the module
+knowledge to the consumer, which owns it no more than the kit does, and rewrites every
+public component API and every consumer. **Injecting a loader through a kit context**
+is the same displacement with a registration step, and it would make a picker's behaviour
+depend on which provider happened to be mounted — untypeable at the call site and
+invisible to `check:admin-surface`.
+
+The limit is stated so it is not discovered later: a picker whose module knowledge is a
+**component** has nothing to rebuild. `asset-picker` renders `assets_library`' own
+`AssetPicker`, so it stays unpublished until P4's zone mechanism exists.
 
 ## Rules
 
