@@ -211,6 +211,13 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
           email: `predicate-sub-${key}-${purpose}-${stamp}@audit.local`,
           status: 'active',
           customerAccountId: account.id,
+          // Feature 087 Group B / D-187 — `newsletter_subscribers` carries its
+          // organisation and
+          // `newsletter_subscribers_organization_attribution_chk` refuses an
+          // owned row without one. This is the stamp
+          // `NewsletterSubscriberService` writes on the owned-create path, done
+          // by hand because the fixture writes the row directly.
+          organizationId,
           salesChannelId,
         });
         await em.persistAndFlush(subscriber);
@@ -352,6 +359,26 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     expect(res.statusCode).toBe(404);
     h.em().clear();
     expect((await h.em().findOne(NewsletterSubscriber, { id }))?.status).toBe('active');
+  });
+
+  it('serves a newsletter subscriber owned inside the scope', async () => {
+    // The granting half, and this file needs it stated for `newsletter` as much
+    // as for any other class: every other assertion here is a refusal, which a
+    // filter that refused everybody would satisfy. Until B4 that was the only
+    // answer available on this table.
+    const res = await asRep('GET', '/api/v1/admin/newsletter/subscribers?page=1&pageSize=200');
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(`predicate-sub-own-read-${stamp}@audit.local`);
+  });
+
+  it('exports a newsletter subscriber owned inside the scope, and no other', async () => {
+    // The CSV export is the surface R-6 is about, so both directions are
+    // asserted over it rather than over the list alone: what a scoped
+    // administrator downloads is the one place the answer leaves the platform.
+    const res = await asRep('GET', '/api/v1/admin/newsletter/subscribers/export');
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(`predicate-sub-own-read-${stamp}@audit.local`);
+    expect(res.body).not.toContain(`predicate-sub-foreign-read-${stamp}@audit.local`);
   });
 
   it('refuses deleting a newsletter subscriber outside the scope, writing nothing', async () => {
@@ -541,10 +568,27 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     expect(ids).not.toContain(comparisons['foreign']);
   });
 
-  it('refuses a column-less `@CustomerScoped` read outright, on the same EntityManager', async () => {
+  it('confines a `NewsletterSubscriber` read to the assigned organizations, on the same EntityManager', async () => {
+    // The same assertion for `newsletter`, which gained its column in feature
+    // 087 Group B (B4, D-187). This case used to be the *refusal* one, under
+    // the title `refuses a column-less @CustomerScoped read outright` — with no
+    // column, a scoped actor assigned to **both** organizations saw neither row
+    // — and it is the same three lines with the answer inverted, which is the
+    // whole shape of what a column buys. `Comparison` stood here until B1
+    // landed and `NewsletterSubscriber` took its place; this file now holds no
+    // column-less exemplar at all, because every class it fixtures carries the
+    // column. The refusing arm keeps its own proof in
+    // `test/unit/tenancy/tenant-context.test.ts`, which calls
+    // `customerFilterCond('absent')` directly.
+    //
+    // It enters at the EntityManager for the reason the `Cart` and `Comparison`
+    // cases above do: the route cases assert refusals, so a
+    // `customerOrganizationColumn` that regressed to `absent` would leave them
+    // green while every subscriber screen went blank for a sales
+    // representative.
     const scoped = resolveTenantContext(
       { kind: 'admin', adminUserId: 'irrelevant-the-scope-is-passed' },
-      { allowAll: false, allowedOrganizationIds: [assignedOrgId, foreignOrgId] },
+      { allowAll: false, allowedOrganizationIds: [assignedOrgId] },
     );
     const ids = await runWithTenantContext(scoped, async () => {
       h.em().clear();
@@ -553,13 +597,8 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
       });
       return rows.map((s) => s.id);
     });
-    // Both organizations are assigned, and the answer is still nothing:
-    // `newsletter_subscribers` carries no `organization_id`, so no row in it is
-    // inside any scoped actor's authority (FR-011). It stops being nothing when
-    // feature 087 Group B gives that table its column — with no further edit to
-    // the filter. `Comparison` stood here until B1 landed, and this is what its
-    // case looked like.
-    expect(ids).toEqual([]);
+    expect(ids).toContain(subscribers['own-read']);
+    expect(ids).not.toContain(subscribers['foreign-read']);
   });
 
   // ── A caller-supplied tenant identity on a write ───────────────────────

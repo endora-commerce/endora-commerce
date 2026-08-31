@@ -39,14 +39,37 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
  * at the route an operator's browser calls and asserts the body it receives.
  * The predicate is untouched by this feature — if a case in the file beside
  * this one moves, that is the thing that was not supposed to happen.
+ *
+ * ## Every case in this file has now retired, and the file has not
+ *
+ * The disclosure retires **per class**, the day that class gains its
+ * `organization_id`, and with feature 087 Group B complete (D-187) all three
+ * of the screens below have. So the file's cases are the *inverted* ones —
+ * each asserting that the row arrives and that no notice is emitted — and the
+ * reason they were inverted rather than deleted is the same in all three
+ * places: the notice comes from the *refusing* arm of `customerFilterCond`, so
+ * "there is no notice" and "this screen is still refused whole and has stopped
+ * saying so" are the same absence, and only the row arriving tells them apart.
+ *
+ * That leaves the disclosure itself with no end-to-end assertion anywhere, and
+ * it is written down here rather than discovered later. The eleven
+ * `@CustomerScoped` classes still without the column are Group A's and none of
+ * them has an admin list a sales representative reads, so there is no surface
+ * left in this repository over which the notice can be observed. Its machinery
+ * is covered at the unit level — `test/unit/tenancy/scope-notice.test.ts`,
+ * `test/unit/kernel/request-scope-notice.test.ts`, and
+ * `test/unit/tenancy/tenant-context.test.ts`'s `customerFilterCond('absent')`
+ * cases — and the first Group A class to land both a column and a surface is
+ * where the end-to-end half belongs again.
  */
-describe('a scoped administrator is told why these lists are empty', () => {
+describe('a scoped administrator is shown these lists, and told nothing about them', () => {
   let h: BackendServerHandle;
   let repCookie: string;
   let assignedOrgId: string;
 
   const stamp = Date.now();
   let ownEmail: string;
+  let ownerlessEmail: string;
   let ownNotifyEmail: string;
   let ownComparisonId: string;
 
@@ -133,12 +156,31 @@ describe('a scoped administrator is told why these lists are empty', () => {
     await em.persistAndFlush(comparison);
     ownComparisonId = comparison.id;
 
+    // Feature 087 Group B / D-187 — `newsletter_subscribers` carries its
+    // organisation, so this row is *attributed* and the notice below is not
+    // emitted for it. The stamp is also mandatory:
+    // `newsletter_subscribers_organization_attribution_chk` refuses an owned
+    // row without one.
     ownEmail = `notice-sub-${stamp}@audit.local`;
     await em.persistAndFlush(
       em.create(NewsletterSubscriber, {
         email: ownEmail,
         status: 'active',
         customerAccountId: account.id,
+        organizationId: assignedOrgId,
+        salesChannelId,
+      }),
+    );
+
+    // And one that belongs to nobody, which on this table is the ordinary case
+    // rather than the edge: `POST /api/v1/newsletter/subscribe` names no
+    // account, so every storefront sign-up is such a row. It is here to make
+    // the *new* shape of the export visible — see the CSV case below.
+    ownerlessEmail = `notice-ownerless-${stamp}@audit.local`;
+    await em.persistAndFlush(
+      em.create(NewsletterSubscriber, {
+        email: ownerlessEmail,
+        status: 'active',
         salesChannelId,
       }),
     );
@@ -212,13 +254,29 @@ describe('a scoped administrator is told why these lists are empty', () => {
 
   // ── /newsletter/subscribers ────────────────────────────────────────────
 
-  it('tells the representative why `/newsletter/subscribers` is empty', async () => {
+  it('has stopped explaining `/newsletter/subscribers`, and shows the representative the row instead', async () => {
+    // The notice **retires itself**, per class, the day that class gains its
+    // `organization_id` — `scoped-empty-notice.md`'s third property. This is
+    // the third and **last** class in this file to exercise it (feature 087
+    // Group B / B4, D-187), so with this case inverted the file holds no
+    // `ORGANIZATION_ATTRIBUTION_PENDING` assertion at all. That is not a gap
+    // this merge request can close: the eleven `@CustomerScoped` classes still
+    // without the column are Group A's, and none of them has an admin list a
+    // sales representative reads. The disclosure's own machinery keeps its
+    // proofs in `test/unit/tenancy/scope-notice.test.ts` and
+    // `test/unit/kernel/request-scope-notice.test.ts`; the first Group A class
+    // to land a surface is where this end-to-end half comes back.
+    //
+    // Inverted rather than deleted, for the reason the two cases above give:
+    // the notice is emitted by the *refusing* arm of `customerFilterCond`, so
+    // "there is no notice" and "this screen is still refused whole and has
+    // stopped saying so" are the same absence. Asserting the row arrives is
+    // what tells them apart.
     const res = await asRep('/api/v1/admin/newsletter/subscribers?page=1&pageSize=200');
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { data: { items: unknown[]; total: number } };
-    expect(body.data.items).toEqual([]);
-    expect(body.data.total).toBe(0);
-    expect(noticeOf(res)).toBe('ORGANIZATION_ATTRIBUTION_PENDING');
+    const body = res.json() as { data: { items: Array<{ email: string }>; total: number } };
+    expect(body.data.items.map((i) => i.email)).toContain(ownEmail);
+    expect(noticeOf(res)).toBeUndefined();
   });
 
   it('tells a platform administrator nothing about the subscriber list', async () => {
@@ -260,14 +318,31 @@ describe('a scoped administrator is told why these lists are empty', () => {
 
   // ── The shapes that must stay untouched ────────────────────────────────
 
-  it('leaves the subscriber CSV export a CSV', async () => {
+  it('leaves the subscriber CSV export a CSV, and says what is now in it', async () => {
     const res = await asRep('/api/v1/admin/newsletter/subscribers/export');
     expect(res.statusCode).toBe(200);
     // The body is a string, so there is no envelope to disclose on. A download
     // that grew a JSON tail would be a corrupt file, which is worse than the
-    // silence this feature exists to fix.
+    // silence this feature exists to fix. `withScopeNotice` says so in its own
+    // words — it names this export as the body it deliberately does not touch.
     expect(res.headers['content-type']).toContain('text/csv');
     expect(res.body.startsWith('{')).toBe(false);
+
+    // **What that silence now means has changed, and this is where it is
+    // written down** (feature 087 Group B / B4, D-187). Before the column this
+    // download was a header row and nothing else, for every scoped
+    // administrator, with no way to say why — the one refusal in this feature
+    // that could not disclose itself. It is now the subscribers of the
+    // organisations this representative is assigned to.
+    expect(res.body).toContain(ownEmail);
+
+    // And an **ownerless** subscriber is not in it. That is not a decision this
+    // merge request took: R-6 — who a row with no account belongs to — is open,
+    // and the column simply makes the question expressible. Recorded as an
+    // assertion because it is the audience change an operator will notice, and
+    // because whichever way R-6 is answered, this line is the one that has to
+    // move.
+    expect(res.body).not.toContain(ownerlessEmail);
   });
 
   it('leaves a refusal a refusal', async () => {

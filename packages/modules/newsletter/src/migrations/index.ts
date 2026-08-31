@@ -23,11 +23,14 @@
  */
 
 import { Migration20260629T200954NewsletterInit } from './20260629T200954_newsletter_init.js';
+import { Migration20260830T212736NewsletterOrganizationAttribution } from './20260830T212736_newsletter_organization_attribution.js';
 
 export const migrations = [
   Migration20260629T200954NewsletterInit,
+  Migration20260830T212736NewsletterOrganizationAttribution,
 ];
 
 export {
   Migration20260629T200954NewsletterInit,
+  Migration20260830T212736NewsletterOrganizationAttribution,
 };

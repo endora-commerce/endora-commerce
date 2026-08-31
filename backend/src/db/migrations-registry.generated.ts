@@ -194,6 +194,7 @@ import { Migration20260611T140409MfaInit } from '@endora-commerce/mod-mfa/migrat
 
 // ── newsletter ──────────────────────────────────────────────────────────────
 import { Migration20260629T200954NewsletterInit } from '@endora-commerce/mod-newsletter/migrations';
+import { Migration20260830T212736NewsletterOrganizationAttribution } from '@endora-commerce/mod-newsletter/migrations';
 
 // ── orders ──────────────────────────────────────────────────────────────────
 import { Migration20260611T140355OrdersBusinessId } from '@endora-commerce/mod-orders/migrations';
@@ -487,6 +488,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── newsletter ──────────────────────────────────────────────────────────────
   migration('newsletter', Migration20260629T200954NewsletterInit),
+  migration('newsletter', Migration20260830T212736NewsletterOrganizationAttribution),
 
   // ── orders ──────────────────────────────────────────────────────────────────
   migration('orders', Migration20260611T140355OrdersBusinessId),
