@@ -5,7 +5,7 @@
  *
  * ## Why a ledger at all, in a feature that is trying to empty them
  *
- * The predicate is red on eleven sites the day it lands, and every one of them
+ * The predicate is red on nine sites the day it lands, and every one of them
  * is a coupling this feature converts rather than a defect to repair in this
  * merge request. The alternative to a ledger is not "no ledger" — it is not
  * shipping the predicate, and the predicate is the only instrument in this
@@ -18,11 +18,18 @@
  *
  * **It empties inside this feature**, which is what makes it worth its weight:
  * the four `visibility-gate` entries retire when their screens become zone
- * mounts (batches 8 and 10), the three `kit-namespace` entries when the kit's
- * strings move to `core` under R-1's §9.2 ruling, and the four
+ * mounts (batches 8 and 10), the one remaining `kit-namespace` entry when the
+ * kit's strings move to `core` under R-1's §9.2 ruling, and the four
  * `module-namespace` entries as their screens move into the modules that own
  * them. An entry that ever reads *"this is fine"* means the predicate has
  * outgrown its population — narrow it, never add the entry.
+ *
+ * **It has already drained once, and the drain was found by the ratchet rather
+ * than by anyone remembering.** This ledger opened with eleven entries, of
+ * which two were `AssetPicker` and `AssetUploader` naming `assets_library`.
+ * !1230 landed R-1's §9.2 repair for both while this branch was open; merging
+ * `master` in reported them as stale in the same run, which is the property a
+ * two-way ledger is for and the one a one-way baseline does not have.
  *
  * ## The key, and the count
  *
@@ -35,7 +42,7 @@
  * coupling nobody was asked about and one above it the entry that outlived its
  * site.
  *
- * ## What is **not** here, and why the population is eleven rather than §9.3's twelve
+ * ## What is **not** here, and why the population is nine rather than §9.3's twelve
  *
  * §9.3 measured five `module-namespace` sites and the walk finds four. The
  * fifth is `admin/src/_shared/email-builder/EmailEditorPane.tsx`'s
@@ -86,13 +93,13 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
   // behind it ships in a package the kit may not depend on, is resolved at
   // runtime by string, and a renamed key renders itself into the operator's
   // screen as a label. The remedy is a bundle move, not a prop.
-  'packages/admin-kit/src/components/asset-picker/AssetPicker.tsx:kit-namespace:assets_library':
-    'Six keys only the kit reads. §9.2 puts the repair in !1225, the merge request that ' +
-    'created the site: the eleven `assets_library` keys move to `core`, which is what the ' +
-    "kit's other nine `useTranslation` call sites already name.",
-  'packages/admin-kit/src/components/asset-picker/AssetUploader.tsx:kit-namespace:assets_library':
-    'Five keys only the kit reads, the other half of the same eleven. Retires with its ' +
-    'sibling in !1225.',
+  //
+  // Two entries stood here when this ledger was written — `AssetPicker` and
+  // `AssetUploader`, both naming `assets_library` — and **!1230 drained them
+  // while this branch was open**. They are removed rather than left, which is
+  // this ledger's stale direction working the first time it was asked: the
+  // merge brought the repair in and the check went red on the two entries that
+  // had outlived their sites, in the same run.
   'packages/admin-kit/src/components/category-tree-picker/CategoryTreePicker.tsx:kit-namespace:catalog':
     'Seven `categoryTreePicker.*` keys, read by nothing outside the kit. It has shipped in ' +
     'this state since Phase 1b, and §9.2 gives it a standalone merge request having no other ' +

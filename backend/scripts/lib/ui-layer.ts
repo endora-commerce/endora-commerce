@@ -25,3 +25,24 @@
 
 /** The layer that compiles under `tsconfig.ui.json` rather than the backend build. */
 export const ADMIN_LAYER_DIRECTORY = 'admin';
+
+/**
+ * Every UI-layer directory a module package may ship — one declaration, the two
+ * readers above (feature 091, P4a; Z9 of `admin-component-contribution.md`).
+ *
+ * `admin-ui` is the sibling directory D-191's published-component exit lands
+ * in. It is a **sibling** and not a second entry file inside `src/admin/`,
+ * because `admin-contribution.md` R2 is *"`src/admin/index.ts` exports exactly
+ * one value"* and a second file in that directory turns the rule into a rule
+ * with a filename carve-out.
+ *
+ * Both readers take the list rather than the single name, and the second is why
+ * this lands with the mechanism rather than with the first package that ships
+ * the directory: `check-action-route-permissions` skips a UI layer for a reason
+ * that is about **browser code**, not about `admin` in particular — a published
+ * component's `apiClient.post(path, body)` is a method, a path and no
+ * `preHandler`, which is indistinguishable from an ungated route at the syntax
+ * that check reads. A skip that arrives with the directory arrives one merge
+ * request after the false finding.
+ */
+export const UI_LAYER_DIRECTORIES: readonly string[] = [ADMIN_LAYER_DIRECTORY, 'admin-ui'];

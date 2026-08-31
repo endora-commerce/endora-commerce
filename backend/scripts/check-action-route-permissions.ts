@@ -108,7 +108,7 @@ import {
   NO_HOST_RESIDENT_MODULES,
   type HostResidentModules,
 } from './lib/module-population.js';
-import { ADMIN_LAYER_DIRECTORY } from './lib/ui-layer.js';
+import { UI_LAYER_DIRECTORIES } from './lib/ui-layer.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 import {
@@ -812,9 +812,14 @@ async function main(): Promise<void> {
   // wrong about the population; the layer is excluded rather than the shape
   // guessed at, because a heuristic over the call would eventually exclude a
   // real registration.
+  // Both UI layers, from the one declaration: `./admin` is the contribution
+  // layer and `./admin-ui` is the published-component one, and the reason to
+  // skip is the same for each — it is browser code, not a Fastify registration.
   const uiLayers = layout.moduleRoots
     .filter((root) => root.origin === 'workspace-package')
-    .map((root) => `${join(root.directory, 'src', ADMIN_LAYER_DIRECTORY)}/`);
+    .flatMap((root) =>
+      UI_LAYER_DIRECTORIES.map((layer) => `${join(root.directory, 'src', layer)}/`),
+    );
   const coreFiles = layout.sourceRoots
     .flatMap((root) => walk(root))
     .filter((file) => !file.startsWith(`${layout.overlayRoot}/`))
