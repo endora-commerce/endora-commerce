@@ -518,19 +518,36 @@ export function zoneContributionSites(
         found.push({ file, line: lineOf(parsed, node), zone: first.text, module });
       }
     }
-    // `{ zone: '<zone>', … }` — the declaration written by hand.
+    // `{ zone: '<zone>', component: () => import(…) }` — the declaration
+    // written by hand. Both properties are required, because `zone` alone is
+    // ordinary object vocabulary (a time zone, a delivery zone, a tax zone) and
+    // a bare match would manufacture a `contribution-to-unrendered-zone` out of
+    // a shipping configuration. `component` is the field
+    // `AdminZoneContribution` cannot be written without.
     if (
-      ts.isPropertyAssignment(node) &&
-      ts.isIdentifier(node.name) &&
-      node.name.text === 'zone' &&
-      ts.isStringLiteral(node.initializer)
+      ts.isObjectLiteralExpression(node) &&
+      node.properties.some(
+        (property) =>
+          ts.isPropertyAssignment(property) &&
+          ts.isIdentifier(property.name) &&
+          property.name.text === 'component',
+      )
     ) {
-      found.push({
-        file,
-        line: lineOf(parsed, node),
-        zone: node.initializer.text,
-        module,
-      });
+      for (const property of node.properties) {
+        if (
+          ts.isPropertyAssignment(property) &&
+          ts.isIdentifier(property.name) &&
+          property.name.text === 'zone' &&
+          ts.isStringLiteral(property.initializer)
+        ) {
+          found.push({
+            file,
+            line: lineOf(parsed, property),
+            zone: property.initializer.text,
+            module,
+          });
+        }
+      }
     }
     ts.forEachChild(node, visit);
   };
@@ -806,7 +823,7 @@ async function main(): Promise<void> {
     if (!isMechanism && (source.includes('AdminZone') || source.includes('useAdminZone'))) {
       renders.push(...zoneRenderSites(source, key(file)));
     }
-    if (source.includes('zoneComponent') || source.includes('zone:')) {
+    if (source.includes('zoneComponent') || (source.includes('zone:') && source.includes('component'))) {
       contributions.push(
         ...zoneContributionSites(source, key(file), layout.moduleIdOfPath(file)),
       );

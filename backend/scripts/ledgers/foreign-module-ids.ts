@@ -95,9 +95,9 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
     'sibling in !1225.',
   'packages/admin-kit/src/components/category-tree-picker/CategoryTreePicker.tsx:kit-namespace:catalog':
     'Seven `categoryTreePicker.*` keys, read by nothing outside the kit. It has shipped in ' +
-    'this state since Phase 1b and §9.2 gives it a standalone merge request, having no other ' +
-    'subject. This entry is the reason the population is worth counting: nothing in the ' +
-    'estate would ever have found it.',
+    'this state since Phase 1b, and §9.2 gives it a standalone merge request having no other ' +
+    'subject: it retires when those seven keys move to `core`. This entry is the reason the ' +
+    'population is worth counting — nothing in the estate would ever have found it.',
 
   // --- population 3: a module screen rendering out of another's namespace ----
   //
