@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type {
   ComparisonAdminDetail,
   ComparisonAdminListItem,

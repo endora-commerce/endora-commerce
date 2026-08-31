@@ -6,28 +6,33 @@ import {
   type ApiKeyBinding,
   type CreateApiKeyResponse,
 } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { OrganizationPicker } from '@/components/organization-picker';
-import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
-import { CustomerPicker } from '@/components/customer-picker/CustomerPicker';
-import { PageHeader } from '@/components/ui/page-header';
+import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  Input,
+  Label,
+  PageHeader,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
+} from '@endora-commerce/admin-kit/ui';
+import {
+  CustomerPicker,
+  OrganizationPicker,
+  SalesChannelPicker,
+} from '@endora-commerce/admin-kit/components';
 
 // Feature 062 — the scope catalog is the typed contract enum (research §R3);
 // `integrations:manage` is an admin permission, not an api-key scope.
@@ -49,7 +54,7 @@ interface CreateKeyInput {
   expiresAt?: string;
 }
 
-export function ApiKeysPage(): ReactNode {
+export default function ApiKeysPage(): ReactNode {
   const t = useTranslation('core');
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);

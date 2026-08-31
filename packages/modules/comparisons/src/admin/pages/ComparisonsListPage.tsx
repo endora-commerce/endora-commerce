@@ -2,27 +2,28 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { scopeNoticeOf, type ComparisonAdminListItem, type ScopeNoticeCode } from '@endora-commerce/contracts';
-import { ApiError } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
-import { ScopeNotice } from '@/components/scope-notice/ScopeNotice';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
-import { Select } from '@/components/ui/select';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  Input,
+  Label,
+  PageHeader,
+  Select,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
-import { listComparisons } from '../api';
+} from '@endora-commerce/admin-kit/ui';
+import { SalesChannelPicker, ScopeNotice } from '@endora-commerce/admin-kit/components';
+import { listComparisons } from '../api/comparisons-client.js';
 
 /**
  * `<ComparisonsListPage>` — feature 007 / US5 / T067.
@@ -31,7 +32,7 @@ import { listComparisons } from '../api';
  * Filters: sales channel id, owner type (customer / anonymous), time
  * range. Cursor pagination. Click a row to open the detail page.
  */
-export function ComparisonsListPage(): ReactNode {
+export default function ComparisonsListPage(): ReactNode {
   const t = useTranslation('comparisons');
   const [rows, setRows] = useState<ComparisonAdminListItem[]>([]);
   const [loading, setLoading] = useState(false);

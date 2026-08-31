@@ -1,22 +1,24 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { ComparisonAdminDetail } from '@endora-commerce/contracts';
-import { ApiError } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  PageHeader,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
-import { getComparisonDetail } from '../api';
+} from '@endora-commerce/admin-kit/ui';
+import { getComparisonDetail } from '../api/comparisons-client.js';
 
 /**
  * `<ComparisonDetailPage>` — feature 007 / US5 / T068.
@@ -34,7 +36,7 @@ import { getComparisonDetail } from '../api';
  * than the reader's: this is the audit view, and its question is what the
  * customer put in the comparison.
  */
-export function ComparisonDetailPage(): ReactNode {
+export default function ComparisonDetailPage(): ReactNode {
   const t = useTranslation('comparisons');
   const { id } = useParams<{ id: string }>();
   const [detail, setDetail] = useState<ComparisonAdminDetail | null>(null);

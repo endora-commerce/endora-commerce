@@ -1,27 +1,30 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Check, Copy, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import type { Webhook, WebhookDelivery } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { OrganizationPicker } from '@/components/organization-picker';
-import { PageHeader } from '@/components/ui/page-header';
-import { Select } from '@/components/ui/select';
+import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  Input,
+  Label,
+  PageHeader,
+  Select,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
+} from '@endora-commerce/admin-kit/ui';
+import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
 
 const KNOWN_EVENT_TYPES = [
   'product.created.v1',
@@ -47,7 +50,7 @@ interface DeliveriesListResponse {
   data: WebhookDelivery[];
 }
 
-export function WebhooksPage(): ReactNode {
+export default function WebhooksPage(): ReactNode {
   const t = useTranslation('core');
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);

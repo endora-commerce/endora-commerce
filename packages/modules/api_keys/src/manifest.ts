@@ -41,6 +41,38 @@ export const manifest = defineModuleManifest({
   // written out anyway, because a shared code owned by one manifest and one
   // hard-coded core row is the arrangement that produced the asymmetry.
   permissions: [{ code: 'integrations:manage', label: 'Manage API keys + webhooks' }],
+  /**
+   * The module's command-palette entry — feature 091, Phase 4 (the plan's
+   * batch 6), and one of the fifteen Principle XVI entries
+   * `specs/deferred-defects.md` records as owed.
+   *
+   * It arrives with the drain rather than before it, by the mechanism that
+   * register predicts: the batch owes an off-state proof over every surface the
+   * module contributes, and until this declaration existed the `AppShell.tsx`
+   * `PALETTE_ITEMS` row that advertised /api-keys was the admin's own — a
+   * hand-written copy no server-side presence check was ever asked about, so it
+   * went on offering the screen to an operator who had switched the module off.
+   * The Actions group is resolved by `AdminActionsService` against the effective
+   * enabled-set, which is what makes the withdrawal real.
+   *
+   * `requiredPermission` is the code the target route enforces, which
+   * `check:action-route-permissions` compares against the registration on
+   * `GET /api/v1/admin/api-keys` itself. It is `integrations:manage` and not a
+   * `api_keys:`-prefixed code because that is the gate the module actually
+   * has: issue #213 records why both owners declare it.
+   */
+  actions: [
+    {
+      id: 'open-api-keys',
+      labelKey: 'actions.openApiKeys.label',
+      descriptionKey: 'actions.openApiKeys.description',
+      icon: 'KeyRound',
+      targetRoute: '/api-keys',
+      requiredPermission: 'integrations:manage',
+      keywords: ['api', 'api keys', 'klucze api', 'bearer', 'token', 'integration', 'integracja'],
+      weight: 700,
+    },
+  ],
   activation: { settingCode: 'api_keys.enabled', default: true },
   /**
    * This module's first i18n bundle — D-129's remaining sweep, MR 5 — and it

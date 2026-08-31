@@ -44,5 +44,8 @@
   "displayMode.differencesOnly": "Differences only",
   "displayMode.all": "All attributes",
   "displayMode.common": "Common attributes",
-  "displayMode.differences": "Differences"
+  "displayMode.differences": "Differences",
+  "nav.comparisons.label": "Comparisons",
+  "actions.openComparisons.label": "Comparisons",
+  "actions.openComparisons.description": "Compare-feature audit"
 }

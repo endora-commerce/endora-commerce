@@ -17,8 +17,6 @@ import {
   type PermissionRequirement,
 } from './lib/surface-visibility.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
-import { ApiKeysPage } from './modules/api_keys/ApiKeysPage.js';
-import { WebhooksPage } from './modules/webhooks/WebhooksPage.js';
 import { SeoPage } from './modules/seo/SeoPage.js';
 import { DictionaryPage } from './modules/dictionaries/DictionaryPage.js';
 import { DictionaryAuditPage } from './modules/dictionaries/AuditPage.js';
@@ -125,8 +123,6 @@ import { CachePage } from './modules/settings/pages/CachePage.js';
 import { PwaPage } from './modules/settings/pages/PwaPage.js';
 import { SalesChannelsListPage } from './modules/sales_channels/pages/SalesChannelsListPage.js';
 import { SalesChannelEditPage } from './modules/sales_channels/pages/SalesChannelEditPage.js';
-import { ComparisonsListPage } from './modules/comparisons/pages/ComparisonsListPage.js';
-import { ComparisonDetailPage } from './modules/comparisons/pages/ComparisonDetailPage.js';
 import { ProfilePage } from './modules/profile/ProfilePage.js';
 
 function NotFoundPage(): ReactNode {
@@ -351,10 +347,15 @@ export function App(): ReactNode {
         <Route path="/quote-requests" element={<RfqList />} />
         <Route path="/quote-requests/new" element={<RfqCreatePage />} />
         <Route path="/quote-requests/:id" element={<RfqDetail />} />
-        <Route path="/comparisons" element={<ComparisonsListPage />} />
-        <Route path="/comparisons/:id" element={<ComparisonDetailPage />} />
-        <Route path="/api-keys" element={<ApiKeysPage />} />
-        <Route path="/webhooks" element={<WebhooksPage />} />
+        {/*
+          `/comparisons`, `/comparisons/:id`, `/api-keys` and `/webhooks` are
+          declared by the modules that own them since feature 091's Phase 4 (the
+          plan's batch 6), and arrive through `MODULE_ADMIN_CONTRIBUTIONS` in
+          `modules.generated.ts`. Leaving a `<Route>` standing here beside the
+          declaration would declare each screen twice, with `react-router`
+          silently taking the first match. Their declarations are in
+          `packages/modules/{comparisons,api_keys,webhooks}/src/admin/index.ts`.
+        */}
         <Route path="/seo" element={<SeoPage />} />
         <Route path="/dictionary" element={<DictionaryPage />} />
         <Route path="/dictionaries/audit" element={<DictionaryAuditPage />} />

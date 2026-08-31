@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
@@ -11,71 +12,95 @@ import { renderWithI18n } from '../../helpers/render-with-i18n';
  * so assertions query by key rather than locale copy. Pickers and the API
  * client are mocked; the tests drive the form exactly like an operator would
  * and assert the B1–B5 inline validation mirrors plus the create payload.
+ *
+ * **Two seams moved with the screen** (feature 091, Phase 4, the plan's batch
+ * 6). The component is `@endora-commerce/mod-api-keys`' now, so it is reached
+ * through the **contribution** — the published seam an operator's browser also
+ * takes — rather than through a path into `admin/src` that no longer exists; a
+ * relative reach into the package's `src/` would evaluate its source beside its
+ * `dist`, which is D-149's duplication and is silent in a frontend. And the
+ * three pickers plus `apiClient` are the kit's, so the mocks key on
+ * `@endora-commerce/admin-kit/{lib,components}` instead of on `@/`. `lib` is
+ * spread over `vi.importActual` because the screen also takes `formatDateTime`
+ * from it, and a bare factory would delete every binding it does not name.
  */
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
 const deleteSpy = vi.fn();
 
-vi.mock('@/lib/api-client', () => ({
-  ApiError: class MockApiError extends Error {
-    envelope = { error: { message: 'mock' } };
-  },
-  apiClient: {
-    get: (...args: unknown[]) => getSpy(...args),
-    post: (...args: unknown[]) => postSpy(...args),
-    delete: (...args: unknown[]) => deleteSpy(...args),
-  },
-}));
-
-vi.mock('@/components/organization-picker', () => ({
-  OrganizationPicker: (props: {
-    value: string | null;
-    onChange: (id: string | null) => void;
-  }) => (
-    <input
-      aria-label="mock-org-picker"
-      value={props.value ?? ''}
-      onChange={(e): void => props.onChange(e.target.value === '' ? null : e.target.value)}
-    />
-  ),
-}));
-
-vi.mock('@/components/sales-channel-picker/SalesChannelPicker', () => ({
-  SalesChannelPicker: (props: {
-    value: string | null;
-    onChange: (id: string | null) => void;
-  }) => (
-    <input
-      aria-label="mock-channel-picker"
-      value={props.value ?? ''}
-      onChange={(e): void => props.onChange(e.target.value === '' ? null : e.target.value)}
-    />
-  ),
-}));
-
 const customerPickerProps = vi.fn();
 
-vi.mock('@/components/customer-picker/CustomerPicker', () => ({
-  CustomerPicker: (props: {
-    value: string | null;
-    onChange: (id: string | null) => void;
-    organizationId?: string;
-    disabled?: boolean;
-  }) => {
-    customerPickerProps(props);
-    return (
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
+  return {
+    ...actual,
+    ApiError: class MockApiError extends Error {
+      envelope = { error: { message: 'mock' } };
+    },
+    apiClient: {
+      get: (...args: unknown[]) => getSpy(...args),
+      post: (...args: unknown[]) => postSpy(...args),
+      delete: (...args: unknown[]) => deleteSpy(...args),
+    },
+  };
+});
+
+vi.mock('@endora-commerce/admin-kit/components', async () => {
+  const actual = await vi.importActual<
+    typeof import('@endora-commerce/admin-kit/components')
+  >('@endora-commerce/admin-kit/components');
+  return {
+    ...actual,
+    OrganizationPicker: (props: {
+      value: string | null;
+      onChange: (id: string | null) => void;
+    }) => (
       <input
-        aria-label="mock-customer-picker"
-        disabled={props.disabled ?? false}
+        aria-label="mock-org-picker"
         value={props.value ?? ''}
         onChange={(e): void => props.onChange(e.target.value === '' ? null : e.target.value)}
       />
-    );
-  },
-}));
+    ),
+    SalesChannelPicker: (props: {
+      value: string | null;
+      onChange: (id: string | null) => void;
+    }) => (
+      <input
+        aria-label="mock-channel-picker"
+        value={props.value ?? ''}
+        onChange={(e): void => props.onChange(e.target.value === '' ? null : e.target.value)}
+      />
+    ),
+    CustomerPicker: (props: {
+      value: string | null;
+      onChange: (id: string | null) => void;
+      organizationId?: string;
+      disabled?: boolean;
+    }) => {
+      customerPickerProps(props);
+      return (
+        <input
+          aria-label="mock-customer-picker"
+          disabled={props.disabled ?? false}
+          value={props.value ?? ''}
+          onChange={(e): void => props.onChange(e.target.value === '' ? null : e.target.value)}
+        />
+      );
+    },
+  };
+});
 
-const { ApiKeysPage } = await import('../../../src/modules/api_keys/ApiKeysPage');
+/**
+ * The screen, taken from the module's own contribution — the route declaration
+ * is what the admin renders, so loading its factory is the same code path an
+ * operator's browser takes.
+ */
+const { contributions } = await import('@endora-commerce/mod-api-keys/admin');
+const ApiKeysPage = (await contributions.routes![0]!.component())
+  .default as () => ReactNode;
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const CHANNEL_ID = '22222222-2222-4222-8222-222222222222';
