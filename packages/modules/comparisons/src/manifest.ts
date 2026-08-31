@@ -150,6 +150,37 @@ export const manifest = defineModuleManifest({
   ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: 'comparisons:read', label: 'View product comparisons' }],
+  /**
+   * The module's command-palette entry — feature 091, Phase 4 (the plan's
+   * batch 6), and one of the fifteen Principle XVI entries
+   * `specs/deferred-defects.md` records as owed.
+   *
+   * It arrives with the drain rather than before it, by the mechanism that
+   * register predicts: the batch owes an off-state proof over every surface the
+   * module contributes, and until this declaration existed the `AppShell.tsx`
+   * `PALETTE_ITEMS` row that advertised /comparisons was the admin's own — a
+   * hand-written copy no server-side presence check was ever asked about, so it
+   * went on offering the screen to an operator who had switched the module off.
+   * The Actions group is resolved by `AdminActionsService` against the effective
+   * enabled-set, which is what makes the withdrawal real.
+   *
+   * `requiredPermission` is the code the target route enforces, which
+   * `check:action-route-permissions` compares against the registration on
+   * `GET /api/v1/admin/comparisons` itself. The admin side of this module is read-only, so the read
+   * code is the whole of what it gates.
+   */
+  actions: [
+    {
+      id: 'open-comparisons',
+      labelKey: 'actions.openComparisons.label',
+      descriptionKey: 'actions.openComparisons.description',
+      icon: 'Scale',
+      targetRoute: '/comparisons',
+      requiredPermission: 'comparisons:read',
+      keywords: ['compare', 'comparison', 'comparisons', 'porównanie', 'porównania'],
+      weight: 600,
+    },
+  ],
   activation: { settingCode: 'comparisons.enabled', default: true },
 });
 

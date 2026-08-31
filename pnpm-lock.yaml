@@ -62,6 +62,9 @@ importers:
       '@endora-commerce/mod-analytics':
         specifier: workspace:*
         version: link:../packages/modules/analytics
+      '@endora-commerce/mod-api-keys':
+        specifier: workspace:*
+        version: link:../packages/modules/api_keys
       '@endora-commerce/mod-audit-logs':
         specifier: workspace:*
         version: link:../packages/modules/audit_logs
@@ -71,6 +74,9 @@ importers:
       '@endora-commerce/mod-carts':
         specifier: workspace:*
         version: link:../packages/modules/carts
+      '@endora-commerce/mod-comparisons':
+        specifier: workspace:*
+        version: link:../packages/modules/comparisons
       '@endora-commerce/mod-dhl-parcel':
         specifier: workspace:*
         version: link:../packages/modules/dhl_parcel
@@ -101,12 +107,18 @@ importers:
       '@endora-commerce/mod-pim-pimcore':
         specifier: workspace:*
         version: link:../packages/modules/pim_pimcore
+      '@endora-commerce/mod-pwa':
+        specifier: workspace:*
+        version: link:../packages/modules/pwa
       '@endora-commerce/mod-stripe':
         specifier: workspace:*
         version: link:../packages/modules/stripe
       '@endora-commerce/mod-tpay':
         specifier: workspace:*
         version: link:../packages/modules/tpay
+      '@endora-commerce/mod-webhooks':
+        specifier: workspace:*
+        version: link:../packages/modules/webhooks
       '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
@@ -1041,6 +1053,9 @@ importers:
 
   packages/modules/api_keys:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1059,9 +1074,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1377,6 +1401,9 @@ importers:
 
   packages/modules/comparisons:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1401,12 +1428,24 @@ importers:
       '@types/pdfmake':
         specifier: ^0.3.2
         version: 0.3.2
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       pdfmake:
         specifier: ^0.3.7
         version: 0.3.7
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2719,6 +2758,9 @@ importers:
 
   packages/modules/pwa:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -3181,6 +3223,9 @@ importers:
 
   packages/modules/webhooks:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -3199,6 +3244,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -3208,6 +3256,12 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

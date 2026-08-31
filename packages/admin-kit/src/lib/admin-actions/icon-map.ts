@@ -31,10 +31,12 @@ import {
   PlusSquare,
   Receipt,
   Rss,
+  Scale,
   Search,
   Settings,
   ShieldCheck,
   ShoppingCart,
+  Smartphone,
   Sparkles,
   Tag,
   Truck,
@@ -42,6 +44,7 @@ import {
   UserPlus,
   Users,
   Video,
+  Webhook,
   type LucideIcon,
 } from 'lucide-react';
 import type { KnownIconName } from '@endora-commerce/contracts';
@@ -111,6 +114,13 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // Feature 091 (Phase 4, batch four) — the same, for `admin_roles`' sidebar
   // entry and palette action.
   ShieldCheck,
+  // Feature 091 (Phase 4, batch six) — the same, for `pwa`' sidebar entry.
+  Smartphone,
+  // Feature 091 (Phase 4, the plan's batch 6) — the same, for `webhooks`' and
+  // `comparisons`' sidebar entries and palette actions. `api_keys` needed no
+  // entry: `KeyRound` is already above.
+  Webhook,
+  Scale,
 };
 
 export function resolveIcon(name: string): LucideIcon {

@@ -99,6 +99,22 @@ export const KnownIconNameSchema = z.enum([
   // the glyph `AppShell.tsx` rendered by hand joins it here instead of the
   // entry silently changing to a name that happened to be on the list.
   'LineChart',
+  // Feature 091 (Phase 4, batch six) — `pwa`' sidebar entry, which became a
+  // module declaration and therefore has to name its icon rather than import
+  // it. Same rule as the two entries above and the same reason for adding a
+  // name rather than reusing one: the entry keeps the glyph `AppShell.tsx`
+  // drew for it, so nothing an operator sees moves with the declaration.
+  'Smartphone',
+  // Feature 091 (Phase 4, the plan's batch 6) — `webhooks`' and `comparisons`'
+  // sidebar entries and palette actions, for the same reason: the two glyphs
+  // `AppShell.tsx` imported from `lucide-react` by hand have to be nameable now
+  // that the declarations are the modules' own. `api_keys` needed nothing —
+  // `KeyRound` is already above, because `credentials`' row renders it too.
+  //
+  // The batch numbers collide and the members do not: !1214 shipped `pwa` as
+  // "batch six" while `plan.md`'s batch 6 is this set. Both entries stand.
+  'Webhook',
+  'Scale',
   // Feature 092 (`specs/092-pimcore-pim-sync/`) — `pim_pimcore`'s sidebar entry.
   // The glyph `pim_ergonode`'s hand-written NAV row already renders for the
   // connector directly above it; a module declaration has to name its icon

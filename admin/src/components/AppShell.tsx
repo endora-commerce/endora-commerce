@@ -34,11 +34,9 @@ import {
   PlugZap,
   Receipt,
   ReceiptText,
-  Scale,
   Search,
   Settings,
   Eraser,
-  Smartphone,
   Store,
   Tag,
   Sparkles,
@@ -269,13 +267,12 @@ const NAV: NavSection[] = [
         module: 'customer_accounts',
       },
       { to: '/credit-limits', labelKey: 'appShell.nav.creditLimits', icon: CreditCard, requiredPermission: 'credit_limits:manage', module: 'credit_limits' },
-      {
-        to: '/comparisons',
-        labelKey: 'appShell.nav.comparisons',
-        icon: Scale,
-        requiredPermission: 'comparisons:read',
-        module: 'comparisons',
-      },
+      // `/comparisons` is declared by `comparisons` since feature 091's Phase 4
+      // (the plan's batch 6) and arrives through `composeNav` from
+      // `modules.generated.ts`. Every other row in this section is still the
+      // host's, so the registry entry appends after all of them — which is the
+      // position this one already had. The reasoning is in
+      // `packages/modules/comparisons/src/admin/index.ts`.
     ],
   },
   {
@@ -421,8 +418,10 @@ const NAV: NavSection[] = [
         requiredPermission: 'custom_fields:read',
         module: 'custom_fields',
       },
-      { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound, requiredPermission: 'integrations:manage', module: 'api_keys' },
-      { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook, requiredPermission: 'integrations:manage', module: 'webhooks' },
+      // `/api-keys` and `/webhooks` are declared by the modules that own them
+      // since feature 091's Phase 4 (the plan's batch 6), and arrive through
+      // `composeNav` from `modules.generated.ts`. Their declarations are in
+      // `packages/modules/{api_keys,webhooks}/src/admin/index.ts`.
       {
         to: '/credentials',
         labelKey: 'appShell.nav.credentials',
@@ -451,13 +450,13 @@ const NAV: NavSection[] = [
         requiredPermission: 'settings:write',
         module: 'settings',
       },
-      {
-        to: '/settings/pwa',
-        labelKey: 'appShell.nav.pwa',
-        icon: Smartphone,
-        requiredPermission: 'pwa:read',
-        module: 'pwa',
-      },
+      // `/settings/pwa` is declared by `pwa` since feature 091's Phase 4 batch
+      // six, and arrives through `composeNav` from `modules.generated.ts`. It
+      // is the first entry to move on its own: the screen it points at is
+      // `PwaPage`, which lives under `modules/settings/pages/`, so the route
+      // below stays here and only the advertisement moved — the split batch
+      // four made explicit for `/admin-roles`, arriving a second time. The
+      // reasoning is in `packages/modules/pwa/src/admin/index.ts`.
     ],
   },
 ];
@@ -808,15 +807,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.quoteRequests', href: '/quote-requests' },
     { labelKey: 'appShell.crumb.detail', href: null },
   ] },
-  { test: /^\/comparisons\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.comparisons', href: null },
-  ] },
-  { test: /^\/comparisons\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.comparisons', href: '/comparisons' },
-    { labelKey: 'appShell.crumb.detail', href: null },
-  ] },
   { test: /^\/sales-channels\/?$/, build: () => [
     { labelKey: 'appShell.section.channels', href: '/sales-channels' },
     { labelKey: 'appShell.nav.salesChannels', href: null },
@@ -889,14 +879,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   // *System*'s first host entry, `/platform/modules`, where these three trails
   // named `/admin-users` by hand; and the leaf label resolves in the owning
   // module's namespace rather than in `core`.
-  { test: /^\/api-keys\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.apiKeys', href: null },
-  ] },
-  { test: /^\/webhooks\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.webhooks', href: null },
-  ] },
   { test: /^\/platform\/modules\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.platformModules', href: null },
@@ -1142,7 +1124,6 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.creditLimits', sub: 'appShell.palette.sub.creditLimits', icon: CreditCard, to: '/credit-limits', keywords: 'credit limit limits balance terms limity kredytowe saldo', requiredPermission: 'credit_limits:manage' , module: 'credit_limits' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.orders', sub: 'appShell.palette.sub.openOrders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales zamówienia sprzedaż', requiredPermission: 'orders:read' , module: 'orders' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.quoteRequests', sub: 'appShell.palette.sub.customerRfqs', icon: FileText, to: '/quote-requests', keywords: 'rfq quote zapytanie ofertowe', requiredPermission: 'rfqs:handle' , module: 'quote_requests' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.comparisons', sub: 'appShell.palette.sub.compareAudit', icon: Scale, to: '/comparisons', keywords: 'compare comparisons porównanie', requiredPermission: 'comparisons:read' , module: 'comparisons' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży', requiredPermission: 'sales_channels:read' , module: 'sales_channels' },
@@ -1151,8 +1132,6 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja', requiredPermission: 'settings:read' , module: 'settings' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.apiKeys', sub: 'appShell.palette.sub.apiKeys', icon: KeyRound, to: '/api-keys', keywords: 'api keys bearer token integration klucze api token integracja', requiredPermission: 'integrations:manage' , module: 'api_keys' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.webhooks', sub: 'appShell.palette.sub.webhooks', icon: Webhook, to: '/webhooks', keywords: 'webhook webhooks events signing secret integration webhooki zdarzenia integracja', requiredPermission: 'integrations:manage' , module: 'webhooks' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.credentials', sub: 'appShell.palette.sub.credentials', icon: KeyRound, to: '/credentials', keywords: 'credentials credential secrets provider llm smtp poświadczenia sekrety dostawca', requiredPermission: 'credentials:read' , module: 'credentials' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotions', sub: 'appShell.palette.sub.promotions', icon: PercentDiamond, to: '/promotions', keywords: 'promotion promotions discount coupon marketing promocje rabaty kupony', requiredPermission: 'promotions:read' , module: 'promotions' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotionRules', sub: 'appShell.palette.sub.promotionRules', icon: PercentDiamond, to: '/promotion-rules', keywords: 'promotion rules rule builder reguły promocji', requiredPermission: 'promotions:read' , module: 'promotions' },

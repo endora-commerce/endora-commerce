@@ -1,1 +1,5 @@
-{}
+{
+  "nav.apiKeys.label": "API keys",
+  "actions.openApiKeys.label": "API keys",
+  "actions.openApiKeys.description": "Machine-to-machine bearer tokens"
+}

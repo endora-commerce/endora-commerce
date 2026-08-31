@@ -132,7 +132,7 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     ...actual,
     apiClient: {
       get: vi.fn(async () => ({
-        data: { totpActive: false, recoveryCodesRemaining: 0, totpEnabledForScope: true },
+        data: [],
       })),
       post: vi.fn(),
       put: vi.fn(),

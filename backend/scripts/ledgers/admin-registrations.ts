@@ -137,6 +137,34 @@
  * own `src/admin/index.ts`. Both modules are `nonDeactivatable`, so it is inert
  * today and stops being inert the day either is unlocked.
  *
+ * **`pwa` is the eighteenth, and the sixth batch of the drain** (feature 091,
+ * Phase 4). One entry, and the entry is the batch: it declares a **sidebar
+ * entry and no route**, which is the half of `AdminContributions` nothing had
+ * exercised — the type's own doc block says *"a module shipping only a nav
+ * entry pointing at a host route is legal"*, and until now every conversion
+ * moved a route. `/settings/pwa` renders `PwaPage`, which lives under
+ * `admin/src/modules/settings/pages/`, so the route is `settings`' by this
+ * check's attribution and stays in `App.tsx`; only the advertisement moved.
+ * That is the `/admin-roles` split of the entry above arriving a second time,
+ * and it is why `{ routes: 0, nav: 1 }` is removed like any other entry rather
+ * than edited. The run after it reads
+ * `routes=126 nav=91 module-owned (routes=122 nav=88) over 34 modules`.
+ *
+ * **The other seven candidates of that batch were dropped, and what they were
+ * dropped for is worth more than the entry.** Route and nav counts are not a
+ * proxy for how simple a directory is to move; admin **reach** is. Measured
+ * against the three ledgers that record it — the cross-module shards,
+ * `admin-surface.ts`, and this file — `assets_library` (15 incoming reaches),
+ * `custom_fields` (4), `quick_order` (2, plus two unpublished host symbols) and
+ * `ksef` (1 incoming, 1 outgoing, 4 unpublished) are reached *as components* by
+ * screens other modules own, which is FR-007's contribution-zone question and
+ * not a batch's; `seo` and `taxes` each reach a Group A picker
+ * (`catalog`'s `ProductPicker`, `dictionaries`' `CountryPicker`) whose retiring
+ * condition `admin-surface.ts` names as kit publication; and
+ * `customer_accounts` is one symbol from clean — `useAuth`, the Group B session
+ * cluster, whose retiring condition is a merge request of its own. `pwa` is the
+ * only module in the whole remaining table with zero of all three.
+ *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.
@@ -164,12 +192,10 @@ export const HOST_OWNER = ADMIN_HOST_OWNER;
 
 export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistrationCounts>> = {
   host: { routes: 4, nav: 3 },
-  api_keys: { routes: 1, nav: 2 },
   assets_library: { routes: 1, nav: 1 },
   blog: { routes: 7, nav: 3 },
   catalog: { routes: 8, nav: 9 },
   cms: { routes: 11, nav: 4 },
-  comparisons: { routes: 2, nav: 2 },
   credentials: { routes: 2, nav: 2 },
   credit_limits: { routes: 1, nav: 2 },
   custom_fields: { routes: 1, nav: 1 },
@@ -189,7 +215,6 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   price_lists: { routes: 3, nav: 2 },
   product_feeds: { routes: 10, nav: 1 },
   promotions: { routes: 5, nav: 4 },
-  pwa: { routes: 0, nav: 1 },
   quick_order: { routes: 1, nav: 0 },
   quote_requests: { routes: 3, nav: 2 },
   returns: { routes: 5, nav: 1 },
@@ -198,5 +223,4 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   settings: { routes: 4, nav: 4 },
   taxes: { routes: 1, nav: 1 },
   transactional_emails: { routes: 6, nav: 6 },
-  webhooks: { routes: 1, nav: 2 },
 };

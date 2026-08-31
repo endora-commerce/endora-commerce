@@ -43,6 +43,38 @@ export const manifest = defineModuleManifest({
   // `api_keys` off would take the code off the role editor while every route in
   // `webhooks/routes.ts` went on enforcing it — a gate nobody can be granted.
   permissions: [{ code: 'integrations:manage', label: 'Manage API keys + webhooks' }],
+  /**
+   * The module's command-palette entry — feature 091, Phase 4 (the plan's
+   * batch 6), and one of the fifteen Principle XVI entries
+   * `specs/deferred-defects.md` records as owed.
+   *
+   * It arrives with the drain rather than before it, by the mechanism that
+   * register predicts: the batch owes an off-state proof over every surface the
+   * module contributes, and until this declaration existed the `AppShell.tsx`
+   * `PALETTE_ITEMS` row that advertised /webhooks was the admin's own — a
+   * hand-written copy no server-side presence check was ever asked about, so it
+   * went on offering the screen to an operator who had switched the module off.
+   * The Actions group is resolved by `AdminActionsService` against the effective
+   * enabled-set, which is what makes the withdrawal real.
+   *
+   * `requiredPermission` is the code the target route enforces, which
+   * `check:action-route-permissions` compares against the registration on
+   * `GET /api/v1/admin/webhooks` itself. It is `integrations:manage` and not a
+   * `webhooks:`-prefixed code because that is the gate the module actually
+   * has: issue #213 records why both owners declare it.
+   */
+  actions: [
+    {
+      id: 'open-webhooks',
+      labelKey: 'actions.openWebhooks.label',
+      descriptionKey: 'actions.openWebhooks.description',
+      icon: 'Webhook',
+      targetRoute: '/webhooks',
+      requiredPermission: 'integrations:manage',
+      keywords: ['webhook', 'webhooks', 'webhooki', 'events', 'zdarzenia', 'signing secret', 'integration', 'integracja'],
+      weight: 800,
+    },
+  ],
   activation: { settingCode: 'webhooks.enabled', default: true },
   /**
    * This module's first i18n bundle — D-129's remaining sweep, MR 5.
