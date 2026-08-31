@@ -135,7 +135,8 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
       }
       // Other errors — treat as unauthenticated so the user sees the login
       // page and can retry; the stack trace is left in the console for ops.
-      // eslint-disable-next-line no-console
+      // (The `eslint-disable-next-line no-console` this line carried in
+      // `admin/src` is redundant here: the kit's config allows `console.error`.)
       console.error('Failed to load /admin/me', err);
       setState({ status: 'unauthenticated', me: null, lastLoginError: null, mfaChallengeId: null });
     }

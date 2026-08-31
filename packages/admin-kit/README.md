@@ -11,7 +11,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 | --- | --- |
 | `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
 | `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>`, the pickers, the reorder helpers |
-| `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt, the icon map, the page-size options |
+| `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt, the icon map, the page-size options — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
 | `./contributions` | the declaration types, re-exported from `@endora-commerce/contracts` so a module needs one import for the shapes and not two |
 
@@ -54,10 +54,11 @@ React context. A second `createContext()` passes every structural comparison and
 `null` context at runtime with no type error; that is the failure this file exists to make
 impossible.
 
-## What Phase 1b does not publish, and why
+## What is still not published, and why
 
-Two groups, 77 reaches, every one of them in `backend/scripts/ledgers/admin-surface.ts`
-with its retiring condition. `check:admin-surface` holds the ledger both ways, so neither
+Two groups, 8 reaches, every one of them in `backend/scripts/ledgers/admin-surface.ts`
+with its retiring condition. Both opened much larger — 77 reaches when Phase 1b closed —
+and both were drained by a publication rather than by the batch that met them. `check:admin-surface` holds the ledger both ways, so neither
 group can grow quietly and neither can be left behind once it is repaired.
 
 **`asset-picker` (4 reaches).** Phase 1b left four pickers here, on the ground that each
@@ -76,22 +77,44 @@ worked example and **retires with P4**. Inverting the pickers to take their data
 was considered and rejected in Phase 1b and stays rejected: it moves the module knowledge
 to the consumer, which owns the data no more than the kit does.
 
-**The admin's session and module-presence state (73 reaches).** `lib/auth`,
-`lib/module-presence`, `lib/surface-visibility`, `lib/use-page-size-preference` and the two
-tab components that read presence. This one is not a design question — it is a
-measurement. 23 of the admin's test files mock those modules **at the module path**, on
-purpose: `TaxesPage.permission-gating.test.tsx` says so in its own comment, *"the mocks
-stop at `useAuth` and `useModulePresence` deliberately, so the real `useSurfaceVisibility`
-is the thing under test rather than a stub of it."* `vi.mock` keys on a module id, so
-moving `surface-visibility` into this package alongside `auth` puts that seam **inside**
-the package where the test's mock cannot reach it: measured, **104 tests across 23 files**,
-every one of them a permission gate. **Retires when those tests drive the real providers
-instead of replacing the modules** — a better test either way, and its own merge request.
+**The two tab strips over two modules' pages (4 reaches).** This entry read *"the admin's
+session and module-presence state, 73 reaches"* and named the four hooks. **P3 published all
+four**, and they are in the `./lib` row above.
 
-`PAGE_SIZE_OPTIONS` is the one binding that was split out of a module that stayed behind:
-the **constant** is design-system and the **preference** is application state, so the
-constant lives here and `usePageSizePreference` re-exports it. One array, two homes for the
-two things it was doing.
+What blocked them was never a design question — it was a measurement, and the measurement was
+right. 23 of the admin's test files mocked those modules **at the module path**, on purpose:
+`TaxesPage.permission-gating.test.tsx` said so in its own comment, *"the mocks stop at
+`useAuth` and `useModulePresence` deliberately, so the real `useSurfaceVisibility` is the
+thing under test rather than a stub of it."* `vi.mock` keys on a module id, so moving
+`surface-visibility` here alongside `auth` put that seam **inside** the package, where those
+mocks could not reach it. Measured by doing it: **36 files and 179 tests**, every one failing
+with `useAuth must be used inside <AuthProvider>`. They drive the real providers now, seeded
+through `initial` on both — a better test on its own terms, because a permission gate
+asserted against a stub of the predicate asserts that the stub was consulted.
+
+What is left is `InvoiceSectionTabs` and `OrderEntryTabs`, which are components rather than
+hooks and were never blocked by the same thing. Each renders on two modules' pages and
+belongs to neither — `invoices` and its templates screen, `orders` and `quick_order` — so
+publishing one would put that pairing in the kit, which is module knowledge (R6). They
+**retire with P4**, like `asset-picker`: a tab strip over two modules' surfaces is a zone
+with two contributions.
+
+**The substitution seam for the session cluster is a prop, not a mock**, and that was
+measured rather than chosen. `AuthProvider` takes `initial: AdminMe` and
+`ModulePresenceProvider` has taken `initial` since feature 073; supply either and the
+provider starts resolved and skips its boot fetch. The alternative — a kit file importing
+`apiClient` from this package's own `./lib` barrel, which is the seam P2 established for the
+three published pickers — **does not work for a member of that barrel**: it is a cycle, and
+under a `vi.mock` factory calling `importActual` it resolves to the *real* module, so the
+stub is bypassed silently and the request goes out to whatever is listening on the API
+origin. `auth.tsx` and `module-presence/api.ts` therefore import `./api-client.js` directly
+and say so in place. The same is true of `i18n/language-storage.ts` and the five older
+data-fetching components, which is `specs/deferred-defects.md`'s entry from !1212.
+
+`PAGE_SIZE_OPTIONS` was the one binding Phase 1b split out of a module that stayed behind:
+the **constant** was design-system and the **preference** was application state, because the
+hook reads the signed-in admin's id. That id is `useAuth`'s, which is published now, so the
+split has nothing left to separate — both halves are here and the shim forwards both.
 
 ## How a kit component gets its data
 

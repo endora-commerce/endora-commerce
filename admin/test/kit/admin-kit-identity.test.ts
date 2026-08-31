@@ -45,7 +45,10 @@ import { Button } from '@/components/ui/button';
 import { Table } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { apiClient, ApiError } from '@/lib/api-client';
-import { PAGE_SIZE_OPTIONS } from '@/lib/use-page-size-preference';
+import { PAGE_SIZE_OPTIONS, usePageSizePreference } from '@/lib/use-page-size-preference';
+import { AuthProvider, useAuth } from '@/lib/auth';
+import { ModulePresenceProvider, useModulePresence, getModulePresence } from '@/lib/module-presence';
+import { isSurfaceVisible, satisfiesPermission, useSurfaceVisibility } from '@/lib/surface-visibility';
 import { useTranslation } from '@/i18n/useTranslation';
 import { AppLanguageContext } from '@/i18n/app-language-context';
 import { ResponsiveTable } from '@/components/ResponsiveTable';
@@ -107,12 +110,31 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     );
   });
 
+  it('serves the session cluster through both spellings, directory index included', () => {
+    // Feature 091's P3. `useSurfaceVisibility` reads `useAuth` and
+    // `useModulePresence` **inside** the package now, so a second copy of
+    // either context reached through the shim would be a predicate answering
+    // about a provider nobody mounted — and `useAuth` throws on a null context,
+    // so it is a blank screen rather than a wrong answer. `module-presence` is
+    // a directory `index.ts` forwarding four names at once, the shim shape most
+    // likely to be "helpfully" re-implemented.
+    expect(useAuth).toBe(kitLib.useAuth);
+    expect(AuthProvider).toBe(kitLib.AuthProvider);
+    expect(useModulePresence).toBe(kitLib.useModulePresence);
+    expect(ModulePresenceProvider).toBe(kitLib.ModulePresenceProvider);
+    expect(getModulePresence).toBe(kitLib.getModulePresence);
+    expect(useSurfaceVisibility).toBe(kitLib.useSurfaceVisibility);
+    expect(isSurfaceVisible).toBe(kitLib.isSurfaceVisible);
+    expect(satisfiesPermission).toBe(kitLib.satisfiesPermission);
+    expect(usePageSizePreference).toBe(kitLib.usePageSizePreference);
+  });
+
   it('serves the same constant array, so the dropdown and the validation cannot disagree', () => {
-    // `PAGE_SIZE_OPTIONS` is the one binding this change split out of a module
-    // that stayed behind: `usePageSizePreference` reads the signed-in admin's
-    // id and is the admin application's, the list of numbers is the kit's, and
-    // the hook re-exports it. Identity is what makes that a split rather than a
-    // fork.
+    // `PAGE_SIZE_OPTIONS` was the one binding Phase 1b split out of a module
+    // that stayed behind, because `usePageSizePreference` reads the signed-in
+    // admin's id. P3 published the hook too, so the two are one package's again
+    // and the shim forwards both. Identity is what made it a split rather than
+    // a fork, and it is what keeps the forwarding honest now.
     expect(PAGE_SIZE_OPTIONS).toBe(kitLib.PAGE_SIZE_OPTIONS);
   });
 });
