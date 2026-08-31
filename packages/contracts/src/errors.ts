@@ -468,7 +468,7 @@ export const ERROR_CODES = {
   PIM_ERGONODE_FIELD_PATH_INVALID: 'PIM_ERGONODE_FIELD_PATH_INVALID',
 
   // Pimcore PIM integration (feature 089). Transport-level codes for the
-  // module's admin surface — see specs/089-pimcore-pim-sync/contracts/admin-api.md.
+  // module's admin surface — see specs/092-pimcore-pim-sync/contracts/admin-api.md.
   /** No connection row exists yet, so there is nothing to read or import from. */
   PIM_PIMCORE_NOT_CONFIGURED: 'PIM_PIMCORE_NOT_CONFIGURED',
   /** A second *enabled* connection was attempted (FR-004). */
