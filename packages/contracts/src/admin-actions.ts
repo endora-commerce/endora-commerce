@@ -105,6 +105,16 @@ export const KnownIconNameSchema = z.enum([
   // name rather than reusing one: the entry keeps the glyph `AppShell.tsx`
   // drew for it, so nothing an operator sees moves with the declaration.
   'Smartphone',
+  // Feature 091 (Phase 4, the plan's batch 6) — `webhooks`' and `comparisons`'
+  // sidebar entries and palette actions, for the same reason: the two glyphs
+  // `AppShell.tsx` imported from `lucide-react` by hand have to be nameable now
+  // that the declarations are the modules' own. `api_keys` needed nothing —
+  // `KeyRound` is already above, because `credentials`' row renders it too.
+  //
+  // The batch numbers collide and the members do not: !1214 shipped `pwa` as
+  // "batch six" while `plan.md`'s batch 6 is this set. Both entries stand.
+  'Webhook',
+  'Scale',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

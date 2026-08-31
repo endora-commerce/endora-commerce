@@ -192,12 +192,10 @@ export const HOST_OWNER = ADMIN_HOST_OWNER;
 
 export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistrationCounts>> = {
   host: { routes: 4, nav: 3 },
-  api_keys: { routes: 1, nav: 2 },
   assets_library: { routes: 1, nav: 1 },
   blog: { routes: 7, nav: 3 },
   catalog: { routes: 8, nav: 9 },
   cms: { routes: 11, nav: 4 },
-  comparisons: { routes: 2, nav: 2 },
   credentials: { routes: 2, nav: 2 },
   credit_limits: { routes: 1, nav: 2 },
   custom_fields: { routes: 1, nav: 1 },
@@ -225,5 +223,4 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   settings: { routes: 4, nav: 4 },
   taxes: { routes: 1, nav: 1 },
   transactional_emails: { routes: 6, nav: 6 },
-  webhooks: { routes: 1, nav: 2 },
 };

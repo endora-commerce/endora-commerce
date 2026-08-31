@@ -91,7 +91,7 @@ const coreBundle = passthroughBundle('core', [
   'appShell.section.sales',
   'appShell.nav.home',
   'appShell.nav.orders',
-  'appShell.nav.comparisons',
+  'appShell.nav.credentials',
   'appShell.nav.organizations',
   'appShell.nav.priceLists',
   'appShell.nav.paymentMethods',
@@ -137,24 +137,32 @@ async function openPaletteItems(): Promise<string[]> {
 
 describe('AppShell — permission gates the palette and the sidebar alike (issue #230)', () => {
   it('hides both surfaces from a role without the code', async () => {
-    // `comparisons:read` gates `/comparisons`
-    // (`backend/src/modules/comparisons/routes.admin.ts:37`). The role below
+    // `credentials:read` gates `/credentials`
+    // (`packages/modules/credentials/src/backend/routes.ts`). The role below
     // holds a different code entirely.
+    //
+    // The subject was `/comparisons` until feature 091's Phase 4 drain moved
+    // that module's sidebar row and palette entry into its own package, where
+    // `composeNav` and the server resolve them. This file's subject is the two
+    // hand-written registries, so it needs an entry that is still in both — and
+    // the pair had to move together, because with `comparisons` gone the
+    // positive control went red while this negative went **vacuously green**.
+    // `credentials` is batch 9's, so this file moves again when that lands.
     renderShell(['orders:read']);
-    expect(sidebarHrefs()).not.toContain('/comparisons');
+    expect(sidebarHrefs()).not.toContain('/credentials');
     const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.comparisons'))).toBe(false);
+    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(false);
   });
 
   it('shows both surfaces to a role holding the code', async () => {
-    renderShell(['comparisons:read']);
-    expect(sidebarHrefs()).toContain('/comparisons');
+    renderShell(['credentials:read']);
+    expect(sidebarHrefs()).toContain('/credentials');
     const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.comparisons'))).toBe(true);
+    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(true);
   });
 
   it('gates /orders, which carried no code at all before this change', async () => {
-    renderShell(['comparisons:read']);
+    renderShell(['credentials:read']);
     expect(sidebarHrefs()).not.toContain('/orders');
     expect((await openPaletteItems()).some((t) => t.includes('appShell.nav.orders'))).toBe(false);
 

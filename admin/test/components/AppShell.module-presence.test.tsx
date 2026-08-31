@@ -92,7 +92,7 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.googleAnalytics',
   'appShell.nav.linkedinAds',
   'appShell.nav.metaAds',
-  'appShell.nav.comparisons',
+  'appShell.nav.credentials',
   'appShell.nav.home',
 ]);
 
@@ -186,14 +186,23 @@ describe('AppShell — module presence drives the command palette (FR-032)', () 
   it('offers a present module in the Navigate group', async () => {
     renderShell();
     const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.comparisons'))).toBe(true);
+    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(true);
   });
 
   it('drops a switched-off module from the Navigate group', async () => {
-    // `/comparisons` is one of the entries the palette advertised regardless of
+    // `/credentials` is one of the entries the palette advertised regardless of
     // module state before this feature.
-    renderShell(['comparisons']);
+    //
+    // The subject was `/comparisons` until feature 091's Phase 4 drain moved
+    // that module's palette entry into its manifest, where the **server**
+    // resolves it against the effective enabled-set and `PALETTE_ITEMS` no
+    // longer carries a copy. This file's subject is the hand-written Navigate
+    // group, so it needs an entry that is still in it — and the pair had to
+    // move together: with `comparisons` gone the positive control went red and
+    // this negative went **vacuously green**, which is the worse of the two.
+    // `credentials` is batch 9's, so this file moves again when that lands.
+    renderShell(['credentials']);
     const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.comparisons'))).toBe(false);
+    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(false);
   });
 });
