@@ -224,7 +224,10 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // Issue #193 lifted the two federated-provider labels into
   // `preauth-login-copy.ts`; the four left are the second-step MFA screen.
   'admin/src/components/LoginPage.tsx': 4,
-  'admin/src/components/asset-picker/AssetFieldPicker.tsx': 1,
+  // Feature 091's P4c published the asset cluster, so this file's one finding
+  // ("Clear asset") is the kit's now. The count is unmoved: the same string in
+  // the same component, under the path the walk reads it at.
+  'packages/admin-kit/src/components/asset-picker/AssetFieldPicker.tsx': 1,
   'packages/admin-kit/src/components/rule-builder/RuleBuilder.tsx': 6,
   'packages/admin-kit/src/ui/color-picker.tsx': 1,
   'admin/src/modules/_shared/email-builder/EmailEditorPane.tsx': 9,
