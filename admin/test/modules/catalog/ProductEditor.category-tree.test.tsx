@@ -33,25 +33,31 @@ const PRODUCT_ID = '11111111-1111-4111-8111-111111111101';
 const CAT_PARENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01';
 const CAT_CHILD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb02';
 
-const BUNDLE = passthroughBundle('catalog', [
-  'productEditor.loading',
-  'productEditor.section.categories',
-  'productEditor.section.categories.help',
-  'productEditor.section.identity',
-  'productEditor.field.sku',
-  'productEditor.field.status',
-  'productEditor.field.type',
-  'productEditor.field.visibility',
-  'productEditor.field.attributeSet',
-  'productEditor.attributeSet.loading',
-  'productEditor.field.defaultPrice',
-  'categoryTreePicker.filter.placeholder',
-  'categoryTreePicker.aria.treeLabel',
-  'categoryTreePicker.expand',
-  'categoryTreePicker.collapse',
-  'categoryTreePicker.empty.noCategories',
-  'categoryTreePicker.empty.noMatches',
-]);
+// `CategoryTreePicker` renders out of `core`, not out of `catalog` — feature 091
+// R-1: a translation namespace is module knowledge and the kit holds none.
+const BUNDLE = {
+  ...passthroughBundle('catalog', [
+    'productEditor.loading',
+    'productEditor.section.categories',
+    'productEditor.section.categories.help',
+    'productEditor.section.identity',
+    'productEditor.field.sku',
+    'productEditor.field.status',
+    'productEditor.field.type',
+    'productEditor.field.visibility',
+    'productEditor.field.attributeSet',
+    'productEditor.attributeSet.loading',
+    'productEditor.field.defaultPrice',
+  ]),
+  ...passthroughBundle('core', [
+    'categoryTreePicker.filter.placeholder',
+    'categoryTreePicker.aria.treeLabel',
+    'categoryTreePicker.expand',
+    'categoryTreePicker.collapse',
+    'categoryTreePicker.empty.noCategories',
+    'categoryTreePicker.empty.noMatches',
+  ]),
+};
 
 const MOCK_CATEGORIES = [
   {
