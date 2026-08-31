@@ -34,6 +34,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingCart,
+  Smartphone,
   Sparkles,
   Tag,
   Truck,
@@ -109,6 +110,8 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // Feature 091 (Phase 4, batch four) — the same, for `admin_roles`' sidebar
   // entry and palette action.
   ShieldCheck,
+  // Feature 091 (Phase 4, batch six) — the same, for `pwa`' sidebar entry.
+  Smartphone,
 };
 
 export function resolveIcon(name: string): LucideIcon {

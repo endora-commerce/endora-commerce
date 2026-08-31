@@ -47,8 +47,9 @@ import { contributions as contributions11 } from '@endora-commerce/mod-meta-ads/
 import { contributions as contributions12 } from '@endora-commerce/mod-mfa/admin';
 import { contributions as contributions13 } from '@endora-commerce/mod-paypal/admin';
 import { contributions as contributions14 } from '@endora-commerce/mod-payu/admin';
-import { contributions as contributions15 } from '@endora-commerce/mod-stripe/admin';
-import { contributions as contributions16 } from '@endora-commerce/mod-tpay/admin';
+import { contributions as contributions15 } from '@endora-commerce/mod-pwa/admin';
+import { contributions as contributions16 } from '@endora-commerce/mod-stripe/admin';
+import { contributions as contributions17 } from '@endora-commerce/mod-tpay/admin';
 
 /** One module's contribution set, keyed by the module id that shipped it. */
 export interface AdminRegistryEntry {
@@ -72,6 +73,7 @@ export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
   { moduleId: 'mfa', contributions: contributions12 },
   { moduleId: 'paypal', contributions: contributions13 },
   { moduleId: 'payu', contributions: contributions14 },
-  { moduleId: 'stripe', contributions: contributions15 },
-  { moduleId: 'tpay', contributions: contributions16 },
+  { moduleId: 'pwa', contributions: contributions15 },
+  { moduleId: 'stripe', contributions: contributions16 },
+  { moduleId: 'tpay', contributions: contributions17 },
 ];

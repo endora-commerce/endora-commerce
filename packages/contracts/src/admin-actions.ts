@@ -99,6 +99,12 @@ export const KnownIconNameSchema = z.enum([
   // the glyph `AppShell.tsx` rendered by hand joins it here instead of the
   // entry silently changing to a name that happened to be on the list.
   'LineChart',
+  // Feature 091 (Phase 4, batch six) — `pwa`' sidebar entry, which became a
+  // module declaration and therefore has to name its icon rather than import
+  // it. Same rule as the two entries above and the same reason for adding a
+  // name rather than reusing one: the entry keeps the glyph `AppShell.tsx`
+  // drew for it, so nothing an operator sees moves with the declaration.
+  'Smartphone',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 
