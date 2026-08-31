@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ModulePresence } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
 
 /**
  * Issue #112, follow-up — the top-nav notification bell is gated like every
@@ -24,35 +25,7 @@ import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 let presentModules = new Set<string>();
 let granted = new Set<string>();
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: {
-        id: '1',
-        email: 'admin@test.com',
-        firstName: 'Ada',
-        lastName: 'Min',
-        preferredLanguage: 'en',
-      },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: (code: string) => granted.has('*') || granted.has(code),
-  }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [] as ModulePresence[],
-    isPresent: (moduleId: string) => presentModules.has(moduleId),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
@@ -92,13 +65,16 @@ function renderShell(opts: { permissions: readonly string[]; present: readonly s
   presentModules = new Set(opts.present);
   setMobileViewport(false);
   renderWithI18n(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<div>Home content</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Home content</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: [...granted] }), presence: modulePresence({ present: [...presentModules] }) },
+    ),
     coreBundle,
   );
 }

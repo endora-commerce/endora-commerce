@@ -3,6 +3,13 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import {
+  adminSession,
+  everyDeclaredModule,
+  everyDeclaredPermission,
+  modulePresence,
+  withSession,
+} from '../helpers/render-with-session';
 
 /**
  * T056 — US4 admin gating + the SC-006 baseline: the assistant entry exists
@@ -16,34 +23,11 @@ let capabilityStatus: 'ready' | 'disabled' | 'not_configured' = 'ready';
 const capabilitySpy = vi.fn(async () => ({ status: capabilityStatus, bulkLimit: 500 }));
 const unseenSpy = vi.fn(async () => []);
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: { id: '1', email: 'a@t.io', firstName: 'A', lastName: 'B', preferredLanguage: 'en' },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: (code: string) =>
-      code === 'prompt_actions:use' ? permissionGranted : true,
-  }),
-}));
 
 // Feature 073 — every admin surface resolves its own presence from the module
 // projection. These cases are about layout and routing, not about presence, so
 // the projection is stubbed as "everything is here"; the filtering itself is
 // covered in AppShell.module-presence.test.tsx.
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
@@ -92,13 +76,16 @@ const coreBundle = {
 
 function renderShell(): void {
   renderWithI18n(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<div>Home content</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Home content</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: permissionGranted ? everyDeclaredPermission() : everyDeclaredPermission().filter((code) => code !== 'prompt_actions:use') }), presence: modulePresence({ present: everyDeclaredModule() }) },
+    ),
     coreBundle,
   );
 }

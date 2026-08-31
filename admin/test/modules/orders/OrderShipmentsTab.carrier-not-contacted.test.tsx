@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * Issue #250 — the Delivery tab is where `pending_manual` stops being a value
@@ -40,20 +41,7 @@ vi.mock('@/lib/api-client', async () => {
  * else. `DeliveryMethodsPage.permission-gating.test.tsx` is where the predicate
  * itself is exercised.
  */
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: () => false }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: vi.fn(),
-  }),
-}));
 
 const { OrderShipmentsTab } = await import('../../../src/modules/orders/OrderShipmentsTab');
 
@@ -97,7 +85,13 @@ function renderTab(): void {
   // carrier-not-contacted state, which is carrier-agnostic, and the prop only
   // selects DHL's own panels. A DHL code here would render UI this file does
   // not assert on and quietly change what it measures.
-  renderWithI18n(<OrderShipmentsTab orderId="o1" deliveryMethodCode="courier" />, BUNDLE);
+  renderWithI18n(
+    withSession(<OrderShipmentsTab orderId="o1" deliveryMethodCode="courier" />, {
+      session: adminSession({ permissions: [] }),
+      presence: modulePresence({ present: ['orders', 'inpost'] }),
+    }),
+    BUNDLE,
+  );
 }
 
 /**

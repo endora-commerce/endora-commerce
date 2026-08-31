@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * `taxes` owns its authority — the screen.
@@ -65,22 +66,11 @@ vi.mock('@/lib/api-client', () => ({
   },
 }));
 
-const hasPermission = vi.fn((_code: string) => false);
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: (code: string) => hasPermission(code) }),
-}));
+/** The codes the signed-in operator holds, per case. */
+let permissions: readonly string[] = [];
 
-const isPresent = vi.fn((_moduleId: string) => true);
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: (moduleId: string) => isPresent(moduleId),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: vi.fn(),
-  }),
-}));
+/** The modules the projection reports present, per case. */
+let presentModules: readonly string[] = [];
 
 const KEYS = [
   'taxes.page.title',
@@ -113,9 +103,12 @@ const KEYS = [
 function mount(): Promise<void> {
   return import('@/modules/taxes/TaxesPage').then(({ TaxesPage }) => {
     renderWithI18n(
-      <MemoryRouter initialEntries={['/taxes']}>
-        <TaxesPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter initialEntries={['/taxes']}>
+          <TaxesPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions }), presence: modulePresence({ present: presentModules }) },
+      ),
       passthroughBundle('core', KEYS),
     );
   });
@@ -124,10 +117,10 @@ function mount(): Promise<void> {
 describe('the taxes screen is gated on the module’s own codes', () => {
   it('renders a refusal instead of the screen for a catalogue editor, and asks the API nothing', async () => {
     get.mockClear();
-    isPresent.mockImplementation(() => true);
+    presentModules = ['taxes'];
     // The role the old gate handed the whole surface to: `catalog:write` was
     // the code on all four routes, the two reads included.
-    hasPermission.mockImplementation((code) => code === 'catalog:read' || code === 'catalog:write');
+    permissions = ['catalog:read', 'catalog:write'];
 
     await mount();
 
@@ -139,8 +132,8 @@ describe('the taxes screen is gated on the module’s own codes', () => {
 
   it('renders the screen for a role holding taxes:read', async () => {
     get.mockClear();
-    isPresent.mockImplementation(() => true);
-    hasPermission.mockImplementation((code) => code === 'taxes:read');
+    presentModules = ['taxes'];
+    permissions = ['taxes:read'];
 
     await mount();
 
@@ -154,8 +147,8 @@ describe('the taxes screen is gated on the module’s own codes', () => {
     // may not change it. Hidden rather than disabled, and hidden rather than
     // left to 403 on submit.
     get.mockClear();
-    isPresent.mockImplementation(() => true);
-    hasPermission.mockImplementation((code) => code === 'taxes:read');
+    presentModules = ['taxes'];
+    permissions = ['taxes:read'];
 
     await mount();
 
@@ -166,8 +159,8 @@ describe('the taxes screen is gated on the module’s own codes', () => {
 
   it('offers the editing affordances to a role holding the pair', async () => {
     get.mockClear();
-    isPresent.mockImplementation(() => true);
-    hasPermission.mockImplementation((code) => code === 'taxes:read' || code === 'taxes:write');
+    presentModules = ['taxes'];
+    permissions = ['taxes:read', 'taxes:write'];
 
     await mount();
 
@@ -183,8 +176,8 @@ describe('the taxes screen is gated on the module’s own codes', () => {
     // leave this page rendering and answering 503 for a role that is perfectly
     // adequate.
     get.mockClear();
-    hasPermission.mockImplementation((code) => code === 'taxes:read' || code === 'taxes:write');
-    isPresent.mockImplementation((moduleId) => moduleId !== 'taxes');
+    permissions = ['taxes:read', 'taxes:write'];
+    presentModules = [];
 
     await mount();
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * The payments tab is gated, and it was gated by nothing.
@@ -27,26 +28,11 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  * `OrderDetail`.
  */
 
-const permissions = new Set<string>();
-const presentModules = new Set<string>(['orders', 'payments']);
+/** The codes the operator holds, and the modules the projection reports, per case. */
+let permissions: readonly string[] = [];
+let presentModules: readonly string[] = ['orders', 'payments'];
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    hasPermission: (code: string): boolean => permissions.has(code) || permissions.has('*'),
-  }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: (id: string): boolean => presentModules.has(id),
-    presenceOf: () => undefined,
-    degraded: false,
-    isLoading: false,
-    error: null,
-    refresh: async (): Promise<void> => {},
-  }),
-}));
 
 const getSpy = vi.fn();
 
@@ -109,11 +95,14 @@ function renderDetail(): void {
     return Promise.resolve({ data: [] });
   });
   renderWithI18n(
-    <MemoryRouter initialEntries={['/orders/o1']}>
-      <Routes>
-        <Route path="/orders/:id" element={<OrderDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/orders/o1']}>
+        <Routes>
+          <Route path="/orders/:id" element={<OrderDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: [...permissions] }), presence: modulePresence({ present: [...presentModules] }) },
+    ),
     BUNDLE,
   );
 }
@@ -124,16 +113,13 @@ const tabNames = (): string[] =>
 beforeEach(() => {
   cleanup();
   getSpy.mockReset();
-  permissions.clear();
-  presentModules.clear();
-  presentModules.add('orders');
-  presentModules.add('payments');
+  permissions = [];
+  presentModules = ['orders', 'payments'];
 });
 
 describe('OrderDetail — the payments tab is gated on payments:read', () => {
   it('offers the payments tab to a role holding payments:read', async () => {
-    permissions.add('orders:read');
-    permissions.add('payments:read');
+    permissions = ['orders:read', 'payments:read'];
     renderDetail();
 
     await waitFor(() => expect(tabNames().length).toBeGreaterThan(0));
@@ -141,7 +127,7 @@ describe('OrderDetail — the payments tab is gated on payments:read', () => {
   });
 
   it('omits the payments tab entirely from a role without payments:read', async () => {
-    permissions.add('orders:read');
+    permissions = ['orders:read'];
     renderDetail();
 
     await waitFor(() => expect(tabNames().length).toBeGreaterThan(0));
@@ -154,8 +140,8 @@ describe('OrderDetail — the payments tab is gated on payments:read', () => {
   });
 
   it('omits the payments tab while the payments module is switched off', async () => {
-    permissions.add('*');
-    presentModules.delete('payments');
+    permissions = ['*'];
+    presentModules = ['orders'];
     renderDetail();
 
     await waitFor(() => expect(tabNames().length).toBeGreaterThan(0));

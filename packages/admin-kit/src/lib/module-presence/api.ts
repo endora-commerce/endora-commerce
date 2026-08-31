@@ -2,6 +2,12 @@ import type {
   AdminModulePresenceResponse,
   ModuleActivationResponse,
 } from '@endora-commerce/contracts';
+// `../api-client.js`, not the `./lib` barrel the P2 components take it from.
+// That rule is about a collaborator a test outside the package substitutes, and
+// it cannot reach a file the barrel itself exports: measured in P3, a member
+// importing `../index.js` under a `vi.mock` factory that calls `importActual`
+// resolves to the **real** module — the stub is bypassed and the request goes
+// out for real. The seam for this provider is its `initial` prop instead.
 import { apiClient } from '../api-client.js';
 
 /**

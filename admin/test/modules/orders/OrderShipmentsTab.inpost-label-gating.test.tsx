@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * Feature 068 — the InPost label button on the Delivery tab, on both axes.
@@ -35,22 +36,10 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
-const hasPermission = vi.fn((_code: string) => true);
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: (code: string) => hasPermission(code) }),
-}));
+/** The codes the operator holds, and the modules the projection reports, per case. */
+let permissions: readonly string[] = [];
+let presentModules: readonly string[] = [];
 
-const isPresent = vi.fn((_moduleId: string) => true);
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: (moduleId: string) => isPresent(moduleId),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: vi.fn(),
-  }),
-}));
 
 const { OrderShipmentsTab } = await import('../../../src/modules/orders/OrderShipmentsTab');
 
@@ -84,16 +73,20 @@ const BUNDLE = {
 };
 
 function renderTab(): void {
-  renderWithI18n(<OrderShipmentsTab orderId="o1" deliveryMethodCode="inpost_locker" />, BUNDLE);
+  renderWithI18n(
+    withSession(<OrderShipmentsTab orderId="o1" deliveryMethodCode="inpost_locker" />, {
+      session: adminSession({ permissions: [...permissions] }),
+      presence: modulePresence({ present: [...presentModules] }),
+    }),
+    BUNDLE,
+  );
 }
 
 describe('OrderShipmentsTab — the InPost label button (feature 068)', () => {
   beforeEach(() => {
     getSpy.mockReset();
-    hasPermission.mockReset();
-    hasPermission.mockImplementation(() => true);
-    isPresent.mockReset();
-    isPresent.mockImplementation(() => true);
+    permissions = ['inpost:manage'];
+    presentModules = ['orders', 'inpost'];
   });
 
   it('offers the label when the operator holds inpost:manage and inpost is present', async () => {
@@ -101,11 +94,10 @@ describe('OrderShipmentsTab — the InPost label button (feature 068)', () => {
     renderTab();
 
     await waitFor(() => expect(screen.getByText('label.download')).toBeInTheDocument());
-    expect(hasPermission).toHaveBeenCalledWith('inpost:manage');
   });
 
   it('offers nothing when the role does not hold inpost:manage', async () => {
-    hasPermission.mockImplementation(() => false);
+    permissions = [];
     getSpy.mockResolvedValue({ data: [INPOST_SUCCESS] });
     renderTab();
 
@@ -116,7 +108,7 @@ describe('OrderShipmentsTab — the InPost label button (feature 068)', () => {
   });
 
   it('offers nothing while the inpost module is switched off', async () => {
-    isPresent.mockImplementation((moduleId: string) => moduleId !== 'inpost');
+    presentModules = ['orders'];
     getSpy.mockResolvedValue({ data: [INPOST_SUCCESS] });
     renderTab();
 
@@ -124,7 +116,6 @@ describe('OrderShipmentsTab — the InPost label button (feature 068)', () => {
       expect(screen.getByText('orderDetail.shipments.status.success')).toBeInTheDocument(),
     );
     expect(screen.queryByText('label.download')).not.toBeInTheDocument();
-    expect(isPresent).toHaveBeenCalledWith('inpost');
   });
 
   it('offers nothing on an attempt another carrier opened', async () => {

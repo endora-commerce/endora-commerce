@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { RenderResult } from '@testing-library/react';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
 
 /**
  * One of the admin's own source files, read as text.
@@ -51,38 +52,7 @@ function sourceOf(relativePath: string): string {
 let presentModules = new Set<string>(['carts']);
 let permissions = new Set<string>();
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    status: 'authenticated',
-    me: {
-      adminUser: {
-        id: '1',
-        email: 'admin@test.com',
-        firstName: 'Ada',
-        lastName: 'Min',
-        preferredLanguage: 'en',
-      },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: (code: string) => permissions.has(code),
-  }),
-  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: (moduleId: string) => presentModules.has(moduleId),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  ModulePresenceProvider: ({ children }: { children: React.ReactNode }) => children,
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
@@ -169,9 +139,12 @@ const bundle = {
 
 function renderAt(path: string): RenderResult {
   return renderWithI18n(
-    <MemoryRouter initialEntries={[path]}>
-      <App />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={[path]}>
+        <App modulePresence={modulePresence({ present: [...presentModules] })} />
+      </MemoryRouter>,
+      { session: adminSession({ permissions: [...permissions] }) },
+    ),
     bundle,
   );
 }

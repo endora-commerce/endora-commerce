@@ -5,6 +5,12 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ModulePresence } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import {
+  adminSession,
+  everyDeclaredModule,
+  modulePresence,
+  withSession,
+} from '../helpers/render-with-session';
 
 /**
  * Feature 073 / US1, FR-031 and FR-032 — the Admin UI resolves its surfaces
@@ -26,35 +32,7 @@ import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 
 let presentModules = new Set<string>();
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: {
-        id: '1',
-        email: 'admin@test.com',
-        firstName: 'Ada',
-        lastName: 'Min',
-        preferredLanguage: 'en',
-      },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: () => true,
-  }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [] as ModulePresence[],
-    isPresent: (moduleId: string) => presentModules.has(moduleId),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
@@ -98,30 +76,32 @@ const coreBundle = passthroughBundle('core', [
 
 const { AppShell } = await import('../../src/components/AppShell');
 
-/** Everything the AppShell can render, minus the ids the caller switches off. */
-const ALL_MODULES = [
-  'orders', 'quick_order', 'returns', 'quote_requests', 'invoices', 'ksef',
-  'catalog', 'assets_library', 'pim_ergonode', 'product_feeds', 'inventory',
-  'price_lists', 'promotions', 'taxes', 'delivery_methods', 'payment_methods',
-  'customers', 'organizations', 'credit_limits', 'comparisons',
-  'sales_channels', 'dictionaries', 'seo', 'cms', 'megamenu', 'blog',
-  'transactional_emails', 'newsletter', 'analytics', 'google_analytics',
-  'linkedin_ads', 'meta_ads', 'admin_users', 'admin_roles', 'audit_logs',
-  'api_keys', 'webhooks', 'credentials', 'import_export', 'settings', 'pwa',
-  'custom_fields',
-];
+/**
+ * Everything the AppShell can render, minus the ids the caller switches off.
+ *
+ * Derived from the shell's own `NAV` rather than listed here. The list this
+ * replaced held 42 ids where the declarations hold 51, which is what a written
+ * copy of a derived fact does: a module added to the sidebar was absent from
+ * every case in this file and nothing said so — *"lists a present module"*
+ * would have gone on passing about `pim_ergonode` while the new entry was
+ * hidden in every one of them.
+ */
+const ALL_MODULES = everyDeclaredModule();
 
 function renderShell(off: readonly string[] = []): void {
   presentModules = new Set(ALL_MODULES.filter((id) => !off.includes(id)));
   setMobileViewport(false);
   renderWithI18n(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<div>Home content</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Home content</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: [...presentModules] }) },
+    ),
     coreBundle,
   );
 }
