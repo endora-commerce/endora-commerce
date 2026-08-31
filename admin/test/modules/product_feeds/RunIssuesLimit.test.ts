@@ -15,18 +15,33 @@ import { listQuerySchema } from '@endora-commerce/contracts';
 
 const get = vi.fn();
 
-vi.mock('@/lib/api-client', () => ({
-  apiClient: {
-    get: (url: string): Promise<unknown> => get(url),
-    post: vi.fn(),
-    patch: vi.fn(),
-    delete: vi.fn(),
-  },
-  ApiError: class extends Error {},
-}));
+/**
+ * **The client is `@endora-commerce/mod-product-feeds`' since feature 091's
+ * Phase 4 (the plan's batch 7)**, so the module it takes `apiClient` from is
+ * `@endora-commerce/admin-kit/lib` rather than `@/lib/api-client`, which is a
+ * re-export shim the packaged file never names. The factory is spread over
+ * `vi.importActual` because the same barrel also carries `apiBaseUrl`, which
+ * `api.ts` reads at module scope for its download anchors — a bare factory
+ * would delete every binding it does not name.
+ */
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
+  return {
+    ...actual,
+    apiClient: {
+      get: (url: string): Promise<unknown> => get(url),
+      post: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+    },
+    ApiError: class extends Error {},
+  };
+});
 
 const { productFeedsClient, RUN_ISSUE_PAGE_LIMIT } = await import(
-  '../../../src/modules/product_feeds/api'
+  '../../../../packages/modules/product_feeds/src/admin/api'
 );
 
 /** The `limit` of the client's only request, as the server would read it. */

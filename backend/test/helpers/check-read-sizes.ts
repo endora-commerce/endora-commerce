@@ -327,10 +327,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // distance from the truth batch by batch until it stops refusing anything.
     // Six batches took it from 249 to 217, `pwa` moving it by one because that
     // batch was one nav entry; the plan's own batch 6 — `webhooks`,
-    // `comparisons`, `api_keys`, four routes and six nav entries — takes it
-    // to 207.
+    // `comparisons`, `api_keys`, four routes and six nav entries — took it
+    // to 207, and batch 7 — `promotions`, `payment_methods`,
+    // `customer_accounts`, `product_feeds`, seventeen routes and eight nav
+    // entries — takes it to 182.
     files: 2,
-    sites: 207,
+    sites: 182,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],

@@ -13,7 +13,6 @@ import {
   Box,
   Factory,
   FileText,
-  Rss,
   HelpCircle,
   Home as HomeIcon,
   Image as ImageIcon,
@@ -30,7 +29,6 @@ import {
   PackageOpen,
   PanelLeftClose,
   PanelLeftOpen,
-  PercentDiamond,
   PlugZap,
   Receipt,
   ReceiptText,
@@ -184,16 +182,6 @@ const NAV: NavSection[] = [
         requiredPermission: 'pim_ergonode:read',
         module: 'pim_ergonode',
       },
-      // A feed publishes the catalogue, so it belongs beside the catalogue
-      // rather than under Channels. Templates are a view of the same surface
-      // and are reached through the tab strip there, not a second sidebar row.
-      {
-        to: '/product-feeds',
-        labelKey: 'appShell.nav.productFeeds',
-        icon: Rss,
-        requiredPermission: 'product_feeds:read',
-        module: 'product_feeds',
-      },
     ],
   },
   {
@@ -216,11 +204,8 @@ const NAV: NavSection[] = [
     labelKey: 'appShell.section.pricing',
     items: [
       { to: '/price-lists', labelKey: 'appShell.nav.priceLists', icon: CircleDollarSign, requiredPermission: 'price_lists:read', module: 'price_lists' },
-      { to: '/promotions', labelKey: 'appShell.nav.promotions', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
-      { to: '/promotion-rules', labelKey: 'appShell.nav.promotionRules', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
       { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'taxes:read', module: 'taxes' },
       { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'delivery_methods:read', module: 'delivery_methods' },
-      { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard, requiredPermission: 'payment_methods:read', module: 'payment_methods' },
       // Carrier / payment gateway settings are reached as integrations from the
       // Delivery methods / Payment methods pages (not top-level sidebar).
     ],
@@ -254,17 +239,6 @@ const NAV: NavSection[] = [
         icon: Building2,
         requiredPermission: ['customers:read', 'customers:manage'],
         module: 'organizations',
-      },
-      // Feature 076 (D-79) — customer groups belong to the customer, so the
-      // screen is filed here and the module that owns it is the one that owns
-      // the account. `customer_accounts` is non-deactivatable, so this entry
-      // never disappears; the permission is what decides who sees it.
-      {
-        to: '/customer-groups',
-        labelKey: 'appShell.nav.customerGroups',
-        icon: Users,
-        requiredPermission: 'customer_groups:read',
-        module: 'customer_accounts',
       },
       { to: '/credit-limits', labelKey: 'appShell.nav.creditLimits', icon: CreditCard, requiredPermission: 'credit_limits:manage', module: 'credit_limits' },
       // `/comparisons` is declared by `comparisons` since feature 091's Phase 4
@@ -599,55 +573,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimErgonode', href: null },
   ] },
-  { test: /^\/product-feeds\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: null },
-  ] },
-  { test: /^\/product-feeds\/new\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.crumb.new', href: null },
-  ] },
-  { test: /^\/product-feeds\/templates\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedTemplates', href: null },
-  ] },
-  { test: /^\/product-feeds\/templates\/new\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
-    { labelKey: 'appShell.crumb.new', href: null },
-  ] },
-  { test: /^\/product-feeds\/templates\/import\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
-    { labelKey: 'appShell.crumb.import', href: null },
-  ] },
-  { test: /^\/product-feeds\/templates\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/product-feeds\/[^/]+\/runs\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.crumb.feedRun', href: null },
-  ] },
-  { test: /^\/product-feeds\/category-mapping\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedCategoryMapping', href: null },
-  ] },
-  { test: /^\/product-feeds\/taxonomy-revisions\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedCategoryMapping', href: '/product-feeds/category-mapping' },
-    { labelKey: 'appShell.nav.feedTaxonomyRevisions', href: null },
-  ] },
-  { test: /^\/product-feeds\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
   { test: /^\/assets-library\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.assetsLibrary', href: null },
@@ -690,25 +615,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.priceLists', href: '/price-lists' },
     { labelKey: 'appShell.crumb.detail', href: null },
   ] },
-  { test: /^\/promotions\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.promotions', href: null },
-  ] },
-  { test: /^\/promotions\/new\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
-    { labelKey: 'promotions.edit.titleNew', href: null },
-  ] },
-  { test: /^\/promotions\/[^/]+\/stats\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
-    { labelKey: 'promotionStats.title', href: null },
-  ] },
-  { test: /^\/promotions\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
-    { labelKey: 'promotions.edit.titleEdit', href: null },
-  ] },
   { test: /^\/taxes\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.taxes', href: null },
@@ -726,10 +632,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
     { labelKey: 'appShell.nav.inpost', href: null },
-  ] },
-  { test: /^\/payment-methods\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.paymentMethods', href: null },
   ] },
   { test: /^\/settings\/tpay\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
@@ -1127,14 +1029,11 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży', requiredPermission: 'sales_channels:read' , module: 'sales_channels' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.paymentMethods', sub: 'appShell.palette.sub.paymentMethods', icon: CreditCard, to: '/payment-methods', keywords: 'payment methods pay gateway checkout metody płatności płatności bramka', requiredPermission: 'payment_methods:read' , module: 'payment_methods' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.deliveryMethods', sub: 'appShell.palette.sub.deliveryMethods', icon: Truck, to: '/delivery-methods', keywords: 'delivery shipping methods courier metody dostawy wysyłka kurier', requiredPermission: 'delivery_methods:read' , module: 'delivery_methods' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja', requiredPermission: 'settings:read' , module: 'settings' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.credentials', sub: 'appShell.palette.sub.credentials', icon: KeyRound, to: '/credentials', keywords: 'credentials credential secrets provider llm smtp poświadczenia sekrety dostawca', requiredPermission: 'credentials:read' , module: 'credentials' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotions', sub: 'appShell.palette.sub.promotions', icon: PercentDiamond, to: '/promotions', keywords: 'promotion promotions discount coupon marketing promocje rabaty kupony', requiredPermission: 'promotions:read' , module: 'promotions' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotionRules', sub: 'appShell.palette.sub.promotionRules', icon: PercentDiamond, to: '/promotion-rules', keywords: 'promotion rules rule builder reguły promocji', requiredPermission: 'promotions:read' , module: 'promotions' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterSubscribers', sub: 'appShell.palette.sub.newsletterSubscribers', icon: Newspaper, to: '/newsletter/subscribers', keywords: 'newsletter subscribers marketing subskrybenci newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterCampaigns', sub: 'appShell.palette.sub.newsletterCampaigns', icon: Newspaper, to: '/newsletter/campaigns', keywords: 'newsletter campaigns email marketing kampanie newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterAutomations', sub: 'appShell.palette.sub.newsletterAutomations', icon: Newspaper, to: '/newsletter/automations', keywords: 'newsletter automations workflow automatyzacje newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },

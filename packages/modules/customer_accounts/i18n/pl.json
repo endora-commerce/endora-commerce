@@ -25,5 +25,6 @@
   "groups.action.cancel": "Anuluj",
   "groups.action.delete.confirm": "Usunąć grupę klientów „{code}”? Klienci i organizacje do niej przypisani zachowają swoje dane i utracą to przypisanie.",
   "groups.message.saved": "Grupa klientów „{code}” została zapisana.",
-  "groups.message.deleted": "Grupa klientów została usunięta."
+  "groups.message.deleted": "Grupa klientów została usunięta.",
+  "nav.customerGroups.label": "Grupy klientów"
 }
