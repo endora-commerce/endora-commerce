@@ -53,6 +53,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
 // Feature 068 / US4 — the Ergonode overwrite-protection affordance. Both render
 // `null` unless an Ergonode connection is enabled (FR-058), so every use below
@@ -544,9 +545,30 @@ export function ProductEditor(): ReactNode {
                     touch (FR-055), plus the integration-managed and last-synced
                     indicators (FR-068). The name and description controls sit
                     here because the panel below is their sole editor. */}
+                {/* Feature 091 / P4a — the product editor's own zone mounts.
+                    The zone names a **place**; nothing here refers to a module.
+                    They render zero contributions today: P4b is what moves the
+                    field-protection controls below into `pim_ergonode`'s and
+                    `pim_pimcore`'s own contributions, and until it lands both
+                    the mount and the hard-coded component stand. */}
+                {id ? (
+                  <AdminZone name="product.editor.details.before" props={{ productId: id }} />
+                ) : null}
                 <FieldProtectionSummary productId={id} />
                 {id ? (
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {/* One mount per field, not one per field and locale: the
+                        zone's props carry `languageCodes` and the fan-out is
+                        the contributor's decision. That is what the two
+                        `LOCALES.map(...)` loops below collapse into at P4b. */}
+                    <AdminZone
+                      name="product.editor.field.after"
+                      props={{ productId: id, fieldPath: 'name', languageCodes: LOCALES }}
+                    />
+                    <AdminZone
+                      name="product.editor.field.after"
+                      props={{ productId: id, fieldPath: 'description', languageCodes: LOCALES }}
+                    />
                     {LOCALES.map((l) => (
                       <FieldProtectionToggle
                         key={`protect-name-${l}`}
@@ -742,6 +764,12 @@ export function ProductEditor(): ReactNode {
                 <div>
                   <div className="b2b-label">
                     {t('productEditor.section.categories')}
+                    {id ? (
+                      <AdminZone
+                        name="product.editor.field.after"
+                        props={{ productId: id, fieldPath: 'categories', languageCodes: null }}
+                      />
+                    ) : null}
                     <FieldProtectionToggle productId={id} fieldPath="categories" className="ml-3" />
                   </div>
                   <CategoryTreePicker
@@ -770,6 +798,7 @@ export function ProductEditor(): ReactNode {
               {/* Feature 068 / FR-062 — one control per price the Ergonode
                   import could write here. Renders `null` when no binding covers
                   this product, which is every product until one is bound. */}
+              <AdminZone name="product.editor.pricing.before" props={{ productId: id }} />
               <ErgonodePriceProtectionPanel productId={id} />
               <LinkedPriceListsPanel productId={id} />
             </div>
@@ -787,6 +816,10 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'media' && id ? (
             <>
+              <AdminZone
+                name="product.editor.field.after"
+                props={{ productId: id, fieldPath: 'gallery', languageCodes: null }}
+              />
               <FieldProtectionToggle productId={id} fieldPath="gallery" className="mb-2" />
               <GallerySection ref={galleryRef} productId={id} />
             </>
@@ -803,6 +836,10 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'attachments' && id ? (
             <>
+              <AdminZone
+                name="product.editor.field.after"
+                props={{ productId: id, fieldPath: 'attachments', languageCodes: null }}
+              />
               <FieldProtectionToggle productId={id} fieldPath="attachments" className="mb-2" />
               <AttachmentsSection productId={id} />
             </>

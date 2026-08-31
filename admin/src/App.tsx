@@ -11,7 +11,9 @@ import { appBootstrapCopy } from './i18n/preauth-login-copy.js';
 import { AdminActionsProvider } from './lib/admin-actions/AdminActionsProvider.js';
 import { ModulePresenceProvider } from './lib/module-presence';
 import { AppLanguageContext } from './i18n/app-language-context.js';
+import { AdminContributionsProvider } from '@endora-commerce/admin-kit/zones';
 import { registryRoutes } from './lib/module-registry/index.js';
+import { MODULE_ADMIN_CONTRIBUTIONS } from './modules.generated.js';
 import {
   useSurfaceVisibility,
   type GatedSurface,
@@ -233,6 +235,14 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
     <TranslationProvider language={language}>
       <AppLanguageContext.Provider value={{ language, setLanguage }}>
         <ModulePresenceProvider {...(modulePresence === undefined ? {} : { initial: modulePresence })}>
+        {/* The zone renderer is the kit's (Z6) — a host screen becomes a
+            package and `admin/src/lib/` is then unreachable to it — while the
+            registry stays the application's, because it is module knowledge and
+            `admin-kit-surface.md` R6 refuses that in the kit. This provider is
+            the seam that carries the one into the other, and it is mounted
+            **inside** the presence provider: `useAdminZone` filters on the
+            effective enabled-set at enumeration, so the two are ordered. */}
+        <AdminContributionsProvider entries={MODULE_ADMIN_CONTRIBUTIONS}>
         <AdminActionsProvider language={language}>
         {/* Auto sign-out after the configured inactivity window (default 60 min). */}
         <IdleLogout />
@@ -393,6 +403,7 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
           </Route>
         </Routes>
         </AdminActionsProvider>
+        </AdminContributionsProvider>
         </ModulePresenceProvider>
       </AppLanguageContext.Provider>
     </TranslationProvider>
