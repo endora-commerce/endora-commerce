@@ -79,9 +79,32 @@ const RUN_ID = '22222222-2222-4222-8222-222222222222';
 const TEMPLATE_ID = '33333333-3333-4333-8333-333333333333';
 
 /**
- * Every screen reads on mount, and this file's subject is the **gate**, not the
- * data — so the client answers an empty list to everything and each positive
- * control asserts the screen's own heading, which renders before any row does.
+ * Every one of the ten screens reads on mount, and this file's subject is the
+ * **gate** rather than the data. The client therefore never settles, and that is
+ * a decision rather than laziness — the two obvious alternatives were both
+ * measured and both are wrong here.
+ *
+ * A single `{ data: [] }` answer is not neutral: the ten screens read six
+ * different envelopes, and an empty array satisfies the `try` on the way in, so
+ * `ProductFeedDetailPage` sets `feed` to an array and `FeedLinkCard` reads
+ * `feed.token.revokedAt` off `undefined`. That surfaced as an unhandled error in
+ * one run of three, because it is a race with the unmount.
+ *
+ * A **rejecting** client is worse, and what it found is worth recording rather
+ * than working around silently: `ProductFeedCreatePage.tsx:47` and
+ * `CategoryMappingPage.tsx:61` load with `void client.x().then(…)` and no
+ * `.catch`, so a failed request is an unhandled rejection rather than an error
+ * state — a live defect in two screens this batch moved and did not write. It is
+ * reported rather than repaired here; a test that hid it would be the worse
+ * outcome, and a test that reproduced it every run would be an unhandled error
+ * in every pipeline.
+ *
+ * A pending promise is the only answer that is neutral for all ten: every screen
+ * stays in its own loading state, which is still a **screen**, and that is the
+ * whole of what the positive control below claims. The screens' own data
+ * behaviour is covered by the eleven tests under `test/modules/product_feeds/`,
+ * which drive the module's client directly.
+ *
  * The mock is at the kit's barrel, which is the specifier the packaged screens
  * resolve; the admin resolves the same module, so one mock covers both sides of
  * the move.
@@ -90,15 +113,10 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
     '@endora-commerce/admin-kit/lib',
   );
+  const pending = (): Promise<never> => new Promise<never>(() => undefined);
   return {
     ...actual,
-    apiClient: {
-      get: vi.fn(async () => ({ data: [] })),
-      post: vi.fn(),
-      put: vi.fn(),
-      patch: vi.fn(),
-      delete: vi.fn(),
-    },
+    apiClient: { get: pending, post: pending, put: pending, patch: pending, delete: pending },
   };
 });
 
@@ -191,7 +209,10 @@ describe('product_feeds owns its admin surface', () => {
     // assertion about `NotFoundPage` rather than about each screen's own
     // heading: ten headings would be ten more strings to keep current, and what
     // the off-state case below negates is exactly this — that the route
-    // resolves at all.
+    // resolves at all. The `waitFor` is what makes it non-vacuous: the lazy
+    // chunk has to have loaded and replaced `app.moduleScreenLoading` before
+    // anything is judged, so a screen that never mounted fails here rather than
+    // passing as "not the not-found page".
     presentModules = new Set(['product_feeds']);
     permissions = new Set(['product_feeds:read']);
     for (const path of ROUTES) {

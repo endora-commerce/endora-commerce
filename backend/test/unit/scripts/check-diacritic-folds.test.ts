@@ -1200,7 +1200,12 @@ describe('check-diacritic-folds — the tree it guards', () => {
     'admin/src/modules/cms/editors/BlockEditor.tsx',
     'admin/src/modules/cms/editors/PageEditor.tsx',
     'admin/src/modules/blog/pages/BlogPostEditor.tsx',
-    'admin/src/modules/product_feeds/api.ts',
+    // Feature 091, Phase 4, the plan's batch 7 — the file is
+    // `@endora-commerce/mod-product-feeds`' admin layer now. This list is a
+    // ledger *about* the files it names rather than one of them, so the batch
+    // that moved this directory is structurally the one that could not see the
+    // entry go stale; it is re-keyed here in the same merge request.
+    'packages/modules/product_feeds/src/admin/api.ts',
   ];
 
   it.each(slugGenerators)('%s slugifies through @endora-commerce/contracts, not its own chain', (path) => {
