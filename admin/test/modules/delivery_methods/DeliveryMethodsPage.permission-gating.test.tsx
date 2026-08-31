@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * `delivery_methods` owns its authority — the screen.
@@ -23,10 +24,11 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  *
  * Both axes are exercised, because they are two different refusals over one
  * screen: a permission the role does not hold, and a module the operator has
- * switched off (Constitution XVII item 5). The mocks stop at `useAuth` and
- * `useModulePresence` deliberately, so the real `useSurfaceVisibility`
- * predicate — the one the sidebar and the palette run — is the thing under
- * test rather than a stub of it.
+ * switched off (Constitution XVII item 5). Nothing is stubbed: since feature
+ * 091's P3 both providers are mounted for real over a session and a projection
+ * each case chooses, so the `useSurfaceVisibility` predicate — the one the
+ * sidebar and the palette run — is the thing under test, and so is the
+ * `hasPermission` underneath it.
  */
 
 const rows = [
@@ -56,22 +58,11 @@ vi.mock('@/modules/delivery_methods/api/delivery-methods-client', () => ({
   },
 }));
 
-const hasPermission = vi.fn((_code: string) => false);
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: (code: string) => hasPermission(code) }),
-}));
+/** The codes the signed-in operator holds, per case. */
+let permissions: readonly string[] = [];
 
-const isPresent = vi.fn((_moduleId: string) => true);
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: (moduleId: string) => isPresent(moduleId),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: vi.fn(),
-  }),
-}));
+/** The modules the projection reports present, per case. */
+let presentModules: readonly string[] = [];
 
 const KEYS = [
   'legacyMethods.delivery.title',
@@ -101,9 +92,12 @@ function mount(): Promise<void> {
   return import('@/modules/delivery_methods/DeliveryMethodsPage').then(
     ({ DeliveryMethodsPage }) => {
       renderWithI18n(
-        <MemoryRouter initialEntries={['/delivery-methods']}>
-          <DeliveryMethodsPage />
-        </MemoryRouter>,
+        withSession(
+          <MemoryRouter initialEntries={['/delivery-methods']}>
+            <DeliveryMethodsPage />
+          </MemoryRouter>,
+          { session: adminSession({ permissions }), presence: modulePresence({ present: presentModules }) },
+        ),
         passthroughBundle('core', KEYS),
       );
     },
@@ -114,8 +108,8 @@ describe('the delivery-methods screen is gated on the module’s own code', () =
   it('renders a refusal instead of the screen for a catalogue editor, and asks the API nothing', async () => {
     list.mockClear();
     orderStatuses.mockClear();
-    isPresent.mockImplementation(() => true);
-    hasPermission.mockImplementation((code) => code === 'catalog:read' || code === 'catalog:write');
+    presentModules = ['delivery_methods'];
+    permissions = ['catalog:read', 'catalog:write'];
 
     await mount();
 
@@ -131,8 +125,8 @@ describe('the delivery-methods screen is gated on the module’s own code', () =
   it('renders the screen for a role holding delivery_methods:read', async () => {
     list.mockClear();
     orderStatuses.mockClear();
-    isPresent.mockImplementation(() => true);
-    hasPermission.mockImplementation((code) => code === 'delivery_methods:read');
+    presentModules = ['delivery_methods'];
+    permissions = ['delivery_methods:read'];
 
     await mount();
 
@@ -146,8 +140,8 @@ describe('the delivery-methods screen is gated on the module’s own code', () =
     // and answering 503 for an operator whose role is perfectly adequate.
     list.mockClear();
     orderStatuses.mockClear();
-    hasPermission.mockImplementation((code) => code === 'delivery_methods:read');
-    isPresent.mockImplementation((moduleId) => moduleId !== 'delivery_methods');
+    permissions = ['delivery_methods:read'];
+    presentModules = [];
 
     await mount();
 

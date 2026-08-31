@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { GetAdminActionsResponse, ModulePresence } from '@endora-commerce/contracts';
+import type { GetAdminActionsResponse } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import { adminSession, everyDeclaredModule, modulePresence, withSession } from '../helpers/render-with-session';
 import { AdminActionsProvider } from '../../src/lib/admin-actions/AdminActionsProvider';
 
 /**
@@ -31,36 +32,7 @@ import { AdminActionsProvider } from '../../src/lib/admin-actions/AdminActionsPr
 const grantedPermissions = new Set<string>(['*']);
 let capabilityStatus: 'ready' | 'disabled' = 'disabled';
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: {
-        id: '1',
-        email: 'admin@test.com',
-        firstName: 'Ada',
-        lastName: 'Min',
-        preferredLanguage: 'pl',
-      },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: (code: string) =>
-      grantedPermissions.has('*') || grantedPermissions.has(code),
-  }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [] as ModulePresence[],
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
 
 vi.mock('@/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
@@ -146,15 +118,18 @@ const coreBundle = {
 
 function renderShell(): void {
   renderWithI18n(
-    <AdminActionsProvider language="pl" initial={ACTIONS_RESPONSE}>
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<div>Home content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    </AdminActionsProvider>,
+    withSession(
+      <AdminActionsProvider language="pl" initial={ACTIONS_RESPONSE}>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route index element={<div>Home content</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AdminActionsProvider>,
+      { session: adminSession({ permissions: [...grantedPermissions], preferredLanguage: 'pl' }), presence: modulePresence({ present: everyDeclaredModule() }) },
+    ),
     coreBundle,
   );
 }

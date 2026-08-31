@@ -3,40 +3,18 @@ import { screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import { adminSession, everyDeclaredModule, modulePresence, withSession } from '../helpers/render-with-session';
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: {
-        id: '1',
-        email: 'admin@test.com',
-        firstName: 'Ada',
-        lastName: 'Min',
-        preferredLanguage: 'en',
-      },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: () => true,
-  }),
-}));
 
 // Feature 073 — every admin surface resolves its own presence from the module
 // projection. These cases are about layout and routing, not about presence, so
-// the projection is stubbed as "everything is here"; the filtering itself is
-// covered in AppShell.module-presence.test.tsx.
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
+// the projection is seeded with every module the shell's own declarations name;
+// the filtering itself is covered in AppShell.module-presence.test.tsx.
+//
+// It is a **seeded provider**, not a stubbed hook, since feature 091's P3:
+// `useSurfaceVisibility` reads `useAuth` and `useModulePresence` inside
+// `@endora-commerce/admin-kit`, where a `vi.mock` on `@/lib/…` cannot reach
+// them. `withSession` supplies both through their `initial` props.
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
@@ -64,13 +42,16 @@ const { AppShell } = await import('../../src/components/AppShell');
 function renderShell(): void {
   setMobileViewport(false);
   renderWithI18n(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<div>Home content</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Home content</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: everyDeclaredModule() }) },
+    ),
     coreBundle,
   );
 }

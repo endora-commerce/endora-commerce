@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import {
+  adminSession,
+  everyDeclaredModule,
+  modulePresence,
+  withSession,
+} from '../../helpers/render-with-session';
 
 /**
  * Issue #230 — the dashboard is the third copy of the same static index.
@@ -19,30 +25,7 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 let grantedPermissions = new Set<string>();
 const getSpy = vi.fn(async (_path: string) => ({ data: [], items: [], counts: {} }));
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: { id: '1', email: 'a@t.io', firstName: 'Ada', lastName: 'Min', preferredLanguage: 'en' },
-      role: { name: 'Admin', code: 'ops' },
-    },
-    logout: vi.fn(),
-    hasPermission: (code: string) =>
-      grantedPermissions.has('*') || grantedPermissions.has(code),
-  }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
 
 vi.mock('@/lib/api-client', async () => {
   const actual = await vi.importActual('@/lib/api-client');
@@ -87,9 +70,12 @@ function renderHome(granted: readonly string[]): void {
   grantedPermissions = new Set(granted);
   getSpy.mockClear();
   renderWithI18n(
-    <MemoryRouter initialEntries={['/']}>
-      <HomePage />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/']}>
+        <HomePage />
+      </MemoryRouter>,
+      { session: adminSession({ permissions: [...grantedPermissions] }), presence: modulePresence({ present: everyDeclaredModule() }) },
+    ),
     BUNDLE,
   );
 }

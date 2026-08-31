@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import type { RenderResult } from '@testing-library/react';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
 
 /**
  * One of the admin's own source files, read as text.
@@ -45,35 +46,7 @@ function sourceOf(relativePath: string): string {
 let presentModules = new Set<string>(['google_analytics']);
 let permissions = new Set<string>(['google_analytics:read', 'google_analytics:write']);
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: {
-        id: '1',
-        email: 'admin@test.com',
-        firstName: 'Ada',
-        lastName: 'Min',
-        preferredLanguage: 'en',
-      },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: (code: string) => permissions.has(code),
-  }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: (moduleId: string) => presentModules.has(moduleId),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
@@ -119,13 +92,16 @@ const bundle = {
 function renderShell(): RenderResult {
   setMobileViewport(false);
   return renderWithI18n(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<div>Home content</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Home content</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: [...permissions] }), presence: modulePresence({ present: [...presentModules] }) },
+    ),
     bundle,
   );
 }

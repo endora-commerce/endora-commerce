@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { ModulePresence } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import { adminSession, everyDeclaredModule, modulePresence, withSession } from '../helpers/render-with-session';
 
 /**
  * Issue #230 — the permission half of the palette leak.
@@ -26,38 +26,7 @@ import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 
 let grantedPermissions = new Set<string>();
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: {
-        id: '1',
-        email: 'admin@test.com',
-        firstName: 'Ada',
-        lastName: 'Min',
-        preferredLanguage: 'en',
-      },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: (code: string) =>
-      grantedPermissions.has('*') || grantedPermissions.has(code),
-  }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [] as ModulePresence[],
-    // Every module present, on purpose: this file is about the axis that
-    // survives *after* presence has done its job.
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
@@ -109,13 +78,16 @@ function renderShell(granted: readonly string[]): void {
   grantedPermissions = new Set(granted);
   setMobileViewport(false);
   renderWithI18n(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<div>Home content</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Home content</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: [...grantedPermissions] }), presence: modulePresence({ present: everyDeclaredModule() }) },
+    ),
     coreBundle,
   );
 }

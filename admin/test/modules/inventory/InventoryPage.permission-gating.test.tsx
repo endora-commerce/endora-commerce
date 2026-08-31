@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * `inventory` owns its authority — the screens.
@@ -25,9 +26,11 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  * screen: a permission the role does not hold, and the module not being present
  * (Constitution XVII item 5). For `inventory` the second axis is a **real
  * operator switch** — `inventory.enabled`, default on — and not merely platform
- * availability, which is what makes it worth its own case here. The mocks stop
- * at `useAuth` and `useModulePresence` deliberately, so the real
- * `useSurfaceVisibility` is the thing under test rather than a stub of it.
+ * availability, which is what makes it worth its own case here. Nothing is
+ * stubbed: since feature 091's P3 both providers are mounted for real over a
+ * session and a projection each case chooses, so the real
+ * `useSurfaceVisibility` is the thing under test — and so is the
+ * `hasPermission` underneath it, which the mocks used to stand in for.
  */
 
 const kpis = {
@@ -72,22 +75,11 @@ vi.mock('@/lib/api-client', () => ({
   },
 }));
 
-const hasPermission = vi.fn((_code: string) => false);
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: (code: string) => hasPermission(code) }),
-}));
+/** The codes the signed-in operator holds, per case. */
+let permissions: readonly string[] = [];
 
-const isPresent = vi.fn((_moduleId: string) => true);
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: (moduleId: string) => isPresent(moduleId),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: vi.fn(),
-  }),
-}));
+/** The modules the projection reports present, per case. */
+let presentModules: readonly string[] = [];
 
 const KEYS = [
   'inventory.page.title',
@@ -102,9 +94,12 @@ const KEYS = [
 function mount(): Promise<void> {
   return import('@/modules/inventory/InventoryPage').then(({ InventoryPage }) => {
     renderWithI18n(
-      <MemoryRouter initialEntries={['/inventory']}>
-        <InventoryPage />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter initialEntries={['/inventory']}>
+          <InventoryPage />
+        </MemoryRouter>,
+        { session: adminSession({ permissions }), presence: modulePresence({ present: presentModules }) },
+      ),
       passthroughBundle('core', KEYS),
     );
   });
@@ -113,10 +108,10 @@ function mount(): Promise<void> {
 describe('the inventory landing is gated on the module’s own codes', () => {
   it('renders a refusal instead of the screen for an orders reader, and asks the API nothing', async () => {
     get.mockClear();
-    isPresent.mockImplementation(() => true);
+    presentModules = ['inventory'];
     // The role the old read gate handed the whole stock and warehouse surface
     // to. `orders:read` is a fact about orders; a warehouse address is not one.
-    hasPermission.mockImplementation((code) => code === 'orders:read');
+    permissions = ['orders:read'];
 
     await mount();
 
@@ -128,8 +123,8 @@ describe('the inventory landing is gated on the module’s own codes', () => {
 
   it('renders a refusal for a catalogue editor too', async () => {
     get.mockClear();
-    isPresent.mockImplementation(() => true);
-    hasPermission.mockImplementation((code) => code === 'catalog:read' || code === 'catalog:write');
+    presentModules = ['inventory'];
+    permissions = ['catalog:read', 'catalog:write'];
 
     await mount();
 
@@ -139,8 +134,8 @@ describe('the inventory landing is gated on the module’s own codes', () => {
 
   it('renders the screen for a role holding inventory:read', async () => {
     get.mockClear();
-    isPresent.mockImplementation(() => true);
-    hasPermission.mockImplementation((code) => code === 'inventory:read');
+    presentModules = ['inventory'];
+    permissions = ['inventory:read'];
 
     await mount();
 
@@ -154,8 +149,8 @@ describe('the inventory landing is gated on the module’s own codes', () => {
     // model gated on `catalog:write` while this page was `orders:read` — two
     // codes nobody grants together on purpose.
     get.mockClear();
-    isPresent.mockImplementation(() => true);
-    hasPermission.mockImplementation((code) => code === 'inventory:read');
+    presentModules = ['inventory'];
+    permissions = ['inventory:read'];
 
     await mount();
 
@@ -165,10 +160,8 @@ describe('the inventory landing is gated on the module’s own codes', () => {
 
   it('offers the import affordance to a role holding the pair', async () => {
     get.mockClear();
-    isPresent.mockImplementation(() => true);
-    hasPermission.mockImplementation(
-      (code) => code === 'inventory:read' || code === 'inventory:write',
-    );
+    presentModules = ['inventory'];
+    permissions = ['inventory:read', 'inventory:write'];
 
     await mount();
 
@@ -181,10 +174,8 @@ describe('the inventory landing is gated on the module’s own codes', () => {
     // (`inventory.enabled`) rather than platform availability. A permission gate
     // alone would leave this page rendering and answering 503.
     get.mockClear();
-    hasPermission.mockImplementation(
-      (code) => code === 'inventory:read' || code === 'inventory:write',
-    );
-    isPresent.mockImplementation((moduleId) => moduleId !== 'inventory');
+    permissions = ['inventory:read', 'inventory:write'];
+    presentModules = [];
 
     await mount();
 

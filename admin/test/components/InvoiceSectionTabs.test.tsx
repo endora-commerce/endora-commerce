@@ -3,41 +3,19 @@ import { screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
 import { InvoiceSectionTabs } from '../../src/components/InvoiceSectionTabs';
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: {
-        id: '1',
-        email: 'admin@test.com',
-        firstName: 'Ada',
-        lastName: 'Min',
-        preferredLanguage: 'en',
-      },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: () => true,
-  }),
-}));
 
 // Feature 073 — every admin surface resolves its own presence from the module
 // projection. These cases are about layout and routing, not about presence, so
-// the projection is stubbed as "everything is here"; the filtering itself is
-// covered in AppShell.module-presence.test.tsx.
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
+// the projection names the ids this component asks about and nothing else; the
+// filtering itself is covered in AppShell.module-presence.test.tsx.
+//
+// It is a **seeded provider**, not a stubbed hook, since feature 091's P3:
+// `useModulePresence` is `@endora-commerce/admin-kit`'s, where a `vi.mock` on
+// `@/lib/module-presence` cannot reach it. `withSession` supplies it through
+// the `initial` prop it has carried since feature 073.
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
@@ -60,11 +38,20 @@ const bundle = passthroughBundle('core', [
   'appShell.nav.invoiceTemplates',
 ]);
 
+/**
+ * The one id the component asks about — it returns `null` when `invoices` is
+ * absent, which is the whole of its presence behaviour.
+ */
+const PRESENT_MODULES = ['invoices'];
+
 function renderTabs(path: string): void {
   renderWithI18n(
-    <MemoryRouter initialEntries={[path]}>
-      <InvoiceSectionTabs />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={[path]}>
+        <InvoiceSectionTabs />
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: PRESENT_MODULES }) },
+    ),
     bundle,
   );
 }
@@ -113,13 +100,16 @@ describe('AppShell — invoice templates leave the sidebar', () => {
   it('keeps Invoices and drops Invoice templates', () => {
     setMobileViewport(false);
     renderWithI18n(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<div>Home</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route index element={<div>Home</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: PRESENT_MODULES }) },
+      ),
       bundle,
     );
     const hrefs = [...document.querySelectorAll('.b2b-sidebar a')].map((a) =>

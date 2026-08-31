@@ -42,23 +42,45 @@
  * both are recorded from the picker's own side in
  * `backend/scripts/ledgers/cross-module-imports/host.ts`.
  *
- * ## Group B — the admin's session and module-presence state (73 sites)
+ * ## Group B — the admin's session and module-presence state (4 sites)
  *
+ * **P3 paid 64 of this group's 68 keys**, and the four hooks it was named for —
  * `lib/auth`, `lib/module-presence`, `lib/surface-visibility` and
- * `lib/use-page-size-preference`, plus the two tab components that read
- * presence. These are not blocked by a design question; they are blocked by a
- * **measurement**. 23 of the admin's test files mock them at the module path
- * (`vi.mock('@/lib/auth', …)`), deliberately — `TaxesPage.permission-gating.test.tsx`
- * says so in its own comment: *"the mocks stop at `useAuth` and
- * `useModulePresence` deliberately, so the real `useSurfaceVisibility` is the
- * thing under test rather than a stub of it."* `vi.mock` keys on a module id,
- * so moving `surface-visibility` into the package alongside `auth` puts that
- * seam **inside** the package, where the test's mock cannot reach it: measured,
- * 104 tests across 23 files, every one of them a permission gate.
+ * `lib/use-page-size-preference` — are `@endora-commerce/admin-kit/lib`'s. What
+ * blocked them was never a design question; it was the measurement recorded
+ * here, and P3 is the merge request that paid it: `vi.mock` keys on a module id,
+ * so moving `surface-visibility` into the package alongside `auth` put that seam
+ * **inside** the package, where a test's mock could not reach it.
  *
- * **Retires when those tests drive the real providers instead of replacing the
- * modules** — which is its own merge request, is a better test either way, and
- * is not something to do inside a change whose subject is a file move.
+ * The size of that is worth leaving written down, because this entry carried two
+ * different numbers and neither was current. It said *"23 files, 104 tests"* —
+ * Phase 1b's count of the files that would actually **break** — while
+ * `plan.md`'s P3 row said *"49 admin test files mock at least one of the four"*,
+ * which was the **union** on the day that row was written and had grown to 58 by
+ * the time P3 ran. Measured by doing it: **36 files and 179 tests**, every one of
+ * them failing with `useAuth must be used inside <AuthProvider>`. The union was
+ * never the blast radius — a screen that reaches `useAuth` directly keeps its
+ * mock working through the shim; what breaks is a subject whose gate runs
+ * *inside* the package.
+ *
+ * **37, by the time it landed**, and the extra one is the lesson repeating
+ * inside the merge request that records it. `pim_pimcore` arrived on `master`
+ * while P3 was in review, with an off-state test written against a tree where
+ * `useAuth` was still mockable at `@/lib/auth`. It passes on `master`, P3 passes
+ * without it, and only the **merge** holds both — a tree no pipeline builds. A
+ * count is a description of one commit, and the population has to be re-derived
+ * against the tree that will actually run.
+ *
+ * They drive the real providers now (`admin/test/helpers/render-with-session.tsx`),
+ * seeded through `initial` on both, which is a better test on its own terms: a
+ * permission gate asserted against a stub of the predicate asserts that the stub
+ * was consulted.
+ *
+ * **What is left is the two tab components**, which are not hooks and were never
+ * blocked by the same thing. Each renders on two modules' pages and belongs to
+ * neither, so publishing one would put that pairing — module knowledge — in the
+ * kit. They retire with **P4**, like `asset-picker`: a tab strip over two
+ * modules' surfaces is a zone with two contributions.
  *
  * Nothing here is an exception to a rule. Every entry is a reach that should
  * one day be a bare specifier into a published subpath, and both groups have a
@@ -81,82 +103,21 @@ const PICKERS =
   'the host render a slot.';
 
 const SESSION =
-  'The admin application’s session/presence state. 23 admin test files mock it at this ' +
-  'module path on purpose, and `vi.mock` keys on a module id, so moving it into the package ' +
-  'takes the seam out of their reach — 104 tests, measured. Retires when those tests drive ' +
-  'the real providers instead of replacing the modules.';
+  'A host component that reads module presence to decide which of its tabs to render. The ' +
+  'four hooks this group was named for are the kit’s since P3; what is left is two ' +
+  'components that sit in `admin/src/components/` because each renders on two modules’ ' +
+  'pages and belongs to neither — `InvoiceSectionTabs` on `invoices` and its templates ' +
+  'screen, `OrderEntryTabs` on `orders` and `quick_order`. Publishing one would put that ' +
+  'pairing in the kit, which is module knowledge (R6). Retires with **P4**: a tab strip over ' +
+  'two modules’ surfaces is a zone with two contributions.';
 
 export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdminReach>> = {
   'admin/src/modules/blog/pages/BlogCategoryEditor.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
-  'admin/src/modules/catalog/ProductsList.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/customer_accounts/CustomerGroupsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/customers/CustomersList.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/delivery_methods/DeliveryMethodsPage.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/inventory/AvailabilityNotificationsPage.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/inventory/InventoryPage.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/inventory/InventoryPage.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/inventory/LowStockPage.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/inventory/StockImportWizard.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/invoices/InvoiceDetail.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/invoices/InvoicesList.tsx::admin/src/components/InvoiceSectionTabs.tsx': { symbols: ['InvoiceSectionTabs'], reason: SESSION },
   'admin/src/modules/invoices/templates/InvoiceTemplatesPage.tsx::admin/src/components/InvoiceSectionTabs.tsx': { symbols: ['InvoiceSectionTabs'], reason: SESSION },
-  'admin/src/modules/ksef/components/InvoiceKsefPanel.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/ksef/components/SubmissionsTable.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/ksef/components/SubmissionsTable.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/ksef/pages/KsefPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/megamenu/components/MenuItemConfigPanel.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
-  'admin/src/modules/newsletter/pages/AutomationBuilder.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/newsletter/pages/AutomationsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/newsletter/pages/BlocksPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/newsletter/pages/CampaignEditor.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/newsletter/pages/CampaignStats.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/newsletter/pages/CampaignsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/newsletter/pages/ProviderSettingsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/newsletter/pages/SubscribersPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/newsletter/pages/TagsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/orders/OrderCreatePage.tsx::admin/src/components/OrderEntryTabs.tsx': { symbols: ['OrderEntryTabs'], reason: SESSION },
-  'admin/src/modules/orders/OrderDetail.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/orders/OrderShipmentsTab.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/orders/OrdersList.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/organizations/OrganizationSalesRepsTab.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/payment_methods/PaymentMethodsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/pim_ergonode/ErgonodeAttributeMappingPage.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/pim_ergonode/ErgonodeCategoryMappingPage.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/pim_ergonode/ErgonodeConnectionPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/pim_ergonode/ErgonodeRunDetailPage.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/pim_ergonode/ErgonodeRunsPage.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/pim_ergonode/components/ErgonodeSectionTabs.tsx::admin/src/lib/module-presence/index.ts': { symbols: ['useModulePresence'], reason: SESSION },
-  'admin/src/modules/product_feeds/CategoryMappingPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/FeedRunDetailPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/FeedTemplateEditorPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/FeedTemplateImportPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/FeedTemplateStartFromPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/FeedTemplatesListPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/ProductFeedCreatePage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/ProductFeedDetailPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/ProductFeedsListPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/TaxonomyRevisionsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/components/FeedDeliveryPanel.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/components/FeedLinkCard.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/components/FeedSectionTabs.tsx::admin/src/lib/module-presence/index.ts': { symbols: ['useModulePresence'], reason: SESSION },
-  'admin/src/modules/product_feeds/components/FeedSettingsForm.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/promotions/PromotionEditPage.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/promotions/PromotionsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/quick_order/QuickOrderOnBehalfPage.tsx::admin/src/components/OrderEntryTabs.tsx': { symbols: ['OrderEntryTabs'], reason: SESSION },
-  'admin/src/modules/quote_requests/RfqList.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/quote_requests/RfqList.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/returns/ReturnsList.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/sales_channels/pages/SalesChannelsListPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/settings/components/AssetIdSettingInput.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
-  'admin/src/modules/taxes/TaxesPage.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
   'admin/src/modules/transactional_emails/components/BrandingPanel.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
-  'admin/src/modules/transactional_emails/components/BrandingPanel.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/transactional_emails/pages/EmailBlocksPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/transactional_emails/pages/EmailEditor.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/transactional_emails/pages/EmailFragmentEditor.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/transactional_emails/pages/EmailTemplatesPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/transactional_emails/pages/EmailsList.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/warehouses/ChannelMembershipPanel.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/warehouses/WarehouseEditor.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/warehouses/WarehousesList.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
 };

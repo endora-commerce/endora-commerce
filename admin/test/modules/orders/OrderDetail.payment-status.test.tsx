@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * Feature 085 (FR-024) — the payment-status control offers exactly the values
@@ -30,21 +31,7 @@ const postSpy = vi.fn();
  * This file is about neither, so both are stubbed permissive; the gate itself is
  * covered in `OrderDetail.payments-tab-gating.test.tsx`.
  */
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: () => true }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    degraded: false,
-    isLoading: false,
-    error: null,
-    refresh: async (): Promise<void> => {},
-  }),
-}));
 
 vi.mock('@/lib/api-client', async () => {
   const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>('@/lib/api-client');
@@ -106,11 +93,14 @@ function renderDetail(paymentStatus: string): void {
     return Promise.resolve({ data: [] });
   });
   renderWithI18n(
-    <MemoryRouter initialEntries={['/orders/o1']}>
-      <Routes>
-        <Route path="/orders/:id" element={<OrderDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/orders/o1']}>
+        <Routes>
+          <Route path="/orders/:id" element={<OrderDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: ['orders', 'payments'] }) },
+    ),
     BUNDLE,
   );
 }

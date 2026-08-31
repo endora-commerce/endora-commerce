@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import type { AdminModulePresenceResponse } from '@endora-commerce/contracts';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
@@ -190,7 +191,28 @@ function ModuleScreenFallback(): ReactNode {
   return <p className="text-sm text-muted-foreground">{t('app.moduleScreenLoading')}</p>;
 }
 
-export function App(): ReactNode {
+export interface AppProps {
+  /**
+   * The effective enabled-set, when the caller already has it.
+   *
+   * Forwarded verbatim to `ModulePresenceProvider`'s own `initial`, which has
+   * carried the same prop since feature 073. It exists here because this
+   * provider is mounted **inside** the auth gate below and deliberately so —
+   * an anonymous visitor on the login page must not fetch
+   * `/api/v1/admin/module-presence` — which leaves a caller rendering `<App/>`
+   * with no way to reach it.
+   *
+   * The caller that needs it is a test asserting a route gate: feature 091's
+   * P3 put `useSurfaceVisibility` and `useModulePresence` in one package, so
+   * replacing either module leaves the predicate reading a provider nobody
+   * mounted. Seeding the real provider is the repair, and it is the better
+   * test — the gate under assertion is then the real one rather than a stub of
+   * it.
+   */
+  readonly modulePresence?: AdminModulePresenceResponse;
+}
+
+export function App({ modulePresence }: AppProps = {}): ReactNode {
   const { status, me } = useAuth();
   // Feature 019 — admin-side language state. Seeded from the session
   // payload's `preferredLanguage`; falls back to English (FR-003).
@@ -226,7 +248,7 @@ export function App(): ReactNode {
   return (
     <TranslationProvider language={language}>
       <AppLanguageContext.Provider value={{ language, setLanguage }}>
-        <ModulePresenceProvider>
+        <ModulePresenceProvider {...(modulePresence === undefined ? {} : { initial: modulePresence })}>
         <AdminActionsProvider language={language}>
         {/* Auto sign-out after the configured inactivity window (default 60 min). */}
         <IdleLogout />
