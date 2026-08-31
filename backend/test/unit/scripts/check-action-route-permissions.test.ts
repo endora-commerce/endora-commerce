@@ -7,10 +7,25 @@ import {
   resolveTarget,
   type ActionRecord,
 } from '../../../scripts/check-action-route-permissions.js';
+import { spawnSync } from 'node:child_process';
+import { statSync, utimesSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import {
   createMovedModuleTreeFixture,
   KEPT_MODULE,
 } from '../../helpers/moved-module-tree-fixture.js';
+import { createEmittingPackageFixture } from '../../helpers/emitted-freshness-fixture.js';
+import {
+  checkEmittedFreshness,
+  emittingPackages,
+  freshnessRefusal,
+  rootExportOf,
+} from '../../../scripts/lib/emitted-freshness.js';
+
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const BACKEND_ROOT = join(REPO_ROOT, 'backend');
 
 /**
  * The shapes `check-action-route-permissions` claims to refuse, and the ones it
@@ -371,4 +386,108 @@ describe('check-action-route-permissions — it refuses a vacuous pass', () => {
       fixture.cleanup();
     }
   });
+});
+
+describe('check-action-route-permissions — the artefact it read (issue #113)', () => {
+  it('refuses a run whose manifest artefact its source has outrun', () => {
+    // Top entry: a real checkout on disk, whose workspace file, `exports` map
+    // and two-file `tsconfig.build.json` chain the derivation reads for itself.
+    // Nothing here hands it a verdict, a package record or an mtime.
+    const fixture = createEmittingPackageFixture({ sourceIsNewer: true });
+    try {
+      const result = checkEmittedFreshness({
+        read: [fixture.recordedLocation],
+        packages: fixture.packages,
+      });
+      expect(result.findings.map((finding) => finding.kind)).toEqual(['stale-artefact']);
+      expect(result.emitted).toHaveLength(1);
+      // The registry recorded the package's `package.json`; the file whose bytes
+      // the run read is the root `exports` target, and that is what is judged.
+      expect(result.findings[0]?.artefact).toBe(join(fixture.packageDir, 'dist', 'manifest.js'));
+      expect(result.findings[0]?.source).toBe(join(fixture.packageDir, 'src', 'manifest.ts'));
+      expect(freshnessRefusal('[x]', result)).toContain('build:packages');
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('refuses an artefact no source under the package rootDir emits', () => {
+    // The other direction a silence must not go: an artefact whose currency
+    // cannot be decided is named, never reported current.
+    const fixture = createEmittingPackageFixture({ sourceIsNewer: false, sourceExists: false });
+    try {
+      const result = checkEmittedFreshness({
+        read: [fixture.recordedLocation],
+        packages: fixture.packages,
+      });
+      expect(result.findings.map((finding) => finding.kind)).toEqual(['unpairable-artefact']);
+      expect(result.compared).toEqual([]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('says nothing about a built package, and counts it as read', () => {
+    const fixture = createEmittingPackageFixture({ sourceIsNewer: false });
+    try {
+      const result = checkEmittedFreshness({
+        read: [fixture.recordedLocation],
+        packages: fixture.packages,
+      });
+      expect(result.findings).toEqual([]);
+      expect(result.compared).toHaveLength(1);
+      expect(freshnessRefusal('[x]', result)).toBeNull();
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('says nothing about a manifest read from a package source', () => {
+    // A fixture registry that names `src/manifest.ts` — the shape
+    // `moved-module-tree-fixture.ts` stages — has no emitted artefact to judge,
+    // and the derivation must not refuse a tree it was not reading.
+    const fixture = createEmittingPackageFixture({ sourceIsNewer: true });
+    try {
+      const result = checkEmittedFreshness({
+        read: [join(fixture.packageDir, 'src', 'manifest.ts')],
+        packages: fixture.packages,
+      });
+      expect(result.findings).toEqual([]);
+      expect(result.emitted).toEqual([]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('exits 2 when a real module package is built behind its own source', () => {
+    // The end-to-end half, and the measurement !1203 made three times over: the
+    // check reads the *emitted* manifest, so an edit to `src/manifest.ts` was
+    // invisible to it. Here it is the artefact that moves rather than the
+    // source, which is the same relative order and leaves the tree's contents
+    // untouched — the mtime is restored in `finally`.
+    const packages = emittingPackages(REPO_ROOT);
+    const subject = packages.find((pkg) => pkg.name === '@endora-commerce/mod-payu');
+    expect(subject, 'the fixture package is no longer a workspace member').toBeDefined();
+    const artefact = rootExportOf(subject!);
+    expect(artefact, 'the package declares no root export').not.toBeNull();
+    const before = statSync(artefact!);
+    try {
+      const backdated = Math.floor(statSync(join(subject!.dir, 'src', 'manifest.ts')).mtimeMs / 1000) - 60;
+      utimesSync(artefact!, backdated, backdated);
+      const result = spawnSync(
+        join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx'),
+        [join(BACKEND_ROOT, 'scripts', 'check-action-route-permissions.ts')],
+        { encoding: 'utf8', cwd: BACKEND_ROOT },
+      );
+      const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+      expect(result.status, output).toBe(2);
+      expect(output).toContain('@endora-commerce/mod-payu');
+      expect(output).toContain('build:packages');
+      // Not exit 1, and not a warning beside a finding count: the run reports no
+      // findings at all, because it could not see the tree.
+      expect(output).not.toContain('violations=');
+    } finally {
+      utimesSync(artefact!, before.atime, before.mtime);
+    }
+  }, 120_000);
 });

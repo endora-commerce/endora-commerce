@@ -78,6 +78,11 @@ import {
   type AdminRegistrationFinding,
 } from '../../../scripts/check-admin-registrations.js';
 import { ADMIN_HOST_OWNER } from '../../../scripts/lib/admin-surfaces.js';
+import { checkEmittedFreshness } from '../../../scripts/lib/emitted-freshness.js';
+import {
+  createEmittingPackageFixture,
+  type EmittingPackageFixtureOptions,
+} from '../../helpers/emitted-freshness-fixture.js';
 import type {
   AdminNavDeclaration,
   AdminRouteDeclaration,
@@ -329,6 +334,26 @@ interface CheckEntry extends ProvenCheck {
  * both defects this file exists for.
  */
 const PROOFS_ENTERING_BELOW: Readonly<Record<string, string>> = {};
+
+/**
+ * `emitted-freshness` over a real checkout, for the two shapes it refuses.
+ *
+ * The fixture builder is `test/helpers/emitted-freshness-fixture.ts` and the
+ * companion test calls the same one — a proof and a companion that each build
+ * their own would be one population derived twice, which is the shape !1182
+ * found going stale invisibly.
+ */
+function emittedFreshnessFindings(options: EmittingPackageFixtureOptions): number {
+  const fixture = createEmittingPackageFixture(options);
+  try {
+    return checkEmittedFreshness({
+      read: [fixture.recordedLocation],
+      packages: fixture.packages,
+    }).findings.length;
+  } finally {
+    fixture.cleanup();
+  }
+}
 
 /**
  * `check-platform-surface` over module source text, barrel source text and a
@@ -5046,14 +5071,26 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // Five shapes, because a wrong permission and an unreadable one fail
-    // differently: the two directions of a bad code (declared none, declared
-    // another module's), and the three ways the target cannot be resolved
-    // (nothing registers it, the candidates disagree, the gate cannot be read).
-    // The last is the one that would turn every `missing` finding into a pass if
-    // it went blind, since an unreadable `preHandler` read as "no gate" agrees
-    // with everything. Each fixture is source text: a proof handed a ready-made
-    // route record would skip the gate reading the comparison rests on.
+    // Five shapes over the comparison, because a wrong permission and an
+    // unreadable one fail differently: the two directions of a bad code
+    // (declared none, declared another module's), and the three ways the target
+    // cannot be resolved (nothing registers it, the candidates disagree, the
+    // gate cannot be read). The last is the one that would turn every `missing`
+    // finding into a pass if it went blind, since an unreadable `preHandler`
+    // read as "no gate" agrees with everything. Each fixture is source text: a
+    // proof handed a ready-made route record would skip the gate reading the
+    // comparison rests on.
+    //
+    // Two more over the **artefact** the comparison reads. The manifest half is
+    // imported, and a packaged module resolves through its own `exports` map at
+    // its build output — so an action edited in `src/manifest.ts` and not
+    // rebuilt was invisible here, measured three consecutive times on
+    // `specs/091-module-owned-admin-surfaces/`'s admin drain. Both fixtures are
+    // a checkout on disk (`test/helpers/emitted-freshness-fixture.ts`, the same
+    // builder the companion test calls, so the two cannot derive it twice): the
+    // workspace file, the `exports` map and the two-file `tsconfig.build.json`
+    // chain are all read by the derivation rather than handed to it, which is
+    // the half a moved layout breaks.
     script: 'backend/scripts/check-action-route-permissions.ts',
     npmScript: 'check:action-route-permissions',
     job: 'quality',
@@ -5133,6 +5170,10 @@ const CHECKS: readonly CheckEntry[] = [
             { sources: new Map([[ACTION_ROUTE_FILE, GATED_ADMIN_ROUTE]]), actions: [] },
             { 'inventory:open-inventory': 'undecided' },
           ).stale.length,
+      ),
+      'stale-package-artefact': top(() => emittedFreshnessFindings({ sourceIsNewer: true })),
+      'unpairable-package-artefact': top(() =>
+        emittedFreshnessFindings({ sourceIsNewer: false, sourceExists: false }),
       ),
     },
   },
@@ -6639,7 +6680,7 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-admin-surface.ts': 15,
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
-      'backend/scripts/check-action-route-permissions.ts': 6,
+      'backend/scripts/check-action-route-permissions.ts': 8,
       'backend/scripts/check-channel-resolution.ts': 5,
       // Five, plus D-89's five: `em.create` joining the vocabulary, the two
       // narrowings that keep it from manufacturing findings, the field
