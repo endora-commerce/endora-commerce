@@ -112,13 +112,28 @@ export type AdminNavSectionName = z.infer<typeof AdminNavSectionNameSchema>;
  * The places in a screen one module owns where another module's contribution
  * may appear — closed, hierarchical, dot-separated, and the platform's.
  *
- * **Derived, not designed.** The opening members are exactly the places the
- * measured module additions reached into by editing another module's file:
- * `068-inpost-shipping` edited `admin/src/modules/orders/OrderShipmentsTab.tsx`
- * and `admin/src/modules/delivery_methods/DeliveryMethodsPage.tsx`, and
- * `dhl_parcel` edited three files under `admin/src/modules/orders/`. The set
- * grows every release, in D-23's "generous by construction" direction; it never
- * grows by a module inventing a name.
+ * **A member exists when a host renders it, and not before.** The four members
+ * this enum opened with were derived from the places module additions had
+ * reached into by editing another module's file, which was the right derivation
+ * and produced a set nothing rendered and nothing contributed to — four names
+ * that had been silent since the enum landed. `check:admin-zones` reports every
+ * one of those as `unrendered-zone`, and it carries **no ledger**, deliberately:
+ * the remedy is always available in the same merge request, and it is either to
+ * render the place or to remove the name. So the set grows with the batch that
+ * mounts it, one member per place a host screen actually renders.
+ *
+ * `payment_method.row.actions` is the member that shows why. Measured, nothing
+ * under the payment-methods admin surface names a gateway id at all — the five
+ * gateways were given their own routes and settings screens — so there was
+ * nothing waiting to contribute and inventing a host for it would have been
+ * inventing a host.
+ *
+ * **Closed and unparameterised, and that is load-bearing.** A parameter in the
+ * name (`product.editor.field:<fieldPath>`, or a `z.templateLiteral`) was
+ * rejected: the refusal below compares declared names to rendered ones, and a
+ * name computed from a field path compares to nothing. The parameter is a prop
+ * — see {@link AdminZonePropsMap} — and one member may be mounted many times on
+ * one screen, each mount carrying its own.
  *
  * Both directions refuse: a contribution to a zone nobody declares is a build
  * refusal, and a zone the platform declares that no host screen renders is one
@@ -126,17 +141,90 @@ export type AdminNavSectionName = z.infer<typeof AdminNavSectionNameSchema>;
  * fails.
  */
 export const AdminZoneNameSchema = z.enum([
-  /** The order detail's tab strip. */
-  'order.detail.tabs',
-  /** Row actions on the delivery-methods list. */
-  'delivery_method.row.actions',
-  /** Row actions on the payment-methods list. */
-  'payment_method.row.actions',
-  /** The product editor's right-hand sidebar, below the platform's own panels. */
-  'product.editor.sidebar.after',
+  /**
+   * Above the product editor's Details tab, before the platform's own fields.
+   *
+   * Mounted **once** per editor. Props: {@link ProductEditorZoneProps}.
+   */
+  'product.editor.details.before',
+  /**
+   * Above the product editor's Pricing tab.
+   *
+   * Mounted **once** per editor. Props: {@link ProductEditorZoneProps}.
+   */
+  'product.editor.pricing.before',
+  /**
+   * Beside one editable field of the product editor.
+   *
+   * Mounted **once per field** — `name`, `description`, `categories`,
+   * `gallery`, `attachments`, and once per attribute row — each mount carrying
+   * that field's own {@link ProductEditorFieldZoneProps}. One member, twelve
+   * mount points, and a contributor that renders on all of them declares one
+   * contribution: the fan-out is the mount's, not the name's.
+   */
+  'product.editor.field.after',
 ]);
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
+
+// ---------------------------------------------------------------------------
+// Zone props
+// ---------------------------------------------------------------------------
+
+/** A zone mounted once per product editor. */
+export interface ProductEditorZoneProps {
+  readonly productId: string;
+}
+
+/** A zone mounted beside one field of the product editor. */
+export interface ProductEditorFieldZoneProps {
+  readonly productId: string;
+  /**
+   * `name`, `description`, `categories`, `gallery`, `attachments`, or
+   * `attributeValues.<key>`.
+   */
+  readonly fieldPath: string;
+  /**
+   * The locales this field is edited in, or `null` for a field that is not
+   * language-scoped.
+   *
+   * The host passes the set; a contributor that wants one control per locale
+   * fans out over it. That is what collapses the two `LOCALES.map(...)` loops
+   * the product editor used to write around a foreign module's component into
+   * one mount, and it is why the parameter is a prop rather than a parameter in
+   * the zone name — see the rejection recorded on
+   * {@link AdminZoneNameSchema}'s contract.
+   */
+  readonly languageCodes: readonly string[] | null;
+}
+
+/**
+ * The props each zone carries, and the contract both ends are checked against.
+ *
+ * Declared as a `Record<AdminZoneName, object>`, so a member added to
+ * {@link AdminZoneNameSchema} without a props type is a compile error in this
+ * package — the half of the two-way refusal that needs no check.
+ *
+ * **`tsc` at both ends, and nothing at runtime.** The host writes
+ * `<AdminZone name="product.editor.field.after" props={{ ... }} />`, generic on
+ * the literal name; the contributor writes `zoneComponent('...', () => import(...))`,
+ * whose type constrains its module's default export to
+ * `ComponentType<AdminZoneProps<...>>`. The registry in the middle stays
+ * `unknown` deliberately: both ends are checked against this one map, so the
+ * map is the contract and the registry is a courier. A Zod schema parsed by the
+ * renderer was rejected — the props flow host to contributor, so a wrong prop
+ * is the first-party host's defect and `tsc` has already refused it, while the
+ * failure a parse cannot catch (a contributor assuming a prop the zone does not
+ * carry) is on the other side of the parse.
+ */
+export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
+  'product.editor.details.before': ProductEditorZoneProps;
+  'product.editor.pricing.before': ProductEditorZoneProps;
+  'product.editor.field.after': ProductEditorFieldZoneProps;
+}
+
+/** The props of one zone, by name. */
+export type AdminZoneProps<Z extends AdminZoneName> = AdminZonePropsMap[Z];
 
 // ---------------------------------------------------------------------------
 // Declarations
@@ -190,11 +278,38 @@ export const AdminNavDeclarationSchema = z.object({
   requiredPermission: PermissionRequirementSchema.optional(),
 });
 
-/** The data half of a contribution into another module's screen. */
+/**
+ * The data half of a contribution into another module's screen.
+ *
+ * A contribution declares **one** zone, so a component appearing in two zones
+ * is two contributions — and only the one that needs narrowing carries a
+ * {@link AdminZoneContributionSchema.shape.match}.
+ */
 export const AdminZoneContributionSchema = z.object({
   zone: AdminZoneNameSchema,
   weight: z.number().int(),
   requiredPermission: PermissionRequirementSchema.optional(),
+  /**
+   * Narrow this contribution to the mounts whose props agree with every key.
+   *
+   * The renderer includes the contribution when, for each key, the zone's props
+   * carry that key with that value — or with a member of that array. Data only,
+   * enumerable, and readable by a check.
+   *
+   * **It exists for FR-013 and not for tidiness.** One zone is mounted on many
+   * screens; without `match` a contributor narrows by returning `null` for the
+   * mounts it does not serve, which means its chunk is fetched and evaluated on
+   * every one of them. `match` is decided **before** `React.lazy` is touched,
+   * so the chunk is never requested. The alternative — a near-identical enum
+   * member per case — is the openness the closed enum exists to refuse, wearing
+   * a different hat.
+   *
+   * A key the zone's props do not carry never agrees, so a `match` naming a
+   * prop that does not exist hides the contribution rather than widening it.
+   */
+  match: z
+    .record(z.string(), z.union([z.string(), z.array(z.string()).readonly()]))
+    .optional(),
 });
 
 /**
