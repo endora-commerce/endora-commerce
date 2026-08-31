@@ -87,13 +87,13 @@ export function AdminZone<Z extends AdminZoneName>({
   if (rendered.length === 0) return null;
   return (
     <>
-      {rendered.map(({ key, module, Component }) => (
-        <ZoneErrorBoundary key={key} module={module} zone={name}>
+      {rendered.map((entry) => (
+        <ZoneErrorBoundary key={entry.key} module={entry.module} zone={name}>
           {/* `null`, not a spinner: a contribution is an addition, and a chunk
               still in flight must not push the host's own content around or
               block it. */}
           <Suspense fallback={null}>
-            <Component {...(props as unknown as Record<string, unknown>)} />
+            <entry.Component {...(props as unknown as Record<string, unknown>)} />
           </Suspense>
         </ZoneErrorBoundary>
       ))}

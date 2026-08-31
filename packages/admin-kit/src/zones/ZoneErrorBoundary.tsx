@@ -40,7 +40,6 @@ export class ZoneErrorBoundary extends Component<ZoneErrorBoundaryProps, ZoneErr
     // Once, and naming both ends of the contribution: `error.stack` points into
     // a split chunk, which tells a reader neither which module shipped it nor
     // which of that module's contributions was rendering.
-    // eslint-disable-next-line no-console -- the browser console is the only report a contributed component has.
     console.error(
       `[admin-zone] '${this.props.module}' threw while rendering the ` +
         `'${this.props.zone}' zone. The host screen is unaffected; this contribution ` +
