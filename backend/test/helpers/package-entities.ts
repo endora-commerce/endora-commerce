@@ -45,6 +45,7 @@ import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backen
 import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend';
 import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import type { Session as SessionRow } from '../../../packages/modules/auth/src/backend/entities/session.entity.js';
+import type { AttributeSet as AttributeSetRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set.entity.js';
 import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set-attribute.entity.js';
 import type { BulkOperation as BulkOperationRow } from '../../../packages/modules/catalog/src/backend/entities/bulk-operation.entity.js';
 import type { Category as CategoryRow } from '../../../packages/modules/catalog/src/backend/entities/category.entity.js';
@@ -331,6 +332,7 @@ export const Session = classNamed<SessionRow>(authEntities, 'Session');
  * above load-bearing here rather than theoretical: a relative reach into the
  * package's source would hand `em.find` a class the ORM never registered.
  */
+export const AttributeSet = classNamed<AttributeSetRow>(catalogEntities, 'AttributeSet');
 export const AttributeSetAttribute = classNamed<AttributeSetAttributeRow>(
   catalogEntities,
   'AttributeSetAttribute',
@@ -862,3 +864,19 @@ export type InpostWebhookEvent = InpostWebhookEventRow;
 export type InpostShipmentLink = InpostShipmentLinkRow;
 export type Shipment = ShipmentRow;
 export type NewsletterSubscriber = NewsletterSubscriberRow;
+
+/**
+ * The `pim_pimcore` names the test tree also uses as a **type**, on the terms
+ * the block above states: `classNamed` returns only the value, so a
+ * `Promise<PimcoreImportRun>` or a `Partial<PimcoreImportRun>` needs the type
+ * declared beside it. `export type` erases, so nothing is constructed.
+ */
+export type PimcoreCatalogueDelivery = PimcoreCatalogueDeliveryRow;
+export type PimcoreConnection = PimcoreConnectionRow;
+export type PimcoreDeliveredRecord = PimcoreDeliveredRecordRow;
+export type PimcoreFieldProtection = PimcoreFieldProtectionRow;
+export type PimcoreImportIssue = PimcoreImportIssueRow;
+export type PimcoreImportRun = PimcoreImportRunRow;
+export type PimcoreMediaLink = PimcoreMediaLinkRow;
+export type PimcoreSourceLink = PimcoreSourceLinkRow;
+export type AdminNotification = AdminNotificationRow;
