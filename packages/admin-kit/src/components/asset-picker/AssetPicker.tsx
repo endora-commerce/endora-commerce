@@ -15,6 +15,15 @@ import { AssetUploader } from './AssetUploader.js';
 import { listAssets } from './assets-api.js';
 
 /**
+ * **Its copy is `core`'s, not `assets_library`'s** (R-1, 2026-08-31). The
+ * component used to call `useTranslation('assets_library')`, which R6 rules is
+ * module knowledge for the same reason an admin API client is: the bundle behind
+ * a namespace is shipped by a module package the kit does not and may not depend
+ * on, resolved at runtime by string, and a renamed key renders `core.<key>` at
+ * the operator rather than failing to compile. `Close`, `Loading…` and `Search`
+ * are concepts `core` already names, so this reads those; the picker's own three
+ * strings moved into `core` under `assetPicker.*`.
+ *
  * **The request is built here** (feature 091, P4c). Until this component moved
  * into the kit it called `assets_library`' own admin API client, which is a
  * reach out of the platform's frontend into a module's admin code.
@@ -35,7 +44,7 @@ export interface AssetPickerProps {
 }
 
 export function AssetPicker(props: AssetPickerProps): ReactNode {
-  const t = useTranslation('assets_library');
+  const t = useTranslation('core');
   const [q, setQ] = useState('');
   const [items, setItems] = useState<AssetSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,18 +75,18 @@ export function AssetPicker(props: AssetPickerProps): ReactNode {
         <div className="flex items-center gap-2">
           <Input
             value={q}
-            placeholder={t('picker.searchPlaceholder')}
+            placeholder={t('assetPicker.searchPlaceholder')}
             onChange={(e): void => setQ(e.target.value)}
             onKeyDown={(e): void => {
               if (e.key === 'Enter') reload();
             }}
           />
           <Button type="button" variant="outline" size="sm" onClick={reload}>
-            {t('common.search')}
+            {t('common.action.search')}
           </Button>
           {props.onClose ? (
             <Button type="button" variant="ghost" size="sm" onClick={props.onClose}>
-              {t('common.close')}
+              {t('common.action.close')}
             </Button>
           ) : null}
         </div>
@@ -89,9 +98,9 @@ export function AssetPicker(props: AssetPickerProps): ReactNode {
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+          <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('picker.empty')}</p>
+          <p className="text-sm text-muted-foreground">{t('assetPicker.empty')}</p>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {items.map((a) => (
@@ -122,7 +131,7 @@ export function AssetPicker(props: AssetPickerProps): ReactNode {
 
         {props.allowUpload ? (
           <div className="border-t pt-3">
-            <p className="mb-1 text-sm font-medium">{t('picker.uploadNew')}</p>
+            <p className="mb-1 text-sm font-medium">{t('assetPicker.uploadNew')}</p>
             <AssetUploader
               {...(props.acceptMimePrefix !== undefined
                 ? { acceptPrefix: props.acceptMimePrefix }
