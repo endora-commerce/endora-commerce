@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 import type { FeedFieldSourceCatalogue } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { FieldSourceCombobox } from '@/modules/product_feeds/components/FieldSourceCombobox';
+import { FieldSourceCombobox } from '../../../../packages/modules/product_feeds/src/admin/components/FieldSourceCombobox';
 
 /**
  * Issue #239 — "Filled from" builds its own haystack and filters it itself

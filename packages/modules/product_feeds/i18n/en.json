@@ -616,5 +616,6 @@
   "delivery.reason.artefact_unavailable": "The generated file could not be read back.",
   "delivery.reason.internal_error": "Something went wrong on this platform.",
   "delivery.lastAttempt.succeeded": "Last delivered {when}",
-  "delivery.lastAttempt.failed": "Last delivery failed {when}"
+  "delivery.lastAttempt.failed": "Last delivery failed {when}",
+  "nav.productFeeds.label": "Product feeds"
 }

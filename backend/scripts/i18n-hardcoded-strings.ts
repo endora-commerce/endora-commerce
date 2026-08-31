@@ -260,6 +260,15 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // worth of keys and belongs to whoever is repairing this screen, not to a
   // batch whose subject is where the file lives.
   'packages/modules/mfa/src/admin/pages/AdminSecuritySettings.tsx': 16,
+  // Feature 091, Phase 4, the plan's batch 7 — the same four counts under the
+  // same four files, **re-keyed rather than re-baselined**. The ratchet is
+  // two-way and keyed by path, so moving a directory strands the old key as a
+  // stale entry and reports the new one as a regression; both halves fired here
+  // and both are the move, not a change to a single string.
+  'packages/modules/product_feeds/src/admin/components/FeedDeliveryPanel.tsx': 1,
+  'packages/modules/promotions/src/admin/components/CouponGeneratorForm.tsx': 2,
+  'packages/modules/promotions/src/admin/pages/PromotionEditPage.tsx': 1,
+  'packages/modules/promotions/src/admin/pages/PromotionStatsPage.tsx': 2,
   // Feature 091, Phase 4 batch five: the screen moved into `stripe`'s package
   // and the entry is **re-keyed**, not raised and not dropped — the same
   // twenty-nine strings at a new address, which this check's two-way ratchet
@@ -283,10 +292,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'admin/src/modules/newsletter/pages/TagsPage.tsx': 9,
   'admin/src/modules/organizations/panels/RestrictionsPanel.tsx': 1,
   'admin/src/modules/pim_ergonode/ErgonodeConnectionPage.tsx': 1,
-  'admin/src/modules/product_feeds/components/FeedDeliveryPanel.tsx': 1,
-  'admin/src/modules/promotions/CouponGeneratorForm.tsx': 2,
-  'admin/src/modules/promotions/PromotionEditPage.tsx': 1,
-  'admin/src/modules/promotions/PromotionStatsPage.tsx': 2,
   'admin/src/modules/returns/ReturnDeliveryMethodsPage.tsx': 5,
   'admin/src/modules/returns/ReturnDetail.tsx': 12,
   'admin/src/modules/returns/ReturnReasonsPage.tsx': 4,

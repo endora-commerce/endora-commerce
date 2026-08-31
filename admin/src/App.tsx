@@ -52,7 +52,6 @@ import { OrganizationDetail } from './modules/organizations/OrganizationDetail.j
 import { CustomersList } from './modules/customers/CustomersList.js';
 import { CustomerDetail } from './modules/customers/CustomerDetail.js';
 import { OnlineCustomers } from './modules/customers/OnlineCustomers.js';
-import { CustomerGroupsPage } from './modules/customer_accounts/CustomerGroupsPage.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
@@ -82,16 +81,6 @@ import { InvoicesList } from './modules/invoices/InvoicesList.js';
 import { InvoiceDetail } from './modules/invoices/InvoiceDetail.js';
 import { InvoiceTemplatesPage } from './modules/invoices/templates/InvoiceTemplatesPage.js';
 import { KsefPage } from './modules/ksef/pages/KsefPage.js';
-import { ProductFeedsListPage } from './modules/product_feeds/ProductFeedsListPage.js';
-import { ProductFeedCreatePage } from './modules/product_feeds/ProductFeedCreatePage.js';
-import { ProductFeedDetailPage } from './modules/product_feeds/ProductFeedDetailPage.js';
-import { FeedTemplatesListPage } from './modules/product_feeds/FeedTemplatesListPage.js';
-import { FeedTemplateStartFromPage } from './modules/product_feeds/FeedTemplateStartFromPage.js';
-import { FeedTemplateEditorPage } from './modules/product_feeds/FeedTemplateEditorPage.js';
-import { FeedTemplateImportPage } from './modules/product_feeds/FeedTemplateImportPage.js';
-import { FeedRunDetailPage } from './modules/product_feeds/FeedRunDetailPage.js';
-import { CategoryMappingPage } from './modules/product_feeds/CategoryMappingPage.js';
-import { TaxonomyRevisionsPage } from './modules/product_feeds/TaxonomyRevisionsPage.js';
 import { ErgonodeConnectionPage } from './modules/pim_ergonode/ErgonodeConnectionPage.js';
 import { ErgonodeAttributeMappingPage } from './modules/pim_ergonode/ErgonodeAttributeMappingPage.js';
 import { ErgonodeCategoryMappingPage } from './modules/pim_ergonode/ErgonodeCategoryMappingPage.js';
@@ -99,16 +88,11 @@ import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
 import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
 import { TaxesPage } from './modules/taxes/TaxesPage.js';
-import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
-import { PromotionEditPage } from './modules/promotions/PromotionEditPage.js';
-import { PromotionRulesPage } from './modules/promotions/PromotionRulesPage.js';
-import { PromotionStatsPage } from './modules/promotions/PromotionStatsPage.js';
 import { PriceListsPage } from './modules/price_lists/PriceListsPage.js';
 import { PriceListDetailPage } from './modules/price_lists/PriceListDetailPage.js';
 import { DisplayModeOverridesPage } from './modules/price_lists/DisplayModeOverridesPage.js';
 import { HomePage } from './modules/home/HomePage.js';
 import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
-import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
 import { CredentialsPage } from './modules/credentials/pages/CredentialsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
@@ -269,7 +253,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/customers" element={<CustomersList />} />
         <Route path="/customers/online" element={<OnlineCustomers />} />
         <Route path="/customers/:id" element={<CustomerDetail />} />
-        <Route path="/customer-groups" element={<CustomerGroupsPage />} />
         <Route path="/orders" element={<OrdersList />} />
         <Route path="/orders/new" element={<OrderCreatePage />} />
         <Route path="/orders/quick-order" element={<QuickOrderOnBehalfPage />} />
@@ -303,24 +286,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/invoices/templates/:id" element={<InvoiceTemplateEditor />} />
         <Route path="/invoices/:id" element={<InvoiceDetail />} />
         <Route path="/ksef" element={<KsefPage />} />
-        {/* Feature 067 — Product Feed. `/new` and `/templates` precede the
-            parametric route so they are never captured as a feed id. */}
-        <Route path="/product-feeds" element={<ProductFeedsListPage />} />
-        <Route path="/product-feeds/new" element={<ProductFeedCreatePage />} />
-        <Route path="/product-feeds/templates" element={<FeedTemplatesListPage />} />
-        <Route path="/product-feeds/templates/new" element={<FeedTemplateStartFromPage />} />
-        <Route path="/product-feeds/templates/import" element={<FeedTemplateImportPage />} />
-        <Route
-          path="/product-feeds/templates/:templateId"
-          element={<FeedTemplateEditorPage />}
-        />
-        <Route path="/product-feeds/category-mapping" element={<CategoryMappingPage />} />
-        <Route path="/product-feeds/taxonomy-revisions" element={<TaxonomyRevisionsPage />} />
-        <Route
-          path="/product-feeds/:feedId/runs/:runId"
-          element={<FeedRunDetailPage />}
-        />
-        <Route path="/product-feeds/:feedId" element={<ProductFeedDetailPage />} />
         {/* Feature 068 — Ergonode PIM. Literal segments first, the parametric
             run route last, so a future `/pim-ergonode/:something` cannot swallow
             its siblings the way the feed routes once did. */}
@@ -336,11 +301,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
         <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
         <Route path="/taxes" element={<TaxesPage />} />
-        <Route path="/promotions" element={<PromotionsPage />} />
-        <Route path="/promotions/new" element={<PromotionEditPage />} />
-        <Route path="/promotion-rules" element={<PromotionRulesPage />} />
-        <Route path="/promotions/:id/stats" element={<PromotionStatsPage />} />
-        <Route path="/promotions/:id" element={<PromotionEditPage />} />
         <Route path="/price-lists" element={<PriceListsPage />} />
         <Route path="/price-lists/display-modes" element={<DisplayModeOverridesPage />} />
         <Route path="/price-lists/:id" element={<PriceListDetailPage />} />
@@ -355,7 +315,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
           meets the admin's not-found treatment there rather than here.
         */}
         <Route path="/settings/dhl-parcel" element={<Navigate to="/delivery-methods/dhl-parcel" replace />} />
-        <Route path="/payment-methods" element={<PaymentMethodsPage />} />
         <Route path="/credentials" element={<CredentialsPage />} />
         <Route path="/credentials/new" element={<CredentialsPage initialMode="new" />} />
         <Route path="/inventory" element={<InventoryPage />} />

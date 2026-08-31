@@ -1,4 +1,5 @@
 {
   "actions.openPaymentMethods.label": "Metody płatności",
-  "actions.openPaymentMethods.description": "Zdefiniuj metody płatności i wybierz, które są oferowane kupującym"
+  "actions.openPaymentMethods.description": "Zdefiniuj metody płatności i wybierz, które są oferowane kupującym",
+  "nav.paymentMethods.label": "Metody płatności"
 }

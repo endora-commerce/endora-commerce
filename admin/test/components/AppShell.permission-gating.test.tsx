@@ -51,7 +51,8 @@ vi.mock('@/lib/prompt-actions/api', () => ({
   markPromptRequestSeen: vi.fn(),
 }));
 
-const coreBundle = passthroughBundle('core', [
+const coreBundle = {
+  ...passthroughBundle('core', [
   'appShell.brand.text',
   'appShell.search.placeholder',
   'appShell.search.openPalette',
@@ -63,14 +64,20 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.credentials',
   'appShell.nav.organizations',
   'appShell.nav.priceLists',
-  'appShell.nav.paymentMethods',
   'appShell.nav.deliveryMethods',
   'appShell.nav.taxes',
   'appShell.section.inventory',
   'appShell.nav.stockOverview',
   'appShell.nav.warehouses',
   'appShell.nav.importStock',
-]);
+  'appShell.section.pricing',
+]),
+  // `/payment-methods` is a **registry** entry since feature 091's Phase 4
+  // batch 7, so its label resolves in the owning module's namespace rather than
+  // in `core`. The two cases below assert the href, not the copy; the scope is
+  // seeded so the row renders something rather than a raw key.
+  ...passthroughBundle('payment_methods', ['nav.paymentMethods.label']),
+};
 
 const { AppShell } = await import('../../src/components/AppShell');
 
@@ -154,22 +161,35 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
   });
 
   /**
-   * `payment_methods` took its own codes on 2026-08-28. The sidebar entry and
-   * the Navigate row are two literals nothing derives — `check:action-route-
-   * permissions` reads the manifest action and the backend route and no file in
-   * this application — so the code they carry is checked here or nowhere. A
-   * catalogue editor is the role the old gate handed the screen to, which makes
-   * it the discriminating negative rather than an arbitrary one.
+   * `payment_methods` took its own codes on 2026-08-28. A catalogue editor is
+   * the role the old gate handed the screen to, which makes it the
+   * discriminating negative rather than an arbitrary one.
+   *
+   * **What these two cases assert changed with feature 091's Phase 4 batch 7,
+   * and the palette half is gone rather than re-pointed.** The sidebar entry was
+   * a hand-written `NAV` literal and the Navigate row a hand-written
+   * `PALETTE_ITEMS` literal; both are `@endora-commerce/mod-payment-methods`'
+   * declarations now, and the palette advertisement is the **server's** — the
+   * Actions group resolves the module's `open-payment-methods` manifest action
+   * against the effective enabled-set, which no admin-side test can see. Its
+   * off-state is driven in
+   * `backend/test/integration/payment_methods/module-owned-surface-off-state.test.ts`.
+   * Asserting a Navigate row that no longer exists would have been a negative
+   * passing for the wrong reason and a positive going red, which is what
+   * happened when this batch first ran.
+   *
+   * The sidebar pair stays and now measures something it could not before: that
+   * the **registry** entry's `requiredPermission` is the module's own read code,
+   * applied by `isSurfaceVisible` rather than by a literal in this file. Issue
+   * #230's palette half is still covered here by the `delivery_methods` pair
+   * below, which is still hand-written and converts in batch 8.
    */
-  it('hides /payment-methods from a catalogue editor', async () => {
+  it('hides /payment-methods from a catalogue editor', () => {
     renderShell(['catalog:read', 'catalog:write']);
     expect(sidebarHrefs()).not.toContain('/payment-methods');
-    expect(
-      (await openPaletteItems()).some((t) => t.includes('appShell.nav.paymentMethods')),
-    ).toBe(false);
   });
 
-  it('shows /payment-methods to a role holding payment_methods:read', async () => {
+  it('shows /payment-methods to a role holding payment_methods:read', () => {
     renderShell(['payment_methods:read']);
     expect(sidebarHrefs()).toContain('/payment-methods');
     // …and only that one. The two method screens sit next to each other and
@@ -178,9 +198,6 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     // `renderShell` mounts a second shell beside the first rather than
     // replacing it, so a `not.toContain` after two renders reads both.
     expect(sidebarHrefs()).not.toContain('/delivery-methods');
-    expect(
-      (await openPaletteItems()).some((t) => t.includes('appShell.nav.paymentMethods')),
-    ).toBe(true);
   });
 
   /**

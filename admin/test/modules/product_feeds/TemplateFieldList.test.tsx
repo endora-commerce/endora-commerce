@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TemplateFieldList } from '../../../src/modules/product_feeds/components/TemplateFieldList';
-import type { DraftField } from '../../../src/modules/product_feeds/template-draft';
+import { TemplateFieldList } from '../../../../packages/modules/product_feeds/src/admin/components/TemplateFieldList';
+import type { DraftField } from '../../../../packages/modules/product_feeds/src/admin/template-draft';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**

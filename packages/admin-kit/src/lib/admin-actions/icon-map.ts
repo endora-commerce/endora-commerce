@@ -25,6 +25,7 @@ import {
   Menu,
   Package,
   PanelLeft,
+  PercentDiamond,
   PlugZap,
   Plus,
   PlusCircle,
@@ -121,6 +122,10 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // entry: `KeyRound` is already above.
   Webhook,
   Scale,
+  // Feature 091 (Phase 4, the plan's batch 7) — the same, for `promotions`' two
+  // sidebar entries and two palette rows. The other three members of that batch
+  // needed no entry: `CreditCard`, `Users` and `Rss` are already above.
+  PercentDiamond,
 };
 
 export function resolveIcon(name: string): LucideIcon {

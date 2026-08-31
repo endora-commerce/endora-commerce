@@ -2,24 +2,23 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import type { ProductFeedDto } from '../../../src/modules/product_feeds/api';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+import type { ProductFeedDto } from '../../../../packages/modules/product_feeds/src/admin/api';
 
-// Feature 073 — every admin surface resolves its own presence from the module
-// projection. These cases are about layout and routing, not about presence, so
-// the projection is stubbed as "everything is here"; the filtering itself is
-// covered in AppShell.module-presence.test.tsx.
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
+/**
+ * **The screen is `@endora-commerce/mod-product-feeds`' since feature 091's
+ * Phase 4 (the plan's batch 7), so its session hooks are the kit's.** This file
+ * used to replace `@/lib/auth` and `@/lib/module-presence`; both are re-export
+ * shims now, and the module the screen names is
+ * `@endora-commerce/admin-kit/lib`, so a mock at either old path is a no-op the
+ * screen never sees. The real providers are seeded instead
+ * (`helpers/render-with-session.tsx`), which is the better test anyway — a gate
+ * asserted against a stub of the predicate asserts that the stub was consulted.
+ *
+ * `['*']` and a projection naming this module are right here because this
+ * file's subject is the **layout**, not either gate; the gates are driven on
+ * their own in `product-feeds.module-owned-surface.test.tsx`.
+ */
 
 /**
  * The feed list hand-rolled its surfaces (`rounded-lg border p-8`) instead of
@@ -30,10 +29,10 @@ vi.mock('@/lib/module-presence', () => ({
 
 const list = vi.fn();
 
-vi.mock('../../../src/modules/product_feeds/api', async () => {
+vi.mock('../../../../packages/modules/product_feeds/src/admin/api', async () => {
   const actual = await vi.importActual<
-    typeof import('../../../src/modules/product_feeds/api')
-  >('../../../src/modules/product_feeds/api');
+    typeof import('../../../../packages/modules/product_feeds/src/admin/api')
+  >('../../../../packages/modules/product_feeds/src/admin/api');
   return {
     ...actual,
     productFeedsClient: {
@@ -43,10 +42,6 @@ vi.mock('../../../src/modules/product_feeds/api', async () => {
     },
   };
 });
-
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: () => true }),
-}));
 
 const bundle = passthroughBundle('product_feeds', [
   'page.title',
@@ -73,7 +68,7 @@ const bundle = passthroughBundle('product_feeds', [
 ]);
 
 const { ProductFeedsListPage } = await import(
-  '../../../src/modules/product_feeds/ProductFeedsListPage'
+  '../../../../packages/modules/product_feeds/src/admin/pages/ProductFeedsListPage'
 );
 
 function feed(over: Partial<ProductFeedDto> = {}): ProductFeedDto {
@@ -109,9 +104,15 @@ function feed(over: Partial<ProductFeedDto> = {}): ProductFeedDto {
 
 function renderPage(): void {
   renderWithI18n(
-    <MemoryRouter initialEntries={['/product-feeds']}>
-      <ProductFeedsListPage />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/product-feeds']}>
+        <ProductFeedsListPage />
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: ['*'] }),
+        presence: modulePresence({ present: ['product_feeds'] }),
+      },
+    ),
     bundle,
   );
 }
