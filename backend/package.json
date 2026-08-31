@@ -19,6 +19,7 @@
     "check:action-route-permissions": "tsx scripts/check-action-route-permissions.ts",
     "check:admin-registrations": "tsx scripts/check-admin-registrations.ts",
     "check:admin-surface": "tsx scripts/check-admin-surface.ts",
+    "check:admin-zones": "tsx scripts/check-admin-zones.ts",
     "check:command-coverage": "tsx scripts/check-command-coverage.ts",
     "check:container-imports": "tsx scripts/check-container-imports.ts",
     "check:diacritic-folds": "tsx scripts/check-diacritic-folds.ts",
