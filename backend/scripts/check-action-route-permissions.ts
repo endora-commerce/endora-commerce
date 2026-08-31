@@ -168,6 +168,17 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     'is the write one. Retire this entry with the same answer as the two above: a ' +
     'palette row is a navigation, and the field is a single code, so the label and the ' +
     'gate cannot both be honoured.',
+  'pim_pimcore:skip-pimcore-bootstrap':
+    '"Skip the first full delivery" declares `pim_pimcore:write` and lands on ' +
+    '`/pim-pimcore`, whose landing GETs are `pim_pimcore:read`. `:write` is the ' +
+    'honest declaration and stays: the row promises the skip, not the screen — the ' +
+    'screen is already advertised by `open-pim-pimcore` with the read code — and ' +
+    'POST /api/v1/admin/pim-pimcore/bootstrap/skip enforces `pim_pimcore:write`. An ' +
+    'operator holding only `:read` cannot skip a bootstrap, so advertising it to them ' +
+    'would be a promise the server refuses. Retire this entry when a palette action ' +
+    'can name the code that opens its target separately from the code its own ' +
+    'operation needs; one field cannot say both, and the choice here is the ' +
+    "owner's.",
 };
 
 // ---------------------------------------------------------------------------

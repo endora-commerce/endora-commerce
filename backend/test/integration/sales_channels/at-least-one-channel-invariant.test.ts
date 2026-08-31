@@ -187,4 +187,35 @@ describe('membership invariant: at-least-one-channel (T022)', () => {
       await db.rollbackTx();
     }
   });
+
+  it('atomically replaces memberships without retaining the system default', async () => {
+    try {
+      const def = await ensureDefault();
+      const target = await ensureSecondaryChannel();
+      const product = await createProduct('E');
+      const eventBus = new EventBus();
+      const svc = new SalesChannelMembershipService(() => db.em(), eventBus);
+
+      await svc.addToChannel(def.id, 'product', product.id);
+
+      const result = await svc.replaceChannelsForEntity(
+        'product',
+        product.id,
+        [target.id],
+      );
+
+      expect(result.changed).toBe(true);
+      const channels = await svc.listChannelsForEntity('product', product.id);
+      expect(channels.map((channel) => channel.id)).toEqual([target.id]);
+
+      const repeated = await svc.replaceChannelsForEntity(
+        'product',
+        product.id,
+        [target.id],
+      );
+      expect(repeated.changed).toBe(false);
+    } finally {
+      await db.rollbackTx();
+    }
+  });
 });

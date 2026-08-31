@@ -17,7 +17,9 @@ import type {
   CatalogCategoryReadPort,
   CatalogCategoryWritePort,
   CatalogGalleryPort,
+  CatalogBundlePort,
   CatalogGroupedPort,
+  CatalogPackagingPort,
   CatalogProductFilterPort,
   CatalogProductLinkPort,
   CatalogProductReadPort,
@@ -69,6 +71,8 @@ import { GalleryService } from './services/gallery.service.js';
 import { AttachmentService } from './services/attachment.service.js';
 import { ProductLinkService } from './services/product-link.service.js';
 import { GroupedService } from './services/grouped.service.js';
+import { BundleService } from './services/bundle.service.js';
+import { PackagingUnitService } from './services/packaging-unit.service.js';
 import { CatalogAttributeReadService } from './services/catalog-attribute-read.service.js';
 import { CatalogCategoryReadService } from './services/catalog-category-read.service.js';
 import { CatalogProductFilterService } from './services/catalog-product-filter.service.js';
@@ -237,6 +241,8 @@ export interface CatalogCradle {
   readonly attachmentService: AttachmentService;
   readonly productLinkService: ProductLinkService;
   readonly groupedService: GroupedService;
+  readonly bundleService: BundleService;
+  readonly packagingUnitService: PackagingUnitService;
   readonly catalogCategoryRevalidator: StorefrontRevalidator;
   readonly catalog: ReturnType<typeof catalogModule>;
 }
@@ -723,6 +729,25 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory, commandBus }: CatalogCradle) => new GroupedService(emFactory, commandBus),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<CatalogBundlePort>(
+    'bundleService',
+    ctx
+      .asFunction(
+        ({ emFactory, commandBus }: CatalogCradle) => new BundleService(emFactory, commandBus),
+      )
+      .singleton(),
+  );
+
+  ctx.di.providePort<CatalogPackagingPort>(
+    'packagingUnitService',
+    ctx
+      .asFunction(
+        ({ emFactory, commandBus }: CatalogCradle) =>
+          new PackagingUnitService(emFactory, commandBus),
       )
       .singleton(),
   );

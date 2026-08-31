@@ -49,10 +49,11 @@ import { contributions as contributions13 } from '@endora-commerce/mod-meta-ads/
 import { contributions as contributions14 } from '@endora-commerce/mod-mfa/admin';
 import { contributions as contributions15 } from '@endora-commerce/mod-paypal/admin';
 import { contributions as contributions16 } from '@endora-commerce/mod-payu/admin';
-import { contributions as contributions17 } from '@endora-commerce/mod-pwa/admin';
-import { contributions as contributions18 } from '@endora-commerce/mod-stripe/admin';
-import { contributions as contributions19 } from '@endora-commerce/mod-tpay/admin';
-import { contributions as contributions20 } from '@endora-commerce/mod-webhooks/admin';
+import { contributions as contributions17 } from '@endora-commerce/mod-pim-pimcore/admin';
+import { contributions as contributions18 } from '@endora-commerce/mod-pwa/admin';
+import { contributions as contributions19 } from '@endora-commerce/mod-stripe/admin';
+import { contributions as contributions20 } from '@endora-commerce/mod-tpay/admin';
+import { contributions as contributions21 } from '@endora-commerce/mod-webhooks/admin';
 
 /** One module's contribution set, keyed by the module id that shipped it. */
 export interface AdminRegistryEntry {
@@ -78,8 +79,9 @@ export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
   { moduleId: 'mfa', contributions: contributions14 },
   { moduleId: 'paypal', contributions: contributions15 },
   { moduleId: 'payu', contributions: contributions16 },
-  { moduleId: 'pwa', contributions: contributions17 },
-  { moduleId: 'stripe', contributions: contributions18 },
-  { moduleId: 'tpay', contributions: contributions19 },
-  { moduleId: 'webhooks', contributions: contributions20 },
+  { moduleId: 'pim_pimcore', contributions: contributions17 },
+  { moduleId: 'pwa', contributions: contributions18 },
+  { moduleId: 'stripe', contributions: contributions19 },
+  { moduleId: 'tpay', contributions: contributions20 },
+  { moduleId: 'webhooks', contributions: contributions21 },
 ];

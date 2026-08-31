@@ -38,12 +38,14 @@ import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/ba
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
+import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
 import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
 import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend';
 import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import type { Session as SessionRow } from '../../../packages/modules/auth/src/backend/entities/session.entity.js';
+import type { AttributeSet as AttributeSetRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set.entity.js';
 import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set-attribute.entity.js';
 import type { BulkOperation as BulkOperationRow } from '../../../packages/modules/catalog/src/backend/entities/bulk-operation.entity.js';
 import type { Category as CategoryRow } from '../../../packages/modules/catalog/src/backend/entities/category.entity.js';
@@ -140,6 +142,14 @@ import type { ErgonodeMediaLink as ErgonodeMediaLinkRow } from '../../../package
 import type { ErgonodePriceBinding as ErgonodePriceBindingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-price-binding.entity.js';
 import type { ErgonodeProductLink as ErgonodeProductLinkRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-product-link.entity.js';
 import type { ErgonodeStreamCursor as ErgonodeStreamCursorRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-stream-cursor.entity.js';
+import type { PimcoreCatalogueDelivery as PimcoreCatalogueDeliveryRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-catalogue-delivery.entity.js';
+import type { PimcoreConnection as PimcoreConnectionRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-connection.entity.js';
+import type { PimcoreDeliveredRecord as PimcoreDeliveredRecordRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-delivered-record.entity.js';
+import type { PimcoreFieldProtection as PimcoreFieldProtectionRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-field-protection.entity.js';
+import type { PimcoreImportIssue as PimcoreImportIssueRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-import-issue.entity.js';
+import type { PimcoreImportRun as PimcoreImportRunRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-import-run.entity.js';
+import type { PimcoreMediaLink as PimcoreMediaLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-media-link.entity.js';
+import type { PimcoreSourceLink as PimcoreSourceLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-source-link.entity.js';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
 import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
@@ -322,6 +332,7 @@ export const Session = classNamed<SessionRow>(authEntities, 'Session');
  * above load-bearing here rather than theoretical: a relative reach into the
  * package's source would hand `em.find` a class the ORM never registered.
  */
+export const AttributeSet = classNamed<AttributeSetRow>(catalogEntities, 'AttributeSet');
 export const AttributeSetAttribute = classNamed<AttributeSetAttributeRow>(
   catalogEntities,
   'AttributeSetAttribute',
@@ -684,6 +695,39 @@ export const ErgonodeStreamCursor = classNamed<ErgonodeStreamCursorRow>(
   'ErgonodeStreamCursor',
 );
 
+export const PimcoreCatalogueDelivery = classNamed<PimcoreCatalogueDeliveryRow>(
+  pimPimcoreEntities,
+  'PimcoreCatalogueDelivery',
+);
+export const PimcoreConnection = classNamed<PimcoreConnectionRow>(
+  pimPimcoreEntities,
+  'PimcoreConnection',
+);
+export const PimcoreDeliveredRecord = classNamed<PimcoreDeliveredRecordRow>(
+  pimPimcoreEntities,
+  'PimcoreDeliveredRecord',
+);
+export const PimcoreFieldProtection = classNamed<PimcoreFieldProtectionRow>(
+  pimPimcoreEntities,
+  'PimcoreFieldProtection',
+);
+export const PimcoreImportIssue = classNamed<PimcoreImportIssueRow>(
+  pimPimcoreEntities,
+  'PimcoreImportIssue',
+);
+export const PimcoreImportRun = classNamed<PimcoreImportRunRow>(
+  pimPimcoreEntities,
+  'PimcoreImportRun',
+);
+export const PimcoreMediaLink = classNamed<PimcoreMediaLinkRow>(
+  pimPimcoreEntities,
+  'PimcoreMediaLink',
+);
+export const PimcoreSourceLink = classNamed<PimcoreSourceLinkRow>(
+  pimPimcoreEntities,
+  'PimcoreSourceLink',
+);
+
 /**
  * The **row shapes** batch four's tests annotate with, on the same terms as
  * `PaymentMethodRow` above: `classNamed` returns a value, so a test that writes
@@ -820,3 +864,19 @@ export type InpostWebhookEvent = InpostWebhookEventRow;
 export type InpostShipmentLink = InpostShipmentLinkRow;
 export type Shipment = ShipmentRow;
 export type NewsletterSubscriber = NewsletterSubscriberRow;
+
+/**
+ * The `pim_pimcore` names the test tree also uses as a **type**, on the terms
+ * the block above states: `classNamed` returns only the value, so a
+ * `Promise<PimcoreImportRun>` or a `Partial<PimcoreImportRun>` needs the type
+ * declared beside it. `export type` erases, so nothing is constructed.
+ */
+export type PimcoreCatalogueDelivery = PimcoreCatalogueDeliveryRow;
+export type PimcoreConnection = PimcoreConnectionRow;
+export type PimcoreDeliveredRecord = PimcoreDeliveredRecordRow;
+export type PimcoreFieldProtection = PimcoreFieldProtectionRow;
+export type PimcoreImportIssue = PimcoreImportIssueRow;
+export type PimcoreImportRun = PimcoreImportRunRow;
+export type PimcoreMediaLink = PimcoreMediaLinkRow;
+export type PimcoreSourceLink = PimcoreSourceLinkRow;
+export type AdminNotification = AdminNotificationRow;

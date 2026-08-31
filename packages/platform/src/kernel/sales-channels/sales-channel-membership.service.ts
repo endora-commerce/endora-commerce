@@ -307,6 +307,80 @@ export class SalesChannelMembershipService {
   }
 
   /**
+   * Replace an entity's complete channel membership set atomically.
+   *
+   * Complete-record integrations use this instead of composing add/remove:
+   * product creation initially binds the system default, while the delivered
+   * record names the exact channel that must remain. A delete-then-add sequence
+   * through the public methods would either trip the zero-channel invariant or
+   * retain the unrelated default.
+   */
+  async replaceChannelsForEntity(
+    entityType: ChannelMemberEntityType,
+    entityId: string,
+    channelIds: readonly [string, ...string[]],
+    options: MembershipMutationOptions = {},
+  ): Promise<MembershipMutationResult> {
+    const bridge = BRIDGE_TABLES[entityType];
+    const desiredIds = [...new Set(channelIds)];
+    const em = this.emFactory();
+    const existingRows = await em
+      .getConnection()
+      .execute<Array<{ sales_channel_id: string }>>(
+        `select "sales_channel_id" from "${bridge.table}" ` +
+          `where "${bridge.entityIdColumn}" = ? order by "sales_channel_id" asc`,
+        [entityId],
+        'all',
+        em.getTransactionContext(),
+      );
+    const existingIds = existingRows.map((row) => row.sales_channel_id);
+    const desiredSorted = [...desiredIds].sort();
+    if (
+      existingIds.length === desiredSorted.length &&
+      existingIds.every((id, index) => id === desiredSorted[index])
+    ) {
+      return { changed: false };
+    }
+
+    await em.transactional(async (tx) => {
+      await tx
+        .getConnection()
+        .execute(
+          `delete from "${bridge.table}" where "${bridge.entityIdColumn}" = ?`,
+          [entityId],
+          'run',
+          tx.getTransactionContext(),
+        );
+      for (const channelId of desiredIds) {
+        await tx
+          .getConnection()
+          .execute(
+            `insert into "${bridge.table}" ("sales_channel_id", "${bridge.entityIdColumn}") ` +
+              `values (?, ?)`,
+            [channelId, entityId],
+            'run',
+            tx.getTransactionContext(),
+          );
+      }
+    });
+
+    const desiredSet = new Set(desiredIds);
+    const existingSet = new Set(existingIds);
+    for (const channelId of existingIds) {
+      if (desiredSet.has(channelId)) continue;
+      await this.auditMembership(channelId, entityType, entityId, 'remove', options);
+      this.emitMembershipChanged(channelId, entityType, entityId, 'remove');
+    }
+    for (const channelId of desiredIds) {
+      if (existingSet.has(channelId)) continue;
+      await this.auditMembership(channelId, entityType, entityId, 'add', options);
+      this.emitMembershipChanged(channelId, entityType, entityId, 'add');
+    }
+
+    return { changed: true };
+  }
+
+  /**
    * Narrow a **known** set of entity ids to those bound to `channelId`
    * (issue #185).
    *

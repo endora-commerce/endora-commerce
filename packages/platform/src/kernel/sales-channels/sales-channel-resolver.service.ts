@@ -37,6 +37,13 @@ export class SalesChannelResolverService {
     this.hostMap = parseHostMap(process.env['SALES_CHANNEL_HOST_MAP'] ?? '');
   }
 
+  /** Every channel, ordered by code. */
+  async listAll(): Promise<CachedChannel[]> {
+    const em = this.emFactory();
+    const rows = await em.find(SalesChannel, {}, { orderBy: { code: 'ASC' } });
+    return rows.map((row) => toCachedChannel(row));
+  }
+
   /** Lookup by code; returns null when the code is unknown. */
   async getByCode(code: string): Promise<CachedChannel | null> {
     const cached = await this.cache.get(code);
