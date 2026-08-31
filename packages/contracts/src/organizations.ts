@@ -370,6 +370,46 @@ export const registerOrganizationResponseSchema = z.object({
 });
 export type RegisterOrganizationResponse = z.infer<typeof registerOrganizationResponseSchema>;
 
+// --- Organization picker (feature 091, P2) ----------------------------------
+
+/**
+ * One row of the admin Organization picker.
+ *
+ * A **projection**, not the `GET /api/v1/admin/organizations` envelope: the
+ * picker renders a label, a status pill and nothing else, and it commits the
+ * `id`. `version` rides along because a caller that picks an Organization in
+ * order to write to it needs the optimistic-concurrency token it already had.
+ *
+ * Published because `@endora-commerce/admin-kit` builds this request itself
+ * (feature 091's P2 — the picker moved into the kit and rebuilt its call from
+ * the published `apiClient`), so the shape crosses a package boundary and
+ * Principle II puts it here. Before P2 it was declared in
+ * `admin/src/modules/organizations/api/organizations-picker-client.ts`, where a
+ * kit component could only reach it by importing a module's admin code.
+ *
+ * The status is `organizationStatusSchema` and not a picker-local enum: the four
+ * members the picker filters on are exactly that schema's, so a second name
+ * would be two spellings of one set with nothing keeping them equal.
+ */
+export const organizationPickerListItemSchema = z.object({
+  id: uuidSchema,
+  name: z.string(),
+  legalName: z.string().nullable(),
+  status: organizationStatusSchema,
+  countryCode: z.string().nullable().optional(),
+  salesRepAdminUserIds: z.array(uuidSchema).optional(),
+  memberCount: z.number().int().nonnegative().optional(),
+  version: z.number().int().nonnegative(),
+});
+export type OrganizationPickerListItem = z.infer<typeof organizationPickerListItemSchema>;
+
+/** One page of picker rows. `nextCursor` is `null` on the last page. */
+export const organizationPickerPageSchema = z.object({
+  items: z.array(organizationPickerListItemSchema),
+  nextCursor: z.string().nullable(),
+});
+export type OrganizationPickerPage = z.infer<typeof organizationPickerPageSchema>;
+
 // --- Sales-rep ↔ organization assignment (feature 008) ---------------------
 
 export const salesRepAssignmentSchema = z.object({

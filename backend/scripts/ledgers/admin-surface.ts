@@ -13,16 +13,34 @@
  * retiring condition that is somebody's next merge request rather than a
  * sentence of intent.
  *
- * ## Group A — the six pickers (19 sites)
+ * ## Group A — the pickers over another module's data (4 sites)
  *
  * `organization-picker`, `sales-channel-picker`, `asset-picker` and
- * `cms-picker` each fetch from **another module's** API client, so publishing
- * them would make the kit depend on module code and break R6 (*"the kit holds
- * no module knowledge"*). They are FR-007's own worked example — a picker over
- * another module's data is that module's contribution, not the platform's — so
- * the answer is a design one and not a `git mv`. **Retires with Phase 2**, when
- * a module package can ship an `./admin` layer and contribute the picker to a
- * zone.
+ * `cms-picker` each fetched from **another module's** API client, so publishing
+ * them as they stood would have made the kit depend on module code and broken
+ * R6 (*"the kit holds no module knowledge"*).
+ *
+ * **P2 answered three of the four, and the answer was not the one written
+ * here.** This entry said the group *"retires with Phase 2"*, when a module
+ * package could contribute the picker to a zone. Phase 2 landed and retired
+ * none of them, because the zone mechanism it would need is P4's and does not
+ * exist. What P2 did instead is the exit batches three and five took for a
+ * module screen: the component rebuilds its request from the published
+ * `apiClient` and the owner's **contract** types, at which point it holds no
+ * module code to publish and moves into the kit like any other composite. 15 of
+ * the 19 keys went that way, and `admin/src` keeps a re-export shim at each old
+ * path, so the reach is repaired rather than reclassified.
+ *
+ * **What is left is `asset-picker`, and it is left for a reason of kind rather
+ * than of size.** Its module knowledge is `assets_library`' `AssetPicker`
+ * **component**, not a request, so there is no URL to rebuild and no contract
+ * type that replaces it. It is FR-007's own worked example and **retires with
+ * P4** — `registryZones()`, an `<AdminZone>` renderer and the visibility gate —
+ * which is what `plan.md` § *Phase 4* means by *"P2 does not cover
+ * `asset-picker`"*. Its second half, the `assets_library` admin client the field
+ * picker calls to resolve an id, takes the client exit and can be paid first;
+ * both are recorded from the picker's own side in
+ * `backend/scripts/ledgers/cross-module-imports/host.ts`.
  *
  * ## Group B — the admin's session and module-presence state (73 sites)
  *
@@ -55,9 +73,12 @@ export interface UnpublishedAdminReach {
 }
 
 const PICKERS =
-  'A picker over another module’s data: the component fetches from that module’s own API ' +
-  'client, so publishing it would put module knowledge in the kit (R6). It is FR-007’s ' +
-  'worked example — retires when Phase 2 lets the owning module contribute it to a zone.';
+  'A picker over another module’s data: the component renders that module’s own ' +
+  '`AssetPicker`, so publishing it would put module knowledge in the kit (R6). It is ' +
+  'FR-007’s worked example, and the one member of this group a request cannot answer — ' +
+  'P2 retired the other three by rebuilding their calls from the published `apiClient`. ' +
+  'Retires with **P4**, when a zone lets `assets_library` contribute the component and ' +
+  'the host render a slot.';
 
 const SESSION =
   'The admin application’s session/presence state. 23 admin test files mock it at this ' +
@@ -66,15 +87,10 @@ const SESSION =
   'the real providers instead of replacing the modules.';
 
 export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdminReach>> = {
-  'admin/src/modules/api_keys/ApiKeysPage.tsx::admin/src/components/organization-picker/index.ts': { symbols: ['OrganizationPicker'], reason: PICKERS },
-  'admin/src/modules/api_keys/ApiKeysPage.tsx::admin/src/components/sales-channel-picker/SalesChannelPicker.tsx': { symbols: ['SalesChannelPicker'], reason: PICKERS },
   'admin/src/modules/blog/pages/BlogCategoryEditor.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
   'admin/src/modules/catalog/ProductsList.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
-  'admin/src/modules/comparisons/pages/ComparisonsListPage.tsx::admin/src/components/sales-channel-picker/SalesChannelPicker.tsx': { symbols: ['SalesChannelPicker'], reason: PICKERS },
-  'admin/src/modules/credit_limits/CreditLimitsPage.tsx::admin/src/components/organization-picker/OrganizationPicker.tsx': { symbols: ['OrganizationPicker'], reason: PICKERS },
   'admin/src/modules/customer_accounts/CustomerGroupsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/customers/CustomersList.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/customers/panels/ManagementPanels.tsx::admin/src/components/organization-picker/OrganizationPicker.tsx': { symbols: ['OrganizationPicker'], reason: PICKERS },
   'admin/src/modules/delivery_methods/DeliveryMethodsPage.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
   'admin/src/modules/inventory/AvailabilityNotificationsPage.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
   'admin/src/modules/inventory/InventoryPage.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
@@ -84,14 +100,11 @@ export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdmin
   'admin/src/modules/invoices/InvoiceDetail.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/invoices/InvoicesList.tsx::admin/src/components/InvoiceSectionTabs.tsx': { symbols: ['InvoiceSectionTabs'], reason: SESSION },
   'admin/src/modules/invoices/templates/InvoiceTemplatesPage.tsx::admin/src/components/InvoiceSectionTabs.tsx': { symbols: ['InvoiceSectionTabs'], reason: SESSION },
-  'admin/src/modules/invoices/templates/InvoiceTemplatesPage.tsx::admin/src/components/sales-channel-picker/SalesChannelPicker.tsx': { symbols: ['SalesChannelPicker'], reason: PICKERS },
   'admin/src/modules/ksef/components/InvoiceKsefPanel.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/ksef/components/SubmissionsTable.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/ksef/components/SubmissionsTable.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
   'admin/src/modules/ksef/pages/KsefPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/megamenu/components/MenuItemConfigPanel.tsx::admin/src/components/asset-picker/AssetFieldPicker.tsx': { symbols: ['AssetFieldPicker'], reason: PICKERS },
-  'admin/src/modules/megamenu/components/MenuItemConfigPanel.tsx::admin/src/components/cms-picker/CmsBlockPicker.tsx': { symbols: ['CmsBlockPicker'], reason: PICKERS },
-  'admin/src/modules/megamenu/components/MenuItemConfigPanel.tsx::admin/src/components/cms-picker/CmsPagePicker.tsx': { symbols: ['CmsPagePicker'], reason: PICKERS },
   'admin/src/modules/newsletter/pages/AutomationBuilder.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/newsletter/pages/AutomationsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/newsletter/pages/BlocksPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
@@ -106,9 +119,6 @@ export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdmin
   'admin/src/modules/orders/OrderShipmentsTab.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
   'admin/src/modules/orders/OrdersList.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
   'admin/src/modules/organizations/OrganizationSalesRepsTab.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/organizations/OrganizationsList.tsx::admin/src/components/organization-picker/index.ts': { symbols: ['OrganizationStatusBadge'], reason: PICKERS },
-  'admin/src/modules/organizations/panels/HierarchyPanel.tsx::admin/src/components/organization-picker/OrganizationPicker.tsx': { symbols: ['OrganizationPicker'], reason: PICKERS },
-  'admin/src/modules/organizations/panels/ModerationActionsPanel.tsx::admin/src/components/organization-picker/index.ts': { symbols: ['OrganizationStatusBadge'], reason: PICKERS },
   'admin/src/modules/payment_methods/PaymentMethodsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/pim_ergonode/ErgonodeAttributeMappingPage.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
   'admin/src/modules/pim_ergonode/ErgonodeCategoryMappingPage.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
@@ -122,7 +132,6 @@ export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdmin
   'admin/src/modules/product_feeds/FeedTemplateImportPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/product_feeds/FeedTemplateStartFromPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/product_feeds/FeedTemplatesListPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
-  'admin/src/modules/product_feeds/ProductFeedCreatePage.tsx::admin/src/components/sales-channel-picker/SalesChannelPicker.tsx': { symbols: ['SalesChannelPicker'], reason: PICKERS },
   'admin/src/modules/product_feeds/ProductFeedCreatePage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/product_feeds/ProductFeedDetailPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/product_feeds/ProductFeedsListPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
@@ -134,8 +143,6 @@ export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdmin
   'admin/src/modules/promotions/PromotionEditPage.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
   'admin/src/modules/promotions/PromotionsPage.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/quick_order/QuickOrderOnBehalfPage.tsx::admin/src/components/OrderEntryTabs.tsx': { symbols: ['OrderEntryTabs'], reason: SESSION },
-  'admin/src/modules/quick_order/QuickOrderOnBehalfPage.tsx::admin/src/components/organization-picker/OrganizationPicker.tsx': { symbols: ['OrganizationPicker'], reason: PICKERS },
-  'admin/src/modules/quote_requests/RfqList.tsx::admin/src/components/organization-picker/OrganizationPicker.tsx': { symbols: ['OrganizationPicker'], reason: PICKERS },
   'admin/src/modules/quote_requests/RfqList.tsx::admin/src/lib/auth.tsx': { symbols: ['useAuth'], reason: SESSION },
   'admin/src/modules/quote_requests/RfqList.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
   'admin/src/modules/returns/ReturnsList.tsx::admin/src/lib/use-page-size-preference.ts': { symbols: ['usePageSizePreference'], reason: SESSION },
@@ -152,5 +159,4 @@ export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdmin
   'admin/src/modules/warehouses/ChannelMembershipPanel.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
   'admin/src/modules/warehouses/WarehouseEditor.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
   'admin/src/modules/warehouses/WarehousesList.tsx::admin/src/lib/surface-visibility.ts': { symbols: ['useSurfaceVisibility'], reason: SESSION },
-  'admin/src/modules/webhooks/WebhooksPage.tsx::admin/src/components/organization-picker/index.ts': { symbols: ['OrganizationPicker'], reason: PICKERS },
 };

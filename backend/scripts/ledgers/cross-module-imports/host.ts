@@ -17,10 +17,20 @@
  * `host` is the admin application, the owner id `check:admin-registrations` already
  * attributes a route or a nav entry no module claims to. Every other shard here is a
  * consumer **module**; this one is the consumer that owns the platform's frontend and
- * reaches into a module's admin code anyway. Nine files do it, all under
- * `admin/src/components`, and until P1 not one of them was in any instrument's
- * population: `check:module-boundary`'s admin half judges a reach between two modules,
- * and a file the module root does not hold is judged as nobody's.
+ * reaches into a module's admin code anyway. Nine files did it when P1 seeded this
+ * shard, all under `admin/src/components`, and until P1 not one of them was in any
+ * instrument's population: `check:module-boundary`'s admin half judges a reach between
+ * two modules, and a file the module root does not hold is judged as nobody's.
+ *
+ * **P2 retired seven of those ten keys**, leaving two files and three keys. The three
+ * data-fetching pickers with no zone requirement — `sales-channel-picker`, `cms-picker`
+ * and `organization-picker` — each rebuilt its request from the published `apiClient`
+ * and the owner's contract types and moved into `@endora-commerce/admin-kit`, which is
+ * the client exit named below and not a rewritten specifier. `admin/src` keeps a
+ * re-export shim at each old path, so the reaches were **repaired**, not relocated: a
+ * shim exports nothing but the package's own bindings and reaches no module at all.
+ * What is left is `IdleLogout.tsx`, which is batch 11's, and `asset-picker`, whose
+ * component half needs P4.
  *
  * That is the shape with the *worse* failure mode, which is why P1 goes before the
  * batches rather than inside one.
@@ -80,16 +90,12 @@ const PICKER =
   'A host picker over another module’s data, reaching that module’s admin code from ' +
   '`admin/src/components`. Recorded from the consumer’s side in ' +
   '`backend/scripts/ledgers/admin-surface.ts` (Group A) since Phase 1b and from the ' +
-  'picker’s own side only since P1 — publishing it into the kit would put module ' +
-  'knowledge there and break R6, so the answer is a design one and not a `git mv`.';
-
-/** P2's exit, in the plan's own words: rebuild the call, then move into the kit. */
-const RETIRED_BY_P2 =
-  'Retired by: **P2** (`plan.md` § *Phase 4*, *The publications owed*) — the picker ' +
-  'rebuilds its call from the published `apiClient` and the contract’s own types and ' +
-  'moves into `@endora-commerce/admin-kit`. The request and response shapes are already ' +
-  'in `@endora-commerce/contracts`, which both sides compile; what is not published is ' +
-  'the client module, and that is the whole of the reach.';
+  'picker’s own side only since P1 — publishing it *as it stands* would put module ' +
+  'knowledge in the kit and break R6, so the answer is a design one and not a `git mv`. ' +
+  'P2 answered it for the three pickers whose module knowledge is a **request**: rebuild ' +
+  'the call from the published `apiClient` and the owner’s contract types, and the ' +
+  'component holds no module code to publish. `asset-picker` is the one left because its ' +
+  'module knowledge is a **component** (`AssetPicker`), which no URL replaces.';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
   'admin/src/components/IdleLogout.tsx:settings/api/settings-client':
@@ -124,47 +130,4 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'Retired by: the **client exit** — rebuilt from the published `apiClient` and the ' +
     'assets contract. It is separable from the component reach above and can be paid ' +
     'first; the file stops reaching `assets_library` only when both are.',
-
-  'admin/src/components/cms-picker/CmsBlockPicker.tsx:cms/api/cms-client':
-    `${PICKER}\n\n${RETIRED_BY_P2}`,
-
-  'admin/src/components/cms-picker/CmsPagePicker.tsx:cms/api/cms-client':
-    `${PICKER}\n\n${RETIRED_BY_P2}`,
-
-  'admin/src/components/organization-picker/OrganizationPicker.tsx:organizations/api/organizations-picker-client':
-    `${PICKER}\n\n` +
-    'A type-only reach: the picker names `OrganizationStatusPickerFilter`, which is ' +
-    'declared in `admin/src` and published nowhere. `import type` is a violation on the ' +
-    'same terms as a value import (FR-003) — a type edge is a real edge in a ' +
-    '`package.json`, because types resolve at build time.\n\n' +
-    `${RETIRED_BY_P2} P2 carries a Changesets \`minor\` on \`@endora-commerce/contracts\` ` +
-    'for exactly this: `OrganizationPickerListItem` and `OrganizationStatusPickerFilter` ' +
-    'have to be published before the four keys under this picker can go.',
-
-  'admin/src/components/organization-picker/OrganizationPickerMulti.tsx:organizations/api/organizations-picker-client':
-    `${PICKER}\n\n` +
-    'Type-only, naming `OrganizationStatusPickerFilter` — see the entry for ' +
-    '`OrganizationPicker.tsx`.\n\n' +
-    RETIRED_BY_P2,
-
-  'admin/src/components/organization-picker/OrganizationStatusBadge.tsx:organizations/api/organizations-picker-client':
-    `${PICKER}\n\n` +
-    'Type-only, naming `OrganizationStatusPickerFilter` — see the entry for ' +
-    '`OrganizationPicker.tsx`.\n\n' +
-    RETIRED_BY_P2,
-
-  'admin/src/components/organization-picker/useOrganizationsQuery.ts:organizations/api/organizations-picker-client':
-    `${PICKER}\n\n` +
-    'The value half of the same picker: the query hook calls the client itself. It is the ' +
-    'one file of the four that is a `.ts` rather than a `.tsx`, which is why the host walk ' +
-    'collects both extensions — a `.ts`-only walk would have opened this file, found one ' +
-    'reach, and reported over the other eight without saying so.\n\n' +
-    RETIRED_BY_P2,
-
-  'admin/src/components/sales-channel-picker/SalesChannelPicker.tsx:sales_channels/api/sales-channels-client':
-    `${PICKER}\n\n` +
-    'The same call batch three drained four times over — ' +
-    '`salesChannelsClient.list({ activeOnly: false, pageSize: 100 })` — from the one ' +
-    'consumer that was never in the ledger, because it is the host’s.\n\n' +
-    RETIRED_BY_P2,
 };
