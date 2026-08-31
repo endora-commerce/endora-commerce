@@ -115,6 +115,12 @@ export const KnownIconNameSchema = z.enum([
   // "batch six" while `plan.md`'s batch 6 is this set. Both entries stand.
   'Webhook',
   'Scale',
+  // Feature 092 (`specs/092-pimcore-pim-sync/`) — `pim_pimcore`'s sidebar entry.
+  // The glyph `pim_ergonode`'s hand-written NAV row already renders for the
+  // connector directly above it; a module declaration has to name its icon
+  // rather than import it, so the name joins the allowlist here instead of the
+  // entry degrading to one that happens to be on it already.
+  'PlugZap',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

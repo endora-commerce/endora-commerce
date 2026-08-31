@@ -190,6 +190,7 @@ import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
+import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
@@ -365,6 +366,8 @@ export interface BackendServerHandle {
   productFeeds: ProductFeedsCradle['productFeeds']['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
   pimErgonode: PimErgonodeCradle['pimErgonode']['handle'];
+  /** Feature 089 — Pimcore PIM handle (source client seam, inline import). */
+  pimPimcore: PimPimcoreCradle['pimPimcore']['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
   /**
@@ -551,6 +554,18 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 089 — Pimcore PIM. Truncated explicitly because nothing cascades
+  // here from the tables below. Listed children-first.
+  'pimcore_import_issues',
+  'pimcore_field_protections',
+  'pimcore_media_links',
+  'pimcore_source_links',
+  'pimcore_delivered_records',
+  'pimcore_catalogue_deliveries',
+  // Runs and connections reference each other (`current_run_id` /
+  // `connection_id`); truncate … cascade handles the cycle.
+  'pimcore_import_runs',
+  'pimcore_connections',
   // Feature 068 — Ergonode PIM. Truncated explicitly because nothing cascades
   // here: `ergonode_product_links` hangs off products, but the connection, its
   // cursors, mappings, runs and issues have no path from any table below, so
@@ -950,6 +965,7 @@ export async function setupBackendServer(
     apiInterceptors,
     // The module's `ctx.onBoot` schedule reconcile resolves this (T131).
     pimErgonodeRunWorkers: false,
+    pimPimcoreRunWorkers: false,
     productFeedsRunWorkers: false,
     productFeedsPublicBaseUrl: 'http://feeds.test.local',
     productFeedsTokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
@@ -2748,6 +2764,7 @@ export async function setupBackendServer(
     ksef: ksefCradle.ksef.handle,
     productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,
     pimErgonode: (container.cradle as unknown as PimErgonodeCradle).pimErgonode.handle,
+    pimPimcore: (container.cradle as unknown as PimPimcoreCradle).pimPimcore.handle,
     pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,

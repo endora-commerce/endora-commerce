@@ -1,6 +1,6 @@
 # Endora Commerce (b2b-platform) — Agent Instructions
 
-Last updated: 2026-08-10
+Last updated: 2026-08-20
 
 **This file is the single source of truth for every AI coding agent working in this
 repository.** `CLAUDE.md` and `.cursor/rules/specify-rules.mdc` are thin pointers to it —
@@ -1341,8 +1341,11 @@ this file only (see the repo-local override near the top of that script) — tha
 
 ## Subagents
 
-Role-specialised subagents are defined twice, once per tool, with identical roles:
-`.claude/agents/*.md` (Claude Code) and `.cursor/agents/*.md` (Cursor). Their prompts stay
+Role-specialised subagents are defined **once per tool**, with identical roles — Claude Code in
+`.claude/agents/*.md`, Cursor in `.cursor/agents/*.md`, Codex in `.codex/agents/*.toml`. **How many
+tools that is is not written here**: this sentence read *"defined twice"* until the Codex set landed,
+which is a count of a derived fact going stale in the paragraph that has to stay true as tools are
+added (D-100). `ls -d .claude/agents .cursor/agents .codex/agents` answers it. Their prompts stay
 short on purpose — repository conventions live here, not in the agent files.
 
 | Agent | Use for |
@@ -1358,7 +1361,11 @@ short on purpose — repository conventions live here, not in the agent files.
 every UI change — the Laws of UX (<https://lawsofux.com/>) rewritten as actionable frontend
 rules, plus the WCAG 2.2 AA floor, the repo's design tokens and primitives, and the required
 component states. Unlike the subagent prompts it is **not duplicated per tool**: the Cursor
-agent reads that path directly. Update it in place; never fork a second copy.
+agent reads that path directly, and where a tool insists on finding a skill under its own root the
+answer is a **relative symlink** to this path, never a copy — `.agents/skills/ux-laws/SKILL.md` is
+one. Relative, so it travels with the checkout and resolves inside a `git worktree` rather than
+pointing at whichever tree it was created from; the same property issue #255 depends on for
+`node_modules`. Update it in place; never fork a second copy.
 
 ---
 
@@ -1376,6 +1383,8 @@ agent reads that path directly. Update it in place; never fork a second copy.
 - PostgreSQL. No new table. One new column-free path: activation values live in the existing `settings` rows (`global_value` / `default_value`); platform availability stays in `module_registrations` (073-lifecycle-gating-completion)
 - TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ. **One new runtime dependency: `awilix`** — see Complexity Tracking (072-module-kernel-di)
 - PostgreSQL. No schema change of its own. Three entity relocations follow D-32: `audit_logs`' service and entity, the settings store, and the `sales_channels` resolution machinery move into the kernel package (072-module-kernel-di)
+- TypeScript 5.x strict on Node.js >= 22.17 for Endora; PHP 8.2+ package code in the sibling `pim-integrations` workspace + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; PHP uses the existing Pimcore/Symfony/Composer stack; **no new runtime dependency** (089-pimcore-pim-sync)
+- PostgreSQL for connection, delivery, complete-record inbox, source/media links, protection, run and issue state; Redis/BullMQ for durable asynchronous apply and stale-run recovery (089-pimcore-pim-sync)
 
 - TypeScript 5.x strict on Node.js ≥ 22.17; Fastify + MikroORM (PostgreSQL) + Zod + ioredis + BullMQ + Meilisearch (backend)
 - React 19 + Vite + react-router-dom 7 + Tailwind 4 (admin); Next.js 15 App Router + React 19 + Tailwind v4 (storefront)
@@ -1386,6 +1395,7 @@ agent reads that path directly. Update it in place; never fork a second copy.
 See "Repo map" above.
 
 ## Recent Changes
+- 089-pimcore-pim-sync: Added TypeScript 5.x strict on Node.js >= 22.17 for Endora; PHP 8.2+ package code in the sibling `pim-integrations` workspace + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; PHP uses the existing Pimcore/Symfony/Composer stack; **no new runtime dependency**
 - 068-inpost-shipping: InPost ShipX PL module (`inpost`) — dual shipping adapters, Geowidget v5, BullMQ poll, PDF labels; orders `shipping_adapter_data`.
 - 072-module-kernel-di: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ. **One new runtime dependency: `awilix`** — see Complexity Tracking
 - 073-lifecycle-gating-completion: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15 App Router + React 19 (storefront). **No new runtime dependency** (Constitution IV, FR-062)

@@ -25,6 +25,9 @@ export interface SalesChannelResolutionPort {
   /** Lookup by code; `null` when the code is unknown. */
   getByCode(code: string): Promise<CachedChannel | null>;
 
+  /** Every channel, ordered by code. */
+  listAll(): Promise<CachedChannel[]>;
+
   /** Lookup by id — a bound API key pins its channel by id, not code. */
   getById(id: string): Promise<CachedChannel | null>;
 
@@ -72,6 +75,17 @@ export interface SalesChannelMembershipPort {
   bindToDefaultIfEmpty(
     entityType: ChannelMemberEntityType,
     entityId: string,
+  ): Promise<MembershipMutationResult>;
+
+  /**
+   * Replace an entity's complete channel membership set atomically.
+   * Complete-record integrations use this instead of composing add/remove.
+   */
+  replaceChannelsForEntity(
+    entityType: ChannelMemberEntityType,
+    entityId: string,
+    channelIds: readonly [string, ...string[]],
+    options?: MembershipMutationOptions,
   ): Promise<MembershipMutationResult>;
 
   /**
