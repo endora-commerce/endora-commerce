@@ -260,6 +260,18 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // worth of keys and belongs to whoever is repairing this screen, not to a
   // batch whose subject is where the file lives.
   'packages/modules/mfa/src/admin/pages/AdminSecuritySettings.tsx': 16,
+  // Feature 091, Phase 4 batch five: the screen moved into `stripe`'s package
+  // and the entry is **re-keyed**, not raised and not dropped — the same
+  // twenty-nine strings at a new address, which this check's two-way ratchet
+  // reported in one run as a regression at the new key and a drain at the old
+  // one. `stripe` is the one member of that batch whose screen calls no
+  // `useTranslation` at all: the other six render every sentence through their
+  // module's bundle, and this one renders its credentials, its payment-method
+  // table and its display-mode explanation in English whatever language the
+  // operator chose. Translating them is a screen's worth of keys and belongs to
+  // whoever repairs this screen, not to a batch whose subject is where the file
+  // lives.
+  'packages/modules/stripe/src/admin/pages/StripeSettingsPage.tsx': 29,
   'admin/src/modules/newsletter/pages/AutomationBuilder.tsx': 6,
   'admin/src/modules/newsletter/pages/AutomationsPage.tsx': 4,
   'admin/src/modules/newsletter/pages/BlocksPage.tsx': 8,
@@ -282,7 +294,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'admin/src/modules/settings/PushAudienceRuleBuilder.tsx': 17,
   'admin/src/modules/settings/components/AssetIdSettingInput.tsx': 1,
   'admin/src/modules/settings/pages/PwaPage.tsx': 22,
-  'admin/src/modules/stripe/StripeSettingsPage.tsx': 29,
   'admin/src/modules/transactional_emails/components/BrandingPanel.tsx': 5,
   'admin/src/modules/transactional_emails/pages/EmailBlocksPage.tsx': 3,
   'admin/src/modules/transactional_emails/pages/EmailEditor.tsx': 3,

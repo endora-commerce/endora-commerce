@@ -110,13 +110,6 @@ import { DisplayModeOverridesPage } from './modules/price_lists/DisplayModeOverr
 import { HomePage } from './modules/home/HomePage.js';
 import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
 import { PaymentMethodsPage } from './modules/payment_methods/PaymentMethodsPage.js';
-import { StripeSettingsPage } from './modules/stripe/StripeSettingsPage.js';
-import { TpaySettingsPage } from './modules/tpay/TpaySettingsPage.js';
-import { PayuSettingsPage } from './modules/payu/PayuSettingsPage.js';
-import { AutopaySettingsPage } from './modules/autopay/AutopaySettingsPage.js';
-import { PaypalSettingsPage } from './modules/paypal/PaypalSettingsPage.js';
-import { DhlParcelSettingsPage } from './modules/dhl_parcel/DhlParcelSettingsPage.js';
-import { InpostSettingsPage } from './modules/inpost/InpostSettingsPage.js';
 import { CredentialsPage } from './modules/credentials/pages/CredentialsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
@@ -334,15 +327,17 @@ export function App(): ReactNode {
         <Route path="/price-lists/display-modes" element={<DisplayModeOverridesPage />} />
         <Route path="/price-lists/:id" element={<PriceListDetailPage />} />
         <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
-        <Route path="/delivery-methods/dhl-parcel" element={<DhlParcelSettingsPage />} />
+        {/*
+          A redirect for the deep links that predate the screen's move to
+          `/delivery-methods/dhl-parcel`, and the admin application's own:
+          `dhl_parcel` declares the destination route in its own package since
+          feature 091's Phase 4 batch five, and a `<Navigate>` is not that
+          module's screen. It stays ungated deliberately — the destination is
+          what `ModuleRoute` gates, so an operator who cannot reach the screen
+          meets the admin's not-found treatment there rather than here.
+        */}
         <Route path="/settings/dhl-parcel" element={<Navigate to="/delivery-methods/dhl-parcel" replace />} />
         <Route path="/payment-methods" element={<PaymentMethodsPage />} />
-        <Route path="/settings/stripe" element={<StripeSettingsPage />} />
-        <Route path="/settings/tpay" element={<TpaySettingsPage />} />
-        <Route path="/settings/payu" element={<PayuSettingsPage />} />
-        <Route path="/settings/autopay" element={<AutopaySettingsPage />} />
-        <Route path="/settings/paypal" element={<PaypalSettingsPage />} />
-        <Route path="/settings/inpost" element={<InpostSettingsPage />} />
         <Route path="/credentials" element={<CredentialsPage />} />
         <Route path="/credentials/new" element={<CredentialsPage initialMode="new" />} />
         <Route path="/inventory" element={<InventoryPage />} />

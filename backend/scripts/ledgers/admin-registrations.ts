@@ -95,6 +95,34 @@
  * move"* objection had wrong. The run after them reads
  * `routes=133 nav=92 module-owned (routes=129 nav=89) over 42 modules`.
  *
+ * **`dhl_parcel`, `inpost`, `autopay`, `paypal`, `payu`, `stripe` and `tpay`
+ * are the eleventh through seventeenth, and the fifth batch of the drain**
+ * (feature 091, Phase 4). One family — a settings screen reached from another
+ * module's card, one route each and not one sidebar entry among them — and the
+ * first batch since batch three to **pay** reaches rather than to find none.
+ * All seven were excluded from batches two and three by the nav-less criterion
+ * `plan.md`'s Ruling 1 retires, so the entry above's arithmetic applies to them
+ * unchanged: `{ routes: 1, nav: 0 }` is removed like any other entry, and the
+ * zero that stays zero is a passing assertion.
+ *
+ * The seven reaches take **two** exits, both of them batch three's. The five
+ * gateways each imported `dictionaries`' admin client for one call and now
+ * build it from the published `apiClient` and
+ * `DictionaryCountriesPageResponse`; their five ledger shards are deleted with
+ * it. The two carriers were reached from the **other** direction — one file,
+ * `admin/src/modules/orders/OrderShipmentsTab.tsx`, importing both adapters'
+ * clients — which is why the shard says the batch takes both or neither, and
+ * `orders` now builds those four calls itself. `check:module-boundary` reads
+ * `cross-module reaches=83 -> 76`, `ledger-size 83 -> 76`, `shards 25 -> 20`.
+ * The run after them reads
+ * `routes=126 nav=92 module-owned (routes=122 nav=89) over 35 modules`.
+ *
+ * **`host` does not move, and the one thing that could have moved it is the
+ * `/settings/dhl-parcel` redirect.** It is a `<Navigate>` whose element comes
+ * from `react-router-dom` rather than from a surface directory, so it was
+ * already attributed to the admin application and stays there; the module's own
+ * route — the redirect's destination — is what left `App.tsx`.
+ *
  * Two attributions, deliberately different, because the tree disagrees about
  * one screen: a **route** belongs to the module whose surface directory
  * `App.tsx` imports its component from, and a **nav entry** belongs to the
@@ -138,7 +166,6 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   host: { routes: 4, nav: 3 },
   api_keys: { routes: 1, nav: 2 },
   assets_library: { routes: 1, nav: 1 },
-  autopay: { routes: 1, nav: 0 },
   blog: { routes: 7, nav: 3 },
   catalog: { routes: 8, nav: 9 },
   cms: { routes: 11, nav: 4 },
@@ -149,13 +176,7 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   customer_accounts: { routes: 1, nav: 1 },
   customers: { routes: 3, nav: 2 },
   delivery_methods: { routes: 1, nav: 2 },
-  dhl_parcel: { routes: 1, nav: 0 },
   dictionaries: { routes: 3, nav: 4 },
-  // Arrived with the InPost integration (!1103), which landed between this
-  // baseline being written and the check that reads it. Same shape as
-  // `dhl_parcel` above: a carrier settings route the host registers and no nav
-  // entry of its own, reached from the delivery-methods card.
-  inpost: { routes: 1, nav: 0 },
   inventory: { routes: 7, nav: 6 },
   invoices: { routes: 4, nav: 1 },
   ksef: { routes: 1, nav: 1 },
@@ -164,8 +185,6 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   orders: { routes: 4, nav: 4 },
   organizations: { routes: 2, nav: 2 },
   payment_methods: { routes: 1, nav: 2 },
-  paypal: { routes: 1, nav: 0 },
-  payu: { routes: 1, nav: 0 },
   pim_ergonode: { routes: 5, nav: 1 },
   price_lists: { routes: 3, nav: 2 },
   product_feeds: { routes: 10, nav: 1 },
@@ -177,9 +196,7 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   sales_channels: { routes: 3, nav: 2 },
   seo: { routes: 1, nav: 1 },
   settings: { routes: 4, nav: 4 },
-  stripe: { routes: 1, nav: 0 },
   taxes: { routes: 1, nav: 1 },
-  tpay: { routes: 1, nav: 0 },
   transactional_emails: { routes: 6, nav: 6 },
   webhooks: { routes: 1, nav: 2 },
 };
