@@ -1,7 +1,10 @@
 // Drag-and-drop / file-input uploader — feature 013 / US1.
 // Streams a single file to the Library and emits the resulting AssetDetail on
 // success. The request is the kit's own since feature 091's P4c — see
-// `./assets-api.ts`.
+// `./assets-api.ts` — and so is the copy, under `core`'s `assetPicker.upload.*`:
+// R-1 (2026-08-31) rules a translation namespace to be module knowledge, so a
+// kit component may not name `assets_library`'s bundle. `AssetPicker`'s header
+// carries the reasoning.
 
 import { useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from 'react';
 import type { AssetDetail } from '@endora-commerce/contracts';
@@ -27,7 +30,7 @@ export function AssetUploader({
   onUploaded,
   triggerLabel,
 }: AssetUploaderProps): ReactNode {
-  const t = useTranslation('assets_library');
+  const t = useTranslation('core');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragHover, setDragHover] = useState(false);
@@ -37,7 +40,7 @@ export function AssetUploader({
     setError(null);
     if (acceptPrefix && !file.type.startsWith(acceptPrefix)) {
       setError(
-        t('uploader.error.wrongType', {
+        t('assetPicker.upload.error.wrongType', {
           expected: acceptPrefix.replace('/', ''),
           actual: file.type || file.name,
         }),
@@ -82,7 +85,7 @@ export function AssetUploader({
         className={`rounded-md border-2 border-dashed p-4 text-center text-sm ${
           dragHover ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'
         }`}
-        aria-label={t('uploader.dropAria')}
+        aria-label={t('assetPicker.upload.dropAria')}
       >
         <input
           ref={fileInput}
@@ -92,7 +95,7 @@ export function AssetUploader({
           onChange={onChange}
         />
         <p className="text-muted-foreground">
-          {busy ? t('uploader.uploading') : t('uploader.dropCopy')}
+          {busy ? t('assetPicker.upload.uploading') : t('assetPicker.upload.dropCopy')}
         </p>
         <Button
           type="button"
@@ -102,7 +105,7 @@ export function AssetUploader({
           disabled={busy}
           onClick={(): void => fileInput.current?.click()}
         >
-          {busy ? t('uploader.uploading') : (triggerLabel ?? t('uploader.trigger'))}
+          {busy ? t('assetPicker.upload.uploading') : (triggerLabel ?? t('assetPicker.upload.trigger'))}
         </Button>
       </div>
       {error ? (

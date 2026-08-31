@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { renderWithI18n } from '../helpers/render-with-i18n';
 
 /**
  * The asset cluster builds its **own** requests (feature 091, P4c).
@@ -24,6 +26,20 @@ import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
  * components import `apiClient` and `apiBaseUrl` from — because `vi.mock` keys
  * on a resolved module id and a component importing `../../lib/api-client.js`
  * from inside the package resolves to a module this mock does not name.
+ *
+ * ## Why the bundle is the shipped one and the assertions are on **text**
+ *
+ * R-1 (`admin-kit-surface.md` R6, 2026-08-31) rules that a translation namespace
+ * is module knowledge: these components read `core` now, not
+ * `useTranslation('assets_library')`. Nothing about that failure is loud — a key
+ * the bundle does not carry does not throw and does not 404, it renders
+ * `core.<key>` into the operator's screen — so a `passthroughBundle` that
+ * resolves every key to itself would pass whether the move happened or not, and
+ * would pass equally over a typo.
+ *
+ * So the bundle is read off `_i18n`'s **shipped** `en.json` and every assertion
+ * names the English sentence an operator would see. A key that did not travel,
+ * or travelled under a different spelling, fails on the rendered string.
  */
 
 const getSpy = vi.fn();
@@ -48,19 +64,53 @@ const { AssetFieldPicker, AssetPicker, AssetUploader } = await import(
   '@endora-commerce/admin-kit/components'
 );
 
-const bundle = passthroughBundle('assets_library', [
-  'picker.searchPlaceholder',
-  'picker.empty',
-  'picker.uploadNew',
-  'common.search',
-  'common.close',
-  'common.loading',
-  'uploader.dropAria',
-  'uploader.dropCopy',
-  'uploader.trigger',
-  'uploader.uploading',
-  'uploader.error.wrongType',
-]);
+/**
+ * `_i18n`'s bundle, which the admin serves under the synthetic `core` scope.
+ *
+ * `process.cwd()` is the `admin` workspace under vitest — the spelling
+ * `admin/test/components/ScopeNotice.test.tsx` already uses to read the same
+ * file, and for the same reason: `import.meta.url` is not a `file:` URL through
+ * vitest's transform.
+ */
+const CORE_EN = JSON.parse(
+  readFileSync(resolve(process.cwd(), '../packages/modules/_i18n/i18n/en.json'), 'utf8'),
+) as Record<string, string>;
+
+const bundle = { core: CORE_EN };
+
+/**
+ * Every key `core` did not carry, and a sentinel in its place.
+ *
+ * Reading the bundle is what makes these assertions worth anything, and a
+ * missing key must not take the file down at import — then nothing reports
+ * *which* key. So a miss is recorded and stands in as a string no rendered
+ * output can match, which reds the coverage case by name and every render case
+ * that needed it.
+ */
+const MISSING: string[] = [];
+const copy = (key: string): string => {
+  const value = CORE_EN[key];
+  if (value === undefined) {
+    MISSING.push(key);
+    return `«core is missing ${key}»`;
+  }
+  return value;
+};
+
+/** The eleven keys the two components read, as an operator sees them. */
+const COPY = {
+  searchPlaceholder: copy('assetPicker.searchPlaceholder'),
+  empty: copy('assetPicker.empty'),
+  uploadNew: copy('assetPicker.uploadNew'),
+  search: copy('common.action.search'),
+  close: copy('common.action.close'),
+  loading: copy('common.state.loading'),
+  dropAria: copy('assetPicker.upload.dropAria'),
+  dropCopy: copy('assetPicker.upload.dropCopy'),
+  trigger: copy('assetPicker.upload.trigger'),
+  uploading: copy('assetPicker.upload.uploading'),
+  wrongType: copy('assetPicker.upload.error.wrongType'),
+};
 
 const IMAGE = {
   id: 'a-1',
@@ -86,7 +136,37 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe('the eleven keys travelled to `core`', () => {
+  it('carries every one of them in the shipped bundle', () => {
+    // The move's own assertion, and the reason it names the keys: a bundle that
+    // lost one renders `core.assetPicker.empty` at the operator — no throw, no
+    // 404 — which a `passthroughBundle` test would sail straight past.
+    expect(MISSING).toEqual([]);
+    expect(Object.keys(COPY)).toHaveLength(11);
+  });
+
+  it('reads the three generic ones from `core`\'s own families, not from copies', () => {
+    // R-1's remedy is a move, not a duplication: `Close`, `Loading…` and
+    // `Search` are concepts `core` already names, so the picker uses those and
+    // adds nothing beside them.
+    expect(COPY.close).toBe(CORE_EN['common.action.close']);
+    expect(COPY.loading).toBe(CORE_EN['common.state.loading']);
+    expect(COPY.search).toBe(CORE_EN['common.action.search']);
+  });
+});
+
 describe('AssetPicker', () => {
+  it('renders its own copy out of the `core` bundle', async () => {
+    getSpy.mockResolvedValue({ data: [], nextCursor: null });
+
+    renderWithI18n(<AssetPicker onSelect={(): void => {}} onClose={(): void => {}} />, bundle);
+
+    expect(screen.getByPlaceholderText(COPY.searchPlaceholder)).toBeTruthy();
+    expect(screen.getByRole('button', { name: COPY.search })).toBeTruthy();
+    expect(screen.getByRole('button', { name: COPY.close })).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(COPY.empty)).toBeTruthy());
+  });
+
   it('asks the assets list endpoint itself, with the picker page size', async () => {
     getSpy.mockResolvedValue({ data: [IMAGE], nextCursor: null });
 
@@ -106,11 +186,8 @@ describe('AssetPicker', () => {
     await waitFor(() => expect(getSpy).toHaveBeenCalled());
     expect(getSpy.mock.calls[0]?.[0]).toBe('/api/v1/admin/assets?mime=image%2F&limit=24');
 
-    await userEvent.type(
-      screen.getByPlaceholderText('picker.searchPlaceholder'),
-      'logo',
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'common.search' }));
+    await userEvent.type(screen.getByPlaceholderText(COPY.searchPlaceholder), 'logo');
+    await userEvent.click(screen.getByRole('button', { name: COPY.search }));
 
     await waitFor(() => expect(getSpy.mock.calls.length).toBeGreaterThan(1));
     expect(getSpy.mock.calls.at(-1)?.[0]).toBe(
@@ -152,6 +229,40 @@ describe('AssetFieldPicker', () => {
 });
 
 describe('AssetUploader', () => {
+  it('renders its own copy out of the `core` bundle', () => {
+    const { container } = renderWithI18n(
+      <AssetUploader onUploaded={(): void => {}} />,
+      bundle,
+    );
+    expect(container.querySelector(`[aria-label="${COPY.dropAria}"]`)).toBeTruthy();
+    expect(screen.getByText(COPY.dropCopy)).toBeTruthy();
+    expect(screen.getByRole('button', { name: COPY.trigger })).toBeTruthy();
+  });
+
+  it('names the offending type in the wrong-type message, interpolated', async () => {
+    // The one key of the eleven that takes parameters. A raw-key render would
+    // show `core.assetPicker.upload.error.wrongType` with no substitution, so
+    // this asserts the interpolation as well as the lookup.
+    const { container } = renderWithI18n(
+      <AssetUploader acceptPrefix="image/" onUploaded={(): void => {}} />,
+      bundle,
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    // `applyAccept: false` because the component's own guard is the subject:
+    // user-event honours the `accept` attribute and would drop the file before
+    // the handler that produces this message ever ran. A real drag-and-drop
+    // reaches the same guard, `accept` being an input-picker filter and not a
+    // validation.
+    await userEvent.upload(input, new File(['x'], 'notes.txt', { type: 'text/plain' }), {
+      applyAccept: false,
+    });
+
+    const expected = COPY.wrongType
+      .replace('{expected}', 'image')
+      .replace('{actual}', 'text/plain');
+    await waitFor(() => expect(within(container).getByText(expected)).toBeTruthy());
+  });
+
   it('posts multipart to the assets endpoint on the published API origin', async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
