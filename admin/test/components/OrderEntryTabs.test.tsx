@@ -9,8 +9,13 @@ import { OrderEntryTabs } from '../../src/components/OrderEntryTabs';
 
 // Feature 073 — every admin surface resolves its own presence from the module
 // projection. These cases are about layout and routing, not about presence, so
-// the projection is stubbed as "everything is here"; the filtering itself is
-// covered in AppShell.module-presence.test.tsx.
+// the projection names the ids this component asks about and nothing else; the
+// filtering itself is covered in AppShell.module-presence.test.tsx.
+//
+// It is a **seeded provider**, not a stubbed hook, since feature 091's P3:
+// `useModulePresence` is `@endora-commerce/admin-kit`'s, where a `vi.mock` on
+// `@/lib/module-presence` cannot reach it. `withSession` supplies it through
+// the `initial` prop it has carried since feature 073.
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),

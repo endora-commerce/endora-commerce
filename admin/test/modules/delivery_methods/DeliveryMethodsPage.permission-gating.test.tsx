@@ -24,10 +24,11 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  *
  * Both axes are exercised, because they are two different refusals over one
  * screen: a permission the role does not hold, and a module the operator has
- * switched off (Constitution XVII item 5). The mocks stop at `useAuth` and
- * `useModulePresence` deliberately, so the real `useSurfaceVisibility`
- * predicate — the one the sidebar and the palette run — is the thing under
- * test rather than a stub of it.
+ * switched off (Constitution XVII item 5). Nothing is stubbed: since feature
+ * 091's P3 both providers are mounted for real over a session and a projection
+ * each case chooses, so the `useSurfaceVisibility` predicate — the one the
+ * sidebar and the palette run — is the thing under test, and so is the
+ * `hasPermission` underneath it.
  */
 
 const rows = [

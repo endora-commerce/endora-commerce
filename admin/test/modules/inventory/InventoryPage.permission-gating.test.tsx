@@ -26,9 +26,11 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * screen: a permission the role does not hold, and the module not being present
  * (Constitution XVII item 5). For `inventory` the second axis is a **real
  * operator switch** — `inventory.enabled`, default on — and not merely platform
- * availability, which is what makes it worth its own case here. The mocks stop
- * at `useAuth` and `useModulePresence` deliberately, so the real
- * `useSurfaceVisibility` is the thing under test rather than a stub of it.
+ * availability, which is what makes it worth its own case here. Nothing is
+ * stubbed: since feature 091's P3 both providers are mounted for real over a
+ * session and a projection each case chooses, so the real
+ * `useSurfaceVisibility` is the thing under test — and so is the
+ * `hasPermission` underneath it, which the mocks used to stand in for.
  */
 
 const kpis = {

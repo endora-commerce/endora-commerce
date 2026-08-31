@@ -63,6 +63,14 @@
  * mock working through the shim; what breaks is a subject whose gate runs
  * *inside* the package.
  *
+ * **37, by the time it landed**, and the extra one is the lesson repeating
+ * inside the merge request that records it. `pim_pimcore` arrived on `master`
+ * while P3 was in review, with an off-state test written against a tree where
+ * `useAuth` was still mockable at `@/lib/auth`. It passes on `master`, P3 passes
+ * without it, and only the **merge** holds both — a tree no pipeline builds. A
+ * count is a description of one commit, and the population has to be re-derived
+ * against the tree that will actually run.
+ *
  * They drive the real providers now (`admin/test/helpers/render-with-session.tsx`),
  * seeded through `initial` on both, which is a better test on its own terms: a
  * permission gate asserted against a stub of the predicate asserts that the stub

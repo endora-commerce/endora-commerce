@@ -29,9 +29,12 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * `activation.nonDeactivatable`, so no operator can withdraw it, while a
  * deployment that never installs the module is a state the manifest's own
  * comment records as still open. The screen asks the same question either way,
- * through the same predicate every other surface uses; the mocks stop at
- * `useAuth` and `useModulePresence` deliberately, so the real
- * `useSurfaceVisibility` is the thing under test rather than a stub of it.
+ * through the same predicate every other surface uses, and the predicate is the
+ * real one: this file used to say *"the mocks stop at `useAuth` and
+ * `useModulePresence` deliberately, so the real `useSurfaceVisibility` is the
+ * thing under test rather than a stub of it"*, and feature 091's P3 took the
+ * last step it was describing — nothing is stubbed at all now. Both providers
+ * are mounted for real over a session and a projection each case chooses.
  *
  * The write half is asserted separately, and it is new: until this change there
  * was no read-only role to have, because reading the table required the write

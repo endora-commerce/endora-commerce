@@ -88,7 +88,9 @@ right. 23 of the admin's test files mocked those modules **at the module path**,
 thing under test rather than a stub of it."* `vi.mock` keys on a module id, so moving
 `surface-visibility` here alongside `auth` put that seam **inside** the package, where those
 mocks could not reach it. Measured by doing it: **36 files and 179 tests**, every one failing
-with `useAuth must be used inside <AuthProvider>`. They drive the real providers now, seeded
+with `useAuth must be used inside <AuthProvider>` — and **37** by the time it landed, because
+a module with an off-state test of its own arrived on `master` in the meantime. A count
+describes one commit; re-derive the population against the tree that will run. They drive the real providers now, seeded
 through `initial` on both — a better test on its own terms, because a permission gate
 asserted against a stub of the predicate asserts that the stub was consulted.
 
