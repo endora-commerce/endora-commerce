@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CronBuilderField } from '../../../src/modules/product_feeds/components/CronBuilderField';
+import { CronBuilderField } from '../../../../packages/modules/product_feeds/src/admin/components/CronBuilderField';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**

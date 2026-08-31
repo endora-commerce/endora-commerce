@@ -165,6 +165,24 @@
  * cluster, whose retiring condition is a merge request of its own. `pwa` is the
  * only module in the whole remaining table with zero of all three.
  *
+ * **Batch 7 removes four entries and 25 registrations** — `promotions` (5/4),
+ * `payment_methods` (1/2), `customer_accounts` (1/1) and `product_feeds` (10/1),
+ * the plan's batch 7 delivered whole. The paragraph above records
+ * `customer_accounts` as *"one symbol from clean — `useAuth`, the Group B
+ * session cluster, whose retiring condition is a merge request of its own"*.
+ * That merge request is P3 (!1220), which published the whole cluster into
+ * `@endora-commerce/admin-kit/lib`; the sentence is left standing because it
+ * was a true measurement of the tree batch four was picked from, and the entry
+ * it describes is gone here rather than the history being rewritten.
+ *
+ * **Three of the four pay no reach and the fourth pays one**, which is stated
+ * because an unchanged `check:module-boundary` line is otherwise
+ * indistinguishable from a laundered move. None of the four appears in
+ * `admin-surface.ts`, and only `product_feeds` has a shard — one key,
+ * `ProductFeedCreatePage.tsx` reaching `sales_channels`' admin client, paid by
+ * rebuilding both calls from the published `apiClient` in the module's own
+ * `api.ts`. That shard is deleted.
+ *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.
@@ -199,7 +217,6 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   credentials: { routes: 2, nav: 2 },
   credit_limits: { routes: 1, nav: 2 },
   custom_fields: { routes: 1, nav: 1 },
-  customer_accounts: { routes: 1, nav: 1 },
   customers: { routes: 3, nav: 2 },
   delivery_methods: { routes: 1, nav: 2 },
   dictionaries: { routes: 3, nav: 4 },
@@ -210,11 +227,8 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   newsletter: { routes: 11, nav: 9 },
   orders: { routes: 4, nav: 4 },
   organizations: { routes: 2, nav: 2 },
-  payment_methods: { routes: 1, nav: 2 },
   pim_ergonode: { routes: 5, nav: 1 },
   price_lists: { routes: 3, nav: 2 },
-  product_feeds: { routes: 10, nav: 1 },
-  promotions: { routes: 5, nav: 4 },
   quick_order: { routes: 1, nav: 0 },
   quote_requests: { routes: 3, nav: 2 },
   returns: { routes: 5, nav: 1 },

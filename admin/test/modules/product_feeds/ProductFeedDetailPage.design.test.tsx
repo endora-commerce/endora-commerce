@@ -3,7 +3,8 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import type { FeedRunDetail, ProductFeedDto } from '../../../src/modules/product_feeds/api';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+import type { FeedRunDetail, ProductFeedDto } from '../../../../packages/modules/product_feeds/src/admin/api';
 
 /**
  * The run history on the feed page sat on bare page background while Orders,
@@ -19,10 +20,10 @@ import type { FeedRunDetail, ProductFeedDto } from '../../../src/modules/product
 const get = vi.fn();
 const listRuns = vi.fn();
 
-vi.mock('../../../src/modules/product_feeds/api', async () => {
+vi.mock('../../../../packages/modules/product_feeds/src/admin/api', async () => {
   const actual = await vi.importActual<
-    typeof import('../../../src/modules/product_feeds/api')
-  >('../../../src/modules/product_feeds/api');
+    typeof import('../../../../packages/modules/product_feeds/src/admin/api')
+  >('../../../../packages/modules/product_feeds/src/admin/api');
   return {
     ...actual,
     productFeedsClient: {
@@ -34,9 +35,16 @@ vi.mock('../../../src/modules/product_feeds/api', async () => {
   };
 });
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: () => true }),
-}));
+/**
+ * **The screen is `@endora-commerce/mod-product-feeds`' since feature 091's
+ * Phase 4 (the plan's batch 7), so its `useAuth` is the kit's.** This file used
+ * to replace `@/lib/auth`, which is a re-export shim now: the module the screen
+ * names is `@endora-commerce/admin-kit/lib`, and a mock at the old path is a
+ * no-op the screen never sees. The real provider is seeded instead, which is
+ * the better test anyway — a permission gate asserted against a stub of the
+ * predicate asserts that the stub was consulted. `['*']` is right here because
+ * this file's subject is the design system, not the gate.
+ */
 
 const bundle = passthroughBundle('product_feeds', [
   'page.title',
@@ -57,7 +65,7 @@ const bundle = passthroughBundle('product_feeds', [
 ]);
 
 const { ProductFeedDetailPage } = await import(
-  '../../../src/modules/product_feeds/ProductFeedDetailPage'
+  '../../../../packages/modules/product_feeds/src/admin/pages/ProductFeedDetailPage'
 );
 
 const FEED = {
@@ -120,11 +128,17 @@ function run(): FeedRunDetail {
 
 async function openRunsTab(): Promise<void> {
   renderWithI18n(
-    <MemoryRouter initialEntries={['/product-feeds/f1']}>
-      <Routes>
-        <Route path="/product-feeds/:feedId" element={<ProductFeedDetailPage />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/product-feeds/f1']}>
+        <Routes>
+          <Route path="/product-feeds/:feedId" element={<ProductFeedDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: ['*'] }),
+        presence: modulePresence({ present: ['product_feeds'] }),
+      },
+    ),
     bundle,
   );
   const tab = await screen.findByRole('tab', { name: 'feeds.tab.runs' });

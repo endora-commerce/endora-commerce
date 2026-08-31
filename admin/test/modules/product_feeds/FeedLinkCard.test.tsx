@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import type { ProductFeedDto } from '../../../src/modules/product_feeds/api';
-import { FeedLinkCard } from '../../../src/modules/product_feeds/components/FeedLinkCard';
+import { adminSession, withSession } from '../../helpers/render-with-session';
+import type { ProductFeedDto } from '../../../../packages/modules/product_feeds/src/admin/api';
+import { FeedLinkCard } from '../../../../packages/modules/product_feeds/src/admin/components/FeedLinkCard';
 
 /**
  * The card that hands the operator the link they paste into Merchant Center.
@@ -15,9 +16,19 @@ import { FeedLinkCard } from '../../../src/modules/product_feeds/components/Feed
  * keep the masked form rather than offering a copy button for a URL that 404s.
  */
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: () => true }),
-}));
+/**
+ * **The card is `@endora-commerce/mod-product-feeds`' since feature 091's
+ * Phase 4 (the plan's batch 7), so its `useAuth` is the kit's.** This file used
+ * to replace `@/lib/auth`, which is a re-export shim now: the module the
+ * component names is `@endora-commerce/admin-kit/lib`, and a mock at the old
+ * path is a no-op the component never sees. The real provider is seeded
+ * instead, which is the better test anyway — a permission gate asserted against
+ * a stub of the predicate asserts that the stub was consulted.
+ *
+ * `['*']` is the wildcard `hasPermission` already understands, and is right
+ * here because this file's subject is the link, not the gate: every case below
+ * is about what the card renders for a given token state.
+ */
 
 const bundle = passthroughBundle('product_feeds', [
   'feeds.link.ready.title',
@@ -76,9 +87,12 @@ function feed(token: Partial<ProductFeedDto['token']> = {}): ProductFeedDto {
 
 function render(dto: ProductFeedDto): void {
   renderWithI18n(
-    <MemoryRouter>
-      <FeedLinkCard feed={dto} issuedToken={null} onChanged={() => undefined} />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter>
+        <FeedLinkCard feed={dto} issuedToken={null} onChanged={() => undefined} />
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
     bundle,
   );
 }

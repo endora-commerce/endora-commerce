@@ -4,8 +4,8 @@ import {
   TemplatePreviewController,
   TemplatePreviewVerdict,
   type PreviewSelection,
-} from '../../../src/modules/product_feeds/components/TemplatePreviewController';
-import type { TemplatePreview } from '../../../src/modules/product_feeds/api';
+} from '../../../../packages/modules/product_feeds/src/admin/components/TemplatePreviewController';
+import type { TemplatePreview } from '../../../../packages/modules/product_feeds/src/admin/api';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**

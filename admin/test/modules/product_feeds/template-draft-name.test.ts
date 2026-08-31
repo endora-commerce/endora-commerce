@@ -3,7 +3,7 @@ import {
   validateDraft,
   type TemplateDraft,
   type ValidationContext,
-} from '../../../src/modules/product_feeds/template-draft';
+} from '../../../../packages/modules/product_feeds/src/admin/template-draft';
 
 /**
  * The editor sends `name` on every save but never offered a control for it, so

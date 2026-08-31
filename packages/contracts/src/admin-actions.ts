@@ -121,6 +121,15 @@ export const KnownIconNameSchema = z.enum([
   // rather than import it, so the name joins the allowlist here instead of the
   // entry degrading to one that happens to be on it already.
   'PlugZap',
+  // Feature 091 (Phase 4, the plan's batch 7) — `promotions`' two sidebar
+  // entries and its two palette rows, which become module declarations here and
+  // therefore have to name their icon rather than import it. Both rows drew the
+  // same glyph by hand in `AppShell.tsx`, so one name keeps both exactly as they
+  // were; the alternative is the entry degrading to a name that happens to be on
+  // the list already. `payment_methods`, `customer_accounts` and `product_feeds`
+  // need nothing — `CreditCard`, `Users` and `Rss` are all above, each added by
+  // an earlier palette action of that same module.
+  'PercentDiamond',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

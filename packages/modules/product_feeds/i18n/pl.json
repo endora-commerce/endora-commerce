@@ -616,5 +616,6 @@
   "delivery.reason.artefact_unavailable": "Nie udało się odczytać wygenerowanego pliku.",
   "delivery.reason.internal_error": "Coś poszło nie tak po stronie tej platformy.",
   "delivery.lastAttempt.succeeded": "Ostatnio dostarczono {when}",
-  "delivery.lastAttempt.failed": "Ostatnie dostarczenie nie powiodło się {when}"
+  "delivery.lastAttempt.failed": "Ostatnie dostarczenie nie powiodło się {when}",
+  "nav.productFeeds.label": "Feedy produktowe"
 }

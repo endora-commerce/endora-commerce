@@ -28,5 +28,7 @@
   "limits.title": "Usage limits",
   "limits.global": "Global limit",
   "limits.perOrganization": "Per organization",
-  "limits.perCustomer": "Per customer"
+  "limits.perCustomer": "Per customer",
+  "nav.promotions.label": "Promotions",
+  "nav.promotionRules.label": "Promotion rules"
 }
