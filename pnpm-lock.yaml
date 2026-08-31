@@ -98,6 +98,9 @@ importers:
       '@endora-commerce/mod-payu':
         specifier: workspace:*
         version: link:../packages/modules/payu
+      '@endora-commerce/mod-pwa':
+        specifier: workspace:*
+        version: link:../packages/modules/pwa
       '@endora-commerce/mod-stripe':
         specifier: workspace:*
         version: link:../packages/modules/stripe
@@ -2662,6 +2665,9 @@ importers:
 
   packages/modules/pwa:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts

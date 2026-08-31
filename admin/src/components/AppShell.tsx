@@ -38,7 +38,6 @@ import {
   Search,
   Settings,
   Eraser,
-  Smartphone,
   Store,
   Tag,
   Sparkles,
@@ -451,13 +450,13 @@ const NAV: NavSection[] = [
         requiredPermission: 'settings:write',
         module: 'settings',
       },
-      {
-        to: '/settings/pwa',
-        labelKey: 'appShell.nav.pwa',
-        icon: Smartphone,
-        requiredPermission: 'pwa:read',
-        module: 'pwa',
-      },
+      // `/settings/pwa` is declared by `pwa` since feature 091's Phase 4 batch
+      // six, and arrives through `composeNav` from `modules.generated.ts`. It
+      // is the first entry to move on its own: the screen it points at is
+      // `PwaPage`, which lives under `modules/settings/pages/`, so the route
+      // below stays here and only the advertisement moved — the split batch
+      // four made explicit for `/admin-roles`, arriving a second time. The
+      // reasoning is in `packages/modules/pwa/src/admin/index.ts`.
     ],
   },
 ];
