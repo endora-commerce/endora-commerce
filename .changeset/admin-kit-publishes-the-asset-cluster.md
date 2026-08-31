@@ -39,5 +39,17 @@ its `UploadFields` type are removed from the admin's own client, which had no ca
 left once the uploader moved — a second live copy of one multipart `POST` is not
 something to keep.
 
-Both components resolve their copy through `useTranslation('assets_library')`, so the
-strings stay in the owner's bundle and nothing about the rendered output moves.
+**The components' copy is `core`'s now, not `assets_library`'s** (R-1). A translation
+namespace is module knowledge on the same test that permits an HTTP path: the schema
+crossing a path is in a peer dependency both sides compile, and a bundle is not — it is
+shipped by a module package this one may not depend on, and a key that did not travel
+renders `core.assetPicker.empty` at the operator rather than failing to compile. The
+eleven keys the two components read moved: three reuse `core`'s existing
+`common.action.close`, `common.state.loading` and `common.action.search` (the last added
+to that family), and eight are new under `assetPicker.*`. Rendered output is unchanged in
+both shipped languages.
+
+**If you translate this admin**, `assets_library`'s bundle loses nine keys —
+`common.close`, `picker.empty`, `picker.searchPlaceholder`, `picker.uploadNew` and the five
+`uploader.*` — and `_i18n`'s gains nine. `uploader.triggerCurrentFolder`, `common.loading`
+and `common.search` stay where they are: the module's own screens still read them.
