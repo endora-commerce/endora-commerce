@@ -942,11 +942,24 @@ async function main(): Promise<void> {
     sites: result.sites,
     coverage: [
       {
-        // The enum declares the names; this check computes none of them, and
-        // the map is the second declaration held against it.
+        // The enum declares the names and this check computes none of them.
+        //
+        // **The direction is map → enum, and it is the only one that can be
+        // here.** The other direction — an enum member with no props entry — is
+        // the `missing-props-type` **finding**, and a coverage token measuring
+        // it would pre-empt that finding with a `short-walk` refusal every
+        // time: two answers under one derivation, and the exit code would be 2
+        // where the tree is genuinely in violation. Measured, before this was
+        // written that way round: removing one props entry exited 2 and the
+        // finding it exists for was unreachable in a real run.
+        //
+        // So `expected` is the props-map keys and `covered` is those the enum
+        // also carries. A map that stopped parsing is `no-expectation`, exit 2,
+        // which is what makes this a floor rather than a decoration; the
+        // reconciliation it corroborates is *"the declaration was read"*.
         source: 'zone-enum',
-        expected: zoneNames.length,
-        covered: zoneNames.filter((zone) => propsMapKeys.includes(zone)).length,
+        expected: propsMapKeys.length,
+        covered: propsMapKeys.filter((key) => zoneNames.includes(key)).length,
       },
       modulePopulationCoverage({
         registered: layout.registeredIds,
