@@ -1341,8 +1341,11 @@ this file only (see the repo-local override near the top of that script) — tha
 
 ## Subagents
 
-Role-specialised subagents are defined twice, once per tool, with identical roles:
-`.claude/agents/*.md` (Claude Code) and `.cursor/agents/*.md` (Cursor). Their prompts stay
+Role-specialised subagents are defined **once per tool**, with identical roles — Claude Code in
+`.claude/agents/*.md`, Cursor in `.cursor/agents/*.md`, Codex in `.codex/agents/*.toml`. **How many
+tools that is is not written here**: this sentence read *"defined twice"* until the Codex set landed,
+which is a count of a derived fact going stale in the paragraph that has to stay true as tools are
+added (D-100). `ls -d .claude/agents .cursor/agents .codex/agents` answers it. Their prompts stay
 short on purpose — repository conventions live here, not in the agent files.
 
 | Agent | Use for |
@@ -1358,7 +1361,11 @@ short on purpose — repository conventions live here, not in the agent files.
 every UI change — the Laws of UX (<https://lawsofux.com/>) rewritten as actionable frontend
 rules, plus the WCAG 2.2 AA floor, the repo's design tokens and primitives, and the required
 component states. Unlike the subagent prompts it is **not duplicated per tool**: the Cursor
-agent reads that path directly. Update it in place; never fork a second copy.
+agent reads that path directly, and where a tool insists on finding a skill under its own root the
+answer is a **relative symlink** to this path, never a copy — `.agents/skills/ux-laws/SKILL.md` is
+one. Relative, so it travels with the checkout and resolves inside a `git worktree` rather than
+pointing at whichever tree it was created from; the same property issue #255 depends on for
+`node_modules`. Update it in place; never fork a second copy.
 
 ---
 
