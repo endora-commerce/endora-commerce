@@ -1314,9 +1314,16 @@ rules" — same rules, they simply moved here.
 New features follow the speckit flow: `/speckit.specify` → `/speckit.plan` → `/speckit.tasks`
 → `/speckit.implement`, producing `specs/NNN-slug/`.
 
-**A feature number is not unique, so cite the slug.** Ten numbers name two directories each
-(026, 043, 046, 047, 049, 063, 065, 067, 075, 086) — a payment gateway and a platform feature
-landed on the same number ten times over, and nothing refuses it. So *"feature 075"* addresses
+**A feature number is not unique, so cite the slug.** A payment gateway and a platform feature have
+landed on the same number many times over, and nothing refuses it. **How many, and which, is not
+written here** — this sentence named ten and listed ten while the tree held **eleven**, and the
+missing one was `068`, whose two directories (`068-inpost-shipping`, `068-ergonode-pim-sync`) are
+both named in this file's own generated appendix a few hundred lines below. A count of a derived fact,
+written down, in the paragraph warning about exactly that (D-100). Derive it instead:
+
+```bash
+ls -d specs/[0-9]* | sed 's|specs/||; s/-.*//' | sort | uniq -d
+``` So *"feature 075"* addresses
 two things: it is cited **fourteen** times in this file, the F4 rulings and the check estate, and
 **never once with a slug**. Context resolves all fourteen today; nothing guarantees the next one.
 Write `specs/075-cross-module-decoupling-sweep/` where the reference has to survive a reader who
