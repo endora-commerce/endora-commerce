@@ -225,6 +225,14 @@ quality:
     # grows a local declaration makes every module reaching it a finding in the
     # same run.
     - pnpm --filter backend run check:admin-surface
+    # Feature 091 (P4a) — the zone mechanism's two-way refusal, which
+    # `AdminZoneNameSchema`'s own contract promised from the day it landed and which
+    # nothing implemented in either direction: every one of its four opening members
+    # was rendered by nothing and contributed to by nothing. Plus `foreign-module-id`,
+    # one predicate over three populations — a module id written as a string literal in
+    # a file the module does not own — which no other instrument here can see, because
+    # `check:module-boundary` reads import specifiers and a string names none.
+    - pnpm --filter backend run check:admin-zones
     # Feature 072 (FR-020) — every non-HTTP entry point (CLI script, BullMQ
     # consumer, repeating-timer sweep) establishes a scope explicitly. The timer
     # class was `setInterval(` as a string until issue #128, so `search`'s

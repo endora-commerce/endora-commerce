@@ -337,6 +337,29 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],
   },
+  'backend/scripts/check-admin-zones.ts': {
+    prefix: '[admin-zones]',
+    run: { kind: 'tsx', path: 'scripts/check-admin-zones.ts', args: [] },
+    // Every module's sources, the admin application's own and the kit's — a
+    // zone may be rendered by a module screen, by an installed package's screen
+    // or by the admin itself, so all three are the host population. `sites` is
+    // renders plus contributions plus foreign module ids: 7 renders (the three
+    // `product.editor.*` mounts, `field.after` five times) and 9 foreign ids
+    // when P4a landed, with contributions at zero because P4a is the mechanism
+    // and drains nothing. It moves in both directions as the batches run — the
+    // zone members grow with the places they mount, the ledger empties — and
+    // the batch that moves it re-records it here. It has already moved once:
+    // 18 -> 16 when !1230's kit-namespace repair merged in, taking two of the
+    // three `kit-namespace` sites with it.
+    files: 2165,
+    sites: 16,
+    // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
+    // the enum is the independent author of this check's population and the map
+    // is the second declaration reconciled against it, so a member added
+    // without a props type moves the expectation in the same run.
+    // `manifest-index` is issue #215's shared floor over the module walk.
+    sources: ['zone-enum', 'manifest-index'],
+  },
   'backend/scripts/check-admin-surface.ts': {
     prefix: '[admin-surface]',
     run: { kind: 'tsx', path: 'scripts/check-admin-surface.ts', args: [] },

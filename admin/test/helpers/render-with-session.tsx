@@ -5,7 +5,12 @@ import {
   ModulePresenceProvider,
   type AdminMe,
 } from '@endora-commerce/admin-kit/lib';
-import type { AdminModulePresenceResponse, ModulePresence } from '@endora-commerce/contracts';
+import { AdminContributionsProvider } from '@endora-commerce/admin-kit/zones';
+import type {
+  AdminModulePresenceResponse,
+  AdminZoneContribution,
+  ModulePresence,
+} from '@endora-commerce/contracts';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { TranslationProvider } from '../../src/i18n/TranslationProvider';
@@ -202,6 +207,25 @@ export interface SessionWrapperOptions {
    * instead.
    */
   readonly presence?: AdminModulePresenceResponse;
+  /**
+   * The zone contributions the subject's mounts should enumerate.
+   *
+   * Defaults to none, which is what the shipped registry answers for every zone
+   * P4a mounts. It is a **provider and not an omission** even when empty:
+   * `useAdminZone` refuses a mount outside `AdminContributionsProvider` rather
+   * than reporting "nobody contributed", because a host screen rendering a zone
+   * with no provider above it is a wiring defect and the silent answer would
+   * make it indistinguishable from an empty registry.
+   *
+   * A host screen's test therefore drives the real renderer, exactly as P3's
+   * repair made a permission gate's test drive the real predicate: a zone
+   * asserted against a stub of the enumeration asserts that the stub was
+   * consulted.
+   */
+  readonly contributions?: readonly {
+    readonly moduleId: string;
+    readonly contributions: { readonly zones?: readonly AdminZoneContribution[] };
+  }[];
 }
 
 /**
@@ -209,11 +233,14 @@ export interface SessionWrapperOptions {
  * `renderWithI18n` (or to any other `render`) as the subject.
  */
 export function withSession(ui: ReactElement, options: SessionWrapperOptions): ReactElement {
+  const zoned = (
+    <AdminContributionsProvider entries={options.contributions ?? []}>{ui}</AdminContributionsProvider>
+  );
   const inner =
     options.presence === undefined ? (
-      ui
+      zoned
     ) : (
-      <ModulePresenceProvider initial={options.presence}>{ui}</ModulePresenceProvider>
+      <ModulePresenceProvider initial={options.presence}>{zoned}</ModulePresenceProvider>
     );
   return <AuthProvider initial={options.session}>{inner}</AuthProvider>;
 }

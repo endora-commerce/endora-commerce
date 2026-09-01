@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { passthroughBundle } from '../../helpers/render-with-i18n';
+import {
+  adminSession,
+  everyDeclaredModule,
+  modulePresence,
+  renderWithSession,
+} from '../../helpers/render-with-session';
 
 /**
  * Regression — swapping the Attribute Set prunes attribute values whose keys
@@ -46,6 +52,25 @@ const BUNDLE = passthroughBundle('catalog', [
   'productEditor.attributeSet.loading',
   'productEditor.field.defaultPrice',
 ]);
+
+/**
+ * Feature 091 / P4a — the product editor now mounts three admin zones, so it
+ * consults `useAdminZone`, which consults the presence predicate. That takes
+ * the whole provider stack, exactly as the real screen has: rendering a host
+ * screen bare used to work only because it consulted none of them.
+ *
+ * `renderWithSession` is the seam and the contributions are a **prop**, so a
+ * later batch asserts a real contribution here rather than a stub of the
+ * enumeration — the same repair P3 made when a permission gate stopped being
+ * mockable.
+ */
+function renderProductEditor(ui: Parameters<typeof renderWithSession>[0]) {
+  return renderWithSession(ui, {
+    session: adminSession({ permissions: ['*'] }),
+    presence: modulePresence({ present: everyDeclaredModule() }),
+    bundle: BUNDLE,
+  });
+}
 
 const MOCK_PRODUCT = {
   id: PRODUCT_ID,
@@ -93,14 +118,13 @@ function primeGets(): void {
   });
 }
 
-function renderEditor(): ReturnType<typeof renderWithI18n> {
-  return renderWithI18n(
+function renderEditor(): ReturnType<typeof renderWithSession> {
+  return renderProductEditor(
     <MemoryRouter initialEntries={[`/catalog/products/${PRODUCT_ID}`]}>
       <Routes>
         <Route path="/catalog/products/:id" element={<ProductEditor />} />
       </Routes>
     </MemoryRouter>,
-    BUNDLE,
   );
 }
 

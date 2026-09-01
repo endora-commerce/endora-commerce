@@ -39,5 +39,27 @@ export type {
   AdminRouteDeclaration,
   AdminZoneContribution,
   AdminZoneName,
+  AdminZoneProps,
+  AdminZonePropsMap,
   PermissionRequirement,
+  ProductEditorFieldZoneProps,
+  ProductEditorZoneProps,
 } from '@endora-commerce/contracts';
+
+/**
+ * The contributor's end of a zone's props contract — the kit's own, not a
+ * re-export.
+ *
+ * It lives here rather than in `contracts` because it names `ComponentType`,
+ * and that package is compiled by the backend and may acquire no React
+ * dependency. That split is what leaves `AdminComponentFactory` resolving to
+ * `{ default: unknown }`, and this helper is what makes the `unknown` a courier
+ * between two checked ends rather than a hole.
+ *
+ * It stays on `./contributions` and not on `./zones` because it is the
+ * **contributor's** side and carries no runtime behaviour: a module's
+ * `src/admin/index.ts` must be enumerable without evaluating a React tree, and
+ * R2 of `admin-contribution.md` is what that rule protects.
+ */
+export { zoneComponent } from './zone-component.js';
+export type { AdminZoneComponent, ZoneComponentOptions } from './zone-component.js';

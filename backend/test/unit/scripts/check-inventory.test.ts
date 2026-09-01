@@ -90,6 +90,12 @@ import type {
 } from '../../../scripts/lib/admin-surfaces.js';
 import type { AdminRegistrationCounts } from '../../../scripts/ledgers/admin-registrations.js';
 import {
+  adminZoneFindingCount,
+  declarationSource as zoneDeclarationSource,
+  runAdminZones,
+  type AdminZoneFixture,
+} from '../../helpers/admin-zones-fixture.js';
+import {
   checkAdminSurface,
   reachKey,
   vacuousReason as adminSurfaceVacuous,
@@ -2543,7 +2549,218 @@ function adminSurfaceFindings(
   ).findings.filter((finding) => finding.kind === kind).length;
 }
 
+/** The fixture every `check:admin-zones` proof varies — source text, at the top. */
+function adminZoneFixture(overrides: Partial<AdminZoneFixture> = {}): AdminZoneFixture {
+  const zone = 'product.editor.details.before';
+  return {
+    declarations: zoneDeclarationSource([zone]),
+    files: [
+      {
+        path: 'admin/src/modules/catalog/ProductEditor.tsx',
+        source: `export const E = () => <AdminZone name="${zone}" props={{ productId: id }} />;`,
+        roles: ['host'],
+      },
+    ],
+    registered: ['catalog', 'inpost', 'assets_library'],
+    ...overrides,
+  };
+}
+
 const CHECKS: readonly CheckEntry[] = [
+  {
+    // Feature 091's P4a. The zone mechanism's two-way refusal — promised by
+    // `AdminZoneNameSchema`'s own contract from the day it landed and
+    // implemented in neither direction — plus `foreign-module-id`, one
+    // predicate over three populations that nothing else in this estate reads.
+    //
+    // Six findings, six proofs, plus one per population of the sixth, each
+    // entering as **source text**: the check's chain is a declaration parser,
+    // four site walks and six classifiers, and a fixture handing in sites would
+    // prove the classifiers and leave every walk above them unproven.
+    script: 'backend/scripts/check-admin-zones.ts',
+    npmScript: 'check:admin-zones',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-admin-zones.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its module walk **does** carry issue #215's shared floor — the
+    // `manifest-index` coverage token, refused as `short-walk` — and it still
+    // cannot join `moved-module-tree.test.ts`, for the reason
+    // `check:admin-surface` records one entry down: that fixture is a
+    // *backend* tree with no admin application and no kit, and this check
+    // refuses both of those populations before it reaches the module one. Over
+    // the moved tree and the split tree alike it would exit 2 on the kit, which
+    // is the correct answer and asserts no discrimination at all — the two
+    // trees have to differ for that file's proof to mean anything. So the
+    // classification is honest rather than convenient: the floor is in the
+    // check, and the thing that would exercise it is a fixture with a
+    // frontend, which nothing in this estate has.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'unrendered-zone': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            declarations: zoneDeclarationSource([
+              'product.editor.details.before',
+              'product.editor.pricing.before',
+            ]),
+          }),
+          'unrendered-zone',
+        ),
+      ),
+      'contribution-to-unrendered-zone': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            declarations: zoneDeclarationSource([
+              'product.editor.details.before',
+              'product.editor.pricing.before',
+            ]),
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/modules/price_lists/src/admin/index.ts',
+                source:
+                  "export const contributions = { zones: [zoneComponent('product.editor.pricing.before', () => import('./P.js'))] };",
+                roles: ['host'],
+                owner: 'price_lists',
+              },
+            ],
+          }),
+          'contribution-to-unrendered-zone',
+        ),
+      ),
+      'unpublished-zone': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/modules/blog/src/admin/Screen.tsx',
+                source: '<AdminZone name="blog.made.up" props={{}} />;',
+                roles: ['host'],
+              },
+            ],
+          }),
+          'unpublished-zone',
+        ),
+      ),
+      'computed-zone-name': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'admin/src/modules/orders/OrderDetail.tsx',
+                source: 'const c = useAdminZone(ZONE_NAME, props);',
+                roles: ['host'],
+              },
+            ],
+          }),
+          'computed-zone-name',
+        ),
+      ),
+      'missing-props-type': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            declarations: zoneDeclarationSource(['product.editor.details.before'], []),
+          }),
+          'missing-props-type',
+        ),
+      ),
+      // The sixth finding is one predicate over three populations, so it takes
+      // three proofs plus the unreadable case: a green over any one of them
+      // would be a green that means less than it looks.
+      'foreign-module-id:visibility-gate': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'admin/src/modules/orders/OrderShipmentsTab.tsx',
+                source:
+                  "const isVisible = useSurfaceVisibility();\nconst show = isVisible({ module: 'inpost' });",
+                roles: ['admin'],
+                owner: 'orders',
+              },
+            ],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      'foreign-module-id:kit-namespace': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/admin-kit/src/components/asset-picker/AssetPicker.tsx',
+                source: "const t = useTranslation('assets_library');",
+                roles: ['kit'],
+              },
+            ],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      'foreign-module-id:module-namespace': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'admin/src/modules/orders/OrderShipmentsTab.tsx',
+                source: "const t = useTranslation('inpost');",
+                roles: ['admin'],
+                owner: 'orders',
+              },
+            ],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      'foreign-module-id:unreadable-namespace': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/admin-kit/src/components/Whatever.tsx',
+                source: 'const t = useTranslation(namespace);',
+                roles: ['kit'],
+              },
+            ],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      // Both stale directions of the two-way ledger.
+      'stale-entry': top(
+        () =>
+          runAdminZones({
+            ...adminZoneFixture(),
+            ledger: { 'admin/src/modules/gone/Gone.tsx:visibility-gate:inpost': 'gone' },
+          }).findings.length,
+      ),
+      'count-drift': top(() => {
+        const key = 'admin/src/modules/orders/OrderShipmentsTab.tsx:visibility-gate:inpost';
+        return runAdminZones({
+          ...adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'admin/src/modules/orders/OrderShipmentsTab.tsx',
+                source:
+                  "const isVisible = useSurfaceVisibility();\nconst a = isVisible({ module: 'inpost' });\nconst b = isVisible({ module: 'inpost' });",
+                roles: ['admin'],
+                owner: 'orders',
+              },
+            ],
+          }),
+          ledger: { [key]: 'one site recorded, two walked' },
+        }).findings.length;
+      }),
+    },
+  },
   {
     // Feature 091's FR-009/FR-016 — `check:platform-surface`'s frontend twin,
     // landed **with** the four design-system subpaths it judges and not before
@@ -6678,6 +6895,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // route count — the ratchet's whole claim is that it fails either way.
       'backend/scripts/check-admin-registrations.ts': 9,
       'backend/scripts/check-admin-surface.ts': 15,
+      // Five zone findings, then four for the sixth: the `foreign-module-id`
+      // predicate has three populations and an unreadable case, and one proof over
+      // the whole finding would let three of the four go blind behind the first's
+      // red. Plus both stale directions of its ledger.
+      'backend/scripts/check-admin-zones.ts': 11,
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
       'backend/scripts/check-action-route-permissions.ts': 8,
