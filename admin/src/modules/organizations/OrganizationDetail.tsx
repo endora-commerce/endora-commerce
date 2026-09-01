@@ -12,7 +12,7 @@ import { ApplicablePriceListsPanel } from './panels/ApplicablePriceListsPanel';
 import { HierarchyPanel } from './panels/HierarchyPanel';
 import { VatValidationPanel } from './panels/VatValidationPanel';
 import { RestrictionsPanel } from './panels/RestrictionsPanel';
-import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
+import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
 import { DefaultPreferencesPanel } from '../quick_order/DefaultPreferencesPanel';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';

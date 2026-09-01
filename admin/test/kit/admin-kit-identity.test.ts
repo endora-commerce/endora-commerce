@@ -59,6 +59,7 @@ import { CmsPagePicker } from '@/components/cms-picker/CmsPagePicker';
 import { OrganizationPicker, OrganizationStatusBadge } from '@/components/organization-picker';
 import { OrganizationPickerMulti } from '@/components/organization-picker/OrganizationPickerMulti';
 import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
+import { CustomFieldValuesPanel } from '@/modules/custom_fields/CustomFieldValuesPanel';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -98,6 +99,17 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     // their consumers name the subpath directly and there is no old path left
     // to forward.
     expect(AssetFieldPicker).toBe(kitComponents.AssetFieldPicker);
+  });
+
+  it('serves the custom-field values panel through both spellings', () => {
+    // Feature 091's P4e. `admin-component-contribution.md` §9.1 rules the panel
+    // a published component rather than `custom_fields`' zone contribution: its
+    // props are `(entityType, values, save)`, so every call site hands it the
+    // host's own bag and the host's own writer. The four consumers name the
+    // subpath; the shim stays for the owner's own screens, and it has to be the
+    // same binding — a second copy would be a second `useState` draft of one
+    // record's values.
+    expect(CustomFieldValuesPanel).toBe(kitComponents.CustomFieldValuesPanel);
   });
 
   it('serves the same API client singleton, and the same error class', () => {

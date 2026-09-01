@@ -54,6 +54,8 @@ export { CountrySelect } from './country-select/CountrySelect.js';
 export type { CountrySelectProps } from './country-select/CountrySelect.js';
 export { useCountriesQuery } from './country-select/useCountriesQuery.js';
 export type { UseCountriesQueryResult } from './country-select/useCountriesQuery.js';
+export { CustomFieldValuesPanel } from './custom-field-values/CustomFieldValuesPanel.js';
+export type { CustomFieldValuesPanelProps } from './custom-field-values/CustomFieldValuesPanel.js';
 export { CustomerGroupPicker } from './customer-group-picker/CustomerGroupPicker.js';
 export type { CustomerGroupPickerProps } from './customer-group-picker/CustomerGroupPicker.js';
 export { CustomerPicker } from './customer-picker/CustomerPicker.js';
