@@ -368,14 +368,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // relocated; `files` rises 2165 -> 2187, which is that batch moving nine
     // files under a module walk root plus the tree's own growth since the
     // number was last written down.
-    files: 2187,
-    sites: 15,
+    //
+    // **15 -> 16 when the foreign-id walk widened to a module's own sources.**
+    // `files` does not move with it, and that is the measurement rather than an
+    // aside: the module walk roots were already the *render* half's population,
+    // so the widening opens no new file — it reads the ones it had, for a
+    // question it was not asking. What moves is `sites`, by exactly one: the
+    // `visibility-gate` on `credentials` that batch 10 wrote into
+    // `mod-settings`' admin layer, correct and outside every instrument in this
+    // estate from the day it landed.
+    files: 2193,
+    sites: 16,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
     // without a props type moves the expectation in the same run.
     // `manifest-index` is issue #215's shared floor over the module walk.
-    sources: ['zone-enum', 'manifest-index'],
+    // `module-admin` is the floor that moved with the widened population, and it
+    // exists because `manifest-index` cannot see what it sees: that one is
+    // satisfied by any file a registered module contributes, which for a module
+    // package is its backend sources, so a package's *admin layer* dropping out
+    // of the walk would leave it green. Its expectation is the generated admin
+    // contribution registry's — a second program's answer to "which packages
+    // ship admin code, and under which subpath" — and it grows with every batch
+    // of Story 3.
+    sources: ['zone-enum', 'manifest-index', 'module-admin'],
   },
   'backend/scripts/check-bundle-pairing.ts': {
     prefix: '[bundle-pairing]',
