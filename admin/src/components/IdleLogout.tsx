@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import type { SettingDto } from '@endora-commerce/contracts';
+import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
-import { settingsClient } from '@/modules/settings/api/settings-client';
 
 /**
  * Signs the admin out of the Admin UI after a configurable period of
@@ -21,6 +22,20 @@ const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
   'click',
 ];
 
+/**
+ * Read one setting by code (feature 091, P6).
+ *
+ * The request is built here rather than through `settings`' own admin API
+ * client: that client is a module's **code**, which is what
+ * `backend/scripts/ledgers/cross-module-imports/host.ts` recorded, while
+ * `/api/v1/admin/settings/:code` and `SettingDto` are an HTTP path and a
+ * `@endora-commerce/contracts` type the admin application already compiles.
+ * That is the exit P2 established and `admin-kit-surface.md` R6 records.
+ */
+function readSetting(code: string): Promise<SettingDto> {
+  return apiClient.get<SettingDto>(`/api/v1/admin/settings/${encodeURIComponent(code)}`);
+}
+
 export function IdleLogout(): null {
   const { status, logout } = useAuth();
   const [timeoutMinutes, setTimeoutMinutes] = useState<number>(DEFAULT_IDLE_MINUTES);
@@ -30,8 +45,7 @@ export function IdleLogout(): null {
   useEffect(() => {
     if (status !== 'authenticated') return undefined;
     let cancelled = false;
-    settingsClient
-      .getByCode('admin.idle_logout_minutes')
+    readSetting('admin.idle_logout_minutes')
       .then((dto) => {
         if (cancelled) return;
         const raw = dto.globalValue ?? dto.defaultValue;

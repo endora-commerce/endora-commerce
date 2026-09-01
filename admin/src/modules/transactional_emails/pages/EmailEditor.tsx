@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import type { TransactionalEmailDetail } from '@endora-commerce/contracts';
+import type {
+  SalesChannelListResponse,
+  TransactionalEmailDetail,
+} from '@endora-commerce/contracts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { SaveButtonGroup } from '@/components/ui/save-button-group';
@@ -9,8 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
-import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
 import {
   EmailSubjectWithVariables,
@@ -21,6 +24,21 @@ import {
   loadEmailTemplateCanvas,
 } from '@/modules/_shared/email-builder';
 import { EmailEditorPane } from '../components/EmailEditorPane';
+
+/**
+ * List sales channels (feature 091, P6).
+ *
+ * The request is built here rather than through `sales_channels`' own admin
+ * API client: that client is another module's **code**, which is what the
+ * cross-module ledger recorded, while `/api/v1/admin/sales-channels` and
+ * `SalesChannelListResponse` are an HTTP path and a
+ * `@endora-commerce/contracts` type that both sides already compile. That is
+ * the exit P2 established and `admin-kit-surface.md` R6 records — one `GET`
+ * out of that client's ten methods, and no dependency on the owner's code.
+ */
+function listActiveSalesChannels(): Promise<SalesChannelListResponse> {
+  return apiClient.get<SalesChannelListResponse>('/api/v1/admin/sales-channels?activeOnly=true');
+}
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 
@@ -42,7 +60,7 @@ export function EmailEditor(): React.ReactElement {
 
   useEffect(() => {
     let live = true;
-    void salesChannelsClient.list({ activeOnly: true }).then((res) => {
+    void listActiveSalesChannels().then((res) => {
       if (live) setChannels(res.items.map((c) => ({ id: c.id, code: c.code })));
     });
     return () => {

@@ -8,11 +8,12 @@ import {
 } from 'react';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import type {
+  SalesChannelListResponse,
   SalesChannelSummary,
   SettingDto,
   SettingGroupDto,
 } from '@endora-commerce/contracts';
-import { ApiError } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,6 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { settingsClient } from '../api/settings-client';
-import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { ConflictBanner } from '../components/ConflictBanner';
 import { ActivationPointerRow } from '../components/ActivationPointerRow';
@@ -35,6 +35,26 @@ import {
   type SettingDraft,
 } from '../components/SettingRowEditor';
 import { normalize } from '@/lib/text-normalization';
+
+/**
+ * List sales channels (feature 091, P6).
+ *
+ * The request is built here rather than through `sales_channels`' own admin
+ * API client: that client is another module's **code**, which is what the
+ * cross-module ledger recorded, while `/api/v1/admin/sales-channels` and
+ * `SalesChannelListResponse` are an HTTP path and a
+ * `@endora-commerce/contracts` type that both sides already compile. That is
+ * the exit P2 established and `admin-kit-surface.md` R6 records — one `GET`
+ * out of that client's ten methods, and no dependency on the owner's code.
+ */
+function listSalesChannels(activeOnly: boolean, pageSize: number): Promise<SalesChannelListResponse> {
+  const qs = new URLSearchParams();
+  qs.set('activeOnly', String(activeOnly));
+  qs.set('pageSize', String(pageSize));
+  return apiClient.get<SalesChannelListResponse>(
+    `/api/v1/admin/sales-channels?${qs.toString()}`,
+  );
+}
 
 /**
  * Settings page — feature 004 / US2.
@@ -77,10 +97,7 @@ export function SettingsPage(): ReactNode {
         // Fetch sales channels separately so a permission/connectivity issue
         // here surfaces in the UI instead of silently emptying the dropdown.
         try {
-          const channels = await salesChannelsClient.list({
-            activeOnly: false,
-            pageSize: 100,
-          });
+          const channels = await listSalesChannels(false, 100);
           setAllChannels(channels.items);
         } catch (err) {
           setAllChannels([]);

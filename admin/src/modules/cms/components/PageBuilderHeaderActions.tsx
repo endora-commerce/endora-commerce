@@ -21,6 +21,22 @@ import { isEmptyPageBuilderData } from './page-builder-data';
 
 export type ApplyTemplateOption = { id: string; label: string };
 
+/**
+ * The translator a caller hands this file's components.
+ *
+ * **It reads `core`, and that is a contract rather than a convention** (feature
+ * 091 P5a, `admin-kit-surface.md` R-1). This is the shared page-builder chrome:
+ * `cms`, `invoices` and `_shared/email-builder` all render it, its copy names
+ * `cms` nowhere, and the `t` prop makes the namespace the caller's decision
+ * rather than this file's. Two of the three callers were supplying
+ * `useTranslation('cms')` — module knowledge in a component that owns none, and
+ * a defect nothing catches at compile time, because a key the namespace does not
+ * carry renders `<scope>.<key>` into the operator's screen instead of failing.
+ * So the keys below live in `_i18n`'s bundle, which the admin serves under the
+ * synthetic `core` scope, and every caller passes `useTranslation('core')`.
+ * `test/modules/cms/page-builder-chrome-core-namespace.test.tsx` asserts both
+ * halves against the shipped bundles, in both shipped languages.
+ */
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
 /** Injects `leading` into Puck's left header column (after sidebar toggles). */
@@ -249,7 +265,7 @@ export function PageBuilderTemplateActions({
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="pb-save-template-name">{t('fields.name')}</Label>
+                  <Label htmlFor="pb-save-template-name">{t('common.field.name')}</Label>
                   <Input
                     id="pb-save-template-name"
                     value={templateName}
@@ -262,7 +278,7 @@ export function PageBuilderTemplateActions({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="pb-save-template-code">{t('fields.code')}</Label>
+                  <Label htmlFor="pb-save-template-code">{t('common.field.code')}</Label>
                   <Input
                     id="pb-save-template-code"
                     className="font-mono"
@@ -289,7 +305,7 @@ export function PageBuilderTemplateActions({
                     disabled={busy || !templateName.trim() || !templateCode.trim()}
                     onClick={(): void => void runSave()}
                   >
-                    {busy ? t('common.saving') : t('pageBuilder.saveAsTemplate.confirm')}
+                    {busy ? t('common.state.saving') : t('pageBuilder.saveAsTemplate.confirm')}
                   </Button>
                 </div>
               </div>
@@ -364,7 +380,7 @@ export function PageBuilderTemplateActions({
                     disabled={busy || !selectedTemplateId}
                     onClick={(): void => void runApply()}
                   >
-                    {busy ? t('common.saving') : t('pageBuilder.applyTemplate.confirm')}
+                    {busy ? t('common.state.saving') : t('pageBuilder.applyTemplate.confirm')}
                   </Button>
                 </div>
               </div>
@@ -544,7 +560,7 @@ export function PageBuilderHeaderActions({
                     disabled={busy || !sourceLanguage}
                     onClick={(): void => void runCopy()}
                   >
-                    {busy ? t('common.saving') : t('pageBuilder.copyLanguage.confirm')}
+                    {busy ? t('common.state.saving') : t('pageBuilder.copyLanguage.confirm')}
                   </Button>
                 </div>
               </div>
