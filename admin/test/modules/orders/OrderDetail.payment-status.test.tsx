@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
@@ -105,6 +105,16 @@ function renderDetail(paymentStatus: string): void {
   );
 }
 
+/**
+ * `findByText` is the wait, and there is deliberately no `waitFor` around it.
+ * Nesting one async utility inside another does not compose their budgets: the
+ * outer loop skips every tick while its callback's promise is still pending, so
+ * the outer wrapper gets exactly one attempt inside a deadline it shares with
+ * the inner one — and when the inner has to retry at all, the outer expires
+ * first and reports a bare `Timed out in waitFor` instead of the inner's
+ * "unable to find an element with the text", which is the half that names what
+ * was missing.
+ */
 async function paymentStatusSelect(): Promise<HTMLSelectElement> {
   const label = await screen.findByText('orderDetail.fields.paymentStatus');
   const select = document.getElementById(label.getAttribute('for') ?? '');
@@ -127,7 +137,7 @@ beforeEach(() => {
 describe('OrderDetail — the payment-status control (085 FR-024)', () => {
   it('offers only the two values the route accepts', async () => {
     renderDetail('paid');
-    await waitFor(async () => expect((await options()).size).toBeGreaterThan(0));
+    expect((await options()).size).toBeGreaterThan(0);
 
     const settable = [...(await options())]
       .filter(([, disabled]) => !disabled)
@@ -144,7 +154,7 @@ describe('OrderDetail — the payment-status control (085 FR-024)', () => {
    */
   it('shows a failed payment without offering it as something to set', async () => {
     renderDetail('failed');
-    await waitFor(async () => expect((await options()).has('failed')).toBe(true));
+    expect((await options()).has('failed')).toBe(true);
 
     expect((await options()).get('failed')).toBe(true);
     expect((await paymentStatusSelect()).value).toBe('failed');
@@ -158,7 +168,7 @@ describe('OrderDetail — the payment-status control (085 FR-024)', () => {
   it('shows an unsettable current value rather than dropping it', async () => {
     for (const current of ['awaiting_payment', 'deferred']) {
       renderDetail(current);
-      await waitFor(async () => expect((await options()).has(current)).toBe(true));
+      expect((await options()).has(current)).toBe(true);
       expect((await options()).get(current)).toBe(true);
       expect((await paymentStatusSelect()).value).toBe(current);
       cleanup();

@@ -24,6 +24,14 @@ import {
  * a global list, because those are the only values the backend will accept
  * (contract admin-feeds.md §2) — so an invalid combination is unreachable
  * rather than merely refused.
+ *
+ * **Both mount reads carry a `.catch`, and that is not decoration.** Without
+ * one, a failed request is an unhandled promise rejection and the screen renders
+ * an empty template picker or an empty language list — a failure that looks
+ * exactly like "there are no templates" / "this channel has no languages". The
+ * shape is the sibling screens' (`FeedTemplateStartFromPage`,
+ * `FeedTemplatesListPage`): the server's own sentence when it sent one, this
+ * module's own key otherwise.
  */
 export function ProductFeedCreatePage(): ReactNode {
   const t = useTranslation('product_feeds');
@@ -44,12 +52,17 @@ export function ProductFeedCreatePage(): ReactNode {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    void productFeedsClient.listTemplates().then((r) => {
-      setTemplates(r.data);
-      const google = r.data.find((tpl) => tpl.systemCode === 'google_merchant_v1');
-      setTemplateId(google?.id ?? r.data[0]?.id ?? '');
-    });
-  }, []);
+    void productFeedsClient
+      .listTemplates()
+      .then((r) => {
+        setTemplates(r.data);
+        const google = r.data.find((tpl) => tpl.systemCode === 'google_merchant_v1');
+        setTemplateId(google?.id ?? r.data[0]?.id ?? '');
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof ApiError ? err.envelope.error.message : t('templates.loadFailed'));
+      });
+  }, [t]);
 
   // Resolve the channel's own languages and currencies once one is picked.
   useEffect(() => {
@@ -58,20 +71,26 @@ export function ProductFeedCreatePage(): ReactNode {
       return;
     }
     let alive = true;
-    void feedSalesChannelReads.list(200).then(async (list) => {
-      const summary = (list.items as SalesChannelSummary[]).find((c) => c.id === channelId);
-      if (!summary) return;
-      const detail = await feedSalesChannelReads.getByCode(summary.code);
-      if (!alive) return;
-      setChannel(detail);
-      setLanguageCode((current) =>
-        current && detail.languages.includes(current) ? current : detail.defaultLanguage,
-      );
-    });
+    void feedSalesChannelReads
+      .list(200)
+      .then(async (list) => {
+        const summary = (list.items as SalesChannelSummary[]).find((c) => c.id === channelId);
+        if (!summary) return;
+        const detail = await feedSalesChannelReads.getByCode(summary.code);
+        if (!alive) return;
+        setChannel(detail);
+        setLanguageCode((current) =>
+          current && detail.languages.includes(current) ? current : detail.defaultLanguage,
+        );
+      })
+      .catch((err: unknown) => {
+        if (!alive) return;
+        setError(err instanceof ApiError ? err.envelope.error.message : t('feeds.create.channelLoadFailed'));
+      });
     return () => {
       alive = false;
     };
-  }, [channelId]);
+  }, [channelId, t]);
 
   const currencyCode = channel?.defaultCurrency ?? '';
   const canSubmit = useMemo(

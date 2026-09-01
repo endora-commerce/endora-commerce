@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
@@ -100,6 +100,22 @@ function presenceItem(patch: Partial<ModulePresence> & { id: string }): ModulePr
   };
 }
 
+/**
+ * Renders the screen and waits for the rows, not for the table.
+ *
+ * `<Table>` is rendered unconditionally — `loading` decides what goes in the
+ * body, never whether the body is there — so `findByRole('table')` is satisfied
+ * by the **first** commit, before either fetch has resolved. Every assertion
+ * below then reads a row that is not there yet. It passed anyway for as long as
+ * both mocked promises settled before that first check ran, and stopped passing
+ * under load, where the process is descheduled between the commits and the wait
+ * observes the empty one: a race no timeout can repair, because the wait
+ * succeeds — on the wrong condition.
+ *
+ * The condition is derived from the fixture rather than picked: every module
+ * `listed` has reached the table. A screen that drops one fails here instead of
+ * failing later as a missing row.
+ */
 async function renderPage(): Promise<void> {
   renderWithI18n(
     <MemoryRouter>
@@ -108,6 +124,9 @@ async function renderPage(): Promise<void> {
     bundle,
   );
   await screen.findByRole('table');
+  await waitFor(() =>
+    expect(document.querySelectorAll('[data-module-id]')).toHaveLength(listed.length),
+  );
 }
 
 function row(moduleId: string): HTMLElement {
