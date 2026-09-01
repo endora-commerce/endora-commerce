@@ -160,12 +160,22 @@
 .b2b-sidebar__brand-logo {
   width: 28px; height: 28px;
   border-radius: 7px;
-  background: linear-gradient(135deg, hsl(var(--accent-h) 70% 50%), hsl(var(--accent-h) 60% 35%));
+  /* A light ground, not the accent gradient it replaced. The mark is wine
+     (#8A1C5C) and the accent hue is indigo (248), so the gradient fought it;
+     and on the sidebar's own #1a1c1e the mark measures 1.95:1, which is
+     invisible. On this tile it is 8.75:1. */
+  background: #fff;
   display: grid; place-items: center;
-  color: #fff; font-weight: 700; font-size: 13px;
+  padding: 3px;
   box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset;
   flex-shrink: 0;
 }
+.b2b-sidebar__brand-logo svg {
+  width: 100%; height: 100%;
+  display: block;
+  object-fit: contain;
+}
+.b2b-sidebar__brand-text-accent { color: #7C3AED; }
 
 .b2b-sidebar__search {
   padding: 10px 12px;
