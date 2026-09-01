@@ -36,34 +36,36 @@ import { contributions as contributions0 } from '@endora-commerce/mod-admin-role
 import { contributions as contributions1 } from '@endora-commerce/mod-admin-users/admin';
 import { contributions as contributions2 } from '@endora-commerce/mod-analytics/admin';
 import { contributions as contributions3 } from '@endora-commerce/mod-api-keys/admin';
-import { contributions as contributions4 } from '@endora-commerce/mod-audit-logs/admin';
-import { contributions as contributions5 } from '@endora-commerce/mod-autopay/admin';
-import { contributions as contributions6 } from '@endora-commerce/mod-carts/admin';
-import { contributions as contributions7 } from '@endora-commerce/mod-comparisons/admin';
-import { contributions as contributions8 } from '@endora-commerce/mod-credit-limits/admin';
-import { contributions as contributions9 } from '@endora-commerce/mod-customer-accounts/admin';
-import { contributions as contributions10 } from '@endora-commerce/mod-delivery-methods/admin';
-import { contributions as contributions11 } from '@endora-commerce/mod-dhl-parcel/admin';
-import { contributions as contributions12 } from '@endora-commerce/mod-google-analytics/admin';
-import { contributions as contributions13 } from '@endora-commerce/mod-import-export/admin';
-import { contributions as contributions14 } from '@endora-commerce/mod-inpost/admin';
-import { contributions as contributions15 } from '@endora-commerce/mod-linkedin-ads/admin';
-import { contributions as contributions16 } from '@endora-commerce/mod-megamenu/admin';
-import { contributions as contributions17 } from '@endora-commerce/mod-meta-ads/admin';
-import { contributions as contributions18 } from '@endora-commerce/mod-mfa/admin';
-import { contributions as contributions19 } from '@endora-commerce/mod-payment-methods/admin';
-import { contributions as contributions20 } from '@endora-commerce/mod-paypal/admin';
-import { contributions as contributions21 } from '@endora-commerce/mod-payu/admin';
-import { contributions as contributions22 } from '@endora-commerce/mod-pim-pimcore/admin';
-import { contributions as contributions23 } from '@endora-commerce/mod-product-feeds/admin';
-import { contributions as contributions24 } from '@endora-commerce/mod-promotions/admin';
-import { contributions as contributions25 } from '@endora-commerce/mod-pwa/admin';
-import { contributions as contributions26 } from '@endora-commerce/mod-returns/admin';
-import { contributions as contributions27 } from '@endora-commerce/mod-seo/admin';
-import { contributions as contributions28 } from '@endora-commerce/mod-stripe/admin';
-import { contributions as contributions29 } from '@endora-commerce/mod-taxes/admin';
-import { contributions as contributions30 } from '@endora-commerce/mod-tpay/admin';
-import { contributions as contributions31 } from '@endora-commerce/mod-webhooks/admin';
+import { contributions as contributions4 } from '@endora-commerce/mod-assets-library/admin';
+import { contributions as contributions5 } from '@endora-commerce/mod-audit-logs/admin';
+import { contributions as contributions6 } from '@endora-commerce/mod-autopay/admin';
+import { contributions as contributions7 } from '@endora-commerce/mod-carts/admin';
+import { contributions as contributions8 } from '@endora-commerce/mod-comparisons/admin';
+import { contributions as contributions9 } from '@endora-commerce/mod-credit-limits/admin';
+import { contributions as contributions10 } from '@endora-commerce/mod-custom-fields/admin';
+import { contributions as contributions11 } from '@endora-commerce/mod-customer-accounts/admin';
+import { contributions as contributions12 } from '@endora-commerce/mod-delivery-methods/admin';
+import { contributions as contributions13 } from '@endora-commerce/mod-dhl-parcel/admin';
+import { contributions as contributions14 } from '@endora-commerce/mod-google-analytics/admin';
+import { contributions as contributions15 } from '@endora-commerce/mod-import-export/admin';
+import { contributions as contributions16 } from '@endora-commerce/mod-inpost/admin';
+import { contributions as contributions17 } from '@endora-commerce/mod-linkedin-ads/admin';
+import { contributions as contributions18 } from '@endora-commerce/mod-megamenu/admin';
+import { contributions as contributions19 } from '@endora-commerce/mod-meta-ads/admin';
+import { contributions as contributions20 } from '@endora-commerce/mod-mfa/admin';
+import { contributions as contributions21 } from '@endora-commerce/mod-payment-methods/admin';
+import { contributions as contributions22 } from '@endora-commerce/mod-paypal/admin';
+import { contributions as contributions23 } from '@endora-commerce/mod-payu/admin';
+import { contributions as contributions24 } from '@endora-commerce/mod-pim-pimcore/admin';
+import { contributions as contributions25 } from '@endora-commerce/mod-product-feeds/admin';
+import { contributions as contributions26 } from '@endora-commerce/mod-promotions/admin';
+import { contributions as contributions27 } from '@endora-commerce/mod-pwa/admin';
+import { contributions as contributions28 } from '@endora-commerce/mod-returns/admin';
+import { contributions as contributions29 } from '@endora-commerce/mod-seo/admin';
+import { contributions as contributions30 } from '@endora-commerce/mod-stripe/admin';
+import { contributions as contributions31 } from '@endora-commerce/mod-taxes/admin';
+import { contributions as contributions32 } from '@endora-commerce/mod-tpay/admin';
+import { contributions as contributions33 } from '@endora-commerce/mod-webhooks/admin';
 
 /** One module's contribution set, keyed by the module id that shipped it. */
 export interface AdminRegistryEntry {
@@ -76,32 +78,34 @@ export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
   { moduleId: 'admin_users', contributions: contributions1 },
   { moduleId: 'analytics', contributions: contributions2 },
   { moduleId: 'api_keys', contributions: contributions3 },
-  { moduleId: 'audit_logs', contributions: contributions4 },
-  { moduleId: 'autopay', contributions: contributions5 },
-  { moduleId: 'carts', contributions: contributions6 },
-  { moduleId: 'comparisons', contributions: contributions7 },
-  { moduleId: 'credit_limits', contributions: contributions8 },
-  { moduleId: 'customer_accounts', contributions: contributions9 },
-  { moduleId: 'delivery_methods', contributions: contributions10 },
-  { moduleId: 'dhl_parcel', contributions: contributions11 },
-  { moduleId: 'google_analytics', contributions: contributions12 },
-  { moduleId: 'import_export', contributions: contributions13 },
-  { moduleId: 'inpost', contributions: contributions14 },
-  { moduleId: 'linkedin_ads', contributions: contributions15 },
-  { moduleId: 'megamenu', contributions: contributions16 },
-  { moduleId: 'meta_ads', contributions: contributions17 },
-  { moduleId: 'mfa', contributions: contributions18 },
-  { moduleId: 'payment_methods', contributions: contributions19 },
-  { moduleId: 'paypal', contributions: contributions20 },
-  { moduleId: 'payu', contributions: contributions21 },
-  { moduleId: 'pim_pimcore', contributions: contributions22 },
-  { moduleId: 'product_feeds', contributions: contributions23 },
-  { moduleId: 'promotions', contributions: contributions24 },
-  { moduleId: 'pwa', contributions: contributions25 },
-  { moduleId: 'returns', contributions: contributions26 },
-  { moduleId: 'seo', contributions: contributions27 },
-  { moduleId: 'stripe', contributions: contributions28 },
-  { moduleId: 'taxes', contributions: contributions29 },
-  { moduleId: 'tpay', contributions: contributions30 },
-  { moduleId: 'webhooks', contributions: contributions31 },
+  { moduleId: 'assets_library', contributions: contributions4 },
+  { moduleId: 'audit_logs', contributions: contributions5 },
+  { moduleId: 'autopay', contributions: contributions6 },
+  { moduleId: 'carts', contributions: contributions7 },
+  { moduleId: 'comparisons', contributions: contributions8 },
+  { moduleId: 'credit_limits', contributions: contributions9 },
+  { moduleId: 'custom_fields', contributions: contributions10 },
+  { moduleId: 'customer_accounts', contributions: contributions11 },
+  { moduleId: 'delivery_methods', contributions: contributions12 },
+  { moduleId: 'dhl_parcel', contributions: contributions13 },
+  { moduleId: 'google_analytics', contributions: contributions14 },
+  { moduleId: 'import_export', contributions: contributions15 },
+  { moduleId: 'inpost', contributions: contributions16 },
+  { moduleId: 'linkedin_ads', contributions: contributions17 },
+  { moduleId: 'megamenu', contributions: contributions18 },
+  { moduleId: 'meta_ads', contributions: contributions19 },
+  { moduleId: 'mfa', contributions: contributions20 },
+  { moduleId: 'payment_methods', contributions: contributions21 },
+  { moduleId: 'paypal', contributions: contributions22 },
+  { moduleId: 'payu', contributions: contributions23 },
+  { moduleId: 'pim_pimcore', contributions: contributions24 },
+  { moduleId: 'product_feeds', contributions: contributions25 },
+  { moduleId: 'promotions', contributions: contributions26 },
+  { moduleId: 'pwa', contributions: contributions27 },
+  { moduleId: 'returns', contributions: contributions28 },
+  { moduleId: 'seo', contributions: contributions29 },
+  { moduleId: 'stripe', contributions: contributions30 },
+  { moduleId: 'taxes', contributions: contributions31 },
+  { moduleId: 'tpay', contributions: contributions32 },
+  { moduleId: 'webhooks', contributions: contributions33 },
 ];

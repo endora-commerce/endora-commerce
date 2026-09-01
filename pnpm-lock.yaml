@@ -65,6 +65,9 @@ importers:
       '@endora-commerce/mod-api-keys':
         specifier: workspace:*
         version: link:../packages/modules/api_keys
+      '@endora-commerce/mod-assets-library':
+        specifier: workspace:*
+        version: link:../packages/modules/assets_library
       '@endora-commerce/mod-audit-logs':
         specifier: workspace:*
         version: link:../packages/modules/audit_logs
@@ -80,6 +83,9 @@ importers:
       '@endora-commerce/mod-credit-limits':
         specifier: workspace:*
         version: link:../packages/modules/credit_limits
+      '@endora-commerce/mod-custom-fields':
+        specifier: workspace:*
+        version: link:../packages/modules/custom_fields
       '@endora-commerce/mod-customer-accounts':
         specifier: workspace:*
         version: link:../packages/modules/customer_accounts
@@ -1128,6 +1134,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1042.0
         version: 3.1042.0
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1152,12 +1161,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       file-type:
         specifier: ^22.0.1
         version: 22.0.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1575,6 +1593,9 @@ importers:
 
   packages/modules/custom_fields:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1593,12 +1614,24 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

@@ -239,7 +239,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'admin/src/modules/cms/components/CatalogPickers.tsx': 13,
   'admin/src/modules/cms/components/ComponentDragHandle.tsx': 1,
   'admin/src/modules/cms/components/RowLayoutPicker.tsx': 2,
-  'admin/src/modules/custom_fields/CustomFieldsPage.tsx': 4,
   'admin/src/modules/invoices/templates/invoice-puck-config.tsx': 6,
   // Feature 091, Phase 4 batch three: the screen moved into its module's
   // package and the entry is **re-keyed**, not raised and not dropped. The
@@ -295,6 +294,21 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // whoever repairs this screen, not to a batch whose subject is where the file
   // lives.
   'packages/modules/stripe/src/admin/pages/StripeSettingsPage.tsx': 29,
+  // Feature 091, Phase 4, the plan's batch 9 — the same four findings under a
+  // new key. `custom_fields`' definition screen moved into its module's
+  // package; the ratchet is two-way and keyed by path, so both halves fired in
+  // one run, a regression at the new key and a drain at the old one. The debt
+  // is untouched and is real: `Label (EN)`, `Options (comma-separated)`, its
+  // `gold, silver` placeholder and the `Add field` button are the create form's
+  // English-only half, beside a screen whose other six strings do resolve
+  // through this module's own bundle. Translating them is one form's worth of
+  // keys and belongs to whoever repairs the form, not to a batch whose subject
+  // is where the file lives.
+  //
+  // `assets_library` moved in the same batch and gets no entry, because its
+  // four files carry no finding — the library screen, its folder tree and its
+  // detail drawer render every sentence through `useTranslation`.
+  'packages/modules/custom_fields/src/admin/pages/CustomFieldsPage.tsx': 4,
   'admin/src/modules/newsletter/pages/AutomationBuilder.tsx': 6,
   'admin/src/modules/newsletter/pages/AutomationsPage.tsx': 4,
   'admin/src/modules/newsletter/pages/BlocksPage.tsx': 8,

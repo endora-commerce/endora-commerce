@@ -3,21 +3,17 @@
 // + per-asset detail drawer. Inline upload affordance per current folder.
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { PageHeader } from '@/components/ui/page-header';
-import { useTranslation } from '@/i18n/useTranslation';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AssetUploader } from '@endora-commerce/admin-kit/components';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
-import { FolderTree } from '../components/FolderTree';
-import { AssetDetailDrawer } from '../components/AssetDetailDrawer';
+import { FolderTree } from '../components/FolderTree.js';
+import { AssetDetailDrawer } from '../components/AssetDetailDrawer.js';
 import {
   assetsLibraryClient,
   type AssetFolder,
   type AssetSummary,
-} from '../api/assets-library-client';
+} from '../api/assets-library-client.js';
 
 export function LibraryPage(): ReactNode {
   const t = useTranslation('assets_library');
@@ -286,3 +282,10 @@ export function LibraryPage(): ReactNode {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default LibraryPage;

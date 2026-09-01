@@ -45,7 +45,6 @@ import { AttributeSetsPage } from './modules/catalog/AttributeSetsPage.js';
 import { AttachmentTypesPage } from './modules/catalog/AttachmentTypesPage.js';
 import { BulkOperationsPage } from './modules/catalog/BulkOperationsPage.js';
 import { BulkOperationDetailPage } from './modules/catalog/BulkOperationDetailPage.js';
-import { LibraryPage as AssetsLibraryPage } from './modules/assets_library/pages/LibraryPage.js';
 import { OrganizationsList } from './modules/organizations/OrganizationsList.js';
 import { OrganizationDetail } from './modules/organizations/OrganizationDetail.js';
 import { CustomersList } from './modules/customers/CustomersList.js';
@@ -68,7 +67,6 @@ import { TagsPage as NewsletterTagsPage } from './modules/newsletter/pages/TagsP
 import { CampaignStats as NewsletterCampaignStats } from './modules/newsletter/pages/CampaignStats.js';
 import { BlocksPage as NewsletterBlocksPage } from './modules/newsletter/pages/BlocksPage.js';
 import { ProviderSettingsPage as NewsletterProviderPage } from './modules/newsletter/pages/ProviderSettingsPage.js';
-import { CustomFieldsPage } from './modules/custom_fields/CustomFieldsPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalfPage.js';
 import { InvoicesList } from './modules/invoices/InvoicesList.js';
@@ -246,7 +244,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/catalog/attachment-types" element={<AttachmentTypesPage />} />
         <Route path="/catalog/bulk-operations" element={<BulkOperationsPage />} />
         <Route path="/catalog/bulk-operations/:id" element={<BulkOperationDetailPage />} />
-        <Route path="/assets-library" element={<AssetsLibraryPage />} />
         <Route path="/organizations" element={<OrganizationsList />} />
         <Route path="/organizations/:id" element={<OrganizationDetail />} />
         <Route path="/customers" element={<CustomersList />} />
@@ -257,7 +254,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/orders/quick-order" element={<QuickOrderOnBehalfPage />} />
         <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
         <Route path="/orders/:id" element={<OrderDetail />} />
-        <Route path="/custom-fields" element={<CustomFieldsPage />} />
         <Route path="/transactional-emails" element={<EmailsList />} />
         <Route path="/transactional-emails/blocks" element={<EmailBlocksPage />} />
         <Route path="/transactional-emails/blocks/:id" element={<EmailFragmentEditor kind="block" />} />

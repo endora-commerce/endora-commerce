@@ -3,10 +3,9 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { Folder, FolderPlus, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useTranslation } from '@/i18n/useTranslation';
-import type { AssetFolder } from '../api/assets-library-client';
+import { Button, Input } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import type { AssetFolder } from '../api/assets-library-client.js';
 
 export interface FolderTreeProps {
   folders: AssetFolder[];

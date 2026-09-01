@@ -330,9 +330,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `comparisons`, `api_keys`, four routes and six nav entries — took it
     // to 207, and batch 7 — `promotions`, `payment_methods`,
     // `customer_accounts`, `product_feeds`, seventeen routes and eight nav
-    // entries — takes it to 182.
+    // entries — takes it to 182. Batch 8 — `seo`, `taxes`, `credit_limits`,
+    // `delivery_methods`, `megamenu`, `returns`, eleven routes and eight nav
+    // entries — took it to 163, which is this band's floor to the unit and was
+    // not re-recorded; batch 9 — `assets_library` and `custom_fields`, two
+    // routes and two nav entries — takes it to 159, and both are recorded here.
     files: 2,
-    sites: 182,
+    sites: 159,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],
@@ -368,8 +372,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the finer population the per-symbol verdict runs on. Both grow as Story 3
     // moves directories into packages: a packaged module's `src/admin` is in the
     // same walk, so the file count follows the surface rather than the tree.
-    files: 308,
-    sites: 2826,
+    //
+    // **Re-recorded by feature 091's batch 9, and one of the two numbers was
+    // already below its floor.** `sites` is the count of `from '…'` specifiers
+    // inside those directories, and it falls when a directory *leaves* the
+    // admin for a package with fewer reaches than it had — a screen that took
+    // eight `@/components/ui/*` imports takes one from
+    // `@endora-commerce/admin-kit/ui`. Batch 8 collapsed five screens that way
+    // and did not re-record: `master` at `8c4feaf7a` prints `sites=2531`
+    // against a floor of 2543, so this entry was red before this batch touched
+    // it. Batch 9 moves six more files and prints 2517. Both numbers below are
+    // measured on this branch; neither is a widened band.
+    files: 352,
+    sites: 2517,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not
