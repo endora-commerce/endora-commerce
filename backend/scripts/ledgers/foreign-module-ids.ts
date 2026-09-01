@@ -100,11 +100,17 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
   // this ledger's stale direction working the first time it was asked: the
   // merge brought the repair in and the check went red on the two entries that
   // had outlived their sites, in the same run.
-  'packages/admin-kit/src/components/category-tree-picker/CategoryTreePicker.tsx:kit-namespace:catalog':
-    'Seven `categoryTreePicker.*` keys, read by nothing outside the kit. It has shipped in ' +
-    'this state since Phase 1b, and §9.2 gives it a standalone merge request having no other ' +
-    'subject: it retires when those seven keys move to `core`. This entry is the reason the ' +
-    'population is worth counting — nothing in the estate would ever have found it.',
+  // **And !1231 took the third, after both had merged.** `CategoryTreePicker`'s
+  // seven `categoryTreePicker.*` keys moved to `core`, so this population is now
+  // **empty**. The two merge requests were green apart and stale together: P4a
+  // measured its ledger at `1de1673e6`, which held !1230 and not !1231, and the
+  // entry only outlived its site once both were on `master`. A branch's own
+  // pipeline cannot see that; the first run on the merge result is where it
+  // showed, which is the shape AGENTS.md records for derived ledgers.
+  //
+  // The empty population is the argument for keeping this half of the check, not
+  // for dropping it: nothing else in the estate would have found `CategoryTreePicker`,
+  // and the next kit component to name a foreign namespace has no other reader.
 
   // --- population 3: a module screen rendering out of another's namespace ----
   //

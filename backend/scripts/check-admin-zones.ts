@@ -169,6 +169,24 @@ export interface ZoneContributionSite {
 }
 
 /** One module id written as a string literal. */
+/**
+ * The three ways a module id gets written into a file the module does not own.
+ *
+ * This is a **value** and the type is derived from it, so a test can assert that
+ * every one still has a classifier without keeping a second copy of the list. The
+ * distinction that forced it: a population draining to **zero** is this feature
+ * succeeding — `kit-namespace` emptied when !1231 moved `CategoryTreePicker`'s keys
+ * to `core` — while a population the check stops *looking* for is the silent failure
+ * the whole estate refuses. The ledger may shrink to nothing; this array may not.
+ */
+export const FOREIGN_ID_POPULATIONS = [
+  'visibility-gate',
+  'kit-namespace',
+  'module-namespace',
+] as const;
+
+export type ForeignIdPopulation = (typeof FOREIGN_ID_POPULATIONS)[number];
+
 export interface ModuleIdSite {
   readonly file: string;
   readonly line: number;
@@ -176,7 +194,7 @@ export interface ModuleIdSite {
   readonly named: string | null;
   /** The module that owns the file, or `null` for the kit and the admin host. */
   readonly owner: string | null;
-  readonly population: 'visibility-gate' | 'kit-namespace' | 'module-namespace';
+  readonly population: ForeignIdPopulation;
 }
 
 export interface AdminZonesInput {
