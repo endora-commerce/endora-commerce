@@ -1,41 +1,59 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import type { Warehouse, WarehouseChannelAssignment } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useSurfaceVisibility } from '@/lib/surface-visibility';
-import { warehousesClient } from './api/warehouses-client';
+import type {
+  AdminZoneProps,
+  Warehouse,
+  WarehouseChannelAssignment,
+} from '@endora-commerce/contracts';
+import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 interface ListResponse {
   items: WarehouseChannelAssignment[];
 }
 
+interface WarehouseListResponse {
+  items: Warehouse[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
 /**
- * ChannelMembershipPanel — feature 010 / US3 (T046).
+ * The warehouses bound to one sales channel (feature 010 / US3, T046).
  *
- * Lists warehouses bound to the channel, lets the operator add a new
- * binding, demote/promote the default, and unassign non-default rows.
- * Mounted on the SalesChannel detail page.
+ * Lists the bindings, lets the operator add one, promote a row to default and
+ * unassign a non-default row.
+ *
+ * ## What moved, and what was rebuilt (feature 091, P7c)
+ *
+ * The file lived at `admin/src/modules/warehouses/ChannelMembershipPanel.tsx`
+ * — `warehouses/`, not `inventory/`; the nav attributes `/warehouses` to
+ * `module: 'inventory'`, which is why the boundary ledger keyed it
+ * `inventory/ChannelMembershipPanel`. `sales_channels`' edit screen imported it
+ * by path, the single key in
+ * `backend/scripts/ledgers/cross-module-imports/sales_channels.ts`; that screen
+ * renders `sales_channel.editor.after` now and this module declares the
+ * contribution.
+ *
+ * Its warehouse read used `admin/src/modules/warehouses/api/warehouses-client`,
+ * which is still the admin application's file, so moving this one alone would
+ * have made a package reach back into `admin/src`. Both of its reads are HTTP
+ * paths whose types are already `@endora-commerce/contracts`', so they are
+ * rebuilt from the published `apiClient` — P2's exit, and no new reach.
+ *
+ * ## The read gate went; the write gate stayed
+ *
+ * The zone renderer applies both presence axes **and** the contribution's
+ * declared `inventory:read` before it touches `React.lazy` (§4), so asking
+ * again here would be the same question twice — and the second answer would be
+ * the one nobody maintains. `canWrite` stays: a contribution declares one code,
+ * and this panel offers a read view and write actions behind two.
  */
-export function ChannelMembershipPanel({ channelId }: { channelId: string }): ReactNode {
+export type ChannelWarehousesProps = AdminZoneProps<'sales_channel.editor.after'>;
+
+export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactNode {
   const t = useTranslation('core');
-  /**
-   * This panel's own gate (2026-08-29), and it is the interesting one.
-   *
-   * The panel is mounted by `sales_channels`' edit screen, but the four routes
-   * behind it are `inventory`'s and they took `inventory:read` /
-   * `inventory:write` on 2026-08-29 — the assignment is fulfilment routing,
-   * which is not a fact about the channel's identity. So an operator who may
-   * edit a sales channel and not touch stock now gets **no panel** instead of a
-   * panel that answers 403 on load. That is the same treatment every other
-   * denied destination gets, applied to a composed one: the screen is the
-   * host's, the capability is this module's, and each is gated by its owner.
-   *
-   * The module axis is asked here too, and it is `inventory`'s rather than the
-   * host's: with stock management switched off, a channel↔warehouse binding is
-   * not a thing an operator can have an opinion about.
-   */
   const isVisible = useSurfaceVisibility();
-  const canRead = isVisible({ module: 'inventory', requiredPermission: 'inventory:read' });
   const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
   const [assignments, setAssignments] = useState<WarehouseChannelAssignment[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -46,15 +64,13 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
   const [pendingWarehouseId, setPendingWarehouseId] = useState<string>('');
 
   const refresh = useCallback(async (): Promise<void> => {
-    if (!canRead) {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
       const [whRes, listRes] = await Promise.all([
-        warehousesClient.list({ activeOnly: true, withTotals: false, pageSize: 200 }),
+        apiClient.get<WarehouseListResponse>(
+          '/api/v1/admin/warehouses?pageSize=200&activeOnly=true&withTotals=false',
+        ),
         apiClient.get<ListResponse>(`/api/v1/admin/sales-channels/${channelId}/warehouses`),
       ]);
       setWarehouses(whRes.items);
@@ -64,7 +80,7 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
     } finally {
       setLoading(false);
     }
-  }, [canRead, channelId, t]);
+  }, [channelId, t]);
 
   useEffect(() => {
     void refresh();
@@ -128,11 +144,8 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
     }
   };
 
-  // Absent, not disabled and not a 403 panel: this whole surface belongs to a
-  // module and a permission the operator editing the channel may not have.
-  // Ahead of the loading branch, so a denied operator never sees it flicker.
-  if (!canRead) return null;
-
+  // The read gate that used to stand here is the zone renderer's now — absent,
+  // not disabled and not a 403 panel, decided before this chunk is fetched.
   if (loading) return <div className="b2b-help">{t('warehouses.channel.loading')}</div>;
 
   return (
@@ -253,3 +266,10 @@ export function ChannelMembershipPanel({ channelId }: { channelId: string }): Re
     </div>
   );
 }
+
+/**
+ * The zone renderer loads a contribution through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own tests use.
+ */
+export default ChannelWarehouses;

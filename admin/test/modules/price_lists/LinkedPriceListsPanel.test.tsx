@@ -6,7 +6,13 @@ import {
   LinkedPriceListsList,
   toInternalPath,
   type LinkedPriceListRow,
-} from '../../../src/modules/price_lists/LinkedPriceListsPanel';
+  // Feature 091 / P7a — the panel moved into its own module's package, where
+  // `catalog` reaches it as a `product.editor.pricing.after` contribution
+  // instead of by path. The subject is named by the same relative path the
+  // packaged `delivery_methods` screen's test uses: this file's job is the
+  // pure render, and a `@endora-commerce/mod-price-lists/admin` import would
+  // get the contribution declarations rather than the component.
+} from '../../../../packages/modules/price_lists/src/admin/components/LinkedPriceListsPanel';
 
 // `LinkedPriceListsList` calls `useTranslation('core')` for the inline
 // labels (System, Open, status chips). Wrap each renderToString call

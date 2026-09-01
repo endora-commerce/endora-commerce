@@ -165,8 +165,6 @@
   "categories.mainImage.pick": "Wybierz",
   "categories.mainImage.change": "Zmień",
   "categories.mainImage.clear": "Wyczyść obraz główny",
-  "categories.priceDisplayMode.label": "Tryb wyświetlania ceny dla tej kategorii",
-  "categories.priceDisplayMode.help": "Dziedziczy z najgłębszej kategorii nadrzędnej, następnie z Organizacji, na końcu z domyślnej wartości platformy.",
   "attributes.page.title": "Atrybuty",
   "attributes.page.description": "Atrybuty z włączoną wyszukiwarką i filtrami napędzają Meilisearch oraz panel filtrów w sklepie. Przełącznik dla każdego atrybutu działa od ręki — efekty widać w ciągu sekund.",
   "attributes.error.load": "Nie udało się wczytać.",

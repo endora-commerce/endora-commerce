@@ -1757,8 +1757,19 @@ describe('the tree itself', () => {
     // which no module walk reaches. It is compared with the module half rather
     // than with `sources.size`, because the admin half joined the second and
     // the schema walk does not read `admin/` at all.
+    //
+    // **Compared over `.ts` on both sides** (feature 091, P7a/P7c). The schema
+    // walk is `.ts`-only by construction — an entity and a `create table` are
+    // never in a `.tsx` — while the module walk takes both extensions since P1,
+    // so as module packages ship admin layers the module half overtakes a walk
+    // that is genuinely wider over the population they share. Measured on this
+    // tree: 1865 module files of which 162 are `.tsx`, against 1836 schema
+    // files. The floor had already inverted before this merge request and was
+    // red on `master`; P7a and P7c add eight `.tsx` and would have deepened it.
+    // Comparing like with like restores what the sentence above says, and the
+    // headroom that remains is exactly the backend the module walk cannot see.
     expect(schema.size, 'no schema sources found — a vacuous pass').toBeGreaterThan(
-      moduleFiles.length,
+      moduleFiles.filter((file) => file.endsWith('.ts')).length,
     );
 
     // The two walks are complements within one source root, so no admin file

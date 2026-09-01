@@ -53,12 +53,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { PackagingUnitsEditor } from './components/PackagingUnitsEditor';
 import { ProductAttributesTab } from './ProductAttributesTab';
-import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
 import { ProductPicker } from '@endora-commerce/admin-kit/components';
 import {
   ProductScopeEditor,
@@ -132,6 +130,13 @@ export function ProductEditor(): ReactNode {
   const navigate = useNavigate();
   const isNew = params.id === 'new';
   const id = isNew ? null : params.id ?? null;
+
+  // Feature 091 / P7a, Z15 — the Channels tab's button is a count of its own
+  // body. Declared here rather than beside the tab table because the table is
+  // built below an early return and a hook may not be.
+  const channelContributions = useAdminZone('product.editor.channels', {
+    productId: id ?? '',
+  });
 
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
@@ -430,7 +435,18 @@ export function ProductEditor(): ReactNode {
     { id: 'inventory', label: 'Inventory', icon: <WarehouseIcon size={14} />, show: !isNew },
     { id: 'attachments', label: 'Attachments', icon: <Paperclip size={14} />, show: !isNew },
     { id: 'links', label: 'Related', icon: <LinkIcon size={14} />, show: !isNew },
-    { id: 'channels', label: 'Channels', icon: <StoreIcon size={14} />, show: !isNew },
+    // Feature 091 / P7a, Z15 — the tab body is a zone, so the button is shown
+    // by counting it. `useAdminZone` has already applied both presence axes and
+    // each contributor's permission, so its length is the honest answer to "is
+    // there anything behind this tab" — and a tab that opens on an empty panel
+    // is worse than no tab. The label stays this screen's own word for the
+    // place (Z14); what it stops knowing is which module fills it.
+    {
+      id: 'channels',
+      label: 'Channels',
+      icon: <StoreIcon size={14} />,
+      show: !isNew && channelContributions.length > 0,
+    },
     { id: 'seo', label: 'SEO', icon: <Globe size={14} />, show: !isNew },
   ];
   const visibleTabs = tabs.filter((t) => t.show);
@@ -769,7 +785,10 @@ export function ProductEditor(): ReactNode {
                   product. A contributor with no binding over the product
                   renders nothing, which is every product until one is bound. */}
               <AdminZone name="product.editor.pricing.before" props={{ productId: id }} />
-              <LinkedPriceListsPanel productId={id} />
+              {/* Feature 091 / P7a — the end of the Pricing tab. `price_lists`
+                  contributes its linked-lists panel here; this screen used to
+                  import that panel by path. */}
+              <AdminZone name="product.editor.pricing.after" props={{ productId: id }} />
             </div>
           ) : null}
 
@@ -815,7 +834,7 @@ export function ProductEditor(): ReactNode {
           {activeTab === 'links' && id ? <ProductLinksSection productId={id} /> : null}
 
           {activeTab === 'channels' && id ? (
-            <EntityChannelMembership entityType="product" entityId={id} />
+            <AdminZone name="product.editor.channels" props={{ productId: id }} />
           ) : null}
 
           {activeTab === 'seo' ? <SeoStub name={name} /> : null}
