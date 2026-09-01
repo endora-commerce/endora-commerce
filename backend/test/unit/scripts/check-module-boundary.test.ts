@@ -8,11 +8,8 @@ import {
   analyzeSource,
   CANONICAL_SHARD_ENTRY_TYPE,
   checkModuleBoundary,
-  collectAdminFiles,
   collectAdminHostFiles,
   collectModuleFiles,
-  collectSchemaFiles,
-  schemaKeyOf,
   declaredEntryType,
   findCrossModuleSql,
   generatedExemptionIssues,
@@ -24,8 +21,8 @@ import {
   permanentEntryIssue,
   reasonOf,
   recordedSites,
+  scanModuleBoundaryTree,
   shardShapeIssue,
-  sourcesOf,
   vacuousReason,
   type AdminBoundarySurfaces,
   type LedgerEntry,
@@ -1716,29 +1713,44 @@ describe('the tree itself', () => {
   it('has every cross-module reach ledgered, in its own shard', async () => {
     const layout = await resolveModuleLayout();
     const shards = await loadLedgerShards(ledgerDirectory());
-    // The admin population joins here for the same reason it joins in the CLI
-    // (feature 091, FR-017): a walk without it reports every admin ledger entry
-    // as stale, which is the two-way ledger doing its job over a half-read
-    // tree. Both halves come off the same functions the CLI calls, so the two
-    // cannot come to disagree about the scan scope.
-    const admin = await adminSurfacesOf(layout);
+    // **The whole input, from the function the CLI calls.** This block used to
+    // walk through the shared collectors and then assemble its own
+    // `ModuleBoundaryInput` from three of the seven fields, with a comment
+    // saying the two "cannot come to disagree about the scan scope". They came
+    // to disagree about the *record* instead: `modulePackages` absent means no
+    // **bare** specifier resolves to a module, so feature 091's batch 10 added
+    // the first bare-specifier ledger key
+    // (`…/mod-credentials/admin-ui`), the CLI read `stale=0` over it, and this
+    // assertion — blind to the reach that justifies the entry — called the entry
+    // stale and took `master` red. Sharing the walk while re-deriving the record
+    // is the same defect one layer in, so the record is shared too, and a field
+    // added to `ModuleBoundaryInput` reaches this assertion by construction.
+    //
+    // The floors below stay, and stay this test's own: they are what says the
+    // scan was not vacuous, which is the one thing a shared builder cannot
+    // assert about itself.
+    const scan = await scanModuleBoundaryTree(layout);
+    const { adminSurfaces: admin, adminFiles, adminHostFiles, moduleFiles } = scan;
+    const { sources, schema } = scan.input;
     expect(admin, 'no admin surfaces resolved — a vacuous pass').not.toBeNull();
-    const adminFiles = collectAdminFiles(admin, layout.repoRoot);
     expect(adminFiles.length, 'no admin sources found — a vacuous pass').toBeGreaterThan(100);
     // The host half joins on the same terms (feature 091, P1): `admin/src`
     // outside the module root, walked through the function the CLI calls rather
     // than through a second list of roots written here. A test that derived its
     // own population would be the defect !1182 measured in `i18n:hardcoded` —
     // script and companion disagreeing in opposite directions in one run.
-    const adminHostFiles = collectAdminHostFiles(admin, layout.repoRoot);
     expect(
       adminHostFiles.length,
       'no admin host sources found — the host shard would read entirely stale',
     ).toBeGreaterThan(50);
-    const moduleFiles = collectModuleFiles(layout.moduleWalkRoots);
-    const sources = sourcesOf([...moduleFiles, ...adminFiles, ...adminHostFiles], layout.keyOf);
-    const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
     expect(sources.size, 'no module sources found — a vacuous pass').toBeGreaterThan(1000);
+    // The module packages are in the record, and a run in which they are not is
+    // exactly the blindness above: it reports every bare-specifier ledger entry
+    // as stale, which reads as a repository defect and is a defect in the run.
+    expect(
+      scan.input.modulePackages?.size ?? 0,
+      'no module package resolved — every bare specifier would read as third-party',
+    ).toBeGreaterThan(0);
     // The schema walk is the wider of the two over the **backend**, which is
     // what this floor has always said: five of the tables it resolves are the
     // kernel's and 21 more are declared only by DDL under `src/db/migrations`,
@@ -1755,7 +1767,7 @@ describe('the tree itself', () => {
       adminFiles.length + adminHostFiles.length,
     );
 
-    const result = checkModuleBoundary({ sources, schema, adminSurfaces: admin }, shards);
+    const result = checkModuleBoundary(scan.input, shards);
     expect(result.tableOwners.entityTables, 'entity pass resolved nothing').toBeGreaterThan(100);
     expect(result.tableOwners.migrationOnlyTables, 'migration pass added nothing').toBeGreaterThan(
       0,
