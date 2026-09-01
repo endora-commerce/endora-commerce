@@ -75,6 +75,38 @@ globalThis.fetch = (async (input: RequestInfo | URL): Promise<Response> => {
   );
 }) as typeof fetch;
 
+/**
+ * jsdom implements no `ResizeObserver`, and the admin's charting primitive keeps
+ * its chart sized to its container with one.
+ *
+ * A test that renders a screen carrying an `<EChart>` therefore died inside
+ * `useEffect` with `ReferenceError: ResizeObserver is not defined`, which React
+ * reports by unmounting the tree — an empty `<body>` and a Testing Library error
+ * naming the text it could not find, which says nothing about the cause. It was
+ * invisible while every such screen was the admin's own, because those tests
+ * stub `@/components/charts/echart`; a screen that reaches the kit's chart
+ * through the kit's own internals is past that seam, and mocking a path inside
+ * another package's `dist` is not a seam anybody should be asked to name.
+ *
+ * The stub observes nothing on purpose. Under jsdom every element measures
+ * zero, so a real observer would report one resize to zero and nothing after —
+ * the callback has nothing true to say, and a test that depended on it would be
+ * asserting jsdom's layout rather than the product's.
+ */
+if (!('ResizeObserver' in globalThis)) {
+  (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class ResizeObserver {
+    observe(): void {
+      /* jsdom lays nothing out; there is no size change to report */
+    }
+    unobserve(): void {
+      /* the same, in reverse */
+    }
+    disconnect(): void {
+      /* nothing was ever observed */
+    }
+  };
+}
+
 // jsdom does not implement scrollIntoView; components that call it (e.g. the
 // organization picker's active-option scroll) would throw under test. Polyfill
 // it globally so tests don't depend on call ordering across files.

@@ -203,22 +203,28 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
   /**
    * `delivery_methods` took its own codes on 2026-08-28, on the same terms and
    * for the same reason.
+   *
+   * **The palette half of this pair is gone since feature 091's batch 8**, and
+   * its absence is the point rather than a loss of coverage. The row was a
+   * `PALETTE_ITEMS` literal in `AppShell.tsx` — a copy of an advertisement the
+   * server was never asked about, which went on offering the screen after an
+   * operator switched the module off. It is a manifest action now
+   * (`open-delivery-methods`), so the surface the operator sees is the one the
+   * effective enabled-set filters, and it is proved where that filtering
+   * happens:
+   * `backend/test/integration/_admin_surfaces/batch-eight-palette-off-state.test.ts`.
+   * Asserting `false` here would still pass — for the wrong reason, nothing
+   * renders the row at all — which is exactly the shape this suite refuses.
    */
-  it('hides /delivery-methods from a catalogue editor', async () => {
+  it('hides /delivery-methods from a catalogue editor', () => {
     renderShell(['catalog:read', 'catalog:write']);
     expect(sidebarHrefs()).not.toContain('/delivery-methods');
-    expect(
-      (await openPaletteItems()).some((t) => t.includes('appShell.nav.deliveryMethods')),
-    ).toBe(false);
   });
 
-  it('shows /delivery-methods to a role holding delivery_methods:read', async () => {
+  it('shows /delivery-methods to a role holding delivery_methods:read', () => {
     renderShell(['delivery_methods:read']);
     expect(sidebarHrefs()).toContain('/delivery-methods');
     expect(sidebarHrefs()).not.toContain('/payment-methods');
-    expect(
-      (await openPaletteItems()).some((t) => t.includes('appShell.nav.deliveryMethods')),
-    ).toBe(true);
   });
 
   /**

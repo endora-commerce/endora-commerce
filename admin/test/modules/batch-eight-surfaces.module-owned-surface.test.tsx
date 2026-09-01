@@ -19,6 +19,26 @@ function sourceOf(relativePath: string): string {
 }
 
 /**
+ * The same file with its comments removed.
+ *
+ * The reaches below are matched as **text**, and a comment saying why a file
+ * does *not* take one of them names the shape it refuses — `ReturnsList` and
+ * `SeoPage` both carry a sentence about `import.meta.env` explaining that they
+ * take the kit's `apiBaseUrl` instead. Matching prose is the defect the check
+ * estate refuses by reading literal AST nodes; this is the cheap version of the
+ * same rule, and it is deliberately conservative: block comments go, and so do
+ * whole lines that *begin* a line comment, but a `//` in mid-line is left alone
+ * so a URL inside a string cannot truncate the code after it.
+ */
+function codeOf(relativePath: string): string {
+  return sourceOf(relativePath)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((line) => !/^\s*(\/\/|\*)/.test(line))
+    .join('\n');
+}
+
+/**
  * The off-state proof `contracts/admin-contribution.md` R15 asks of each of
  * feature 091 batch 8's six converted modules — `seo`, `taxes`,
  * `credit_limits`, `delivery_methods`, `megamenu` and `returns`.
@@ -353,7 +373,11 @@ describe.each(SUBJECTS)('the shell no longer names $module by hand', (subject) =
     // match, which D-23 calls the worst available failure.
     const app = sourceOf('src/App.tsx');
     const shell = sourceOf('src/components/AppShell.tsx');
-    expect(app).not.toContain(`element={<`.concat(''));
+    // The import is the assertion that carries the `<Route>` with it: a route
+    // element naming a component `App.tsx` no longer imports does not compile,
+    // so this one line refuses both halves. The route paths themselves are
+    // asserted per declared path in the case below, which is the finer question
+    // — a path can survive under a different component.
     expect(app).not.toContain(`modules/${subject.module}`);
     expect(shell).not.toContain(`to: '${subject.route}'`);
     if (subject.retiredSharedKey !== null) {
@@ -438,12 +462,13 @@ describe('the moved screens take no reach the package cannot resolve', () => {
       'returns/src/admin/api/returns-client.ts',
     ];
     for (const file of files) {
-      const source = sourceOf(`../packages/modules/${file}`);
+      const source = codeOf(`../packages/modules/${file}`);
       expect(source, file).not.toMatch(/from '@\//m);
       expect(source, file).not.toMatch(/from '@endora-commerce\/mod-/m);
       // `import.meta.env` is Vite's and the package's own `tsconfig.ui.json`
-      // carries no `vite/client` types. `ReturnsList` read
-      // `VITE_API_BASE_URL` by hand and now takes the kit's `apiBaseUrl`.
+      // carries no `vite/client` types. `ReturnsList` and `SeoPage` both read
+      // `VITE_API_BASE_URL` by hand and both now take the kit's `apiBaseUrl` —
+      // and both say so in a comment, which is why this reads `codeOf`.
       expect(source, file).not.toContain('import.meta.env');
     }
   });

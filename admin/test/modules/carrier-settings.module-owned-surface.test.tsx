@@ -299,7 +299,7 @@ describe.each(CARRIERS)('$id owns its admin surface, and its proof is the route'
     await waitFor(() => expect(headingIsRendered()).toBe(true));
   });
 
-  it('declares one lazily-loaded route, one gate, and no nav entry', async () => {
+  it('declares one lazily-loaded route, one gate, no nav entry and one zone', async () => {
     // FR-013, and the declaration this whole file is about. `nav` being absent
     // is the contribution set saying so, which is what Ruling 1 asks a nav-less
     // batch member's test to derive rather than assert by omission.
@@ -307,9 +307,24 @@ describe.each(CARRIERS)('$id owns its admin surface, and its proof is the route'
     expect(routes.map((route) => route.path)).toEqual([carrier.route]);
     expect(routes.map((route) => route.requiredPermission)).toEqual([carrier.code]);
     expect(carrier.contributions.nav ?? []).toEqual([]);
-    expect(carrier.contributions.zones ?? []).toEqual([]);
     const loaded = await routes[0]!.component();
     expect(typeof loaded.default).toBe('function');
+
+    // **One zone since feature 091's batch 8**, and this line read `toEqual([])`
+    // until then. `delivery_methods` used to render a hard-coded block naming
+    // this carrier — its title, its description, its route and its code, in a
+    // file its author does not own — which
+    // `backend/scripts/ledgers/foreign-module-ids.ts` recorded as a
+    // `visibility-gate` coupling with this conversion as its retiring
+    // condition. The card is the carrier's own contribution now, gated on the
+    // same code as the screen it links to so it never advertises a 403. The
+    // ordering of the two carriers' cards is asserted where it is observable:
+    // `admin/test/modules/delivery_methods/integrations-zone.test.tsx`.
+    const zones = carrier.contributions.zones ?? [];
+    expect(zones.map((zone) => zone.zone)).toEqual(['delivery_method.list.integrations']);
+    expect(zones.map((zone) => zone.requiredPermission)).toEqual([carrier.code]);
+    const card = await zones[0]!.component();
+    expect(typeof card.default).toBe('function');
   });
 
   it('takes no `@/` reach out of the package', () => {
