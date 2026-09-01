@@ -131,12 +131,38 @@ export interface RecordedReadSize {
  * `check-inventory.test.ts` can sweep both directions: a check with no record
  * fails there, and a record naming no check fails too.
  */
+/**
+ * **Swept on 2026-09-01, twenty-eight entries at once, and the sweep is the
+ * point rather than the numbers.**
+ *
+ * Feature 095's drift report (`read-size-drift.ts`) printed its first block on
+ * this file and found that **28 of the 35 recorded sizes no longer described
+ * the tree** — every one of them inside its band, so nothing had ever gone red
+ * and nobody had ever been asked. The three known wrong records this year
+ * (Phase 1b, batch 9, batch 11) were the visible tip of that.
+ *
+ * **One cause covers the bulk**: feature 080's F4 moved 66 modules into
+ * `packages/modules/`, and these numbers were written before it. Every module
+ * walk reads 1541 -> 1895 and every whole-repo walk 5470 -> 6936, which is the
+ * same population arriving in twenty different checks. It is growth, not a
+ * shrinking walk: the `sources=` tokens reconcile in full on every one of them,
+ * which is the evidence that nothing stopped looking.
+ *
+ * **`check-release-intent` is why this could not wait.** It read `files 55 ->
+ * 83` against a ceiling of exactly 83 — zero headroom — so the next merge
+ * request adding one file to its population would have gone red for a reason
+ * that had nothing to do with it, on somebody else's branch.
+ *
+ * The sweep re-records; it widens nothing, and no assertion moved. What stops
+ * the next twenty-eight is not this comment but the drift block, which now
+ * prints on every run whether or not anything failed.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
     run: { kind: 'tsx', path: 'scripts/check-action-route-permissions.ts', args: [] },
-    files: 1536,
-    sites: 54,
+    files: 1808,
+    sites: 73,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -146,14 +172,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-channel-resolution.ts': {
     prefix: '[channel-resolution]',
     run: { kind: 'tsx', path: 'scripts/check-channel-resolution.ts', args: ['--enforce'] },
-    files: 1541,
+    files: 1895,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-command-coverage.ts': {
     prefix: '[command-coverage]',
     run: { kind: 'tsx', path: 'scripts/check-command-coverage.ts', args: ['--strict'] },
-    files: 1267,
+    files: 1449,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -162,48 +188,48 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-container-imports.ts': {
     prefix: '[container-imports]',
     run: { kind: 'tsx', path: 'scripts/check-container-imports.ts', args: [] },
-    files: 1444,
+    files: 1696,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-diacritic-folds.ts': {
     prefix: '[diacritic-folds]',
     run: { kind: 'tsx', path: 'scripts/check-diacritic-folds.ts', args: [] },
-    files: 4088,
+    files: 4905,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
     // judges every `.replace()` whose pattern it can read, cleared ones
     // included, so there is now a population here that does not move with the
     // findings.
-    sites: 330,
+    sites: 433,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
     prefix: '[doc-snippets]',
     run: { kind: 'tsx', path: 'scripts/check-doc-snippets.ts', args: [] },
-    files: 943,
-    sites: 8,
+    files: 1048,
+    sites: 9,
     sources: [],
   },
   'backend/scripts/check-entity-tenant-classification.ts': {
     prefix: '[tenant-classification]',
     run: { kind: 'tsx', path: 'scripts/check-entity-tenant-classification.ts', args: [] },
-    files: 1541,
-    sites: 225,
+    files: 1895,
+    sites: 236,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
     prefix: '[entry-presence]',
     run: { kind: 'tsx', path: 'scripts/check-entry-presence.ts', args: [] },
-    files: 1541,
+    files: 1895,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-scope.ts': {
     prefix: '[entry-scope]',
     run: { kind: 'tsx', path: 'scripts/check-entry-scope.ts', args: [] },
-    files: 1620,
+    files: 1895,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -237,7 +263,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // A downward move is the direction this band exists to refuse, so each
     // number is moved in the merge request that shrank the population and
     // nowhere else.
-    sites: 37,
+    sites: 40,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-error-translations.ts': {
@@ -251,8 +277,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // read 289 routed codes before and reads 289 declared codes after, because
     // the migration was answer-preserving over the whole enumeration — so the
     // band that was recorded against the chain is the band the derivation meets.
-    files: 90,
-    sites: 763,
+    files: 124,
+    sites: 825,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -285,22 +311,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tree growing since 2026-08-19, which `files` shows at 1237 → 1302. Both
     // numbers were inside the band; this is the MR that changed the population,
     // so this is where they get re-recorded.
-    files: 1375,
-    sites: 465,
+    files: 1649,
+    sites: 530,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
     prefix: '[harness-teardown]',
     run: { kind: 'tsx', path: 'scripts/check-harness-teardown.ts', args: [] },
-    files: 1375,
+    files: 1649,
     sites: null,
     sources: [],
   },
   'backend/scripts/check-kernel-boundary.ts': {
     prefix: '[kernel-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-kernel-boundary.ts', args: [] },
-    files: 1541,
-    sites: 31,
+    files: 1895,
+    sites: 30,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-lock-claims.ts': {
@@ -311,8 +337,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the widening landed against. The second source is the contracts barrel,
     // `index.ts`, which is what the package says it publishes — the same
     // derived floor the manifest index provides for the module half.
-    files: 183,
-    sites: 10,
+    files: 205,
+    sites: 14,
     sources: ['manifest-index', 'contracts-barrel'],
   },
   'backend/scripts/check-admin-registrations.ts': {
@@ -734,14 +760,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // because the two generated trees that made them differ, `.docusaurus` and
     // `backend/var/assets`, are declared exclusions. Re-recorded here on this
     // branch, which is the tree the exclusions were measured on.
-    files: 5470,
+    files: 6936,
     sites: null,
     sources: [],
   },
   'backend/scripts/check-overlay-determinism.ts': {
     prefix: '[overlay:check]',
     run: { kind: 'tsx', path: 'scripts/check-overlay-determinism.ts', args: [] },
-    files: 6,
+    files: 8,
     // Every import specifier in the six rendered artefacts, which is the
     // population the `foreign` verdict answers over (feature 080, T030a):
     // 133 + 67 + 225 + 159 in the four generated files, one in each override
@@ -784,15 +810,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-port-catches.ts': {
     prefix: '[port-catches]',
     run: { kind: 'tsx', path: 'scripts/check-port-catches.ts', args: [] },
-    files: 1541,
-    sites: 139,
+    files: 1895,
+    sites: 162,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
     prefix: '[port-deps]',
     run: { kind: 'tsx', path: 'scripts/check-port-dependencies.ts', args: [] },
-    files: 1422,
-    sites: 1278,
+    files: 1681,
+    sites: 1427,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -808,7 +834,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-platform-surface.ts': {
     prefix: '[platform-surface]',
     run: { kind: 'tsx', path: 'scripts/check-platform-surface.ts', args: [] },
-    files: 1435,
+    files: 1825,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -841,7 +867,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population either — `host-dependents` below is, per package and derived on
     // every run, so a walk that stopped reading those specifiers is exit 2
     // rather than a band nobody re-recorded.
-    sites: 1631,
+    sites: 1670,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -863,8 +889,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-port-shape.ts': {
     prefix: '[port-shape]',
     run: { kind: 'tsx', path: 'scripts/check-port-shape.ts', args: [] },
-    files: 1600,
-    sites: 615,
+    files: 1775,
+    sites: 664,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -920,28 +946,28 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // run rather than the ceiling being raised: the previous batch's decision to
     // let `sites` ride is what put it 22 % outside on the next one, so it is
     // tracked per batch from here.
-    files: 55,
-    sites: 62,
+    files: 83,
+    sites: 91,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-shared-table-wipes.ts': {
     prefix: '[shared-table-wipes]',
     run: { kind: 'tsx', path: 'scripts/check-shared-table-wipes.ts', args: [] },
-    files: 1375,
-    sites: 149,
+    files: 1649,
+    sites: 154,
     sources: [],
   },
   'backend/scripts/check-subscribe-seam.ts': {
     prefix: '[subscribe-seam]',
     run: { kind: 'tsx', path: 'scripts/check-subscribe-seam.ts', args: [] },
-    files: 1541,
+    files: 1895,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-transaction-context.ts': {
     prefix: '[transaction-context]',
     run: { kind: 'tsx', path: 'scripts/check-transaction-context.ts', args: [] },
-    files: 1541,
+    files: 1895,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -953,7 +979,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources and every module package's. The test tree is in it because that is
     // where 176 of the 181 files holding a reach live, and leaving it out would
     // have made the check blind to both defects it exists for.
-    files: 3227,
+    files: 3797,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -997,7 +1023,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // all, and packaging them turned every test import of either into one. 637
     // -> 963. Re-record it, never widen the band — the floor is what would catch
     // the walk losing the package tree.
-    sites: 963,
+    sites: 1068,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {
@@ -1018,7 +1044,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // set, so it is 7 down; `@endora-commerce/page-builder-admin/src` arrives
     // carrying all fourteen, so the walk is 7 up. The package's eleven `.ts`
     // files move no number here and are outside this walk by construction.
-    files: 396,
+    files: 400,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -1032,14 +1058,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'scripts/check-naming.sh': {
     prefix: '[naming]',
     run: { kind: 'bash', path: 'scripts/check-naming.sh', args: [] },
-    files: 5530,
+    files: 6988,
     sites: null,
     sources: ['manifest-index'],
   },
   'scripts/check-language.sh': {
     prefix: '[language]',
     run: { kind: 'bash', path: 'scripts/check-language.sh', args: [] },
-    files: 4338,
+    files: 5216,
     sites: null,
     sources: ['manifest-index'],
   },
