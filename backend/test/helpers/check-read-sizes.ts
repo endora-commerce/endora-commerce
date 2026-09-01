@@ -381,7 +381,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pageBuilder.colorPalette.*` keys to `core`, exactly as P5a moved the
     // other thirty-three, and had they been left they would be two findings in
     // a package that owns no module id at all.
-    files: 2206,
+    // **2206 -> 2208 with P9**: one file, the `FulfilmentStrategyPicker` the kit
+    // publishes, plus the tree's own growth since 2206 was written. The admin
+    // side of that move is a wash — the old path stays as a shim — and `sites`
+    // does not move at all, because the component reads `useTranslation('core')`
+    // and named no module id before or after, which is the whole of why §10.2
+    // routed it to the kit rather than to `./admin-ui`.
+    files: 2208,
     sites: 15,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -553,8 +559,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `invoices` reaches this merge request retires move neither number — a
     // rewritten specifier is still a specifier, which is precisely why
     // `check:module-boundary` and not this check is where they were ledgered.
+    //
+    // **P9 takes `sites` to 2403 and leaves `files` at 354**, and it is the P8
+    // shape again in miniature: one published component, a shim at the old path,
+    // no directory moved. The -5 accounts exactly and all of it comes off the
+    // published file — `FulfilmentStrategyPicker` had seven specifiers (`react`,
+    // `lucide-react`, `@endora-commerce/contracts` and four `@/…` reaches) and
+    // its shim has two. Its two consumers are a wash, one specifier before and
+    // one after, which is why the two `cross-module-imports` keys they retire
+    // move this number by nothing: a rewritten specifier is still a specifier.
     files: 354,
-    sites: 2408,
+    sites: 2403,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not

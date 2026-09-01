@@ -7,7 +7,7 @@ import {
   FulfilmentStrategyPicker,
   type FulfilmentStrategyValue,
   type FulfilmentWarehouseOption,
-} from '@/modules/inventory/components/FulfilmentStrategyPicker';
+} from '@endora-commerce/admin-kit/components';
 
 /**
  * Organization-level fulfilment-strategy override (precedence: Product →
