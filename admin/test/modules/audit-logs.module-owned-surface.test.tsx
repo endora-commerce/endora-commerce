@@ -214,6 +214,18 @@ describe('audit_logs owns its admin surface', () => {
     // the three entries this batch converts move to the end of the section —
     // and keep their relative order, which the declared weights (200, 300, 600,
     // the hand-written table's position times a hundred) are what restore.
+    //
+    // **The `/settings` half of that consequence closed in batch 10**, and this
+    // case is where it is recorded because it is where it was recorded as a
+    // regression. The paragraph above said it closes when the section empties;
+    // it did not have to empty. `/settings` was the host row this batch's three
+    // were pushed behind, and it is `@endora-commerce/mod-settings`' own
+    // declaration now at weight 1000, so the weights order the two sets against
+    // each other and the hand-written positions come back. What still floats is
+    // `/catalog/bulk-operations`, the one host row left in this section besides
+    // `/platform/modules`: it sat fourth by hand and renders second now,
+    // because `composeNav` has no weight to place it by. That is the residue,
+    // and it is one row rather than four.
     presentModules = new Set(['audit_logs', 'admin_users', 'admin_roles', 'settings']);
     permissions = new Set(['audit_log:read', 'admin_users:manage', 'settings:read']);
     renderAt('/');
@@ -224,9 +236,13 @@ describe('audit_logs owns its admin surface', () => {
     expect(converted.map((href) => hrefs.indexOf(href))).toEqual(
       [...converted.map((href) => hrefs.indexOf(href))].sort((a, b) => a - b),
     );
-    // And all three sit after `/settings`, a host-declared row that used to
-    // follow them. That is the change; it closes when the section empties.
-    expect(hrefs.indexOf('/settings')).toBeLessThan(hrefs.indexOf('/admin-users'));
+    // And all three sit **before** `/settings`, which is where the hand-written
+    // table had them and where batch 10's weights put them back.
+    expect(hrefs.indexOf('/audit-log')).toBeLessThan(hrefs.indexOf('/settings'));
+    // The residue, asserted so that a later batch which weights the host rows
+    // has something that goes red: `/platform/modules` still leads the section
+    // and `/catalog/bulk-operations` still precedes every registry row.
+    expect(hrefs.indexOf('/platform/modules')).toBeLessThan(hrefs.indexOf('/admin-users'));
   });
 
   it('restores both surfaces when the module comes back, with no rebuild', async () => {

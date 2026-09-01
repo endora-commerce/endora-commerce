@@ -69,7 +69,7 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.googleAnalytics',
   'appShell.nav.linkedinAds',
   'appShell.nav.metaAds',
-  'appShell.nav.credentials',
+  'appShell.nav.orders',
   'appShell.nav.home',
 ]);
 
@@ -165,23 +165,33 @@ describe('AppShell — module presence drives the command palette (FR-032)', () 
   it('offers a present module in the Navigate group', async () => {
     renderShell();
     const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(true);
+    expect(items.some((text) => text.includes('appShell.nav.orders'))).toBe(true);
   });
 
   it('drops a switched-off module from the Navigate group', async () => {
-    // `/credentials` is one of the entries the palette advertised regardless of
+    // `/orders` is one of the entries the palette advertised regardless of
     // module state before this feature.
     //
-    // The subject was `/comparisons` until feature 091's Phase 4 drain moved
-    // that module's palette entry into its manifest, where the **server**
-    // resolves it against the effective enabled-set and `PALETTE_ITEMS` no
-    // longer carries a copy. This file's subject is the hand-written Navigate
-    // group, so it needs an entry that is still in it — and the pair had to
-    // move together: with `comparisons` gone the positive control went red and
-    // this negative went **vacuously green**, which is the worse of the two.
-    // `credentials` is batch 9's, so this file moves again when that lands.
-    renderShell(['credentials']);
+    // **This pair has now moved twice, and the second move is the reason to
+    // record how it is chosen.** The subject was `/comparisons` until feature
+    // 091's Phase 4 drain moved that module's palette entry into its manifest,
+    // where the **server** resolves it against the effective enabled-set and
+    // `PALETTE_ITEMS` no longer carries a copy; then `/credentials`, which
+    // batch 10 moved the same way. This file's subject is the hand-written
+    // Navigate group, so it needs an entry that is still in it, and the pair
+    // has to move together: with the subject gone the positive control goes red
+    // and this negative goes **vacuously green**, which is the worse of the two.
+    //
+    // `/orders` is the longest-lived choice left rather than an arbitrary one:
+    // `orders` is one of the four heaviest remaining owners, which `plan.md`
+    // places in the drain's last batches, and it is the row the sibling
+    // `AppShell.permission-gating.test.tsx` already uses for the same reason.
+    // The axis driven here is the **platform** one — `orders` declares
+    // `nonDeactivatable`, so an operator cannot produce this state, and a
+    // deployment that never installs the module can. That is the same axis the
+    // `/settings` case above already drives.
+    renderShell(['orders']);
     const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(false);
+    expect(items.some((text) => text.includes('appShell.nav.orders'))).toBe(false);
   });
 });
