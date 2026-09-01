@@ -521,7 +521,7 @@ export const ERROR_CODES = {
    */
   PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
 
-  // Akeneo PIM complete-record delivery (feature 093).
+  // Akeneo PIM complete-record delivery (feature 094).
   /** No Akeneo connection row exists yet. */
   PIM_AKENEO_NOT_CONFIGURED: 'PIM_AKENEO_NOT_CONFIGURED',
   /** Ingress or apply refused because the connection is disabled. */
