@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/ui/page-header';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
+import { ProductPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**

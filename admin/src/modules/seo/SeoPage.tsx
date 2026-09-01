@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
+import { ProductPicker } from '@endora-commerce/admin-kit/components';
 import { CategorySelect } from '@/components/category-picker/CategorySelect';
 import {
   Table,

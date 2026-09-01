@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
 import { PaginationFooter } from '@/components/PaginationFooter';
 import { usePageSizePreference } from '@/lib/use-page-size-preference';
-import { orderStatusBadgeStyle } from '@/modules/orders/orderStatusColor';
+import { statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
 import { formatDateTime } from '@/lib/format';
 import { formatMoney } from '@/lib/money';
 import { useTranslation } from '@/i18n/useTranslation';
@@ -208,7 +208,7 @@ export function ReturnsList(): ReactNode {
       id: 'status',
       header: t('returns.col.status'),
       render: (r) => (
-        <Badge style={orderStatusBadgeStyle(statusColor(r.statusCode))}>
+        <Badge style={statusBadgeStyle(statusColor(r.statusCode))}>
           {r.statusLabel || statusLabel(r.statusCode)}
         </Badge>
       ),

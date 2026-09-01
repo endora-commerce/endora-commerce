@@ -68,7 +68,7 @@ import { ProductInventoryTab } from './ProductInventoryTab';
 import { PackagingUnitsEditor } from './components/PackagingUnitsEditor';
 import { ProductAttributesTab } from './ProductAttributesTab';
 import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
-import { ProductPicker } from './components/ProductPicker';
+import { ProductPicker } from '@endora-commerce/admin-kit/components';
 import {
   ProductScopeEditor,
   type ProductScopeEditorHandle,

@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useSurfaceVisibility } from '@/lib/surface-visibility';
-import { CountryPicker } from '../dictionaries/components/CountryPicker';
+import { CountryPicker } from '@endora-commerce/admin-kit/components';
 
 interface AdminTax {
   id: string;

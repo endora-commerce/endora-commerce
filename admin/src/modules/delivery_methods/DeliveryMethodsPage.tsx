@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
+import { CurrencyPicker } from '@endora-commerce/admin-kit/components';
 
 export function DeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');

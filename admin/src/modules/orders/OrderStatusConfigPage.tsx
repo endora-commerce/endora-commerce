@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { StatusTransitionGraph } from './StatusTransitionGraph';
+import { StatusTransitionGraph } from '@endora-commerce/admin-kit/components';
 import { ORDER_STATUS_DEFAULT_COLOR, orderStatusBadgeStyle } from './orderStatusColor';
 import { StatusColorPicker } from './StatusColorPicker';
 
@@ -386,7 +386,6 @@ export function OrderStatusConfigPage(): ReactNode {
             statusLabel={statusLabel}
             onAdd={addTransition}
             onRemove={removeTransition}
-            t={t}
           />
         </CardContent>
       </Card>

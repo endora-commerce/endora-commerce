@@ -1,10 +1,4 @@
 {
-  "countryPicker.selectCountry": "Select country",
-  "countryPicker.inactiveGroup": "Inactive",
-  "countryPicker.inactiveLabel": "{label} (inactive)",
-  "currencyPicker.selectCurrency": "Select currency",
-  "currencyPicker.inactiveGroup": "Inactive",
-  "currencyPicker.inactiveLabel": "{label} ({code}, inactive)",
   "languagePicker.selectLanguage": "Select language",
   "languagePicker.inactiveGroup": "Inactive",
   "languagePicker.inactiveLabel": "{label} (inactive)",

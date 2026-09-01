@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
-import { CurrencyPicker } from '../dictionaries/components/CurrencyPicker';
+import { CurrencyPicker } from '@endora-commerce/admin-kit/components';
 
 interface ActiveReservation {
   orderId: string;

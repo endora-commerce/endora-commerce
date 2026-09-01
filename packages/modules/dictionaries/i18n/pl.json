@@ -1,10 +1,4 @@
 {
-  "countryPicker.selectCountry": "Wybierz kraj",
-  "countryPicker.inactiveGroup": "Nieaktywne",
-  "countryPicker.inactiveLabel": "{label} (nieaktywny)",
-  "currencyPicker.selectCurrency": "Wybierz walutę",
-  "currencyPicker.inactiveGroup": "Nieaktywne",
-  "currencyPicker.inactiveLabel": "{label} ({code}, nieaktywna)",
   "languagePicker.selectLanguage": "Wybierz język",
   "languagePicker.inactiveGroup": "Nieaktywne",
   "languagePicker.inactiveLabel": "{label} (nieaktywny)",

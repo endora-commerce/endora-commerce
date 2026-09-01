@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { StatusTransitionGraph } from '@/modules/orders/StatusTransitionGraph';
+import { StatusTransitionGraph } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { ReturnStatusDto, ReturnTransitionDto } from '@endora-commerce/contracts';
 
@@ -164,7 +164,6 @@ export function ReturnStatusesConfigPage(): ReactNode {
             statusLabel={statusLabel}
             onAdd={addTransition}
             onRemove={removeTransition}
-            t={t}
           />
         </CardContent>
       </Card>
