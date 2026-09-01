@@ -1,0 +1,56 @@
+{
+  // Type-check configuration, and the two-config split every package under
+  // `packages/` uses (feature 080, T042 / R11). `tsconfig.base.json`'s `paths`
+  // block is active here, so `@endora-commerce/contracts` and
+  // `@endora-commerce/admin-kit` resolve at their *source* and this package
+  // type-checks against the branch it is on (issue #255). `noEmit` is set for
+  // that reason: with `paths` active an emit would land beside another
+  // package's source (TS6059).
+  //
+  // The `endora: { type: 'admin-ui' }` block this package declares does **not**
+  // cost it its `paths` entries. That block has three values, and only the two
+  // the running platform *composes* — `'platform'` and `'module'` — are refused
+  // an entry, because `paths` is honoured by `tsc` and `tsx` and not by
+  // `vitest` or `node`, so an entry would make the application resolve their
+  // source under one and their `dist` under the other. Nothing composes this
+  // package: it is resolved by `admin` as a library, exactly as the kit is.
+  // `backend/test/unit/harness/workspace-resolution.test.ts` holds both
+  // directions.
+  //
+  // `types` carries two entries and each is a program-wide requirement rather
+  // than a preference. `vite/client` is what declares `*.css` as a module. The e-mail
+  // editor pane imports `@measured/puck/puck.css` and
+  // `@endora-commerce/cms-components/styles.css` as side effects, and the
+  // imports are kept verbatim: the bundler is what resolves them, and rewriting
+  // one into an indirection is a chance for the stylesheet to stop being
+  // emitted in a way no type-check can see. `vite` is a devDependency for that
+  // declaration alone; nothing here imports it, so it does not appear in `dist`
+  // and is not a runtime dependency of a consumer.
+  //
+  // `node` is `@endora-commerce/cms-components`', not this package's. `paths` is
+  // active here, so that package resolves at its **source**, and
+  // `src/utils/catalog-fetch.ts` reads `process.env.NEXT_PUBLIC_API_BASE_URL`
+  // for the storefront's bundler to inline — so its own tsconfig declares
+  // `types: ["node"]` and a program that pulls its source in has to as well.
+  // The alternative was to drop that package from this file's `paths` and read
+  // its `dist` instead, which is what `admin` does; it is refused here because
+  // `paths` is the whole reason this configuration exists (issue #255) — a
+  // package that type-checks a sibling's *previous build* is one that can be
+  // green about a branch it is not on. `@types/node` is a devDependency and
+  // ships nothing; nothing under `src/` here names a Node global.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src/**/*"],
+  // A test must not be compiled into `dist`: it imports `vitest`, a
+  // devDependency, which is an unresolvable specifier in every consumer's
+  // install. The pattern is kept here because `tsconfig.build.json` extends
+  // this file and the emit configuration is judged on it
+  // (`backend/test/unit/packages/package-dist-build.test.ts`).
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+}

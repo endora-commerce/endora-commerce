@@ -1,12 +1,11 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { varSnippet } from './insert-at-cursor';
-import type { EmailVariableItem } from './newsletter-variables';
-import { normalize } from '@/lib/text-normalization';
+import { Button, Input } from '@endora-commerce/admin-kit/ui';
+import { normalize } from '@endora-commerce/admin-kit/lib';
+import { varSnippet } from './insert-at-cursor.js';
+import type { EmailVariableItem } from './variables.js';
 
-export type { EmailVariableItem } from './newsletter-variables';
-export { varSnippet } from './insert-at-cursor';
+export type { EmailVariableItem } from './variables.js';
+export { varSnippet } from './insert-at-cursor.js';
 
 type InsertHandler = (snippet: string) => void;
 

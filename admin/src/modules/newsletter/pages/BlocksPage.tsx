@@ -12,9 +12,9 @@ import {
   EmailVariablesProvider,
   listEmailTemplatesForApply,
   loadEmailTemplateCanvas,
-  newsletterVariables,
   saveCanvasAsEmailTemplate,
-} from '@/modules/_shared/email-builder';
+} from '@endora-commerce/page-builder-admin/email';
+import { newsletterVariables } from '../email-variables';
 import { newsletterClient } from '../api/newsletter-client';
 
 const emptyData: Data = { root: { props: {} }, content: [] };

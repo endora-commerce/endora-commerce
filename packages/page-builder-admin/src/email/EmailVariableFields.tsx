@@ -1,10 +1,8 @@
 import { useRef } from 'react';
 import type { CustomField } from '@measured/puck';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { insertAtCursor } from './insert-at-cursor';
-import { useEmailVariables } from './EmailVariablesProvider';
+import { Button, Input, Textarea } from '@endora-commerce/admin-kit/ui';
+import { insertAtCursor } from './insert-at-cursor.js';
+import { useEmailVariables } from './EmailVariablesProvider.js';
 
 type FieldProps = {
   value?: string;
