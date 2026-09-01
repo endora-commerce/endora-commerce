@@ -71,9 +71,10 @@ and five took for a module screen, and it is not the exit this section predicted
 the group *"retires with Phase 2"* through a zone contribution, and Phase 2 landed and
 retired none of them, because the zone mechanism is P4's and does not exist yet.
 
-`asset-picker` is left, and for a reason of kind rather than of size: its module knowledge
+~~`asset-picker` is left, and for a reason of kind rather than of size: its module knowledge
 is `assets_library`' `AssetPicker` **component**, which no URL replaces. It is FR-007's
-worked example and **retires with P4**. Inverting the pickers to take their data by prop
+worked example and **retires with P4**.~~ **Retired by P4c instead (!1225/!1230), not by P4** — see
+the withdrawal below; it needed no mechanism. Inverting the pickers to take their data by prop
 was considered and rejected in Phase 1b and stays rejected: it moves the module knowledge
 to the consumer, which owns the data no more than the kit does.
 
@@ -140,11 +141,33 @@ is the same displacement with a registration step, and it would make a picker's 
 depend on which provider happened to be mounted — untypeable at the call site and
 invisible to `check:admin-surface`.
 
-The limit is stated so it is not discovered later: a picker whose module knowledge is a
+~~The limit is stated so it is not discovered later: a picker whose module knowledge is a
 **component** has nothing to rebuild. `asset-picker` renders `assets_library`' own
-`AssetPicker`, so it stays unpublished until P4's zone mechanism exists.
+`AssetPicker`, so it stays unpublished until P4's zone mechanism exists.~~
+
+**Withdrawn, 2026-08-31 (P4c, !1225/!1230).** That limit was drawn one level too shallow and
+`asset-picker` is now published. Its module knowledge was never the component: `AssetPicker` is 153
+lines calling `apiClient.get` over a path, with every type already in `@endora-commerce/contracts`,
+and `AssetUploader` posts multipart over the `apiBaseUrl` the kit publishes. Reading it as a
+component-shaped reach kept 19 ledger keys waiting on a mechanism they never needed.
+`CustomFieldValuesPanel` (P4e, !1232) was the second case of the same misreading.
+
+**What decides it instead** — the rule that replaced this paragraph: a reach is a **zone
+contribution** when the *owner* decides that it appears, and a **published component** when the
+*consumer* does. Mechanically: does the consumer pass a value in and get one back? See
+`specs/091-module-owned-admin-surfaces/contracts/admin-component-contribution.md` §Z1.
 
 ## Rules
+
+- **A key is reused when its *value* is already in `core`, not when its *name* looks generic.**
+  R-1's repairs folded `common.close` into `common.action.close` and `common.loading` into
+  `common.state.loading` because both were **byte-identical** in `en` and `pl`; `common.search` had no
+  `core` equivalent and was added to the `common.action.*` family rather than kept as a
+  component-scoped near-duplicate. `CategoryTreePicker` folded **none** of its seven — *"Loading
+  categories…"* is not `common.state.loading`'s *"Loading…"*, and `core` already carries
+  `countrySelect.loading` = *"Loading countries…"* beside the generic one, so a kit component keeping
+  its own specific sentence is the established shape here. Folding by name is a copy change wearing a
+  refactor's clothes.
 
 - **Every dependency the kit renders with is a `peerDependency`** so the application
   resolves one copy (R7). Two copies of `react-router-dom` is two router contexts and a
