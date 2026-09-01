@@ -52,6 +52,25 @@ const EN = JSON.parse(
 
 const bundle = { product_feeds: EN };
 
+/**
+ * A key read out of the shipped bundle, and a sentinel for one that is not
+ * there. A bare `EN[key]` is `string | undefined`, and `undefined` handed to a
+ * matcher is the same failure this whole file is about — an absence standing in
+ * for a value nobody looked at.
+ */
+const MISSING: string[] = [];
+const copy = (key: string): string => {
+  const value = EN[key];
+  if (value === undefined) {
+    MISSING.push(key);
+    return `«product_feeds is missing ${key}»`;
+  }
+  return value;
+};
+
+const MAPPING_LOAD_FAILED = copy('mapping.loadFailed');
+const NO_TAXONOMY = copy('mapping.noTaxonomy');
+
 const { CategoryMappingPage } = await import(
   '../../../../packages/modules/product_feeds/src/admin/pages/CategoryMappingPage'
 );
@@ -94,6 +113,12 @@ beforeEach(() => {
   searchNodes.mockResolvedValue({ data: [] });
 });
 
+describe('CategoryMappingPage — the sentences it now renders are in the shipped bundle', () => {
+  it('finds every key this file asserts on', () => {
+    expect(MISSING).toEqual([]);
+  });
+});
+
 describe('CategoryMappingPage — a failed taxonomy read is not an uninstalled taxonomy', () => {
   it('shows the load failure instead of the "nothing is installed" sentence', async () => {
     listInstalled.mockRejectedValue(new Error('network'));
@@ -101,9 +126,9 @@ describe('CategoryMappingPage — a failed taxonomy read is not an uninstalled t
     renderPage();
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain(EN['mapping.loadFailed']);
+    expect(alert.textContent).toContain(MAPPING_LOAD_FAILED);
     // The claim the screen has no evidence for.
-    expect(screen.queryByText(EN['mapping.noTaxonomy'])).toBeNull();
+    expect(screen.queryByText(NO_TAXONOMY)).toBeNull();
   });
 
   it('still says "nothing is installed" when the read succeeds and answers empty', async () => {
@@ -113,7 +138,7 @@ describe('CategoryMappingPage — a failed taxonomy read is not an uninstalled t
 
     renderPage();
 
-    await waitFor(() => expect(screen.getByText(EN['mapping.noTaxonomy'])).toBeTruthy());
-    expect(screen.queryByText(EN['mapping.loadFailed'])).toBeNull();
+    await waitFor(() => expect(screen.getByText(NO_TAXONOMY)).toBeTruthy());
+    expect(screen.queryByText(MAPPING_LOAD_FAILED)).toBeNull();
   });
 });

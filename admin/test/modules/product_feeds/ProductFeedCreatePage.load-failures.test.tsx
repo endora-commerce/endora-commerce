@@ -79,6 +79,25 @@ const EN = JSON.parse(
 
 const bundle = { product_feeds: EN };
 
+/**
+ * A key read out of the shipped bundle, and a sentinel for one that is not
+ * there. A bare `EN[key]` is `string | undefined`, and `undefined` handed to a
+ * matcher is the same failure this whole file is about — an absence standing in
+ * for a value nobody looked at.
+ */
+const MISSING: string[] = [];
+const copy = (key: string): string => {
+  const value = EN[key];
+  if (value === undefined) {
+    MISSING.push(key);
+    return `«product_feeds is missing ${key}»`;
+  }
+  return value;
+};
+
+const TEMPLATES_LOAD_FAILED = copy('templates.loadFailed');
+const CHANNEL_LOAD_FAILED = copy('feeds.create.channelLoadFailed');
+
 const { ProductFeedCreatePage } = await import(
   '../../../../packages/modules/product_feeds/src/admin/pages/ProductFeedCreatePage'
 );
@@ -115,6 +134,12 @@ beforeEach(() => {
   channelList.mockResolvedValue({ items: [] });
 });
 
+describe('ProductFeedCreatePage — the sentences it now renders are in the shipped bundle', () => {
+  it('finds every key this file asserts on', () => {
+    expect(MISSING).toEqual([]);
+  });
+});
+
 describe('ProductFeedCreatePage — a failed template load is not an empty shelf', () => {
   it('renders the server’s own sentence when the templates read fails', async () => {
     listTemplates.mockRejectedValue(await apiError(500, 'The template store is unavailable'));
@@ -131,7 +156,7 @@ describe('ProductFeedCreatePage — a failed template load is not an empty shelf
     renderPage();
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain(EN['templates.loadFailed']);
+    expect(alert.textContent).toContain(TEMPLATES_LOAD_FAILED);
   });
 
   it('renders no alert at all when the read succeeds and the shelf is genuinely empty', async () => {
@@ -154,7 +179,7 @@ describe('ProductFeedCreatePage — a failed channel resolution is not a channel
     await userEvent.click(await screen.findByRole('button', { name: 'pick-channel' }));
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain(EN['feeds.create.channelLoadFailed']);
+    expect(alert.textContent).toContain(CHANNEL_LOAD_FAILED);
   });
 
   it('reports the detail read’s failure too, not only the list’s', async () => {
