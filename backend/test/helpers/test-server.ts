@@ -287,7 +287,7 @@ export interface BackendServerOptions {
    */
   ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
   /**
-   * Feature 087 / US5 — the byte source for imported Akeneo media. Defaults to
+   * Feature 093 / US5 — the byte source for imported Akeneo media. Defaults to
    * a fetcher that has nothing scripted and therefore answers `not_found`, so a
    * test never opens a socket; the media tests pass a
    * `ScriptedAkeneoMediaFetcher` holding their files.
