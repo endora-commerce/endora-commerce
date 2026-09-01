@@ -1048,7 +1048,20 @@ nothing read, on an expectation of zero and on a walk **shorter** than its expec
 `backend/test/unit/scripts/check-read-size.test.ts` spawns **every** check and holds
 each printed number to the band recorded in `backend/test/helpers/check-read-sizes.ts`
 (−10% / +50%). Re-record a number when the population legitimately grows; never widen the
-band to make a run pass. **How many checks that is is not written here**: this sentence read
+band to make a run pass — **and which entries to re-record is now printed rather than
+remembered**: the same run emits a `[read-size drift]` block naming every recorded entry that
+no longer describes the tree, with the recorded value, the observed one, the signed delta and
+how much of the slack to that edge the move consumed, on a green run as well as a red one
+(feature `specs/095-read-size-drift-report/`). It exists because the band ratchets *blindness*
+and cannot ratchet *staleness* — a recorded value went wrong three times in ten days, twice
+silently, every one of them comfortably inside the band — and because "re-record in the merge
+request that moved it" presupposes an author knows which entries their change moved, which is
+the computation each check performs and not a thing a checklist can enlarge. The header is a
+census (`3 drifted, 32 agree, 0 not measured, of 35 recorded`), printed even when nothing
+drifted, because a silent report cannot be told from one that did not run; an entry the run
+could not measure is named as *not measured* and never counted as agreeing.
+
+**How many checks that is is not written here**: this sentence read
 *"all twenty-seven"* while `RECORDED_READ_SIZES` — the list the test actually spawns — held
 **34**, a count of a derived fact going stale by seven inside the paragraph whose entire
 subject is a number nobody re-derived (D-100). The record file answers it, and it grows in the
