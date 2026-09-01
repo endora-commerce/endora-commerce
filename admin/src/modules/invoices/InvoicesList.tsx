@@ -15,7 +15,7 @@ import { InvoiceSectionTabs } from './components/InvoiceSectionTabs';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 import type { SendInvoiceEmailResult } from '@endora-commerce/contracts';
-import { sendInvoiceEmailMessage } from './email-outcome';
+import { sendInvoiceEmailMessage } from '@endora-commerce/admin-kit/lib';
 import {
   Table,
   TableBody,

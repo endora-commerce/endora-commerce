@@ -16,7 +16,7 @@ import {
 import { useTranslation } from '@/i18n/useTranslation';
 import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import { carrierDocumentsClient } from './api/carrier-documents-client';
-import { Section } from './Section';
+import { Section } from '@endora-commerce/admin-kit/ui';
 
 const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
 

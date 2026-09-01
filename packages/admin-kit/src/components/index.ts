@@ -45,6 +45,8 @@ export type { CategoryTreePickerProps } from './category-tree-picker/CategoryTre
 export { adminLanguageToLocale, ancestorIdsForSelected, buildCategoryTree, computeParentIndeterminateIds, expandedIdsForFilteredTree, filterCategoryTree, flattenCategoryTree, pickCategoryDisplayName, subtreeHasSelection, visibleFlattenedTree } from './category-tree-picker/category-tree-utils.js';
 export type { CategoryTreeNode, CategoryTreePickerCategory } from './category-tree-picker/category-tree-utils.js';
 export { EChart } from './charts/echart.js';
+export { ContentLanguageTabs } from './content-language-tabs/ContentLanguageTabs.js';
+export type { ContentLanguageTabsProps } from './content-language-tabs/ContentLanguageTabs.js';
 export { CmsBlockPicker } from './cms-picker/CmsBlockPicker.js';
 export type { CmsBlockPickerProps } from './cms-picker/CmsBlockPicker.js';
 export { CmsPagePicker } from './cms-picker/CmsPagePicker.js';
@@ -84,6 +86,9 @@ export type { ReorderHandleProps, ReorderItemProps, ReorderKeyboardEvent, Reorde
 export { RuleBuilder } from './rule-builder/RuleBuilder.js';
 export { ProductPicker } from './product-picker/ProductPicker.js';
 export type { ProductPickerProps } from './product-picker/ProductPicker.js';
+export { ScopePicker } from './scope-picker/ScopePicker.js';
+export type { ScopePickerProps, ScopePickerValue } from './scope-picker/ScopePicker.js';
+export { fetchScopeSalesChannel, listScopeSalesChannels } from './scope-picker/sales-channels-api.js';
 export { SalesChannelPicker } from './sales-channel-picker/SalesChannelPicker.js';
 export type { SalesChannelPickerProps } from './sales-channel-picker/SalesChannelPicker.js';
 export { StatusTransitionGraph } from './status-transition-graph/StatusTransitionGraph.js';

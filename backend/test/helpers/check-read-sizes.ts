@@ -488,8 +488,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // band and therefore silent. The instruction that produces the right number
     // is in the accounting above and is worth repeating as an instruction:
     // merge `origin/master` first, then read the line.
+    //
+    // **P8 takes it to 2436, and `files` stays at 353.** It is not a drain
+    // batch — no directory moved, and every one of the four old paths is still
+    // there as a shim — so the −12 is the **collapse** this entry keeps
+    // describing, arriving without the move. A site is one `from '…'`, so it
+    // accounts exactly and every unit is one of two kinds. Seven come off the
+    // four published files: `ScopePicker` had nine specifiers and its shim has
+    // two (−7), `ContentLanguageTabs` three and two (−1), `email-outcome` one
+    // and two (+1), `Section` two either way (0). The other five come off the
+    // five editors — `cms`' three and `blog`'s two — which each took
+    // `ContentLanguageTabs` and `ScopePicker` from two sibling paths and now
+    // take both from one kit subpath. The other six consumers are a wash: one
+    // specifier before and one after. Nothing left the walk unwatched, which
+    // the `sources=` line beside it says independently.
     files: 353,
-    sites: 2448,
+    sites: 2436,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not

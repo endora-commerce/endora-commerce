@@ -38,6 +38,8 @@ export { RouteTabs, activeTabPath } from './route-tabs.js';
 export type { RouteTab, RouteTabsProps } from './route-tabs.js';
 export { SaveButtonGroup } from './save-button-group.js';
 export type { SaveButtonGroupProps } from './save-button-group.js';
+export { Section } from './section.js';
+export type { SectionProps } from './section.js';
 export { Select } from './select.js';
 export { Separator } from './separator.js';
 export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from './table.js';

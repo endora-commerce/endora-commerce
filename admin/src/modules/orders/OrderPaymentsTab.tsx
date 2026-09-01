@@ -14,7 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
-import { Section } from './Section';
+import { Section } from '@endora-commerce/admin-kit/ui';
 
 type PaymentStatus =
   | 'awaiting_payment'
