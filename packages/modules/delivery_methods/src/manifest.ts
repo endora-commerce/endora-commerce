@@ -134,5 +134,28 @@ export const manifest = defineModuleManifest({
   // `payment_methods`. The dependents that do declare it — `payments`,
   // `quick_order`, `shipments` — fail closed when it is off, which is the
   // intended meaning of switching a delivery catalog off, not an accident.
+  // Feature 091 (Phase 4, batch 8) — this module ships a bundle now: its
+  // sidebar entry's `labelKey` is module-relative (R8) and resolves in this
+  // module's own namespace. Its screen's copy stays in `_i18n`'s `core`
+  // scope, which is batch 4's shape and not a new one.
+  i18n: { bundlesDir: 'i18n' },
+  // Feature 091 (Phase 4, batch 8) — the palette row `AppShell.tsx` carried by
+  // hand, arriving as the declaration Principle XVI names, for the reason
+  // recorded on `credit_limits`' entry: a `PALETTE_ITEMS` literal is a copy of
+  // an advertisement nothing filtered by the effective enabled-set.
+  // `delivery_methods:read` is what gates `GET /api/v1/admin/delivery-methods`,
+  // so the palette never advertises a 403.
+  actions: [
+    {
+      id: 'open-delivery-methods',
+      labelKey: 'actions.openDeliveryMethods.label',
+      descriptionKey: 'actions.openDeliveryMethods.description',
+      icon: 'Truck',
+      targetRoute: '/delivery-methods',
+      requiredPermission: 'delivery_methods:read',
+      keywords: ['delivery', 'shipping', 'methods', 'courier', 'metody dostawy', 'wysyłka', 'kurier'],
+      weight: 300,
+    },
+  ],
   activation: { settingCode: 'delivery_methods.enabled', default: true },
 });

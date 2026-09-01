@@ -79,6 +79,11 @@ export const manifest = defineModuleManifest({
   //
   // `taxes.enabled` goes with the control. The existing rows are removed by a
   // core data migration (feature 074, FR-010a).
+  // Feature 091 (Phase 4, batch 8) — this module ships a bundle now: its
+  // sidebar entry's `labelKey` is module-relative (R8) and resolves in this
+  // module's own namespace. Its screen's copy stays in `_i18n`'s `core`
+  // scope, which is batch 4's shape and not a new one.
+  i18n: { bundlesDir: 'i18n' },
   activation: {
     nonDeactivatable: true,
     reason:

@@ -20,7 +20,6 @@ import {
   type PermissionRequirement,
 } from './lib/surface-visibility.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
-import { SeoPage } from './modules/seo/SeoPage.js';
 import { DictionaryPage } from './modules/dictionaries/DictionaryPage.js';
 import { DictionaryAuditPage } from './modules/dictionaries/AuditPage.js';
 import { PagesListPage } from './modules/cms/pages/PagesListPage.js';
@@ -30,8 +29,6 @@ import { BlockEditor } from './modules/cms/editors/BlockEditor.js';
 import { TemplatesListPage } from './modules/cms/pages/TemplatesListPage.js';
 import { TemplateEditor } from './modules/cms/editors/TemplateEditor.js';
 import { HooksPage } from './modules/cms/pages/HooksPage.js';
-import { MegamenuListPage } from './modules/megamenu/pages/MegamenuListPage.js';
-import { MegamenuEditor } from './modules/megamenu/pages/MegamenuEditor.js';
 import { BlogPostListPage } from './modules/blog/pages/BlogPostListPage.js';
 import { BlogPostEditor } from './modules/blog/pages/BlogPostEditor.js';
 import { BlogCategoryTreePage } from './modules/blog/pages/BlogCategoryTreePage.js';
@@ -57,8 +54,6 @@ import { OnlineCustomers } from './modules/customers/OnlineCustomers.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
-import { ReturnsList } from './modules/returns/ReturnsList.js';
-import { ReturnDetail } from './modules/returns/ReturnDetail.js';
 import { EmailsList } from './modules/transactional_emails/pages/EmailsList.js';
 import { EmailEditor } from './modules/transactional_emails/pages/EmailEditor.js';
 import { EmailBlocksPage } from './modules/transactional_emails/pages/EmailBlocksPage.js';
@@ -73,10 +68,7 @@ import { TagsPage as NewsletterTagsPage } from './modules/newsletter/pages/TagsP
 import { CampaignStats as NewsletterCampaignStats } from './modules/newsletter/pages/CampaignStats.js';
 import { BlocksPage as NewsletterBlocksPage } from './modules/newsletter/pages/BlocksPage.js';
 import { ProviderSettingsPage as NewsletterProviderPage } from './modules/newsletter/pages/ProviderSettingsPage.js';
-import { ReturnStatusesConfigPage } from './modules/returns/ReturnStatusesConfigPage.js';
-import { ReturnReasonsPage } from './modules/returns/ReturnReasonsPage.js';
 import { CustomFieldsPage } from './modules/custom_fields/CustomFieldsPage.js';
-import { ReturnDeliveryMethodsPage } from './modules/returns/ReturnDeliveryMethodsPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalfPage.js';
 import { InvoicesList } from './modules/invoices/InvoicesList.js';
@@ -89,12 +81,10 @@ import { ErgonodeCategoryMappingPage } from './modules/pim_ergonode/ErgonodeCate
 import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
 import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
-import { TaxesPage } from './modules/taxes/TaxesPage.js';
 import { PriceListsPage } from './modules/price_lists/PriceListsPage.js';
 import { PriceListDetailPage } from './modules/price_lists/PriceListDetailPage.js';
 import { DisplayModeOverridesPage } from './modules/price_lists/DisplayModeOverridesPage.js';
 import { HomePage } from './modules/home/HomePage.js';
-import { DeliveryMethodsPage } from './modules/delivery_methods/DeliveryMethodsPage.js';
 import { CredentialsPage } from './modules/credentials/pages/CredentialsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
@@ -102,7 +92,6 @@ import { AvailabilityNotificationsPage } from './modules/inventory/AvailabilityN
 import { StockImportWizard } from './modules/inventory/StockImportWizard.js';
 import { WarehousesList } from './modules/warehouses/WarehousesList.js';
 import { WarehouseEditor } from './modules/warehouses/WarehouseEditor.js';
-import { CreditLimitsPage } from './modules/credit_limits/CreditLimitsPage.js';
 import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
 import { SettingsPage } from './modules/settings/pages/SettingsPage.js';
 import { GroupsPage as SettingsGroupsPage } from './modules/settings/pages/GroupsPage.js';
@@ -269,11 +258,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
         <Route path="/orders/:id" element={<OrderDetail />} />
         <Route path="/custom-fields" element={<CustomFieldsPage />} />
-        <Route path="/returns" element={<ReturnsList />} />
-        <Route path="/returns/statuses" element={<ReturnStatusesConfigPage />} />
-        <Route path="/returns/reasons" element={<ReturnReasonsPage />} />
-        <Route path="/returns/delivery-methods" element={<ReturnDeliveryMethodsPage />} />
-        <Route path="/returns/:id" element={<ReturnDetail />} />
         <Route path="/transactional-emails" element={<EmailsList />} />
         <Route path="/transactional-emails/blocks" element={<EmailBlocksPage />} />
         <Route path="/transactional-emails/blocks/:id" element={<EmailFragmentEditor kind="block" />} />
@@ -310,11 +294,9 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         />
         <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
         <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
-        <Route path="/taxes" element={<TaxesPage />} />
         <Route path="/price-lists" element={<PriceListsPage />} />
         <Route path="/price-lists/display-modes" element={<DisplayModeOverridesPage />} />
         <Route path="/price-lists/:id" element={<PriceListDetailPage />} />
-        <Route path="/delivery-methods" element={<DeliveryMethodsPage />} />
         {/*
           A redirect for the deep links that predate the screen's move to
           `/delivery-methods/dhl-parcel`, and the admin application's own:
@@ -334,7 +316,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/warehouses" element={<WarehousesList />} />
         <Route path="/warehouses/new" element={<WarehouseEditor />} />
         <Route path="/warehouses/:id" element={<WarehouseEditor />} />
-        <Route path="/credit-limits" element={<CreditLimitsPage />} />
         <Route path="/quote-requests" element={<RfqList />} />
         <Route path="/quote-requests/new" element={<RfqCreatePage />} />
         <Route path="/quote-requests/:id" element={<RfqDetail />} />
@@ -347,7 +328,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
           silently taking the first match. Their declarations are in
           `packages/modules/{comparisons,api_keys,webhooks}/src/admin/index.ts`.
         */}
-        <Route path="/seo" element={<SeoPage />} />
         <Route path="/dictionary" element={<DictionaryPage />} />
         <Route path="/dictionaries/audit" element={<DictionaryAuditPage />} />
         <Route path="/admin/dictionaries/audit" element={<DictionaryAuditPage />} />
@@ -362,8 +342,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/cms/templates/new" element={<TemplateEditor />} />
         <Route path="/cms/templates/:id" element={<TemplateEditor />} />
         <Route path="/cms/hooks" element={<HooksPage />} />
-        <Route path="/megamenu" element={<MegamenuListPage />} />
-        <Route path="/megamenu/:id" element={<MegamenuEditor />} />
         <Route path="/blog/posts" element={<BlogPostListPage />} />
         <Route path="/blog/posts/new" element={<BlogPostEditor />} />
         <Route path="/blog/posts/:id" element={<BlogPostEditor />} />

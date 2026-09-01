@@ -23,5 +23,6 @@
   "settlement.refund": "Zwrot pieniędzy",
   "settlement.credit": "Zaliczenie na poczet przyszłych zamówień",
   "settlement.replacement": "Wymiana",
-  "settlement.repair": "Naprawa"
+  "settlement.repair": "Naprawa",
+  "nav.returns.label": "Zwroty"
 }

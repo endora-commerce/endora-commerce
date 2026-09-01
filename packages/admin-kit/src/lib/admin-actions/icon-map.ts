@@ -23,6 +23,7 @@ import {
   LineChart,
   ListChecks,
   Menu,
+  Newspaper,
   Package,
   PanelLeft,
   PercentDiamond,
@@ -126,6 +127,10 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // sidebar entries and two palette rows. The other three members of that batch
   // needed no entry: `CreditCard`, `Users` and `Rss` are already above.
   PercentDiamond,
+  // Feature 091 (Phase 4, batch 8) — the same, for `megamenu`'s sidebar entry.
+  // The batch's other five needed no entry: `Search`, `Receipt`, `Truck`,
+  // `CreditCard` and `Package` are already above.
+  Newspaper,
 };
 
 export function resolveIcon(name: string): LucideIcon {

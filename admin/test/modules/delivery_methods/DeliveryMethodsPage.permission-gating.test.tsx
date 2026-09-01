@@ -49,7 +49,10 @@ const rows = [
 const list = vi.fn(async () => rows);
 const orderStatuses = vi.fn(async () => []);
 
-vi.mock('@/modules/delivery_methods/api/delivery-methods-client', () => ({
+// The client is the module package's since feature 091's batch 8, so the mock
+// names the path the packaged screen resolves. Nothing else about this file
+// moved: the screen is the same screen and the two axes are the same two.
+vi.mock('../../../../packages/modules/delivery_methods/src/admin/api/delivery-methods-client', () => ({
   deliveryMethodsClient: {
     list: (...args: unknown[]) => list(...(args as [])),
     orderStatuses: (...args: unknown[]) => orderStatuses(...(args as [])),
@@ -89,19 +92,22 @@ const KEYS = [
 ];
 
 function mount(): Promise<void> {
-  return import('@/modules/delivery_methods/DeliveryMethodsPage').then(
-    ({ DeliveryMethodsPage }) => {
-      renderWithI18n(
-        withSession(
-          <MemoryRouter initialEntries={['/delivery-methods']}>
-            <DeliveryMethodsPage />
-          </MemoryRouter>,
-          { session: adminSession({ permissions }), presence: modulePresence({ present: presentModules }) },
-        ),
-        passthroughBundle('core', KEYS),
-      );
-    },
-  );
+  return import(
+    '../../../../packages/modules/delivery_methods/src/admin/pages/DeliveryMethodsPage'
+  ).then(({ DeliveryMethodsPage }) => {
+    renderWithI18n(
+      withSession(
+        <MemoryRouter initialEntries={['/delivery-methods']}>
+          <DeliveryMethodsPage />
+        </MemoryRouter>,
+        {
+          session: adminSession({ permissions }),
+          presence: modulePresence({ present: presentModules }),
+        },
+      ),
+      passthroughBundle('core', KEYS),
+    );
+  });
 }
 
 describe('the delivery-methods screen is gated on the module’s own code', () => {

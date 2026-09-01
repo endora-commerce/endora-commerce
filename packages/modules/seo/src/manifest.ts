@@ -41,5 +41,10 @@ export const manifest = defineModuleManifest({
       },
     ],
   },
+  // Feature 091 (Phase 4, batch 8) — this module ships a bundle now: its
+  // sidebar entry's `labelKey` is module-relative (R8) and resolves in this
+  // module's own namespace. Its screen's copy stays in `_i18n`'s `core`
+  // scope, which is batch 4's shape and not a new one.
+  i18n: { bundlesDir: 'i18n' },
   activation: { settingCode: 'seo.enabled', default: true },
 });
