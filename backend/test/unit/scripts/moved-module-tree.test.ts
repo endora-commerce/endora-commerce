@@ -63,6 +63,14 @@ const CHECKS: readonly MovedTreeCheck[] = [
     args: [],
     prefix: '[action-route-permissions]',
   },
+  // `specs/094-translation-boundary/`. Its walk visits each registered module's
+  // **own directory** rather than its source files, which makes the residue
+  // shape sharper here than for a file walk: over a moved tree the index still
+  // answers for every module and the directories are simply not there, so a
+  // check that asked "did the walk read anything?" would find the one module the
+  // fixture keeps, read its bundles, and report a clean tree with 68 modules
+  // unjudged. The floor is per module and refuses instead.
+  { script: 'check-bundle-pairing.ts', args: [], prefix: '[bundle-pairing]' },
   { script: 'check-channel-resolution.ts', args: ['--enforce'], prefix: '[channel-resolution]' },
   { script: 'check-command-coverage.ts', args: ['--strict'], prefix: '[command-coverage]' },
   { script: 'check-container-imports.ts', args: [], prefix: '[container-imports]' },

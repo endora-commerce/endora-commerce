@@ -360,6 +360,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `manifest-index` is issue #215's shared floor over the module walk.
     sources: ['zone-enum', 'manifest-index'],
   },
+  'backend/scripts/check-bundle-pairing.ts': {
+    prefix: '[bundle-pairing]',
+    run: { kind: 'tsx', path: 'scripts/check-bundle-pairing.ts', args: [] },
+    // Bundle files opened, and the number is the population's whole shape: 62
+    // of the 69 registered modules ship a bundle, each in both shipped
+    // languages, so `files` is 62 × 2 and moves by two whenever a module gains
+    // or loses its strings. It is deliberately *not* the modules read — that is
+    // `sites`, and the two answer different questions here: a module dropping
+    // one bundle moves `files` and leaves `sites` where it was, which is exactly
+    // the defect this check refuses.
+    files: 124,
+    // Every registered module, shipping or not. It moves only with the module
+    // set, so a run whose `sites` fell while `files` held is a module that left
+    // the index rather than a translation that left a package.
+    sites: 69,
+    // `manifest-index` is issue #215's shared floor over the module walk, whose
+    // unit here is the module's **own directory** — `dirname(manifestPath)`, the
+    // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
+    // `SUPPORTED_LANGUAGES` against the languages the walk actually probed for:
+    // it is 0 when no module shipped anything, which with a conditional
+    // predicate is the vacuously-clean state, and it stays at the full count
+    // when every module drops a language — that is a run of findings, not a run
+    // that read nothing.
+    sources: ['manifest-index', 'shipped-languages'],
+  },
   'backend/scripts/check-admin-surface.ts': {
     prefix: '[admin-surface]',
     run: { kind: 'tsx', path: 'scripts/check-admin-surface.ts', args: [] },

@@ -1,5 +1,6 @@
 import { dirname } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { SUPPORTED_LANGUAGES } from '@endora-commerce/contracts';
 import {
   BundleLoadError,
   loadModuleBundles,
@@ -16,6 +17,32 @@ import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifest
  *
  * `bundle-loader.unit.test.ts` covers the loader's error paths against
  * fixtures; this test points the same loader at the real filesystem.
+ *
+ * ## What this file does **not** answer, and the skip that hid it
+ *
+ * Its subject is key-level resolution inside the bundles a module ships. File
+ * **presence** is `check:bundle-pairing`'s
+ * (`specs/094-translation-boundary/contracts/bundle-pairing-ratchet.md`), and
+ * until that check landed this file looked as though it answered both while
+ * answering neither — in two places, each a population derived from the artefact
+ * under judgement:
+ *
+ *   * the refusal-token case read `if (!en || !pl) continue;`, so a module that
+ *     dropped `pl.json` outright was **skipped by the case whose subject is
+ *     bundle symmetry**. It now separates the two states the disjunction ran
+ *     together: *neither* bundle is the module that ships no strings and has
+ *     nothing to be symmetric about, and *one* bundle is a failure here as well
+ *     as a finding there;
+ *   * the action-key case iterated `loaded.byLanguage` — the languages *that
+ *     module happens to ship* — so a module shipping only `en.json` had its keys
+ *     checked against English and passed. It now iterates
+ *     `SUPPORTED_LANGUAGES`, which is what "every shipped language" was always
+ *     meant to say.
+ *
+ * The two instruments are not duplicates after the repair: this file judges the
+ * modules that **declare** `i18n`, key by key; the check judges every registered
+ * module's files, including one whose manifest declares no `bundlesDir` at all —
+ * which `withBundles` filters out of this file before the first assertion.
  */
 describe('registered module i18n bundles — real filesystem shape', () => {
   const withBundles = REGISTERED_MANIFESTS.filter((e) => e.manifest.i18n);
@@ -42,7 +69,7 @@ describe('registered module i18n bundles — real filesystem shape', () => {
     },
   );
 
-  it('every action label/description key declared in a manifest resolves in both bundles', () => {
+  it('every action label/description key declared in a manifest resolves in every shipped language', () => {
     const missing: string[] = [];
     for (const entry of withBundles) {
       const actions = entry.manifest.actions ?? [];
@@ -52,7 +79,19 @@ describe('registered module i18n bundles — real filesystem shape', () => {
         dirname(entry.filePath),
         entry.manifest.i18n!.bundlesDir,
       );
-      for (const [language, entries] of loaded.byLanguage) {
+      // A module that declares a bundles directory and ships nothing in it owes
+      // no key — `check:bundle-pairing` § 1's conditional, and the one state in
+      // which "no bundle" is not a defect. Every other module is held to the
+      // **platform's** languages, not to its own: iterating `loaded.byLanguage`
+      // asked each module about the languages it happened to ship, so one
+      // shipping only `en.json` had its keys checked against English and passed.
+      if (loaded.byLanguage.size === 0) continue;
+      for (const language of SUPPORTED_LANGUAGES) {
+        const entries = loaded.byLanguage.get(language);
+        if (entries === undefined) {
+          missing.push(`${entry.manifest.id}/${language}.json → (no bundle in this language)`);
+          continue;
+        }
         for (const action of actions) {
           const keys = [action.labelKey, action.descriptionKey].filter(
             (k): k is string => typeof k === 'string',
@@ -77,6 +116,12 @@ describe('registered module i18n bundles — real filesystem shape', () => {
    * the missing side falls back to the route's written English message instead
    * of rendering a raw code, which is safe enough that nobody would notice.
    * Both directions, so a stray PL sentence with no EN twin fails too.
+   *
+   * The disjunctive skip below it — `if (!en || !pl) continue;` — is gone, and
+   * the two states it ran together are now separate: a module shipping
+   * **neither** has nothing to be symmetric about and is passed over; a module
+   * shipping **one** was the defect this case was blind to and is a failure
+   * here as well as a `check:bundle-pairing` finding.
    */
   it('every refusal-token sentence ships in both languages', () => {
     const tokenKeys = (entries: Record<string, string>): string[] =>
@@ -90,7 +135,18 @@ describe('registered module i18n bundles — real filesystem shape', () => {
       );
       const en = loaded.byLanguage.get('en');
       const pl = loaded.byLanguage.get('pl');
-      if (!en || !pl) continue;
+      // A module that ships neither has nothing to be symmetric about — the
+      // `check:bundle-pairing` conditional, and the only state the old
+      // `if (!en || !pl) continue;` was right to pass over.
+      if (en === undefined && pl === undefined) continue;
+      if (en === undefined || pl === undefined) {
+        asymmetric.push(
+          `${entry.manifest.id}: ships ${en === undefined ? 'pl.json' : 'en.json'} and not ` +
+            `${en === undefined ? 'en.json' : 'pl.json'} — the case whose subject is symmetry ` +
+            'used to skip exactly this',
+        );
+        continue;
+      }
       for (const key of tokenKeys(en)) {
         if (!(key in pl)) asymmetric.push(`${entry.manifest.id}/pl.json → ${key}`);
       }

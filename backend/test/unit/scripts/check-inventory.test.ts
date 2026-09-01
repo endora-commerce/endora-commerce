@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   ModuleManifestSchema,
+  SUPPORTED_LANGUAGES,
   defineModuleManifest,
   type ModuleManifest,
 } from '@endora-commerce/contracts';
@@ -95,6 +96,16 @@ import {
   runAdminZones,
   type AdminZoneFixture,
 } from '../../helpers/admin-zones-fixture.js';
+import {
+  checkBundlePairing,
+  type BundlePairingFindingKind,
+} from '../../../scripts/check-bundle-pairing.js';
+import {
+  createBundlePairingFixture,
+  validBundle,
+  type FixtureModule,
+} from '../../helpers/bundle-pairing-fixture.js';
+import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
 import {
   checkAdminSurface,
   reachKey,
@@ -2566,6 +2577,77 @@ function adminZoneFixture(overrides: Partial<AdminZoneFixture> = {}): AdminZoneF
   };
 }
 
+/**
+ * A module that satisfies `check:bundle-pairing` — every proof's control, and
+ * in three of the five it is load-bearing rather than decorative: the probe
+ * directory names are derived from the `bundlesDir` values the manifests
+ * declare, so a tree in which nobody declares one has no name to probe at all.
+ */
+const BUNDLE_PAIRING_COMPLIANT: FixtureModule = {
+  id: 'catalog',
+  bundles: { 'en.json': validBundle(), 'pl.json': validBundle('actions.open.label', 'Otwórz') },
+};
+
+/**
+ * `check-bundle-pairing` over a real module tree, for findings of exactly one
+ * kind — so no signal goes blind behind another's red.
+ *
+ * The builder is `test/helpers/bundle-pairing-fixture.ts` and the companion test
+ * calls the same one, in the idiom `emitted-freshness-fixture.ts` established:
+ * two builders over one population are two answers waiting to disagree.
+ */
+function bundlePairingFindings(
+  declarations: readonly FixtureModule[],
+  kind: BundlePairingFindingKind,
+): number {
+  const fixture = createBundlePairingFixture(declarations);
+  try {
+    return checkBundlePairing({
+      modules: fixture.modules,
+      languages: [...SUPPORTED_LANGUAGES],
+    }).findings.filter((finding) => finding.kind === kind).length;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+/**
+ * The conditional's discrimination, counted as a refusal rather than a finding.
+ *
+ * A tree in which no module ships a bundle is *vacuously clean* under a
+ * conditional predicate — every module is exempt and `findings=0` is the honest
+ * answer to a question nobody asked. So the proof is that the run is **refused**
+ * by the shared reporter, which is where the real check's exit 2 comes from, and
+ * that the same tree with a shipping module in it is not.
+ */
+function bundlePairingReadRefusals(declarations: readonly FixtureModule[]): number {
+  const fixture = createBundlePairingFixture(declarations);
+  try {
+    const languages = [...SUPPORTED_LANGUAGES];
+    const result = checkBundlePairing({ modules: fixture.modules, languages });
+    const record = {
+      prefix: '[bundle-pairing]',
+      files: result.filesRead.length,
+      sites: result.classified.length,
+      coverage: [
+        {
+          source: 'manifest-index',
+          expected: fixture.modules.length,
+          covered: result.classified.length,
+        },
+        {
+          source: 'shipped-languages',
+          expected: languages.length,
+          covered: result.languagesProbed,
+        },
+      ],
+    };
+    return result.findings.length === 0 && readSizeRefusal(record) !== null ? 1 : 0;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
 const CHECKS: readonly CheckEntry[] = [
   {
     // Feature 091's P4a. The zone mechanism's two-way refusal — promised by
@@ -2759,6 +2841,93 @@ const CHECKS: readonly CheckEntry[] = [
           ledger: { [key]: 'one site recorded, two walked' },
         }).findings.length;
       }),
+    },
+  },
+  {
+    // `specs/094-translation-boundary/contracts/bundle-pairing-ratchet.md` —
+    // the owner's ruling of 2026-09-01: a module that ships a bundle in any
+    // language ships one in every language the platform ships. It lands at
+    // **zero violations**, which is what makes this entry carry the whole
+    // weight: nothing in the tree exercises the check, so a narrowing would be
+    // invisible in every pipeline until the day the shape arrived.
+    //
+    // Four findings, four proofs, plus the discrimination § 1 turns on — a
+    // module shipping **neither** bundle is clean, which is what proves the
+    // predicate was implemented as a conditional rather than as "every module
+    // ships `pl.json`". Each enters over a **fixture module tree on disk**
+    // plus the records a generated index produces over it: the analysis is a
+    // directory probe, a per-language stat, a `JSON.parse` and a schema
+    // validation, and a fixture handing in classifications would prove the
+    // reporter and leave all four unproven (issue #130).
+    script: 'backend/scripts/check-bundle-pairing.ts',
+    npmScript: 'check:bundle-pairing',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-bundle-pairing.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // The population is every registered module's own directory, and the floor
+    // is `refuseVacuousModulePopulation` over it — so a moved module tree is
+    // refused rather than reported clean, and `moved-module-tree.test.ts`
+    // spawns it beside the other module walks.
+    residueGuard: 'derived-population',
+    red: {
+      'missing-language-bundle': top(() =>
+        bundlePairingFindings(
+          [BUNDLE_PAIRING_COMPLIANT, { id: 'blog', bundles: { 'en.json': validBundle() } }],
+          'missing-language-bundle',
+        ),
+      ),
+      'empty-bundle': top(() =>
+        bundlePairingFindings(
+          [
+            BUNDLE_PAIRING_COMPLIANT,
+            { id: 'blog', bundles: { 'en.json': '{}\n', 'pl.json': validBundle() } },
+          ],
+          'empty-bundle',
+        ),
+      ),
+      'unparseable-bundle': top(() =>
+        bundlePairingFindings(
+          [
+            BUNDLE_PAIRING_COMPLIANT,
+            {
+              id: 'blog',
+              bundles: {
+                // Nested rather than flat: it parses as JSON and fails the
+                // schema, which is what the boot reconciler logs and skips.
+                'en.json': `${JSON.stringify({ actions: { open: { label: 'Open' } } })}\n`,
+                'pl.json': validBundle(),
+              },
+            },
+          ],
+          'unparseable-bundle',
+        ),
+      ),
+      'undeclared-bundle-dir': top(() =>
+        bundlePairingFindings(
+          [
+            // The compliant module is load-bearing rather than decorative: the
+            // probe directory names are derived from what the *other* manifests
+            // declare, so a tree in which nobody declares one has no name to
+            // probe and this finding cannot fire.
+            BUNDLE_PAIRING_COMPLIANT,
+            {
+              id: 'blog',
+              bundlesDir: null,
+              bundles: { 'en.json': validBundle(), 'pl.json': validBundle() },
+            },
+          ],
+          'undeclared-bundle-dir',
+        ),
+      ),
+      // The conditional, as a red proof of the *discrimination*: a module that
+      // ships nothing is exempt, and the run that contains one is refused for
+      // reading no bundle at all rather than reported clean. Without this the
+      // four above would all pass over a check that had quietly become a
+      // universal, and seven correct modules would each be a finding.
+      'conditional-exempts-a-module-shipping-nothing': top(() =>
+        bundlePairingReadRefusals([{ id: 'catalog' }, { id: 'auth' }]),
+      ),
     },
   },
   {
@@ -6900,6 +7069,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // the whole finding would let three of the four go blind behind the first's
       // red. Plus both stale directions of its ledger.
       'backend/scripts/check-admin-zones.ts': 11,
+      // Four findings and the discrimination the conditional turns on: a module
+      // shipping neither bundle is exempt, and a run of nothing but such
+      // modules is refused rather than reported clean.
+      'backend/scripts/check-bundle-pairing.ts': 5,
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
       'backend/scripts/check-action-route-permissions.ts': 8,
