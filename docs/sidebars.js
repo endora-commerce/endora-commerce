@@ -130,11 +130,8 @@ const sidebars = {
         'modules/inpost',
         'modules/price_lists',
         { type: 'doc', id: 'modules/pim_ergonode', label: 'Ergonode PIM' },
-<<<<<<< HEAD
         { type: 'doc', id: 'modules/pim_pimcore', label: 'Pimcore PIM' },
-=======
         { type: 'doc', id: 'integrations/akeneo-pim', label: 'Akeneo PIM' },
->>>>>>> 1bf91b5fc (Hide Akeneo admin surfaces while the module is off and document the connector.)
         { type: 'doc', id: 'modules/product_feeds', label: 'Product Feeds' },
         {
           type: 'doc',

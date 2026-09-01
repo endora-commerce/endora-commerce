@@ -75,7 +75,6 @@ const coreBundle = passthroughBundle('core', [
 
 const { AppShell } = await import('../../src/components/AppShell');
 
-<<<<<<< HEAD
 /**
  * Everything the AppShell can render, minus the ids the caller switches off.
  *
@@ -87,20 +86,6 @@ const { AppShell } = await import('../../src/components/AppShell');
  * hidden in every one of them.
  */
 const ALL_MODULES = everyDeclaredModule();
-=======
-/** Everything the AppShell can render, minus the ids the caller switches off. */
-const ALL_MODULES = [
-  'orders', 'quick_order', 'returns', 'quote_requests', 'invoices', 'ksef',
-  'catalog', 'assets_library', 'pim_ergonode', 'pim_akeneo', 'product_feeds', 'inventory',
-  'price_lists', 'promotions', 'taxes', 'delivery_methods', 'payment_methods',
-  'customers', 'organizations', 'credit_limits', 'comparisons',
-  'sales_channels', 'dictionaries', 'seo', 'cms', 'megamenu', 'blog',
-  'transactional_emails', 'newsletter', 'analytics', 'google_analytics',
-  'linkedin_ads', 'meta_ads', 'admin_users', 'admin_roles', 'audit_logs',
-  'api_keys', 'webhooks', 'credentials', 'import_export', 'settings', 'pwa',
-  'custom_fields',
-];
->>>>>>> 1bf91b5fc (Hide Akeneo admin surfaces while the module is off and document the connector.)
 
 function renderShell(off: readonly string[] = []): void {
   presentModules = new Set(ALL_MODULES.filter((id) => !off.includes(id)));

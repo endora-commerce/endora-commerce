@@ -294,17 +294,8 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
         <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
         <Route path="/pim-akeneo" element={<AkeneoConnectionPage />} />
-<<<<<<< HEAD
-=======
         <Route path="/pim-akeneo/runs" element={<AkeneoRunsPage />} />
         <Route path="/pim-akeneo/runs/:runId" element={<AkeneoRunDetailPage />} />
-        <Route path="/taxes" element={<TaxesPage />} />
-        <Route path="/promotions" element={<PromotionsPage />} />
-        <Route path="/promotions/new" element={<PromotionEditPage />} />
-        <Route path="/promotion-rules" element={<PromotionRulesPage />} />
-        <Route path="/promotions/:id/stats" element={<PromotionStatsPage />} />
-        <Route path="/promotions/:id" element={<PromotionEditPage />} />
->>>>>>> 656181b02 (Add Akeneo admin connection and run history screens.)
         <Route path="/price-lists" element={<PriceListsPage />} />
         <Route path="/price-lists/display-modes" element={<DisplayModeOverridesPage />} />
         <Route path="/price-lists/:id" element={<PriceListDetailPage />} />

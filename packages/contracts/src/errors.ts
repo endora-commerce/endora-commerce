@@ -467,8 +467,6 @@ export const ERROR_CODES = {
   /** A protected field path does not match the grammar (data-model.md §8). */
   PIM_ERGONODE_FIELD_PATH_INVALID: 'PIM_ERGONODE_FIELD_PATH_INVALID',
 
-<<<<<<< HEAD
-<<<<<<< HEAD
   // Pimcore PIM integration (feature 089). Transport-level codes for the
   // module's admin surface — see specs/092-pimcore-pim-sync/contracts/admin-api.md.
   /** No connection row exists yet, so there is nothing to read or import from. */
@@ -522,11 +520,8 @@ export const ERROR_CODES = {
    * neither claimant.
    */
   PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
-=======
-  // Akeneo PIM complete-record delivery (feature 087).
-=======
+
   // Akeneo PIM complete-record delivery (feature 093).
->>>>>>> 5f360e7ac (Rename Akeneo spec from 087 to 093 to avoid collision with tenant-scope-enforcement.)
   /** No Akeneo connection row exists yet. */
   PIM_AKENEO_NOT_CONFIGURED: 'PIM_AKENEO_NOT_CONFIGURED',
   /** Ingress or apply refused because the connection is disabled. */
@@ -543,7 +538,6 @@ export const ERROR_CODES = {
   PIM_AKENEO_FIELD_KEY_INVALID: 'PIM_AKENEO_FIELD_KEY_INVALID',
   /** Enabling while another PIM connector (e.g. Ergonode) is already enabled. */
   PIM_CONNECTOR_ALREADY_ACTIVE: 'PIM_CONNECTOR_ALREADY_ACTIVE',
->>>>>>> 889727e9d (Add Akeneo connection Commands, HMAC credential and skip-bootstrap.)
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
