@@ -16,7 +16,8 @@
     [
       "@endora-commerce/page-builder-core",
       "@endora-commerce/cms-components",
-      "@endora-commerce/email-components"
+      "@endora-commerce/email-components",
+      "@endora-commerce/page-builder-admin"
     ]
   ],
   "updateInternalDependencies": "patch",

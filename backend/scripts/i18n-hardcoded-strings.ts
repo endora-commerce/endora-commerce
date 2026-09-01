@@ -279,13 +279,24 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/admin-kit/src/components/asset-picker/AssetFieldPicker.tsx': 1,
   'packages/admin-kit/src/components/rule-builder/RuleBuilder.tsx': 6,
   'packages/admin-kit/src/ui/color-picker.tsx': 1,
-  'admin/src/modules/_shared/email-builder/EmailEditorPane.tsx': 9,
-  'admin/src/modules/_shared/email-builder/EmailRichTextField.tsx': 1,
-  'admin/src/modules/_shared/email-builder/EmailRowLayoutPicker.tsx': 2,
-  'admin/src/modules/_shared/email-builder/EmailVariablesProvider.tsx': 4,
-  'admin/src/modules/cms/components/AssetPickers.tsx': 5,
+  // Feature 091's P5b published the shared page-builder chrome and the e-mail
+  // builder as `@endora-commerce/page-builder-admin`, and these **six** entries
+  // are **re-keyed**, not raised and not dropped. Every count is unmoved: the
+  // same strings in the same components, under the paths the walk reads them at
+  // now. Four of them were `_shared/email-builder`'s (9 + 1 + 2 + 4 = 16, the
+  // figure P5c's widening was sized against) and two are `cms`' — `AssetPickers`
+  // and `CatalogPickers` moved with the chrome, which the plan's count of the
+  // e-mail half did not include. The walk reaches them because the package
+  // declares `endora: { type: 'admin-ui' }`; forget that block and all six go
+  // *stale* in the same run rather than silently unread, which is the property
+  // that makes a self-declared population safe here.
+  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 9,
+  'packages/page-builder-admin/src/email/EmailRichTextField.tsx': 1,
+  'packages/page-builder-admin/src/email/EmailRowLayoutPicker.tsx': 2,
+  'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': 4,
+  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 5,
+  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 13,
   'admin/src/modules/cms/components/ButtonLinkFields.tsx': 4,
-  'admin/src/modules/cms/components/CatalogPickers.tsx': 13,
   'admin/src/modules/cms/components/ComponentDragHandle.tsx': 1,
   'admin/src/modules/cms/components/RowLayoutPicker.tsx': 2,
   'admin/src/modules/invoices/templates/invoice-puck-config.tsx': 6,

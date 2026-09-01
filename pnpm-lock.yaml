@@ -164,6 +164,9 @@ importers:
       '@endora-commerce/mod-webhooks':
         specifier: workspace:*
         version: link:../packages/modules/webhooks
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:^
+        version: link:../packages/page-builder-admin
       '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
@@ -3526,6 +3529,51 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/page-builder-admin:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../admin-kit
+      '@endora-commerce/cms-components':
+        specifier: workspace:^
+        version: link:../cms-components
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:^
+        version: link:../email-components
+      '@endora-commerce/page-builder-core':
+        specifier: workspace:^
+        version: link:../page-builder-core
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.2.5
+        version: 19.2.5(react@19.2.5)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.2
+        version: 7.3.2(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/page-builder-core:
     devDependencies:

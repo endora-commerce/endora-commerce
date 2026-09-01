@@ -30,37 +30,36 @@ import {
   shouldRevertPuckAction,
   toPuckItemArray,
 } from '@endora-commerce/page-builder-core/editor';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { apiClient } from '@/lib/api-client';
+import { Button } from '@endora-commerce/admin-kit/ui';
+import { apiClient, cn } from '@endora-commerce/admin-kit/lib';
 import {
   createImageAssetField,
   createImageSourceField,
   createImageUrlField,
-} from '@/modules/cms/components/AssetPickers';
+} from '../chrome/AssetPickers.js';
 import {
   createCategorySlugsField,
   createProductSlugField,
   createProductSlugsField,
-} from '@/modules/cms/components/CatalogPickers';
-import { PageBuilderColorPaletteProvider } from '@/modules/cms/components/ColorPaletteProvider';
+} from '../chrome/CatalogPickers.js';
+import { PageBuilderColorPaletteProvider } from '../chrome/ColorPaletteProvider.js';
 import {
   PageBuilderHeaderActions,
   PageBuilderHeaderShell,
   PageBuilderTemplateActions,
-} from '@/modules/cms/components/PageBuilderHeaderActions';
-import { PageBuilderOverlayBridge } from '@/modules/cms/components/PageBuilderOverlayBridge';
-import { cmsClient } from '@/modules/cms/api/cms-client';
-import { transactionalEmailsClient } from '@/modules/transactional_emails/api/transactional-emails-client';
+} from '../chrome/PageBuilderHeaderActions.js';
+import { PageBuilderOverlayBridge } from '../chrome/PageBuilderOverlayBridge.js';
+import { getPageBuilderColorPalette } from '../chrome/cms-page-builder-api.js';
+import { getEmailBranding } from './email-templates-api.js';
 import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@/i18n/useTranslation';
-import { emailRichTextContentField, emailHtmlFromRichContent } from './EmailRichTextField';
-import { emailTextareaWithVariablesField } from './EmailVariableFields';
-import { createEmailBuilderEditorPlugin } from './email-builder-plugin';
-import { useEmailVariables, type EmailVariableItem } from './EmailVariablesProvider';
-import { EmailBuilderActionBar } from './EmailBuilderActionBar';
-import { EmailRowLayoutPicker } from './EmailRowLayoutPicker';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { emailRichTextContentField, emailHtmlFromRichContent } from './EmailRichTextField.js';
+import { emailTextareaWithVariablesField } from './EmailVariableFields.js';
+import { createEmailBuilderEditorPlugin } from './email-builder-plugin.js';
+import { useEmailVariables, type EmailVariableItem } from './EmailVariablesProvider.js';
+import { EmailBuilderActionBar } from './EmailBuilderActionBar.js';
+import { EmailRowLayoutPicker } from './EmailRowLayoutPicker.js';
 
 export type EmailPreviewWidth = 600 | 320;
 
@@ -624,7 +623,7 @@ export function EmailEditorPane({
   const [rowLayoutPickerForId, setRowLayoutPickerForId] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState('');
   const [paletteEntries, setPaletteEntries] = useState<
-    NonNullable<Awaited<ReturnType<typeof cmsClient.getPageBuilderConfig>>['colorPalette']>
+    Awaited<ReturnType<typeof getPageBuilderColorPalette>>
   >([]);
   const knownRowIdsRef = useRef<Set<string>>(collectEmailRowIds(data ?? emptyData));
   const lastValidDataRef = useRef(data ?? emptyData);
@@ -706,8 +705,7 @@ export function EmailEditorPane({
 
   useEffect(() => {
     let live = true;
-    void transactionalEmailsClient
-      .branding(salesChannelId)
+    void getEmailBranding(salesChannelId)
       .then((b) => {
         if (live) setLogoUrl(toAbsoluteAssetUrl(b.logoUrl || ''));
       })
@@ -721,10 +719,9 @@ export function EmailEditorPane({
 
   useEffect(() => {
     let live = true;
-    void cmsClient
-      .getPageBuilderConfig()
-      .then((cfg) => {
-        if (live) setPaletteEntries(cfg.colorPalette ?? []);
+    void getPageBuilderColorPalette()
+      .then((entries) => {
+        if (live) setPaletteEntries(entries);
       })
       .catch(() => {
         if (live) setPaletteEntries([]);
