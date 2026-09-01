@@ -373,16 +373,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (twenty out, nine shims and `newsletter`'s own variable vocabulary back
     // in), plus the tree's own growth since 2187 was written.
     //
-    // `sites` does not move, and the reason is the point rather than a
+    // `sites` does not move with P5b, and the reason is the point rather than a
     // coincidence. The package's three `useTranslation` calls all name `core`,
     // which is `_i18n`'s bundle under a synthetic alias and is no module id, so
     // none of them is a `foreign-module-id` site — `ColorPaletteModal`'s two
-    // read `cms` until this merge request moved the fifteen
+    // read `cms` until that merge request moved the fifteen
     // `pageBuilder.colorPalette.*` keys to `core`, exactly as P5a moved the
     // other thirty-three, and had they been left they would be two findings in
     // a package that owns no module id at all.
+    //
+    // **15 -> 16 when the foreign-id walk widened to a module's own sources.**
+    // `files` does not move with *that* one, and it is the measurement rather
+    // than an aside: the module walk roots were already the *render* half's
+    // population, so the widening opens no new file — it reads the ones it had,
+    // for a question it was not asking. What moves is `sites`, by exactly one:
+    // the `visibility-gate` on `credentials` that batch 10 wrote into
+    // `mod-settings`' admin layer, correct and outside every instrument in this
+    // estate from the day it landed.
     files: 2206,
-    sites: 15,
+    sites: 16,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -392,7 +401,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // so the first non-empty expectation this token could carry — the reasoning,
     // including why P5c's *"and carries a ledger key"* condition is dropped
     // rather than waited on, is on the `coverage` block in the check itself.
-    sources: ['zone-enum', 'admin-ui', 'manifest-index'],
+    // `module-admin` is the floor that moved with the widened foreign-id walk,
+    // and it exists because neither of the others can see what it sees:
+    // `manifest-index` is satisfied by any file a registered module contributes,
+    // which for a module package is its backend sources, so a package's *admin
+    // layer* dropping out of the walk leaves it green, and `admin-ui` counts
+    // packages that are not modules at all. Its expectation is the generated
+    // admin contribution registry's — a second program's answer to "which
+    // packages ship admin code, and under which subpath" — and it grows with
+    // every batch of Story 3.
+    sources: ['zone-enum', 'admin-ui', 'manifest-index', 'module-admin'],
   },
   'backend/scripts/check-bundle-pairing.ts': {
     prefix: '[bundle-pairing]',

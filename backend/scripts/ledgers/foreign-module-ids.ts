@@ -24,14 +24,27 @@
  * fine"* means the predicate has outgrown its population — narrow it, never
  * add the entry.
  *
- * **A `module-namespace` entry whose screen is about to move is the case to be
- * careful with**, and batch 10 met it. This check's population is
- * `admin/src/modules/**`, so a screen moving into its module's package takes
- * every finding about it out of the walk — the entry then reads stale and the
- * ratchet asks for it to be removed, whether or not anybody repaired anything.
- * *"The file left the walk"* and *"the coupling went"* produce the identical
- * diff. So the rule for a batch author is: repair the coupling **in the same
- * merge request**, and say in the removal which of the two happened.
+ * **A `module-namespace` entry whose screen is about to move used to be the case
+ * to be careful with**, and batch 10 met it. This check's population was
+ * `admin/src/modules/**` and the admin-ui family, so a screen moving into its
+ * module's package took every finding about it out of the walk — the entry then
+ * read stale and the ratchet asked for it to be removed, whether or not anybody
+ * repaired anything. *"The file left the walk"* and *"the coupling went"*
+ * produced the identical diff, so the rule for a batch author was: repair the
+ * coupling **in the same merge request**, and say in the removal which of the
+ * two happened.
+ *
+ * **That hazard is closed, and it was closed because it had stopped being an
+ * incident and become a structure.** The walk now reads a module's own sources
+ * too — every root `lib/module-roots.ts` derives, which reaches a module
+ * package's `src/admin/` — so a screen moving into its package carries its
+ * findings with it under a new key instead of vanishing. The rule above survives
+ * as good practice and no longer rests on anyone remembering it. What made it
+ * urgent rather than tidy: 37 of the module packages already ship an admin
+ * layer, six batches of Story 3 will move sixteen more owners, and every one of
+ * them widened a population no instrument in this estate was reading. The first
+ * entry below is what it found — a gate added *by* batch 10, in the very merge
+ * request whose file moved, correct and unwatched from the day it landed.
  *
  * **A `module-namespace` entry has a second retiring shape, and the first one
  * took it.** P5a moved the shared page-builder chrome's 33 `pageBuilder.*` keys
@@ -124,6 +137,22 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
     '— the one FR-007 cites by name. Retires at batch 10 into `order.shipment.row.actions`, ' +
     "a repeated parameterised zone whose props carry the row's `deliveryMethodCode`, with " +
     '`dhl_parcel` as its second contributor.',
+  // The third entry is the one the widened walk found, and it is a **correct**
+  // gate rather than a defect — which is why it is recorded here rather than
+  // repaired. Z12 added it in batch 10, in the same merge request that moved
+  // this file into `@endora-commerce/mod-settings`, and it left the walk in the
+  // act of being written.
+  'packages/modules/settings/src/admin/components/ConfigurationReferenceInput.tsx:visibility-gate:credentials':
+    '`settings` renders `credentials`\' `ConfigurationPreviewModal` for the `credential_ref` ' +
+    'value type, statically imported, so nothing filters it: the gate is what stops the ' +
+    'preview button appearing over an API that answers 503 while the module is off, and ' +
+    'removing it would be a fail-open. It is the gate half of the reach ' +
+    '`backend/scripts/ledgers/cross-module-imports/settings.ts` records, and **it retires ' +
+    'with that reach and not before** — Z1 refuses a zone here (a modal that resolved to two ' +
+    '`onClose`s has no honest answer), so what removes both is a single-contributor ' +
+    'contribution point for the *field editor*, `settings` naming a place and `credentials` ' +
+    'contributing picker and preview together. That needs an owner ruling; until it lands, ' +
+    'the gate is the right code and this is the record of it.',
 
   // --- population 2: the kit rendering out of a module's namespace -----------
   //
