@@ -67,6 +67,8 @@ export { CustomerGroupPicker } from './customer-group-picker/CustomerGroupPicker
 export type { CustomerGroupPickerProps } from './customer-group-picker/CustomerGroupPicker.js';
 export { CustomerPicker } from './customer-picker/CustomerPicker.js';
 export type { CustomerPickerProps } from './customer-picker/CustomerPicker.js';
+export { FulfilmentStrategyPicker } from './fulfilment-strategy-picker/FulfilmentStrategyPicker.js';
+export type { FulfilmentStrategyPickerProps, FulfilmentStrategyValue, FulfilmentWarehouseOption } from './fulfilment-strategy-picker/FulfilmentStrategyPicker.js';
 export { OrganizationPicker } from './organization-picker/OrganizationPicker.js';
 export type { OrganizationPickerProps } from './organization-picker/OrganizationPicker.js';
 export { OrganizationPickerMulti } from './organization-picker/OrganizationPickerMulti.js';

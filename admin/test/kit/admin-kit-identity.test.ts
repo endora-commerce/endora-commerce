@@ -63,6 +63,7 @@ import { ContentLanguageTabs } from '@/modules/cms/components/ContentLanguageTab
 import { ScopePicker } from '@/modules/cms/components/ScopePicker';
 import { Section } from '@/modules/orders/Section';
 import { issueInvoiceNotice, sendInvoiceEmailMessage } from '@/modules/invoices/email-outcome';
+import { FulfilmentStrategyPicker } from '@/modules/inventory/components/FulfilmentStrategyPicker';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -116,6 +117,16 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     expect(Section).toBe(kitUi.Section);
     expect(issueInvoiceNotice).toBe(kitLib.issueInvoiceNotice);
     expect(sendInvoiceEmailMessage).toBe(kitLib.sendInvoiceEmailMessage);
+  });
+
+  it('serves the P9 fulfilment picker through both spellings', () => {
+    // Feature 091's P9 published `inventory`'s warehouse-picking control, which
+    // §10.2 read as a **published component** rather than a zone contribution:
+    // `(value, onChange, warehouses, …)` is Z1 question 1, and both consumers
+    // own the save. Its two consumers name the subpath; the shim stays because
+    // the old path is the spelling `inventory`'s own screens and any client tree
+    // may hold, and a second resolution would be a second component object.
+    expect(FulfilmentStrategyPicker).toBe(kitComponents.FulfilmentStrategyPicker);
   });
 
   // **`CustomFieldValuesPanel` had a case here and no longer has a shim to
