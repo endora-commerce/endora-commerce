@@ -30,6 +30,13 @@ import { CategoryMappingRow } from '../components/CategoryMappingRow.js';
  *
  * The coverage strip is a `role="progressbar"` **and** the same numbers as
  * text: a proportion an operator cannot read off a bar is not information.
+ *
+ * **The installed-taxonomy read carries a `.catch`, and the empty branch tells
+ * the two apart.** Both halves are needed: without the `.catch` a failed request
+ * is an unhandled rejection, and with only the `.catch` the message would be set
+ * on a screen that returns early on `installed.length === 0` and never renders
+ * it — so the failure would still read as "no provider taxonomy is installed",
+ * which is a different and worse answer than "this did not load".
  */
 
 /** Above this many categories the tree becomes a paged flat list (data-model §10). */
@@ -58,12 +65,17 @@ export function CategoryMappingPage(): ReactNode {
   const searchTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    void feedTaxonomiesClient.listInstalled().then((r) => {
-      setInstalled(r.data);
-      const first = r.data[0];
-      if (first) setProviderCode(first.providerCode);
-    });
-  }, []);
+    void feedTaxonomiesClient
+      .listInstalled()
+      .then((r) => {
+        setInstalled(r.data);
+        const first = r.data[0];
+        if (first) setProviderCode(first.providerCode);
+      })
+      .catch(() => {
+        setError(t('mapping.loadFailed'));
+      });
+  }, [t]);
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -146,12 +158,23 @@ export function CategoryMappingPage(): ReactNode {
     : filtered;
 
   if (installed.length === 0) {
+    // A failed `listInstalled` leaves this list empty too, and "no provider
+    // taxonomy is installed" is then a claim about the platform that the screen
+    // has no evidence for. So the error wins the branch: an operator can tell a
+    // failure from an absence, and retrying is a page reload rather than a
+    // support ticket about a taxonomy that is in fact installed.
     return (
       <div>
         <PageHeader title={t('mapping.title')} description={t('mapping.subtitle')} />
-        <Alert>
-          <AlertDescription>{t('mapping.noTaxonomy')}</AlertDescription>
-        </Alert>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : (
+          <Alert>
+            <AlertDescription>{t('mapping.noTaxonomy')}</AlertDescription>
+          </Alert>
+        )}
       </div>
     );
   }

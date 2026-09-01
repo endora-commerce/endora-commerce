@@ -47,6 +47,7 @@
   "feeds.create.language": "Language",
   "feeds.create.derived": "Prices will come from the channel's own resolution, shown gross, with no schedule. You can change all of that after the feed is created.",
   "feeds.create.submit": "Create feed",
+  "feeds.create.channelLoadFailed": "The sales channel's languages and currency could not be loaded, so the language list below is empty. Try again.",
   "feeds.tab.overview": "Overview",
   "feeds.tab.runs": "Runs",
   "feeds.tab.settings": "Settings",
