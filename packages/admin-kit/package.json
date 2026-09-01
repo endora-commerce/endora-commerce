@@ -16,6 +16,10 @@
       "types": "./dist/zones/index.d.ts",
       "default": "./dist/zones/index.js"
     },
+    "./field-protection": {
+      "types": "./dist/field-protection/index.d.ts",
+      "default": "./dist/field-protection/index.js"
+    },
     "./ui": {
       "types": "./dist/ui/index.d.ts",
       "default": "./dist/ui/index.js"

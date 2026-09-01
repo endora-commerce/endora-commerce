@@ -140,6 +140,9 @@ importers:
       '@endora-commerce/mod-payu':
         specifier: workspace:*
         version: link:../packages/modules/payu
+      '@endora-commerce/mod-pim-ergonode':
+        specifier: workspace:*
+        version: link:../packages/modules/pim_ergonode
       '@endora-commerce/mod-pim-pimcore':
         specifier: workspace:*
         version: link:../packages/modules/pim_pimcore
@@ -2776,6 +2779,9 @@ importers:
 
   packages/modules/pim_ergonode:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2794,6 +2800,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -2803,6 +2812,9 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

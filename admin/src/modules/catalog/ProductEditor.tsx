@@ -55,15 +55,6 @@ import {
 } from '@/components/ui/table';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
-// Feature 068 / US4 — the Ergonode overwrite-protection affordance. Both render
-// `null` unless an Ergonode connection is enabled (FR-058), so every use below
-// is unconditional: the condition belongs to the module that owns the concept,
-// not to the catalogue's editor.
-import {
-  ErgonodePriceProtectionPanel,
-  FieldProtectionSummary,
-  FieldProtectionToggle,
-} from '../pim_ergonode/components/FieldProtectionToggle';
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { PackagingUnitsEditor } from './components/PackagingUnitsEditor';
 import { ProductAttributesTab } from './ProductAttributesTab';
@@ -541,26 +532,21 @@ export function ProductEditor(): ReactNode {
                     existing products: at Channel = Global it writes the
                     per-language baseline on `products`; at a specific
                     channel it writes a `product_value_overrides` row. */}
-                {/* Feature 068 / US4 — which fields the Ergonode import may not
-                    touch (FR-055), plus the integration-managed and last-synced
-                    indicators (FR-068). The name and description controls sit
-                    here because the panel below is their sole editor. */}
-                {/* Feature 091 / P4a — the product editor's own zone mounts.
-                    The zone names a **place**; nothing here refers to a module.
-                    They render zero contributions today: P4b is what moves the
-                    field-protection controls below into `pim_ergonode`'s and
-                    `pim_pimcore`'s own contributions, and until it lands both
-                    the mount and the hard-coded component stand. */}
+                {/* Feature 091 / P4b — the product editor's own zone mounts,
+                    now with contributors. The zone names a **place**; nothing
+                    here refers to a module, and the two PIM connectors each
+                    render one control out of their own packages.
+
+                    One mount per field, not one per field and locale: the
+                    zone's props carry `languageCodes` and the fan-out is the
+                    contributor's decision, which is what the two
+                    `LOCALES.map(...)` loops this replaced were doing on a
+                    foreign module's behalf. */}
                 {id ? (
                   <AdminZone name="product.editor.details.before" props={{ productId: id }} />
                 ) : null}
-                <FieldProtectionSummary productId={id} />
                 {id ? (
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    {/* One mount per field, not one per field and locale: the
-                        zone's props carry `languageCodes` and the fan-out is
-                        the contributor's decision. That is what the two
-                        `LOCALES.map(...)` loops below collapse into at P4b. */}
                     <AdminZone
                       name="product.editor.field.after"
                       props={{ productId: id, fieldPath: 'name', languageCodes: LOCALES }}
@@ -569,22 +555,6 @@ export function ProductEditor(): ReactNode {
                       name="product.editor.field.after"
                       props={{ productId: id, fieldPath: 'description', languageCodes: LOCALES }}
                     />
-                    {LOCALES.map((l) => (
-                      <FieldProtectionToggle
-                        key={`protect-name-${l}`}
-                        productId={id}
-                        fieldPath="name"
-                        languageCode={l}
-                      />
-                    ))}
-                    {LOCALES.map((l) => (
-                      <FieldProtectionToggle
-                        key={`protect-description-${l}`}
-                        productId={id}
-                        fieldPath="description"
-                        languageCode={l}
-                      />
-                    ))}
                   </div>
                 ) : null}
 
@@ -770,7 +740,6 @@ export function ProductEditor(): ReactNode {
                         props={{ productId: id, fieldPath: 'categories', languageCodes: null }}
                       />
                     ) : null}
-                    <FieldProtectionToggle productId={id} fieldPath="categories" className="ml-3" />
                   </div>
                   <CategoryTreePicker
                     categories={categories}
@@ -795,11 +764,11 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'pricing' && id ? (
             <div className="b2b-col" style={{ gap: 16 }}>
-              {/* Feature 068 / FR-062 — one control per price the Ergonode
-                  import could write here. Renders `null` when no binding covers
-                  this product, which is every product until one is bound. */}
+              {/* Feature 091 / P4b — each connected PIM contributes one panel
+                  here, listing the prices its import could write on this
+                  product. A contributor with no binding over the product
+                  renders nothing, which is every product until one is bound. */}
               <AdminZone name="product.editor.pricing.before" props={{ productId: id }} />
-              <ErgonodePriceProtectionPanel productId={id} />
               <LinkedPriceListsPanel productId={id} />
             </div>
           ) : null}
@@ -820,7 +789,6 @@ export function ProductEditor(): ReactNode {
                 name="product.editor.field.after"
                 props={{ productId: id, fieldPath: 'gallery', languageCodes: null }}
               />
-              <FieldProtectionToggle productId={id} fieldPath="gallery" className="mb-2" />
               <GallerySection ref={galleryRef} productId={id} />
             </>
           ) : null}
@@ -840,7 +808,6 @@ export function ProductEditor(): ReactNode {
                 name="product.editor.field.after"
                 props={{ productId: id, fieldPath: 'attachments', languageCodes: null }}
               />
-              <FieldProtectionToggle productId={id} fieldPath="attachments" className="mb-2" />
               <AttachmentsSection productId={id} />
             </>
           ) : null}
