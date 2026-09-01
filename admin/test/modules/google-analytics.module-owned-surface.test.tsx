@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -205,12 +205,16 @@ describe('the shell no longer names this module by hand', () => {
     ]);
     for (const route of routes) expect(typeof route.component).toBe('function');
     expect(routes[1]!.component).toBe(routes[2]!.component);
-    await waitFor(async () => {
-      for (const route of routes) {
-        const loaded = await route.component();
-        expect(typeof loaded.default).toBe('function');
-      }
-    });
+    // Awaited directly, with no `waitFor` around it. A dynamic import is not a
+    // DOM observation: `waitFor` would put a 1000 ms deadline on vite-node
+    // transforming this screen's module graph, and — because its retry loop
+    // skips every tick while its callback's promise is still pending — grant
+    // exactly one attempt inside that deadline. That is a guillotine, not a
+    // retry.
+    for (const route of routes) {
+      const loaded = await route.component();
+      expect(typeof loaded.default).toBe('function');
+    }
   });
 
   it('gates the editor on the write code and the list on the read code', async () => {

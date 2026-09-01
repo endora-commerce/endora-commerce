@@ -1,6 +1,47 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
+
+/**
+ * The budget a DOM assertion gets before it gives up, declared rather than
+ * defaulted.
+ *
+ * Testing Library's `asyncUtilTimeout` default is **1000 ms**, and every
+ * `waitFor` and `findBy*` in this suite silently inherits it. That number is a
+ * developer's-idle-laptop default, and this suite is neither idle nor a laptop:
+ * it runs 149 files across a fork per core, beside whatever else the host is
+ * doing — on CI, a shared runner that also carries another project's test
+ * server (see AGENTS.md § *Which backend test command to use*).
+ *
+ * Measured, on a 16-core host, one full admin run with the backend fast unit
+ * suite and 16 spinners for company: 137 async waits took 150 ms or more,
+ * **five of them took longer than 1000 ms**, and the slowest took **2062 ms**.
+ * Every one of them resolved. So the failures this removes were never a race
+ * and never a hang — they were assertions whose wall-clock budget expired while
+ * the process was descheduled, and the file that lost the coin toss differed
+ * from run to run, which is why each of them passed in isolation.
+ *
+ * Two things this is deliberately not.
+ *
+ * It is **not hiding a slow product path**. Several of these waits are not
+ * waiting for application state at all: a module screen reaches the DOM through
+ * `React.lazy`, so the wait covers vite-node transforming that screen's module
+ * graph on demand — a cost of the test runner that does not exist in the
+ * browser, and one with no bounded size.
+ *
+ * And it is **not a delay**. The budget is a ceiling, not a sleep: a passing
+ * assertion resolves the moment its element appears and costs exactly what it
+ * costs. The whole price of raising it is paid by an assertion that is already
+ * failing, once, and it stays far below `testTimeout` (30 s) so a genuinely
+ * dead assertion still fails with Testing Library's own diagnostic — the text
+ * it looked for, and the DOM it looked in — rather than with vitest's bare
+ * "test timed out", which names nothing.
+ *
+ * If this stops being enough, re-measure before raising it: a wait that needs
+ * more than a few seconds on a loaded host is a different finding from the one
+ * this number answers.
+ */
+configure({ asyncUtilTimeout: 5_000 });
 
 /**
  * No admin test reaches the network.
