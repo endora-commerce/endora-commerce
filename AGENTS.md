@@ -882,6 +882,25 @@ were translated. Never raise a number to make the build pass — add the key. Ru
 `pnpm --filter backend run i18n:hardcoded -- --strict` to see the whole remaining debt, or pass one
 path while draining a screen.
 
+**Read those first two clauses as a rule and an instrument, not as a rule and its enforcement** —
+the semicolon has been doing work it cannot do. The rule is every user-facing string; the
+instrument is `.tsx` files under three admin roots, judging JSX (`collectTsxFiles` pushes a path
+only `if (entry.endsWith('.tsx'))`, and the classifier's two branches are `ts.isJsxText` and
+`ts.isJsxAttribute` over four attributes). **Prose a backend module composes is outside it by
+construction**, and not by a root that could be added: a module's backend sources are `.ts` and
+contain no JSX, so a backend root adds zero files to that walk while enlarging what its `read:`
+line claims — issue #244's shape arriving through the repair. `check:language` does not cover it
+either, and there too the reason is design rather than oversight: Principle VIII v3.0.0 names
+inline comments and `/docs/` pages and says string literals MAY be in any language, which its
+per-extension regex implements by matching only a line carrying a comment marker **and** a
+diacritic. So a Polish notification title in a module's service breaks the *first* clause above
+and no principle and no check — which is how an admin notification came to be a finished sentence
+in whichever language its module was written in, English for four modules and Polish for a fifth,
+rendered raw beside bell chrome that is translated eleven lines away. 45 such literals stand
+across three delivery seams; the measurement, the shape and the instrument are designed in
+`specs/093-backend-delivered-prose/`. Until that lands, **this paragraph is the only thing between
+an author and shipping the forty-sixth**.
+
 ## Static checks and their escape hatches
 
 **Adding or changing a check?** It needs an entry in
