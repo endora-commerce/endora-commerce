@@ -5,6 +5,7 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CustomerAccountReadPort, EmailMailerPort } from '@endora-commerce/contracts';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { OrganizationEventBus } from './registration-service.js';
+import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 
 /**
  * OrganizationModerationService — owns every status transition on the
@@ -29,9 +30,11 @@ import type { OrganizationEventBus } from './registration-service.js';
  * `active` when the platform runs in `auto` mode. The subscriber is
  * wired in the composition root.
  *
- * Customer email notifications (approval, rejection) are sent via the
- * injected `mailer`. The recipient is the Organization's first
- * `organization_admin` Customer account, read through
+ * Customer email notifications (approval, rejection) go through the
+ * admin-editable transactional template, which resolves them in the
+ * recipient's language, and fall back to the English in-code builders below
+ * only when the platform holds no definition for the code. The recipient is
+ * the Organization's first `organization_admin` Customer account, read through
  * `customer_accounts`' published port (feature 075, D-87).
  */
 export interface ModerationActorContext {
@@ -71,6 +74,15 @@ export class OrganizationModerationService {
     private readonly customerAccounts: CustomerAccountReadPort,
     /** Resolver for the moderation-mode setting. Returns 'auto' or 'manual'. */
     private readonly resolveModerationMode: () => Promise<'auto' | 'manual'>,
+    /**
+     * The transactional-template seam, which is where the language comes from.
+     *
+     * Defaulted to the no-op rather than made required so a composition that
+     * does not wire it keeps sending — silence would be worse than the
+     * fallback language, which is the whole argument for keeping the in-code
+     * builders below.
+     */
+    private readonly templateEmail: OrgTemplateEmail = noopOrgTemplateEmail,
   ) {}
 
   /**
@@ -114,8 +126,10 @@ export class OrganizationModerationService {
       eventNewStatus: 'active',
       afterCommit: async (org) => {
         await this.notifyCustomer(org, {
-          subject: 'Twoja Organizacja została zweryfikowana',
-          text: `Witaj,\n\nOrganizacja "${org.name}" została pomyślnie zweryfikowana i może teraz składać Zamówienia oraz Zapytania Ofertowe.\n\nDziękujemy.`,
+          code: 'organization_approved',
+          variables: { organizationName: org.name },
+          fallbackSubject: 'Your organization has been verified',
+          fallbackText: `Hi,\n\nOrganization "${org.name}" has been verified successfully and can now place Orders and Requests for Quotation.\n\nThank you.`,
           messageIdSuffix: 'approved',
         });
       },
@@ -143,8 +157,10 @@ export class OrganizationModerationService {
       afterCommit: async (org) => {
         if (options.notifyCustomerEmail === false) return;
         await this.notifyCustomer(org, {
-          subject: 'Rejestracja Organizacji odrzucona',
-          text: `Witaj,\n\nNiestety, rejestracja Organizacji "${org.name}" została odrzucona z następującego powodu:\n\n${options.reason}\n\nW razie pytań prosimy o kontakt z administracją platformy.`,
+          code: 'organization_rejected',
+          variables: { organizationName: org.name, reason: options.reason },
+          fallbackSubject: 'Organization registration rejected',
+          fallbackText: `Hi,\n\nUnfortunately, the registration of organization "${org.name}" was rejected for the following reason:\n\n${options.reason}\n\nIf you have any questions, please contact the platform administrators.`,
           messageIdSuffix: 'rejected',
         });
       },
@@ -256,7 +272,16 @@ export class OrganizationModerationService {
 
   private async notifyCustomer(
     org: Organization,
-    input: { subject: string; text: string; messageIdSuffix: string },
+    input: {
+      /** The transactional-email code this message is rendered from. */
+      code: string;
+      /** The values that sentence interpolates — never a composed sentence. */
+      variables: Record<string, unknown>;
+      /** English, and reached only when the platform holds no definition. */
+      fallbackSubject: string;
+      fallbackText: string;
+      messageIdSuffix: string;
+    },
   ): Promise<void> {
     /**
      * Feature 075 (D-87) — `customer_accounts`' port, where this was a
@@ -284,12 +309,49 @@ export class OrganizationModerationService {
     );
     const recipient = members.find((m) => m.role === 'organization_admin')?.email;
     if (!recipient) return;
-    const outcome = await this.mailer.send({
-      messageId: `organization.${input.messageIdSuffix}.${org.id}.${org.version}`,
+    const messageId = `organization.${input.messageIdSuffix}.${org.id}.${org.version}`;
+    const meta = { organizationId: org.id, kind: input.messageIdSuffix };
+
+    /**
+     * The language this message is written in, and where it comes from
+     * (`specs/093-backend-delivered-prose/` § Out of scope — the seam-B
+     * carve-out).
+     *
+     * Both of these messages were finished Polish sentences composed right
+     * here and handed straight to the transport, so a buyer on an English
+     * sales channel was sent Polish unconditionally. They carry a code now,
+     * and `templateEmailPort` resolves the language from the **system-default
+     * sales channel's `defaultLanguage`**, falling back to `en-US`.
+     *
+     * That is the honest derivation available at this call site and not a
+     * convenience. There is no per-buyer language to read: neither
+     * `CustomerAccountRecord` nor `Organization` carries one, and
+     * `specs/083-buyer-language-resolution/` records the reserved rung for it
+     * as deliberately absent. Nor is the request's language usable — this runs
+     * `afterCommit`, and on the two paths that reach it the request either
+     * belongs to the moderating **administrator**, whose language is not the
+     * recipient's, or does not exist at all, `handleNewlyRegistered` being
+     * driven by an event subscriber.
+     *
+     * `trySend` answers `false` only for a code with no definition, and then
+     * the English builders below send. A message that silently fails to go out
+     * is worse than one in a language the recipient did not choose.
+     */
+    const sentViaTemplate = await this.templateEmail.trySend({
+      code: input.code,
       to: recipient,
-      subject: input.subject,
-      text: input.text,
-      meta: { organizationId: org.id, kind: input.messageIdSuffix },
+      messageId,
+      variables: input.variables,
+      meta,
+    });
+    if (sentViaTemplate) return;
+
+    const outcome = await this.mailer.send({
+      messageId,
+      to: recipient,
+      subject: input.fallbackSubject,
+      text: input.fallbackText,
+      meta,
     });
     if (outcome.status !== 'sent') {
       // The moderation transition has committed and this notification runs
