@@ -1,10 +1,12 @@
 import type { Data } from '@measured/puck';
 import type { EmailTemplateDetail, EmailTemplateSummary } from '@endora-commerce/contracts';
-import { emptyPageBuilderData, isEmptyPageBuilderData } from '@/modules/cms/components/page-builder-data';
-import { codeFromTemplateName } from '@/modules/cms/components/cms-template-layout';
-import { transactionalEmailsClient } from '@/modules/transactional_emails/api/transactional-emails-client';
-
-export { codeFromTemplateName };
+import { emptyPageBuilderData, isEmptyPageBuilderData } from '../chrome/page-builder-data.js';
+import {
+  createEmailTemplate,
+  getEmailTemplate,
+  listEmailTemplates,
+  putEmailTemplateContent,
+} from './email-templates-api.js';
 
 export async function saveCanvasAsEmailTemplate(input: {
   name: string;
@@ -25,7 +27,7 @@ export async function saveCanvasAsEmailTemplate(input: {
     throw new Error('MISSING_SCOPE');
   }
 
-  const created = await transactionalEmailsClient.createTemplate({
+  const created = await createEmailTemplate({
     name: input.name.trim(),
     code: input.code.trim(),
     languages: input.languages,
@@ -33,7 +35,7 @@ export async function saveCanvasAsEmailTemplate(input: {
       ? { salesChannelIds: input.salesChannelIds }
       : {}),
   });
-  return transactionalEmailsClient.putTemplateContent(created.id, language, {
+  return putEmailTemplateContent(created.id, language, {
     content: input.data as never,
     expectedVersion: created.version,
   });
@@ -42,7 +44,7 @@ export async function saveCanvasAsEmailTemplate(input: {
 export async function listEmailTemplatesForApply(
   salesChannelId?: string | null,
 ): Promise<Array<{ id: string; label: string }>> {
-  const res = await transactionalEmailsClient.listTemplates(salesChannelId ?? undefined);
+  const res = await listEmailTemplates(salesChannelId ?? undefined);
   return res.items.map((tpl: EmailTemplateSummary) => ({
     id: tpl.id,
     label: tpl.name ? `${tpl.name} (${tpl.code})` : tpl.code,
@@ -53,7 +55,7 @@ export async function loadEmailTemplateCanvas(
   templateId: string,
   preferredLanguage: string | null,
 ): Promise<Data> {
-  const detail = await transactionalEmailsClient.getTemplate(templateId);
+  const detail = await getEmailTemplate(templateId);
   const language =
     (preferredLanguage && detail.languages.includes(preferredLanguage)
       ? preferredLanguage

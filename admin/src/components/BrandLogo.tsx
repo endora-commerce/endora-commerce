@@ -8,7 +8,8 @@
  * a brand mark that re-tints with the accent hue is no longer the brand mark.
  *
  * It needs a light ground. Measured against the sidebar's `--bg-sidebar`
- * (`#1a1c1e`), `#8A1C5C` is 1.95:1 — invisible; on white it is 8.75:1. That is
+ * (`#1a1c1e`), `#8A1C5C` is 1.95:1 — invisible; on the palette's near-white
+ * `#fbf9ff` it is 8.37:1. That is
  * why `.b2b-sidebar__brand-logo` is a light tile rather than the accent
  * gradient it used to be, and why the gradient could not simply stay: the
  * accent hue is indigo (248) and the mark is wine (325).

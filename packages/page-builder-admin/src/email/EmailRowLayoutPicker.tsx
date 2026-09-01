@@ -6,7 +6,7 @@ import {
   EMAIL_ROW_LAYOUT_PRESETS,
   type EmailRowLayoutPresetId,
 } from '@endora-commerce/email-components';
-import { Button } from '@/components/ui/button';
+import { Button } from '@endora-commerce/admin-kit/ui';
 
 export function EmailRowLayoutPicker({
   open,

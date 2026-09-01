@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { mergeEmailVariables, newsletterVariables } from '@/modules/_shared/email-builder/newsletter-variables';
+import { mergeEmailVariables } from '@endora-commerce/page-builder-admin/email';
+import { newsletterVariables } from '@/modules/newsletter/email-variables';
+
+/**
+ * The `newsletter-variables` split (feature 091, P5b;
+ * `admin-component-contribution.md` Z1.2). `newsletterVariables` is one
+ * module's domain vocabulary and exits into `newsletter`; `mergeEmailVariables`
+ * is what any e-mail builder needs and stays in
+ * `@endora-commerce/page-builder-admin/email`. The two subjects are asserted
+ * from the two homes, so a merge that put them back together would fail here.
+ */
 
 describe('newsletterVariables', () => {
   it('includes base newsletter keys and custom fields', () => {

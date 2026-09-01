@@ -2,9 +2,9 @@ import { lazy, Suspense, type ReactElement } from 'react';
 import type { CustomField } from '@measured/puck';
 import { sanitizeEmailHtml } from '@endora-commerce/email-components';
 import { htmlFromTiptap } from '@endora-commerce/cms-components';
-import { Button } from '@/components/ui/button';
+import { Button } from '@endora-commerce/admin-kit/ui';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
-import { useEmailVariables } from './EmailVariablesProvider';
+import { useEmailVariables } from './EmailVariablesProvider.js';
 
 /**
  * Reuses the CMS Page Builder Rich Content TipTap field, plus an email Variable

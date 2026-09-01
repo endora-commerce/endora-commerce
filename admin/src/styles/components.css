@@ -163,8 +163,10 @@
   /* A light ground, not the accent gradient it replaced. The mark is wine
      (#8A1C5C) and the accent hue is indigo (248), so the gradient fought it;
      and on the sidebar's own #1a1c1e the mark measures 1.95:1, which is
-     invisible. On this tile it is 8.75:1. */
-  background: #fff;
+     invisible. On this tint it is 8.37:1, and the tile itself sits at
+     16.35:1 against the sidebar. #fbf9ff rather than plain white because it
+     is the palette's own near-white. */
+  background: #fbf9ff;
   display: grid; place-items: center;
   padding: 3px;
   box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset;
@@ -175,7 +177,11 @@
   display: block;
   object-fit: contain;
 }
-.b2b-sidebar__brand-text-accent { color: #7C3AED; }
+/* #9f67ff, not the palette's #7c3aed: this is 14px/600 text, so WCAG AA asks
+   4.5:1 and measured against #1a1c1e the darker violet gives 3.00:1 while this
+   one gives 4.77:1. #6322c8 is 2.11:1 and #c4b5fd is 9.26:1 but reads as
+   lavender rather than as the brand's violet. */
+.b2b-sidebar__brand-text-accent { color: #9f67ff; }
 
 .b2b-sidebar__search {
   padding: 10px 12px;

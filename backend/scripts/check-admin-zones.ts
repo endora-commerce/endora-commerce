@@ -853,9 +853,10 @@ async function main(): Promise<void> {
   // specifically, so leaving it here as well would report one site twice under
   // two keys. `KIT_PACKAGE` therefore stays a name — it is the subject of that
   // rule rather than a derived fact written down.
-  const familyFiles = adminUiPackages(workspaceMembers(layout.repoRoot, nodeWorkspaceFs()))
-    .filter((pkg) => kitDir === null || resolve(pkg.dir) !== resolve(kitDir))
-    .flatMap((pkg) => walk(join(pkg.dir, 'src')));
+  const familyPackages = adminUiPackages(
+    workspaceMembers(layout.repoRoot, nodeWorkspaceFs()),
+  ).filter((pkg) => kitDir === null || resolve(pkg.dir) !== resolve(kitDir));
+  const familyFiles = familyPackages.flatMap((pkg) => walk(join(pkg.dir, 'src')));
 
   const registered = new Set(layout.registeredIds);
   const key = (file: string): string => relative(layout.repoRoot, file).split(sep).join('/');
@@ -1017,18 +1018,40 @@ async function main(): Promise<void> {
     // sources, the admin's own and the kit's.
     files: hostFiles.length,
     sites: result.sites,
-    // **No `admin-ui` token, and that is a decision rather than an omission**
-    // (feature 091, P5c). The family half of population 3 is empty on the tree
-    // this widening lands on — the kit is the only admin-ui member and it is
-    // population 2 — so a coverage entry over it would declare `expected=0`,
-    // which `read-size.ts` refuses as `no-expectation`, exit 2, on every run
-    // until P5b creates the package. The kit is floored where it already was,
-    // by `vacuousReason`'s `kitFiles` refusal; the family packages are floored
-    // by the `foreign-module-id` ledger being two-way and keyed by path, which
-    // is the same self-check `i18n:hardcoded`'s baseline provides — an entry
-    // naming a file the walk stopped reaching goes stale in the same run. When
-    // a second admin-ui member exists and carries a ledger key, this is where a
-    // token for it belongs.
+    // **The `admin-ui` token, added by P5b when the second admin-ui member
+    // arrived** — `@endora-commerce/page-builder-admin`, the shared page-builder
+    // chrome and the e-mail builder.
+    //
+    // P5c left it out for a reason that was correct then: the family half of
+    // population 3 was empty, the kit being the only admin-ui member and being
+    // population 2, so a coverage entry would have declared `expected=0` —
+    // which `read-size.ts` refuses as `no-expectation`, exit 2, on every run.
+    // It named two conditions for adding one, *"a second admin-ui member
+    // exists"* and *"and carries a ledger key"*, and P5b satisfies the first
+    // and not the second: the package's three `useTranslation` calls all name
+    // `core`, which is no module id, so it has no `foreign-module-id` key and
+    // is not going to grow one by being right.
+    //
+    // The second condition is dropped rather than waited on, because it was the
+    // *alternative* floor and not a qualification of this one. A ledger keyed
+    // by path is two-way, so an entry naming a file the walk stopped reaching
+    // goes stale in the same run — that is what would have floored the family
+    // packages. A package with no entry has no such floor, so with neither the
+    // key nor the token this check would walk 23 fewer files, find nothing
+    // wrong in them, and report clean: a `files` fall well inside the -10%/+50%
+    // band, which is issue #215 exactly. `i18n:hardcoded`'s six re-keyed
+    // baseline entries would catch the same omission, and a floor that lives in
+    // another check is not this check's floor.
+    //
+    // It fails loudly in both directions. `expected` is the admin-ui members
+    // other than the kit — a package that stopped declaring the block, or left
+    // the workspace, takes it to zero and `no-expectation` refuses the run.
+    // `covered` is those the walk actually opened a file in, so a member
+    // declaring the block over an empty or unreachable `src` is `short-walk`.
+    // The kit stays floored where it already was, by `vacuousReason`'s
+    // `kitFiles` refusal, and is deliberately not counted here for the same
+    // reason it is not in `familyFiles`: it is population 2, and counting it
+    // twice would let one member's coverage stand in for the other's.
     coverage: [
       {
         // The enum declares the names and this check computes none of them.
@@ -1049,6 +1072,13 @@ async function main(): Promise<void> {
         source: 'zone-enum',
         expected: propsMapKeys.length,
         covered: propsMapKeys.filter((key) => zoneNames.includes(key)).length,
+      },
+      {
+        source: 'admin-ui',
+        expected: familyPackages.length,
+        covered: familyPackages.filter((pkg) =>
+          familyFiles.some((file) => isUnder(resolve(file), resolve(pkg.dir))),
+        ).length,
       },
       modulePopulationCoverage({
         registered: layout.registeredIds,

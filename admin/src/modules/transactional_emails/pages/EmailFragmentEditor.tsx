@@ -16,7 +16,7 @@ import {
   saveCanvasAsEmailTemplate,
   listEmailTemplatesForApply,
   loadEmailTemplateCanvas,
-} from '@/modules/_shared/email-builder';
+} from '@endora-commerce/page-builder-admin/email';
 import { EmailEditorPane } from '../components/EmailEditorPane';
 
 const emptyData: Data = { root: { props: {} }, content: [] };

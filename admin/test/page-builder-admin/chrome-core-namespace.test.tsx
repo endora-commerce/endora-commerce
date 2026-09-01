@@ -4,19 +4,20 @@ import { join, resolve } from 'node:path';
 import ts from 'typescript';
 import { render, screen } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
-import { TranslationProvider } from '../../../src/i18n/TranslationProvider';
-import type { Bundle } from '../../../src/i18n/types';
+import { TranslationProvider } from '../../src/i18n/TranslationProvider';
+import type { Bundle } from '../../src/i18n/types';
 import {
+  ColorPaletteModal,
   PageBuilderHeaderActions,
   PageBuilderTemplateActions,
-} from '../../../src/modules/cms/components/PageBuilderHeaderActions';
+} from '@endora-commerce/page-builder-admin';
 
 /**
  * Feature 091 P5a — the shared page-builder chrome renders out of `core`, not
  * out of `cms`' bundle.
  *
  * `PageBuilderHeaderActions.tsx` holds three components that `cms`, `invoices`
- * and `_shared/email-builder` all render, and it takes its `t` as a **prop**, so
+ * and the e-mail builder all render, and it takes its `t` as a **prop**, so
  * whose namespace it reads is the caller's decision. Two of the three callers
  * were supplying `useTranslation('cms')` over copy that names `cms` nowhere —
  * which R-1 (`admin-kit-surface.md`, 2026-08-31) rules is module knowledge: the
@@ -40,19 +41,34 @@ import {
  * **The bundle assertions are against the shipped files, in both languages.**
  * A passthrough bundle — the shape every other test in this directory uses —
  * resolves a key to itself, so it passes whether or not the strings travelled.
+ *
+ * **P5b moved the subject and this file with it.** The chrome is
+ * `@endora-commerce/page-builder-admin` now, so the two paths below are the
+ * package's and the components are imported by the package's own specifier
+ * rather than through `admin/src`' shim — a test of a published component that
+ * reads it through a shim is a test that would still pass if the shim grew a
+ * copy. The second `describe` is P5b's own: `ColorPaletteModal` is the ninth
+ * chrome file, P5a's set did not include it, and its fifteen
+ * `pageBuilder.colorPalette.*` keys took the same route for the same reason —
+ * except that it calls `useTranslation` itself instead of taking a `t` prop, so
+ * what has to be asserted is the namespace it names.
  */
 
 const REPO_ROOT = resolve(process.cwd(), '..');
 const CHROME_SOURCE = join(
   REPO_ROOT,
-  'admin/src/modules/cms/components/PageBuilderHeaderActions.tsx',
+  'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx',
+);
+const PALETTE_MODAL_SOURCE = join(
+  REPO_ROOT,
+  'packages/page-builder-admin/src/chrome/ColorPaletteModal.tsx',
 );
 
 /** The three files that render a component out of `PageBuilderHeaderActions.tsx`. */
 const CALLERS = [
   'admin/src/modules/cms/components/PageBuilderEditor.tsx',
   'admin/src/modules/invoices/templates/InvoiceTemplateEditor.tsx',
-  'admin/src/modules/_shared/email-builder/EmailEditorPane.tsx',
+  'packages/page-builder-admin/src/email/EmailEditorPane.tsx',
 ];
 
 const CHROME_COMPONENTS = new Set([
@@ -91,8 +107,12 @@ const CMS_PL = bundleOf('packages/modules/cms/i18n', 'pl');
  * Every key the chrome reads, taken from its own `t(...)` calls. A call whose
  * first argument is not a string literal is reported rather than skipped.
  */
-function chromeKeys(): { keys: string[]; unreadable: string[]; sites: number } {
-  const source = parse(CHROME_SOURCE);
+function chromeKeys(file: string = CHROME_SOURCE): {
+  keys: string[];
+  unreadable: string[];
+  sites: number;
+} {
+  const source = parse(file);
   const keys = new Set<string>();
   const unreadable: string[] = [];
   let sites = 0;
@@ -104,7 +124,7 @@ function chromeKeys(): { keys: string[]; unreadable: string[]; sites: number } {
       if (arg !== undefined && ts.isStringLiteral(arg)) keys.add(arg.text);
       else {
         const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
-        unreadable.push(`PageBuilderHeaderActions.tsx:${line + 1}`);
+        unreadable.push(`${file}:${line + 1}`);
       }
     }
     ts.forEachChild(node, visit);
@@ -300,6 +320,72 @@ describe('P5a — the shared page-builder chrome reads `core`', () => {
     );
     expect(screen.getAllByRole('button', { name: 'Zapisz jako szablon' }).length).toBeGreaterThan(0);
     expectNoRawKeys(pl.container);
+    pl.unmount();
+  });
+});
+
+describe('P5b — the colour-palette modal reads `core` too', () => {
+  /**
+   * The ninth chrome file, and the one P5a's set did not include.
+   *
+   * `ColorPaletteModal` is not reached through the `t` prop — it calls
+   * `useTranslation` itself — so the caller-side assertion above cannot say
+   * anything about it, and it read `useTranslation('cms')` right up to the move.
+   * Left there it would have been two `foreign-module-id` findings in a package
+   * that owns no module id at all, and one operator-visible defect underneath
+   * them: a namespace is resolved at runtime by string, so an admin whose `cms`
+   * bundle is not loaded renders `cms.pageBuilder.colorPalette.title` as the
+   * dialog's heading.
+   */
+  it('names `core` and no module namespace', () => {
+    const source = readFileSync(PALETTE_MODAL_SOURCE, 'utf8');
+    const scopes = [...source.matchAll(/useTranslation\('([^']+)'\)/g)].map((m) => m[1]);
+    expect(scopes.length, 'the modal stopped calling useTranslation').toBeGreaterThan(0);
+    expect(scopes.filter((scope) => scope !== 'core')).toEqual([]);
+  });
+
+  it('reads every key out of the shipped `core` bundle, in both languages', () => {
+    const { keys, unreadable, sites } = chromeKeys(PALETTE_MODAL_SOURCE);
+    expect(sites).toBeGreaterThan(0);
+    expect(unreadable).toEqual([]);
+    expect(keys.length).toBeGreaterThan(0);
+    expect(keys.filter((key) => !(key in CORE_EN))).toEqual([]);
+    expect(keys.filter((key) => !(key in CORE_PL))).toEqual([]);
+  });
+
+  it('moved its keys out of `cms` rather than copying them', () => {
+    const { keys } = chromeKeys(PALETTE_MODAL_SOURCE);
+    expect(keys.filter((key) => key in CMS_EN)).toEqual([]);
+    expect(keys.filter((key) => key in CMS_PL)).toEqual([]);
+  });
+
+  it('renders from the shipped bundle, in both languages', () => {
+    const en = renderInCore(
+      <ColorPaletteModal
+        open
+        entries={[]}
+        pickMode={false}
+        onClose={(): void => {}}
+        onPick={(): void => {}}
+        onSave={async (): Promise<void> => {}}
+      />,
+      'en',
+    );
+    expect(screen.getAllByText('Color palette').length).toBeGreaterThan(0);
+    en.unmount();
+
+    const pl = renderInCore(
+      <ColorPaletteModal
+        open
+        entries={[]}
+        pickMode={false}
+        onClose={(): void => {}}
+        onPick={(): void => {}}
+        onSave={async (): Promise<void> => {}}
+      />,
+      'pl',
+    );
+    expect(screen.getAllByText(CORE_PL['pageBuilder.colorPalette.title']!).length).toBeGreaterThan(0);
     pl.unmount();
   });
 });

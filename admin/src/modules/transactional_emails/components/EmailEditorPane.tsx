@@ -5,7 +5,7 @@ import {
   previewNode,
   type EmailEditorPaneProps,
   type EmailEmbedCodeOption,
-} from '@/modules/_shared/email-builder';
+} from '@endora-commerce/page-builder-admin/email';
 import { transactionalEmailsClient } from '../api/transactional-emails-client';
 
 function pickLanguageTree(content: Record<string, PuckDataTree>): PuckDataTree | null {
