@@ -961,6 +961,14 @@ either — it turns on one derived fact:
   already does: `error.code` is on the wire for a consumer to branch on, `error.message` is the
   sentence the backend resolved. Do not move this to the consumer; it is what issue #234 fixed,
   and a third-party consumer with no vocabulary would render raw codes.
+  **"Can" means capability, not current practice** — a site with a resolvable reader that simply
+  does not consult them is case 1 with the translation step missing, never case 2. Read it the
+  other way and the rule is circular: it would classify every un-internationalised site as case 2
+  and ratify whatever the code already does. `organizations`' `describeStatus` is the worked
+  example — Polish prose composed on a request whose language `createRequestLanguageResolver`
+  resolves and whose *error envelope already uses that resolution*, returning
+  `{ status, reason }` so the machine token is on the wire beside the prose and only the
+  translation step is absent.
 - **It cannot** — the reader is plural or reads later. An admin notification is the case: one row,
   many administrators, different `preferredLanguage`. Ship a key, its params **and an English
   fallback sentence**; the consumer translates. That is `specs/093-backend-delivered-prose/`.
@@ -975,9 +983,19 @@ status — never translated); and *third-party text* passed through verbatim (a 
 detail — never translated, and wrapping it is a different decision). Sweeping these together is
 how "should the backend hold translations" becomes unanswerable.
 
+**Classify by where the string is *read*, never by what carries it.** A mechanism-keyed population
+is defined by the presence of the mechanisms somebody enumerated, and they are unbounded:
+`specs/093-backend-delivered-prose/` surveyed three delivery seams — a port call, a mailer, a
+renderer — and the tree held six more shapes carrying prose, among them a plain `return` from a
+route handler and a push into a persisted log, one of them in a file that survey had already read.
+A string does not become user-facing by being carried; it becomes user-facing by being read. So
+the population is *a string a human eventually reads* and the question above is the whole
+classifier — it answers for the shape nobody has thought of yet, which a list cannot.
+
 **The cost of consistency is nearly nil, and that is the finding rather than a convenience**: every
-seam in the tree already sits on the correct side of this boundary except the notification seam
-093 is repairing. So this is a rule for new code with one draining ledger, not a migration.
+seam in the tree already sits on the correct side of this boundary, and what is left is
+translation steps that were never wired rather than designs that were wrong. So this is a rule for
+new code with two draining ledgers, not a migration.
 
 ## Static checks and their escape hatches
 
