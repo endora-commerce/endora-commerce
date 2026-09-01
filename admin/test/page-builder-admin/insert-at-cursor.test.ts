@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { insertAtCursor, varSnippet } from '@/modules/_shared/email-builder/insert-at-cursor';
+import { insertAtCursor, varSnippet } from '@endora-commerce/page-builder-admin/email';
 
 describe('insertAtCursor', () => {
   it('inserts at caret', () => {

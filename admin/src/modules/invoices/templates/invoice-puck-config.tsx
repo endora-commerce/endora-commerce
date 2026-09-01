@@ -5,7 +5,7 @@ import {
   createImageAssetField,
   createImageSourceField,
   createImageUrlField,
-} from '@/modules/cms/components/AssetPickers';
+} from '@endora-commerce/page-builder-admin';
 import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 

@@ -367,32 +367,50 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `credentials` for a label — was repaired at the source rather than
     // relocated; `files` rises 2165 -> 2187, which is that batch moving nine
     // files under a module walk root plus the tree's own growth since the
-    // number was last written down.
+    // number was last written down. **2187 -> 2206 with P5b**, which is
+    // `@endora-commerce/page-builder-admin`'s twenty-three sources joining the
+    // family population less the ten `admin/src` files the move left behind
+    // (twenty out, nine shims and `newsletter`'s own variable vocabulary back
+    // in), plus the tree's own growth since 2187 was written.
+    //
+    // `sites` does not move with P5b, and the reason is the point rather than a
+    // coincidence. The package's three `useTranslation` calls all name `core`,
+    // which is `_i18n`'s bundle under a synthetic alias and is no module id, so
+    // none of them is a `foreign-module-id` site — `ColorPaletteModal`'s two
+    // read `cms` until that merge request moved the fifteen
+    // `pageBuilder.colorPalette.*` keys to `core`, exactly as P5a moved the
+    // other thirty-three, and had they been left they would be two findings in
+    // a package that owns no module id at all.
     //
     // **15 -> 16 when the foreign-id walk widened to a module's own sources.**
-    // `files` does not move with it, and that is the measurement rather than an
-    // aside: the module walk roots were already the *render* half's population,
-    // so the widening opens no new file — it reads the ones it had, for a
-    // question it was not asking. What moves is `sites`, by exactly one: the
-    // `visibility-gate` on `credentials` that batch 10 wrote into
+    // `files` does not move with *that* one, and it is the measurement rather
+    // than an aside: the module walk roots were already the *render* half's
+    // population, so the widening opens no new file — it reads the ones it had,
+    // for a question it was not asking. What moves is `sites`, by exactly one:
+    // the `visibility-gate` on `credentials` that batch 10 wrote into
     // `mod-settings`' admin layer, correct and outside every instrument in this
     // estate from the day it landed.
-    files: 2193,
+    files: 2206,
     sites: 16,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
     // without a props type moves the expectation in the same run.
     // `manifest-index` is issue #215's shared floor over the module walk.
-    // `module-admin` is the floor that moved with the widened population, and it
-    // exists because `manifest-index` cannot see what it sees: that one is
-    // satisfied by any file a registered module contributes, which for a module
-    // package is its backend sources, so a package's *admin layer* dropping out
-    // of the walk would leave it green. Its expectation is the generated admin
-    // contribution registry's — a second program's answer to "which packages
-    // ship admin code, and under which subpath" — and it grows with every batch
-    // of Story 3.
-    sources: ['zone-enum', 'manifest-index', 'module-admin'],
+    // `admin-ui` arrives with P5b, which creates the second admin-ui member and
+    // so the first non-empty expectation this token could carry — the reasoning,
+    // including why P5c's *"and carries a ledger key"* condition is dropped
+    // rather than waited on, is on the `coverage` block in the check itself.
+    // `module-admin` is the floor that moved with the widened foreign-id walk,
+    // and it exists because neither of the others can see what it sees:
+    // `manifest-index` is satisfied by any file a registered module contributes,
+    // which for a module package is its backend sources, so a package's *admin
+    // layer* dropping out of the walk leaves it green, and `admin-ui` counts
+    // packages that are not modules at all. Its expectation is the generated
+    // admin contribution registry's — a second program's answer to "which
+    // packages ship admin code, and under which subpath" — and it grows with
+    // every batch of Story 3.
+    sources: ['zone-enum', 'admin-ui', 'manifest-index', 'module-admin'],
   },
   'backend/scripts/check-bundle-pairing.ts': {
     prefix: '[bundle-pairing]',
@@ -541,8 +559,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // take both from one kit subpath. The other six consumers are a wash: one
     // specifier before and one after. Nothing left the walk unwatched, which
     // the `sources=` line beside it says independently.
-    files: 353,
-    sites: 2436,
+    //
+    // **353 -> 354 and 2436 -> 2408 with P5b**, and the site fall accounts
+    // exactly. Nine `cms` chrome files carrying 41 specifiers between them left
+    // for `@endora-commerce/page-builder-admin` and nine one-line shims took
+    // their place, which is -32; `newsletter` gained
+    // `email-variables.ts` (+1) and its three screens each grew a second
+    // specifier, taking the builder from the package and their own vocabulary
+    // from that new file (+3). The file count moves by one for the same reason:
+    // shim for component, one for one, plus `newsletter`'s new file. The three
+    // `invoices` reaches this merge request retires move neither number — a
+    // rewritten specifier is still a specifier, which is precisely why
+    // `check:module-boundary` and not this check is where they were ledgered.
+    files: 354,
+    sites: 2408,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not
@@ -557,7 +587,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files. Re-recorded in the merge request that grew the tree, which is the
     // rule; the remaining 70 are the module tree's own growth since the number
     // was last written down.
-    files: 3699,
+    //
+    // **3699 -> 3916, and only ten of that is P5b's** — the nine chrome files
+    // and eleven e-mail-builder files that left `admin/src`, less the nine
+    // shims and `newsletter`'s new `email-variables.ts`. The other 227 are the
+    // module tree's growth across the batches between, unrecorded because every
+    // one of them stayed inside the -10%/+50% band and nothing asked. Recording
+    // it here rather than leaving it is the rule applied to the merge request
+    // that moved the number, and the split is stated so the next reader does not
+    // read 217 files of drift as this one's blast radius.
+    files: 3916,
     sites: null,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
@@ -858,7 +897,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // rather than relocated) — and every module package's own `src/admin` layer
     // (Phase 4 — the drain relocates a screen at a time, which is the same
     // laundering at a finer granularity). The number grows with each batch.
-    files: 386,
+    //
+    // **386 -> 396 with P5b, and the walk counts `.tsx` only, which is what
+    // makes the move account exactly.** `admin/src` lost fourteen — the seven
+    // page-builder chrome components out of `cms` and the seven e-mail-builder
+    // ones out of `_shared` — and gained the seven shims that replace the first
+    // set, so it is 7 down; `@endora-commerce/page-builder-admin/src` arrives
+    // carrying all fourteen, so the walk is 7 up. The package's eleven `.ts`
+    // files move no number here and are outside this walk by construction.
+    files: 396,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk

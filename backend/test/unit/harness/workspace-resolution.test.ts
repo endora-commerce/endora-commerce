@@ -527,10 +527,31 @@ describe('this checkout', () => {
       const member = members.find((m) => m.name === name);
       return member !== undefined && platformDir !== null && platformDir.startsWith(member.dir);
     };
-    /** A member the running platform composes: the host, or a module package. */
+    /**
+     * A member the running platform **composes**: the host, or a module package.
+     *
+     * The predicate is the `endora` block's `type`, and it used to be the block's
+     * mere presence — true while `'platform'` and `'module'` were the only two
+     * values, and false the day feature 091's P5c gave `@endora-commerce/admin-kit`
+     * an `endora: { type: 'admin-ui' }` block so that two instruments could find
+     * every package of admin UI by declaration instead of by name. That is a
+     * third value and it is not a composed member: an admin-ui package is
+     * resolved by `admin` as a library, exactly as the kit was before it carried
+     * the block, so it keeps its `paths` entries and this test went red on
+     * `master` for asserting the opposite.
+     *
+     * What the refusal is actually about is unchanged: `paths` is honoured by
+     * `tsc` and `tsx` and not by `vitest` or `node`, so an entry for something
+     * the platform composes would make one process resolve its source and
+     * another its `dist`. Nothing composes an admin-ui package, and both
+     * frontends resolve it through its own `exports` map in every process.
+     */
     const isComposed = (name: string): boolean => {
       const member = members.find((m) => m.name === name);
-      return member !== undefined && member.manifest['endora'] !== undefined;
+      const endora = member?.manifest['endora'];
+      if (typeof endora !== 'object' || endora === null || Array.isArray(endora)) return false;
+      const type = (endora as Record<string, unknown>)['type'];
+      return type === 'platform' || type === 'module';
     };
 
     const unmapped = report.packages.filter(

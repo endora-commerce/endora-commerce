@@ -1,3 +1,14 @@
+/**
+ * The e-mail builder's own variable vocabulary — the part that belongs to no
+ * module (feature 091, P5b; `admin-component-contribution.md` Z1.2).
+ *
+ * `newsletterVariables` and `NEWSLETTER_BASE_VARIABLES` are **not** here: a
+ * subscriber e-mail, an unsubscribe URL and a web-view URL are `newsletter`'s
+ * domain vocabulary, all three of their consumers are `newsletter`'s own
+ * screens, and they live in `admin/src/modules/newsletter/email-variables.ts`.
+ * What stays is what any e-mail builder needs whichever module opened it: the
+ * branding pair the preview resolves, the two template snippets, and the merge.
+ */
 import type { EmailVariableDescriptor } from '@endora-commerce/contracts';
 
 export interface EmailVariableItem extends EmailVariableDescriptor {
@@ -17,31 +28,6 @@ export const BRANDING_VARIABLES: EmailVariableItem[] = [
     label: 'Brand accent color',
     description: 'Accent color used by buttons and highlights',
     sampleValue: '#1f2937',
-  },
-];
-
-export const NEWSLETTER_BASE_VARIABLES: EmailVariableItem[] = [
-  {
-    key: 'subscriber.email',
-    label: 'Subscriber email',
-    sampleValue: 'ada@example.com',
-  },
-  {
-    key: 'unsubscribeUrl',
-    label: 'Unsubscribe URL',
-    description: 'One-click unsubscribe link for this send',
-    sampleValue: 'https://shop.example/newsletter/unsubscribe?token=…',
-  },
-  {
-    key: 'webviewUrl',
-    label: 'Web view URL',
-    description: 'Browser view of this email (when available)',
-    sampleValue: 'https://shop.example/newsletter/view/…',
-  },
-  {
-    key: 'channel.id',
-    label: 'Sales channel id',
-    sampleValue: '00000000-0000-0000-0000-000000000001',
   },
 ];
 
@@ -70,15 +56,4 @@ export function mergeEmailVariables(
   for (const v of extras) byKey.set(v.key, v);
   for (const v of COMMON_SNIPPETS) byKey.set(v.key, v);
   return [...byKey.values()];
-}
-
-export function newsletterVariables(
-  customFieldKeys: readonly { key: string; label: string }[] = [],
-): EmailVariableItem[] {
-  const custom: EmailVariableItem[] = customFieldKeys.map((f) => ({
-    key: `customFields.${f.key}`,
-    label: f.label || f.key,
-    description: 'Newsletter custom field',
-  }));
-  return mergeEmailVariables([], [...NEWSLETTER_BASE_VARIABLES, ...custom]);
 }

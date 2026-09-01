@@ -22,8 +22,8 @@ import {
   type EmailRowProps,
 } from '@endora-commerce/email-components';
 import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor';
-import { useActionBarTarget } from '@/modules/cms/components/action-bar-target';
-import { QuickTooltip, wrapQuickTooltip } from '@/modules/cms/components/QuickTooltip';
+import { useActionBarTarget } from '../chrome/action-bar-target.js';
+import { QuickTooltip, wrapQuickTooltip } from '../chrome/QuickTooltip.js';
 
 function EmailRowLayoutFlyout({
   anchorRef,

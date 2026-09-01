@@ -10,8 +10,8 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
-import { PageBuilderHeaderActions } from '@/modules/cms/components/PageBuilderHeaderActions';
-import { PageBuilderOverlayBridge } from '@/modules/cms/components/PageBuilderOverlayBridge';
+import { PageBuilderHeaderActions } from '@endora-commerce/page-builder-admin';
+import { PageBuilderOverlayBridge } from '@endora-commerce/page-builder-admin';
 import { invoicePuckConfig } from './invoice-puck-config';
 import { createInvoiceBuilderEditorPlugin } from './invoice-builder-plugin';
 

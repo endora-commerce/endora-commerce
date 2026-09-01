@@ -1,67 +1,17 @@
-'use client';
-
-import {
-  cloneElement,
-  isValidElement,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-} from 'react';
-
-const SHOW_DELAY_MS = 200;
-
-/** Faster than the native `title` tooltip (typically ~1s). */
-export function QuickTooltip({
-  text,
-  children,
-}: {
-  text: string;
-  children: ReactElement;
-}): ReactElement {
-  const [visible, setVisible] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const show = (): void => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setVisible(true), SHOW_DELAY_MS);
-  };
-
-  const hide = (): void => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setVisible(false);
-  };
-
-  const child = isValidElement<{ label?: string; title?: string }>(children)
-    ? cloneElement(children, { title: '' })
-    : children;
-
-  return (
-    <span
-      className="pb-quick-tooltip-host"
-      onMouseEnter={show}
-      onMouseLeave={hide}
-      onFocus={show}
-      onBlur={hide}
-    >
-      {child}
-      {visible ? (
-        <span className="pb-quick-tooltip" role="tooltip">
-          {text}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-export function wrapQuickTooltip(node: ReactNode, key?: string): ReactNode {
-  if (!isValidElement(node)) return node;
-  const props = node.props as { label?: string };
-  const label = typeof props.label === 'string' ? props.label : undefined;
-  if (!label) return node;
-  return (
-    <QuickTooltip key={key ?? label} text={label}>
-      {node}
-    </QuickTooltip>
-  );
-}
+/**
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/page-builder-admin` (feature 091, P5b; D-192).
+ *
+ * The shared page-builder chrome moved into a package of the `page-builder`
+ * family because it names `cms` nowhere and `cms`, `blog` and `invoices` all
+ * render it — `cms` held it only because `cms` was the first builder written
+ * (`admin-component-contribution.md` Z1.2). Every existing `./…` and `@/…`
+ * specifier in this application arrives here and is forwarded, so `cms`' own
+ * screens did not have to be rewritten — the shape P2 and P4c used for the kit.
+ *
+ * **The forwarding is the identity, not a copy**, which matters more here than
+ * for a stateless helper: `ColorPaletteProvider` is a React context and
+ * `action-bar-target` is a module-scoped store, so a second copy of either is a
+ * `null` context and an action bar that never updates.
+ */
+export { QuickTooltip, wrapQuickTooltip } from '@endora-commerce/page-builder-admin';

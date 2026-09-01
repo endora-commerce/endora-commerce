@@ -46,7 +46,9 @@
       "@endora-commerce/email-components": ["./packages/email-components/src/index.ts"],
       "@endora-commerce/email-components/*": ["./packages/email-components/src/*"],
       "@endora-commerce/page-builder-core": ["./packages/page-builder-core/src/index.ts"],
-      "@endora-commerce/page-builder-core/*": ["./packages/page-builder-core/src/*"]
+      "@endora-commerce/page-builder-core/*": ["./packages/page-builder-core/src/*"],
+      "@endora-commerce/page-builder-admin": ["./packages/page-builder-admin/src/index.ts"],
+      "@endora-commerce/page-builder-admin/*": ["./packages/page-builder-admin/src/*"]
     }
   }
 }

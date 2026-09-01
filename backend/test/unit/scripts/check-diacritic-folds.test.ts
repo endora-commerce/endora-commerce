@@ -1019,6 +1019,10 @@ describe('check-diacritic-folds — the exit codes', () => {
     // reporting, and it would have been 0 before this signal existed.
     const repo = fixtureRepository({ ledgered: true });
     repo.write(
+      // A **fixture** path, not a claim about the tree: this is the file the
+      // wrapper stood in until feature 091's P5b deleted it, and what the proof
+      // is about is the *shape*, which is why the path is written here rather
+      // than derived.
       'admin/src/modules/cms/components/cms-template-layout.ts',
       'export const codeFromTemplateName = (name: string): string =>\n' +
         "  name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n",
@@ -1081,7 +1085,18 @@ describe('check-diacritic-folds — the exit codes', () => {
       "import { normalize } from '@/lib/text-normalization';\nexport const n = normalize;\n",
     );
     repo.write(
-      'admin/src/modules/cms/components/cms-template-layout.ts',
+      // Feature 091, P5b — the CMS/e-mail template `code` prefill. It was
+    // `cms-template-layout`'s `codeFromTemplateName`, a one-line wrapper over
+    // this call with `maxLength: 180`;
+    // `admin-component-contribution.md` Z1.2 deletes the wrapper with the move,
+    // because `PageBuilderHeaderActions` — its only caller — went into
+    // `@endora-commerce/page-builder-admin`, which cannot name `@/modules/cms`.
+    // Re-keyed rather than dropped: the *call* is what issue #245 repaired and
+    // it is still here, at the same cut, under a new address. This list is a
+    // ledger **about** the files it names rather than one of them, so the merge
+    // request that moves a caller is structurally the one that cannot see the
+    // entry go stale — and this one did, which is why it is corrected here.
+    'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx',
       "import { slugify } from '@endora-commerce/contracts';\n" +
         'export const codeFromTemplateName = (name: string): string =>\n' +
         "  slugify(name, { maxLength: 80 });\n",
@@ -1196,7 +1211,18 @@ describe('check-diacritic-folds — the tree it guards', () => {
     'packages/modules/pim_ergonode/src/backend/services/import/category-phase.ts',
     'packages/modules/catalog/src/backend/services/catalog-admin.service.ts',
     'admin/src/modules/newsletter/pages/TagsPage.tsx',
-    'admin/src/modules/cms/components/cms-template-layout.ts',
+    // Feature 091, P5b — the CMS/e-mail template `code` prefill. It was
+    // `cms-template-layout`'s `codeFromTemplateName`, a one-line wrapper over
+    // this call with `maxLength: 180`;
+    // `admin-component-contribution.md` Z1.2 deletes the wrapper with the move,
+    // because `PageBuilderHeaderActions` — its only caller — went into
+    // `@endora-commerce/page-builder-admin`, which cannot name `@/modules/cms`.
+    // Re-keyed rather than dropped: the *call* is what issue #245 repaired and
+    // it is still here, at the same cut, under a new address. This list is a
+    // ledger **about** the files it names rather than one of them, so the merge
+    // request that moves a caller is structurally the one that cannot see the
+    // entry go stale — and this one did, which is why it is corrected here.
+    'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx',
     'admin/src/modules/cms/editors/BlockEditor.tsx',
     'admin/src/modules/cms/editors/PageEditor.tsx',
     'admin/src/modules/blog/pages/BlogPostEditor.tsx',
