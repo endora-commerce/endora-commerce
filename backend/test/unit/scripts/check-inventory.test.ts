@@ -101,6 +101,14 @@ import {
   type BundlePairingFindingKind,
 } from '../../../scripts/check-bundle-pairing.js';
 import {
+  FIXTURE_FILE,
+  keyFor,
+  proseDiscrimination,
+  proseFindings,
+  proseSites,
+  runDefaultLanguageProse,
+} from '../../helpers/default-language-prose-fixture.js';
+import {
   createBundlePairingFixture,
   validBundle,
   type FixtureModule,
@@ -6172,6 +6180,162 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // `specs/094-translation-boundary/contracts/default-language-prose-check.md`
+    // — the owner's ruling of 2026-09-01, clause 1: English is the default. The
+    // **second signal** for that ruling, and a check of its own because neither
+    // instrument that looks like its home can hold it (D-8):
+    // `check:untranslated-delivery` asks about a *delivery call*, and a
+    // `return`, an array push and a field assignment are none; `check:language`
+    // is comments by constitutional design.
+    //
+    // Unlike the ratchet that landed beside it, its population is **not** empty:
+    // 46 sites over 41 keys stand today, and the ledger arrives holding them.
+    // That changes what this entry has to prove. A check landing at zero is
+    // exercised only by its proofs; a check landing at 46 is exercised by the
+    // tree as well — and the risk moves to the **exemptions**, because 50
+    // correct sites (`specs/093-backend-delivered-prose/research.md` § 1.4) are
+    // one predicate mistake away from being ledger entries, and a ledger that is
+    // mostly exceptions is the shape `check:diacritic-folds`' `slug-run` design
+    // already refuses.
+    //
+    // So: three findings, and **nine** more shapes, of which six are
+    // discriminations. Each enters over **source text** — the analysis is a
+    // TypeScript parse, a position filter, a prose gate, a language detector and
+    // a four-way structure analysis, and a fixture handing in a classified
+    // literal would prove the reporter and leave all five unproven (issue #130).
+    // Each discrimination carries a control site that *must* be reported, so it
+    // reads 1 while the narrowing holds and 0 the moment the exemption stops
+    // discriminating — a bare "no finding" is what a blind check also prints.
+    script: 'backend/scripts/check-default-language-prose.ts',
+    npmScript: 'check:default-language-prose',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-default-language-prose.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is every module's own `.ts` sources, and the floor is
+    // `refuseVacuousModulePopulation` over the walk — so a moved module tree is
+    // refused rather than reported clean, and `moved-module-tree.test.ts` spawns
+    // it beside the other module walks.
+    residueGuard: 'derived-population',
+    red: {
+      // Shape A: a Polish sentence returned from a route handler. The centre,
+      // and the shape whose discovery invalidated 093's taxonomy.
+      'non-english-default': top(() =>
+        proseFindings(
+          `export function describeStatus(s: string) {
+             return 'Twoja Organizacja oczekuje na weryfikację.';
+           }`,
+          'non-english-default',
+        ),
+      ),
+      // Shape D, reported apart from the first because *"it has a mechanism"* is
+      // the exact reasoning that waved 18 of these through once already.
+      'polish-default-behind-a-prop': top(() =>
+        proseFindings(
+          `export const d = str(props, 'labelSaleDate', 'Data sprzedaży');`,
+          'polish-default-behind-a-prop',
+        ),
+      ),
+      // A finding and not a skip (issue #113): treating a path the analysis
+      // cannot place as exempt is the direction that agrees with the defect.
+      'unclassifiable-literal': top(() =>
+        proseFindings(
+          `export const M = { [language]: 'Przesyłka wysłana do klienta' };`,
+          'unclassifiable-literal',
+        ),
+      ),
+      // The three discriminations § 3 names, each with a control site.
+      'per-language-map-is-clean': top(() =>
+        proseDiscrimination(
+          `export const D = {
+             languages: {
+               'en-US': tree({ heading: 'Verify your email' }),
+               'pl-PL': tree({ heading: 'Zweryfikuj swój e-mail' }),
+             },
+           };
+           export const stray = 'Rejestracja Twojej Organizacji została odrzucona.';`,
+          'Rejestracja Twojej Organizacji została odrzucona.',
+        ),
+      ),
+      'en-pl-sibling-map-is-clean': top(() =>
+        proseDiscrimination(
+          `export const S = [{ name: { en: 'Shipment Sent', pl: 'Przesyłka wysłana' } }];
+           export const stray = 'Zamówienie zostało anulowane przez operatora.';`,
+          'Zamówienie zostało anulowane przez operatora.',
+        ),
+      ),
+      'english-prose-is-clean': top(() =>
+        proseDiscrimination(
+          `export const a = 'We have reviewed your return request and cannot accept it.';
+           export const stray = 'Faktura nie została jeszcze opłacona.';`,
+          'Faktura nie została jeszcze opłacona.',
+        ),
+      ),
+      // The exemption that keeps `dictionaries`' 14 seed rows out of the ledger,
+      // and the narrowing that keeps it from exempting the row beside them: a
+      // row's `entryCode` is what it is *about*, `languageCode` is what it is
+      // *written in*, and reading "any sibling holding a language code" would
+      // conflate the two.
+      'language-declaring-row-is-clean': top(() =>
+        proseDiscrimination(
+          `export const R = [
+             { entryCode: 'PLN', languageCode: 'pl-PL', label: 'Polski złoty' },
+             { entryType: 'language', entryCode: 'pl-PL', label: 'Polska wersja językowa' },
+           ];`,
+          'Polska wersja językowa',
+        ),
+      ),
+      // § 1.2's third shape, and the filename rule it is deliberately not: the
+      // same source in a file named `translations.pl-PL.ts` is still judged.
+      'single-language-file-is-clean': top(() => {
+        const exemptByExport = proseSites(
+          `export const PL_MESSAGES = ['Zamówienie zostało anulowane.'];`,
+        );
+        const judgedByName = runDefaultLanguageProse({
+          'packages/modules/blog/src/backend/seed/translations.pl-PL.ts':
+            `export const rows = [{ label: 'Zamówienie zostało anulowane.' }];`,
+        }).findings;
+        return exemptByExport.length === 0 && judgedByName.length === 1 ? 1 : 0;
+      }),
+      // The prose gate, which is what keeps 30 Polish numeral words and a unit
+      // abbreviation out of the ledger — and the position that suspends it,
+      // because there the position is the evidence the token count would infer.
+      'one-word-literal-is-not-prose': top(() => {
+        const table = proseSites(`const PL_ONES = ['pięć', 'sześćdziesiąt']; export const u = PL_ONES;`);
+        const inPropDefault = proseFindings(
+          `export const p = str(props, 'labelPaid', 'Zapłacono');`,
+          'polish-default-behind-a-prop',
+        );
+        return table.length === 0 && inPropDefault === 1 ? 1 : 0;
+      }),
+      // The stopword list, which contributes **nothing** on the tree today: it
+      // exists for the Polish that carries no diacritic (§ 1.3), so this proof
+      // is the only thing between it and becoming dead code unnoticed.
+      'stopword-sees-diacritic-free-polish': top(() =>
+        proseFindings('export const m = `Zamowienie nie zostalo oplacone`;', 'non-english-default'),
+      ),
+      // The shared `proper_nouns` list, applied here for the reason
+      // `check:language` applies it: an English sentence names a Polish
+      // institution, and translating the name would make it wrong.
+      'proper-noun-is-not-prose': top(() =>
+        proseDiscrimination(
+          `export const s = 'Source: Ministerstwo Finansów';
+           export const stray = 'Zamówienie zostało anulowane przez operatora.';`,
+          'Zamówienie zostało anulowane przez operatora.',
+        ),
+      ),
+      // The ledger's second direction. Keyed on a digest, so the proof is that
+      // an entry whose sentence no longer exists is reported — never a line,
+      // which would red on any insertion above the site.
+      'ledger-entry-that-describes-nothing': top(
+        () =>
+          runDefaultLanguageProse({ [FIXTURE_FILE]: `export const m = 'Order placed.';` }, [
+            { moduleId: 'blog', entries: { [keyFor('Zamówienie zostało anulowane.')]: 'gone' } },
+          ]).stale.length,
+      ),
+    },
+  },
+  {
     // Issue #240 — the wrong answer that looks like the right one. Four authors
     // wrote `normalize('NFD').replace(/\p{Diacritic}/gu, '')` inside a year and
     // all four shipped the same bug, because `ł` has no canonical
@@ -7073,6 +7237,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // shipping neither bundle is exempt, and a run of nothing but such
       // modules is refused rather than reported clean.
       'backend/scripts/check-bundle-pairing.ts': 5,
+      // Three findings, and nine more shapes of which six are discriminations.
+      // The ratio is the point: this check lands over a population of 46, so
+      // what needs proving is not that it can go red — the tree does that — but
+      // that its exemptions still discriminate. 50 correct sites are one
+      // predicate mistake away from being ledger entries.
+      'backend/scripts/check-default-language-prose.ts': 12,
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
       'backend/scripts/check-action-route-permissions.ts': 8,
