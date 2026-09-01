@@ -152,3 +152,99 @@ export const NEW_ORG_REGISTRATION_DEFAULT = {
   } as Record<string, unknown>,
   languages: LANGS,
 };
+
+/**
+ * The two messages a moderated organisation's administrator receives
+ * (`specs/093-backend-delivered-prose/` § Out of scope — the seam-B carve-out).
+ *
+ * They were finished Polish sentences composed inside
+ * `OrganizationModerationService` and handed straight to the transport: no
+ * code, no template, no language. A buyer on an English sales channel received
+ * Polish unconditionally, and unlike an operator a buyer has no admin panel to
+ * go and check the facts in.
+ *
+ * English is the primary copy and `en-US` is first in {@link LANGS}, which is
+ * what `TransactionalEmailService` passes as the content resolver's
+ * `fallbackLanguage` — so a language with no content, and a language that could
+ * not be resolved at all, both read English (owner ruling, 2026-09-01). The
+ * Polish here is the copy these two e-mails already shipped, moved rather than
+ * retranslated.
+ *
+ * Neither is `nonDeactivatable`. The criterion the two above it meet is
+ * "required to create or regain access to an account"; a status notice is not
+ * that — the organisation's administrator can sign in and read the same status
+ * on their own screen — so switching it off stays an ordinary business choice.
+ */
+export const ORGANIZATION_APPROVED_DEFAULT = {
+  defaultSubject: {
+    'en-US': 'Your organization has been verified',
+    'pl-PL': 'Twoja Organizacja została zweryfikowana',
+  } as Record<string, string>,
+  defaultContent: {
+    schema_version: 1,
+    languages: {
+      'en-US': simpleEmailBodyTree({
+        idPrefix: 'org-approved',
+        heading: 'Your organization has been verified',
+        text: [
+          'Hi,',
+          '',
+          'Organization "{{var organizationName}}" has been verified successfully and can now place Orders and Requests for Quotation.',
+          '',
+          'Thank you.',
+        ].join('\n'),
+      }),
+      'pl-PL': simpleEmailBodyTree({
+        idPrefix: 'org-approved',
+        heading: 'Twoja Organizacja została zweryfikowana',
+        text: [
+          'Witaj,',
+          '',
+          'Organizacja "{{var organizationName}}" została pomyślnie zweryfikowana i może teraz składać Zamówienia oraz Zapytania Ofertowe.',
+          '',
+          'Dziękujemy.',
+        ].join('\n'),
+      }),
+    },
+  } as Record<string, unknown>,
+  languages: LANGS,
+};
+
+export const ORGANIZATION_REJECTED_DEFAULT = {
+  defaultSubject: {
+    'en-US': 'Organization registration rejected',
+    'pl-PL': 'Rejestracja Organizacji odrzucona',
+  } as Record<string, string>,
+  defaultContent: {
+    schema_version: 1,
+    languages: {
+      'en-US': simpleEmailBodyTree({
+        idPrefix: 'org-rejected',
+        heading: 'Organization registration rejected',
+        text: [
+          'Hi,',
+          '',
+          'Unfortunately, the registration of organization "{{var organizationName}}" was rejected for the following reason:',
+          '',
+          '{{var reason}}',
+          '',
+          'If you have any questions, please contact the platform administrators.',
+        ].join('\n'),
+      }),
+      'pl-PL': simpleEmailBodyTree({
+        idPrefix: 'org-rejected',
+        heading: 'Rejestracja Organizacji odrzucona',
+        text: [
+          'Witaj,',
+          '',
+          'Niestety, rejestracja Organizacji "{{var organizationName}}" została odrzucona z następującego powodu:',
+          '',
+          '{{var reason}}',
+          '',
+          'W razie pytań prosimy o kontakt z administracją platformy.',
+        ].join('\n'),
+      }),
+    },
+  } as Record<string, unknown>,
+  languages: LANGS,
+};
