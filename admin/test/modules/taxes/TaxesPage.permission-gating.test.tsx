@@ -60,14 +60,26 @@ const get = vi.fn(async () => ({ data: rows }));
 const put = vi.fn(async () => ({ data: rows[0] }));
 const del = vi.fn(async () => undefined);
 
-vi.mock('@/lib/api-client', () => ({
-  ApiError: class ApiError extends Error {},
-  apiClient: {
-    get: (...args: unknown[]) => get(...(args as [])),
-    put: (...args: unknown[]) => put(...(args as [])),
-    delete: (...args: unknown[]) => del(...(args as [])),
-  },
-}));
+// The screen is `@endora-commerce/mod-taxes`' since feature 091's batch 8, so it
+// takes `apiClient` from the kit rather than from the admin's re-export shim.
+// The shim forwards the kit's own binding, so mocking it would replace a module
+// this screen never imports. `...actual` is required here and was not on the
+// shim: the kit's `lib` barrel carries `formatDateTime` and the rest of the
+// surface this screen and its country picker use, and a bare object would take
+// those away with the client.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
+  return {
+    ...actual,
+    apiClient: {
+      get: (...args: unknown[]) => get(...(args as [])),
+      put: (...args: unknown[]) => put(...(args as [])),
+      delete: (...args: unknown[]) => del(...(args as [])),
+    },
+  };
+});
 
 /** The codes the signed-in operator holds, per case. */
 let permissions: readonly string[] = [];
@@ -104,17 +116,22 @@ const KEYS = [
 ];
 
 function mount(): Promise<void> {
-  return import('@/modules/taxes/TaxesPage').then(({ TaxesPage }) => {
-    renderWithI18n(
-      withSession(
-        <MemoryRouter initialEntries={['/taxes']}>
-          <TaxesPage />
-        </MemoryRouter>,
-        { session: adminSession({ permissions }), presence: modulePresence({ present: presentModules }) },
-      ),
-      passthroughBundle('core', KEYS),
-    );
-  });
+  return import('../../../../packages/modules/taxes/src/admin/pages/TaxesPage').then(
+    ({ TaxesPage }) => {
+      renderWithI18n(
+        withSession(
+          <MemoryRouter initialEntries={['/taxes']}>
+            <TaxesPage />
+          </MemoryRouter>,
+          {
+            session: adminSession({ permissions }),
+            presence: modulePresence({ present: presentModules }),
+          },
+        ),
+        passthroughBundle('core', KEYS),
+      );
+    },
+  );
 }
 
 describe('the taxes screen is gated on the module’s own codes', () => {

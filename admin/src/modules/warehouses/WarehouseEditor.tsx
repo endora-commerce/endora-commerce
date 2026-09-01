@@ -11,7 +11,7 @@ import { ArrowLeft, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useSurfaceVisibility } from '@/lib/surface-visibility';
-import { CountryPicker } from '../dictionaries/components/CountryPicker';
+import { CountryPicker } from '@endora-commerce/admin-kit/components';
 import { warehousesClient } from './api/warehouses-client';
 
 interface FormState {

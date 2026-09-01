@@ -240,7 +240,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'admin/src/modules/cms/components/ComponentDragHandle.tsx': 1,
   'admin/src/modules/cms/components/RowLayoutPicker.tsx': 2,
   'admin/src/modules/custom_fields/CustomFieldsPage.tsx': 4,
-  'admin/src/modules/delivery_methods/DeliveryMethodsPage.tsx': 5,
   'admin/src/modules/invoices/templates/invoice-puck-config.tsx': 6,
   // Feature 091, Phase 4 batch three: the screen moved into its module's
   // package and the entry is **re-keyed**, not raised and not dropped. The
@@ -272,6 +271,18 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/promotions/src/admin/components/CouponGeneratorForm.tsx': 2,
   'packages/modules/promotions/src/admin/pages/PromotionEditPage.tsx': 1,
   'packages/modules/promotions/src/admin/pages/PromotionStatsPage.tsx': 2,
+  // Feature 091, Phase 4, the plan's batch 8 — five files, 30 findings, the
+  // same counts under new keys. `delivery_methods`' list screen and four of
+  // `returns`' five screens moved into their modules' packages; the ratchet is
+  // two-way and keyed by path, so each move stranded the old key and reported
+  // the new one as a regression. Both halves of all five fired in one run,
+  // which is what the ratchet is for: a re-key is visible as a re-key rather
+  // than as a debt that quietly moved house.
+  'packages/modules/delivery_methods/src/admin/pages/DeliveryMethodsPage.tsx': 5,
+  'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 5,
+  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 12,
+  'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 4,
+  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 4,
   // Feature 091, Phase 4 batch five: the screen moved into `stripe`'s package
   // and the entry is **re-keyed**, not raised and not dropped — the same
   // twenty-nine strings at a new address, which this check's two-way ratchet
@@ -295,10 +306,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'admin/src/modules/newsletter/pages/TagsPage.tsx': 9,
   'admin/src/modules/organizations/panels/RestrictionsPanel.tsx': 1,
   'admin/src/modules/pim_ergonode/ErgonodeConnectionPage.tsx': 1,
-  'admin/src/modules/returns/ReturnDeliveryMethodsPage.tsx': 5,
-  'admin/src/modules/returns/ReturnDetail.tsx': 12,
-  'admin/src/modules/returns/ReturnReasonsPage.tsx': 4,
-  'admin/src/modules/returns/ReturnStatusesConfigPage.tsx': 4,
   'admin/src/modules/settings/PushAudienceRuleBuilder.tsx': 17,
   'admin/src/modules/settings/components/AssetIdSettingInput.tsx': 1,
   'admin/src/modules/settings/pages/PwaPage.tsx': 22,

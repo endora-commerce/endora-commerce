@@ -8,7 +8,6 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
-  CreditCard,
   Bell as BellOutline,
   Box,
   Factory,
@@ -39,7 +38,6 @@ import {
   Tag,
   Sparkles,
   TrendingDown,
-  Truck,
   Users,
   Warehouse as WarehouseIcon,
   Webhook,
@@ -142,7 +140,6 @@ const NAV: NavSection[] = [
       // order-entry page rather than on its own sidebar row.
       { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck, requiredPermission: 'orders:write', module: 'orders' },
       { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck, requiredPermission: 'orders:read', module: 'orders' },
-      { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read', module: 'returns' },
       { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText, requiredPermission: 'rfqs:handle', module: 'quote_requests' },
       // Templates are how an invoice is rendered, not a separate destination:
       // they are reached through the tab strip on the invoices page.
@@ -204,8 +201,6 @@ const NAV: NavSection[] = [
     labelKey: 'appShell.section.pricing',
     items: [
       { to: '/price-lists', labelKey: 'appShell.nav.priceLists', icon: CircleDollarSign, requiredPermission: 'price_lists:read', module: 'price_lists' },
-      { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'taxes:read', module: 'taxes' },
-      { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'delivery_methods:read', module: 'delivery_methods' },
       // Carrier / payment gateway settings are reached as integrations from the
       // Delivery methods / Payment methods pages (not top-level sidebar).
     ],
@@ -240,7 +235,6 @@ const NAV: NavSection[] = [
         requiredPermission: ['customers:read', 'customers:manage'],
         module: 'organizations',
       },
-      { to: '/credit-limits', labelKey: 'appShell.nav.creditLimits', icon: CreditCard, requiredPermission: 'credit_limits:manage', module: 'credit_limits' },
       // `/comparisons` is declared by `comparisons` since feature 091's Phase 4
       // (the plan's batch 6) and arrives through `composeNav` from
       // `modules.generated.ts`. Every other row in this section is still the
@@ -262,7 +256,6 @@ const NAV: NavSection[] = [
       },
       { to: '/dictionary', labelKey: 'appShell.nav.dictionary', icon: Languages, requiredPermission: 'dictionary.write', module: 'dictionaries' },
       { to: '/admin/dictionaries/audit', labelKey: 'appShell.nav.dictionaryAudit', icon: ListChecks, requiredPermission: 'dictionary.write', module: 'dictionaries' },
-      { to: '/seo', labelKey: 'appShell.nav.seo', icon: Search, requiredPermission: 'catalog:write', module: 'seo' },
     ],
   },
   {
@@ -273,13 +266,6 @@ const NAV: NavSection[] = [
       { to: '/cms/blocks', labelKey: 'appShell.nav.cmsBlocks', icon: Newspaper, requiredPermission: 'cms.read', module: 'cms' },
       { to: '/cms/templates', labelKey: 'appShell.nav.cmsTemplates', icon: Newspaper, requiredPermission: 'cms.read', module: 'cms' },
       { to: '/cms/hooks', labelKey: 'appShell.nav.cmsHooks', icon: Webhook, requiredPermission: 'cms.read', module: 'cms' },
-      {
-        to: '/megamenu',
-        labelKey: 'appShell.nav.megamenu',
-        icon: Newspaper,
-        requiredPermission: 'megamenu.read',
-        module: 'megamenu',
-      },
       { to: '/blog/posts', labelKey: 'appShell.nav.blogPosts', icon: Newspaper, requiredPermission: 'blog.read', module: 'blog' },
       { to: '/blog/categories', labelKey: 'appShell.nav.blogCategories', icon: Newspaper, requiredPermission: 'blog.read', module: 'blog' },
       { to: '/blog/tags', labelKey: 'appShell.nav.blogTags', icon: Newspaper, requiredPermission: 'blog.read', module: 'blog' },
@@ -615,14 +601,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.priceLists', href: '/price-lists' },
     { labelKey: 'appShell.crumb.detail', href: null },
   ] },
-  { test: /^\/taxes\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.taxes', href: null },
-  ] },
-  { test: /^\/delivery-methods\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.deliveryMethods', href: null },
-  ] },
   { test: /^\/delivery-methods\/dhl-parcel\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
@@ -696,10 +674,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.invoices', href: '/invoices' },
     { labelKey: 'appShell.crumb.detail', href: null },
   ] },
-  { test: /^\/credit-limits\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.creditLimits', href: null },
-  ] },
   { test: /^\/quote-requests\/?$/, build: () => [
     { labelKey: 'appShell.section.customers', href: '/organizations' },
     { labelKey: 'appShell.nav.quoteRequests', href: null },
@@ -749,15 +723,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.channels', href: '/sales-channels' },
     { labelKey: 'appShell.nav.cmsHooks', href: null },
   ] },
-  { test: /^\/megamenu\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.megamenu', href: null },
-  ] },
-  { test: /^\/megamenu\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.megamenu', href: '/megamenu' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
   { test: /^\/dictionary\/?$/, build: () => [
     { labelKey: 'appShell.section.channels', href: '/sales-channels' },
     { labelKey: 'appShell.nav.dictionary', href: null },
@@ -766,10 +731,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.channels', href: '/sales-channels' },
     { labelKey: 'appShell.nav.dictionary', href: '/dictionary' },
     { labelKey: 'appShell.crumb.audit', href: null },
-  ] },
-  { test: /^\/seo\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.seo', href: null },
   ] },
   // `/admin-users`, `/admin-roles` and `/audit-log` had a hand-written trail
   // here until feature 091's Phase 4 batch four. They are the modules' own
@@ -1023,13 +984,11 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.stockOverview', sub: 'appShell.palette.sub.stockLevels', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse magazyn stany', requiredPermission: 'inventory:read', module: 'inventory' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.priceLists', sub: 'appShell.palette.sub.pricingRules', icon: CircleDollarSign, to: '/price-lists', keywords: 'pricing prices price list cennik', requiredPermission: 'price_lists:read' , module: 'price_lists' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.organizations', sub: 'appShell.palette.sub.customerAccounts', icon: Building2, to: '/organizations', keywords: 'org orgs customer organization organizacja klient', requiredPermission: ['customers:read', 'customers:manage'] , module: 'organizations' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.creditLimits', sub: 'appShell.palette.sub.creditLimits', icon: CreditCard, to: '/credit-limits', keywords: 'credit limit limits balance terms limity kredytowe saldo', requiredPermission: 'credit_limits:manage' , module: 'credit_limits' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.orders', sub: 'appShell.palette.sub.openOrders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales zamówienia sprzedaż', requiredPermission: 'orders:read' , module: 'orders' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.quoteRequests', sub: 'appShell.palette.sub.customerRfqs', icon: FileText, to: '/quote-requests', keywords: 'rfq quote zapytanie ofertowe', requiredPermission: 'rfqs:handle' , module: 'quote_requests' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży', requiredPermission: 'sales_channels:read' , module: 'sales_channels' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.deliveryMethods', sub: 'appShell.palette.sub.deliveryMethods', icon: Truck, to: '/delivery-methods', keywords: 'delivery shipping methods courier metody dostawy wysyłka kurier', requiredPermission: 'delivery_methods:read' , module: 'delivery_methods' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja', requiredPermission: 'settings:read' , module: 'settings' },

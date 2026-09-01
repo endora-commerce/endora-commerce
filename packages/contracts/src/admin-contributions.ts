@@ -163,6 +163,27 @@ export const AdminZoneNameSchema = z.enum([
    * contribution: the fan-out is the mount's, not the name's.
    */
   'product.editor.field.after',
+  /**
+   * The integrations card on the delivery-methods list — one entry per shipping
+   * integration a module supplies, each linking to that module's own
+   * configuration screen.
+   *
+   * Mounted **once** per list screen and carrying no props, so its entry in
+   * {@link AdminZonePropsMap} is the empty object. That is not a placeholder
+   * for a parameter nobody has thought of yet: the host has no identifier to
+   * pass — the contributions *are* the integrations, and a contributor renders
+   * a card describing itself.
+   *
+   * It is the first member whose host is not `catalog`'s product editor, and
+   * the first whose contributors are the modules that used to be **named** by
+   * the host: `delivery_methods` hard-coded a `dhl_parcel` block and an
+   * `inpost` block, each with the other module's title, description, route and
+   * permission code, which
+   * `backend/scripts/ledgers/foreign-module-ids.ts` recorded as two
+   * `visibility-gate` couplings with this conversion as their retiring
+   * condition. Props: {@link DeliveryMethodIntegrationsZoneProps}.
+   */
+  'delivery_method.list.integrations',
 ]);
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
@@ -175,6 +196,17 @@ export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
 export interface ProductEditorZoneProps {
   readonly productId: string;
 }
+
+/**
+ * A zone mounted once on the delivery-methods list, carrying nothing.
+ *
+ * Empty **by measurement, not by omission**: the host renders one card per
+ * shipping integration and has no identifier to name one by — a contributor is
+ * the integration. Declared as a named interface rather than as `object`
+ * inline so the map's entry reads like every other one and so a prop this zone
+ * later needs has one place to arrive.
+ */
+export interface DeliveryMethodIntegrationsZoneProps {}
 
 /** A zone mounted beside one field of the product editor. */
 export interface ProductEditorFieldZoneProps {
@@ -221,6 +253,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'product.editor.details.before': ProductEditorZoneProps;
   'product.editor.pricing.before': ProductEditorZoneProps;
   'product.editor.field.after': ProductEditorFieldZoneProps;
+  'delivery_method.list.integrations': DeliveryMethodIntegrationsZoneProps;
 }
 
 /** The props of one zone, by name. */

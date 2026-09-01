@@ -9,11 +9,34 @@ const deleteSpy = vi.fn();
 const postSpy = vi.fn();
 const putSpy = vi.fn();
 
-// ECharts needs a real canvas; stub the wrapper so the page logic can be
-// tested in jsdom. Edge-click selection is exercised via the kept From/To form.
-vi.mock('@/components/charts/echart', () => ({
-  EChart: (): null => null,
-}));
+/**
+ * ECharts needs a real canvas, and jsdom has none: `echarts.init` reaches into
+ * a 2D context that is `null` there and dies with
+ * `Cannot read properties of null`. Edge-click selection is exercised via the
+ * kept From/To form.
+ *
+ * **The library, not the wrapper.** This was `vi.mock('@/components/charts/echart')`
+ * until feature 091's batch 8 published `StatusTransitionGraph` into
+ * `@endora-commerce/admin-kit`. The graph reaches its chart through the kit's
+ * own internals now, so a mock of the admin's re-export shim intercepts nothing
+ * — and the kit publishes no subpath for that internal module, which is right:
+ * mocking a path inside another package's `dist` is not a seam anybody should
+ * be asked to name. `echarts` is a bare specifier both sides resolve to one
+ * file, so mocking it covers the kit's chart and the admin's alike. The graph's
+ * own chrome — the connect-mode toggle, the From/To form — is the subject here
+ * and still renders for real.
+ */
+vi.mock('echarts', () => {
+  const chart = {
+    setOption: (): void => {},
+    resize: (): void => {},
+    dispose: (): void => {},
+    on: (): void => {},
+    off: (): void => {},
+    dispatchAction: (): void => {},
+  };
+  return { init: () => chart, default: { init: () => chart } };
+});
 
 vi.mock('@/lib/api-client', async () => {
   const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(

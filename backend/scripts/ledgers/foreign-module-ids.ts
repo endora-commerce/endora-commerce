@@ -65,17 +65,19 @@ export type ForeignModuleIdLedger = Readonly<Record<string, ForeignModuleIdEntry
 export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
   // --- population 1: a visibility gate naming another module -----------------
   //
-  // All four are correctly gated on both axes and all four are FR-007's case:
-  // the host names the owner because there is no place for the owner to
-  // contribute to. Each retires into a zone contribution, and the enum member
-  // it needs arrives with the batch that renders it.
-  'admin/src/modules/delivery_methods/DeliveryMethodsPage.tsx:visibility-gate:dhl_parcel':
-    'The integrations card holds a hard-coded `dhl_parcel` block. Retires at batch 8, when ' +
-    '`delivery_methods` renders `delivery_method.list.integrations` and `dhl_parcel` — ' +
-    'already a package — contributes to it.',
-  'admin/src/modules/delivery_methods/DeliveryMethodsPage.tsx:visibility-gate:inpost':
-    "The same card's hard-coded `inpost` block. Retires at batch 8 with its sibling: both " +
-    'contributors are packaged already, so the whole conversion is one batch\'s.',
+  // Both are correctly gated on both axes and both are FR-007's case: the host
+  // names the owner because there is no place for the owner to contribute to.
+  // Each retires into a zone contribution, and the enum member it needs arrives
+  // with the batch that renders it.
+  //
+  // **Two of the four are gone**, and they are the worked example rather than a
+  // note about one. `delivery_methods`' integrations card held a hard-coded
+  // `dhl_parcel` block and a hard-coded `inpost` block; feature 091's batch 8
+  // published `delivery_method.list.integrations`, the host renders it, and each
+  // carrier declares a contribution of its own. The presence gate, the
+  // permission gate and the ordering are the zone renderer's now, so a third
+  // carrier needs no edit to a file its author does not own — which is the whole
+  // of what FR-007 asks for.
   'admin/src/modules/orders/OrderDetail.tsx:visibility-gate:payments':
     "The payments tab button is rendered here, in the file's own words, so the gate is here " +
     'too. Retires at batch 10, when `orders` renders `order.detail.tabs` and `payments` ' +

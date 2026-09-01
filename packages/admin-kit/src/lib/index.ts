@@ -33,6 +33,7 @@ export { getModulePresence, ModulePresenceProvider, setModuleActivation, useModu
 export type { ModulePresenceContextValue, ModulePresenceProviderProps } from './module-presence/index.js';
 export { PAGE_SIZE_OPTIONS } from './page-size-options.js';
 export type { PageSizeOption } from './page-size-options.js';
+export { readableTextColor, statusBadgeStyle } from './status-color.js';
 export { isSurfaceVisible, satisfiesPermission, useSurfaceVisibility } from './surface-visibility.js';
 export type { GatedSurface, PermissionRequirement } from './surface-visibility.js';
 export { normalize } from './text-normalization.js';

@@ -91,5 +91,6 @@
   "errors.MEGAMENU_TARGET_OUT_OF_SCOPE": "Megamenu Target Out Of Scope.",
   "errors.MEGAMENU_ASSET_KIND_MISMATCH": "Megamenu Asset Kind Mismatch.",
   "errors.MEGAMENU_REFERENCED": "Megamenu Referenced.",
-  "errors.MEGAMENU_DEPTH_EXCEEDED": "Megamenu Depth Exceeded."
+  "errors.MEGAMENU_DEPTH_EXCEEDED": "Megamenu Depth Exceeded.",
+  "nav.megamenu.label": "Megamenu"
 }

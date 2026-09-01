@@ -25,8 +25,22 @@ const getSpy = vi.fn();
 const postSpy = vi.fn();
 const navigateSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>('@/lib/api-client');
+/**
+ * The kit's module, not the admin's shim.
+ *
+ * This screen still lives in `admin/src` and still writes `@/lib/api-client`,
+ * which is a re-export of `@endora-commerce/admin-kit/lib` — so mocking the kit
+ * covers it. The reverse is not true, and that is what this had to change for:
+ * the product picker this page renders is the kit's since feature 091's batch 8
+ * and builds its own request from the kit's `apiClient`, past the shim
+ * entirely. Mocking the shim left the picker on the real client, whose every
+ * call `admin/test/setup.ts` refuses by name — so the page rendered with no
+ * products and the case failed on an option that had never been fetched.
+ */
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
   return {
     ...actual,
     apiClient: {
