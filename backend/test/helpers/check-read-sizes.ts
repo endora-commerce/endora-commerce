@@ -350,8 +350,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // nine sidebar rows and six hand-written Navigate rows, of which three
     // named destinations no manifest action covered and are declarations now.
     // Measured on the merge commit rather than on the branch.
+    //
+    // **Batch 12 — `invoices`, `ksef` and `quote_requests`, eight routes and
+    // four nav entries — takes it to 96**, which is that twelve exactly. Four
+    // rather than three for the `PALETTE_ITEMS` reason once more: three sidebar
+    // rows and one hand-written Navigate row, which was a second copy of
+    // `quote_requests`' own `open-rfq-inbox` action and is deleted rather than
+    // replaced. Measured on the merge commit rather than on the branch.
     files: 2,
-    sites: 108,
+    sites: 96,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],

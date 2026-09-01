@@ -4,7 +4,7 @@ import {
   deadlineForDays,
   isValidityDaysInvalid,
   rfqValidity,
-} from '../../../src/modules/quote_requests/validity';
+} from '../../../../packages/modules/quote_requests/src/admin/validity';
 
 /**
  * The three answers `expiresAt` can give, and the arithmetic behind the

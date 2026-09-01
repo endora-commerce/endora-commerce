@@ -1,24 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Columns3, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
-import { Select } from '@/components/ui/select';
-import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select';
-import { OrganizationPicker } from '@/components/organization-picker/OrganizationPicker';
-import { ResponsiveTable, type ResponsiveColumn } from '@/components/ResponsiveTable';
-import { PaginationFooter } from '@/components/PaginationFooter';
-import { usePageSizePreference } from '@/lib/use-page-size-preference';
-import { useAuth } from '@/lib/auth';
-import { useTranslation } from '@/i18n/useTranslation';
-import { normalize } from '@/lib/text-normalization';
-
+import { apiClient, ApiError, formatDateTime, normalize, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Label, MultiSelect, PageHeader, Select, type MultiSelectOption } from '@endora-commerce/admin-kit/ui';
+import { OrganizationPicker, PaginationFooter, ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 /**
  * Admin Quote Requests list (feature 008 / T042). Restructured to mirror the
  * Orders list view: a PageHeader above a toolbar Card (search + status filter
@@ -467,3 +453,10 @@ export function RfqList(): ReactNode {
     </>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default RfqList;

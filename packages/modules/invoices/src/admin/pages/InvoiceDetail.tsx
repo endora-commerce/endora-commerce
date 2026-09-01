@@ -5,26 +5,10 @@ import type {
   InvoiceDetail as InvoiceDetailData,
   SendInvoiceEmailResult,
 } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { formatMoney } from '@/lib/money';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useAuth } from '@/lib/auth';
-import { InvoiceKsefPanel } from '@/modules/ksef/components/InvoiceKsefPanel';
-import { sendInvoiceEmailMessage } from '@endora-commerce/admin-kit/lib';
+import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoiceEmailMessage, useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   pending: 'warning',
@@ -44,7 +28,15 @@ export function InvoiceDetail(): ReactNode {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const baseUrl = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
+  /**
+   * `apiBaseUrl` and not `import.meta.env`: this file compiles under `tsc`
+   * inside its own package, where Vite's client types are not in scope, and the
+   * kit publishes the resolved value for exactly this (feature 091). The
+   * fallback moves with it — this read defaulted to `''` while the `apiClient`
+   * beside it has always defaulted to `http://localhost:3001`, so the download
+   * href now points where the fetch that lists it already went.
+   */
+  const baseUrl = apiBaseUrl;
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -336,11 +328,28 @@ export function InvoiceDetail(): ReactNode {
               <Row label={t('invoiceDetail.totals.due')} value={money(invoice.amountDue)} />
             </CardContent>
           </Card>
-          {/* KSeF state rendered next to the payment fields (feature 059 US5). */}
-          <InvoiceKsefPanel
-            invoiceId={invoice.id}
-            kind={invoice.kind}
-            ksefReferenceNumber={invoice.ksefReferenceNumber}
+          {/*
+            The place another module may add to, below the totals (feature 091,
+            FR-007). It used to be `<InvoiceKsefPanel …>` imported from
+            `@/modules/ksef/components/` — the single key in
+            `backend/scripts/ledgers/cross-module-imports/invoices.ts`, whose
+            recorded retiring condition is exactly this: the host publishes the
+            place and the owner contributes into it, so neither module names the
+            other.
+
+            `<AdminZone>` and not `useAdminZone`: there is no chrome of this
+            screen's to suppress when nothing contributes — the stack simply
+            ends — which is the case the renderer alone covers. The presence
+            axes, the permission and the ordering are all the renderer's, so
+            nothing here asks whether `ksef` is switched on.
+          */}
+          <AdminZone
+            name="invoice.detail.after"
+            props={{
+              invoiceId: invoice.id,
+              kind: invoice.kind,
+              ksefReferenceNumber: invoice.ksefReferenceNumber,
+            }}
           />
         </div>
       </div>
@@ -356,3 +365,10 @@ function Row({ label, value }: { label: string; value: ReactNode }): ReactNode {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default InvoiceDetail;

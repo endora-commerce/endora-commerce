@@ -84,7 +84,12 @@ const EXITS: readonly ClientExit[] = [
     endpoints: ['/api/v1/admin/settings/'],
   },
   {
-    caller: 'src/modules/ksef/pages/KsefPage.tsx',
+    // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `ksef` took its
+    // admin surface into its package and this caller went with it. The exit is
+    // unchanged; only its address moved. This list is a ledger *about* the
+    // files it names rather than one of them, so the merge request that moves a
+    // caller is structurally the one that cannot see the entry go stale.
+    caller: '../packages/modules/ksef/src/admin/pages/KsefPage.tsx',
     owner: 'settings',
     binding: 'settingsClient',
     clientPath: 'modules/settings/api/settings-client',

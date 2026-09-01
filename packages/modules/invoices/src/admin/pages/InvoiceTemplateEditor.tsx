@@ -2,18 +2,13 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Puck, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { PageHeader } from '@/components/ui/page-header';
-import { SaveButtonGroup } from '@/components/ui/save-button-group';
-import { cn } from '@/lib/utils';
-import { useTranslation } from '@/i18n/useTranslation';
+import { apiBaseUrl, apiClient, ApiError, cn } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, PageHeader, SaveButtonGroup } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { PageBuilderHeaderActions } from '@endora-commerce/page-builder-admin';
 import { PageBuilderOverlayBridge } from '@endora-commerce/page-builder-admin';
-import { invoicePuckConfig } from './invoice-puck-config';
-import { createInvoiceBuilderEditorPlugin } from './invoice-builder-plugin';
+import { invoicePuckConfig } from '../templates/invoice-puck-config.js';
+import { createInvoiceBuilderEditorPlugin } from '../templates/invoice-builder-plugin.js';
 
 interface TemplateDetail {
   id: string;
@@ -25,8 +20,13 @@ interface TemplateDetail {
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 const LANGUAGE = 'pl-PL';
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
+/**
+ * `apiBaseUrl` and not `import.meta.env`: this file compiles under `tsc` inside
+ * its own package, where Vite's client types are not in scope, and the kit
+ * publishes the resolved value — with this exact fallback — for exactly this
+ * (feature 091).
+ */
+const API_BASE = apiBaseUrl;
 const invoiceBuilderPlugin = createInvoiceBuilderEditorPlugin();
 
 /**
@@ -246,3 +246,10 @@ export function InvoiceTemplateEditor(): ReactNode {
     </>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default InvoiceTemplateEditor;

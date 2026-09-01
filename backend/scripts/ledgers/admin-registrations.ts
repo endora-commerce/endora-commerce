@@ -346,13 +346,10 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   cms: { routes: 11, nav: 4 },
   customers: { routes: 3, nav: 2 },
   inventory: { routes: 7, nav: 6 },
-  invoices: { routes: 4, nav: 1 },
-  ksef: { routes: 1, nav: 1 },
   orders: { routes: 4, nav: 4 },
   organizations: { routes: 2, nav: 2 },
   pim_ergonode: { routes: 5, nav: 1 },
   price_lists: { routes: 3, nav: 2 },
   quick_order: { routes: 1, nav: 0 },
-  quote_requests: { routes: 3, nav: 2 },
   sales_channels: { routes: 3, nav: 2 },
 };

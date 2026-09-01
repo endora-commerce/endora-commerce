@@ -1,17 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2 } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { PageHeader } from '@/components/ui/page-header';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Combobox, Input, Label, PageHeader, Textarea, type ComboboxOption } from '@endora-commerce/admin-kit/ui';
 import { ProductPicker } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@/i18n/useTranslation';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Admin "create a Quote Request on behalf of a customer" (feature 008 US4).
@@ -358,3 +351,10 @@ export function RfqCreatePage(): ReactNode {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default RfqCreatePage;

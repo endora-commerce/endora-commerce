@@ -62,7 +62,6 @@ import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
 import { ContentLanguageTabs } from '@/modules/cms/components/ContentLanguageTabs';
 import { ScopePicker } from '@/modules/cms/components/ScopePicker';
 import { Section } from '@/modules/orders/Section';
-import { issueInvoiceNotice, sendInvoiceEmailMessage } from '@/modules/invoices/email-outcome';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -111,11 +110,22 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     // Their consumers name the subpath directly; the shims stay because the old
     // paths are the spelling each owner's own tests and any client tree already
     // hold, and a second resolution would be a second copy.
+    //
+    // **The e-mail-outcome pair has left this group**, in feature 091's batch
+    // 12, and the removal is the `CustomFieldValuesPanel` note below arriving a
+    // second time: `invoices` took its admin surface into
+    // `@endora-commerce/mod-invoices/admin`, so `admin/src/modules/invoices/`
+    // is gone and the shim that stood in it went with the directory. Its only
+    // remaining reader was this file — `orders`, the reach P8 published the
+    // three functions for, already names the subpath — so keeping the shim
+    // would have kept a file alive for one assertion, and keeping the
+    // assertion without it would have compared `kitLib` to itself. What the
+    // three functions still have is `admin/test/kit/kit-invoice-email-outcome.test.ts`,
+    // which drives the published bindings; what is gone is a second spelling of
+    // them, which is the thing this file exists to compare.
     expect(ContentLanguageTabs).toBe(kitComponents.ContentLanguageTabs);
     expect(ScopePicker).toBe(kitComponents.ScopePicker);
     expect(Section).toBe(kitUi.Section);
-    expect(issueInvoiceNotice).toBe(kitLib.issueInvoiceNotice);
-    expect(sendInvoiceEmailMessage).toBe(kitLib.sendInvoiceEmailMessage);
   });
 
   // **`CustomFieldValuesPanel` had a case here and no longer has a shim to
