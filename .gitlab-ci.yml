@@ -426,6 +426,17 @@ quality:
     # No ledger, deliberately: an entry could only license a single-language
     # module, which is the thing the ruling forbids.
     - pnpm --filter backend run check:bundle-pairing
+    # `specs/094-translation-boundary/` — the same ruling's first clause: English
+    # is the default, so a prose literal in another language, outside a
+    # per-language structure, in a module's own sources is a defect. The second
+    # signal, in a check of its own because `check:untranslated-delivery` asks
+    # about a delivery *call* — a `return`, an array push and a field assignment
+    # are none of them — and `check:language`'s scope is comments by
+    # constitutional design (D-8).
+    # It lands **red-free and not empty**: 46 sites over 41 keys, recorded in a
+    # per-module ledger under `scripts/ledgers/non-english-defaults/`, two-way
+    # and expected to empty. What it refuses is the 42nd.
+    - pnpm --filter backend run check:default-language-prose
     # Feature 021 / Principle VIII (issue #116) — a user-visible string in the
     # admin SPA is a translation key, not a literal. `AGENTS.md` has cited this
     # script as the gate since 021 and it ran in no job at all: first because its

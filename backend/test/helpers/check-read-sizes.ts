@@ -402,6 +402,28 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // that read nothing.
     sources: ['manifest-index', 'shipped-languages'],
   },
+  'backend/scripts/check-default-language-prose.ts': {
+    prefix: '[default-language-prose]',
+    run: { kind: 'tsx', path: 'scripts/check-default-language-prose.ts', args: [] },
+    // Every `.ts` file under a module's own directory, minus its `migrations/`
+    // (a declared bound — an applied migration cannot be edited, so a finding
+    // there has no repair a ledger entry could drain), its tests and its
+    // declaration files.
+    files: 1449,
+    // Every string and template literal the walk offered the classifier. It is
+    // deliberately not the findings — a number that moves with the tree's
+    // health cannot answer "did you read the tree" — and it is two orders
+    // larger than `files`, which is what makes it the number that moves first
+    // when a position filter or the parser narrows.
+    sites: 29029,
+    // `manifest-index` is issue #215's shared floor over the module walk.
+    // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
+    // against the languages this check has a detector for: `1/1` today, and a
+    // third shipped language makes it `1/2`, which the shared reporter refuses
+    // as a short walk. That is what turns § 1.3's Polish-only bound into a
+    // refusal instead of an implied coverage claim.
+    sources: ['manifest-index', 'detected-languages'],
+  },
   'backend/scripts/check-admin-surface.ts': {
     prefix: '[admin-surface]',
     run: { kind: 'tsx', path: 'scripts/check-admin-surface.ts', args: [] },

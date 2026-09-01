@@ -71,6 +71,13 @@ const CHECKS: readonly MovedTreeCheck[] = [
   // fixture keeps, read its bundles, and report a clean tree with 68 modules
   // unjudged. The floor is per module and refuses instead.
   { script: 'check-bundle-pairing.ts', args: [], prefix: '[bundle-pairing]' },
+  // `specs/094-translation-boundary/`. An ordinary module file walk, and it is
+  // the shape #215 was written about: `backend/src` without the module tree is
+  // a few per cent of the literals, all of them the platform's own and every one
+  // of them English, so a walk that asked "did I read anything?" would classify
+  // that residue, find no Polish in it and print a clean line over 68 unjudged
+  // modules.
+  { script: 'check-default-language-prose.ts', args: [], prefix: '[default-language-prose]' },
   { script: 'check-channel-resolution.ts', args: ['--enforce'], prefix: '[channel-resolution]' },
   { script: 'check-command-coverage.ts', args: ['--strict'], prefix: '[command-coverage]' },
   { script: 'check-container-imports.ts', args: [], prefix: '[container-imports]' },
