@@ -412,6 +412,20 @@ quality:
     # envelope does not read, while all six of its codes rendered untranslated.
     # The ledger is the standing debt and may only shrink.
     - pnpm --filter backend run check:error-translations
+    # `specs/094-translation-boundary/` — the owner's ruling of 2026-09-01: a
+    # module that ships a bundle in any language ships one in every language the
+    # platform ships. A **conditional**, because 7 of the 69 registered modules
+    # legitimately ship none and a universal would be repaired by seven empty
+    # files. It lands at zero violations, which is the argument for landing it:
+    # nothing held the invariant there.
+    # `registered-bundles-shape.test.ts` looked like the enforcer and was a
+    # two-way miss — its symmetry case skipped exactly the module that drops a
+    # bundle, and its action-key case asked each module about the languages it
+    # happened to ship. Both are repaired in the same merge request; this check
+    # is the file-level precondition neither of them can be.
+    # No ledger, deliberately: an entry could only license a single-language
+    # module, which is the thing the ruling forbids.
+    - pnpm --filter backend run check:bundle-pairing
     # Feature 021 / Principle VIII (issue #116) — a user-visible string in the
     # admin SPA is a translation key, not a literal. `AGENTS.md` has cited this
     # script as the gate since 021 and it ran in no job at all: first because its

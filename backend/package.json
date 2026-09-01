@@ -20,6 +20,7 @@
     "check:admin-registrations": "tsx scripts/check-admin-registrations.ts",
     "check:admin-surface": "tsx scripts/check-admin-surface.ts",
     "check:admin-zones": "tsx scripts/check-admin-zones.ts",
+    "check:bundle-pairing": "tsx scripts/check-bundle-pairing.ts",
     "check:command-coverage": "tsx scripts/check-command-coverage.ts",
     "check:container-imports": "tsx scripts/check-container-imports.ts",
     "check:diacritic-folds": "tsx scripts/check-diacritic-folds.ts",
