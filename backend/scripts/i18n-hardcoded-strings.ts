@@ -3,14 +3,32 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { reportReadSize } from './lib/read-size.js';
-import { modulePackages, nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
+import {
+  adminUiPackages,
+  modulePackages,
+  nodeWorkspaceFs,
+  workspaceMembers,
+} from './lib/workspace-packages.js';
 
 /** The checkout, whichever one this file was loaded from. */
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
+/** One directory this check walks, and what put it in the population. */
+export interface AdminScanRoot {
+  /** Absolute directory. */
+  readonly dir: string;
+  /**
+   * The workspace member that declared it, or `null` for the admin
+   * application's own source tree.
+   */
+  readonly owner: string | null;
+  /** True for a root an `endora: { type: 'admin-ui' }` declaration produced. */
+  readonly adminUi: boolean;
+}
+
 /**
  * The roots the admin's user-visible strings live in, and the reason there is
- * more than one (feature 091, Phase 1b and Phase 4).
+ * more than one (feature 091, Phase 1b, Phase 4 and P5c).
  *
  * The population was `admin/src` alone, and the key was relative to it. Then 57
  * of those files moved into `@endora-commerce/admin-kit` — the admin's own
@@ -25,16 +43,40 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  * too. A screen moving from `admin/src/modules/<id>/` into
  * `packages/modules/<id>/src/admin/` is the identical relocation at the
  * identical granularity, and the batch that performs it is — by construction —
- * the batch that cannot see the entry describing it go stale. Neither the
- * directory nor the package name is spelled: a member declares
- * `endora: { type: 'module' }` about itself, and the layer is a root when the
- * package actually has one.
+ * the batch that cannot see the entry describing it go stale.
+ *
+ * **P5 opens it a fourth time, and this root is here *before* the move.** The
+ * shared page-builder chrome and the e-mail builder go into
+ * `@endora-commerce/page-builder-admin`, which is neither the admin
+ * application, nor the kit, nor a module package — so on the day it is created
+ * the four `_shared/email-builder` baseline entries (9 + 1 + 2 + 4 = 16
+ * findings) would name paths no root reaches, and the two-way ratchet would ask
+ * for them to be deleted. Sixteen untranslated strings would leave this ledger
+ * as *drained*, which is the same laundering in the same direction, one home
+ * further out. Widening while the files are still under `admin/src` is a
+ * measured no-op; widening afterwards adds the population that would have
+ * caught the move in the merge request that no longer needs it.
+ *
+ * ## Nothing here is spelled — every root is a declaration
+ *
+ * `admin/src` is the application's and is the one path this file names. Every
+ * other root is a workspace member's own statement about itself: `endora:
+ * { type: 'module' }` for a module package, whose admin layer is a root when
+ * the package has one, and `endora: { type: 'admin-ui' }` for a package whose
+ * whole source tree is admin UI. **The kit is found by that declaration and no
+ * longer by name.** It used to be `ADMIN_KIT_PACKAGE`, a constant naming
+ * `@endora-commerce/admin-kit`, which is a derived fact written down (D-100):
+ * the second admin-ui package would have had to be added to it by whoever
+ * remembered, and forgetting costs sixteen findings silently.
+ *
+ * Why a manifest field may decide a check's population at all, since the next
+ * reader will reach for D-171: that ruling refused a self-certified
+ * **exemption**, and this declaration is the opposite — it only ever adds
+ * obligations. The full reasoning is on `declaresAdminUi` in
+ * `lib/workspace-packages.ts`, where the derivation lives.
  *
  * The keys are repository-relative, so the ledger names one file in one
- * namespace whichever root it sits under. The kit's directory is not spelled
- * here either: it is the workspace member whose manifest carries the name, so a
- * move costs no edit and a kit that is gone is exit 2 rather than a population
- * quietly halved.
+ * namespace whichever root it sits under.
  *
  * **Exported because the companion test has to ask the same question, not a
  * similar one** (feature 091, Phase 4 batch three). It kept its own two-root
@@ -47,28 +89,35 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  * ledger. Two derivations of one population are two answers waiting to
  * disagree; there is one now.
  */
-export function defaultRoots(): readonly string[] {
+export function adminScanRoots(): readonly AdminScanRoot[] {
   const members = workspaceMembers(REPO_ROOT, nodeWorkspaceFs());
-  const kit = members.find((member) => member.name === ADMIN_KIT_PACKAGE);
-  if (kit === undefined) {
+  const adminUi = adminUiPackages(members);
+  if (adminUi.length === 0) {
     process.stderr.write(
-      `[i18n:hardcoded] no workspace member is ${ADMIN_KIT_PACKAGE} — half the admin's own ` +
-        'components would go unscanned and the ledger entries naming them would read as ' +
-        'drained; refusing to report a vacuous pass\n',
+      '[i18n:hardcoded] no workspace member declares `endora: { type: "admin-ui" }` — the ' +
+        "admin's own design system is one, so half the components every screen renders " +
+        'would go unscanned and the ledger entries naming them would read as drained; ' +
+        'refusing to report a vacuous pass\n',
     );
     process.exit(2);
   }
   const moduleAdminLayers = modulePackages(members)
-    .map((pkg) => join(pkg.dir, 'src', 'admin'))
+    .map((pkg) => ({ dir: join(pkg.dir, 'src', 'admin'), owner: pkg.name, adminUi: false }))
     // A module package with no admin layer is the ordinary case and contributes
-    // nothing — an empty set is legitimate here, unlike the kit's absence,
+    // nothing — an empty set is legitimate here, unlike the admin-ui set,
     // because before Story 3 there were no layers at all.
-    .filter((dir) => existsSync(dir));
-  return [join(REPO_ROOT, 'admin', 'src'), join(kit.dir, 'src'), ...moduleAdminLayers];
+    .filter((root) => existsSync(root.dir));
+  return [
+    { dir: join(REPO_ROOT, 'admin', 'src'), owner: null, adminUi: false },
+    ...adminUi.map((pkg) => ({ dir: join(pkg.dir, 'src'), owner: pkg.name, adminUi: true })),
+    ...moduleAdminLayers,
+  ];
 }
 
-/** The package the admin's design system lives in since feature 091, Phase 1b. */
-const ADMIN_KIT_PACKAGE = '@endora-commerce/admin-kit';
+/** The directories {@link adminScanRoots} produces — the walk's input. */
+export function defaultRoots(): readonly string[] {
+  return adminScanRoots().map((root) => root.dir);
+}
 
 /**
  * `pnpm --filter backend run i18n:hardcoded [-- <path>… | --strict | --list]` — feature 021.
@@ -421,7 +470,8 @@ function main(): void {
   // The default root is resolved against the repository, not the working
   // directory. `admin/src` was relative to `process.cwd()`, and the documented
   // invocation runs with `backend/` as the cwd, where no such directory exists.
-  const roots = positional.length > 0 ? positional : defaultRoots();
+  const declared = positional.length > 0 ? null : adminScanRoots();
+  const roots = declared === null ? positional : declared.map((root) => root.dir);
   // The baseline is measured over the whole of `admin/src`, so it can only judge
   // a run that scanned the whole of `admin/src`. Given a path, every file the
   // ledger names but the walk never opened would read as drained — so an
@@ -430,7 +480,12 @@ function main(): void {
   const strict = argv.includes('--strict') || positional.length > 0;
 
   const files: string[] = [];
+  // Per root, so the `sources=` token below can say which declared root
+  // contributed nothing rather than only how many files the walk opened in
+  // total.
+  const perRoot: number[] = [];
   for (const r of roots) {
+    const before = files.length;
     try {
       const st = statSync(r);
       if (st.isDirectory()) collectTsxFiles(r, files);
@@ -438,6 +493,7 @@ function main(): void {
     } catch {
       process.stderr.write(`[i18n:hardcoded] path not found: ${r}\n`);
     }
+    perRoot.push(files.length - before);
   }
 
   if (files.length === 0) {
@@ -455,9 +511,34 @@ function main(): void {
   for (const f of files) walkFile(f, findings);
 
   // What was read, in the shared grammar (issue #244) — before the `--strict`
-  // branch below, so both modes disclose the same walk. `self-reported`: the
-  // population is the admin SPA's own tree, which nothing else derives.
-  reportReadSize({ prefix: '[i18n:hardcoded]', files: files.length });
+  // branch below, so both modes disclose the same walk.
+  //
+  // The corroboration is the **admin-ui declarations**: the workspace manifests
+  // say how many packages ship a tree of admin UI, this walk says how many of
+  // them produced a file, and a package that declared itself and contributed
+  // nothing is a `short-walk` refusal rather than a quietly narrowed scan. It
+  // is the floor that replaces the old by-name refusal ("no member is
+  // `@endora-commerce/admin-kit`"), and it is strictly wider: the kit going
+  // missing still exits 2, and so does the second admin-ui package's tree
+  // moving out from under the walk (feature 091, P5c). The application's own
+  // `admin/src` and the module packages' `src/admin` layers have no second
+  // author and are not reconciled here — an explicit path (the draining mode)
+  // reads a deliberate subset, so it declares none.
+  reportReadSize({
+    prefix: '[i18n:hardcoded]',
+    files: files.length,
+    coverage:
+      declared === null
+        ? []
+        : [
+            {
+              source: 'admin-ui',
+              expected: declared.filter((root) => root.adminUi).length,
+              covered: declared.filter((root, index) => root.adminUi && perRoot[index]! > 0)
+                .length,
+            },
+          ],
+  });
 
   const cwd = process.cwd();
   const print = (f: Finding): void => {

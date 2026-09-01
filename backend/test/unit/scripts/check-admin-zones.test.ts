@@ -261,6 +261,57 @@ describe('check-admin-zones — one red proof per finding', () => {
       expect(findings[0]?.message).toContain('cannot read');
     });
 
+    it("an admin-ui package rendering out of a module's namespace", () => {
+      // Feature 091, P5c. The population is widened **before** P5b moves the
+      // shared page-builder chrome and the e-mail builder into
+      // `@endora-commerce/page-builder-admin`: on this tree the family set is
+      // empty, so the only thing that can show the widening works is a fixture
+      // that declares one.
+      const findings = adminZoneFindings(
+        baseline({
+          files: [
+            ...baseline().files,
+            {
+              path: 'packages/page-builder-admin/src/email/EmailEditorPane.tsx',
+              source: "const t = useTranslation('cms');",
+              roles: ['admin-ui'],
+            },
+          ],
+          registered: ['catalog', 'cms'],
+        }),
+        'foreign-module-id',
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.key).toBe(
+        'packages/page-builder-admin/src/email/EmailEditorPane.tsx:module-namespace:cms',
+      );
+      // The message's owner half is what makes the file's own words honest: an
+      // admin-ui package owns no module id, so there is no id it could name
+      // legitimately.
+      expect(findings[0]?.message).toContain('belongs to no module');
+    });
+
+    it('a computed namespace in an admin-ui package is a finding, not a skip', () => {
+      // The kit's issue-#113 reasoning over a package that is not the kit: no
+      // namespace here can be the file's own, so one this walk cannot read is
+      // one it cannot clear.
+      const findings = adminZoneFindings(
+        baseline({
+          files: [
+            ...baseline().files,
+            {
+              path: 'packages/page-builder-admin/src/Chrome.tsx',
+              source: 'const t = useTranslation(namespace);',
+              roles: ['admin-ui'],
+            },
+          ],
+        }),
+        'foreign-module-id',
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain('cannot read');
+    });
+
     it("a module gating on its own id is not foreign", () => {
       expect(
         adminZoneFindings(

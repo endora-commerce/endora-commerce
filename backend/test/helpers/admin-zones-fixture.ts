@@ -38,9 +38,11 @@ export interface AdminZoneFixtureFile {
    *
    * `host` — a screen that may render a zone or declare a contribution;
    * `kit` — a kit source, whose `useTranslation` namespace is population 2;
-   * `admin` — an attributed admin surface file, populations 1 and 3.
+   * `admin` — an attributed admin surface file, populations 1 and 3;
+   * `admin-ui` — a source of a package declaring `endora: { type: 'admin-ui' }`
+   *   other than the kit, which is population 3's ownerless half (P5c).
    */
-  readonly roles?: readonly ('host' | 'kit' | 'admin')[];
+  readonly roles?: readonly ('host' | 'kit' | 'admin' | 'admin-ui')[];
   /** The module owning the file, for an `admin` role. */
   readonly owner?: string;
 }
@@ -82,7 +84,12 @@ export function runAdminZones(fixture: AdminZoneFixture): AdminZonesResult {
 
   for (const file of fixture.files) {
     const roles = file.roles ?? ['host'];
-    if (roles.includes('host') || roles.includes('kit') || roles.includes('admin')) {
+    if (
+      roles.includes('host') ||
+      roles.includes('kit') ||
+      roles.includes('admin') ||
+      roles.includes('admin-ui')
+    ) {
       renders.push(...zoneRenderSites(file.source, file.path));
       contributions.push(...zoneContributionSites(file.source, file.path, file.owner ?? null));
     }
@@ -95,6 +102,21 @@ export function runAdminZones(fixture: AdminZoneFixture): AdminZonesResult {
           named: site.named,
           owner: null,
           population: 'kit-namespace',
+        });
+      }
+    }
+    if (roles.includes('admin-ui')) {
+      // Owned by no module, so a registered id is foreign whichever it is and a
+      // computed namespace is a finding rather than a skip — the kit's rule,
+      // over a package that is not the kit.
+      for (const site of translationScopeSites(file.source, file.path)) {
+        if (site.named !== null && !registered.has(site.named)) continue;
+        moduleIds.push({
+          file: file.path,
+          line: site.line,
+          named: site.named,
+          owner: null,
+          population: 'module-namespace',
         });
       }
     }
