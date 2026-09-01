@@ -39,4 +39,11 @@ Consecutive wholly-rejected full deliveries notify **each time** — the plain
 reading of the ruling, which deliberately left that question open. No
 suppression is added here.
 
-Operator strings ship in the module's `i18n/en.json` and `i18n/pl.json`.
+Operator strings ship in the module's `i18n/en.json` and `i18n/pl.json`, keyed
+`notifications.pim_pimcore.delivery_wholly_rejected.{title,body}` — the form
+`specs/093-backend-delivered-prose/contracts/translated-delivery.md` §2.3
+specifies, so that when the delivery seam gains its `titleKey` / `bodyKey` /
+`params` fields this call site adds three properties rather than moving its
+sentences first. Until then the sentence is resolved from the bundle at the call,
+which is the value that contract calls the fallback; no finished sentence is
+hard-coded in TypeScript.
