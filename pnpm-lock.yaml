@@ -110,6 +110,12 @@ importers:
       '@endora-commerce/mod-inpost':
         specifier: workspace:*
         version: link:../packages/modules/inpost
+      '@endora-commerce/mod-invoices':
+        specifier: workspace:*
+        version: link:../packages/modules/invoices
+      '@endora-commerce/mod-ksef':
+        specifier: workspace:*
+        version: link:../packages/modules/ksef
       '@endora-commerce/mod-linkedin-ads':
         specifier: workspace:*
         version: link:../packages/modules/linkedin_ads
@@ -146,6 +152,9 @@ importers:
       '@endora-commerce/mod-pwa':
         specifier: workspace:*
         version: link:../packages/modules/pwa
+      '@endora-commerce/mod-quote-requests':
+        specifier: workspace:*
+        version: link:../packages/modules/quote_requests
       '@endora-commerce/mod-returns':
         specifier: workspace:*
         version: link:../packages/modules/returns
@@ -2131,15 +2140,27 @@ importers:
 
   packages/modules/invoices:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
       '@endora-commerce/email-components':
         specifier: workspace:*
         version: link:../../email-components
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:*
+        version: link:../../page-builder-admin
+      '@endora-commerce/page-builder-core':
+        specifier: workspace:*
+        version: link:../../page-builder-core
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
@@ -2155,12 +2176,24 @@ importers:
       '@types/pdfmake':
         specifier: ^0.3.2
         version: 0.3.2
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       pdfmake:
         specifier: ^0.3.7
         version: 0.3.7
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2170,6 +2203,9 @@ importers:
 
   packages/modules/ksef:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2191,6 +2227,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -2200,6 +2239,15 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -3082,6 +3130,9 @@ importers:
 
   packages/modules/quote_requests:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -3100,9 +3151,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

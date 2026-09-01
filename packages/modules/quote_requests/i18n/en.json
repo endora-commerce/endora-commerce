@@ -9,5 +9,6 @@
   "errors.RFQ_ALREADY_CLAIMED": "Rfq Already Claimed.",
   "errors.RFQ_EXPIRED": "This quote is no longer valid — its validity period has ended. Ask your sales representative for a new quote, or submit the request again.",
   "errors.QUOTE_INCOMPLETE": "Quote Incomplete.",
-  "errors.QUOTE_VALIDITY_ENDED": "The accepted quote is no longer valid — its validity period has ended. Ask your sales representative for a new quote before ordering."
+  "errors.QUOTE_VALIDITY_ENDED": "The accepted quote is no longer valid — its validity period has ended. Ask your sales representative for a new quote before ordering.",
+  "nav.quoteRequests.label": "Quote requests"
 }

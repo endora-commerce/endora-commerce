@@ -1,30 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FileDown, Mail } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { formatMoney } from '@/lib/money';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
-import { InvoiceSectionTabs } from './components/InvoiceSectionTabs';
-import { Select } from '@/components/ui/select';
-import { useTranslation } from '@/i18n/useTranslation';
+import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoiceEmailMessage } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { InvoiceSectionTabs } from '../components/InvoiceSectionTabs.js';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { SendInvoiceEmailResult } from '@endora-commerce/contracts';
-import { sendInvoiceEmailMessage } from '@endora-commerce/admin-kit/lib';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-
 interface AdminInvoice {
   id: string;
   orderId: string;
@@ -110,7 +91,15 @@ export function InvoicesList(): ReactNode {
     return (): void => clearTimeout(id);
   }, [refresh]);
 
-  const baseUrl = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
+  /**
+   * `apiBaseUrl` and not `import.meta.env`: this file compiles under `tsc`
+   * inside its own package, where Vite's client types are not in scope, and the
+   * kit publishes the resolved value for exactly this (feature 091). The
+   * fallback moves with it — this read defaulted to `''` while the `apiClient`
+   * beside it has always defaulted to `http://localhost:3001`, so the download
+   * href now points where the fetch that lists it already went.
+   */
+  const baseUrl = apiBaseUrl;
 
   const resendEmail = useCallback(
     async (invoiceId: string): Promise<void> => {
@@ -322,3 +311,10 @@ export function InvoicesList(): ReactNode {
     </>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default InvoicesList;

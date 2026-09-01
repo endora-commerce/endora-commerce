@@ -25,8 +25,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   PlugZap,
-  Receipt,
-  ReceiptText,
   Search,
   Store,
   Tag,
@@ -134,11 +132,19 @@ const NAV: NavSection[] = [
       // order-entry page rather than on its own sidebar row.
       { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck, requiredPermission: 'orders:write', module: 'orders' },
       { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck, requiredPermission: 'orders:read', module: 'orders' },
-      { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText, requiredPermission: 'rfqs:handle', module: 'quote_requests' },
-      // Templates are how an invoice is rendered, not a separate destination:
-      // they are reached through the tab strip on the invoices page.
-      { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt, requiredPermission: 'invoices:read', module: 'invoices' },
-      { to: '/ksef', labelKey: 'appShell.nav.ksef', icon: ReceiptText, requiredPermission: 'ksef:read', module: 'ksef' },
+      // `/quote-requests`, `/invoices` and `/ksef` were declared here until
+      // feature 091's Phase 4 batch 12. The three modules declare them now and
+      // they arrive through `composeNav` from `modules.generated.ts`, at
+      // weights 400, 500 and 600 — the order they stood in here. The three
+      // `orders` rows above are still the host's, so the registry entries
+      // append after them, which is where these three already sat. That
+      // *templates are reached through the tab strip on the invoices page and
+      // not from here* is still true and is now recorded where the routes are,
+      // in `packages/modules/invoices/src/admin/index.ts`.
+      //
+      // `/ksef`'s glyph changes from `ReceiptText` to `Receipt`:
+      // `KnownIconNameSchema` does not carry the first, and `Receipt` is what
+      // this module's own `open-ksef` palette action has always named.
     ],
   },
   {
@@ -604,24 +610,17 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.orders', href: '/orders' },
     { labelKey: 'appShell.crumb.detail', href: null },
   ] },
-  { test: /^\/invoices\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.invoices', href: null },
-  ] },
-  { test: /^\/invoices\/(?!templates)[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.invoices', href: '/invoices' },
-    { labelKey: 'appShell.crumb.detail', href: null },
-  ] },
-  { test: /^\/quote-requests\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.quoteRequests', href: null },
-  ] },
-  { test: /^\/quote-requests\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.quoteRequests', href: '/quote-requests' },
-    { labelKey: 'appShell.crumb.detail', href: null },
-  ] },
+  // The four `/invoices*` and `/quote-requests*` trails stood here until
+  // feature 091's Phase 4 batch 12. `registryCrumbs` derives all four now, out
+  // of the sidebar entries the two modules declare, and `/ksef` — which never
+  // had a trail at all and fell to the humanised-segment fallback — gains the
+  // label its sidebar row already carries. One operator-visible change, stated
+  // rather than glossed: these four named *Customers* as their section crumb
+  // and linked it to `/organizations`, while the sidebar rows they describe sit
+  // in *Sales*. The derived trail reads the section the module declares, so the
+  // crumb becomes *Sales* linked to `/orders` — the section's first host entry,
+  // which is what every hand-written trail in this table uses and what the
+  // sidebar has said all along.
   { test: /^\/sales-channels\/?$/, build: () => [
     { labelKey: 'appShell.section.channels', href: '/sales-channels' },
     { labelKey: 'appShell.nav.salesChannels', href: null },
@@ -921,7 +920,13 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.priceLists', sub: 'appShell.palette.sub.pricingRules', icon: CircleDollarSign, to: '/price-lists', keywords: 'pricing prices price list cennik', requiredPermission: 'price_lists:read' , module: 'price_lists' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.organizations', sub: 'appShell.palette.sub.customerAccounts', icon: Building2, to: '/organizations', keywords: 'org orgs customer organization organizacja klient', requiredPermission: ['customers:read', 'customers:manage'] , module: 'organizations' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.orders', sub: 'appShell.palette.sub.openOrders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales zamówienia sprzedaż', requiredPermission: 'orders:read' , module: 'orders' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.quoteRequests', sub: 'appShell.palette.sub.customerRfqs', icon: FileText, to: '/quote-requests', keywords: 'rfq quote zapytanie ofertowe', requiredPermission: 'rfqs:handle' , module: 'quote_requests' },
+  // The `/quote-requests` row left here in feature 091's Phase 4 batch 12, and
+  // nothing replaced it: `quote_requests`' manifest already declares
+  // `open-rfq-inbox` with the same destination, the same code and the same
+  // keywords, so the row was a second copy of a declaration the server has been
+  // serving all along — and a copy the server was never asked about, which for
+  // a module an operator can withdraw means a palette that goes on advertising
+  // the screen after the withdrawal.
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży', requiredPermission: 'sales_channels:read' , module: 'sales_channels' },

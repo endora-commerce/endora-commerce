@@ -67,7 +67,13 @@ const PALETTE_MODAL_SOURCE = join(
 /** The three files that render a component out of `PageBuilderHeaderActions.tsx`. */
 const CALLERS = [
   'admin/src/modules/cms/components/PageBuilderEditor.tsx',
-  'admin/src/modules/invoices/templates/InvoiceTemplateEditor.tsx',
+  // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `invoices` took its
+  // admin surface into its package and this caller went with it. This list is
+  // a ledger *about* the files it names rather than one of them, so the merge
+  // request that moves a caller is structurally the one that cannot see the
+  // entry go stale; leaving the old key would have read as *"this editor stopped
+  // rendering the shared chrome"*, which is the one claim the list makes.
+  'packages/modules/invoices/src/admin/pages/InvoiceTemplateEditor.tsx',
   'packages/page-builder-admin/src/email/EmailEditorPane.tsx',
 ];
 

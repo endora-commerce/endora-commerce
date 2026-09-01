@@ -32,9 +32,6 @@ import { BlogPostEditor } from './modules/blog/pages/BlogPostEditor.js';
 import { BlogCategoryTreePage } from './modules/blog/pages/BlogCategoryTreePage.js';
 import { BlogCategoryEditor } from './modules/blog/pages/BlogCategoryEditor.js';
 import { BlogTagListPage } from './modules/blog/pages/BlogTagListPage.js';
-import { RfqList } from './modules/quote_requests/RfqList.js';
-import { RfqCreatePage } from './modules/quote_requests/RfqCreatePage.js';
-import { RfqDetail } from './modules/quote_requests/RfqDetail.js';
 import { ProductsList } from './modules/catalog/ProductsList.js';
 import { ProductEditor } from './modules/catalog/ProductEditor.js';
 import { CategoriesTree } from './modules/catalog/CategoriesTree.js';
@@ -53,16 +50,11 @@ import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalfPage.js';
-import { InvoicesList } from './modules/invoices/InvoicesList.js';
-import { InvoiceDetail } from './modules/invoices/InvoiceDetail.js';
-import { InvoiceTemplatesPage } from './modules/invoices/templates/InvoiceTemplatesPage.js';
-import { KsefPage } from './modules/ksef/pages/KsefPage.js';
 import { ErgonodeConnectionPage } from './modules/pim_ergonode/ErgonodeConnectionPage.js';
 import { ErgonodeAttributeMappingPage } from './modules/pim_ergonode/ErgonodeAttributeMappingPage.js';
 import { ErgonodeCategoryMappingPage } from './modules/pim_ergonode/ErgonodeCategoryMappingPage.js';
 import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
 import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
-import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
 import { PriceListsPage } from './modules/price_lists/PriceListsPage.js';
 import { PriceListDetailPage } from './modules/price_lists/PriceListDetailPage.js';
 import { DisplayModeOverridesPage } from './modules/price_lists/DisplayModeOverridesPage.js';
@@ -240,11 +232,13 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
             The two `kind` props the fragment-editor routes carried live in
             `EmailBlockEditorPage` and `EmailTemplateEditorPage`, because a
             contribution declaration has nowhere to put an argument. */}
-        <Route path="/invoices" element={<InvoicesList />} />
-        <Route path="/invoices/templates" element={<InvoiceTemplatesPage />} />
-        <Route path="/invoices/templates/:id" element={<InvoiceTemplateEditor />} />
-        <Route path="/invoices/:id" element={<InvoiceDetail />} />
-        <Route path="/ksef" element={<KsefPage />} />
+        {/* `/invoices*` — four routes — and `/ksef` were declared here until
+            feature 091's Phase 4 batch 12. Both modules own their screens now
+            and the declarations are in
+            `packages/modules/{invoices,ksef}/src/admin/index.ts`. The invoice
+            detail publishes the `invoice.detail.after` zone that replaced its
+            import of `ksef`'s panel, which is what retires the one key in
+            `backend/scripts/ledgers/cross-module-imports/invoices.ts`. */}
         {/* Feature 068 — Ergonode PIM. Literal segments first, the parametric
             run route last, so a future `/pim-ergonode/:something` cannot swallow
             its siblings the way the feed routes once did. */}
@@ -279,9 +273,9 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/warehouses" element={<WarehousesList />} />
         <Route path="/warehouses/new" element={<WarehouseEditor />} />
         <Route path="/warehouses/:id" element={<WarehouseEditor />} />
-        <Route path="/quote-requests" element={<RfqList />} />
-        <Route path="/quote-requests/new" element={<RfqCreatePage />} />
-        <Route path="/quote-requests/:id" element={<RfqDetail />} />
+        {/* `/quote-requests*` — three routes — were declared here until feature
+            091's Phase 4 batch 12; `quote_requests` owns them now, in
+            `packages/modules/quote_requests/src/admin/index.ts`. */}
         {/*
           `/comparisons`, `/comparisons/:id`, `/api-keys` and `/webhooks` are
           declared by the modules that own them since feature 091's Phase 4 (the

@@ -11,30 +11,11 @@ import {
   PencilLine,
   XCircle,
 } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { cn } from '@/lib/utils';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/ui/page-header';
-import { Textarea } from '@/components/ui/textarea';
-import { ProductPicker } from '@endora-commerce/admin-kit/components';
-import { Section } from '@endora-commerce/admin-kit/ui';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
-import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
-import { deadlineForDays, isValidityDaysInvalid, rfqValidity } from './validity';
+import { apiClient, ApiError, cn, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from '@endora-commerce/admin-kit/ui';
+import { CustomFieldValuesPanel, ProductPicker } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { deadlineForDays, isValidityDaysInvalid, rfqValidity } from '../validity.js';
 
 /**
  * Admin Quote Request detail (feature 008 / T043). Restructured to mirror the
@@ -1097,3 +1078,10 @@ function ModifyCard({
     </Section>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default RfqDetail;

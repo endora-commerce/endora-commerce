@@ -299,7 +299,13 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'admin/src/modules/cms/components/ButtonLinkFields.tsx': 4,
   'admin/src/modules/cms/components/ComponentDragHandle.tsx': 1,
   'admin/src/modules/cms/components/RowLayoutPicker.tsx': 2,
-  'admin/src/modules/invoices/templates/invoice-puck-config.tsx': 6,
+  // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `invoices` took its
+  // admin surface into its package and this file went with it. The count is
+  // untouched; nothing about the strings changed, only their address. This
+  // baseline is a ledger *about* the files it names rather than one of them,
+  // so the merge request that moves a file is structurally the one that
+  // cannot see the entry go stale.
+  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 6,
   // Feature 091, Phase 4 batch three: the screen moved into its module's
   // package and the entry is **re-keyed**, not raised and not dropped. The
   // finding is one LinkedIn URN format example in a `placeholder`, and it is
