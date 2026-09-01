@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ProviderConfig } from '@endora-commerce/contracts';
-import { PageHeader } from '@/components/ui/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/lib/auth';
-import { newsletterClient } from '../api/newsletter-client';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { newsletterClient } from '../api/newsletter-client.js';
 
 export function ProviderSettingsPage(): React.ReactElement {
   const { hasPermission } = useAuth();
@@ -122,3 +118,10 @@ export function ProviderSettingsPage(): React.ReactElement {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default ProviderSettingsPage;

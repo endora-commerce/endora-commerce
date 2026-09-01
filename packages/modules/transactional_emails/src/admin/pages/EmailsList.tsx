@@ -2,17 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, Power, PowerOff } from 'lucide-react';
 import type { TransactionalEmailSummary } from '@endora-commerce/contracts';
-import { PageHeader } from '@/components/ui/page-header';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ApiError } from '@/lib/api-client';
-import { useAuth } from '@/lib/auth';
-import { useTranslation } from '@/i18n/useTranslation';
-import { transactionalEmailsClient } from '../api/transactional-emails-client';
-import { normalize } from '@/lib/text-normalization';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ApiError, normalize, useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
@@ -194,3 +187,10 @@ export function EmailsList(): React.ReactElement {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default EmailsList;

@@ -343,8 +343,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // three modules carried are manifest actions now. Measured on the merge
     // commit rather than on the branch, which is the thing batch 9 and Phase 1b
     // both got wrong on the sibling entry below — see its own note.
+    //
+    // **Batch 11 — `newsletter` and `transactional_emails`, seventeen routes
+    // and fifteen nav entries — takes it to 108**, which is that thirty-two
+    // exactly. Fifteen rather than nine again for the `PALETTE_ITEMS` reason:
+    // nine sidebar rows and six hand-written Navigate rows, of which three
+    // named destinations no manifest action covered and are declarations now.
+    // Measured on the merge commit rather than on the branch.
     files: 2,
-    sites: 140,
+    sites: 108,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],

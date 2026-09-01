@@ -43,10 +43,14 @@ import { resolve } from 'node:path';
  * From the workspace root vitest hands this file, because `import.meta.url` is
  * an `http:` URL under jsdom and `node:fs` cannot read one. Three of the paths
  * below start `../packages/modules/`: feature 091's batch 10 moved `settings`,
- * `dictionaries` and `credentials` into their packages, so a caller and an
- * owner named here can sit on either side of that line. The assertion is
+ * `dictionaries` and `credentials` into their packages and batch 11 moved
+ * `transactional_emails`, so a caller and an owner named here can sit on
+ * either side of that line. The assertion is
  * unchanged — this file's subject is the **request** each caller names, not
- * where the file lives.
+ * where the file lives. Batch 11 moved a fourth, `transactional_emails`, and
+ * that entry follows its file for the same reason — this ledger is derived
+ * *about* files another merge request moves, so the batch that frees an entry
+ * is structurally the batch that cannot see it go stale unless it looks.
  */
 function sourceOf(relativePath: string): string {
   return readFileSync(resolve(process.cwd(), relativePath), 'utf8');
@@ -101,7 +105,7 @@ const EXITS: readonly ClientExit[] = [
     endpoints: ['/api/v1/admin/sales-channels?'],
   },
   {
-    caller: 'src/modules/transactional_emails/pages/EmailEditor.tsx',
+    caller: '../packages/modules/transactional_emails/src/admin/pages/EmailEditor.tsx',
     owner: 'sales_channels',
     binding: 'salesChannelsClient',
     clientPath: 'modules/sales_channels/api/sales-channels-client',

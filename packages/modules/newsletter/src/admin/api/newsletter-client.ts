@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts';
 import type {
   AutomationDetail,

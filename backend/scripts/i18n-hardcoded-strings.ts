@@ -388,26 +388,38 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   //
   // `dictionaries` and `credentials` moved in the same batch and get no entry,
   // because none of their nine files carries a finding.
+  // Feature 091, Phase 4 batch 11 — fifteen entries **re-keyed**, not raised
+  // and not dropped: the same 6, 4, 8, 14, 3, 4, 7, 6, 9, 5, 3, 3, 1, 3 and 4
+  // findings at new addresses, which the two-way ratchet reported in one run as
+  // fifteen regressions at the new keys and fifteen drains at the old ones.
+  //
+  // The debt travels with the file and is untouched. Between them these fifteen
+  // render the whole newsletter surface — subscribers, campaigns, automations,
+  // tags, blocks, the sending provider — and the transactional-email editors
+  // and branding panel, in English whatever language the operator chose.
+  // Translating them is two screens' worth of keys per module and belongs to
+  // whoever repairs those screens, not to a batch whose subject is where the
+  // file lives.
+  'packages/modules/newsletter/src/admin/pages/AutomationBuilder.tsx': 6,
+  'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 4,
+  'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 8,
+  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 14,
+  'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': 3,
+  'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 4,
+  'packages/modules/newsletter/src/admin/pages/ProviderSettingsPage.tsx': 7,
+  'packages/modules/newsletter/src/admin/pages/SubscribersPage.tsx': 6,
+  'packages/modules/newsletter/src/admin/pages/TagsPage.tsx': 9,
+  'packages/modules/transactional_emails/src/admin/components/BrandingPanel.tsx': 5,
+  'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 3,
+  'packages/modules/transactional_emails/src/admin/pages/EmailEditor.tsx': 3,
+  'packages/modules/transactional_emails/src/admin/pages/EmailFragmentEditor.tsx': 1,
+  'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 3,
+  'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 4,
   'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 17,
   'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 22,
   'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
-  'admin/src/modules/newsletter/pages/AutomationBuilder.tsx': 6,
-  'admin/src/modules/newsletter/pages/AutomationsPage.tsx': 4,
-  'admin/src/modules/newsletter/pages/BlocksPage.tsx': 8,
-  'admin/src/modules/newsletter/pages/CampaignEditor.tsx': 14,
-  'admin/src/modules/newsletter/pages/CampaignStats.tsx': 3,
-  'admin/src/modules/newsletter/pages/CampaignsPage.tsx': 4,
-  'admin/src/modules/newsletter/pages/ProviderSettingsPage.tsx': 7,
-  'admin/src/modules/newsletter/pages/SubscribersPage.tsx': 6,
-  'admin/src/modules/newsletter/pages/TagsPage.tsx': 9,
   'admin/src/modules/organizations/panels/RestrictionsPanel.tsx': 1,
   'admin/src/modules/pim_ergonode/ErgonodeConnectionPage.tsx': 1,
-  'admin/src/modules/transactional_emails/components/BrandingPanel.tsx': 5,
-  'admin/src/modules/transactional_emails/pages/EmailBlocksPage.tsx': 3,
-  'admin/src/modules/transactional_emails/pages/EmailEditor.tsx': 3,
-  'admin/src/modules/transactional_emails/pages/EmailFragmentEditor.tsx': 1,
-  'admin/src/modules/transactional_emails/pages/EmailTemplatesPage.tsx': 3,
-  'admin/src/modules/transactional_emails/pages/EmailsList.tsx': 4,
 };
 
 /** One file's measured count against its baseline. */
