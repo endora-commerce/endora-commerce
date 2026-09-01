@@ -231,7 +231,23 @@ describe('CustomFieldValuesPanel — it renders the host\'s bag and hands it bac
   });
 });
 
-describe('CustomFieldValuesPanel — the empty branch, preserved verbatim', () => {
+describe('CustomFieldValuesPanel — an empty entity type and a failed load are not the same screen', () => {
+  /**
+   * These two cases are the whole point of the repair, so they are written as a
+   * pair: the same empty `defs`, reached two ways, must render two different
+   * things. Before it, both rendered nothing — the `defs.length === 0` return
+   * sat above the error `Alert` — so a broken request was indistinguishable
+   * from "no custom fields are defined for this entity type". The case that
+   * pinned that behaviour was deleted with the repair, as its own comment
+   * instructed.
+   *
+   * The one case the old ordering was argued to be accidentally right for, a
+   * 503 from a switched-off owner, cannot occur: `custom_fields` declares
+   * `activation.nonDeactivatable`, so it is in the composition's required set
+   * (issue #258) and refused every disable and uninstall (D-69). There is no
+   * absent state for the panel to render, which is why the repair has two
+   * branches and not three.
+   */
   it('renders nothing when the entity type has no definitions', async () => {
     getSpy.mockResolvedValue({ data: [] });
 
@@ -244,20 +260,65 @@ describe('CustomFieldValuesPanel — the empty branch, preserved verbatim', () =
     expect(container.textContent).toBe('');
   });
 
-  it('renders nothing when the definitions load FAILS — a live defect, preserved', async () => {
-    // The `defs.length === 0` return sits **above** the error `Alert`, so a
-    // failed definitions load is indistinguishable from "no fields defined".
-    // That is a defect of the component as it stood before P4e and repairing it
-    // inside a move would mix two subjects, so the behaviour is asserted here
-    // rather than changed. Delete this case with the repair, not before.
-    getSpy.mockRejectedValue(new Error('network'));
+  it('shows the server\'s own sentence when the definitions load fails', async () => {
+    const { ApiError } = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+      '@endora-commerce/admin-kit/lib',
+    );
+    getSpy.mockRejectedValue(
+      new ApiError(500, {
+        error: {
+          code: 'INTERNAL',
+          message: 'The custom-field definitions could not be read',
+          requestId: 'r',
+        },
+      } as never),
+    );
 
     const { container } = renderWithI18n(
       <CustomFieldValuesPanel entityType="customer" values={{}} save={async (): Promise<void> => {}} />,
       bundle,
     );
 
-    await waitFor(() => expect(getSpy).toHaveBeenCalled());
-    expect(container.textContent).toBe('');
+    // The assertion that matters: not "something rendered", but that what
+    // rendered is telling the operator the read failed.
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('The custom-field definitions could not be read');
+    // And that it is distinguishable from the honest-empty case above, which
+    // renders literally nothing.
+    expect(container.textContent).not.toBe('');
+    expect(screen.getByText(COPY.title)).toBeTruthy();
+    // Nothing to edit and nothing to write, so no save affordance is offered.
+    expect(screen.queryByRole('button', { name: COPY.save })).toBeNull();
+  });
+
+  it('falls back to its own sentence when the failure carries no envelope', async () => {
+    getSpy.mockRejectedValue(new Error('network'));
+
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={{}} save={async (): Promise<void> => {}} />,
+      bundle,
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Failed to load.');
+  });
+
+  it('clears a previous entity type\'s failure when the next read succeeds', async () => {
+    // The empty branch is now decided by `error`, so a failure that outlived the
+    // read which succeeded would render an alert over a screen that is fine.
+    getSpy.mockRejectedValueOnce(new Error('network'));
+
+    const { rerender } = renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={{}} save={async (): Promise<void> => {}} />,
+      bundle,
+    );
+    await screen.findByRole('alert');
+
+    getSpy.mockResolvedValue({ data: [] });
+    rerender(
+      <CustomFieldValuesPanel entityType="order" values={{}} save={async (): Promise<void> => {}} />,
+    );
+
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
   });
 });
