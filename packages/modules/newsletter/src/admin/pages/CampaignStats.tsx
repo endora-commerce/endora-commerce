@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { EChartsOption } from 'echarts';
 import type { CampaignStats as CampaignStatsDto } from '@endora-commerce/contracts';
-import { PageHeader } from '@/components/ui/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { EChart } from '@/components/charts/echart';
-import { useAuth } from '@/lib/auth';
-import { newsletterClient } from '../api/newsletter-client';
+import { EChart } from '@endora-commerce/admin-kit/components';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { newsletterClient } from '../api/newsletter-client.js';
 
 export function CampaignStats(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
@@ -95,3 +93,10 @@ export function CampaignStats(): React.ReactElement {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default CampaignStats;

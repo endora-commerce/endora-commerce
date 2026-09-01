@@ -51,20 +51,6 @@ import { OnlineCustomers } from './modules/customers/OnlineCustomers.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
-import { EmailsList } from './modules/transactional_emails/pages/EmailsList.js';
-import { EmailEditor } from './modules/transactional_emails/pages/EmailEditor.js';
-import { EmailBlocksPage } from './modules/transactional_emails/pages/EmailBlocksPage.js';
-import { EmailTemplatesPage } from './modules/transactional_emails/pages/EmailTemplatesPage.js';
-import { EmailFragmentEditor } from './modules/transactional_emails/pages/EmailFragmentEditor.js';
-import { SubscribersPage as NewsletterSubscribersPage } from './modules/newsletter/pages/SubscribersPage.js';
-import { CampaignsPage as NewsletterCampaignsPage } from './modules/newsletter/pages/CampaignsPage.js';
-import { CampaignEditor as NewsletterCampaignEditor } from './modules/newsletter/pages/CampaignEditor.js';
-import { AutomationsPage as NewsletterAutomationsPage } from './modules/newsletter/pages/AutomationsPage.js';
-import { AutomationBuilder as NewsletterAutomationBuilder } from './modules/newsletter/pages/AutomationBuilder.js';
-import { TagsPage as NewsletterTagsPage } from './modules/newsletter/pages/TagsPage.js';
-import { CampaignStats as NewsletterCampaignStats } from './modules/newsletter/pages/CampaignStats.js';
-import { BlocksPage as NewsletterBlocksPage } from './modules/newsletter/pages/BlocksPage.js';
-import { ProviderSettingsPage as NewsletterProviderPage } from './modules/newsletter/pages/ProviderSettingsPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalfPage.js';
 import { InvoicesList } from './modules/invoices/InvoicesList.js';
@@ -247,23 +233,13 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/orders/quick-order" element={<QuickOrderOnBehalfPage />} />
         <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
         <Route path="/orders/:id" element={<OrderDetail />} />
-        <Route path="/transactional-emails" element={<EmailsList />} />
-        <Route path="/transactional-emails/blocks" element={<EmailBlocksPage />} />
-        <Route path="/transactional-emails/blocks/:id" element={<EmailFragmentEditor kind="block" />} />
-        <Route path="/transactional-emails/templates" element={<EmailTemplatesPage />} />
-        <Route path="/transactional-emails/templates/:id" element={<EmailFragmentEditor kind="template" />} />
-        <Route path="/transactional-emails/:code" element={<EmailEditor />} />
-        <Route path="/newsletter/subscribers" element={<NewsletterSubscribersPage />} />
-        <Route path="/newsletter/campaigns" element={<NewsletterCampaignsPage />} />
-        <Route path="/newsletter/campaigns/new" element={<NewsletterCampaignEditor />} />
-        <Route path="/newsletter/campaigns/:id" element={<NewsletterCampaignEditor />} />
-        <Route path="/newsletter/campaigns/:id/stats" element={<NewsletterCampaignStats />} />
-        <Route path="/newsletter/automations" element={<NewsletterAutomationsPage />} />
-        <Route path="/newsletter/automations/new" element={<NewsletterAutomationBuilder />} />
-        <Route path="/newsletter/automations/:id" element={<NewsletterAutomationBuilder />} />
-        <Route path="/newsletter/tags" element={<NewsletterTagsPage />} />
-        <Route path="/newsletter/blocks" element={<NewsletterBlocksPage />} />
-        <Route path="/newsletter/provider" element={<NewsletterProviderPage />} />
+        {/* `/transactional-emails*` and `/newsletter/*` were declared here —
+            six and eleven routes — until feature 091's Phase 4 batch 11. Both
+            modules own their screens now and their route declarations are in
+            `packages/modules/{transactional_emails,newsletter}/src/admin/index.ts`.
+            The two `kind` props the fragment-editor routes carried live in
+            `EmailBlockEditorPage` and `EmailTemplateEditorPage`, because a
+            contribution declaration has nowhere to put an argument. */}
         <Route path="/invoices" element={<InvoicesList />} />
         <Route path="/invoices/templates" element={<InvoiceTemplatesPage />} />
         <Route path="/invoices/templates/:id" element={<InvoiceTemplateEditor />} />

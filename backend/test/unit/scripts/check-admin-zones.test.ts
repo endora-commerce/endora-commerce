@@ -312,6 +312,90 @@ describe('check-admin-zones — one red proof per finding', () => {
       expect(findings[0]?.message).toContain('cannot read');
     });
 
+    it("a packaged module's admin layer, in both spellings of the coupling", () => {
+      // The half the tree moved out from under. Renders and contributions came
+      // off `layout.moduleWalkRoots` from the day P4a landed and this walk read
+      // `admin/src` alone, so a module that had *become a package* could gate on
+      // another module's id and render out of another module's namespace with
+      // nothing in the estate reading either. 37 of the module packages ship an
+      // admin layer and every batch of Story 3 adds one.
+      const findings = adminZoneFindings(
+        baseline({
+          files: [
+            ...baseline().files,
+            {
+              path: 'packages/modules/returns/src/admin/pages/ReturnDetail.tsx',
+              source: [
+                'const isVisible = useSurfaceVisibility();',
+                "const show = isVisible({ module: 'inpost' });",
+                "const t = useTranslation('orders');",
+              ].join('\n'),
+              roles: ['module'],
+              owner: 'returns',
+            },
+          ],
+          registered: ['catalog', 'returns', 'orders', 'inpost'],
+        }),
+        'foreign-module-id',
+      );
+      expect(findings.map((finding) => finding.key).sort()).toEqual([
+        'packages/modules/returns/src/admin/pages/ReturnDetail.tsx:module-namespace:orders',
+        'packages/modules/returns/src/admin/pages/ReturnDetail.tsx:visibility-gate:inpost',
+      ]);
+    });
+
+    it("a packaged module naming its own id is not foreign, in either spelling", () => {
+      // The attribution half of the widening: a package's owner is the
+      // `endora.id` it declares about itself, so its own namespace and its own
+      // gate are the file doing its job. Without this the widening would report
+      // every packaged screen for rendering out of its own bundle.
+      expect(
+        adminZoneFindings(
+          baseline({
+            files: [
+              ...baseline().files,
+              {
+                path: 'packages/modules/returns/src/admin/pages/ReturnDetail.tsx',
+                source: [
+                  'const isVisible = useSurfaceVisibility();',
+                  "const show = isVisible({ module: 'returns' });",
+                  "const t = useTranslation('returns');",
+                ].join('\n'),
+                roles: ['module'],
+                owner: 'returns',
+              },
+            ],
+            registered: ['catalog', 'returns'],
+          }),
+          'foreign-module-id',
+        ),
+      ).toHaveLength(0);
+    });
+
+    it('a computed namespace in an owned file is not a finding', () => {
+      // Deliberately the opposite answer to the kit's and the family's, and the
+      // reason is the owner: a file with an id of its own may perfectly well be
+      // naming that id through the expression this walk cannot read, so
+      // refusing it would report a module for rendering out of its own bundle.
+      expect(
+        adminZoneFindings(
+          baseline({
+            files: [
+              ...baseline().files,
+              {
+                path: 'packages/modules/returns/src/admin/pages/ReturnDetail.tsx',
+                source: 'const t = useTranslation(namespace);',
+                roles: ['module'],
+                owner: 'returns',
+              },
+            ],
+            registered: ['catalog', 'returns'],
+          }),
+          'foreign-module-id',
+        ),
+      ).toHaveLength(0);
+    });
+
     it("a module gating on its own id is not foreign", () => {
       expect(
         adminZoneFindings(
@@ -413,6 +497,7 @@ describe('check-admin-zones — the refusals', () => {
     kitFiles: 60,
     translationSites: 200,
     moduleIdCount: 69,
+    moduleAdminLayers: 37,
   };
 
   it('reports nothing to refuse on a complete run', () => {
@@ -427,10 +512,21 @@ describe('check-admin-zones — the refusals', () => {
     ['no kit source', { kitFiles: 0 }, 'kit-namespace population'],
     ['no useTranslation site', { translationSites: 0 }, 'unwatched tree'],
     ['no module id', { moduleIdCount: 0 }, 'could ever be foreign'],
+    ['no module admin layer', { moduleAdminLayers: 0 }, 'no independent author'],
   ])('refuses a run with %s', (_label, override, fragment) => {
     const reason = vacuousReason({ ...complete, ...override });
     expect(reason).not.toBeNull();
     expect(reason).toContain(fragment);
+  });
+
+  it('does not refuse a workspace that has no admin application at all', () => {
+    // `null` and `0` are different answers on purpose: a workspace with no admin
+    // application has no generated registry, so there is nothing to be short of
+    // and the `module-admin` token is omitted rather than printed `0/0` — which
+    // `read-size.ts` would refuse as `no-expectation` on every run. A workspace
+    // that *has* one whose registry names nothing has lost the floor's
+    // independent author, and that is the case above.
+    expect(vacuousReason({ ...complete, moduleAdminLayers: null })).toBeNull();
   });
 });
 

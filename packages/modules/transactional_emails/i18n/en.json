@@ -45,5 +45,10 @@
   "components.EmailTable": "Table",
   "components.EmailSocial": "Social links",
   "components.EmailCallout": "Callout",
-  "components.EmailFooterLegal": "Footer / legal"
+  "components.EmailFooterLegal": "Footer / legal",
+  "actions.openEmailBlocks.label": "Email blocks",
+  "actions.openEmailBlocks.description": "Reusable email content blocks",
+  "nav.transactionalEmails.label": "Transactional Emails",
+  "nav.emailBlocks.label": "Email Blocks",
+  "nav.emailTemplates.label": "Email Templates"
 }

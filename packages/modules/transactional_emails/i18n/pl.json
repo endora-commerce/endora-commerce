@@ -45,5 +45,10 @@
   "components.EmailTable": "Tabela",
   "components.EmailSocial": "Media społecznościowe",
   "components.EmailCallout": "Wyróżnienie",
-  "components.EmailFooterLegal": "Stopka / informacje prawne"
+  "components.EmailFooterLegal": "Stopka / informacje prawne",
+  "actions.openEmailBlocks.label": "Bloki maili",
+  "actions.openEmailBlocks.description": "Bloki treści maili do wielokrotnego użytku",
+  "nav.transactionalEmails.label": "Maile transakcyjne",
+  "nav.emailBlocks.label": "Bloki maili",
+  "nav.emailTemplates.label": "Szablony maili"
 }

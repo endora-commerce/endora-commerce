@@ -122,6 +122,9 @@ importers:
       '@endora-commerce/mod-mfa':
         specifier: workspace:*
         version: link:../packages/modules/mfa
+      '@endora-commerce/mod-newsletter':
+        specifier: workspace:*
+        version: link:../packages/modules/newsletter
       '@endora-commerce/mod-payment-methods':
         specifier: workspace:*
         version: link:../packages/modules/payment_methods
@@ -161,6 +164,9 @@ importers:
       '@endora-commerce/mod-tpay':
         specifier: workspace:*
         version: link:../packages/modules/tpay
+      '@endora-commerce/mod-transactional-emails':
+        specifier: workspace:*
+        version: link:../packages/modules/transactional_emails
       '@endora-commerce/mod-webhooks':
         specifier: workspace:*
         version: link:../packages/modules/webhooks
@@ -2413,15 +2419,24 @@ importers:
 
   packages/modules/newsletter:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
       '@endora-commerce/email-components':
         specifier: workspace:*
         version: link:../../email-components
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:*
+        version: link:../../page-builder-admin
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
@@ -2437,9 +2452,15 @@ importers:
       '@types/nodemailer':
         specifier: ^7.0.4
         version: 7.0.11
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
+      echarts:
+        specifier: ^6.1.0
+        version: 6.1.0
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
@@ -2449,6 +2470,12 @@ importers:
       nodemailer:
         specifier: ^7.0.9
         version: 7.0.13
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -3454,15 +3481,24 @@ importers:
 
   packages/modules/transactional_emails:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
       '@endora-commerce/email-components':
         specifier: workspace:*
         version: link:../../email-components
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:*
+        version: link:../../page-builder-admin
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
@@ -3475,9 +3511,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

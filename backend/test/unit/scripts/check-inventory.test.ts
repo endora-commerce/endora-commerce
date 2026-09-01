@@ -2667,6 +2667,12 @@ const CHECKS: readonly CheckEntry[] = [
     // entering as **source text**: the check's chain is a declaration parser,
     // four site walks and six classifiers, and a fixture handing in sites would
     // prove the classifiers and leave every walk above them unproven.
+    //
+    // The sixth's populations gained a **module-owned** one after P4a: the
+    // foreign-id walk read `admin/src` and the admin-ui family while the render
+    // half read every module walk root, so a screen moving into its module's
+    // package left this predicate behind — one directory per batch, in the
+    // direction that looks like progress. Its proof is the last `red` entry.
     script: 'backend/scripts/check-admin-zones.ts',
     npmScript: 'check:admin-zones',
     job: 'quality',
@@ -2819,6 +2825,28 @@ const CHECKS: readonly CheckEntry[] = [
                 roles: ['kit'],
               },
             ],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      // The same predicate over a **module's own** sources — the population the
+      // tree moved into and this walk did not follow until it was widened. The
+      // proof is a module package's admin layer, which is where Story 3 puts a
+      // screen and where neither spelling of the coupling was being read.
+      'foreign-module-id:module-owned': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/modules/settings/src/admin/components/ConfigurationReferenceInput.tsx',
+                source:
+                  "const isVisible = useSurfaceVisibility();\nconst show = isVisible({ module: 'credentials' });",
+                roles: ['module'],
+                owner: 'settings',
+              },
+            ],
+            registered: ['catalog', 'settings', 'credentials'],
           }),
           'foreign-module-id',
         ),
@@ -7228,11 +7256,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // route count — the ratchet's whole claim is that it fails either way.
       'backend/scripts/check-admin-registrations.ts': 9,
       'backend/scripts/check-admin-surface.ts': 15,
-      // Five zone findings, then four for the sixth: the `foreign-module-id`
-      // predicate has three populations and an unreadable case, and one proof over
-      // the whole finding would let three of the four go blind behind the first's
-      // red. Plus both stale directions of its ledger.
-      'backend/scripts/check-admin-zones.ts': 11,
+      // Five zone findings, then five for the sixth: the `foreign-module-id`
+      // predicate has three populations, an unreadable case and — since the walk
+      // widened to a module's own sources — the module-owned spelling of the
+      // coupling, and one proof over the whole finding would let four of the five
+      // go blind behind the first's red. Plus both stale directions of its ledger.
+      'backend/scripts/check-admin-zones.ts': 12,
       // Four findings and the discrimination the conditional turns on: a module
       // shipping neither bundle is exempt, and a run of nothing but such
       // modules is refused rather than reported clean.

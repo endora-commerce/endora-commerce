@@ -13,5 +13,15 @@
   "newsletter.editor.viewportNarrow": "Narrow (320px)",
   "newsletter.editor.insertVariable": "Insert variable",
   "newsletter.editor.variable": "Variable",
-  "newsletter.editor.livePreview": "Live HTML preview"
+  "newsletter.editor.livePreview": "Live HTML preview",
+  "actions.openCampaigns.label": "Newsletter campaigns",
+  "actions.openCampaigns.description": "Newsletter campaigns & sends",
+  "actions.openAutomations.label": "Newsletter automations",
+  "actions.openAutomations.description": "Automated newsletter workflows",
+  "nav.subscribers.label": "Subscribers",
+  "nav.campaigns.label": "Campaigns",
+  "nav.automations.label": "Automations",
+  "nav.tags.label": "Tags & Fields",
+  "nav.blocks.label": "Blocks",
+  "nav.provider.label": "Provider"
 }

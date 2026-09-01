@@ -343,8 +343,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // three modules carried are manifest actions now. Measured on the merge
     // commit rather than on the branch, which is the thing batch 9 and Phase 1b
     // both got wrong on the sibling entry below — see its own note.
+    //
+    // **Batch 11 — `newsletter` and `transactional_emails`, seventeen routes
+    // and fifteen nav entries — takes it to 108**, which is that thirty-two
+    // exactly. Fifteen rather than nine again for the `PALETTE_ITEMS` reason:
+    // nine sidebar rows and six hand-written Navigate rows, of which three
+    // named destinations no manifest action covered and are declarations now.
+    // Measured on the merge commit rather than on the branch.
     files: 2,
-    sites: 140,
+    sites: 108,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],
@@ -373,22 +380,35 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (twenty out, nine shims and `newsletter`'s own variable vocabulary back
     // in), plus the tree's own growth since 2187 was written.
     //
-    // `sites` does not move, and the reason is the point rather than a
+    // `sites` does not move with P5b, and the reason is the point rather than a
     // coincidence. The package's three `useTranslation` calls all name `core`,
     // which is `_i18n`'s bundle under a synthetic alias and is no module id, so
     // none of them is a `foreign-module-id` site — `ColorPaletteModal`'s two
-    // read `cms` until this merge request moved the fifteen
+    // read `cms` until that merge request moved the fifteen
     // `pageBuilder.colorPalette.*` keys to `core`, exactly as P5a moved the
     // other thirty-three, and had they been left they would be two findings in
     // a package that owns no module id at all.
-    // **2206 -> 2208 with P9**: one file, the `FulfilmentStrategyPicker` the kit
-    // publishes, plus the tree's own growth since 2206 was written. The admin
-    // side of that move is a wash — the old path stays as a shim — and `sites`
-    // does not move at all, because the component reads `useTranslation('core')`
-    // and named no module id before or after, which is the whole of why §10.2
-    // routed it to the kit rather than to `./admin-ui`.
-    files: 2208,
-    sites: 15,
+    //
+    // **15 -> 16 when the foreign-id walk widened to a module's own sources.**
+    // `files` does not move with *that* one, and it is the measurement rather
+    // than an aside: the module walk roots were already the *render* half's
+    // population, so the widening opens no new file — it reads the ones it had,
+    // for a question it was not asking. What moves is `sites`, by exactly one:
+    // the `visibility-gate` on `credentials` that batch 10 wrote into
+    // `mod-settings`' admin layer, correct and outside every instrument in this
+    // estate from the day it landed.
+    //
+    // **2206 -> 2212, of which P9 is one.** The one is this merge request's:
+    // the `FulfilmentStrategyPicker` the kit publishes, its old path staying as
+    // a shim, so the admin side of the move is a wash. `sites` does not move at
+    // all, because the component reads `useTranslation('core')` and named no
+    // module id before or after — which is the whole of why §10.2 routed it to
+    // the kit rather than to `./admin-ui`. The other five arrived with batch 11
+    // and were not re-recorded there; the split is derived rather than
+    // apportioned, this merge request's delta being measured on its own base
+    // before the merge (2207 -> 2208) and the merged tree read after it.
+    files: 2212,
+    sites: 16,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -398,7 +418,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // so the first non-empty expectation this token could carry — the reasoning,
     // including why P5c's *"and carries a ledger key"* condition is dropped
     // rather than waited on, is on the `coverage` block in the check itself.
-    sources: ['zone-enum', 'admin-ui', 'manifest-index'],
+    // `module-admin` is the floor that moved with the widened foreign-id walk,
+    // and it exists because neither of the others can see what it sees:
+    // `manifest-index` is satisfied by any file a registered module contributes,
+    // which for a module package is its backend sources, so a package's *admin
+    // layer* dropping out of the walk leaves it green, and `admin-ui` counts
+    // packages that are not modules at all. Its expectation is the generated
+    // admin contribution registry's — a second program's answer to "which
+    // packages ship admin code, and under which subpath" — and it grows with
+    // every batch of Story 3.
+    sources: ['zone-enum', 'admin-ui', 'manifest-index', 'module-admin'],
   },
   'backend/scripts/check-bundle-pairing.ts': {
     prefix: '[bundle-pairing]',
@@ -560,16 +589,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // rewritten specifier is still a specifier, which is precisely why
     // `check:module-boundary` and not this check is where they were ledgered.
     //
-    // **P9 takes `sites` to 2403 and leaves `files` at 354**, and it is the P8
-    // shape again in miniature: one published component, a shim at the old path,
-    // no directory moved. The -5 accounts exactly and all of it comes off the
-    // published file — `FulfilmentStrategyPicker` had seven specifiers (`react`,
-    // `lucide-react`, `@endora-commerce/contracts` and four `@/…` reaches) and
-    // its shim has two. Its two consumers are a wash, one specifier before and
-    // one after, which is why the two `cross-module-imports` keys they retire
-    // move this number by nothing: a rewritten specifier is still a specifier.
-    files: 354,
-    sites: 2403,
+    // **354 -> 358 and 2408 -> 2362, and P9 is -5 of the -46.** This merge
+    // request is the P8 shape again in miniature: one published component, a
+    // shim at the old path, no directory moved. Its -5 accounts exactly and all
+    // of it comes off the published file — `FulfilmentStrategyPicker` had seven
+    // specifiers (`react`, `lucide-react`, `@endora-commerce/contracts` and
+    // four `@/…` reaches) and its shim has two. Its two consumers are a wash,
+    // one specifier before and one after, which is why the two
+    // `cross-module-imports` keys they retire move this number by nothing: a
+    // rewritten specifier is still a specifier.
+    //
+    // The other -41, with the +4 files, is **batch 11** — `newsletter` and
+    // `transactional_emails` moving their admin directories into their packages
+    // — which did not re-record it. That is the silent fall this entry keeps
+    // warning about, inside the band and therefore invisible until the next
+    // merge request had to read the line. The split is derived rather than
+    // apportioned: P9's delta was measured on its own base before the merge
+    // (2408 -> 2403 at `6fa00d9a0`) and the merged tree read after it.
+    files: 358,
+    sites: 2362,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not

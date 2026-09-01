@@ -1210,7 +1210,13 @@ describe('check-diacritic-folds — the tree it guards', () => {
     'packages/modules/product_feeds/src/backend/services/feed-template-io.service.ts',
     'packages/modules/pim_ergonode/src/backend/services/import/category-phase.ts',
     'packages/modules/catalog/src/backend/services/catalog-admin.service.ts',
-    'admin/src/modules/newsletter/pages/TagsPage.tsx',
+    // Feature 091, Phase 4 batch 11 — re-keyed, not dropped: `newsletter` took
+    // its admin surface into its package and this screen went with it. The
+    // slug it builds is the tag/field code an operator addresses a tag by, and
+    // the fold is issue #239's repair; a batch that moved the file and left
+    // this key would have read as *"the site stopped slugifying"*, which is the
+    // one claim this list exists to make.
+    'packages/modules/newsletter/src/admin/pages/TagsPage.tsx',
     // Feature 091, P5b — the CMS/e-mail template `code` prefill. It was
     // `cms-template-layout`'s `codeFromTemplateName`, a one-line wrapper over
     // this call with `maxLength: 180`;

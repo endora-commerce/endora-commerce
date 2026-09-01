@@ -159,5 +159,27 @@ export const manifest = defineModuleManifest({
       keywords: ['email', 'templates', 'layout', 'transactional'],
       weight: 241,
     },
+    /**
+     * The one `AppShell.tsx` `PALETTE_ITEMS` row feature 091's batch 11
+     * deletes, arriving as a declaration (Principle XVI) — same destination,
+     * same code, same keywords. Its two siblings were declared already, so
+     * this is the row that would otherwise have gone silently.
+     *
+     * This module is `nonDeactivatable`, so the row it replaces never
+     * advertised an absent module; what the declaration buys here is the other
+     * axis, the one a lock leaves — the server resolves the operator's
+     * permission before the entry reaches the palette, and a hand-written row
+     * carried its own copy of that answer.
+     */
+    {
+      id: 'open-email-blocks',
+      labelKey: 'actions.openEmailBlocks.label',
+      descriptionKey: 'actions.openEmailBlocks.description',
+      icon: 'Inbox',
+      targetRoute: '/transactional-emails/blocks',
+      requiredPermission: 'transactional_emails:read',
+      keywords: ['email', 'blocks', 'fragments', 'bloki'],
+      weight: 242,
+    },
   ],
 });

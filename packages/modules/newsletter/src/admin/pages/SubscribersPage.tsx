@@ -1,13 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { ScopeNoticeCode, SubscriberSummary } from '@endora-commerce/contracts';
-import { PageHeader } from '@/components/ui/page-header';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ScopeNotice } from '@/components/scope-notice/ScopeNotice';
-import { useAuth } from '@/lib/auth';
-import { newsletterClient } from '../api/newsletter-client';
+import { ScopeNotice } from '@endora-commerce/admin-kit/components';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { newsletterClient } from '../api/newsletter-client.js';
 
 export function SubscribersPage(): React.ReactElement {
   const { hasPermission } = useAuth();
@@ -131,3 +127,10 @@ export function SubscribersPage(): React.ReactElement {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default SubscribersPage;

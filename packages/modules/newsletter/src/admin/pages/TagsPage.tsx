@@ -1,13 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { slugify, type CustomFieldType, type NewsletterCustomField, type NewsletterTag } from '@endora-commerce/contracts';
-import { PageHeader } from '@/components/ui/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/lib/auth';
-import { newsletterClient } from '../api/newsletter-client';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { newsletterClient } from '../api/newsletter-client.js';
 
 /** Backend requires tag codes / field keys to match this pattern. */
 const CODE_RE = /^[a-z][a-z0-9_]*$/;
@@ -303,3 +298,10 @@ export function TagsPage(): React.ReactElement {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default TagsPage;

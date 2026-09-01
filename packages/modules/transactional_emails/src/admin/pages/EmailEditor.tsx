@@ -5,16 +5,9 @@ import type {
   SalesChannelListResponse,
   TransactionalEmailDetail,
 } from '@endora-commerce/contracts';
-import { PageHeader } from '@/components/ui/page-header';
-import { Button } from '@/components/ui/button';
-import { SaveButtonGroup } from '@/components/ui/save-button-group';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { apiClient } from '@/lib/api-client';
-import { useAuth } from '@/lib/auth';
-import { transactionalEmailsClient } from '../api/transactional-emails-client';
+import { apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, SaveButtonGroup, Select } from '@endora-commerce/admin-kit/ui';
+import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
 import {
   EmailSubjectWithVariables,
   EmailVariablesProvider,
@@ -23,7 +16,7 @@ import {
   listEmailTemplatesForApply,
   loadEmailTemplateCanvas,
 } from '@endora-commerce/page-builder-admin/email';
-import { EmailEditorPane } from '../components/EmailEditorPane';
+import { EmailEditorPane } from '../components/EmailEditorPane.js';
 
 /**
  * List sales channels (feature 091, P6).
@@ -247,3 +240,10 @@ export function EmailEditor(): React.ReactElement {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default EmailEditor;

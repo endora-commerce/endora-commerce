@@ -1,25 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { EmailBlockSummary } from '@endora-commerce/contracts';
-import { PageHeader } from '@/components/ui/page-header';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/lib/auth';
-import { transactionalEmailsClient } from '../api/transactional-emails-client';
+import type { EmailTemplateSummary } from '@endora-commerce/contracts';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
 
-export function EmailBlocksPage(): React.ReactElement {
+export function EmailTemplatesPage(): React.ReactElement {
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('transactional_emails:write');
-  const [items, setItems] = useState<EmailBlockSummary[]>([]);
+  const [items, setItems] = useState<EmailTemplateSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
 
   const reload = (): void => {
     transactionalEmailsClient
-      .listBlocks()
+      .listTemplates()
       .then((res) => setItems(res.items))
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   };
@@ -28,7 +24,7 @@ export function EmailBlocksPage(): React.ReactElement {
   const create = async (): Promise<void> => {
     setError(null);
     try {
-      await transactionalEmailsClient.createBlock({ code, name, languages: ['en-US', 'pl-PL'] });
+      await transactionalEmailsClient.createTemplate({ code, name, languages: ['en-US', 'pl-PL'] });
       setCode('');
       setName('');
       reload();
@@ -38,9 +34,9 @@ export function EmailBlocksPage(): React.ReactElement {
   };
 
   const remove = async (id: string): Promise<void> => {
-    if (!window.confirm('Delete this block?')) return;
+    if (!window.confirm('Delete this template?')) return;
     try {
-      await transactionalEmailsClient.deleteBlock(id);
+      await transactionalEmailsClient.deleteTemplate(id);
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -50,14 +46,14 @@ export function EmailBlocksPage(): React.ReactElement {
   if (!hasPermission('transactional_emails:read')) {
     return (
       <Alert>
-        <AlertDescription>You do not have permission to view email blocks.</AlertDescription>
+        <AlertDescription>You do not have permission to view email templates.</AlertDescription>
       </Alert>
     );
   }
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Email Blocks" description="Reusable email-safe blocks (e.g. header, footer)." />
+      <PageHeader title="Email Templates" description="Reusable email-safe templates." />
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -69,7 +65,7 @@ export function EmailBlocksPage(): React.ReactElement {
             <Input placeholder="code" value={code} onChange={(e) => setCode(e.target.value)} className="max-w-[200px]" />
             <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} className="max-w-[240px]" />
             <Button onClick={() => void create()} disabled={!code || !name}>
-              Create block
+              Create template
             </Button>
           </CardContent>
         </Card>
@@ -82,24 +78,22 @@ export function EmailBlocksPage(): React.ReactElement {
                 <th className="p-3 font-medium">Name</th>
                 <th className="p-3 font-medium">Code</th>
                 <th className="p-3 font-medium">Scope</th>
-                <th className="p-3 font-medium">System</th>
                 <th className="p-3" />
               </tr>
             </thead>
             <tbody>
-              {items.map((b) => (
-                <tr key={b.id} className="border-b last:border-0">
+              {items.map((t) => (
+                <tr key={t.id} className="border-b last:border-0">
                   <td className="p-3">
-                    <Link className="font-medium text-primary hover:underline" to={`/transactional-emails/blocks/${b.id}`}>
-                      {b.name}
+                    <Link className="font-medium text-primary hover:underline" to={`/transactional-emails/templates/${t.id}`}>
+                      {t.name}
                     </Link>
                   </td>
-                  <td className="p-3 font-mono text-xs">{b.code}</td>
-                  <td className="p-3">{b.scope}</td>
-                  <td className="p-3">{b.isSystem ? 'Yes' : '—'}</td>
+                  <td className="p-3 font-mono text-xs">{t.code}</td>
+                  <td className="p-3">{t.scope}</td>
                   <td className="p-3 text-right">
-                    {canWrite && !b.isSystem ? (
-                      <Button variant="outline" size="sm" onClick={() => void remove(b.id)}>
+                    {canWrite && !t.isSystem ? (
+                      <Button variant="outline" size="sm" onClick={() => void remove(t.id)}>
                         Delete
                       </Button>
                     ) : null}
@@ -113,3 +107,10 @@ export function EmailBlocksPage(): React.ReactElement {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default EmailTemplatesPage;
