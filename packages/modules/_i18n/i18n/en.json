@@ -206,6 +206,8 @@
   "appShell.brand": "B2B Platform",
   "appShell.brand.dashboardLink": "Go to dashboard",
   "appShell.brand.text": "Endora Commerce",
+  "appShell.brand.textPrimary": "Endora",
+  "appShell.brand.textAccent": "Commerce",
   "appShell.collapse.collapse": "Collapse",
   "appShell.collapse.expand": "Expand",
   "appShell.crumb.audit": "Audit",

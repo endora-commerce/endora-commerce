@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFocusTrap } from './hooks/useFocusTrap.js';
+import { BrandLogo } from './BrandLogo';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Boxes,
@@ -1122,8 +1123,15 @@ export function AppShell(): ReactNode {
           aria-label={t('appShell.brand.dashboardLink')}
           title={railMode ? t('appShell.brand.text') : undefined}
         >
-          <span className="b2b-sidebar__brand-logo">EC</span>
-          <span className="b2b-sidebar__brand-text">{t('appShell.brand.text')}</span>
+          <span className="b2b-sidebar__brand-logo">
+            <BrandLogo label={t('appShell.brand.text')} />
+          </span>
+          <span className="b2b-sidebar__brand-text">
+            {t('appShell.brand.textPrimary')}{' '}
+            <span className="b2b-sidebar__brand-text-accent">
+              {t('appShell.brand.textAccent')}
+            </span>
+          </span>
         </NavLink>
 
         <div className="b2b-sidebar__search">
