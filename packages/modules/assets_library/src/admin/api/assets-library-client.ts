@@ -4,7 +4,7 @@
 // `@endora-commerce/contracts/assets-library`. Components consume this rather than
 // touching `apiClient` directly.
 
-import { apiClient } from '@/lib/api-client';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type {
   AssetDetail,
   AssetFolder,

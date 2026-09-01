@@ -1,24 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
-import { ApiError } from '@/lib/api-client';
-import { customFieldsClient } from './api/custom-fields-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
-import { PageHeader } from '@/components/ui/page-header';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { customFieldsClient } from '../api/custom-fields-client.js';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type {
   CustomFieldDefinitionDto,
   CustomFieldEntityTypeInfo,
@@ -45,8 +31,15 @@ const SELECT_TYPES = new Set<CustomFieldValueType>(['select', 'multiselect']);
 
 /** Custom-field definition management (feature 055). List + create per entity type. */
 export function CustomFieldsPage(): ReactNode {
-  const t = useTranslation('core');
-  const tcf = useTranslation('custom_fields');
+  // One namespace, this module's own (feature 091, R8). The screen used to
+  // read `customFields.title` and `customFields.description` out of the shared
+  // `core` bundle beside four keys of its own; both were already written in
+  // this module's `i18n/{en,pl}.json`, so the `core` reader was a second copy
+  // of two strings and nothing else. `customFields.title` and
+  // `customFields.save` stay in `_i18n` because
+  // `@endora-commerce/admin-kit`'s `CustomFieldValuesPanel` renders them, and a
+  // kit component reads the shared namespace by construction.
+  const t = useTranslation('custom_fields');
   const [entityTypes, setEntityTypes] = useState<CustomFieldEntityTypeInfo[]>(
     FALLBACK_ENTITY_TYPES,
   );
@@ -152,7 +145,7 @@ export function CustomFieldsPage(): ReactNode {
           >
             {entityTypes.map((info) => (
               <option key={info.entityType} value={info.entityType}>
-                {tcf(info.labelKey)}
+                {t(info.labelKey)}
               </option>
             ))}
           </Select>
@@ -162,9 +155,9 @@ export function CustomFieldsPage(): ReactNode {
       {managedBy && (
         <Alert>
           <AlertDescription className="flex flex-wrap items-center gap-2">
-            <span>{tcf('customFields.managedBy.notice')}</span>
+            <span>{t('customFields.managedBy.notice')}</span>
             <Link to={managedBy.route} className="font-medium underline underline-offset-4">
-              {tcf(managedBy.labelKey)}
+              {t(managedBy.labelKey)}
             </Link>
           </AlertDescription>
         </Alert>
@@ -277,3 +270,10 @@ export function CustomFieldsPage(): ReactNode {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default CustomFieldsPage;

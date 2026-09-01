@@ -14,7 +14,6 @@ import {
   FileText,
   HelpCircle,
   Home as HomeIcon,
-  Image as ImageIcon,
   Menu,
   Inbox,
   KeyRound,
@@ -23,7 +22,6 @@ import {
   ListChecks,
   LogOut,
   Newspaper,
-  Layers,
   Package,
   PackageOpen,
   PanelLeftClose,
@@ -156,13 +154,6 @@ const NAV: NavSection[] = [
       { to: '/catalog/attributes', labelKey: 'appShell.nav.attributes', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
       { to: '/catalog/attribute-sets', labelKey: 'appShell.nav.attributeSets', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
       { to: '/catalog/attachment-types', labelKey: 'appShell.nav.attachmentTypes', icon: FileText, requiredPermission: 'catalog:read', module: 'catalog' },
-      {
-        to: '/assets-library',
-        labelKey: 'appShell.nav.assetsLibrary',
-        icon: ImageIcon,
-        requiredPermission: 'assets.read',
-        module: 'assets_library',
-      },
       // Feature 068 — the Ergonode PIM connector sits in Catalog rather than
       // Channels: it is where catalogue content comes *from*, and the three
       // surfaces it writes (products, attributes, categories) are its
@@ -369,15 +360,6 @@ const NAV: NavSection[] = [
         requiredPermission: 'catalog:read',
         module: 'catalog',
       },
-      // Custom fields extend Organizations, Orders, Customers, Categories and
-      // more, so the entry belongs to System rather than to any one domain.
-      {
-        to: '/custom-fields',
-        labelKey: 'appShell.nav.customFields',
-        icon: Layers,
-        requiredPermission: 'custom_fields:read',
-        module: 'custom_fields',
-      },
       // `/api-keys` and `/webhooks` are declared by the modules that own them
       // since feature 091's Phase 4 (the plan's batch 6), and arrive through
       // `composeNav` from `modules.generated.ts`. Their declarations are in
@@ -558,10 +540,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/pim-ergonode\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimErgonode', href: null },
-  ] },
-  { test: /^\/assets-library\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.assetsLibrary', href: null },
   ] },
   { test: /^\/inventory\/?$/, build: () => [
     { labelKey: 'appShell.section.inventory', href: null },

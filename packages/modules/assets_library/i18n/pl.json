@@ -49,5 +49,6 @@
   "folders.namePlaceholder": "Nazwa folderu",
   "folders.newSubfolder": "Nowy podfolder",
   "folders.deleteConfirm": "Usunąć ten folder?\n\nOK = przenieś zawartość do folderu nadrzędnego, a potem usuń.\nAnuluj = przerwij.",
-  "folders.removed": "Usunięto folder ({id})."
+  "folders.removed": "Usunięto folder ({id}).",
+  "nav.assetsLibrary.label": "Biblioteka zasobów"
 }

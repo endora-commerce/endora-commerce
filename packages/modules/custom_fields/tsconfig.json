@@ -31,5 +31,11 @@
   // that does not run rather than a package that does not install. Under
   // Ruling A of `specs/084-small-f4-package-layout/` a package may own its unit
   // tests, and T045 defers that split.
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  // `src/admin/` is compiled by `tsconfig.ui.json` and by nothing else
+  // (feature 091, R12). It is excluded here rather than merged in because this
+  // configuration — and `tsconfig.build.json`, which extends it — is the one
+  // that must **not** carry `jsx` or the `DOM` lib: a service file that
+  // referenced `document` would otherwise compile clean, in the layer that runs
+  // in Node.
+  "exclude": ["src/admin/**/*", "src/**/*.test.ts", "src/**/*.spec.ts"]
 }
