@@ -24,6 +24,16 @@
  * them. An entry that ever reads *"this is fine"* means the predicate has
  * outgrown its population — narrow it, never add the entry.
  *
+ * **A `module-namespace` entry has a second retiring shape, and the first one
+ * took it.** P5a moved the shared page-builder chrome's 33 `pageBuilder.*` keys
+ * into `core` and pointed all three of its callers at `useTranslation('core')`,
+ * so `InvoiceTemplateEditor` stopped naming `cms` without moving anywhere: the
+ * copy the screen renders was never `cms`' knowledge, so the repair is a bundle
+ * move rather than a screen move. That is R-1's §9.2 remedy applied one surface
+ * over from the kit, and it is worth stating because the entry's own reason
+ * predicted the screen move — the coupling went first, and the ratchet is what
+ * said so.
+ *
  * **It has already drained once, and the drain was found by the ratchet rather
  * than by anyone remembering.** This ledger opened with eleven entries, of
  * which two were `AssetPicker` and `AssetUploader` naming `assets_library`.
@@ -42,19 +52,24 @@
  * coupling nobody was asked about and one above it the entry that outlived its
  * site.
  *
- * ## What is **not** here, and why the population is nine rather than §9.3's twelve
+ * ## What is **not** here, and the site that used to be the worked example
  *
- * §9.3 measured five `module-namespace` sites and the walk finds four. The
- * fifth is `admin/src/_shared/email-builder/EmailEditorPane.tsx`'s
- * `useTranslation('cms')`, and it is out of the population by the attribution
- * rule §5.1 names as an argument *against* the finding: ownership comes from
- * the route table and the nav, `_shared` is claimed by neither, and a file no
- * nav entry claims is the admin application's own. Judging it would file a
- * reach under a module that does not own it. That is the fail-closed direction
- * and it is stated here rather than discovered later — the site is real, it is
- * recorded in `research.md` §6.6 as being in no ledger at all, and where
- * `_shared` goes is an open owner decision (`plan.md` § *Phase 4* P5) that a
- * ledger cannot answer.
+ * §9.3 measured five `module-namespace` sites and the walk found four. The
+ * fifth was `admin/src/modules/_shared/email-builder/EmailEditorPane.tsx`'s
+ * `useTranslation('cms')`, out of the population by the attribution rule §5.1
+ * names as an argument *against* the finding: ownership comes from the route
+ * table and the nav, `_shared` is claimed by neither, and a file no nav entry
+ * claims is the admin application's own. Judging it would have filed a reach
+ * under a module that does not own it, which is the fail-closed direction.
+ *
+ * **That site is gone** — P5a pointed the pane at `core` with the two callers
+ * that were in the population — so the exclusion now has no instance. It is
+ * kept rather than deleted because the *rule* is unchanged and the next
+ * `_shared` file will meet it: a file no nav entry claims is judged as nobody's,
+ * and where `_shared` goes stays an owner decision (`plan.md` § *Phase 4* P5)
+ * that a ledger cannot answer. The pane's own repair is the evidence for the
+ * other half of §9.3's argument: nothing in this estate reported it, because a
+ * site outside the population is a site outside every instrument.
  */
 
 /** One recorded coupling: a reason, and — where the key covers more than one site — a count. */
@@ -119,10 +134,12 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
   // The strings a screen shows ship in the bundle of the module that owns the
   // screen — feature 091 Phase 3's ruling for permission labels, one surface
   // over. Each of these retires when the screen moves into its module.
-  'admin/src/modules/invoices/templates/InvoiceTemplateEditor.tsx:module-namespace:cms':
-    'The invoice template editor renders the CMS page builder and takes its chrome copy from ' +
-    "`cms`' bundle. Retires when the page-builder family becomes D-192's package and the " +
-    'editor names its own strings.',
+  //
+  // **One of the four has already retired the other way.** P5a moved the shared
+  // page-builder chrome's copy to `core`, so `InvoiceTemplateEditor` stopped
+  // naming `cms` where it stands: the copy it renders belonged to no module in
+  // the first place, which is the case where the bundle moves and the screen
+  // does not.
   'admin/src/modules/orders/OrderShipmentsTab.tsx:module-namespace:inpost':
     "The InPost label button's own labels, beside the gate above it. This file is why §9.3 " +
     'folds the two populations into one finding rather than shipping them as two: it is in ' +

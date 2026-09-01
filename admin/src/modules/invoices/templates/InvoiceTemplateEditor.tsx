@@ -52,7 +52,6 @@ function hydrateInvoiceDefaults(data: Data): Data {
 /** Admin editor for an invoice PDF template (feature 047, US6). */
 export function InvoiceTemplateEditor(): ReactNode {
   const t = useTranslation('core');
-  const tCms = useTranslation('cms');
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [tpl, setTpl] = useState<TemplateDetail | null>(null);
@@ -214,7 +213,7 @@ export function InvoiceTemplateEditor(): ReactNode {
                         onToggleFullscreen={(): void => setFullscreen((f) => !f)}
                         currentData={draft}
                         onClearCanvas={(): void => applyCanvasData(emptyData)}
-                        t={tCms}
+                        t={t}
                       />
                     ),
                     componentOverlay: ({

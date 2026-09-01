@@ -611,7 +611,9 @@ export function EmailEditorPane({
   onResolveTemplateLayout,
 }: EmailEditorPaneProps): React.ReactElement {
   const { variables } = useEmailVariables();
-  const tCms = useTranslation('cms');
+  // `core`, not `cms` — the page-builder chrome this pane renders owns no module
+  // knowledge and its copy ships in `_i18n`'s bundle (feature 091 P5a, R-1).
+  const tChrome = useTranslation('core');
   const [embeds, setEmbeds] = useState<EmailEmbeds>(embedsProp ?? { blocks: {}, templates: {} });
   const [embedTrees, setEmbedTrees] = useState<EmailRenderEmbeds>(
     embedTreesProp ?? { blocks: {}, templates: {} },
@@ -825,7 +827,7 @@ export function EmailEditorPane({
                                         },
                                       }
                                     : {})}
-                                  t={tCms}
+                                  t={tChrome}
                                 />
                               }
                             >
@@ -852,7 +854,7 @@ export function EmailEditorPane({
                           onToggleFullscreen={(): void => setFullscreen((f) => !f)}
                           currentData={data ?? emptyData}
                           onClearCanvas={(): void => applyCanvasData(emptyData)}
-                          t={tCms}
+                          t={tChrome}
                         />
                       </div>
                     ),
