@@ -428,8 +428,26 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // contribution, `ksef`'s. The `foreign-ids` half does not move — the drain
     // this batch pays was a ledgered *import*, and the module ids in the
     // moved screens are each module's own.
-    files: 2214,
-    sites: 18,
+    //
+    // **2214 -> 2230 and 18 -> 25 with P4b**, both this merge request's entire
+    // doing and measured rather than apportioned: `origin/master` was read
+    // before the change and the merged tree after it, and the three other
+    // entries this branch moves are separated the same way. `files` is sixteen:
+    // the kit's six `field-protection` sources, `pim_ergonode`'s six-file
+    // `src/admin` (its first, so `module-admin` goes 42 -> 43) and
+    // `pim_pimcore`'s four, less the 540-line
+    // `admin/src/modules/pim_ergonode/components/FieldProtectionToggle.tsx`
+    // this deletes. `sites` is seven: one render — the eighth
+    // `product.editor.field.after` mount, on the attributes tab — and six
+    // contributions, three from each PIM. The `foreign-ids` half does not move:
+    // both PIMs name their **own** id in their own sources, which is what a
+    // `scopeKey` and a `useTranslation` in an owner's file are, and the two
+    // ledgered imports this batch retires are `check:module-boundary`'s.
+    // **No zone member is added** — `zone-enum` stays 5/5 — because all three
+    // places were already declared and already rendered by P4a, which is what
+    // `unrendered-zone` having no ledger requires.
+    files: 2230,
+    sites: 25,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -496,13 +514,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the merge base are the tree's growth across the merge requests
     // between, inside the band and not re-recorded there; they are named rather
     // than absorbed.
-    files: 1460,
+    //
+    // **1460 -> 1464 and 29264 -> 29289 with P4b**, all four files and all
+    // twenty-five sites this merge request's, measured against `origin/master`
+    // rather than apportioned. The four are the `.ts` files the two PIM
+    // packages' new admin layers add — `pim_ergonode`'s `./admin` entry point,
+    // its protections client and its field-protection source descriptor, and
+    // `pim_pimcore`'s descriptor. The three `.tsx` zone components in each
+    // package are outside this walk, which reads `.ts`; nothing the kit gains
+    // is in it either, the population being a **module's** own directory.
+    files: 1464,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
     // larger than `files`, which is what makes it the number that moves first
     // when a position filter or the parser narrows.
-    sites: 29264,
+    sites: 29289,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -660,8 +687,28 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // by a `<AdminZone>` mount is a specifier gone from a file this walk still
     // reads: the drain is `check:module-boundary`'s to see, which is where it
     // was ledgered.
-    files: 360,
-    sites: 2280,
+    //
+    // **360 -> 369 and 2280 -> 2314 with P4b**, and this is the rare merge
+    // request that moves both **up**, which is worth stating because every
+    // accounting above it describes a fall. Both deltas are this branch's,
+    // measured against `origin/master` and not apportioned. `files` is nine:
+    // `pim_ergonode` grows its first `src/admin` (six files) and `pim_pimcore`
+    // grows four more, against the one `admin/src` file this deletes. `sites`
+    // is thirty-four, and the collapse this entry keeps describing does not
+    // apply because nothing was rewritten from `@/…` — ten of the eleven new
+    // module-surface files are *new*, each naming `react`, the contracts
+    // package and one or two kit subpaths, and the file that goes was a single
+    // 540-line component with five specifiers. The two `cross-module-imports`
+    // keys this batch retires move neither number: both were reaches out of
+    // `catalog`'s directory, which is the admin application's population here
+    // and is `check:module-boundary`'s to judge.
+    //
+    // `admin-kit-exports` goes 6/6 -> 7/7 in the same run — the kit publishes
+    // `./field-protection` — which is the second derivation doing its job: a
+    // subpath declared and not built, or built and not declared, is what makes
+    // a reach unjudgeable, and this one is both.
+    files: 369,
+    sites: 2314,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not
@@ -700,7 +747,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // stayed inside the band and were not re-recorded; they are named here
     // rather than absorbed, so nobody reads eighteen files as this batch's
     // blast radius.
-    files: 3934,
+    //
+    // **3934 -> 3947 with P4b**, all thirteen this branch's, measured against
+    // `origin/master` rather than apportioned — and, like batch 12's eight, it
+    // is the two populations rather than one. The source half moves by ten: the
+    // eleven files the two PIM packages' admin layers add, less the one
+    // `admin/src` component this deletes. The other three are the lazy
+    // module-package surfaces reader following `pim_ergonode`'s brand-new
+    // `./admin` subpath, which did not exist for it to open before. The kit's
+    // six new `field-protection` sources are in **neither** half: this check's
+    // populations are module sources and the admin application, and
+    // `@endora-commerce/admin-kit` is an `admin-ui` package that is neither.
+    // The two `cross-module-imports` keys this batch retires are the whole
+    // point and move `files` by nothing — they are `ledger-size 17 -> 15`.
+    files: 3947,
     sites: null,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's

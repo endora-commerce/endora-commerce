@@ -6626,12 +6626,16 @@ const CHECKS: readonly CheckEntry[] = [
       // green when the check is blind.
       //
       // A one-for-one substitution preserves length and position — identifier
-      // grammar, not slug grammar. `FieldProtectionToggle`'s DOM id.
+      // grammar, not slug grammar. `FieldProtectionToggle`'s DOM id, which
+      // feature 091's P4b moved from `pim_ergonode`'s admin directory into the
+      // kit: the path is the fixture's label and nothing reads it off disk, but
+      // a label naming a file that no longer exists sends the next reader
+      // looking for the live site in the wrong place.
       'one-for-one-substitution-is-not-a-slug': top(() =>
         exactlyFoldPaths(
           [
             foldSource(
-              'admin/src/modules/pim_ergonode/components/FieldProtectionToggle.tsx',
+              'packages/admin-kit/src/field-protection/FieldProtectionToggle.tsx',
               "export const id = (p: string) => `x-${p}`.replace(/[^a-zA-Z0-9_-]/g, '-');",
             ),
             foldSource('admin/src/lib/slug.ts', handRolledSlug('fold', '/[^a-z0-9]+/g')),
