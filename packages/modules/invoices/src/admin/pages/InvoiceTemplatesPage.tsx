@@ -1,25 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
-import { PageHeader } from '@/components/ui/page-header';
-import { InvoiceSectionTabs } from '../components/InvoiceSectionTabs';
-import { useTranslation } from '@/i18n/useTranslation';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { SalesChannelPicker } from '@endora-commerce/admin-kit/components';
+import { InvoiceSectionTabs } from '../components/InvoiceSectionTabs.js';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 interface TemplateRow {
   id: string;
   code: string;
@@ -156,3 +141,10 @@ export function InvoiceTemplatesPage(): ReactNode {
     </>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default InvoiceTemplatesPage;

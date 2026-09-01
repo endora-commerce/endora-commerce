@@ -29,6 +29,7 @@
 import { z } from 'zod';
 
 import { KnownIconNameSchema } from './admin-actions.js';
+import type { InvoiceKind } from './invoices.js';
 
 // ---------------------------------------------------------------------------
 // Field-level patterns
@@ -184,6 +185,28 @@ export const AdminZoneNameSchema = z.enum([
    * condition. Props: {@link DeliveryMethodIntegrationsZoneProps}.
    */
   'delivery_method.list.integrations',
+  /**
+   * Below the invoice detail's totals column, at the end of the right-hand
+   * stack.
+   *
+   * Mounted **once** per invoice detail screen. Props:
+   * {@link InvoiceDetailZoneProps}.
+   *
+   * The first member whose host is `invoices` and whose contributor is `ksef`.
+   * `invoices`' invoice detail imported `ksef`'s `InvoiceKsefPanel` by path —
+   * the single key in
+   * `backend/scripts/ledgers/cross-module-imports/invoices.ts`, whose recorded
+   * retiring condition is this member existing. Z1 question 1 is answered from
+   * the panel's own signature: `(invoiceId, kind, ksefReferenceNumber)` — three
+   * values in, nothing out, no `onChange` — so it is question 2's case, an
+   * addition the owner makes because the owner is installed.
+   *
+   * **Per-host and not a shared `invoice.detail.after` twin of some general
+   * member** (§10 Z13): a member shared by two hosts lets one host's mount
+   * cover the other host's absence, which is the failure `unrendered-zone`
+   * exists to refuse.
+   */
+  'invoice.detail.after',
 ]);
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
@@ -207,6 +230,24 @@ export interface ProductEditorZoneProps {
  * later needs has one place to arrive.
  */
 export interface DeliveryMethodIntegrationsZoneProps {}
+
+/**
+ * A zone mounted once at the end of the invoice detail's totals column.
+ *
+ * Three props and not just the id, read off the one contribution's declared
+ * signature rather than from the rule of thumb that a detail member carries
+ * its entity's id: `kind` decides whether a KSeF panel applies at all (a
+ * proforma is never filed) and `ksefReferenceNumber` is the invoice's own
+ * stored reference, which the contributor shows until its first submission
+ * carries one. Both are already loaded by the host — the mount costs no
+ * request — and neither is `ksef`'s to fetch.
+ */
+export interface InvoiceDetailZoneProps {
+  readonly invoiceId: string;
+  /** `proforma` | `invoice` | `correction` — {@link InvoiceKind}. */
+  readonly kind: InvoiceKind;
+  readonly ksefReferenceNumber: string | null;
+}
 
 /** A zone mounted beside one field of the product editor. */
 export interface ProductEditorFieldZoneProps {
@@ -254,6 +295,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'product.editor.pricing.before': ProductEditorZoneProps;
   'product.editor.field.after': ProductEditorFieldZoneProps;
   'delivery_method.list.integrations': DeliveryMethodIntegrationsZoneProps;
+  'invoice.detail.after': InvoiceDetailZoneProps;
 }
 
 /** The props of one zone, by name. */

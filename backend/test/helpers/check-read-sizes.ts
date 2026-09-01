@@ -350,8 +350,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // nine sidebar rows and six hand-written Navigate rows, of which three
     // named destinations no manifest action covered and are declarations now.
     // Measured on the merge commit rather than on the branch.
+    //
+    // **Batch 12 — `invoices`, `ksef` and `quote_requests`, eight routes and
+    // four nav entries — takes it to 96**, which is that twelve exactly. Four
+    // rather than three for the `PALETTE_ITEMS` reason once more: three sidebar
+    // rows and one hand-written Navigate row, which was a second copy of
+    // `quote_requests`' own `open-rfq-inbox` action and is deleted rather than
+    // replaced. Measured on the merge commit rather than on the branch.
     files: 2,
-    sites: 108,
+    sites: 96,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],
@@ -407,8 +414,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and were not re-recorded there; the split is derived rather than
     // apportioned, this merge request's delta being measured on its own base
     // before the merge (2207 -> 2208) and the merged tree read after it.
-    files: 2212,
-    sites: 16,
+    //
+    // **2212 -> 2214 and 16 -> 18 with batch 12**, and both deltas are this
+    // batch's entire doing rather than a share of one: the branch is
+    // `origin/master` plus one commit, so the two trees were measured and
+    // differenced rather than apportioned. `files` moves by the net of
+    // twenty-two source files arriving under the module walk roots
+    // (`invoices`, `ksef` and `quote_requests`' nineteen screens plus three
+    // `./admin` entry points) against twenty leaving `admin/src` — nineteen
+    // moved and the P8 e-mail-outcome shim, whose last reader went with the
+    // directory. `sites` moves by exactly the mechanism this batch adds: one
+    // render, `invoices`' `<AdminZone name="invoice.detail.after">`, and one
+    // contribution, `ksef`'s. The `foreign-ids` half does not move — the drain
+    // this batch pays was a ledgered *import*, and the module ids in the
+    // moved screens are each module's own.
+    files: 2214,
+    sites: 18,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -461,13 +482,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (a declared bound — an applied migration cannot be edited, so a finding
     // there has no repair a ledger entry could drain), its tests and its
     // declaration files.
-    files: 1449,
+    //
+    // **1449 -> 1460 and 29029 -> 29264, of which batch 12 is +6 and +56.**
+    // Measured rather than apportioned: this branch is `origin/master` plus one
+    // commit, and `origin/master` reads 1454 / 29208. The population is a
+    // module's **own** directory, so the nineteen screens that moved into
+    // `invoices`, `ksef` and `quote_requests` are in it where they were not
+    // before, and three `./admin` entry points come with them — the twenty
+    // files that left `admin/src` were never in this walk at all, which is why
+    // the file delta is positive here and net-of-two next door. The 235 sites
+    // are those files' string and template literals, plus the three entry
+    // points' route paths and label keys. The 5 and 179 between 1449 / 29029
+    // and the merge base are the tree's growth across the merge requests
+    // between, inside the band and not re-recorded there; they are named rather
+    // than absorbed.
+    files: 1460,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
     // larger than `files`, which is what makes it the number that moves first
     // when a position filter or the parser narrows.
-    sites: 29029,
+    sites: 29264,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -606,8 +641,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // merge request had to read the line. The split is derived rather than
     // apportioned: P9's delta was measured on its own base before the merge
     // (2408 -> 2403 at `6fa00d9a0`) and the merged tree read after it.
-    files: 358,
-    sites: 2362,
+    //
+    // **358 -> 360 and 2362 -> 2280 with batch 12**, and the whole of both
+    // deltas is this batch's: the branch is `origin/master` plus one commit, so
+    // the numbers are a difference of two measurements rather than an
+    // apportionment. `files` moves by two because the population follows the
+    // **surface** and not the tree — `invoices`, `ksef` and `quote_requests`
+    // contribute twenty-two files under their packages where they contributed
+    // twenty under `admin/src`, the two extra being their `./admin` entry
+    // points; the twentieth leaving is the P8 e-mail-outcome shim, deleted with
+    // the directory rather than moved. `sites` falls by 82 for the reason this
+    // entry keeps recording: a screen written against `@/components/ui/*` and
+    // `@/lib/*` names one specifier per module it reaches, and the same screen
+    // written against the kit names one per **barrel** — nineteen screens
+    // collapsing four and five host paths each into `ui`, `lib`, `components`
+    // and `i18n`. The one reach this batch actually retires,
+    // `invoices` -> `ksef`, moves neither number, because a specifier replaced
+    // by a `<AdminZone>` mount is a specifier gone from a file this walk still
+    // reads: the drain is `check:module-boundary`'s to see, which is where it
+    // was ledgered.
+    files: 360,
+    sites: 2280,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not
@@ -631,7 +685,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it here rather than leaving it is the rule applied to the merge request
     // that moved the number, and the split is stated so the next reader does not
     // read 217 files of drift as this one's blast radius.
-    files: 3916,
+    //
+    // **3916 -> 3934, and eight of that is batch 12's.** Measured rather than
+    // apportioned: this branch is `origin/master` plus one commit, and
+    // `origin/master` reads 3926. The eight is two populations rather than one,
+    // which is the thing worth writing down — `files` here is the source walk
+    // **plus** the module-package surfaces reader, and that reader is lazy, so
+    // it opens a package's manifest and its emitted module only for a subpath a
+    // module actually reached. The source half moves by two: twenty-two files
+    // arriving under three packages against twenty leaving `admin/src`. The
+    // other six are the surfaces reader following the three new `./admin`
+    // subpaths, which did not exist for it to open before. The ten between 3916
+    // and 3926 are the tree's growth across the merge requests between, which
+    // stayed inside the band and were not re-recorded; they are named here
+    // rather than absorbed, so nobody reads eighteen files as this batch's
+    // blast radius.
+    files: 3934,
     sites: null,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
@@ -700,7 +769,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // manifests moving by 0. The other 44 of the 56 were already gone: batches
     // three and four's own collapse, which landed inside the −10% floor and
     // re-recorded nothing. Re-recorded 2026-08-26.
-    sites: 471,
+    //
+    // **471 -> 501, of which batch 12 is +3**, measured against `origin/master`
+    // at 498. The three are the three `./admin` subpaths this batch adds to the
+    // admin contribution registry — one import line each, which is what a unit
+    // of this number is. `files` does not move: the artefact set is fixed at
+    // eight and this batch adds no generated file. The 27 between 471 and the
+    // merge base are earlier batches' registry entries, inside the band and not
+    // re-recorded; named here rather than absorbed, and `files` is left at 6
+    // because this batch did not move it.
+    sites: 501,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {

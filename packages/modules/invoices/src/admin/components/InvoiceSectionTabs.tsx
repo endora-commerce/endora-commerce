@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { RouteTabs } from '@/components/ui/route-tabs';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useModulePresence } from '@/lib/module-presence';
+import { RouteTabs } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useModulePresence } from '@endora-commerce/admin-kit/lib';
 
 /**
  * The switch between invoices and the templates they are rendered with.

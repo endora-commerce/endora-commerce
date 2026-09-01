@@ -6,9 +6,23 @@ import { setMobileViewport } from '../../setup';
 
 const getSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(
-    '@/lib/api-client',
+/**
+ * The **kit's** barrel, not the four `@/lib/*` and `@/components/*` paths this
+ * file used to name. The screen is
+ * `@endora-commerce/mod-quote-requests/admin`'s since feature 091's batch 12
+ * and resolves `apiClient`, `useAuth` and `usePageSizePreference` there; the
+ * admin's own paths are re-export shims of the same bindings, so mocking a shim
+ * would leave the module the screen actually imports untouched — and `useAuth`
+ * would throw `useAuth must be used inside <AuthProvider>`, which is what it
+ * did.
+ *
+ * `useAuth` and `usePageSizePreference` are stubbed for the reason they always
+ * were: this is a layout-only test with no `AuthProvider` mounted, which is the
+ * pattern `OrdersList.mobile` and `AppShell.mobile` follow.
+ */
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
   );
   return {
     ...actual,
@@ -19,29 +33,21 @@ vi.mock('@/lib/api-client', async () => {
       patch: vi.fn(),
       delete: vi.fn(),
     },
+    useAuth: () => ({ me: { role: { code: 'platform_admin' } } }),
+    usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }),
   };
 });
 
-// RfqList calls useAuth() and usePageSizePreference() directly, plus renders
-// OrganizationPicker (which pulls the same chain). None of them have an
-// AuthProvider mounted in this layout-only test, so stub them out — mirrors the
-// pattern in OrdersList.mobile / AppShell.mobile tests.
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ me: { role: { code: 'platform_admin' } } }),
-}));
-
-vi.mock('@/lib/use-page-size-preference', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/use-page-size-preference')>(
-    '@/lib/use-page-size-preference',
+// `OrganizationPicker` pulls the same chain and is the kit's since P2, so the
+// stub names the kit's `components` barrel for the same reason.
+vi.mock('@endora-commerce/admin-kit/components', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/components')>(
+    '@endora-commerce/admin-kit/components',
   );
-  return { ...actual, usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }) };
+  return { ...actual, OrganizationPicker: () => null };
 });
 
-vi.mock('@/components/organization-picker/OrganizationPicker', () => ({
-  OrganizationPicker: () => null,
-}));
-
-const { RfqList } = await import('../../../src/modules/quote_requests/RfqList');
+const { RfqList } = await import('../../../../packages/modules/quote_requests/src/admin/pages/RfqList');
 
 const BUNDLE = passthroughBundle('core', [
   'rfq.list.title',
