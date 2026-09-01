@@ -41,15 +41,21 @@ export interface CustomFieldValuesPanelProps {
  * the two strings come out of `core`, so R6 (as R-1 reads it) is satisfied by
  * construction rather than by exception.
  *
- * **One defect is preserved verbatim, deliberately.** The `defs.length === 0`
- * return below sits **above** the error `Alert`, so a *failed* definitions load
- * is indistinguishable from "no custom fields are defined for this entity type"
- * and the panel renders nothing. That is accidentally the right behaviour for a
- * 503 and the wrong behaviour for everything else. It predates this move and is
- * not publication's to repair — fixing it inside a move would make the move
- * unreviewable — so it is asserted as it stands in
- * `admin/test/kit/kit-custom-field-values.test.tsx`. Delete that assertion with
- * the repair, not before.
+ * **A failed definitions load is not an empty entity type.** The
+ * `defs.length === 0` return below used to sit **above** the error `Alert`, so
+ * the panel rendered nothing either way and an operator could not tell a broken
+ * request from "no custom fields are defined for this entity type". The empty
+ * return is now conditional on the load having actually answered.
+ *
+ * The old ordering was argued to be accidentally right for one case — a 503
+ * from a switched-off `custom_fields` — and that case does not exist.
+ * `custom_fields` declares `activation.nonDeactivatable`, which since issue #258
+ * makes it a **required** module: `requiredModulesFrom` puts it in the
+ * composition's required set, `composeModules` refuses a composition that would
+ * reach its boot phase without it, and D-69 refuses every disable and every
+ * uninstall. A platform that cannot serve this endpoint does not boot, so
+ * `MODULE_DISABLED` is unreachable here and there is no branch to preserve for
+ * it.
  */
 export function CustomFieldValuesPanel({
   entityType,
@@ -69,7 +75,12 @@ export function CustomFieldValuesPanel({
         const res = await apiClient.get<{ data: CustomFieldDefinitionDto[] }>(
           `/api/v1/admin/custom-fields/definitions?entityType=${entityType}`,
         );
-        if (live) setDefs(res.data);
+        if (live) {
+          setDefs(res.data);
+          // A previous entity type's failure must not outlive the read that
+          // succeeded — it is now the thing that decides the empty branch below.
+          setError(null);
+        }
       } catch (err) {
         if (live) setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
       }
@@ -95,7 +106,10 @@ export function CustomFieldValuesPanel({
     }
   }, [draft, save]);
 
-  if (defs.length === 0) return null; // nothing defined for this entity type
+  // Nothing defined for this entity type — but only once the load has answered.
+  // With `error` set, the same empty `defs` means the load failed, and the panel
+  // owes the operator the message rather than an absence.
+  if (defs.length === 0 && error === null) return null;
 
   return (
     <Card>
@@ -117,9 +131,11 @@ export function CustomFieldValuesPanel({
             {renderInput(d, draft[d.key], (v) => set(d.key, v))}
           </div>
         ))}
-        <Button size="sm" disabled={saving} onClick={() => void onSave()}>
-          {t('customFields.save')}
-        </Button>
+        {defs.length > 0 && (
+          <Button size="sm" disabled={saving} onClick={() => void onSave()}>
+            {t('customFields.save')}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
