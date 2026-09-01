@@ -138,6 +138,18 @@ export const KnownIconNameSchema = z.enum([
   // happens to be on the list. The batch's other five need nothing — `Search`,
   // `Receipt`, `Truck`, `CreditCard` and `Package` are all above.
   'Newspaper',
+  // Feature 091 (Phase 4, batch 10) — `dictionaries`' two sidebar entries and
+  // the two palette actions that replace its hand-written *Navigate* rows, and
+  // `settings`' cache row. All three glyphs were imported into `AppShell.tsx`
+  // from `lucide-react` by hand; a module declaration has to name its icon
+  // rather than import it, so the names join the allowlist here instead of the
+  // entries degrading to names that happen to be on it already. The batch's
+  // other rows need nothing — `Languages` covers `/dictionary`, `ListChecks` is
+  // already above for `catalog`'s bulk-operations row, and `Settings` and
+  // `KeyRound` have been there since the first palette actions of the two
+  // modules that render them.
+  'Languages',
+  'Eraser',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

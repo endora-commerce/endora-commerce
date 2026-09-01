@@ -20,8 +20,6 @@ import {
   type PermissionRequirement,
 } from './lib/surface-visibility.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
-import { DictionaryPage } from './modules/dictionaries/DictionaryPage.js';
-import { DictionaryAuditPage } from './modules/dictionaries/AuditPage.js';
 import { PagesListPage } from './modules/cms/pages/PagesListPage.js';
 import { PageEditor } from './modules/cms/editors/PageEditor.js';
 import { BlocksListPage } from './modules/cms/pages/BlocksListPage.js';
@@ -83,7 +81,6 @@ import { PriceListsPage } from './modules/price_lists/PriceListsPage.js';
 import { PriceListDetailPage } from './modules/price_lists/PriceListDetailPage.js';
 import { DisplayModeOverridesPage } from './modules/price_lists/DisplayModeOverridesPage.js';
 import { HomePage } from './modules/home/HomePage.js';
-import { CredentialsPage } from './modules/credentials/pages/CredentialsPage.js';
 import { InventoryPage } from './modules/inventory/InventoryPage.js';
 import { LowStockPage } from './modules/inventory/LowStockPage.js';
 import { AvailabilityNotificationsPage } from './modules/inventory/AvailabilityNotificationsPage.js';
@@ -91,10 +88,6 @@ import { StockImportWizard } from './modules/inventory/StockImportWizard.js';
 import { WarehousesList } from './modules/warehouses/WarehousesList.js';
 import { WarehouseEditor } from './modules/warehouses/WarehouseEditor.js';
 import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
-import { SettingsPage } from './modules/settings/pages/SettingsPage.js';
-import { GroupsPage as SettingsGroupsPage } from './modules/settings/pages/GroupsPage.js';
-import { CachePage } from './modules/settings/pages/CachePage.js';
-import { PwaPage } from './modules/settings/pages/PwaPage.js';
 import { SalesChannelsListPage } from './modules/sales_channels/pages/SalesChannelsListPage.js';
 import { SalesChannelEditPage } from './modules/sales_channels/pages/SalesChannelEditPage.js';
 import { ProfilePage } from './modules/profile/ProfilePage.js';
@@ -303,8 +296,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
           meets the admin's not-found treatment there rather than here.
         */}
         <Route path="/settings/dhl-parcel" element={<Navigate to="/delivery-methods/dhl-parcel" replace />} />
-        <Route path="/credentials" element={<CredentialsPage />} />
-        <Route path="/credentials/new" element={<CredentialsPage initialMode="new" />} />
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/inventory/low-stock" element={<LowStockPage />} />
         <Route path="/inventory/notifications" element={<AvailabilityNotificationsPage />} />
@@ -323,10 +314,11 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
           declaration would declare each screen twice, with `react-router`
           silently taking the first match. Their declarations are in
           `packages/modules/{comparisons,api_keys,webhooks}/src/admin/index.ts`.
+
+          `/credentials`, `/credentials/new`, `/dictionary` and the two audit
+          spellings left the same way in batch 10, into
+          `packages/modules/{credentials,dictionaries}/src/admin/index.ts`.
         */}
-        <Route path="/dictionary" element={<DictionaryPage />} />
-        <Route path="/dictionaries/audit" element={<DictionaryAuditPage />} />
-        <Route path="/admin/dictionaries/audit" element={<DictionaryAuditPage />} />
         <Route path="/cms" element={<PagesListPage />} />
         <Route path="/cms/pages" element={<PagesListPage />} />
         <Route path="/cms/pages/new" element={<PageEditor />} />
@@ -346,10 +338,18 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/blog/categories/:id" element={<BlogCategoryEditor />} />
         <Route path="/blog/tags" element={<BlogTagListPage />} />
         <Route path="/platform/modules" element={<PlatformModulesPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/settings/groups" element={<SettingsGroupsPage />} />
-        <Route path="/settings/cache" element={<CachePage />} />
-        <Route path="/settings/pwa" element={<PwaPage />} />
+        {/*
+          `/settings`, `/settings/groups`, `/settings/cache` and `/settings/pwa`
+          are declared by the modules that own them since feature 091's Phase 4
+          batch 10, and arrive through `MODULE_ADMIN_CONTRIBUTIONS` in
+          `modules.generated.ts`. The first three are `settings`'; the fourth is
+          **`pwa`**'s, which is batch six's split closing — the screen lived
+          under `modules/settings/pages/` and moved with that directory, so the
+          route is declared beside the sidebar entry that advertises it and is
+          gated on `pwa`'s presence rather than on `settings`'. Their
+          declarations are in
+          `packages/modules/{settings,pwa}/src/admin/index.ts`.
+        */}
         <Route path="/sales-channels" element={<SalesChannelsListPage />} />
         <Route path="/sales-channels/new" element={<SalesChannelEditPage />} />
         <Route path="/sales-channels/:code" element={<SalesChannelEditPage />} />

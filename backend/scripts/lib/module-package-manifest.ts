@@ -90,7 +90,11 @@ import {
 import { findAliasMember } from './admin-surfaces.js';
 import { readEmitLayout, type EmitLayout } from './module-packages.js';
 import { namedSpecifiers, type SpecifierKind } from './specifiers.js';
-import { ADMIN_LAYER_DIRECTORY } from './ui-layer.js';
+import {
+  ADMIN_LAYER_DIRECTORY,
+  PUBLISHED_COMPONENT_LAYER_DIRECTORY,
+  UI_LAYER_DIRECTORIES,
+} from './ui-layer.js';
 import {
   classifyWorkspaceMembers,
   expandWorkspaceGlob,
@@ -163,6 +167,18 @@ const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string
   ['migrations', './migrations'],
   ['ports', './ports'],
   ['admin', './admin'],
+  // D-191's published-component exit (feature 091, batch 10; Z9 of
+  // `contracts/admin-component-contribution.md`). A **sibling** of `admin/`
+  // rather than a second entry file inside it, because
+  // `admin-contribution.md` R2 is *"`src/admin/index.ts` exports exactly one
+  // value"* and a second file in that directory turns the rule into a rule
+  // with a filename carve-out.
+  //
+  // It publishes React components rather than a contribution descriptor, so
+  // `check:module-boundary`'s D-171 derivation keeps counting a reach into it
+  // — the emitted module exports runtime bindings — which is D-191's own
+  // condition and needs no change to that check.
+  ['admin-ui', './admin-ui'],
 ];
 
 /** What a package ships, as the directory says. */
@@ -970,6 +986,15 @@ export function renderModulePackageManifests(
   // bare specifier, collected from the same inventory the `exports` map is
   // rendered from rather than by a second walk — two walks are two answers
   // waiting to disagree, and this one decides whether the specifier resolves.
+  //
+  // **`./admin-ui` is deliberately not here** (feature 091, batch 10). The
+  // question this set answers is *"does the admin application resolve a bare
+  // specifier naming this package"*, and the admin registry names `./admin`
+  // and nothing else. A published component is resolved by the **consuming
+  // module's** package, which declares the edge in its own peers because its
+  // own sources import it — the derivation two lines of `peerNamesOf` already
+  // make. Adding it here would put a dependency in `admin/package.json` that
+  // no file under `admin/src` names.
   const contributingPackageNames = new Set<string>();
   const rendered = identities.map((identity) => {
     const layers = layerInventoryOf(identity.dir, countingFs);
@@ -1310,6 +1335,25 @@ export function firstNonContractReach(
   for (const reach of reaches) {
     const where = `${reach.file}:${reach.line}`;
     const written = `'${reach.subpath === '' ? name : `${name}/${reach.subpath}`}'`;
+    // D-191's published-component exit, and the **only** value reach into
+    // another module package this generator admits (feature 091, batch 10; R9).
+    //
+    // It cannot be derived the way D-171's exemption is. That one asks the
+    // artefact *"does this subpath emit a runtime binding"* and gets an answer
+    // that is true independently of anybody's intent; a published component
+    // emits runtime bindings by construction, exactly as `./backend` does, so
+    // the artefact cannot tell the two apart. What distinguishes them is which
+    // **subpath** the owner published it on, which is a declaration — this
+    // file's own `LAYER_SUBPATHS`, through the one name in `ui-layer.ts` — and
+    // the whole of what D-191 settled.
+    //
+    // What it therefore does **not** waive, stated so the next reader does not
+    // have to infer it: the reach stays a counted cross-module reach in
+    // `check:module-boundary` (Z11 — do not widen that derivation), the
+    // consumer gates the owner's presence at the render (Z12), and neither
+    // module gains a manifest `dependencies` entry, because a component is not
+    // a port and an npm edge is still not a lifecycle edge.
+    if (reach.subpath === PUBLISHED_COMPONENT_LAYER_DIRECTORY) continue;
     if (reach.kind !== 'type-only-import') {
       return (
         `${where} writes ${written} as a ${reach.kind}, which survives into the emitted ` +
@@ -1457,7 +1501,25 @@ export function renderManifest(input: RenderInput): string {
       // `devDependency`, which a consumer never installs. It stays out of
       // `dependencies`, which is R4's own word and the field this generator
       // preserves for a package author.
-      if (survivesIntoDeclarations(input, name)) peers.set(name, 'workspace:*');
+      //
+      // **And a published component is a peer outright** (D-191; feature 091,
+      // batch 10). The reach survives into the emitted JavaScript by
+      // construction — that is what a component *is* — so every consumer that
+      // bundles this package's admin layer must resolve the owner. A
+      // `devDependency` alone would be true of this repository, where every
+      // package is a workspace member, and false of the first install from a
+      // registry: the bundle would fail to resolve a specifier nothing declared.
+      // Not an *optional* peer, for D-181's reason above — it documents the
+      // defect instead of removing it — and still not `dependencies`, which is
+      // R4's own word and the field this generator preserves for an author.
+      if (
+        survivesIntoDeclarations(input, name) ||
+        (input.imported.get(name) ?? []).some(
+          (reach) => reach.subpath === PUBLISHED_COMPONENT_LAYER_DIRECTORY,
+        )
+      ) {
+        peers.set(name, 'workspace:*');
+      }
       devs.set(name, 'workspace:*');
       continue;
     }
@@ -1582,7 +1644,17 @@ export function renderManifest(input: RenderInput): string {
   // invocation is emitted is read off the layer inventory, never declared by an
   // author, so a package that grows `src/admin/` grows the build step in the
   // same regeneration.
-  const uiBuild = input.layers.layers.some((layer) => layer.directory === ADMIN_LAYER_DIRECTORY)
+  //
+  // **Either** UI layer triggers it, and there is still only one invocation
+  // (Z9): `src/admin/` and `src/admin-ui/` run in the same runtime and emit
+  // into the same `dist`, so a second `tsc` would be a third place the
+  // `jsx`/`lib` pair is declared. The predicate is `UI_LAYER_DIRECTORIES` and
+  // not `ADMIN_LAYER_DIRECTORY`, so a package that publishes a component and
+  // contributes no screen — which is what an installed extension package
+  // reaching D-191's exit looks like — still gets its build step.
+  const uiBuild = input.layers.layers.some((layer) =>
+    UI_LAYER_DIRECTORIES.includes(layer.directory),
+  )
     ? ' && tsc -p tsconfig.ui.json'
     : '';
   const build =

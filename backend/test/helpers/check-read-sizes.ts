@@ -335,8 +335,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entries — took it to 163, which is this band's floor to the unit and was
     // not re-recorded; batch 9 — `assets_library` and `custom_fields`, two
     // routes and two nav entries — takes it to 159, and both are recorded here.
+    //
+    // **Batch 10 — `dictionaries`, `settings` and `credentials`, nine routes
+    // and ten nav entries — takes it to 140**, which is that nineteen exactly.
+    // Ten rather than six nav entries because `adminNavEntries` counts a
+    // `PALETTE_ITEMS` row beside a sidebar one: the four Navigate rows those
+    // three modules carried are manifest actions now. Measured on the merge
+    // commit rather than on the branch, which is the thing batch 9 and Phase 1b
+    // both got wrong on the sibling entry below — see its own note.
     files: 2,
-    sites: 159,
+    sites: 140,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],
@@ -354,9 +362,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // zone members grow with the places they mount, the ledger empties — and
     // the batch that moves it re-records it here. It has already moved once:
     // 18 -> 16 when !1230's kit-namespace repair merged in, taking two of the
-    // three `kit-namespace` sites with it.
-    files: 2165,
-    sites: 16,
+    // three `kit-namespace` sites with it. **16 -> 15 with batch 10**, whose
+    // one `module-namespace` entry — `settings`' preview button naming
+    // `credentials` for a label — was repaired at the source rather than
+    // relocated; `files` rises 2165 -> 2187, which is that batch moving nine
+    // files under a module walk root plus the tree's own growth since the
+    // number was last written down.
+    files: 2187,
+    sites: 15,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -429,8 +442,29 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // signal exactly while the population moves fastest. The different
     // question — did the walk stop *looking* — is answered by the `sources=`
     // line beside it, complete at every measurement above.
-    files: 352,
-    sites: 2514,
+    //
+    // **Batch 10 — `dictionaries`, `settings` and `credentials` — takes it to
+    // 2448, and `files` to 353.** That is −66 against the 2514 above, from 28
+    // files moved out of three admin directories. The accounting above puts the
+    // historical cost of a drained alias reach at 0.42 sites, and those three
+    // directories held 139 of them, which predicts −58; the 8 it overshoots by
+    // is the same collapse one notch further, in two places a reach count does
+    // not predict. Three of the 28 files went to `@endora-commerce/mod-pwa`
+    // rather than to the module whose directory they sat in, and two private
+    // helpers — a ninth copy of `toAbsoluteAssetUrl` and a tenth
+    // `import.meta.env` read — became kit imports the walk had not been
+    // counting as alias reaches at all. `files` rises by one rather than
+    // falling because `credentials` grows a **second** UI directory:
+    // `src/admin-ui/` is D-191's published-component subpath, two files where
+    // the admin held one.
+    //
+    // **Measured on the merge commit**, which the two records above this one
+    // were not — Phase 1b's by five and batch 9's by three, both inside the
+    // band and therefore silent. The instruction that produces the right number
+    // is in the accounting above and is worth repeating as an instruction:
+    // merge `origin/master` first, then read the line.
+    files: 353,
+    sites: 2448,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not

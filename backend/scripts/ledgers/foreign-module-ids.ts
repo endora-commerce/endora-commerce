@@ -18,11 +18,20 @@
  *
  * **It empties inside this feature**, which is what makes it worth its weight:
  * the four `visibility-gate` entries retire when their screens become zone
- * mounts (batches 8 and 10), the one remaining `kit-namespace` entry when the
- * kit's strings move to `core` under R-1's §9.2 ruling, and the four
- * `module-namespace` entries as their screens move into the modules that own
- * them. An entry that ever reads *"this is fine"* means the predicate has
- * outgrown its population — narrow it, never add the entry.
+ * mounts, the one `kit-namespace` entry when the kit's strings move to `core`
+ * under R-1's §9.2 ruling, and the four `module-namespace` entries as the
+ * couplings they record are repaired. An entry that ever reads *"this is
+ * fine"* means the predicate has outgrown its population — narrow it, never
+ * add the entry.
+ *
+ * **A `module-namespace` entry whose screen is about to move is the case to be
+ * careful with**, and batch 10 met it. This check's population is
+ * `admin/src/modules/**`, so a screen moving into its module's package takes
+ * every finding about it out of the walk — the entry then reads stale and the
+ * ratchet asks for it to be removed, whether or not anybody repaired anything.
+ * *"The file left the walk"* and *"the coupling went"* produce the identical
+ * diff. So the rule for a batch author is: repair the coupling **in the same
+ * merge request**, and say in the removal which of the two happened.
  *
  * **A `module-namespace` entry has a second retiring shape, and the first one
  * took it.** P5a moved the shared page-builder chrome's 33 `pageBuilder.*` keys
@@ -148,8 +157,13 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
     "The cart approval policy is `carts`' concept rendered on an organization's screen, so " +
     "the copy follows the concept. Retires when the panel becomes `carts`' own contribution " +
     "rather than `organizations`' component.",
-  'admin/src/modules/settings/components/ConfigurationReferenceInput.tsx:module-namespace:credentials':
-    'The credential picker inside a settings field. It is the same reach that sends ' +
-    "`ConfigurationPreviewModal` to `./admin-ui` rather than to the kit — the namespace is " +
-    'the whole of its module knowledge (Z1.1, §9.2) — and it retires in batch 9 with it.',
+  // **`settings`' `ConfigurationReferenceInput` had the fourth entry and the
+  // coupling is repaired, not relocated** (batch 10). It named `credentials`
+  // for one label, `action.preview`, on the button that opens the credential
+  // preview; the string a settings field renders belongs in the settings
+  // bundle, so it is `editor.credentialRef.preview` there in both shipped
+  // languages. Its screen moved into `@endora-commerce/mod-settings/admin` in
+  // the same merge request, which is why the note above about the two
+  // indistinguishable diffs exists: this entry would have read stale either
+  // way, and only one of the two answers is a repair.
 };

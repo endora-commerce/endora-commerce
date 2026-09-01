@@ -159,5 +159,9 @@
   "activation.managedOnPlatformScreen": "This is the module's on/off switch. It is managed on the Modules screen, together with what this deployment offers.",
   "activation.openPlatformScreen": "Open Modules",
   "editor.readOnly": "Read-only",
-  "editor.readOnlyReason": "The module that owns this setting is switched off. Its stored value is preserved and becomes editable again when the module is switched on."
+  "editor.readOnlyReason": "The module that owns this setting is switched off. Its stored value is preserved and becomes editable again when the module is switched on.",
+  "nav.settings.label": "Settings",
+  "nav.settingGroups.label": "Setting groups",
+  "nav.cache.label": "Clear cache",
+  "editor.credentialRef.preview": "Preview"
 }

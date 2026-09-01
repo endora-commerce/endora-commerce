@@ -115,6 +115,60 @@ export const manifest = defineModuleManifest({
     { code: 'DICTIONARY_LAST_ACTIVE_ENTRY' },
     { code: 'DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE' },
   ],
+  /**
+   * Feature 091, Phase 4 batch 10 — the two palette entries this module has
+   * always advertised, declared where the server can filter them.
+   *
+   * `AppShell.tsx`'s `PALETTE_ITEMS` carried a hand-written *Navigate* row for
+   * each of these two screens, and a hand-written palette row is a copy the
+   * server was never asked about: it kept advertising the screens whatever the
+   * effective enabled-set said. Both arrive here instead, with the
+   * destinations, the code and the keywords those rows carried, so nothing an
+   * operator can see changes and the advertisement is now gated the way every
+   * other one is.
+   *
+   * **Both declare `dictionary.write`, which is the only code this module has.**
+   * All 23 registrations under `/api/v1/admin/dictionary/*` enforce it, reads
+   * included — the registry screen is an editing surface and this module never
+   * split read from write — so the action, the route and the API are one code
+   * and the palette never advertises a 403.
+   */
+  actions: [
+    {
+      id: 'open-dictionary',
+      labelKey: 'actions.openDictionary.label',
+      descriptionKey: 'actions.openDictionary.description',
+      icon: 'Languages',
+      targetRoute: '/dictionary',
+      requiredPermission: DICTIONARY_PERMISSIONS.WRITE,
+      keywords: [
+        'dictionary',
+        'countries',
+        'currencies',
+        'languages',
+        'i18n',
+        'słownik',
+        'kraje',
+        'waluty',
+        'języki',
+      ],
+      weight: 250,
+    },
+    {
+      id: 'open-dictionary-audit',
+      labelKey: 'actions.openDictionaryAudit.label',
+      descriptionKey: 'actions.openDictionaryAudit.description',
+      icon: 'ListChecks',
+      // The `/admin`-prefixed spelling, which is the one the sidebar row
+      // advertised and the one this module's nav contribution declares. The
+      // unprefixed `/dictionaries/audit` route still resolves and is
+      // deliberately not advertised twice.
+      targetRoute: '/admin/dictionaries/audit',
+      requiredPermission: DICTIONARY_PERMISSIONS.WRITE,
+      keywords: ['dictionary', 'audit', 'orphan', 'references', 'audyt', 'słownika'],
+      weight: 251,
+    },
+  ],
   // Feature 074 (Constitution XVII), test C3 — platform primitive. The flag
   // used to rest on `organizations` declaring this module; ruling 2 withdraws
   // a dependent's authority to impose the lock, so the ground is now this

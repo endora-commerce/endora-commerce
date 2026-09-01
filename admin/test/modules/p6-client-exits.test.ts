@@ -29,15 +29,24 @@ import { resolve } from 'node:path';
  * The behavioural half lives where each caller already had a test —
  * `components/IdleLogout.test.tsx`, `sales_channels/ChannelIdentityForm.theme
  * .test.tsx`, the three `settings/SettingsPage.*` files and
- * `orders/OrderStatusConfigPage.test.tsx` — each of which now mocks
- * `@/lib/api-client`, the seam the caller actually uses.
+ * `orders/OrderStatusConfigPage.test.tsx` — each of which mocks the seam the
+ * caller actually uses. Since feature 091's batch 10 that is two spellings of
+ * one module: `@/lib/api-client` for a caller in `admin/src`, and
+ * `@endora-commerce/admin-kit/lib` for one inside a module package, where the
+ * `@/` alias resolves to nothing. Mocking the shim would leave the module a
+ * packaged screen imports untouched.
  */
 
 /**
- * One of the admin's own source files, read as text.
+ * One source file, read as text, relative to `admin/`.
  *
  * From the workspace root vitest hands this file, because `import.meta.url` is
- * an `http:` URL under jsdom and `node:fs` cannot read one.
+ * an `http:` URL under jsdom and `node:fs` cannot read one. Three of the paths
+ * below start `../packages/modules/`: feature 091's batch 10 moved `settings`,
+ * `dictionaries` and `credentials` into their packages, so a caller and an
+ * owner named here can sit on either side of that line. The assertion is
+ * unchanged — this file's subject is the **request** each caller names, not
+ * where the file lives.
  */
 function sourceOf(relativePath: string): string {
   return readFileSync(resolve(process.cwd(), relativePath), 'utf8');
@@ -78,14 +87,14 @@ const EXITS: readonly ClientExit[] = [
     endpoints: ['/api/v1/admin/settings/'],
   },
   {
-    caller: 'src/modules/settings/pages/PwaPage.tsx',
+    caller: '../packages/modules/pwa/src/admin/pages/PwaPage.tsx',
     owner: 'sales_channels',
     binding: 'salesChannelsClient',
     clientPath: 'modules/sales_channels/api/sales-channels-client',
     endpoints: ['/api/v1/admin/sales-channels?'],
   },
   {
-    caller: 'src/modules/settings/pages/SettingsPage.tsx',
+    caller: '../packages/modules/settings/src/admin/pages/SettingsPage.tsx',
     owner: 'sales_channels',
     binding: 'salesChannelsClient',
     clientPath: 'modules/sales_channels/api/sales-channels-client',
@@ -113,7 +122,7 @@ const EXITS: readonly ClientExit[] = [
     endpoints: ['/api/v1/admin/dictionary/'],
   },
   {
-    caller: 'src/modules/settings/components/ConfigurationReferenceInput.tsx',
+    caller: '../packages/modules/settings/src/admin/components/ConfigurationReferenceInput.tsx',
     owner: 'credentials',
     binding: 'credentialsClient',
     clientPath: 'modules/credentials/api/credentials-client',
@@ -133,7 +142,13 @@ describe('feature 091 P6 — nine callers build their own request', () => {
     // names the wrong path passes every import rule in the estate and fetches
     // nothing, which is the one regression this repair can introduce.
     const source = sourceOf(exit.caller);
-    expect(source).toContain("from '@/lib/api-client'");
+    // `@/lib/api-client` for a caller still in `admin/src`, and the kit's own
+    // barrel — the identical binding, forwarded by that shim — for one inside
+    // a module package, where the `@/` alias does not resolve at all.
+    expect(
+      source.includes("from '@/lib/api-client'") ||
+        source.includes("from '@endora-commerce/admin-kit/lib'"),
+    ).toBe(true);
     for (const endpoint of exit.endpoints) {
       expect(source).toContain(endpoint);
     }
@@ -149,10 +164,10 @@ describe('the owners keep their clients, because their own screens read them', (
    * case is here so the claim is settled by a measurement rather than repeated.
    */
   it.each([
-    ['src/modules/settings/api/settings-client.ts', 'settingsClient'],
+    ['../packages/modules/settings/src/admin/api/settings-client.ts', 'settingsClient'],
     ['src/modules/sales_channels/api/sales-channels-client.ts', 'salesChannelsClient'],
-    ['src/modules/dictionaries/client.ts', 'dictionaryClient'],
-    ['src/modules/credentials/api/credentials-client.ts', 'credentialsClient'],
+    ['../packages/modules/dictionaries/src/admin/api/client.ts', 'dictionaryClient'],
+    ['../packages/modules/credentials/src/admin/api/credentials-client.ts', 'credentialsClient'],
   ])('%s still exports %s', (path, binding) => {
     expect(sourceOf(path)).toContain(`export const ${binding}`);
   });

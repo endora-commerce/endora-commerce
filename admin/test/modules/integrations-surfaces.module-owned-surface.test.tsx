@@ -262,9 +262,17 @@ describe('api_keys and webhooks own their admin surfaces', () => {
     renderAt('/');
     const hrefs = sidebarHrefs();
     expect(hrefs.indexOf('/api-keys')).toBeLessThan(hrefs.indexOf('/webhooks'));
-    // `/credentials` is a host row that used to follow both. It precedes them
-    // now; that is the change, and it closes when *System* empties.
-    expect(hrefs.indexOf('/credentials')).toBeLessThan(hrefs.indexOf('/api-keys'));
+    // **`/credentials` closed in batch 10**, and this is where that is recorded
+    // because it is where it was recorded as a regression. The sentence here
+    // said the change closes when *System* empties; it did not have to empty.
+    // `/credentials` was a host row that used to follow both and preceded them
+    // after this batch; it is `@endora-commerce/mod-credentials`' own
+    // declaration now at weight 900, so the weights order it against these two
+    // and the hand-written position comes back.
+    expect(hrefs.indexOf('/api-keys')).toBeLessThan(hrefs.indexOf('/credentials'));
+    // The residue, asserted so a later batch that weights the host rows has
+    // something that goes red: `/platform/modules` still leads the section.
+    expect(hrefs.indexOf('/platform/modules')).toBeLessThan(hrefs.indexOf('/api-keys'));
   });
 });
 

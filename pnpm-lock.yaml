@@ -80,6 +80,9 @@ importers:
       '@endora-commerce/mod-comparisons':
         specifier: workspace:*
         version: link:../packages/modules/comparisons
+      '@endora-commerce/mod-credentials':
+        specifier: workspace:*
+        version: link:../packages/modules/credentials
       '@endora-commerce/mod-credit-limits':
         specifier: workspace:*
         version: link:../packages/modules/credit_limits
@@ -95,6 +98,9 @@ importers:
       '@endora-commerce/mod-dhl-parcel':
         specifier: workspace:*
         version: link:../packages/modules/dhl_parcel
+      '@endora-commerce/mod-dictionaries':
+        specifier: workspace:*
+        version: link:../packages/modules/dictionaries
       '@endora-commerce/mod-google-analytics':
         specifier: workspace:*
         version: link:../packages/modules/google_analytics
@@ -143,6 +149,9 @@ importers:
       '@endora-commerce/mod-seo':
         specifier: workspace:*
         version: link:../packages/modules/seo
+      '@endora-commerce/mod-settings':
+        specifier: workspace:*
+        version: link:../packages/modules/settings
       '@endora-commerce/mod-stripe':
         specifier: workspace:*
         version: link:../packages/modules/stripe
@@ -1503,6 +1512,9 @@ importers:
 
   packages/modules/credentials:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1521,9 +1533,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1810,6 +1831,9 @@ importers:
 
   packages/modules/dictionaries:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1828,12 +1852,24 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2944,6 +2980,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       '@types/web-push':
         specifier: ^3.6.4
         version: 3.6.4
@@ -2956,6 +2995,12 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       sharp:
         specifier: ^0.35.2
         version: 0.35.2
@@ -3184,9 +3229,15 @@ importers:
 
   packages/modules/settings:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-credentials':
+        specifier: workspace:*
+        version: link:../credentials
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
@@ -3199,12 +3250,24 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
