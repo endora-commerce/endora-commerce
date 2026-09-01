@@ -396,6 +396,7 @@ import {
   loadPackageDeclarations,
   packageCoverage,
   refuseUnreadablePackages,
+  type PackageDeclarations,
   type PackageTable,
 } from './lib/package-declarations.js';
 import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
@@ -2048,6 +2049,113 @@ export function sourcesOf(
 }
 
 /**
+ * One walk of the real tree, and the {@link ModuleBoundaryInput} built from it.
+ *
+ * **Both callers take their input from here, and that is the point.** The
+ * collectors above were already shared with this check's own test, and the
+ * comment there said the two "cannot come to disagree about the scan scope".
+ * They did — not over the *walk* but over the **record**: five of
+ * {@link ModuleBoundaryInput}'s seven fields are optional, each with a
+ * documented "absent means …", and the test assembled its own record from three
+ * of them. Every field it left out silently narrowed the analysis, and the
+ * narrowing that bit was `modulePackages`: absent, a **bare** specifier resolves
+ * to no module package, so no reach is produced for one at all. Batch 10 of
+ * feature 091 added this repository's first bare-specifier ledger key
+ * (`@endora-commerce/mod-credentials/admin-ui`, D-191's published-component
+ * seam); the CLI read `stale=0` over it, and the test — which could not see the
+ * reach that justifies the entry — called the entry stale and took `master` red.
+ *
+ * That is the shape AGENTS.md already records: **the merge request that creates
+ * a derived entry is structurally the one that cannot see it go stale.** Sharing
+ * the *walk* while re-deriving the *record* is the same defect one layer in, so
+ * the record is derived once, here. A field added to
+ * {@link ModuleBoundaryInput} now reaches the tree assertion by construction
+ * rather than by an author remembering a second call site.
+ *
+ * The intermediates come back with it because both callers need them for
+ * something other than the analysis — the CLI for its vacuous guard and its
+ * summary line, the test for its own floors — and re-walking to recover them
+ * would re-open the seam this closes.
+ */
+export interface ModuleBoundaryScan {
+  /**
+   * Exactly what {@link checkModuleBoundary} is called with over this tree.
+   *
+   * Two fields are narrowed to present because a real-tree scan always produces
+   * them, and both callers read them back out for something other than the
+   * analysis: only a fixture may mean "do not run the `sql` predicate" or "grant
+   * no contract-surface exemption" by omitting one.
+   */
+  readonly input: ModuleBoundaryInput & {
+    readonly schema: ReadonlyMap<string, string>;
+    readonly modulePackageSurfaces: ModulePackageSurfaces;
+  };
+  readonly moduleFiles: readonly string[];
+  readonly adminFiles: readonly string[];
+  readonly adminHostFiles: readonly string[];
+  readonly adminSurfaces: AdminBoundarySurfaces | null;
+  /**
+   * The installed extension packages, unrefused. The CLI hands this to
+   * {@link refuseUnreadablePackages}, which exits the process; a scan may not,
+   * so the refusal stays where ending the process is allowed.
+   */
+  readonly packages: PackageDeclarations;
+}
+
+export async function scanModuleBoundaryTree(
+  layout: ModuleTreeLayout,
+): Promise<ModuleBoundaryScan> {
+  // The admin population (feature 091, FR-017). It is merged into the same
+  // source map rather than judged by a second analysis, because the first
+  // module whose admin code imports its own backend package would otherwise be
+  // judged by neither — the recorded reason `research.md` §3.2 gives for
+  // refusing a separate `check:admin-boundary`.
+  const adminSurfaces = await adminSurfacesOf(layout);
+  const adminFiles = collectAdminFiles(adminSurfaces, layout.repoRoot);
+  // The admin **host** population (feature 091, P1): `admin/src` outside the
+  // module root, whose reaches into a module are the admin application asking a
+  // module for something. Walked separately from the module surfaces so the
+  // summary line can say which walk produced what, and so the two floors stay
+  // separable — the surface floor is per attributed directory and this one is
+  // per ledgered file.
+  const adminHostFiles = collectAdminHostFiles(adminSurfaces, layout.repoRoot);
+  // The two walks stay separable, because the backend floor is "one source per
+  // registered module" and an admin directory produces a file for its module
+  // too: merging them first would let `admin/src/modules/blog/` satisfy the
+  // floor for a `blog` whose backend sources had vanished, which is issue #215
+  // re-opened by the repair for FR-017.
+  const moduleFiles = collectModuleFiles(layout.moduleWalkRoots);
+  const sources = sourcesOf([...moduleFiles, ...adminFiles, ...adminHostFiles], layout.keyOf);
+  const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
+  // The third owner-map source (T034). It is read before the caller's vacuous
+  // guard so that a package whose schema cannot be enumerated stops the run
+  // instead of leaving its tables attributed to nobody — the silence that would
+  // let every reach into one report clean.
+  const packages = await loadPackageDeclarations();
+  return {
+    input: {
+      sources,
+      schema,
+      packageTables: packages.tables,
+      modulePackages: layout.modulePackageNames,
+      // D-171's reader, over the module packages the layout found: each
+      // package's own `exports` map and its own emitted modules, so the
+      // contract-surface designation is re-derived here rather than written
+      // down anywhere. Constructing it reads nothing — the reader is lazy and
+      // throws `UnreadableSubpathError` at the subpath it cannot measure.
+      modulePackageSurfaces: modulePackageSurfaces(modulePackageDirectories(layout)),
+      hostResidentModules: layout.hostResidentModules,
+      adminSurfaces,
+    },
+    moduleFiles,
+    adminFiles,
+    adminHostFiles,
+    adminSurfaces,
+    packages,
+  };
+}
+
+/**
  * The two ways a {@link GENERATED_MODULE_FILES} entry can rot: the file it names
  * is gone, or the generator it credits is.
  */
@@ -2234,33 +2342,11 @@ async function main(): Promise<void> {
   // owner map is built over the wider source list, for the same reason it was
   // always wider than the module walk.
   const layout = await requireModuleLayout('[module-boundary]');
-  // The admin population (feature 091, FR-017). It is merged into the same
-  // source map rather than judged by a second analysis, because the first
-  // module whose admin code imports its own backend package would otherwise be
-  // judged by neither — the recorded reason `research.md` §3.2 gives for
-  // refusing a separate `check:admin-boundary`.
-  const admin = await adminSurfacesOf(layout);
-  const adminFiles = collectAdminFiles(admin, layout.repoRoot);
-  // The admin **host** population (feature 091, P1): `admin/src` outside the
-  // module root, whose reaches into a module are the admin application asking a
-  // module for something. Walked separately from the module surfaces so the
-  // summary line can say which walk produced what, and so the two floors stay
-  // separable — the surface floor is per attributed directory and this one is
-  // per ledgered file.
-  const adminHostFiles = collectAdminHostFiles(admin, layout.repoRoot);
-  // The two walks stay separable, because the backend floor is "one source per
-  // registered module" and an admin directory produces a file for its module
-  // too: merging them first would let `admin/src/modules/blog/` satisfy the
-  // floor for a `blog` whose backend sources had vanished, which is issue #215
-  // re-opened by the repair for FR-017.
-  const files = collectModuleFiles(layout.moduleWalkRoots);
-  const sources = sourcesOf([...files, ...adminFiles, ...adminHostFiles], layout.keyOf);
-  const schema = sourcesOf(collectSchemaFiles(layout.sourceRoots), schemaKeyOf(layout));
-  // The third owner-map source (T034). It is read before the vacuous guard so
-  // that a package whose schema cannot be enumerated stops the run instead of
-  // leaving its tables attributed to nobody — the silence that would let every
-  // reach into one report clean.
-  const packages = await loadPackageDeclarations();
+  // One walk, one record, shared with this check's own tree assertion — see
+  // {@link scanModuleBoundaryTree} for why the record and not only the walk.
+  const scan = await scanModuleBoundaryTree(layout);
+  const { moduleFiles: files, adminFiles, adminHostFiles, adminSurfaces: admin, packages } = scan;
+  const { sources, schema } = scan.input;
   refuseUnreadablePackages('[module-boundary]', packages);
   const owners = buildTableOwners(schema, packages.tables, layout.hostResidentModules).report;
   let registeredModules: readonly string[];
@@ -2306,25 +2392,9 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  // D-171's reader, over the module packages the layout found: each package's
-  // own `exports` map and its own emitted modules, so the contract-surface
-  // designation is re-derived here rather than written down anywhere.
-  const surfaces = modulePackageSurfaces(modulePackageDirectories(layout));
-
   let result: CheckResult;
   try {
-    result = checkModuleBoundary(
-      {
-        sources,
-        schema,
-        packageTables: packages.tables,
-        modulePackages: layout.modulePackageNames,
-        modulePackageSurfaces: surfaces,
-        hostResidentModules: layout.hostResidentModules,
-        adminSurfaces: admin,
-      },
-      shards,
-    );
+    result = checkModuleBoundary(scan.input, shards);
   } catch (error) {
     if (!(error instanceof UnreadableSubpathError)) throw error;
     console.error(`[module-boundary] ${error.message}`);
@@ -2446,7 +2516,11 @@ async function main(): Promise<void> {
     // emitted module only for a subpath a module actually reached — so its
     // contribution is 0 on a tree where no module names a package specifier,
     // and that is the honest number rather than a rounding of it (issue #244).
-    files: sources.size + schema.size + packages.filesRead + surfaces.filesRead(),
+    files:
+      sources.size +
+      schema.size +
+      packages.filesRead +
+      scan.input.modulePackageSurfaces.filesRead(),
     coverage: coverages,
   });
   console.log(
