@@ -399,15 +399,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // admin directory moves into its module's package. Its expectation is the
     // surface directories the route table and the nav attribute to a module —
     // an independent derivation, and not the walk counting itself.
-    // `admin-host` joined with P1 and is the host population's short-walk floor.
-    // Its independent author is the **ledger**: a key is written by the merge
-    // request that recorded the reach, not by the derivation being checked, so
-    // the expectation moves when a human moves it and the coverage moves when
-    // the walk does. It is printed only while there is host debt — `expected=0`
-    // is a refusal in this grammar — so the day the last host reach drains this
-    // entry goes with the token, and that staleness is the two-way property
-    // rather than a defect.
-    sources: ['manifest-index', 'module-packages', 'admin-surfaces', 'admin-host'],
+    // `admin-host` joined with P1 and was the host population's short-walk
+    // floor. **That day came** (feature 091, P6): `IdleLogout.tsx` was the last
+    // host reach, it took the client exit, `host.ts` was deleted, and the token
+    // went with it — printed only while there is host debt, because
+    // `expected=0` is a refusal in this grammar. Its own entry said that
+    // staleness is the two-way property rather than a defect, so the entry is
+    // removed here in the merge request that drained it rather than left for
+    // the next one to find.
+    sources: ['manifest-index', 'module-packages', 'admin-surfaces'],
   },
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',

@@ -17,12 +17,25 @@ import { renderWithI18n } from '../../helpers/render-with-i18n';
  * which is the defect rather than a cosmetic detail.
  */
 
-vi.mock('../../../src/modules/dictionaries/client', () => ({
-  dictionaryClient: {
-    listLanguages: async () => ({ data: [] }),
-    listCurrencies: async () => ({ data: [] }),
-  },
-}));
+// The form builds its two dictionary requests itself since feature 091's P6 —
+// it no longer imports `dictionaries`' admin API client, so the seam a test can
+// isolate is `apiClient`. The stub answers **by URL**, which makes the mock a
+// behavioural check on the rebuilt paths: a caller that names the wrong one
+// throws rather than quietly rendering an empty list.
+vi.mock('@/lib/api-client', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      get: async (url: string) => {
+        if (url.startsWith('/api/v1/admin/dictionary/languages')) return { data: [] };
+        if (url.startsWith('/api/v1/admin/dictionary/currencies')) return { data: [] };
+        throw new Error(`unexpected request: ${url}`);
+      },
+    },
+  };
+});
 
 const { ChannelIdentityForm } = await import(
   '../../../src/modules/sales_channels/components/ChannelIdentityForm'

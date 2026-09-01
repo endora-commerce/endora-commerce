@@ -20,11 +20,15 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  * nicely.
  */
 
-vi.mock('@/modules/sales_channels/api/sales-channels-client', () => ({
-  salesChannelsClient: {
-    list: vi.fn(async () => ({ items: [] })),
-  },
-}));
+// `SettingsPage` builds its sales-channel request itself since feature 091's
+// P6 — it no longer imports `sales_channels`' admin API client, so the seam a
+// test can isolate is `apiClient`. Partial, because the page also imports
+// `ApiError` from the same module and compares against it with `instanceof`.
+const channelsGetSpy = vi.fn(async () => ({ items: [] }));
+vi.mock('@/lib/api-client', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+  return { ...actual, apiClient: { ...actual.apiClient, get: channelsGetSpy } };
+});
 
 const listMock = vi.fn();
 vi.mock('@/modules/settings/api/settings-client', () => ({
