@@ -42,7 +42,28 @@
  *      translation namespace is module knowledge: the bundle behind it is
  *      shipped by a package the kit does not and may not depend on, resolved at
  *      runtime by string, with nothing holding the two together;
- *   3. a **module admin file**'s `useTranslation('<id>')` naming another module.
+ *   3. a **module admin file**'s `useTranslation('<id>')` naming another module,
+ *      **and an admin-ui package's**, which is the same predicate over a file
+ *      that owns no module id at all (feature 091, P5c).
+ *
+ * That third population's roots are declarations, never paths: `admin/src` for
+ * the application, plus every workspace member declaring
+ * `endora: { type: 'admin-ui' }` other than the kit, which has population 2 and
+ * its own R6 reasoning. It is widened **before** P5b moves the shared
+ * page-builder chrome and the e-mail builder into
+ * `@endora-commerce/page-builder-admin`, because widening afterwards adds the
+ * population that would have caught the move in the merge request that no
+ * longer needs it. The ledger's own header records the exclusion this replaces:
+ * `_shared`'s `useTranslation('cms')` was out of the population because
+ * ownership comes from the route table and the nav and `_shared` is claimed by
+ * neither — correct while the directory was the admin application's, and the
+ * wrong answer once it is a package. A file in an admin-ui package is owned by
+ * **no module**, so every registered module id it names is another module's,
+ * and it is judged rather than excluded.
+ *
+ * Why a manifest field decides a check's population: `declaresAdminUi` in
+ * `lib/workspace-packages.ts` carries the reasoning, D-171 included — the short
+ * of it is that this declaration adds obligations and exempts nothing.
  *
  * `core` is not a module id and is therefore in none of them, which is not an
  * exemption written here but a consequence of the ids coming from the generated
@@ -94,7 +115,11 @@ import {
 } from './lib/module-population.js';
 import { requireModuleLayout, type ModuleTreeLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
-import { workspaceMembers, nodeWorkspaceFs } from './lib/workspace-packages.js';
+import {
+  adminUiPackages,
+  workspaceMembers,
+  nodeWorkspaceFs,
+} from './lib/workspace-packages.js';
 
 /** The package whose sources are population 2, and the one file in it that is exempt. */
 const KIT_PACKAGE = '@endora-commerce/admin-kit';
@@ -374,9 +399,10 @@ function foreignModuleIdMessage(site: ModuleIdSite): string {
   if (site.named === null) {
     return (
       `${where} names its translation namespace with something other than a string literal, ` +
-      'inside the admin kit. A namespace this walk cannot read is a namespace it cannot ' +
-      'clear, and reporting it as clean is exactly the "green that means not looking" this ' +
-      'estate refuses (issue #113). Write it as a literal.'
+      'in a file that owns no module id — the admin kit, or an admin-ui package. No ' +
+      "namespace here can be the file's own, so a namespace this walk cannot read is a " +
+      'namespace it cannot clear, and reporting it as clean is exactly the "green that ' +
+      'means not looking" this estate refuses (issue #113). Write it as a literal.'
     );
   }
   switch (site.population) {
@@ -822,6 +848,14 @@ async function main(): Promise<void> {
 
   const moduleFiles = layout.moduleWalkRoots.flatMap((root) => walk(root));
   const adminFiles = admin === null ? [] : walk(admin.sourceRoot);
+  // Every admin-ui package **other than the kit**: the kit is population 2,
+  // whose message is R6 of `admin-kit-surface.md` and whose subject is the kit
+  // specifically, so leaving it here as well would report one site twice under
+  // two keys. `KIT_PACKAGE` therefore stays a name — it is the subject of that
+  // rule rather than a derived fact written down.
+  const familyFiles = adminUiPackages(workspaceMembers(layout.repoRoot, nodeWorkspaceFs()))
+    .filter((pkg) => kitDir === null || resolve(pkg.dir) !== resolve(kitDir))
+    .flatMap((pkg) => walk(join(pkg.dir, 'src')));
 
   const registered = new Set(layout.registeredIds);
   const key = (file: string): string => relative(layout.repoRoot, file).split(sep).join('/');
@@ -833,7 +867,7 @@ async function main(): Promise<void> {
 
   // Host files — a zone may be rendered by a module's screen, by an installed
   // package's screen or by the admin application's own.
-  const hostFiles = [...moduleFiles, ...adminFiles, ...kitFiles];
+  const hostFiles = [...moduleFiles, ...adminFiles, ...kitFiles, ...familyFiles];
   for (const file of hostFiles) {
     const source = readFileSync(file, 'utf8');
     const isMechanism =
@@ -864,6 +898,31 @@ async function main(): Promise<void> {
         named: site.named,
         owner: null,
         population: 'kit-namespace',
+      });
+    }
+  }
+
+  // Population 3, the half that owns no module id — an admin-ui package's own
+  // sources (feature 091, P5c). No namespace here can be the file's own, so
+  // every registered id it names is foreign and a **computed** one is a finding
+  // rather than a skip, on the kit's own reasoning: a namespace this walk
+  // cannot read is one it cannot clear (issue #113). It is `module-namespace`
+  // rather than a fourth population because it is the same coupling with the
+  // same remedy — the strings a screen shows ship in the bundle of whoever owns
+  // the screen — and the finding's message already answers for an owner of
+  // `null`.
+  for (const file of familyFiles) {
+    const source = readFileSync(file, 'utf8');
+    if (!source.includes('useTranslation')) continue;
+    for (const site of translationScopeSites(source, key(file))) {
+      translationSites += 1;
+      if (site.named !== null && !registered.has(site.named)) continue;
+      moduleIds.push({
+        file: key(file),
+        line: site.line,
+        named: site.named,
+        owner: null,
+        population: 'module-namespace',
       });
     }
   }
@@ -958,6 +1017,18 @@ async function main(): Promise<void> {
     // sources, the admin's own and the kit's.
     files: hostFiles.length,
     sites: result.sites,
+    // **No `admin-ui` token, and that is a decision rather than an omission**
+    // (feature 091, P5c). The family half of population 3 is empty on the tree
+    // this widening lands on — the kit is the only admin-ui member and it is
+    // population 2 — so a coverage entry over it would declare `expected=0`,
+    // which `read-size.ts` refuses as `no-expectation`, exit 2, on every run
+    // until P5b creates the package. The kit is floored where it already was,
+    // by `vacuousReason`'s `kitFiles` refusal; the family packages are floored
+    // by the `foreign-module-id` ledger being two-way and keyed by path, which
+    // is the same self-check `i18n:hardcoded`'s baseline provides — an entry
+    // naming a file the walk stopped reaching goes stale in the same run. When
+    // a second admin-ui member exists and carries a ledger key, this is where a
+    // token for it belongs.
     coverage: [
       {
         // The enum declares the names and this check computes none of them.

@@ -79,6 +79,19 @@
  * that a ledger cannot answer. The pane's own repair is the evidence for the
  * other half of §9.3's argument: nothing in this estate reported it, because a
  * site outside the population is a site outside every instrument.
+ *
+ * **And the rule has an answer for where `_shared` is going, which P5c put in
+ * place before the move.** The exclusion above rests on ownership coming from
+ * the route table and the nav, which is a fact about the admin *application*.
+ * Once these files are `@endora-commerce/page-builder-admin`'s there is no nav
+ * to consult and no route table to be absent from: a package declaring
+ * `endora: { type: 'admin-ui' }` owns **no** module id, so every registered id
+ * its sources name is another module's and is judged rather than excluded, with
+ * a computed one refused on the kit's own reasoning. So the two answers do not
+ * conflict — `_shared` under `admin/src` is the application's and is nobody's;
+ * the same files in a package are nobody's and are therefore foreign to every
+ * module. What decides which is where the file lives, and the instrument was
+ * taught both before either was true, which is the whole of P5c.
  */
 
 /** One recorded coupling: a reason, and — where the key covers more than one site — a count. */

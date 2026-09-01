@@ -798,15 +798,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/i18n-hardcoded-strings.ts': {
     prefix: '[i18n:hardcoded]',
     run: { kind: 'tsx', path: 'scripts/i18n-hardcoded-strings.ts', args: [] },
-    // Three root families since feature 091: `admin/src`, the admin kit (Phase
-    // 1b — 57 of the admin's own components moved into the package, and a
-    // ratchet that stopped at the application would have read their entries as
-    // drained rather than relocated) and every module package's own `src/admin`
-    // layer (Phase 4 — the drain relocates a screen at a time, which is the
-    // same laundering at a finer granularity). The number grows with each batch.
-    files: 364,
+    // Three root families since feature 091: `admin/src`, the packages that
+    // declare `endora: { type: 'admin-ui' }` — the admin kit today (Phase 1b:
+    // 57 of the admin's own components moved into it, and a ratchet that
+    // stopped at the application would have read their entries as drained
+    // rather than relocated) — and every module package's own `src/admin` layer
+    // (Phase 4 — the drain relocates a screen at a time, which is the same
+    // laundering at a finer granularity). The number grows with each batch.
+    files: 386,
     sites: null,
-    sources: [],
+    // `admin-ui` is the workspace manifests' own answer to "how many packages
+    // ship a tree of admin UI", reconciled against how many of them the walk
+    // actually opened a file in (feature 091, P5c). It replaced a by-name
+    // refusal — "no member is `@endora-commerce/admin-kit`" — with a floor that
+    // covers the second such package too, which is what P5b creates. It reads
+    // `1/1` on this tree, and adding the token moved `files` by nothing: the
+    // kit was already a root, under its name.
+    sources: ['admin-ui'],
   },
   'scripts/check-naming.sh': {
     prefix: '[naming]',
@@ -870,9 +878,6 @@ export const READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE: Readonly<Record<string, st
     "`check-doc-snippets` uses for its roots: a guard derived from the check's own " +
     'examinations rather than a `sources=` entry it would be reconciling with itself.',
   'backend/scripts/check-shared-table-wipes.ts': 'same population as `check-fixture-substitution`.',
-  'backend/scripts/i18n-hardcoded-strings.ts':
-    "the population is the admin SPA's own source tree; nothing else in the repository " +
-    'enumerates it.',
   'scripts/check-pdfmake-footprint.sh':
     'the population is one installed dependency directory. Nothing derives how many files ' +
     'a published package ships.',
