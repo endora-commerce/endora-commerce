@@ -24,7 +24,7 @@ import {
 import { useTranslation } from '@/i18n/useTranslation';
 import { useAuth } from '@/lib/auth';
 import { InvoiceKsefPanel } from '@/modules/ksef/components/InvoiceKsefPanel';
-import { sendInvoiceEmailMessage } from './email-outcome';
+import { sendInvoiceEmailMessage } from '@endora-commerce/admin-kit/lib';
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   pending: 'warning',

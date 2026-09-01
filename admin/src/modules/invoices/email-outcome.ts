@@ -1,61 +1,21 @@
-import type {
-  InvoiceEmailNotSentReason,
-  IssueInvoiceEmailOutcome,
-  SendInvoiceEmailResult,
-} from '@endora-commerce/contracts';
-
-/** The scope-bound translator `useTranslation` hands out. */
-type Translate = (key: string, params?: Record<string, string | number>) => string;
-
 /**
- * The sentence for one of the seven reasons an invoice e-mail did not go out
- * (issue #103 named them, issue #149 put them on the wire).
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/lib` (feature 091, P8).
  *
- * Shared by every surface that can trigger a send — issuing an invoice from the
- * order, and re-sending one from the invoice list or detail — so an operator
- * reads the same words wherever the answer reaches them.
- */
-export function invoiceEmailNotSentReason(reason: InvoiceEmailNotSentReason, t: Translate): string {
-  return t(`invoices.emailNotSent.${reason}`);
-}
-
-/**
- * What to tell the operator who asked for a re-send, and whether it is good
- * news. Both invoice surfaces reported `invoices.emailSent` unconditionally,
- * over a response body that could already say the message had been suppressed.
- */
-export function sendInvoiceEmailMessage(
-  result: SendInvoiceEmailResult,
-  t: Translate,
-): { ok: boolean; message: string } {
-  if (result.ok) return { ok: true, message: t('invoices.emailSent') };
-  return {
-    ok: false,
-    message: t('invoices.emailNotSentNotice', {
-      reason: invoiceEmailNotSentReason(result.reason, t),
-    }),
-  };
-}
-
-/**
- * What to tell the operator after "issue invoice", given what became of the
- * notification.
+ * The three functions sat under `invoices`' admin directory and `orders`' order
+ * detail imported one of them — the single `cross-module-imports/orders.ts`
+ * key. Nothing about them is `invoices`' code: the outcome shapes are
+ * `@endora-commerce/contracts`', and all twelve sentences they read were
+ * already `core`'s in both shipped languages, which is what made this a
+ * publication and not a key move.
  *
- * All three answers are distinct, and the middle one matters most: send-on-issue
- * being switched off is a configured choice, so it reads as a plain "issued"
- * rather than as a message that failed. A missing `email` field — an older
- * server, or a response shape a caller did not read — falls back to the same
- * plain confirmation, which is what the screen said before it could do better.
+ * **The forwarding is the identity, not a copy.** These names are the package's
+ * own bindings; `admin/test/kit/admin-kit-identity.test.ts` asserts reference
+ * equality across the seam.
  */
-export function issueInvoiceNotice(
-  outcome: IssueInvoiceEmailOutcome | undefined,
-  t: Translate,
-): string {
-  if (outcome?.status === 'sent') return t('orderDetail.issueInvoice.doneEmailSent');
-  if (outcome?.status === 'not_sent') {
-    return t('orderDetail.issueInvoice.doneEmailNotSent', {
-      reason: invoiceEmailNotSentReason(outcome.reason, t),
-    });
-  }
-  return t('orderDetail.issueInvoice.done');
-}
+export {
+  invoiceEmailNotSentReason,
+  issueInvoiceNotice,
+  sendInvoiceEmailMessage,
+} from '@endora-commerce/admin-kit/lib';
+export type { Translate } from '@endora-commerce/admin-kit/lib';

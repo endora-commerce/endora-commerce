@@ -1,8 +1,8 @@
-import type { CmsScopeValue } from './ScopePicker.js';
+import type { ScopePickerValue } from '@endora-commerce/admin-kit/components';
 
 /** Pick the language used for content/meta saves — must be in scope.languages. */
 export function resolveScopedContentLanguage(
-  scope: CmsScopeValue,
+  scope: ScopePickerValue,
   activeLanguage: string | null,
 ): string | null {
   if (activeLanguage && scope.languages.includes(activeLanguage)) return activeLanguage;

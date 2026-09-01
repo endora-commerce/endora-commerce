@@ -32,10 +32,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { issueInvoiceNotice } from '../invoices/email-outcome';
+import { issueInvoiceNotice } from '@endora-commerce/admin-kit/lib';
 import { OrderPaymentsTab } from './OrderPaymentsTab';
 import { OrderShipmentsTab } from './OrderShipmentsTab';
-import { Section } from './Section';
+import { Section } from '@endora-commerce/admin-kit/ui';
 import { orderStatusBadgeStyle } from './orderStatusColor';
 import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
 import {

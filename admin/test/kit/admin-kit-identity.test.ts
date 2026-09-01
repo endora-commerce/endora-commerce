@@ -59,6 +59,10 @@ import { CmsPagePicker } from '@/components/cms-picker/CmsPagePicker';
 import { OrganizationPicker, OrganizationStatusBadge } from '@/components/organization-picker';
 import { OrganizationPickerMulti } from '@/components/organization-picker/OrganizationPickerMulti';
 import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
+import { ContentLanguageTabs } from '@/modules/cms/components/ContentLanguageTabs';
+import { ScopePicker } from '@/modules/cms/components/ScopePicker';
+import { Section } from '@/modules/orders/Section';
+import { issueInvoiceNotice, sendInvoiceEmailMessage } from '@/modules/invoices/email-outcome';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -98,6 +102,20 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     // their consumers name the subpath directly and there is no old path left
     // to forward.
     expect(AssetFieldPicker).toBe(kitComponents.AssetFieldPicker);
+  });
+
+  it('serves the four P8 members through both spellings', () => {
+    // Feature 091's P8 published four generic members that sat under a module's
+    // admin directory and were reached from another's: `cms`' two content
+    // components, `orders`' `Section` and `invoices`' e-mail-outcome helpers.
+    // Their consumers name the subpath directly; the shims stay because the old
+    // paths are the spelling each owner's own tests and any client tree already
+    // hold, and a second resolution would be a second copy.
+    expect(ContentLanguageTabs).toBe(kitComponents.ContentLanguageTabs);
+    expect(ScopePicker).toBe(kitComponents.ScopePicker);
+    expect(Section).toBe(kitUi.Section);
+    expect(issueInvoiceNotice).toBe(kitLib.issueInvoiceNotice);
+    expect(sendInvoiceEmailMessage).toBe(kitLib.sendInvoiceEmailMessage);
   });
 
   // **`CustomFieldValuesPanel` had a case here and no longer has a shim to
