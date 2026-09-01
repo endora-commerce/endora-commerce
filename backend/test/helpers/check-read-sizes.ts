@@ -404,7 +404,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the `visibility-gate` on `credentials` that batch 10 wrote into
     // `mod-settings`' admin layer, correct and outside every instrument in this
     // estate from the day it landed.
-    files: 2206,
+    //
+    // **2206 -> 2212, of which P9 is one.** The one is this merge request's:
+    // the `FulfilmentStrategyPicker` the kit publishes, its old path staying as
+    // a shim, so the admin side of the move is a wash. `sites` does not move at
+    // all, because the component reads `useTranslation('core')` and named no
+    // module id before or after — which is the whole of why §10.2 routed it to
+    // the kit rather than to `./admin-ui`. The other five arrived with batch 11
+    // and were not re-recorded there; the split is derived rather than
+    // apportioned, this merge request's delta being measured on its own base
+    // before the merge (2207 -> 2208) and the merged tree read after it.
+    files: 2212,
     sites: 16,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -585,8 +595,26 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `invoices` reaches this merge request retires move neither number — a
     // rewritten specifier is still a specifier, which is precisely why
     // `check:module-boundary` and not this check is where they were ledgered.
-    files: 354,
-    sites: 2408,
+    //
+    // **354 -> 358 and 2408 -> 2362, and P9 is -5 of the -46.** This merge
+    // request is the P8 shape again in miniature: one published component, a
+    // shim at the old path, no directory moved. Its -5 accounts exactly and all
+    // of it comes off the published file — `FulfilmentStrategyPicker` had seven
+    // specifiers (`react`, `lucide-react`, `@endora-commerce/contracts` and
+    // four `@/…` reaches) and its shim has two. Its two consumers are a wash,
+    // one specifier before and one after, which is why the two
+    // `cross-module-imports` keys they retire move this number by nothing: a
+    // rewritten specifier is still a specifier.
+    //
+    // The other -41, with the +4 files, is **batch 11** — `newsletter` and
+    // `transactional_emails` moving their admin directories into their packages
+    // — which did not re-record it. That is the silent fall this entry keeps
+    // warning about, inside the band and therefore invisible until the next
+    // merge request had to read the line. The split is derived rather than
+    // apportioned: P9's delta was measured on its own base before the merge
+    // (2408 -> 2403 at `6fa00d9a0`) and the merged tree read after it.
+    files: 358,
+    sites: 2362,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not

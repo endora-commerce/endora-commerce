@@ -10,7 +10,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import {
   FulfilmentStrategyPicker,
   type FulfilmentStrategyValue,
-} from '@/modules/inventory/components/FulfilmentStrategyPicker';
+} from '@endora-commerce/admin-kit/components';
 
 /**
  * Read one setting by code (feature 091, P6).
