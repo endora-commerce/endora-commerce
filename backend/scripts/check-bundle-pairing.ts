@@ -102,7 +102,7 @@
  * no bundle read at all, or a manifest artefact its source has outrun.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -439,15 +439,33 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  // § 4.3 — issue #215's shared floor, over the population this check walks:
-  // each registered module's **own directory**, which is what `bundlesDir` is
-  // joined to. A module tree that moved leaves the index answering for 69
-  // modules over a walk that reached two, and the remainder would read clean.
-  const directories = loaded.modules
-    .filter((module) => existsSync(module.directory))
-    .map((module) => module.directory);
+  // § 4.3 — issue #215's shared floor, and it is a **conjunction** because the
+  // two halves of a module tree going missing look nothing alike. A module
+  // contributes to this walk when the layout **places** it and the directory it
+  // placed it at is really there:
+  //
+  //   * placement is the layout's answer, not this check's — `moduleDirectories`
+  //     holds a module in the application tree, in a workspace package that
+  //     declares itself one, or in the host, and a module in none of the three
+  //     is absent from it. That is what sees the *half-moved* tree: sources at
+  //     `packages/modules/<id>` with the `package.json` withheld, which no glob
+  //     produces and no root covers. Measured — the module is missing from the
+  //     map while its directory is on disk and readable, so an existence test
+  //     alone reports it covered and leaves 68 modules judged behind a clean
+  //     line;
+  //   * existence is what sees the *moved* tree. The layout derives a
+  //     host-resident root from the index's own `manifestPath`, so a registry
+  //     pointing at `src/modules/<id>` places all 69 modules at directories that
+  //     are not there — a placement test alone reports every one of them
+  //     covered.
+  //
+  // Neither half is redundant, and each was measured failing on the fixture the
+  // other one catches.
+  const directories = [...layout.moduleDirectories]
+    .filter(([, directory]) => nodeBundlePairingFs.isDirectory(directory))
+    .map(([, directory]) => directory);
   const byDirectory = new Map(
-    loaded.modules.map((module) => [module.directory, module.moduleId] as const),
+    [...layout.moduleDirectories].map(([moduleId, directory]) => [directory, moduleId] as const),
   );
   const coverage = await refuseVacuousModulePopulation({
     prefix: PREFIX,
