@@ -23,6 +23,7 @@
     "check:bundle-pairing": "tsx scripts/check-bundle-pairing.ts",
     "check:command-coverage": "tsx scripts/check-command-coverage.ts",
     "check:container-imports": "tsx scripts/check-container-imports.ts",
+    "check:default-language-prose": "tsx scripts/check-default-language-prose.ts",
     "check:diacritic-folds": "tsx scripts/check-diacritic-folds.ts",
     "check:doc-snippets": "tsx scripts/check-doc-snippets.ts",
     "check:entry-presence": "tsx scripts/check-entry-presence.ts",
