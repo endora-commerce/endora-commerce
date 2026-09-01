@@ -25,8 +25,18 @@ export interface CategoryTreePickerProps {
   className?: string;
 }
 
+/**
+ * **Its copy is `core`'s, not `catalog`'s** (R-1, 2026-08-31). The component
+ * called `useTranslation('catalog')` from Phase 1b, which `admin-kit-surface.md`
+ * R6 rules is module knowledge for the same reason an admin API client is: the
+ * bundle behind a namespace is shipped by a module package the kit does not and
+ * may not depend on, resolved at runtime by string, and a renamed key renders
+ * `core.<key>` at the operator rather than failing to compile. All seven
+ * `categoryTreePicker.*` keys moved into `core` under the same spelling; none
+ * duplicates a concept `core` already carries, so none is reused.
+ */
 export function CategoryTreePicker(props: CategoryTreePickerProps): ReactNode {
-  const t = useTranslation('catalog');
+  const t = useTranslation('core');
   const { language } = useTranslationContext();
   const locale = adminLanguageToLocale(language);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
