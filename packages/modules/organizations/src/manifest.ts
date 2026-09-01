@@ -329,6 +329,28 @@ export const manifest = defineModuleManifest({
         { key: 'linkPath', label: 'Admin link', sampleValue: '/organizations/…' },
       ],
     },
+    // The two moderation outcomes a buyer is told about. Both reached the
+    // transport as hard-coded Polish prose with no code and no language until
+    // the seam-B carve-out in `specs/093-backend-delivered-prose/`; declaring
+    // them here is what gives them a language at all, and an operator a place
+    // to edit them.
+    {
+      code: 'organization_approved',
+      name: 'Organization verified (customer)',
+      group: 'organizations',
+      variables: [
+        { key: 'organizationName', label: 'Organization name', sampleValue: 'Acme Sp. z o.o.' },
+      ],
+    },
+    {
+      code: 'organization_rejected',
+      name: 'Organization registration rejected (customer)',
+      group: 'organizations',
+      variables: [
+        { key: 'organizationName', label: 'Organization name', sampleValue: 'Acme Sp. z o.o.' },
+        { key: 'reason', label: 'Rejection reason', sampleValue: 'Tax ID could not be verified.' },
+      ],
+    },
   ],
   /**
    * This module's first i18n bundle — D-129's remaining sweep, MR 7.

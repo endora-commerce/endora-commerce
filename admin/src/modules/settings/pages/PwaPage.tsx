@@ -5,8 +5,10 @@ import type {
   PushAudienceRule,
   PwaAdminConfig,
   PwaDisplayMode,
+  SalesChannelListResponse,
   SalesChannelSummary,
 } from '@endora-commerce/contracts';
+import { apiClient } from '@/lib/api-client';
 import { PageHeader } from '@/components/ui/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -15,9 +17,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ColorPicker } from '@/components/ui/color-picker';
-import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
 import { pwaClient } from '../api/pwa-client';
 import { PushAudienceRuleBuilder } from '../PushAudienceRuleBuilder';
+
+/**
+ * List sales channels (feature 091, P6).
+ *
+ * The request is built here rather than through `sales_channels`' own admin
+ * API client: that client is another module's **code**, which is what the
+ * cross-module ledger recorded, while `/api/v1/admin/sales-channels` and
+ * `SalesChannelListResponse` are an HTTP path and a
+ * `@endora-commerce/contracts` type that both sides already compile. That is
+ * the exit P2 established and `admin-kit-surface.md` R6 records — one `GET`
+ * out of that client's ten methods, and no dependency on the owner's code.
+ */
+function listSalesChannels(activeOnly: boolean, pageSize: number): Promise<SalesChannelListResponse> {
+  const qs = new URLSearchParams();
+  qs.set('activeOnly', String(activeOnly));
+  qs.set('pageSize', String(pageSize));
+  return apiClient.get<SalesChannelListResponse>(
+    `/api/v1/admin/sales-channels?${qs.toString()}`,
+  );
+}
 
 /** Pick a display label from a multilingual sales-channel name. */
 function channelLabel(name: SalesChannelSummary['name'], code: string): string {
@@ -68,8 +89,7 @@ export function PwaPage(): ReactNode {
 
   // Load the channel list once for the scope selector.
   useEffect(() => {
-    void salesChannelsClient
-      .list({ activeOnly: true, pageSize: 200 })
+    void listSalesChannels(true, 200)
       .then((res) => setChannels(res.items))
       .catch(() => setChannels([]));
   }, []);

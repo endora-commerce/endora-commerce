@@ -230,6 +230,35 @@
  * belong to modules this batch does not move (`orders`, `quote_requests` twice,
  * `inventory`), which is what a shared repair looks like from the ledger's side.
  *
+ * **Batch 9 removes two entries and four registrations** — `assets_library`
+ * (1/1) and `custom_fields` (1/1) — and it is the batch that repairs no reach
+ * because there was none left to repair. Both entries sat in the plan's *last*
+ * batch on figures the two paragraphs above had already made obsolete: P4c took
+ * `assets_library`' incoming reach from 13 to zero and P4e took `custom_fields`'
+ * from 4 to zero, and nothing re-read the table that decides membership. The
+ * re-derivation (!1241) is what found them, and this is the shape worth
+ * remembering rather than the pair: a drain figure is evidence with a date on
+ * it, and the merge request that pays a debt is structurally not the one that
+ * reads the schedule the debt was on.
+ *
+ * Measured on this branch against `master` before the move: neither module owns
+ * a `cross-module-imports` shard, neither is named as a target by any shard,
+ * neither has a key in `admin-surface.ts` and neither has one in
+ * `foreign-module-ids.ts` — so `check:module-boundary`, `check:admin-surface`
+ * and `check:admin-zones` all read the same numbers on both sides, and that
+ * agreement is the measurement rather than a silence. The run after them reads
+ * `routes=92 nav=67 module-owned (routes=88 nav=64) over 19 modules`.
+ *
+ * **Two repairs the move forced rather than merely permitted, both of them
+ * things a reach count cannot see.** `AssetDetailDrawer.tsx` carried a private
+ * copy of `toAbsoluteAssetUrl` over its own `import.meta.env` read — a
+ * fourteenth copy of the helper P4c published, invisible to that merge request
+ * because a copy in the owner's own file is not a *cross-module* reach — and
+ * `CustomFieldsPage.tsx` read two of its six strings out of the shared `core`
+ * bundle while its own bundle already held both. A package's `tsconfig.ui.json`
+ * carries no `vite/client` types and a package's screen resolves no `@/`
+ * specifier, so the move refuses both in the compiler rather than in review.
+ *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.
@@ -257,12 +286,10 @@ export const HOST_OWNER = ADMIN_HOST_OWNER;
 
 export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistrationCounts>> = {
   host: { routes: 4, nav: 3 },
-  assets_library: { routes: 1, nav: 1 },
   blog: { routes: 7, nav: 3 },
   catalog: { routes: 8, nav: 9 },
   cms: { routes: 11, nav: 4 },
   credentials: { routes: 2, nav: 2 },
-  custom_fields: { routes: 1, nav: 1 },
   customers: { routes: 3, nav: 2 },
   dictionaries: { routes: 3, nav: 4 },
   inventory: { routes: 7, nav: 6 },

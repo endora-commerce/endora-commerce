@@ -243,6 +243,7 @@ import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-comm
 // ── pim_pimcore ─────────────────────────────────────────────────────────────
 import { Migration20260818T102204PimPimcoreInit } from '@endora-commerce/mod-pim-pimcore/migrations';
 import { Migration20260820T150317PimPimcoreCompleteRecordDelivery } from '@endora-commerce/mod-pim-pimcore/migrations';
+import { Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths } from '@endora-commerce/mod-pim-pimcore/migrations';
 
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';
@@ -541,6 +542,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── pim_pimcore ─────────────────────────────────────────────────────────────
   migration('pim_pimcore', Migration20260818T102204PimPimcoreInit),
   migration('pim_pimcore', Migration20260820T150317PimPimcoreCompleteRecordDelivery),
+  migration('pim_pimcore', Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths),
 
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),

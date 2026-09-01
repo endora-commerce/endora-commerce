@@ -49,5 +49,6 @@
   "folders.namePlaceholder": "Folder name",
   "folders.newSubfolder": "New sub-folder",
   "folders.deleteConfirm": "Delete this folder?\n\nOK = move its contents to the parent folder, then delete.\nCancel = abort.",
-  "folders.removed": "Folder removed ({id})."
+  "folders.removed": "Folder removed ({id}).",
+  "nav.assetsLibrary.label": "Assets library"
 }

@@ -59,7 +59,6 @@ import { CmsPagePicker } from '@/components/cms-picker/CmsPagePicker';
 import { OrganizationPicker, OrganizationStatusBadge } from '@/components/organization-picker';
 import { OrganizationPickerMulti } from '@/components/organization-picker/OrganizationPickerMulti';
 import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
-import { CustomFieldValuesPanel } from '@/modules/custom_fields/CustomFieldValuesPanel';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -101,16 +100,16 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     expect(AssetFieldPicker).toBe(kitComponents.AssetFieldPicker);
   });
 
-  it('serves the custom-field values panel through both spellings', () => {
-    // Feature 091's P4e. `admin-component-contribution.md` §9.1 rules the panel
-    // a published component rather than `custom_fields`' zone contribution: its
-    // props are `(entityType, values, save)`, so every call site hands it the
-    // host's own bag and the host's own writer. The four consumers name the
-    // subpath; the shim stays for the owner's own screens, and it has to be the
-    // same binding — a second copy would be a second `useState` draft of one
-    // record's values.
-    expect(CustomFieldValuesPanel).toBe(kitComponents.CustomFieldValuesPanel);
-  });
+  // **`CustomFieldValuesPanel` had a case here and no longer has a shim to
+  // compare.** P4e published the panel into the kit and kept a forwarder at
+  // `admin/src/modules/custom_fields/CustomFieldValuesPanel.tsx` *"for the
+  // owner's own screens"*; feature 091's batch 9 moved those screens into
+  // `@endora-commerce/mod-custom-fields/admin`, where a `@/` specifier does not
+  // resolve at all, and no other file in the tree named the old path — its four
+  // consumers already name the subpath. The forwarder went with the directory.
+  // What the panel still has is `admin/test/kit/kit-custom-field-values.test.tsx`,
+  // which drives the published component itself; what is gone is a second
+  // spelling of it, which is the thing this file exists to compare.
 
   it('serves the same API client singleton, and the same error class', () => {
     expect(apiClient).toBe(kitLib.apiClient);

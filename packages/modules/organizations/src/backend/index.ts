@@ -68,7 +68,13 @@ import { MinisterstwoFinansowClient } from './integrations/ministerstwo-finansow
 import type { OrganizationEventBus } from './services/registration-service.js';
 import { organizationsModule, type OrganizationsModuleOptions } from './plugin.js';
 import { registerOrganizationsSalesRepRoutes } from './routes.sales-reps.js';
-import { EMAIL_VERIFICATION_DEFAULT, NEW_ORG_REGISTRATION_DEFAULT, ORGANIZATION_INVITATION_DEFAULT } from './email-templates/transactional-defaults.js';
+import {
+  EMAIL_VERIFICATION_DEFAULT,
+  NEW_ORG_REGISTRATION_DEFAULT,
+  ORGANIZATION_APPROVED_DEFAULT,
+  ORGANIZATION_INVITATION_DEFAULT,
+  ORGANIZATION_REJECTED_DEFAULT,
+} from './email-templates/transactional-defaults.js';
 import { registerOrganizationCountryReferences } from './services/organization-country-reference.js';
 import { EmailVerificationToken } from './entities/email-verification-token.entity.js';
 import { OrganizationDeliveryMethodLink } from './entities/organization-delivery-method-link.entity.js';
@@ -346,6 +352,12 @@ export function registerModule(ctx: ModuleContext): void {
                 moderationModeSchema,
                 'manual',
               ),
+            // Where the approval and rejection messages get their language
+            // (`specs/093-backend-delivered-prose/` § the seam-B carve-out).
+            // Until this argument existed both were composed as hard-coded
+            // Polish prose and handed to `emailMailer` directly, so a buyer on
+            // an English sales channel received Polish unconditionally.
+            lazyPort<TemplateEmailPort>(ctx, 'templateEmailPort'),
           ),
       )
       .singleton(),
@@ -791,6 +803,8 @@ export function registerModule(ctx: ModuleContext): void {
     defaults.register('email_verification', EMAIL_VERIFICATION_DEFAULT, 'organizations');
     defaults.register('organization_invitation', ORGANIZATION_INVITATION_DEFAULT, 'organizations');
     defaults.register('new_org_registration', NEW_ORG_REGISTRATION_DEFAULT, 'organizations');
+    defaults.register('organization_approved', ORGANIZATION_APPROVED_DEFAULT, 'organizations');
+    defaults.register('organization_rejected', ORGANIZATION_REJECTED_DEFAULT, 'organizations');
   });
 
 

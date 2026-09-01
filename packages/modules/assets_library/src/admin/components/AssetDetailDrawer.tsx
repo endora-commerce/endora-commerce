@@ -4,34 +4,13 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { ExternalLink, Trash2 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
-import { useTranslation } from '@/i18n/useTranslation';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   assetsLibraryClient,
   type AssetDetail,
-} from '../api/assets-library-client';
-
-const apiBaseUrl =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
-
-/**
- * The backend serves files at /assets/file/:assetId and returns a host-relative
- * URL when publicUrlBase is blank (the default). The admin runs on a different
- * origin than the backend, so opening such a URL hits the admin SPA (which
- * renders "page not found") instead of the file. Prefix host-relative URLs
- * with the API base; absolute/data/blob URLs pass through unchanged.
- */
-function toAbsoluteAssetUrl(url: string | null | undefined): string {
-  if (!url) return '';
-  if (/^(https?:|data:|blob:)/i.test(url)) return url;
-  if (url.startsWith('/')) return `${apiBaseUrl.replace(/\/+$/, '')}${url}`;
-  return url;
-}
+} from '../api/assets-library-client.js';
 
 // Curated set of MIME types the Assets Library handles (image / video / pdf).
 // The MIME type is a technical identifier, so it is offered as a fixed dropdown

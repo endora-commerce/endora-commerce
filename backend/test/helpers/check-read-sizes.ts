@@ -330,9 +330,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `comparisons`, `api_keys`, four routes and six nav entries — took it
     // to 207, and batch 7 — `promotions`, `payment_methods`,
     // `customer_accounts`, `product_feeds`, seventeen routes and eight nav
-    // entries — takes it to 182.
+    // entries — takes it to 182. Batch 8 — `seo`, `taxes`, `credit_limits`,
+    // `delivery_methods`, `megamenu`, `returns`, eleven routes and eight nav
+    // entries — took it to 163, which is this band's floor to the unit and was
+    // not re-recorded; batch 9 — `assets_library` and `custom_fields`, two
+    // routes and two nav entries — takes it to 159, and both are recorded here.
     files: 2,
-    sites: 182,
+    sites: 159,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],
@@ -393,8 +397,65 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the finer population the per-symbol verdict runs on. Both grow as Story 3
     // moves directories into packages: a packaged module's `src/admin` is in the
     // same walk, so the file count follows the surface rather than the tree.
-    files: 308,
-    sites: 2826,
+    //
+    // **`sites` falls for as long as Story 3 runs, and this is the accounting
+    // for the fall — as of `8fb2b3929`, the merge that put batch 9 on
+    // `master`.** The epoch is part of the claim rather than decoration: the
+    // next drain batch moves both numbers again and re-records them under its
+    // own name, and an accounting with no commit behind it cannot be
+    // re-derived by the reader who has to check it.
+    //
+    // The mechanism is a **collapse, not a loss of sight**. A screen that took
+    // eight `@/components/ui/*` imports takes one from
+    // `@endora-commerce/admin-kit/ui`, so packaging a directory removes
+    // reaches while the walk keeps every file — which is why `files` rose from
+    // 308 to 352 across the same period the site count fell. Phase 1b's own
+    // commit measures `files=308 sites=2831`. Replaying the walk over each
+    // commit's blobs from there to `8fb2b3929`: **19 of the 138 first-parent
+    // commits moved either number, the other 119 moved neither**, and every
+    // unit of the −317 belongs to one of the 19 —
+    //
+    //   admin registry + first conversion −2 · permission labels +4 ·
+    //   quote re-dating +1 · phase-4 batches one/two/three −9 −4 −16 ·
+    //   batch 4 −35 · batch 5 −54 · P2 pickers −1 · batch 6 +1 ·
+    //   webhooks/comparisons/api_keys −28 · `089-pimcore-pim-sync` +55 ·
+    //   batch 7 −109 · P4c assets −10 · P4e custom-field values −8 ·
+    //   P4a zones +1 · batch 8 −86 · P6 client exits −3 · batch 9 −14.
+    //
+    // Batch 8 is where the floor went — it took the count to 2531 against the
+    // 2543 a record of 2826 demanded, and did not re-record — but it is 86 of
+    // 317, so "batch 8 collapsed five screens" is a quarter of the answer.
+    // Batches 4 through 9 are −325 between them, and one merge that is not a
+    // drain at all puts 55 back: `089-pimcore-pim-sync` is a module arriving
+    // with an admin surface, which is this population growing. **P3's session
+    // cluster moved this number by zero** — its consumers are host files,
+    // outside this walk — so publishing to the kit is not by itself a fall.
+    //
+    // Read by class instead of by merge, over the 298 files present in both
+    // trees: 742 `@/…` reaches became 303 kit reaches (`@/components/ui/*`
+    // −459 against `admin-kit/ui` +77 is the bulk of it), 51 files joined the
+    // walk (+167) and 7 left it (−29). Nothing is unattributed. The one
+    // quantity that is **not** a tree change is the 5 between the 2826
+    // recorded at Phase 1b and the 2831 its own commit measures — that record
+    // was the tree three first-parent commits earlier — and batch 9 repeated
+    // it in the other direction, recording 2517 from its base before it merged
+    // P6's −3, where `master` prints 2514. Both are inside the band and
+    // neither is a defect of the check; they are what taking the number off a
+    // branch costs, in a population every admin merge request perturbs. The
+    // number below is read off the merge commit.
+    //
+    // **What the band can and cannot say here.** 1029 of the 2514 reaches are
+    // still `@/…`, in the 20 directories Story 3 has not moved, and a drained
+    // alias reach has historically cost the total 0.42 sites — so about 430
+    // more will go, and at a −10% floor this entry needs re-recording every
+    // two or three batches until the drain ends. That recurrence is the
+    // ratchet working rather than a defect in it: the band is the only thing
+    // that makes a fall get explained at all, and widening it would delete the
+    // signal exactly while the population moves fastest. The different
+    // question — did the walk stop *looking* — is answered by the `sources=`
+    // line beside it, complete at every measurement above.
+    files: 352,
+    sites: 2514,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not
@@ -424,15 +485,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // admin directory moves into its module's package. Its expectation is the
     // surface directories the route table and the nav attribute to a module —
     // an independent derivation, and not the walk counting itself.
-    // `admin-host` joined with P1 and is the host population's short-walk floor.
-    // Its independent author is the **ledger**: a key is written by the merge
-    // request that recorded the reach, not by the derivation being checked, so
-    // the expectation moves when a human moves it and the coverage moves when
-    // the walk does. It is printed only while there is host debt — `expected=0`
-    // is a refusal in this grammar — so the day the last host reach drains this
-    // entry goes with the token, and that staleness is the two-way property
-    // rather than a defect.
-    sources: ['manifest-index', 'module-packages', 'admin-surfaces', 'admin-host'],
+    // `admin-host` joined with P1 and was the host population's short-walk
+    // floor. **That day came** (feature 091, P6): `IdleLogout.tsx` was the last
+    // host reach, it took the client exit, `host.ts` was deleted, and the token
+    // went with it — printed only while there is host debt, because
+    // `expected=0` is a refusal in this grammar. Its own entry said that
+    // staleness is the two-way property rather than a defect, so the entry is
+    // removed here in the merge request that drained it rather than left for
+    // the next one to find.
+    sources: ['manifest-index', 'module-packages', 'admin-surfaces'],
   },
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',
