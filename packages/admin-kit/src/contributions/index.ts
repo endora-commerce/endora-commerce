@@ -41,6 +41,7 @@ export type {
   AdminZoneName,
   AdminZoneProps,
   AdminZonePropsMap,
+  DeliveryMethodIntegrationsZoneProps,
   PermissionRequirement,
   ProductEditorFieldZoneProps,
   ProductEditorZoneProps,

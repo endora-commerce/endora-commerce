@@ -130,6 +130,14 @@ export const KnownIconNameSchema = z.enum([
   // need nothing — `CreditCard`, `Users` and `Rss` are all above, each added by
   // an earlier palette action of that same module.
   'PercentDiamond',
+  // Feature 091 (Phase 4, batch 8) — `megamenu`'s sidebar entry, which becomes a
+  // module declaration here and therefore has to name its icon rather than
+  // import it. `AppShell.tsx` drew `Newspaper` for it by hand, beside the four
+  // `/cms/*` rows and the three `/blog/*` ones; keeping the glyph means adding
+  // the name, and the alternative is the entry silently degrading to a name that
+  // happens to be on the list. The batch's other five need nothing — `Search`,
+  // `Receipt`, `Truck`, `CreditCard` and `Package` are all above.
+  'Newspaper',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

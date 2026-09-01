@@ -44,6 +44,25 @@ export const manifest = defineModuleManifest({
       },
     ],
   },
+  // Feature 091 (Phase 4, batch 8) — the palette row `AppShell.tsx` carried by
+  // hand, arriving as the declaration Principle XVI names. It was a
+  // `PALETTE_ITEMS` literal, which is a copy of an advertisement the server was
+  // never asked about: it went on offering this screen after an operator
+  // switched the module off, because nothing filtered it by the effective
+  // enabled-set. `credit_limits:manage` is what gates
+  // `GET /api/v1/admin/credit-limits`, so the palette never advertises a 403.
+  actions: [
+    {
+      id: 'open-credit-limits',
+      labelKey: 'actions.openCreditLimits.label',
+      descriptionKey: 'actions.openCreditLimits.description',
+      icon: 'CreditCard',
+      targetRoute: '/credit-limits',
+      requiredPermission: 'credit_limits:manage',
+      keywords: ['credit', 'limit', 'limits', 'balance', 'terms', 'limity kredytowe', 'saldo'],
+      weight: 400,
+    },
+  ],
   activation: { settingCode: 'credit_limits.enabled', default: true },
   /**
    * This module's first i18n bundle — D-129's remaining sweep, MR 5.

@@ -20,8 +20,16 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 
 const getSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>('@/lib/api-client');
+// The screen is `@endora-commerce/mod-returns`' since feature 091's batch 8, so it
+// takes `apiClient` from the kit rather than from the admin's re-export shim.
+// The shim forwards the kit's own binding, so mocking it would replace a module
+// this screen never imports — reference equality across that seam is what
+// `admin/test/kit/admin-kit-shims.test.ts` asserts, and it is what makes the
+// distinction matter here.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
   return {
     ...actual,
     apiClient: {
@@ -34,7 +42,9 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
-const { ReturnDetail } = await import('../../../src/modules/returns/ReturnDetail');
+const { ReturnDetail } = await import(
+  '../../../../packages/modules/returns/src/admin/pages/ReturnDetail'
+);
 
 const RESOLVED_CASE = {
   id: 'r1',

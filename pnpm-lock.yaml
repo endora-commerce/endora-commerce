@@ -77,9 +77,15 @@ importers:
       '@endora-commerce/mod-comparisons':
         specifier: workspace:*
         version: link:../packages/modules/comparisons
+      '@endora-commerce/mod-credit-limits':
+        specifier: workspace:*
+        version: link:../packages/modules/credit_limits
       '@endora-commerce/mod-customer-accounts':
         specifier: workspace:*
         version: link:../packages/modules/customer_accounts
+      '@endora-commerce/mod-delivery-methods':
+        specifier: workspace:*
+        version: link:../packages/modules/delivery_methods
       '@endora-commerce/mod-dhl-parcel':
         specifier: workspace:*
         version: link:../packages/modules/dhl_parcel
@@ -95,6 +101,9 @@ importers:
       '@endora-commerce/mod-linkedin-ads':
         specifier: workspace:*
         version: link:../packages/modules/linkedin_ads
+      '@endora-commerce/mod-megamenu':
+        specifier: workspace:*
+        version: link:../packages/modules/megamenu
       '@endora-commerce/mod-meta-ads':
         specifier: workspace:*
         version: link:../packages/modules/meta_ads
@@ -122,9 +131,18 @@ importers:
       '@endora-commerce/mod-pwa':
         specifier: workspace:*
         version: link:../packages/modules/pwa
+      '@endora-commerce/mod-returns':
+        specifier: workspace:*
+        version: link:../packages/modules/returns
+      '@endora-commerce/mod-seo':
+        specifier: workspace:*
+        version: link:../packages/modules/seo
       '@endora-commerce/mod-stripe':
         specifier: workspace:*
         version: link:../packages/modules/stripe
+      '@endora-commerce/mod-taxes':
+        specifier: workspace:*
+        version: link:../packages/modules/taxes
       '@endora-commerce/mod-tpay':
         specifier: workspace:*
         version: link:../packages/modules/tpay
@@ -1497,6 +1515,9 @@ importers:
 
   packages/modules/credit_limits:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1515,9 +1536,15 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1656,6 +1683,9 @@ importers:
 
   packages/modules/delivery_methods:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1674,9 +1704,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1720,6 +1759,9 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       react:
         specifier: ^19.2.5
         version: 19.2.5
@@ -1966,6 +2008,9 @@ importers:
       react:
         specifier: ^19.2.5
         version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2155,6 +2200,9 @@ importers:
 
   packages/modules/megamenu:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2173,12 +2221,24 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2944,6 +3004,9 @@ importers:
 
   packages/modules/returns:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2965,9 +3028,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -3037,6 +3112,9 @@ importers:
 
   packages/modules/seo:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -3055,9 +3133,15 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -3193,6 +3277,9 @@ importers:
 
   packages/modules/taxes:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -3211,9 +3298,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

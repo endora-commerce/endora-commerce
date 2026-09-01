@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { OrderEntryTabs } from '@/components/OrderEntryTabs';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { CountrySelect } from '@/components/country-select';
-import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
+import { ProductPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 import { formatMoney as formatMoneyShared } from '@/lib/money';

@@ -211,6 +211,25 @@
  * the owner's code, or only the owner's data?* — answered for the second time
  * against the classification a count had suggested.
  *
+ * **Batch 8 removes six entries and 19 registrations** — `seo` (1/1), `taxes`
+ * (1/1), `credit_limits` (1/2), `delivery_methods` (1/2), `megamenu` (2/1) and
+ * `returns` (5/1). The `nav: 2`s are the shape this ledger's own counting rule
+ * produces and is worth restating: `adminNavEntries` reads any object literal
+ * carrying both `to` and `module`, so a `PALETTE_ITEMS` row counts beside a
+ * sidebar one. Both of those became manifest **actions**, which is the surface
+ * the server's effective enabled-set filters rather than a copy nobody asked it
+ * about.
+ *
+ * **The paragraph above is answered for `seo` and `taxes`**, in the same way
+ * `assets_library`' and `custom_fields`' were. It records them as *"each reach a
+ * Group A picker whose retiring condition `admin-surface.ts` names as kit
+ * publication"*; that is what happened — `catalog`'s `ProductPicker` and
+ * `dictionaries`' `CountryPicker` are `@endora-commerce/admin-kit`'s now, with
+ * `CurrencyPicker`, `StatusTransitionGraph` and the status-badge helper beside
+ * them, and ten `cross-module-imports` keys retire on the five. Four of the ten
+ * belong to modules this batch does not move (`orders`, `quote_requests` twice,
+ * `inventory`), which is what a shared repair looks like from the ledger's side.
+ *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.
@@ -243,15 +262,12 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   catalog: { routes: 8, nav: 9 },
   cms: { routes: 11, nav: 4 },
   credentials: { routes: 2, nav: 2 },
-  credit_limits: { routes: 1, nav: 2 },
   custom_fields: { routes: 1, nav: 1 },
   customers: { routes: 3, nav: 2 },
-  delivery_methods: { routes: 1, nav: 2 },
   dictionaries: { routes: 3, nav: 4 },
   inventory: { routes: 7, nav: 6 },
   invoices: { routes: 4, nav: 1 },
   ksef: { routes: 1, nav: 1 },
-  megamenu: { routes: 2, nav: 1 },
   newsletter: { routes: 11, nav: 9 },
   orders: { routes: 4, nav: 4 },
   organizations: { routes: 2, nav: 2 },
@@ -259,10 +275,7 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   price_lists: { routes: 3, nav: 2 },
   quick_order: { routes: 1, nav: 0 },
   quote_requests: { routes: 3, nav: 2 },
-  returns: { routes: 5, nav: 1 },
   sales_channels: { routes: 3, nav: 2 },
-  seo: { routes: 1, nav: 1 },
   settings: { routes: 4, nav: 4 },
-  taxes: { routes: 1, nav: 1 },
   transactional_emails: { routes: 6, nav: 6 },
 };

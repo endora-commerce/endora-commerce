@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Textarea } from '@/components/ui/textarea';
-import { ProductPicker } from '@/modules/catalog/components/ProductPicker';
+import { ProductPicker } from '@endora-commerce/admin-kit/components';
 import { Section } from '@/modules/orders/Section';
 import {
   Table,

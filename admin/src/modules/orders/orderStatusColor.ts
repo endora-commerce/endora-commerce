@@ -1,30 +1,26 @@
-import type { CSSProperties } from 'react';
-import { ORDER_STATUS_COLOR_PRESETS, ORDER_STATUS_DEFAULT_COLOR } from '@endora-commerce/contracts';
-
-const HEX = /^#[0-9a-fA-F]{6}$/;
-
-function normalizeHex(color: string | null | undefined): string {
-  return color && HEX.test(color.trim()) ? color.trim() : ORDER_STATUS_DEFAULT_COLOR;
-}
-
 /**
- * Black or white text for a given background hex, chosen by perceived
- * luminance so the status label stays legible on any picked colour.
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/lib` (feature 091, batch 8).
+ *
+ * `returns`' list rendered its own status badges with `orderStatusBadgeStyle`,
+ * which `backend/scripts/ledgers/cross-module-imports/returns.ts` recorded with
+ * the retiring condition this satisfies: *"the helper is generic and moves into
+ * the kit"*. It is — two pure functions over a hex string that cannot tell an
+ * order status from a return status.
+ *
+ * **The published name is `statusBadgeStyle`.** A kit symbol named after a
+ * module is R6's rule wearing a different hat, and the caller that made the
+ * generality visible is `returns`. `orders`' own four call sites keep the old
+ * spelling through this alias rather than being rewritten for a rename that is
+ * not about them.
+ *
+ * The two colour constants are `@endora-commerce/contracts`' and are forwarded
+ * from there, exactly as they were before the move: the kit does not re-export
+ * them, because a second name for one constant is two things that can disagree.
  */
-export function readableTextColor(hex: string): string {
-  const value = normalizeHex(hex).slice(1);
-  const int = Number.parseInt(value, 16);
-  const r = (int >> 16) & 0xff;
-  const g = (int >> 8) & 0xff;
-  const b = int & 0xff;
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? '#1f2937' : '#ffffff';
-}
-
-/** Inline style for a status badge: solid background + auto-contrast text. */
-export function orderStatusBadgeStyle(color: string | null | undefined): CSSProperties {
-  const hex = normalizeHex(color);
-  return { backgroundColor: hex, color: readableTextColor(hex), borderColor: 'transparent' };
-}
-
-export { ORDER_STATUS_COLOR_PRESETS, ORDER_STATUS_DEFAULT_COLOR };
+export { ORDER_STATUS_COLOR_PRESETS, ORDER_STATUS_DEFAULT_COLOR } from '@endora-commerce/contracts';
+export {
+  readableTextColor,
+  statusBadgeStyle,
+  statusBadgeStyle as orderStatusBadgeStyle,
+} from '@endora-commerce/admin-kit/lib';
