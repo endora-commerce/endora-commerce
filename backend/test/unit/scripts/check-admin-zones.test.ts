@@ -19,6 +19,7 @@ import {
   visibilityGateSites,
   zoneContributionSites,
   zoneRenderSites,
+  FOREIGN_ID_POPULATIONS,
 } from '../../../scripts/check-admin-zones.js';
 import { FOREIGN_MODULE_IDS } from '../../../scripts/ledgers/foreign-module-ids.js';
 import {
@@ -399,15 +400,28 @@ describe('check-admin-zones — the shipped ledger', () => {
     }
   });
 
-  it('carries all three populations, so none can drain unnoticed', () => {
-    const populations = new Set(
-      Object.keys(FOREIGN_MODULE_IDS).map((key) => key.split(':')[1] ?? ''),
-    );
-    expect([...populations].sort()).toEqual([
+  // The subject here is the **walk**, not the ledger. A population that drains to
+  // zero is this feature's whole purpose — `kit-namespace` emptied on 2026-09-01
+  // when !1231 moved `CategoryTreePicker`'s keys to `core` — so asserting that the
+  // ledger holds an entry of every kind turns success into a failure, and pressures
+  // the next author to keep a stale entry alive to stay green. What must never drain
+  // is the check's willingness to *look*: every population keeps a classifier, and a
+  // ledger entry may only name one this check can still produce.
+  it('classifies every population, so none can stop being looked for', () => {
+    expect([...FOREIGN_ID_POPULATIONS].sort()).toEqual([
       'kit-namespace',
       'module-namespace',
       'visibility-gate',
     ]);
+  });
+
+  it('files every ledger entry under a population the check still classifies', () => {
+    const filed = new Set(
+      Object.keys(FOREIGN_MODULE_IDS).map((key) => key.split(':')[1] ?? ''),
+    );
+    for (const population of filed) {
+      expect(FOREIGN_ID_POPULATIONS as readonly string[], population).toContain(population);
+    }
   });
 });
 
