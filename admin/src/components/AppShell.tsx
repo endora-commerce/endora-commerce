@@ -15,7 +15,6 @@ import {
   HelpCircle,
   Home as HomeIcon,
   Menu,
-  Inbox,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -265,41 +264,26 @@ const NAV: NavSection[] = [
   {
     key: 'messaging',
     labelKey: 'appShell.section.messaging',
-    items: [
-      {
-        to: '/transactional-emails',
-        labelKey: 'appShell.nav.transactionalEmails',
-        icon: Inbox,
-        requiredPermission: 'transactional_emails:read',
-        module: 'transactional_emails',
-      },
-      {
-        to: '/transactional-emails/blocks',
-        labelKey: 'appShell.nav.emailBlocks',
-        icon: Inbox,
-        requiredPermission: 'transactional_emails:read',
-        module: 'transactional_emails',
-      },
-      {
-        to: '/transactional-emails/templates',
-        labelKey: 'appShell.nav.emailTemplates',
-        icon: Inbox,
-        requiredPermission: 'transactional_emails:read',
-        module: 'transactional_emails',
-      },
-    ],
+    // **Empty on purpose** (feature 091, Phase 4 batch 11), which is
+    // `analyticsAds`' shape below. All three entries — `/transactional-emails`
+    // and its blocks and templates screens — are declared by
+    // `transactional_emails` and arrive through `composeNav` from
+    // `modules.generated.ts`. The section stays here because the shell owns the
+    // section taxonomy: `composeNav` refuses a contribution naming a section
+    // this file does not declare.
+    //
+    // With no host-declared entry left, the weights the module declares (100,
+    // 200, 300) are the whole of this section's order and reproduce exactly the
+    // order this table had.
+    items: [],
   },
   {
     key: 'newsletter',
     labelKey: 'appShell.section.newsletter',
-    items: [
-      { to: '/newsletter/subscribers', labelKey: 'appShell.nav.newsletterSubscribers', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/campaigns', labelKey: 'appShell.nav.newsletterCampaigns', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/automations', labelKey: 'appShell.nav.newsletterAutomations', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/tags', labelKey: 'appShell.nav.newsletterTags', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/blocks', labelKey: 'appShell.nav.newsletterBlocks', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/provider', labelKey: 'appShell.nav.newsletterProvider', icon: Inbox, requiredPermission: 'newsletter:write', module: 'newsletter' },
-    ],
+    // Empty on purpose, for the reason above and in the same batch: all six
+    // entries are `newsletter`'s, declared at weights 100 through 600, which is
+    // the order they stood in here.
+    items: [],
   },
   // Reporting and paid-acquisition surfaces. They were originally filed under
   // System because each arrived as a lone integration, but together they are a
@@ -709,33 +693,15 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/profile\/?$/, build: () => [
     { labelKey: 'appShell.crumb.myProfile', href: null },
   ] },
-  { test: /^\/transactional-emails\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.transactionalEmails', href: null },
-  ] },
-  { test: /^\/transactional-emails\/blocks\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.emailBlocks', href: null },
-  ] },
-  { test: /^\/transactional-emails\/blocks\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.emailBlocks', href: '/transactional-emails/blocks' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/transactional-emails\/templates\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.emailTemplates', href: null },
-  ] },
-  { test: /^\/transactional-emails\/templates\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.emailTemplates', href: '/transactional-emails/templates' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/transactional-emails\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.transactionalEmails', href: '/transactional-emails' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
+  // The six `/transactional-emails*` trails stood here until feature 091's
+  // Phase 4 batch 11. `registryCrumbs` derives all six now, out of the sidebar
+  // entries `transactional_emails` declares — which is what keeps a converted
+  // module's breadcrumb from being a third shared file to edit. Two of them
+  // change: the fragment editors lose their `Editor` leaf and render
+  // `Messaging / Email Blocks →` instead, which is the trail every other
+  // converted module's sub-screen already gets, and the *Messaging* crumb loses
+  // its link because that section now holds no host-declared entry for
+  // `registryCrumbs` to point at.
 ];
 
 /**
@@ -967,12 +933,6 @@ const PALETTE_ITEMS: PaletteItem[] = [
   // `new-credential`); `dictionaries` declares `open-dictionary` and
   // `open-dictionary-audit` for the first time, with the destinations, codes
   // and keywords these rows carried.
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterSubscribers', sub: 'appShell.palette.sub.newsletterSubscribers', icon: Newspaper, to: '/newsletter/subscribers', keywords: 'newsletter subscribers marketing subskrybenci newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterCampaigns', sub: 'appShell.palette.sub.newsletterCampaigns', icon: Newspaper, to: '/newsletter/campaigns', keywords: 'newsletter campaigns email marketing kampanie newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterAutomations', sub: 'appShell.palette.sub.newsletterAutomations', icon: Newspaper, to: '/newsletter/automations', keywords: 'newsletter automations workflow automatyzacje newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.transactionalEmails', sub: 'appShell.palette.sub.transactionalEmails', icon: Inbox, to: '/transactional-emails', keywords: 'transactional emails notifications maile transakcyjne powiadomienia', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailBlocks', sub: 'appShell.palette.sub.emailBlocks', icon: Inbox, to: '/transactional-emails/blocks', keywords: 'email blocks fragments bloki maili', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailTemplates', sub: 'appShell.palette.sub.emailTemplates', icon: Inbox, to: '/transactional-emails/templates', keywords: 'email templates layout szablony maili', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
   // Feature 020 — the Actions group is now sourced from the module
   // registry via useAdminActions(); the previously-hardcoded "New
   // product" and "Import products" entries are declared by the

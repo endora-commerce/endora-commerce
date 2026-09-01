@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { CampaignSummary } from '@endora-commerce/contracts';
-import { PageHeader } from '@/components/ui/page-header';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/lib/auth';
-import { newsletterClient } from '../api/newsletter-client';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { newsletterClient } from '../api/newsletter-client.js';
 
 export function CampaignsPage(): React.ReactElement {
   const { hasPermission } = useAuth();
@@ -84,3 +81,10 @@ export function CampaignsPage(): React.ReactElement {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default CampaignsPage;

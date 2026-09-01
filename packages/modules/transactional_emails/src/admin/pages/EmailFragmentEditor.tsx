@@ -2,14 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@measured/puck';
 import type { EmailBlockDetail, EmailTemplateDetail } from '@endora-commerce/contracts';
-import { PageHeader } from '@/components/ui/page-header';
-import { SaveButtonGroup } from '@/components/ui/save-button-group';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/lib/auth';
-import { transactionalEmailsClient } from '../api/transactional-emails-client';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, SaveButtonGroup, Select } from '@endora-commerce/admin-kit/ui';
+import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
 import {
   EmailVariablesProvider,
   mergeEmailVariables,
@@ -17,7 +12,7 @@ import {
   listEmailTemplatesForApply,
   loadEmailTemplateCanvas,
 } from '@endora-commerce/page-builder-admin/email';
-import { EmailEditorPane } from '../components/EmailEditorPane';
+import { EmailEditorPane } from '../components/EmailEditorPane.js';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 

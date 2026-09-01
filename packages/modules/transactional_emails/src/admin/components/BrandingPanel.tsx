@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { EmailBranding } from '@endora-commerce/contracts';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { ColorPicker } from '@/components/ui/color-picker';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
+import { AssetFieldPicker } from '@endora-commerce/admin-kit/components';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, ColorPicker, Label } from '@endora-commerce/admin-kit/ui';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
-import { useAuth } from '@/lib/auth';
-import { transactionalEmailsClient } from '../api/transactional-emails-client';
+import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
 
 export interface BrandingPanelProps {
   /** null = global scope. */
