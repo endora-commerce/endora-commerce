@@ -227,13 +227,25 @@ describe('the shell no longer names pwa by hand', () => {
     expect(registry).not.toContain('packages/modules');
   });
 
-  it('declares one nav entry, no route, and the code its destination enforces', async () => {
-    // The declaration itself, because this is the shape nothing had exercised.
+  it('declares one nav entry, one route, and the code both enforce', async () => {
+    // The declaration itself. **This case read `routes` as `undefined` until
+    // feature 091's batch 10**, and that is the record of the split closing
+    // rather than a loosened assertion: batch six converted the sidebar entry
+    // alone because `PwaPage` lived under `admin/src/modules/settings/pages/`,
+    // and said the route would follow when `settings` moved. It moved, so the
+    // screen is this package's and the route is declared beside the entry that
+    // advertises it. The route-less shape `AdminContributions` allows is still
+    // legal and is exercised by `admin_roles`, which declares a nav entry and
+    // no route by design; what it is no longer exercised by is a module whose
+    // screen was in somebody else's directory.
+    //
     // `pwa:read` is what every `GET /api/v1/admin/pwa/*` endpoint that opens
     // the screen enforces — not `pwa:write` and not `pwa:send_push`, which the
-    // screen's writes enforce and neither of which opens it.
+    // screen's writes enforce and neither of which opens it. Route and entry
+    // carry the same one, which is what stops the sidebar advertising a 403.
     const { contributions } = await import('@endora-commerce/mod-pwa/admin');
-    expect(contributions.routes).toBeUndefined();
+    expect(contributions.routes?.map((route) => route.path)).toEqual(['/settings/pwa']);
+    expect(contributions.routes?.[0]?.requiredPermission).toBe('pwa:read');
     expect(contributions.zones).toBeUndefined();
     expect(contributions.nav?.map((entry) => entry.to)).toEqual(['/settings/pwa']);
     expect(contributions.nav?.[0]?.requiredPermission).toBe('pwa:read');
@@ -242,12 +254,12 @@ describe('the shell no longer names pwa by hand', () => {
   });
 
   it('advertises a destination the admin actually declares', async () => {
-    // The split's record, and the assertion a later batch has to look at. The
-    // entry points at a **host** route that `settings`' directory still owns,
-    // so nothing in the registry declares it and `DuplicateAdminRouteError`
-    // cannot fire. When `settings` is drained the route becomes a registry
-    // route and this assertion holds through the other branch — what it
-    // refuses in both worlds is an advertisement pointing at nothing.
+    // The split's record, and the batch that had to look at it was batch 10.
+    // The entry pointed at a **host** route that `settings`' directory owned,
+    // so nothing in the registry declared it; it is a registry route now and
+    // the assertion holds through the other branch, exactly as this case was
+    // written to. What it refuses in both worlds is an advertisement pointing
+    // at nothing.
     const { contributions } = await import('@endora-commerce/mod-pwa/admin');
     const target = contributions.nav?.[0]?.to ?? '';
     const { registryRoutes } = await import('../../src/lib/module-registry');

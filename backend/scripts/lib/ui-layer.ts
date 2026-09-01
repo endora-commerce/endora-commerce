@@ -31,12 +31,18 @@ export const ADMIN_LAYER_DIRECTORY = 'admin';
  * readers above (feature 091, P4a; Z9 of `admin-component-contribution.md`).
  *
  * `admin-ui` is the sibling directory D-191's published-component exit lands
- * in. It is a **sibling** and not a second entry file inside `src/admin/`,
- * because `admin-contribution.md` R2 is *"`src/admin/index.ts` exports exactly
- * one value"* and a second file in that directory turns the rule into a rule
- * with a filename carve-out.
+ * in, and it has a name of its own below because a **third** reader needs it
+ * specifically rather than as one of the two: `module-package-manifest.ts`'
+ * R4 refusal has to tell a published component's subpath apart from `./admin`,
+ * which publishes a contribution *descriptor* no other module may name.
  *
- * Both readers take the list rather than the single name, and the second is why
+ * It is a **sibling** and not a second entry file inside `src/admin/`, because
+ * `admin-contribution.md` R2 is *"`src/admin/index.ts` exports exactly one
+ * value"* and a second file in that directory turns the rule into a rule with a
+ * filename carve-out.
+ *
+ * The first two readers take the list rather than the single name, and the
+ * second of them is why
  * this lands with the mechanism rather than with the first package that ships
  * the directory: `check-action-route-permissions` skips a UI layer for a reason
  * that is about **browser code**, not about `admin` in particular — a published
@@ -45,4 +51,9 @@ export const ADMIN_LAYER_DIRECTORY = 'admin';
  * that check reads. A skip that arrives with the directory arrives one merge
  * request after the false finding.
  */
-export const UI_LAYER_DIRECTORIES: readonly string[] = [ADMIN_LAYER_DIRECTORY, 'admin-ui'];
+export const PUBLISHED_COMPONENT_LAYER_DIRECTORY = 'admin-ui';
+
+export const UI_LAYER_DIRECTORIES: readonly string[] = [
+  ADMIN_LAYER_DIRECTORY,
+  PUBLISHED_COMPONENT_LAYER_DIRECTORY,
+];

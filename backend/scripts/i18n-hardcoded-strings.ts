@@ -309,6 +309,28 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // four files carry no finding — the library screen, its folder tree and its
   // detail drawer render every sentence through `useTranslation`.
   'packages/modules/custom_fields/src/admin/pages/CustomFieldsPage.tsx': 4,
+  // Feature 091, Phase 4 batch 10 — three entries **re-keyed**, not raised and
+  // not dropped: the same 17, 22 and 1 findings at new addresses, which the
+  // two-way ratchet reported in one run as three regressions at the new keys
+  // and three drains at the old ones.
+  //
+  // Two of the three moved further than the rest of their directory.
+  // `PwaPage.tsx` and `PushAudienceRuleBuilder.tsx` sat under
+  // `admin/src/modules/settings/` and are `pwa`'s screen and its rule builder;
+  // batch six moved that module's sidebar entry alone and said the route would
+  // follow when `settings` moved, so they are `@endora-commerce/mod-pwa`'s now
+  // rather than `settings`'. The debt travels with the file and is untouched:
+  // between them they render the whole push-notification screen — the icon
+  // uploader, the VAPID controls, the audience builder's operators — in English
+  // whatever language the operator chose. Translating it is a screen's worth of
+  // keys and belongs to whoever repairs that screen, not to a batch whose
+  // subject is where the file lives.
+  //
+  // `dictionaries` and `credentials` moved in the same batch and get no entry,
+  // because none of their nine files carries a finding.
+  'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 17,
+  'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 22,
+  'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
   'admin/src/modules/newsletter/pages/AutomationBuilder.tsx': 6,
   'admin/src/modules/newsletter/pages/AutomationsPage.tsx': 4,
   'admin/src/modules/newsletter/pages/BlocksPage.tsx': 8,
@@ -320,9 +342,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'admin/src/modules/newsletter/pages/TagsPage.tsx': 9,
   'admin/src/modules/organizations/panels/RestrictionsPanel.tsx': 1,
   'admin/src/modules/pim_ergonode/ErgonodeConnectionPage.tsx': 1,
-  'admin/src/modules/settings/PushAudienceRuleBuilder.tsx': 17,
-  'admin/src/modules/settings/components/AssetIdSettingInput.tsx': 1,
-  'admin/src/modules/settings/pages/PwaPage.tsx': 22,
   'admin/src/modules/transactional_emails/components/BrandingPanel.tsx': 5,
   'admin/src/modules/transactional_emails/pages/EmailBlocksPage.tsx': 3,
   'admin/src/modules/transactional_emails/pages/EmailEditor.tsx': 3,

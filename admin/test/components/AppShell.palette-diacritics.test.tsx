@@ -103,8 +103,8 @@ const coreBundle = {
     // Verbatim from `packages/modules/_i18n/i18n/pl.json`.
     'appShell.nav.orders': 'Zamówienia',
     'appShell.palette.sub.openOrders': 'Otwarte i ostatnie zamówienia',
-    'appShell.nav.dictionary': 'Słownik',
-    'appShell.palette.sub.dictionary': 'Kraje, waluty, języki',
+    'appShell.nav.home': 'Strona główna',
+    'appShell.palette.sub.dashboard': 'Pulpit',
   },
   prompt_actions: {
     'palette.group.label': 'palette.group.label',
@@ -172,21 +172,23 @@ describe('AppShell palette — one matching rule for every group (issue #233)', 
   });
 
   it('folds the stroked ł, which NFD decomposition leaves standing', async () => {
-    // `słownik` is a real keyword on the `/dictionary` Navigate entry. A naive
-    // `normalize('NFD').replace(/\p{Diacritic}/gu, '')` yields `słownik` —
-    // still no match — so this case is what separates the shared helper from a
-    // plausible-looking reimplementation of it.
+    // `Strona główna` is the label of the `/` Navigate entry. A naive
+    // `normalize('NFD').replace(/\p{Diacritic}/gu, '')` yields `strona główna`
+    // — still no match for `glowna` — so this case is what separates the shared
+    // helper from a plausible-looking reimplementation of it.
     //
-    // It was `płatności` on `/payment-methods` until feature 091's Phase 4
-    // batch 7, which moved that row into `@endora-commerce/mod-payment-methods`
-    // — a Navigate row this array no longer holds, so the positive control went
-    // red and the case stopped measuring anything. `/dictionary` is the
-    // replacement rather than any other row carrying a stroked `ł` because
-    // `dictionaries` is the **last** batch of the drain (batch 12), so this
-    // case outlives every batch between; when that one lands it moves with it,
-    // or the property moves to the kit's own `normalize` test.
-    const rows = await paletteRowsFor('slownik');
-    expect(rows.some((text) => text.includes('Słownik'))).toBe(true);
+    // **It has moved twice and this one is meant to be the last.** It was
+    // `płatności` on `/payment-methods` until feature 091's batch 7 moved that
+    // row into `@endora-commerce/mod-payment-methods`; the replacement was
+    // `słownik` on `/dictionary`, chosen because `dictionaries` was then the
+    // drain's *last* batch — and the re-derivation of 2026-09-01 made it batch
+    // 10, three days later, so the same positive control went red again for
+    // the same reason. The dashboard row is the one entry in `PALETTE_ITEMS`
+    // that carries `module: null`: it is the admin application's own, no batch
+    // can drain it, and its shipped Polish label carries a stroked `ł`. That is
+    // a structural answer rather than another guess about the schedule.
+    const rows = await paletteRowsFor('glowna');
+    expect(rows.some((text) => text.includes('Strona główna'))).toBe(true);
   });
 
   it('folds the pinned Assistant row too, so no group is left behind', async () => {

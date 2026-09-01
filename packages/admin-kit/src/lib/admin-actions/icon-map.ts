@@ -10,6 +10,7 @@ import {
   CreditCard,
   Download,
   Edit,
+  Eraser,
   FilePlus,
   FileDown,
   FileText,
@@ -18,6 +19,7 @@ import {
   Image as ImageIcon,
   Inbox,
   KeyRound,
+  Languages,
   Layers,
   LayoutDashboard,
   LineChart,
@@ -131,6 +133,12 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // The batch's other five needed no entry: `Search`, `Receipt`, `Truck`,
   // `CreditCard` and `Package` are already above.
   Newspaper,
+  // Feature 091 (Phase 4, batch 10) — the same, for `dictionaries`' two sidebar
+  // entries and two palette actions and for `settings`' cache row. The batch's
+  // other rows needed no entry: `ListChecks`, `Settings` and `KeyRound` are
+  // already above.
+  Languages,
+  Eraser,
 };
 
 export function resolveIcon(name: string): LucideIcon {

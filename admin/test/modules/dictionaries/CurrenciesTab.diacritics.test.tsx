@@ -15,15 +15,18 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  * its symbol, `zł`, from `seed/currencies.ts`. An operator typing `zloty` —
  * or `zl` — got nothing.
  *
- * This is the admin SPA's `dictionaries` module, not the backend module of the
- * same name.
+ * The subject moved with feature 091's Phase 4 batch 10: the tab and the
+ * client it mocks are `@endora-commerce/mod-dictionaries`' own admin layer
+ * now. The paths below name the package's `src/`, which is batch 8's
+ * convention for a screen test — the package publishes only its barrels, so
+ * there is no subpath a test could name a single component through.
  */
 
 const listCurrencies = vi.fn();
 const listLanguages = vi.fn();
 const listTranslations = vi.fn();
 
-vi.mock('@/modules/dictionaries/client', () => ({
+vi.mock('../../../../packages/modules/dictionaries/src/admin/api/client', () => ({
   dictionaryClient: {
     listCurrencies: (...args: unknown[]) => listCurrencies(...args),
     listLanguages: (...args: unknown[]) => listLanguages(...args),
@@ -31,7 +34,9 @@ vi.mock('@/modules/dictionaries/client', () => ({
   },
 }));
 
-const { CurrenciesTab } = await import('@/modules/dictionaries/tabs/CurrenciesTab');
+const { CurrenciesTab } = await import(
+  '../../../../packages/modules/dictionaries/src/admin/tabs/CurrenciesTab'
+);
 
 const bundle = passthroughBundle('dictionaries', [
   'currencies.title',

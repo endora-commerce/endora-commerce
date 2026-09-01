@@ -259,6 +259,61 @@
  * carries no `vite/client` types and a package's screen resolves no `@/`
  * specifier, so the move refuses both in the compiler rather than in review.
  *
+ * **Batch 10 removes three entries and 19 registrations** — `dictionaries`
+ * (3/4), `settings` (4/4) and `credentials` (2/2) — and it is the batch that
+ * takes D-191's `./admin-ui` exit, which is the last of the three seams
+ * `admin-component-contribution.md` Z1.1 names and the only one no batch had
+ * had to build.
+ *
+ * **The three travel together because the repair's two endpoints are both in
+ * the batch.** Re-derived on this branch before anything moved: the only debt
+ * among them is one file — `settings`' `ConfigurationReferenceInput.tsx`
+ * reaching `credentials`' `ConfigurationPreviewModal`, plus the
+ * `module-namespace:credentials` key that same file carried in
+ * `foreign-module-ids.ts`. Neither module is named by any other shard, neither
+ * has a key in `admin-surface.ts`, and `dictionaries` has none of the three at
+ * all — its eleven fell to zero when batch 5 paid the five gateways' client
+ * reaches and batch 8 published `CountryPicker` and `CurrencyPicker` into the
+ * kit. The old sequence split `settings` and `credentials` across two rows, so
+ * whichever ran first would have had to pay a reach whose other end it was not
+ * moving.
+ *
+ * **The component reach is re-keyed, not retired**, which is the one thing
+ * about this batch that will read like an omission and is not. Z11: a subpath
+ * is contract surface iff its emitted module exports no runtime binding, and
+ * `dist/admin-ui/index.js` exports a React component — so `check:module-boundary`
+ * goes on counting it, automatically, and `cross-module reaches=30` is the same
+ * number on both sides. D-191 says so in as many words: publication gives the
+ * coupling a supported spelling and retires no ledger entry. The namespace half
+ * **is** retired, and at the source rather than by the move: the label the
+ * button renders is `settings`' own key now.
+ *
+ * **`/settings/pwa` is the fourth registration to move and it moves to `pwa`.**
+ * Batch six converted that module's sidebar entry alone and left the route in
+ * `App.tsx` because `PwaPage` lived under `admin/src/modules/settings/pages/`,
+ * a directory this check attributes to `settings`. It recorded the consequence:
+ * a host `<Route>` is ungated, so an operator who switched `pwa` off still
+ * reached the screen — *"unchanged by this batch and closes when `settings`
+ * moves"*. This is that batch, so the screen, its rule builder and its client
+ * are `@endora-commerce/mod-pwa`'s and the route is declared beside the entry
+ * that advertises it. `pwa` has no row here to change; `settings`' four routes
+ * all leave `App.tsx`, which is what its removal asserts.
+ *
+ * **Two palette rows became manifest actions and two were already declared.**
+ * `adminNavEntries` counts a `PALETTE_ITEMS` row beside a sidebar one, which is
+ * why `credentials` reads `nav: 2` for one sidebar entry. `settings` and
+ * `credentials` already declared `open-settings`, `open-credentials` and
+ * `new-credential`, so their hand-written *Navigate* rows were copies the
+ * server was never asked about and are simply gone; `dictionaries` declared
+ * none, so `open-dictionary` and `open-dictionary-audit` arrive with the
+ * destinations, code and keywords those rows carried. That is batches 7 and
+ * 8's shape rather than a new one, and it is the opposite of batch 9's
+ * `assets_library`, which advertised nothing and had nothing invented for it.
+ *
+ * The run after them reads
+ * `routes=83 nav=57 module-owned (routes=79 nav=54) over 16 modules`, from
+ * 92/67 (88/64 over 19) — the nine routes and ten nav entries exactly.
+ *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.
@@ -289,9 +344,7 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   blog: { routes: 7, nav: 3 },
   catalog: { routes: 8, nav: 9 },
   cms: { routes: 11, nav: 4 },
-  credentials: { routes: 2, nav: 2 },
   customers: { routes: 3, nav: 2 },
-  dictionaries: { routes: 3, nav: 4 },
   inventory: { routes: 7, nav: 6 },
   invoices: { routes: 4, nav: 1 },
   ksef: { routes: 1, nav: 1 },
@@ -303,6 +356,5 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   quick_order: { routes: 1, nav: 0 },
   quote_requests: { routes: 3, nav: 2 },
   sales_channels: { routes: 3, nav: 2 },
-  settings: { routes: 4, nav: 4 },
   transactional_emails: { routes: 6, nav: 6 },
 };

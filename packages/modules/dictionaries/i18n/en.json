@@ -78,5 +78,11 @@
   "errors.DICTIONARY_DEFAULT_CANNOT_BE_DEACTIVATED": "Dictionary Default Cannot Be Deactivated.",
   "errors.DICTIONARY_FALLBACK_CYCLE": "Dictionary Fallback Cycle.",
   "errors.DICTIONARY_CODE_IMMUTABLE": "Dictionary Code Immutable.",
-  "errors.DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE": "Dictionary Translation Language Inactive."
+  "errors.DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE": "Dictionary Translation Language Inactive.",
+  "nav.dictionary.label": "Dictionary",
+  "nav.dictionaryAudit.label": "Dictionary audit",
+  "actions.openDictionary.label": "Dictionary",
+  "actions.openDictionary.description": "Countries, currencies, languages",
+  "actions.openDictionaryAudit.label": "Dictionary audit",
+  "actions.openDictionaryAudit.description": "Unresolved registry references"
 }

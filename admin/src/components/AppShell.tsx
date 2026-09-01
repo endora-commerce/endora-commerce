@@ -16,8 +16,6 @@ import {
   Home as HomeIcon,
   Menu,
   Inbox,
-  KeyRound,
-  Languages,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -30,8 +28,6 @@ import {
   Receipt,
   ReceiptText,
   Search,
-  Settings,
-  Eraser,
   Store,
   Tag,
   Sparkles,
@@ -245,8 +241,12 @@ const NAV: NavSection[] = [
         requiredPermission: 'sales_channels:read',
         module: 'sales_channels',
       },
-      { to: '/dictionary', labelKey: 'appShell.nav.dictionary', icon: Languages, requiredPermission: 'dictionary.write', module: 'dictionaries' },
-      { to: '/admin/dictionaries/audit', labelKey: 'appShell.nav.dictionaryAudit', icon: ListChecks, requiredPermission: 'dictionary.write', module: 'dictionaries' },
+      // `/dictionary` and `/admin/dictionaries/audit` are declared by
+      // `dictionaries` since feature 091's Phase 4 batch 10, and arrive through
+      // `composeNav` from `modules.generated.ts`. `/sales-channels` above is
+      // still the host's, so both append after it — which is exactly where they
+      // sat. The declaration is in
+      // `packages/modules/dictionaries/src/admin/index.ts`.
     ],
   },
   {
@@ -364,41 +364,17 @@ const NAV: NavSection[] = [
       // since feature 091's Phase 4 (the plan's batch 6), and arrive through
       // `composeNav` from `modules.generated.ts`. Their declarations are in
       // `packages/modules/{api_keys,webhooks}/src/admin/index.ts`.
-      {
-        to: '/credentials',
-        labelKey: 'appShell.nav.credentials',
-        icon: KeyRound,
-        requiredPermission: 'credentials:read',
-        module: 'credentials',
-      },
-      {
-        to: '/settings',
-        labelKey: 'appShell.nav.settings',
-        icon: Settings,
-        requiredPermission: 'settings:read',
-        module: 'settings',
-      },
-      {
-        to: '/settings/groups',
-        labelKey: 'appShell.nav.settingGroups',
-        icon: Settings,
-        requiredPermission: 'settings:read',
-        module: 'settings',
-      },
-      {
-        to: '/settings/cache',
-        labelKey: 'appShell.nav.cache',
-        icon: Eraser,
-        requiredPermission: 'settings:write',
-        module: 'settings',
-      },
-      // `/settings/pwa` is declared by `pwa` since feature 091's Phase 4 batch
-      // six, and arrives through `composeNav` from `modules.generated.ts`. It
-      // is the first entry to move on its own: the screen it points at is
-      // `PwaPage`, which lives under `modules/settings/pages/`, so the route
-      // below stays here and only the advertisement moved — the split batch
-      // four made explicit for `/admin-roles`, arriving a second time. The
-      // reasoning is in `packages/modules/pwa/src/admin/index.ts`.
+      // `/credentials`, `/settings`, `/settings/groups` and `/settings/cache`
+      // are declared by the modules that own them since feature 091's Phase 4
+      // batch 10, and arrive through `composeNav` from `modules.generated.ts`.
+      // Their declarations are in
+      // `packages/modules/{credentials,settings}/src/admin/index.ts`.
+      //
+      // `/settings/pwa` is `pwa`'s and has been since batch six, when only the
+      // advertisement moved because the screen lived under
+      // `modules/settings/pages/`. Batch 10 moved that directory, so the screen
+      // went with it and the route is `pwa`'s too — the split closes rather
+      // than standing.
     ],
   },
 ];
@@ -701,15 +677,13 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.channels', href: '/sales-channels' },
     { labelKey: 'appShell.nav.cmsHooks', href: null },
   ] },
-  { test: /^\/dictionary\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.dictionary', href: null },
-  ] },
-  { test: /^\/(?:admin\/)?dictionaries\/audit\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.dictionary', href: '/dictionary' },
-    { labelKey: 'appShell.crumb.audit', href: null },
-  ] },
+  // `/dictionary` and the two audit spellings had a hand-written trail here
+  // until feature 091's Phase 4 batch 10. `registryCrumbs` derives them now,
+  // from `dictionaries`' own nav contribution — two crumbs where the audit
+  // trail built three, the third having been a literal *audit* leaf there is
+  // nothing to derive. The unadvertised `/dictionaries/audit` spelling keeps
+  // resolving as a route and falls to the humanised-segment trail, which is
+  // what an unadvertised alias gets.
   // `/admin-users`, `/admin-roles` and `/audit-log` had a hand-written trail
   // here until feature 091's Phase 4 batch four. They are the modules' own
   // declarations now, so `registryCrumbs` derives the trail from the composed
@@ -724,14 +698,14 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.platformModules', href: null },
   ] },
-  { test: /^\/settings\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.settings', href: null },
-  ] },
-  { test: /^\/settings\/groups\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.settingGroups', href: null },
-  ] },
+  // `/settings` and `/settings/groups` had a hand-written trail here until
+  // feature 091's Phase 4 batch 10, and `/settings/cache` and `/settings/pwa`
+  // never had one at all — both fell to the humanised-segment fallback.
+  // `registryCrumbs` derives all four now, so the two that had a trail keep it
+  // with the section link corrected (*System*'s first host row is
+  // `/platform/modules`, where these named `/admin-users` by hand — batch
+  // four's recorded change, arriving again) and the two that had none gain the
+  // label their sidebar row already carries.
   { test: /^\/profile\/?$/, build: () => [
     { labelKey: 'appShell.crumb.myProfile', href: null },
   ] },
@@ -781,31 +755,48 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
  */
 function registryCrumbs(pathname: string): Crumb[] | null {
   const path = pathname.replace(/\/+$/, '') || '/';
+  let best: { section: NavSection; item: NavItem; labelScope: string } | null = null;
   for (const section of COMPOSED_NAV) {
     for (const item of section.items) {
-      if (item.labelScope === undefined) continue;
+      const labelScope = item.labelScope;
+      if (labelScope === undefined) continue;
       // The entry's own destination, or anything beneath it. A module's second
       // and third routes (`/x/new`, `/x/:id`) have no sidebar row of their own
       // and never will — a nav entry is a landing surface — so matching only
       // the exact `to` would drop every converted module's sub-screens onto the
       // humanised-segment fallback below. The hand-written trails this table is
       // draining already covered subpaths that way, with the same shape.
-      const own = item.to === path;
-      if (!own && !path.startsWith(`${item.to}/`)) continue;
-      const parent = section.items.find((other) => other.labelScope === undefined);
-      const trail: Crumb[] = [];
-      if (section.labelKey) {
-        trail.push({ labelKey: section.labelKey, href: parent?.to ?? null });
-      }
-      trail.push({
-        labelKey: item.labelKey,
-        labelScope: item.labelScope,
-        href: own ? null : item.to,
-      });
-      return trail;
+      if (item.to !== path && !path.startsWith(`${item.to}/`)) continue;
+      // **The longest match wins, and it is first-match no longer** (feature
+      // 091, batch 10). Until this batch no module contributed both a parent
+      // route and a child of it, so "the first entry that matches" and "the
+      // entry that matches most" were the same answer. `settings` contributes
+      // `/settings`, `/settings/groups` and `/settings/cache` and `pwa`
+      // contributes `/settings/pwa`; under first-match, all four screens would
+      // have rendered *Settings* as their leaf, because `/settings` sorts
+      // ahead of the rest by weight. That is a trail that no longer names where
+      // the operator is, which is the whole of what a breadcrumb does.
+      //
+      // `CRUMB_DICT` gets the same property for free by listing its specific
+      // patterns above its general ones; this is that ordering rule, derived
+      // instead of maintained.
+      if (best !== null && best.item.to.length >= item.to.length) continue;
+      best = { section, item, labelScope };
     }
   }
-  return null;
+  if (best === null) return null;
+  const { section, item, labelScope } = best;
+  const parent = section.items.find((other) => other.labelScope === undefined);
+  const trail: Crumb[] = [];
+  if (section.labelKey) {
+    trail.push({ labelKey: section.labelKey, href: parent?.to ?? null });
+  }
+  trail.push({
+    labelKey: item.labelKey,
+    labelScope,
+    href: item.to === path ? null : item.to,
+  });
+  return trail;
 }
 
 function buildCrumbs(pathname: string): Crumb[] {
@@ -967,10 +958,15 @@ const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży', requiredPermission: 'sales_channels:read' , module: 'sales_channels' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja', requiredPermission: 'settings:read' , module: 'settings' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.credentials', sub: 'appShell.palette.sub.credentials', icon: KeyRound, to: '/credentials', keywords: 'credentials credential secrets provider llm smtp poświadczenia sekrety dostawca', requiredPermission: 'credentials:read' , module: 'credentials' },
+  // The four `dictionaries`, `settings` and `credentials` rows left here in
+  // feature 091's Phase 4 batch 10. A hand-written palette row is a copy the
+  // server was never asked about — it went on advertising the screen after an
+  // operator withdrew the module — so each is a manifest **action** now, which
+  // is the surface the effective enabled-set filters. `settings` and
+  // `credentials` already declared theirs (`open-settings`, `open-credentials`,
+  // `new-credential`); `dictionaries` declares `open-dictionary` and
+  // `open-dictionary-audit` for the first time, with the destinations, codes
+  // and keywords these rows carried.
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterSubscribers', sub: 'appShell.palette.sub.newsletterSubscribers', icon: Newspaper, to: '/newsletter/subscribers', keywords: 'newsletter subscribers marketing subskrybenci newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterCampaigns', sub: 'appShell.palette.sub.newsletterCampaigns', icon: Newspaper, to: '/newsletter/campaigns', keywords: 'newsletter campaigns email marketing kampanie newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterAutomations', sub: 'appShell.palette.sub.newsletterAutomations', icon: Newspaper, to: '/newsletter/automations', keywords: 'newsletter automations workflow automatyzacje newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
