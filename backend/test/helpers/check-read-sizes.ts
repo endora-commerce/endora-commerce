@@ -332,6 +332,28 @@ export interface RecordedReadSize {
  * `quick_order/src/admin/index.ts` 5 -> 7. The two bundle keys this row moves
  * between `_i18n` and the two modules contribute nothing, that walk opening no
  * JSON at all.
+ *
+ * **Re-recorded on 2026-09-02 by feature 097 — one entry, and one field of it.**
+ * `check-module-boundary`'s `sites` moves from `null` to **11127**, because the
+ * check now prints a site count for the first time (FR-012); the entry's removal
+ * from `READ_SIZE_WITHOUT_A_SITE_POPULATION` is the other half of that
+ * transition, and the ratchet in `check-read-size.test.ts` requires the two to
+ * move together in both directions. Nothing else in this file is touched, and
+ * that is a deliberate refusal rather than an omission.
+ *
+ * **`files` does not move at all**, which is the fact that made the separation
+ * easy to prove rather than to argue. A module's `migrations/` directory is
+ * inside `layout.moduleWalkRoots` and always has been, so the 225 migration
+ * files were already in `files=4147`; what feature 097 changes is the *rule*
+ * applied to them, not the walk. Measured on this branch and on its branch
+ * point: `files=4147` both sides.
+ *
+ * **Thirty rows in this file are drifted and none of that drift is this merge
+ * request's.** `files 1916 -> 2003` across every module-tree walk is
+ * `specs/089-unopim-pim-sync/`'s merge, which arrived after those numbers were
+ * last written down; the drift report names them on every run, and re-recording
+ * them here would file another merge request's growth under this one's name. Two
+ * agents have already refused the same re-record, and this is the third.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -1204,8 +1226,29 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // unconditional *"the layout resolved and the host walk opened nothing"*
     // refusal is reachable once more. `admin files` is now **0**, which is
     // SC-007 and is a measurement rather than a shortfall.
+    // **`files` does not move with feature 097**, and that is the whole shape of
+    // this row's change. The migration rules judge sources the walk was already
+    // opening — a module's `migrations/` directory is inside
+    // `layout.moduleWalkRoots` and always has been — so what changed is the rule
+    // applied to 225 files already in the count, not the count.
     files: 4147,
-    sites: null,
+    // **First recorded here** (feature 097). This entry read `null`, with a
+    // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
+    // the cleared specifiers and table references were not collected, and there
+    // are two populations rather than one. FR-012 asks for `sites=`, so both are
+    // answered rather than restated. The first is collection — a mutable tally
+    // passed into the two analyses, so nothing is re-parsed to count what they
+    // cleared. The second is the objection `check:subscribe-seam` answers by
+    // refusing, and it is answered the same way here: the number is a **sum**,
+    // and each addend has its own exit-2 floor in `vacuousReason`
+    // (`importSites`, `tableSites`), so a sum cannot hide an addend that went to
+    // zero because zero is refused before the sum is printed.
+    //
+    // 11127 = 10922 import specifiers plus 205 table references, of which the
+    // 205 are every DML access in all 225 migration files and every one outside
+    // them. It is far larger than `files` because the unit is a specifier: an
+    // average module source names five.
+    sites: 11127,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -1232,7 +1275,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // staleness is the two-way property rather than a defect, so the entry is
     // removed here in the merge request that drained it rather than left for
     // the next one to find.
-    sources: ['manifest-index', 'module-packages'],
+    //
+    // `migration-registry` joined with feature 097 and is the migration
+    // population's floor. `manifest-index` cannot be it: that token is satisfied
+    // by **any** file a registered module contributes, and a module's backend
+    // sources are plentiful, so a `migrations/` walk that stopped resolving
+    // leaves it at 71/71 while R1 and R2 judge nothing. Its expectation is the
+    // module-owned migration classes `backend/src/db/migrations-registry.generated.ts`
+    // registers — a second program's answer, since the generator finds
+    // migrations by walking directories and this check finds them by path — and
+    // its coverage is how many of those a walked migration source declares.
+    // Core's twelve are outside the expectation and that is the population
+    // rather than an exemption: they belong to no module and sit under no module
+    // walk root.
+    sources: ['manifest-index', 'migration-registry', 'module-packages'],
   },
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',
@@ -1798,9 +1854,6 @@ export const READ_SIZE_WITHOUT_A_SITE_POPULATION: Readonly<Record<string, string
     'are not collected.',
   'backend/scripts/check-harness-teardown.ts':
     'reports hand-released resources; the teardown calls it cleared are not collected.',
-  'backend/scripts/check-module-boundary.ts':
-    'reports cross-module reaches; the specifiers and table references it cleared are not ' +
-    'collected, and there are two populations (imports and SQL) rather than one.',
   'backend/scripts/check-nul-bytes.ts': 'the unit is the file: a NUL anywhere in it is the rule.',
   'backend/scripts/check-subscribe-seam.ts':
     'reports bare subscriptions; the seam-registered ones are in `backend.ts` bodies the ' +

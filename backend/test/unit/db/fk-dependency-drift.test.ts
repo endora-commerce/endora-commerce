@@ -28,6 +28,7 @@ import { TABLE_OWNER_OVERRIDES } from './table-owner-overrides.js';
 import { ACKNOWLEDGED_FK_EDGES, type AcknowledgedFkEdge } from './acknowledged-fk-edges.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { BASELINE_THROUGH } from '../../../src/db/migration-order.js';
+import { closureOf } from '../../../scripts/lib/manifest-dependencies.js';
 
 /**
  * FK-vs-manifest drift validator — cases V1-V10 of
@@ -107,21 +108,15 @@ const MANIFEST_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map(
  * Transitive dependency closure — the same closure the ordering algorithm uses
  * (contracts/ordering-algorithm.md Step 3). Transitive, not direct: a module
  * that declares `orders` inherits everything `orders` declares.
+ *
+ * **Extracted, not local** (feature 097). `check:module-boundary` now enforces
+ * the same rule over the DML half of a migration that this file enforces over
+ * its DDL half, and the contract says in as many words that if a second
+ * traversal is about to be written the first should be extracted instead — two
+ * closures over one artefact are two answers waiting to disagree about one
+ * edge. This is that traversal; it was this file's and is now
+ * `scripts/lib/manifest-dependencies.ts`'.
  */
-function closureOf(
-  moduleId: string,
-  dependencies: ReadonlyMap<string, readonly string[]>,
-): Set<string> {
-  const reachable = new Set<string>();
-  const stack = [...(dependencies.get(moduleId) ?? [])];
-  while (stack.length > 0) {
-    const next = stack.pop()!;
-    if (next === moduleId || reachable.has(next)) continue;
-    reachable.add(next);
-    stack.push(...(dependencies.get(next) ?? []));
-  }
-  return reachable;
-}
 
 function violationMessage(edge: FkEdge, moduleFile: string): string {
   return (

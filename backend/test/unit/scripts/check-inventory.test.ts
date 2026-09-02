@@ -117,11 +117,14 @@ import {
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
   findCrossModuleSql,
+  findMigrationSql,
   vacuousReason as moduleBoundaryVacuous,
   type AdminBoundarySurfaces,
   type CrossModuleImport,
   type CrossModuleImportKind,
+  type LedgerShard,
 } from '../../../scripts/check-module-boundary.js';
+import { dependencyClosures } from '../../../scripts/lib/manifest-dependencies.js';
 import {
   modulePackageSurfaces,
   UnreadableSubpathError,
@@ -1862,6 +1865,110 @@ function sqlOnlyTheControl(source: string, file: string = BLOG_SERVICE_FILE): nu
 }
 
 const SQL_CONTROL = 'await conn.execute(`select id from products where status = ?`, [s]);';
+
+/* ── a migration's cross-module SQL (feature 097) ─────────────────────────── */
+
+/**
+ * The migration rules' fixtures — source text, an owner map built from source
+ * text, and the **declared** manifest graph.
+ *
+ * The graph is the manifests' own `dependencies` arrays and never a ready-made
+ * closure, because `migration-transitive-declaration` is a proof about the
+ * traversal: handing in the closure would leave the thing under test
+ * unexercised, which is the failure issue #130 records.
+ */
+const MIGRATION_SCHEMA: ReadonlyMap<string, string> = new Map([
+  [
+    'modules/a/entities/a-thing.entity.ts',
+    "@Entity({ tableName: 'a_table' })\nexport class AThing {}",
+  ],
+  [
+    'modules/b/entities/b-thing.entity.ts',
+    "@Entity({ tableName: 'b_table' })\nexport class BThing {}",
+  ],
+  [
+    'kernel/sales-channels/sales-channel.entity.ts',
+    "@Entity({ tableName: 'sales_channels' })\nexport class SalesChannel {}",
+  ],
+  [
+    'db/migrations/20260424T165847_core_foundation_init.ts',
+    'this.addSql(`create table "sales_channel_products" ' +
+      '("sales_channel_id" uuid not null, "product_id" uuid not null);`);',
+  ],
+]);
+
+const A_MIGRATION = 'modules/a/migrations/20260901T101010_a_widen.ts';
+const MIGRATION_KEY = `${A_MIGRATION}:b_table`;
+const UNDECLARED_WRITE =
+  'this.addSql(`update "b_table" set "flag" = true where "id" is not null;`);';
+
+function migrationRules(
+  source: string,
+  declared: Readonly<Record<string, readonly string[]>>,
+): readonly string[] {
+  return findMigrationSql({
+    sources: new Map([[A_MIGRATION, source]]),
+    schema: new Map([...MIGRATION_SCHEMA, [A_MIGRATION, source]]),
+    dependencyClosures: dependencyClosures(new Map(Object.entries(declared))),
+  }).found.map((finding) => finding.rule);
+}
+
+/** How many findings of one rule the source produces. */
+function migrationFindingsOf(
+  rule: string,
+  source: string,
+  declared: Readonly<Record<string, readonly string[]>> = { a: [], b: [] },
+): number {
+  return migrationRules(source, declared).filter((found) => found === rule).length;
+}
+
+/**
+ * A shape neither rule may report, proven as a discrimination: the fixture
+ * carries the negative shape **and** the control, and returns 1 only when
+ * exactly the control comes back.
+ */
+function migrationOnlyTheControl(
+  source: string,
+  declared: Readonly<Record<string, readonly string[]>> = { a: [], b: [] },
+): number {
+  const rules = migrationRules(`${UNDECLARED_WRITE}\n${source}`, declared);
+  return rules.length === 2 ? 1 : 0;
+}
+
+function migrationLedgerCheck(
+  source: string,
+  ledgers: {
+    readonly undeclaredReferences: readonly LedgerShard[];
+    readonly foreignWrites: readonly LedgerShard[];
+  },
+) {
+  return checkModuleBoundary(
+    {
+      sources: new Map([
+        ['modules/a/backend.ts', 'export function registerModule(ctx) {}'],
+        ['modules/b/backend.ts', 'export function registerModule(ctx) {}'],
+        [A_MIGRATION, source],
+      ]),
+      schema: new Map([...MIGRATION_SCHEMA, [A_MIGRATION, source]]),
+      dependencyClosures: dependencyClosures(new Map([['a', ['b']], ['b', []]])),
+    },
+    [],
+    ledgers,
+  );
+}
+
+/** The read record the migration refusals are driven from — a real run's shape. */
+const MIGRATION_READ = {
+  moduleFiles: ['modules/orders/a.ts'],
+  registeredModules: ['orders'],
+  ledgerDirectoryExists: true,
+  entityTables: 220,
+  migrationTables: 241,
+  migrationFiles: 225,
+  migrationRegistryMissing: [] as readonly string[],
+  declaresNoDependency: false,
+  migrationLedgerDirectoriesExist: true,
+};
 
 /**
  * The knex builder's fixtures (issue #187) — the same schema, the same entry
@@ -4188,7 +4295,11 @@ const CHECKS: readonly CheckEntry[] = [
           ].join('\n'),
         ),
       ),
-      'sql-in-a-migration-is-not-a-finding': top(() => {
+      // Feature 097 **narrowed** this exclusion rather than deleting it: what a
+      // migration is out of is this predicate's rule — every reach is debt,
+      // into `cross-module-imports` — and not the population. The migration
+      // rows below judge the same statement under R1 and R2.
+      'sql-in-a-migration-is-not-this-predicates': top(() => {
         const found = findCrossModuleSql({
           sources: new Map([
             [BLOG_SERVICE_FILE, SQL_CONTROL],
@@ -4289,6 +4400,196 @@ const CHECKS: readonly CheckEntry[] = [
           `${KNEX_BINDING}\n${BUILDER_CONTROL}\n` +
             "if (!effectiveState.isPresent('assets')) return;\nconst label = translate('cms_blocks');",
         ),
+      ),
+
+      // --- a migration's cross-module SQL (feature 097) --------------------
+      //
+      // The `sql` predicate excluded `migrations/` outright and delegated to
+      // `test/unit/db/fk-dependency-drift.test.ts`, which reads `create table`,
+      // `alter table` and `references "…"` and no DML statement at all — so 76
+      // cross-module DML accesses in 28 migration files were judged by nothing
+      // in this repository. Two rules replace the blanket exclusion.
+      //
+      // Seventeen proofs, and they are two findings rather than one because the
+      // remedies differ: an R1 finding is repaired by a manifest line **or** by
+      // moving the statement, an R2 finding only by moving it. Merged, R2 would
+      // go blind behind R1's red for every module that declares its target —
+      // 21 of the 37 module-targeting writes standing when this landed, which
+      // is issue #130's shape.
+      //
+      // Every one enters at the **top**: source text, a schema the owner map is
+      // built from, and the **declared** manifest graph, never a closure or a
+      // pre-classified access record.
+      'migration-undeclared-write': top(
+        () =>
+          migrationRules(UNDECLARED_WRITE, { a: [], b: [] }).join(',') ===
+          'undeclared-migration-table-reference,migration-writes-a-foreign-table'
+            ? 1
+            : 0,
+      ),
+      'migration-undeclared-read': top(() => {
+        const rules = migrationRules('this.addSql(`select "id" from "b_table";`);', {
+          a: [],
+          b: [],
+        });
+        return rules.length === 1 && rules[0] === 'undeclared-migration-table-reference' ? 1 : 0;
+      }),
+      // "No finding" cannot go red on its own, so the clean cases are paired
+      // with the reach they are one manifest line away from.
+      'migration-declared-read-is-clean': top(() =>
+        migrationRules('this.addSql(`select "id" from "b_table";`);', { a: ['b'], b: [] })
+          .length === 0 &&
+        migrationRules('this.addSql(`select "id" from "b_table";`);', { a: [], b: [] })
+          .length === 1
+          ? 1
+          : 0,
+      ),
+      // The clause R1 alone cannot state, and the one this feature exists for:
+      // `transactional_emails` is `nonDeactivatable` and `newsletter` is
+      // switchable, so the manifest line R1 would ask for makes `newsletter`'s
+      // activation control a dead switch. If this goes green on an R1-only
+      // implementation, R2 was folded into R1 and the design was lost.
+      'migration-declared-write-still-fails': top(() => {
+        const rules = migrationRules(UNDECLARED_WRITE, { a: ['b'], b: [] });
+        return rules.length === 1 && rules[0] === 'migration-writes-a-foreign-table' ? 1 : 0;
+      }),
+      // The closure is transitive (ordering-algorithm.md Step 3), and the
+      // fixture is the declared graph, so the traversal runs.
+      'migration-transitive-declaration': top(() =>
+        migrationRules('this.addSql(`select "id" from "b_table";`);', {
+          a: ['c'],
+          b: [],
+          c: ['b'],
+        }).length === 0 &&
+        migrationRules('this.addSql(`select "id" from "b_table";`);', { a: ['c'], b: [], c: [] })
+          .length === 1
+          ? 1
+          : 0,
+      ),
+      'migration-own-table-is-not-a-finding': top(() =>
+        migrationOnlyTheControl('this.addSql(`update "a_table" set "flag" = true;`);'),
+      ),
+      // Decided from the owner map's own answer, never from a table-name list:
+      // the kernel cannot appear in a `dependencies` array, so R1 over a kernel
+      // table would demand a declaration `defineModuleManifest` cannot spell.
+      'migration-kernel-table-is-not-a-finding': top(() =>
+        migrationOnlyTheControl(
+          'this.addSql(`insert into "sales_channels" ("id") values (?);`);',
+        ),
+      ),
+      // The non-duplication of `fk-dependency-drift.test.ts`: DDL is its
+      // subject, and `STATEMENT_HEAD` does not admit `create` or `alter`.
+      'migration-ddl-is-not-a-finding': top(() =>
+        migrationOnlyTheControl(
+          'this.addSql(`create table "b_table" ("id" uuid not null);`);',
+        ),
+      ),
+      // The AST reader's property, re-asserted at the new population.
+      'migration-sql-in-a-comment-is-not-a-finding': top(() =>
+        migrationOnlyTheControl(
+          [
+            '/* This used to `update "b_table" set "flag" = true where id is not null`. */',
+            "// It's gone, and it's b's own migration that does it now.",
+          ].join('\n'),
+        ),
+      ),
+      // The builder names its table as a call argument, so a statement-only
+      // implementation goes green while the write stands (issue #187's shape at
+      // this population). Asserted on the count of R2 findings, with the
+      // statement path given nothing to see.
+      'migration-builder-write': top(() =>
+        migrationFindingsOf(
+          'migration-writes-a-foreign-table',
+          ['const knex = em.getKnex();', "await knex('b_table').insert({ id });"].join('\n'),
+          { a: ['b'], b: [] },
+        ),
+      ),
+      // The two ledgers, both directions, through `checkModuleBoundary` with the
+      // source map *and* the shards: handing the comparison two ready-made sets
+      // would prove the set difference and nothing above it.
+      'migration-unledgered-write-fails': top(
+        () =>
+          migrationLedgerCheck(UNDECLARED_WRITE, {
+            undeclaredReferences: [],
+            foreignWrites: [],
+          }).foreignWrites.violations.length,
+      ),
+      'migration-stale-entry-fails': top(
+        () =>
+          migrationLedgerCheck('export class Migration20260901T101010AWiden {}', {
+            undeclaredReferences: [],
+            foreignWrites: [{ moduleId: 'a', entries: { [MIGRATION_KEY]: 'moves to b_init' } }],
+          }).foreignWrites.stale.length,
+      ),
+      'migration-entry-count-disagreeing-fails': top(
+        () =>
+          migrationLedgerCheck(UNDECLARED_WRITE, {
+            undeclaredReferences: [],
+            foreignWrites: [
+              { moduleId: 'a', entries: { [MIGRATION_KEY]: { sites: 2, reason: 'moves to b_init' } } },
+            ],
+          }).foreignWrites.countIssues.length,
+      ),
+      'migration-misfiled-entry-fails': top(
+        () =>
+          migrationLedgerCheck(UNDECLARED_WRITE, {
+            undeclaredReferences: [],
+            foreignWrites: [{ moduleId: 'b', entries: { [MIGRATION_KEY]: 'moves to b_init' } }],
+          }).foreignWrites.misfiledEntries.length,
+      ),
+      // Contract §4.3: one shard holding two predicates with different verdicts
+      // is how a ledger size stops meaning anything. An R2 entry must not
+      // account for an R1 finding over the same statement.
+      'migration-ledgers-stay-apart': top(() => {
+        const result = checkModuleBoundary(
+          {
+            sources: new Map([
+              ['modules/a/backend.ts', 'export function registerModule(ctx) {}'],
+              ['modules/b/backend.ts', 'export function registerModule(ctx) {}'],
+              [A_MIGRATION, UNDECLARED_WRITE],
+            ]),
+            schema: new Map([...MIGRATION_SCHEMA, [A_MIGRATION, UNDECLARED_WRITE]]),
+            dependencyClosures: dependencyClosures(new Map([['a', []], ['b', []]])),
+          },
+          [],
+          {
+            undeclaredReferences: [],
+            foreignWrites: [{ moduleId: 'a', entries: { [MIGRATION_KEY]: 'moves to b_init' } }],
+          },
+        );
+        return result.foreignWrites.violations.length === 0 &&
+          result.undeclaredReferences.violations.length === 1
+          ? 1
+          : 0;
+      }),
+      // The four refusals (contract §6). The first is the one that matters most
+      // and the one a careless implementation omits: the `manifest-index` floor
+      // is satisfied by any file a registered module contributes, and a
+      // module's backend sources are plentiful, so a `migrations/` walk that
+      // stopped resolving leaves R1 and R2 judging nothing while every other
+      // number holds. Each is paired with the record that must **not** refuse.
+      'no-migration-file-read-refuses': top(() =>
+        moduleBoundaryVacuous({ ...MIGRATION_READ, migrationFiles: 0 }) !== null &&
+        moduleBoundaryVacuous(MIGRATION_READ) === null
+          ? 1
+          : 0,
+      ),
+      'short-migration-walk-refuses': top(() =>
+        moduleBoundaryVacuous({
+          ...MIGRATION_READ,
+          migrationRegistryMissing: ['Migration20260901T101010AWiden'],
+        }) !== null
+          ? 1
+          : 0,
+      ),
+      'empty-dependency-closure-refuses': top(() =>
+        moduleBoundaryVacuous({ ...MIGRATION_READ, declaresNoDependency: true }) !== null ? 1 : 0,
+      ),
+      'missing-migration-ledger-directory-refuses': top(() =>
+        moduleBoundaryVacuous({ ...MIGRATION_READ, migrationLedgerDirectoriesExist: false }) !==
+        null
+          ? 1
+          : 0,
       ),
 
       // --- the admin population (feature 091, FR-017) ----------------------
@@ -7266,7 +7567,16 @@ describe('every red proof enters at the top of the analysis', () => {
       // finding kinds (an unledgered host reach and a stale host entry), the
       // discrimination that keeps the three registries out of it, and the two
       // floors — an empty host walk and a short one.
-      'backend/scripts/check-module-boundary.ts': 55,
+      // Plus feature 097's nineteen for a migration's cross-module DML, which
+      // no instrument in this repository could see: R1 over a write and over a
+      // read, its clean case, R2 under a declaration, the transitive closure,
+      // the four shapes neither rule reaches (its own table, a kernel table,
+      // DDL and a comment) proven as discriminations, the builder path at this
+      // population, four ledger directions, the proof that the two ledgers stay
+      // apart, and the four refusals. `declared-write-still-fails` is the one to
+      // read: if it goes green on an R1-only implementation, R2 was folded into
+      // R1 and the clause R1 cannot state was lost.
+      'backend/scripts/check-module-boundary.ts': 74,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue
