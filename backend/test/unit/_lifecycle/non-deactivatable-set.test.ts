@@ -32,7 +32,7 @@ import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifest
  * category its author forgot.
  */
 
-/** Core — 23 modules, each declaring `nonDeactivatable` with its own reason. */
+/** Core — 24 modules, each declaring `nonDeactivatable` with its own reason. */
 const CORE_MODULES = [
   '_i18n',
   '_lifecycle',
@@ -52,6 +52,7 @@ const CORE_MODULES = [
   'languages',
   'orders',
   'organizations',
+  'pim_connector',
   'price_lists',
   'sales_channels',
   'settings',
@@ -120,11 +121,11 @@ describe('the classification partitions the discovered manifest set (FR-007, SC-
     expect(classified).toEqual(allIds);
   });
 
-  it('is 23 core + 45 operator-controlled + 1 structurally unswitchable', () => {
-    expect(CORE_MODULES).toHaveLength(23);
-    // 45 since `pim_pimcore` arrived (feature 092): a connector an operator can
-    // switch off, declaring its own activation setting.
-    expect(controlIds).toHaveLength(45);
+  it('is 24 core + 46 operator-controlled + 1 structurally unswitchable', () => {
+    expect(CORE_MODULES).toHaveLength(24);
+    // 46: master's `pim_pimcore` (feature 092) plus this branch's `pim_unopim`.
+    // `pim_connector` is the extra core lock (non-deactivatable shared registry).
+    expect(controlIds).toHaveLength(46);
     expect(STRUCTURALLY_UNSWITCHABLE).toHaveLength(1);
     expect(CORE_MODULES.length + controlIds.length + STRUCTURALLY_UNSWITCHABLE.length).toBe(
       manifests.length,

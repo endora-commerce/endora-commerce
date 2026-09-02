@@ -467,7 +467,25 @@ export const ERROR_CODES = {
   /** A protected field path does not match the grammar (data-model.md §8). */
   PIM_ERGONODE_FIELD_PATH_INVALID: 'PIM_ERGONODE_FIELD_PATH_INVALID',
 
-  // Pimcore PIM integration (feature 089). Transport-level codes for the
+  // Shared PIM connector layer (feature 089).
+  /** Another PIM connector is operator-active; activation refused (FR-003). */
+  PIM_CONNECTOR_ALREADY_ACTIVE: 'PIM_CONNECTOR_ALREADY_ACTIVE',
+
+  // UnoPim PIM integration (feature 089). See specs/089-unopim-pim-sync/contracts/admin-api.md.
+  PIM_UNOPIM_NOT_CONFIGURED: 'PIM_UNOPIM_NOT_CONFIGURED',
+  PIM_UNOPIM_CONNECTION_EXISTS: 'PIM_UNOPIM_CONNECTION_EXISTS',
+  PIM_UNOPIM_SCHEDULE_INVALID: 'PIM_UNOPIM_SCHEDULE_INVALID',
+  PIM_UNOPIM_IMPORT_ALREADY_RUNNING: 'PIM_UNOPIM_IMPORT_ALREADY_RUNNING',
+  PIM_UNOPIM_CONNECTION_DISABLED: 'PIM_UNOPIM_CONNECTION_DISABLED',
+  PIM_UNOPIM_TYPE_INCOMPATIBLE: 'PIM_UNOPIM_TYPE_INCOMPATIBLE',
+  PIM_UNOPIM_TARGET_ATTRIBUTE_NOT_FOUND: 'PIM_UNOPIM_TARGET_ATTRIBUTE_NOT_FOUND',
+  PIM_UNOPIM_TARGET_ALREADY_MAPPED: 'PIM_UNOPIM_TARGET_ALREADY_MAPPED',
+  PIM_UNOPIM_CURRENCY_INACTIVE: 'PIM_UNOPIM_CURRENCY_INACTIVE',
+  PIM_UNOPIM_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_UNOPIM_ATTRIBUTE_NOT_PRICE_TYPE',
+  PIM_UNOPIM_BINDING_EXISTS: 'PIM_UNOPIM_BINDING_EXISTS',
+  PIM_UNOPIM_FIELD_PATH_INVALID: 'PIM_UNOPIM_FIELD_PATH_INVALID',
+
+  // Pimcore PIM integration (feature 092). Transport-level codes for the
   // module's admin surface — see specs/092-pimcore-pim-sync/contracts/admin-api.md.
   /** No connection row exists yet, so there is nothing to read or import from. */
   PIM_PIMCORE_NOT_CONFIGURED: 'PIM_PIMCORE_NOT_CONFIGURED',

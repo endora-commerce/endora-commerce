@@ -58,6 +58,7 @@
     "@endora-commerce/mod-payu": "workspace:*",
     "@endora-commerce/mod-pim-ergonode": "workspace:*",
     "@endora-commerce/mod-pim-pimcore": "workspace:*",
+    "@endora-commerce/mod-pim-unopim": "workspace:*",
     "@endora-commerce/mod-price-lists": "workspace:*",
     "@endora-commerce/mod-product-feeds": "workspace:*",
     "@endora-commerce/mod-promotions": "workspace:*",

@@ -21,6 +21,8 @@ const sidebars = {
         'architecture/custom-fields',
         'architecture/overlay-pattern',
         'architecture/pim-ergonode',
+        'architecture/pim-connector',
+        'architecture/pim-unopim',
         'architecture/pim-pimcore',
       ],
     },
@@ -130,6 +132,7 @@ const sidebars = {
         'modules/inpost',
         'modules/price_lists',
         { type: 'doc', id: 'modules/pim_ergonode', label: 'Ergonode PIM' },
+        { type: 'doc', id: 'modules/pim_unopim', label: 'UnoPim PIM' },
         { type: 'doc', id: 'modules/pim_pimcore', label: 'Pimcore PIM' },
         { type: 'doc', id: 'modules/product_feeds', label: 'Product Feeds' },
         {

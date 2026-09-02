@@ -1,0 +1,5 @@
+{
+  "registry.alreadyActive": "Inny konektor PIM jest już aktywny: {{moduleId}}",
+  "registry.alreadyActive.detail": "Dezaktywuj drugi konektor przed włączeniem tego.",
+  "errors.PIM_CONNECTOR_ALREADY_ACTIVE": "Inny connector PIM jest już aktywny ({activeModuleId}). Najpierw go wyłącz."
+}
