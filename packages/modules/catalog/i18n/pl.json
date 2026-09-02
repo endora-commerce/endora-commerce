@@ -614,5 +614,17 @@
   "activity.verb.product.bulk_update": "zaktualizował(a) masowo produkty",
   "activity.verb.product.create": "utworzył(a) produkt",
   "activity.verb.product.unarchive": "przywrócił(a) produkt",
-  "activity.verb.product.update": "zaktualizował(a) produkt"
+  "activity.verb.product.update": "zaktualizował(a) produkt",
+  "nav.products.label": "Produkty",
+  "nav.categories.label": "Kategorie",
+  "nav.attributes.label": "Atrybuty",
+  "nav.attributeSets.label": "Zestawy atrybutów",
+  "nav.attachmentTypes.label": "Rodzaje załączników",
+  "nav.bulkOperations.label": "Akcje masowe",
+  "actions.openProducts.label": "Produkty",
+  "actions.openProducts.description": "Wpisy katalogu",
+  "actions.openCategories.label": "Kategorie",
+  "actions.openCategories.description": "Drzewo kategorii katalogu",
+  "actions.openAttributes.label": "Atrybuty",
+  "actions.openAttributes.description": "Definicje atrybutów"
 }

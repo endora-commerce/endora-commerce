@@ -378,6 +378,45 @@ export const manifest = defineModuleManifest({
       keywords: ['product', 'new', 'add', 'create', 'produkt', 'nowy', 'dodaj'],
       weight: 100,
     },
+    // The three below arrive with feature 091's Phase 4 batch 15, by the route
+    // batch 10 established: `AppShell.tsx` carried a hand-written
+    // `PALETTE_ITEMS` row for each of these destinations, and a hand-written
+    // palette row is a copy the server was never asked about — it went on
+    // advertising the screen after an operator withdrew the module. Each is a
+    // manifest action now, which is the surface the effective enabled-set
+    // filters. The destinations, codes and keywords are the rows'; the labels
+    // and descriptions are the six strings they rendered, moved out of
+    // `_i18n`'s bundle into this module's own.
+    {
+      id: 'open-products',
+      labelKey: 'actions.openProducts.label',
+      descriptionKey: 'actions.openProducts.description',
+      icon: 'Package',
+      targetRoute: '/catalog/products',
+      requiredPermission: 'catalog:read',
+      keywords: ['products', 'catalog', 'items', 'produkty', 'katalog'],
+      weight: 200,
+    },
+    {
+      id: 'open-categories',
+      labelKey: 'actions.openCategories.label',
+      descriptionKey: 'actions.openCategories.description',
+      icon: 'Boxes',
+      targetRoute: '/catalog/categories',
+      requiredPermission: 'catalog:read',
+      keywords: ['category', 'categories', 'tree', 'kategorie'],
+      weight: 300,
+    },
+    {
+      id: 'open-attributes',
+      labelKey: 'actions.openAttributes.label',
+      descriptionKey: 'actions.openAttributes.description',
+      icon: 'Tag',
+      targetRoute: '/catalog/attributes',
+      requiredPermission: 'catalog:read',
+      keywords: ['attribute', 'attributes', 'atrybuty'],
+      weight: 400,
+    },
   ],
 });
 

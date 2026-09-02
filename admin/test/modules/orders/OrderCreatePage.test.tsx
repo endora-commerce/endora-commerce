@@ -61,7 +61,7 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => navigateSpy };
 });
 
-const { OrderCreatePage } = await import('../../../src/modules/orders/OrderCreatePage');
+const { OrderCreatePage } = await import('../../../../packages/modules/orders/src/admin/pages/OrderCreatePage');
 
 // Reference data returned by the mocked endpoints. The address book has one
 // default org address, which the page auto-selects for both delivery + billing.

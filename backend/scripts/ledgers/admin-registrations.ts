@@ -400,6 +400,49 @@
  * routes and six nav entries exactly, and the recorded `sites` band moves
  * 71 -> 57.
  *
+ * **`catalog` and `orders` are the eighteenth and nineteenth, and the fifteenth
+ * batch of the drain** (feature 091, Phase 4). They are the two **largest**
+ * hosts in the table — eight routes and nine registrations for `catalog`, four
+ * and four for `orders` — and the previous entry's property is what lets them
+ * arrive together: both are zone hosts whose contributors moved in batch 13 or
+ * were published against them in P4b, P7a and P7d, and a zone is neither a
+ * route nor a nav entry.
+ *
+ * **The drain is zero, and it is zero for the previous two entries' reason.**
+ * Re-derived on this branch before anything moved: `admin-surface.ts` is empty,
+ * `foreign-module-ids.ts` names neither, `orders` owns no
+ * `cross-module-imports` shard and is named as a target by none, and every one
+ * of `catalog`'s three shard keys is a **backend** SQL join —
+ * `carts/cart_items`, `orders/order_items` and the kernel's
+ * `sales_channel_products` — features 077 and 080's debt, in files this batch
+ * does not open. `check:module-boundary` reads
+ * `cross-module reaches=7 (imports=3 sql=4) ledger-size=7 shards=4` on both
+ * sides of the move, and that agreement is the measurement rather than a
+ * silence.
+ *
+ * **`catalog` is the first converted module to contribute to two sections**,
+ * which is what its `nav: 9` was hiding: five rows in *Catalog*, one in
+ * *System* (`/catalog/bulk-operations`, whose own comment says why it is not
+ * under *Catalog*) and three `PALETTE_ITEMS` rows this file's counting rule
+ * counts beside them. The five take weights 10 to 50 rather than 100 to 500 —
+ * the one place batch four's position-times-a-hundred convention had to bend,
+ * because *Catalog* already holds `assets_library`' 200 and a tie there breaks
+ * on module id and puts a picture library above the second catalogue row.
+ *
+ * **Two operator-visible changes, both recorded rather than glossed.**
+ * `/orders/new` was `App.tsx`'s and therefore ungated while the sidebar row
+ * advertising it carried `orders:write`; the route is `orders`' own now and
+ * takes that code, which is `credentials`' shape from batch 10 and
+ * `sales_channels`' from batch 14. And `/catalog/bulk-operations` moves from the
+ * *System* section's second row to its fourth — back to the position the
+ * hand-written table gave it, `composeNav` having put every host row above every
+ * contributed one while it was the host's.
+ *
+ * The run after them reads
+ * `routes=22 nav=10 module-owned (routes=18 nav=7) over 2 modules`, from
+ * `routes=34 nav=23 module-owned (routes=30 nav=20) over 4 modules` — the
+ * twelve routes and thirteen nav entries exactly, and the recorded `sites` band
+ * moves 57 -> 32.
  * **Batch 16 removes two entries and 25 registrations** — `blog` (7/3) and
  * `cms` (11/4) — and it is the batch that empties the module half of this
  * ledger. `cms` was the heaviest owner left in the table and `blog` travels
@@ -465,6 +508,4 @@ export const HOST_OWNER = ADMIN_HOST_OWNER;
 
 export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistrationCounts>> = {
   host: { routes: 4, nav: 3 },
-  catalog: { routes: 8, nav: 9 },
-  orders: { routes: 4, nav: 4 },
 };

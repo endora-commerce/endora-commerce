@@ -20,18 +20,6 @@ import {
   type PermissionRequirement,
 } from './lib/surface-visibility.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
-import { ProductsList } from './modules/catalog/ProductsList.js';
-import { ProductEditor } from './modules/catalog/ProductEditor.js';
-import { CategoriesTree } from './modules/catalog/CategoriesTree.js';
-import { AttributesManager } from './modules/catalog/AttributesManager.js';
-import { AttributeSetsPage } from './modules/catalog/AttributeSetsPage.js';
-import { AttachmentTypesPage } from './modules/catalog/AttachmentTypesPage.js';
-import { BulkOperationsPage } from './modules/catalog/BulkOperationsPage.js';
-import { BulkOperationDetailPage } from './modules/catalog/BulkOperationDetailPage.js';
-import { OrdersList } from './modules/orders/OrdersList.js';
-import { OrderDetail } from './modules/orders/OrderDetail.js';
-import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
-import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { HomePage } from './modules/home/HomePage.js';
 import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
 import { ProfilePage } from './modules/profile/ProfilePage.js';
@@ -173,14 +161,16 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Routes>
           <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
-        <Route path="/catalog/products" element={<ProductsList />} />
-        <Route path="/catalog/products/:id" element={<ProductEditor />} />
-        <Route path="/catalog/categories" element={<CategoriesTree />} />
-        <Route path="/catalog/attributes" element={<AttributesManager />} />
-        <Route path="/catalog/attribute-sets" element={<AttributeSetsPage />} />
-        <Route path="/catalog/attachment-types" element={<AttachmentTypesPage />} />
-        <Route path="/catalog/bulk-operations" element={<BulkOperationsPage />} />
-        <Route path="/catalog/bulk-operations/:id" element={<BulkOperationDetailPage />} />
+        {/* The eight `/catalog*` routes were declared here until feature 091's
+            Phase 4 batch 15. `catalog` is a zone **host** six members over —
+            `ProductEditor` mounts five of them, `ProductAttributesTab` a sixth
+            `product.editor.field.after` and `CategoriesTree`
+            `category.editor.after` — and a host moves on the same terms a
+            contributor does, because a zone is neither a route nor a nav entry.
+            Their declarations are in
+            `packages/modules/catalog/src/admin/index.ts`. The create form is
+            `/catalog/products/:id` with the id `new` and always was, so this
+            batch declares no static `/catalog/products/new` beside it. */}
         {/* The three `/customers*` and two `/organizations*` routes were
             declared here until feature 091's Phase 4 batch 14. Both modules are
             zone **hosts** — `CustomerDetail` renders `customer.detail.after`
@@ -189,10 +179,14 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
             contributor does, because a zone is neither a route nor a nav entry.
             Their declarations are in
             `packages/modules/{customers,organizations}/src/admin/index.ts`. */}
-        <Route path="/orders" element={<OrdersList />} />
-        <Route path="/orders/new" element={<OrderCreatePage />} />
-        <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
-        <Route path="/orders/:id" element={<OrderDetail />} />
+        {/* The four `/orders*` routes were declared here until feature 091's
+            Phase 4 batch 15, and `orders` hosts four zone members across three
+            of them. Their declarations are in
+            `packages/modules/orders/src/admin/index.ts`. One tightening
+            travelled with the move and is recorded there: `/orders/new` was
+            ungated here while the sidebar row advertising it carried
+            `orders:write`, so a read-only operator followed a row to a form
+            whose save would refuse. */}
         {/* `/transactional-emails*` and `/newsletter/*` were declared here —
             six and eleven routes — until feature 091's Phase 4 batch 11. Both
             modules own their screens now and their route declarations are in

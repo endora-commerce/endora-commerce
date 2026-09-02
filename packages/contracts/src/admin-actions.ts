@@ -176,6 +176,16 @@ export const KnownIconNameSchema = z.enum([
   // palette actions of that module.
   'Building2',
   'Store',
+  // Feature 091 (Phase 4, batch 15) — `orders`' three sidebar entries.
+  // `AppShell.tsx` imported the glyph from `lucide-react` by hand, and a module
+  // declaration has to *name* its icon rather than import it, so the name joins
+  // the allowlist here instead of three declarations degrading to one that
+  // happens to be on it already — `ShoppingCart`, which this module's own
+  // `open-orders` action names, is a different glyph the sidebar has never
+  // rendered. The batch's other seven rows need nothing: `Package`, `Boxes`,
+  // `Tag` and `FileText` cover `catalog`'s five, and `ListChecks` — the
+  // bulk-operations glyph — has been above since feature 020.
+  'ClipboardCheck',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 
