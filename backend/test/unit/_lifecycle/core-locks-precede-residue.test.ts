@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleManifest } from '@endora-commerce/contracts';
+import { lockedOwners } from '@endora-commerce/cli/lib/switchable-modules.js';
 import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
+import { requiredModulesFrom } from '../../../src/kernel/lifecycle/required-modules.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
@@ -79,10 +81,57 @@ describe('the core locks survive the residue deletion (FR-047, FR-048)', () => {
     expect(stillLocked).toEqual(coreIds);
   });
 
-  it('is not vacuous — the core set is the 23 the ruling names', () => {
-    // Without this the two cases above would pass on an empty core set, which
-    // is precisely the state the ordering hazard produces.
-    expect(coreIds.length).toBe(23);
+  /**
+   * The vacuity guard, and it is **derived** (D-100).
+   *
+   * It read `expect(coreIds.length).toBe(23)` — a count of a derived fact
+   * written into an assertion, in a file whose whole subject is derivation. The
+   * ruling it cited names no number: `requiredModulesFrom`'s own header says the
+   * required set is *"derived, never written down ... so an owner who withdraws
+   * a lock changes this refusal in the same run, with no list to edit"*, and the
+   * same sentence holds for an owner who **adds** one. Feature 089 added
+   * `pim_connector` and this file went red for a tree that was entirely correct,
+   * pointing a reader at the ordering hazard when nothing had been reordered.
+   *
+   * What the guard is actually for is stated in its old comment and survives
+   * intact: the two cases above pass on an empty core set, which is the state
+   * the ordering hazard produces. So the floor is *non-emptiness plus the hubs*,
+   * and the sharpness a literal was standing in for comes from **agreement**
+   * instead — three readers of the same manifests, written for three different
+   * questions and living in three packages:
+   *
+   *   - `activationDeclarationsFrom` (the resolver's `settingCode === null`),
+   *     which cases 1 and 2 above already exercise;
+   *   - `requiredModulesFrom` (`@endora-commerce/platform`), the refusal that
+   *     stops a composition reaching its boot phase without the module;
+   *   - `lockedOwners` (`@endora-commerce/cli`), which the static-check estate
+   *     asks before it exempts a boot hook or reads a `catch` as `OWNER LOCKED`.
+   *
+   * They are not a restatement of one another as *code* — the third tests
+   * `activation?.nonDeactivatable === true` where the other two test for the
+   * key's presence — but they are held to agree rather than to differ, because
+   * `defineModuleManifest` refuses the one input that would split them
+   * (`nonDeactivatable: false` carries no `reason` and fails
+   * `assertActivationRules`). What the agreement buys is that a future edit to
+   * any one of the three, or a lock withdrawn from a manifest, is red here
+   * whatever the size of the set — measured, by making `settings` switchable in
+   * the artefact the index imports: two of the five cases go red, this one
+   * among them.
+   */
+  it('is not vacuous, and the three readers of the lock agree', () => {
+    expect(coreIds.length).toBeGreaterThan(0);
     for (const hub of HUBS) expect(coreIds).toContain(hub);
+
+    const required = requiredModulesFrom(manifests)
+      .map((entry) => entry.moduleId)
+      .sort();
+    expect(required, 'the platform composes a different locked set than the resolver').toEqual(
+      coreIds,
+    );
+
+    const locked = [...lockedOwners(manifests)].sort();
+    expect(locked, 'the check estate reads a different locked set than the platform').toEqual(
+      coreIds,
+    );
   });
 });

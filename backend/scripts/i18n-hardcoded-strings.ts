@@ -1,7 +1,14 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { adminRegistryPathOf } from './lib/admin-surfaces.js';
+import {
+  adminRegistryPresent,
+  moduleAdminLayers,
+  type ModuleAdminLayer,
+} from './lib/module-admin-layers.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 import {
   adminUiPackages,
@@ -117,6 +124,72 @@ export function adminScanRoots(): readonly AdminScanRoot[] {
 /** The directories {@link adminScanRoots} produces — the walk's input. */
 export function defaultRoots(): readonly string[] {
   return adminScanRoots().map((root) => root.dir);
+}
+
+/**
+ * How many of the admin layers the generated registry names this walk opened as
+ * a root (feature 091 fallout; `contracts/admin-registry.md` R13b).
+ *
+ * **The registry is the independent author, and it is the only one there is for
+ * this family.** `admin-ui` corroborates two of the three root families; the
+ * third — 55 module packages' own `src/admin`, which is 357 of the 422 files
+ * this check reads — had none, and {@link adminScanRoots} builds it by asking
+ * the filesystem whether `<pkg>/src/admin` exists. A population that is a
+ * directory listing, reconciled against a count derived from the same listing,
+ * is the same answer twice (issue #244): every module admin layer could drop out
+ * of the walk at once and this check would print `files=65 sources=admin-ui:2/2`
+ * and exit 0, clean over the fifteen per cent of the admin it could still see.
+ * That is issue #215's short walk, on the population feature 091 is actively
+ * moving, one merge request at a time.
+ *
+ * `admin/src/modules.generated.ts` is a different program's answer to *"which
+ * packages ship admin code, and under which subpath"* — rendered by
+ * `generate-composer.ts`, refused by `overlay:check` when it is stale, foreign
+ * or empty — and `lib/module-admin-layers.ts` is the one derivation over it,
+ * shared with `check:admin-zones` and `check:admin-surface`. Nothing here spells
+ * `./admin` or `src/admin`; the subpath's source directory comes off the
+ * package's own `exports` map.
+ *
+ * **Coverage is the root, not a file under it.** One registry-named layer
+ * (`admin_roles`) is a barrel and no screen, so a layer holding no `.tsx` is the
+ * ordinary case rather than a finding, and a rule keyed on files would refuse a
+ * correct tree. What this can see is a layer that left the walk, which is the
+ * regression; what it cannot is a root that was walked and yielded nothing,
+ * which is `adminScanRoots`' own `existsSync` filter and the companion test's
+ * first case.
+ */
+export function coveredModuleAdminLayers(
+  layers: readonly Pick<ModuleAdminLayer, 'directory'>[],
+  walkedRoots: readonly string[],
+): number {
+  const walked = new Set(walkedRoots.map((root) => resolve(root)));
+  return layers.filter((layer) => walked.has(resolve(layer.directory))).length;
+}
+
+/**
+ * The floor's own vacuity refusal, or `null` when there is a floor to apply.
+ *
+ * `null` layers is *"this workspace has no admin contribution registry"* — a
+ * fixture tree, a checkout with no admin application — and the token is omitted
+ * rather than printed `0/0`, which `read-size.ts` refuses as `no-expectation`
+ * anyway. An **empty** array is the different and dangerous state: the registry
+ * is on disk and names nobody, so `module-admin:0/0` would corroborate nothing
+ * while looking exactly like a floor.
+ *
+ * Pure and exported so the proof drives it from a fixture rather than from a
+ * value a run computed (issue #130): the branch it guards ends in
+ * `process.exit(2)`, which nothing can enter at the top.
+ */
+export function moduleAdminFloorRefusal(
+  layers: readonly Pick<ModuleAdminLayer, 'directory'>[] | null,
+): string | null {
+  if (layers === null || layers.length > 0) return null;
+  return (
+    'the generated admin contribution registry names no module package — the module ' +
+    "packages' own `src/admin` layers are the larger part of this walk and their floor " +
+    'has no other author, so a batch that took every one of them out of the population ' +
+    'would print a clean line over the remainder; refusing to report a vacuous pass'
+  );
 }
 
 /**
@@ -514,7 +587,7 @@ export function collectTsxFiles(root: string, out: string[]): void {
   }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const positional = argv.filter((a) => !a.startsWith('--'));
   // The default root is resolved against the repository, not the working
@@ -560,20 +633,53 @@ function main(): void {
   const findings: Finding[] = [];
   for (const f of files) walkFile(f, findings);
 
+  // The module-admin floor. It is resolved here rather than inside
+  // `adminScanRoots` because it is deliberately **not** part of the population:
+  // the roots are this walk's own listing, and this is the second program's
+  // answer they are reconciled against. See `coveredModuleAdminLayers`.
+  //
+  // An explicit path (the draining mode) reads a deliberate subset and declares
+  // no coverage at all, so nothing is resolved for it — which also keeps the
+  // draining mode free of the manifest index, as it has always been.
+  let adminLayers: readonly ModuleAdminLayer[] | null = null;
+  if (declared !== null) {
+    const registryFile = adminRegistryPathOf(workspaceMembers(REPO_ROOT, nodeWorkspaceFs()));
+    // The gate is the registry file and nothing else — `check:admin-zones`' T4
+    // repair, for the reason `admin-kit-surface.md` §7.5 measured: a gate that
+    // can go false for a reason having nothing to do with the registry omits
+    // this token over every layer while the check prints a clean line. A
+    // workspace with no admin application has no registry and no token; one
+    // whose registry is there and names none is the refusal below.
+    if (adminRegistryPresent(registryFile)) {
+      const layout = await requireModuleLayout('[i18n:hardcoded]');
+      adminLayers = moduleAdminLayers(layout, registryFile!);
+      const refusal = moduleAdminFloorRefusal(adminLayers);
+      if (refusal !== null) {
+        process.stderr.write(`[i18n:hardcoded] ${refusal}\n`);
+        process.exit(2);
+      }
+    }
+  }
+
   // What was read, in the shared grammar (issue #244) — before the `--strict`
   // branch below, so both modes disclose the same walk.
   //
-  // The corroboration is the **admin-ui declarations**: the workspace manifests
-  // say how many packages ship a tree of admin UI, this walk says how many of
-  // them produced a file, and a package that declared itself and contributed
-  // nothing is a `short-walk` refusal rather than a quietly narrowed scan. It
-  // is the floor that replaces the old by-name refusal ("no member is
-  // `@endora-commerce/admin-kit`"), and it is strictly wider: the kit going
-  // missing still exits 2, and so does the second admin-ui package's tree
-  // moving out from under the walk (feature 091, P5c). The application's own
-  // `admin/src` and the module packages' `src/admin` layers have no second
-  // author and are not reconciled here — an explicit path (the draining mode)
-  // reads a deliberate subset, so it declares none.
+  // Two corroborations, one per root family that has a second author. **admin-ui**:
+  // the workspace manifests say how many packages ship a tree of admin UI, this
+  // walk says how many of them produced a file, and a package that declared
+  // itself and contributed nothing is a `short-walk` refusal rather than a
+  // quietly narrowed scan. It replaced a by-name refusal ("no member is
+  // `@endora-commerce/admin-kit`") and is strictly wider: the kit going missing
+  // still exits 2, and so does the second admin-ui package's tree moving out
+  // from under the walk (feature 091, P5c). **module-admin**: the generated
+  // contribution registry's answer, reconciled against the roots this walk
+  // opened — the floor the third and largest family had none of until feature
+  // 091's drain made the absence measurable.
+  //
+  // The application's own `admin/src` still has no second author and is not
+  // reconciled here; the companion test's ledger case is what floors it, since
+  // every entry `HARDCODED_STRINGS_BASELINE` names has to be a file this walk
+  // opened.
   reportReadSize({
     prefix: '[i18n:hardcoded]',
     files: files.length,
@@ -587,6 +693,20 @@ function main(): void {
               covered: declared.filter((root, index) => root.adminUi && perRoot[index]! > 0)
                 .length,
             },
+            // Omitted rather than printed `0/0` where the registry is not on
+            // disk, which `read-size.ts` refuses as `no-expectation`.
+            ...(adminLayers === null
+              ? []
+              : [
+                  {
+                    source: 'module-admin',
+                    expected: adminLayers.length,
+                    covered: coveredModuleAdminLayers(
+                      adminLayers,
+                      declared.map((root) => root.dir),
+                    ),
+                  },
+                ]),
           ],
   });
 
@@ -653,5 +773,5 @@ function main(): void {
 // Run as CLI only — importing this module (e.g. from a unit test) must not
 // trigger the scan + process.exit.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }
