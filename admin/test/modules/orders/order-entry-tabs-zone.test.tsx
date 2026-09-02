@@ -173,9 +173,16 @@ describe('order.entry.tabs — both hosts mount the place', () => {
     // assertion that does not.
     const { readFileSync, existsSync } = await import('node:fs');
     const { resolve } = await import('node:path');
+    // **Re-keyed by feature 091's Phase 4 batch 13**, which moved the second of
+    // the two hosts into `@endora-commerce/mod-quick-order/admin`. This list is
+    // a ledger *about* the files it names rather than one of them, so the batch
+    // that moves a host is structurally the batch that cannot see the entry go
+    // stale — and a `readFileSync` of a path that no longer exists throws
+    // rather than reporting a mount that is missing, which is the failure this
+    // case exists to make legible.
     for (const file of [
       'src/modules/orders/OrderCreatePage.tsx',
-      'src/modules/quick_order/QuickOrderOnBehalfPage.tsx',
+      '../packages/modules/quick_order/src/admin/pages/QuickOrderOnBehalfPage.tsx',
     ]) {
       const host = readFileSync(resolve(process.cwd(), file), 'utf8');
       expect(host, file).toContain('name="order.entry.tabs"');

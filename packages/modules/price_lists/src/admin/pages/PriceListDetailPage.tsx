@@ -21,13 +21,10 @@ import {
   Zap,
 } from 'lucide-react';
 import type { ApplicationRule } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
-import { useTranslation } from '@/i18n/useTranslation';
-import { BracketGrid, type BracketsByCurrency } from './BracketGrid';
-import { ApplicationRuleBuilder } from './ApplicationRuleBuilder';
-import { normalize } from '@/lib/text-normalization';
-
+import { ApiError, apiClient, cn, normalize } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { BracketGrid, type BracketsByCurrency } from '../components/BracketGrid.js';
+import { ApplicationRuleBuilder } from '../components/ApplicationRuleBuilder.js';
 type PriceListType = 'base' | 'sale';
 type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
 
@@ -1006,3 +1003,10 @@ function formatRange(startsAt: string | null, endsAt: string | null, t: (k: stri
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString();
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default PriceListDetailPage;

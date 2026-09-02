@@ -17,9 +17,8 @@ import {
   Tag,
   Zap,
 } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 type PriceListType = 'base' | 'sale';
 type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
 
@@ -563,3 +562,10 @@ function formatRange(startsAt: string | null, endsAt: string | null, t: (k: stri
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString();
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default PriceListsPage;

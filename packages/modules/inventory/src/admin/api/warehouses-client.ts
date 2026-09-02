@@ -3,8 +3,7 @@ import type {
   UpdateWarehouseRequest,
   Warehouse,
 } from '@endora-commerce/contracts';
-import { apiClient } from '@/lib/api-client';
-
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 interface ListResponse {
   items: Warehouse[];
   page: number;

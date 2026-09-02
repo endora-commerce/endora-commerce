@@ -10,13 +10,9 @@ import type {
   InventoryLandingKpis,
   StockLevelRow,
 } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
-import { PaginationFooter } from '@/components/PaginationFooter';
-import { usePageSizePreference } from '@/lib/use-page-size-preference';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useSurfaceVisibility } from '@/lib/surface-visibility';
-
+import { ApiError, apiClient, cn, usePageSizePreference, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { PaginationFooter } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 interface RosterResponse {
   items: StockLevelRow[];
   page: number;
@@ -355,3 +351,10 @@ function Chip(props: {
     </button>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default InventoryPage;

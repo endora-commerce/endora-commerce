@@ -862,12 +862,15 @@ export interface AdminBoundarySurfaces {
    * that owns it.
    *
    * A directory that is absent is the admin application's own and is not
-   * judged, which is the fail-closed direction: `basename` would attribute
-   * `warehouses` to a module that does not exist, so its reaches would be
-   * ledgered under an orphan shard and a reach from `inventory`'s own screens
+   * judged, which is the fail-closed direction: `basename` would attribute a
+   * directory to a module that does not exist, so its reaches would be
+   * ledgered under an orphan shard and a reach from the owner's own screens
    * into it would read as cross-module when it is a module reaching its own
-   * code. Derived by `scripts/lib/admin-surfaces.ts` from the route table and
-   * the nav, never from the directory name.
+   * code. `admin/src/modules/warehouses/` was the standing example — the nav
+   * attributes it to `inventory` — until feature 091's Phase 4 batch 13 moved
+   * both of that module's surface directories into its package. Derived by
+   * `scripts/lib/admin-surfaces.ts` from the route table and the nav, never
+   * from the directory name.
    */
   readonly moduleOfDirectory: ReadonlyMap<string, string>;
   /**
@@ -990,9 +993,12 @@ function adminLocationOf(
  *
  * The admin branch is consulted **first** and cannot be reached by a backend
  * path, because it keys on the admin module root's own prefix. It has to come
- * first: `moduleOf`'s `/src/modules/<id>/` regex matches inside
- * `admin/src/modules/warehouses/…` and answers `warehouses`, which is not a
- * module.
+ * first: `moduleOf`'s `/src/modules/<id>/` regex matches inside any
+ * `admin/src/modules/<directory>/` path and answers the **directory name**,
+ * which is not a module id. `warehouses` was the standing example — a
+ * directory the nav attributes to `inventory` — until feature 091's Phase 4
+ * batch 13 moved it into that module's package; the ordering is what makes the
+ * rule hold for the next such directory rather than for that one.
  */
 function moduleLocationOf(
   pathUnderSrc: string,
@@ -1206,9 +1212,11 @@ export function analyzeSource(
     // In the backend the **directory** is the identity, so an overlay `catalog`
     // reaching the core `catalog` is the cross-tree edge it is. In the admin it
     // is not: one module may own two surface directories under two names —
-    // `inventory` owns `inventory/` and `warehouses/` — so a reach between them
+    // `inventory` owned `inventory/` and `warehouses/` until feature 091's
+    // Phase 4 batch 13 moved both into its package — so a reach between them
     // is a module reaching its own code and comparing directories would report
-    // `inventory -> inventory` as a cross-module violation.
+    // `inventory -> inventory` as a cross-module violation. The tree holds no
+    // such pair today; the rule stays because the next one costs no edit.
     if (isAdminPath(file, admin) && isAdminPath(resolved, admin) && target.id === owner.id) {
       continue;
     }

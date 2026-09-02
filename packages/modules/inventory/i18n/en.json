@@ -22,5 +22,11 @@
   "activity.verb.warehouse.create": "created warehouse",
   "activity.verb.warehouse.deactivate": "deactivated warehouse",
   "activity.verb.warehouse.reactivate": "reactivated warehouse",
-  "activity.verb.warehouse.update": "updated warehouse"
+  "activity.verb.warehouse.update": "updated warehouse",
+
+  "nav.stockOverview.label": "Stock overview",
+  "nav.warehouses.label": "Warehouses",
+  "nav.lowStock.label": "Low stock",
+  "nav.notifyWhenAvailable.label": "Notify-when-available",
+  "nav.importStock.label": "Import stock"
 }

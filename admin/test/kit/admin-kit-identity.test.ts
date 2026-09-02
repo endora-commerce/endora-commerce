@@ -62,7 +62,6 @@ import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
 import { ContentLanguageTabs } from '@/modules/cms/components/ContentLanguageTabs';
 import { ScopePicker } from '@/modules/cms/components/ScopePicker';
 import { Section } from '@/modules/orders/Section';
-import { FulfilmentStrategyPicker } from '@/modules/inventory/components/FulfilmentStrategyPicker';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -129,15 +128,25 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     expect(Section).toBe(kitUi.Section);
   });
 
-  it('serves the P9 fulfilment picker through both spellings', () => {
-    // Feature 091's P9 published `inventory`'s warehouse-picking control, which
-    // §10.2 read as a **published component** rather than a zone contribution:
-    // `(value, onChange, warehouses, …)` is Z1 question 1, and both consumers
-    // own the save. Its two consumers name the subpath; the shim stays because
-    // the old path is the spelling `inventory`'s own screens and any client tree
-    // may hold, and a second resolution would be a second component object.
-    expect(FulfilmentStrategyPicker).toBe(kitComponents.FulfilmentStrategyPicker);
-  });
+  // **The P9 fulfilment picker had a case here and no longer has a shim to
+  // compare.** P9 published `inventory`'s warehouse-picking control into the
+  // kit — §10.2 read it as a published component rather than a zone, its props
+  // being `(value, onChange, warehouses, …)`, which is Z1 question 1 — and kept
+  // a forwarder at
+  // `admin/src/modules/inventory/components/FulfilmentStrategyPicker.tsx` *"for
+  // this module's own screens and any client tree"*. Feature 091's batch 13
+  // moved those screens into `@endora-commerce/mod-inventory/admin`, where a
+  // `@/` specifier does not resolve at all, and it turned out that neither of
+  // them ever named the picker: its two consumers are `catalog`'s product
+  // inventory tab and `organizations`' fulfilment panel, and both already name
+  // the subpath. The forwarder's only remaining reader was this file, so it
+  // went with the directory — keeping it would have kept a file alive for one
+  // assertion, and keeping the assertion without it would have compared
+  // `kitComponents` to itself. What the picker still has is
+  // `admin/test/kit/kit-fulfilment-strategy-picker.test.tsx`, which drives the
+  // published component; what is gone is a second spelling of it, which is the
+  // thing this file exists to compare. That is batch 12's e-mail-outcome note
+  // and batch 9's `CustomFieldValuesPanel` note arriving a third time.
 
   // **`CustomFieldValuesPanel` had a case here and no longer has a shim to
   // compare.** P4e published the panel into the kit and kept a forwarder at

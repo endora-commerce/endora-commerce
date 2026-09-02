@@ -2,14 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link } from 'react-router-dom';
 import type { Warehouse } from '@endora-commerce/contracts';
 import { Plus, Search, Warehouse as WarehouseIcon } from 'lucide-react';
-import { ApiError } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { cn } from '@/lib/utils';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useSurfaceVisibility } from '@/lib/surface-visibility';
-import { warehousesClient } from './api/warehouses-client';
-import { normalize } from '@/lib/text-normalization';
-
+import { ApiError, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { warehousesClient } from '../api/warehouses-client.js';
 /**
  * WarehousesList — admin landing for warehouse identity (feature 010 / US1).
  */
@@ -175,3 +170,10 @@ export function WarehousesList(): ReactNode {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default WarehousesList;

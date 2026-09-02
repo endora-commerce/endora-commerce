@@ -8,11 +8,10 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import type { CreateWarehouseRequest, Warehouse } from '@endora-commerce/contracts';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { ApiError } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useSurfaceVisibility } from '@/lib/surface-visibility';
+import { ApiError, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { CountryPicker } from '@endora-commerce/admin-kit/components';
-import { warehousesClient } from './api/warehouses-client';
+import { warehousesClient } from '../api/warehouses-client.js';
 
 interface FormState {
   name: string;
@@ -404,3 +403,10 @@ export function WarehouseEditor(): ReactNode {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default WarehouseEditor;

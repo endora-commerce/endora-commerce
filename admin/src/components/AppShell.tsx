@@ -7,11 +7,7 @@ import {
   Building2,
   ChevronDown,
   ChevronRight,
-  CircleDollarSign,
   ClipboardCheck,
-  Bell as BellOutline,
-  Box,
-  Factory,
   FileText,
   HelpCircle,
   Home as HomeIcon,
@@ -21,17 +17,13 @@ import {
   LogOut,
   Newspaper,
   Package,
-  PackageOpen,
   PanelLeftClose,
   PanelLeftOpen,
-  PlugZap,
   Search,
   Store,
   Tag,
   Sparkles,
-  TrendingDown,
   Users,
-  Warehouse as WarehouseIcon,
   Webhook,
   type LucideIcon,
 } from 'lucide-react';
@@ -156,44 +148,53 @@ const NAV: NavSection[] = [
       { to: '/catalog/attributes', labelKey: 'appShell.nav.attributes', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
       { to: '/catalog/attribute-sets', labelKey: 'appShell.nav.attributeSets', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
       { to: '/catalog/attachment-types', labelKey: 'appShell.nav.attachmentTypes', icon: FileText, requiredPermission: 'catalog:read', module: 'catalog' },
-      // Feature 068 — the Ergonode PIM connector sits in Catalog rather than
-      // Channels: it is where catalogue content comes *from*, and the three
-      // surfaces it writes (products, attributes, categories) are its
-      // neighbours here.
+      // `/pim-ergonode` stood here until feature 091's Phase 4 batch 13.
+      // `pim_ergonode` declares it now, at weight 250 — between
+      // `assets_library`' 200 and `pim_pimcore`' 300, which is where both of
+      // those rows' own comments already said this one belonged and could not
+      // be while it was the host's, `composeNav` appending every registry entry
+      // after every host one. The reasoning that keeps it *one* row for five
+      // screens — the other four are reached through the tab strip on the
+      // connector page — is recorded where the routes are, in
+      // `packages/modules/pim_ergonode/src/admin/index.ts`.
       //
-      // One row, not three: attribute and category mapping are the other two
-      // views of this same integration and are reached through the tab strip on
-      // its page. Three sidebar rows for one connector read as three
-      // destinations and pushed everything below them two lines down.
-      {
-        to: '/pim-ergonode',
-        labelKey: 'appShell.nav.pimErgonode',
-        icon: PlugZap,
-        requiredPermission: 'pim_ergonode:read',
-        module: 'pim_ergonode',
-      },
+      // Feature 068's placement note stands and is why the section is *Catalog*
+      // rather than *Channels*: it is where catalogue content comes *from*, and
+      // the three surfaces it writes are its neighbours here.
     ],
   },
   {
     key: 'inventory',
     labelKey: 'appShell.section.inventory',
     items: [
-      // `inventory` took its own codes on 2026-08-29. Every one of these five
-      // used to name a module that owns none of the data behind them —
-      // `orders:read` for four screens about warehouses and stock, and
-      // `catalog:write` for the CSV importer.
-      { to: '/inventory', labelKey: 'appShell.nav.stockOverview', icon: Box, requiredPermission: 'inventory:read', module: 'inventory' },
-      { to: '/warehouses', labelKey: 'appShell.nav.warehouses', icon: WarehouseIcon, requiredPermission: 'inventory:read', module: 'inventory' },
-      { to: '/inventory/low-stock', labelKey: 'appShell.nav.lowStock', icon: TrendingDown, requiredPermission: 'inventory:read', module: 'inventory' },
-      { to: '/inventory/notifications', labelKey: 'appShell.nav.notifyWhenAvailable', icon: BellOutline, requiredPermission: 'inventory:read', module: 'inventory' },
-      { to: '/inventory/import', labelKey: 'appShell.nav.importStock', icon: PackageOpen, requiredPermission: 'inventory:write', module: 'inventory' },
+      // All five rows of this section stood here until feature 091's Phase 4
+      // batch 13; `inventory` declares them now, at weights 100 to 500 — the
+      // order they stood in — in
+      // `packages/modules/inventory/src/admin/index.ts`. The codes those
+      // declarations carry are the ones this table settled on 2026-08-29, when
+      // every one of the five stopped naming a module that owns none of the
+      // data behind them (`orders:read` for four screens about warehouses and
+      // stock, `catalog:write` for the CSV importer), and the importer keeps
+      // the `inventory:write` that separates it from the other four.
+      //
+      // The section now holds **no host-declared row**, which has one
+      // operator-visible consequence recorded rather than glossed: the
+      // breadcrumb `registryCrumbs` derives for these screens renders
+      // *Inventory* unlinked, because there is no host entry left for it to
+      // point at. That is batch 11's *Messaging* arriving a second time.
     ],
   },
   {
     key: 'pricing',
     labelKey: 'appShell.section.pricing',
     items: [
-      { to: '/price-lists', labelKey: 'appShell.nav.priceLists', icon: CircleDollarSign, requiredPermission: 'price_lists:read', module: 'price_lists' },
+      // `/price-lists` stood here until feature 091's Phase 4 batch 13.
+      // `price_lists` declares it now, at weight 100 — first in this section,
+      // which is where the operator has always seen it, and which is the whole
+      // of what keeps it above `taxes`' and `promotions`' 200 now that the host
+      // declares no row here at all. The same *Inventory* consequence applies:
+      // the derived breadcrumb renders *Pricing* unlinked.
+      //
       // Carrier / payment gateway settings are reached as integrations from the
       // Delivery methods / Payment methods pages (not top-level sidebar).
     ],
@@ -481,71 +482,30 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.attachmentTypes', href: null },
   ] },
-  // Feature 068 — Ergonode PIM. Deepest trail first: `/runs/:id` before
-  // `/runs`, so the more specific pattern is the one that matches.
-  { test: /^\/pim-ergonode\/runs\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimErgonode', href: '/pim-ergonode' },
-    { labelKey: 'appShell.nav.pimErgonodeRuns', href: '/pim-ergonode/runs' },
-    { labelKey: 'appShell.crumb.importRun', href: null },
-  ] },
-  { test: /^\/pim-ergonode\/runs\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimErgonode', href: '/pim-ergonode' },
-    { labelKey: 'appShell.nav.pimErgonodeRuns', href: null },
-  ] },
-  { test: /^\/pim-ergonode\/attribute-mappings\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimErgonode', href: '/pim-ergonode' },
-    { labelKey: 'appShell.nav.pimErgonodeAttributeMappings', href: null },
-  ] },
-  { test: /^\/pim-ergonode\/category-mappings\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimErgonode', href: '/pim-ergonode' },
-    { labelKey: 'appShell.nav.pimErgonodeCategoryMappings', href: null },
-  ] },
-  { test: /^\/pim-ergonode\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimErgonode', href: null },
-  ] },
-  { test: /^\/inventory\/?$/, build: () => [
-    { labelKey: 'appShell.section.inventory', href: null },
-  ] },
-  { test: /^\/inventory\/low-stock\/?$/, build: () => [
-    { labelKey: 'appShell.section.inventory', href: '/inventory' },
-    { labelKey: 'appShell.nav.lowStock', href: null },
-  ] },
-  { test: /^\/inventory\/notifications\/?$/, build: () => [
-    { labelKey: 'appShell.section.inventory', href: '/inventory' },
-    { labelKey: 'appShell.nav.notifyWhenAvailable', href: null },
-  ] },
-  { test: /^\/inventory\/import\/?$/, build: () => [
-    { labelKey: 'appShell.section.inventory', href: '/inventory' },
-    { labelKey: 'appShell.nav.importStock', href: null },
-  ] },
-  { test: /^\/warehouses\/?$/, build: () => [
-    { labelKey: 'appShell.section.inventory', href: '/inventory' },
-    { labelKey: 'appShell.nav.warehouses', href: null },
-  ] },
-  { test: /^\/warehouses\/new\/?$/, build: () => [
-    { labelKey: 'appShell.section.inventory', href: '/inventory' },
-    { labelKey: 'appShell.nav.warehouses', href: '/warehouses' },
-    { labelKey: 'appShell.crumb.new', href: null },
-  ] },
-  { test: /^\/warehouses\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.inventory', href: '/inventory' },
-    { labelKey: 'appShell.nav.warehouses', href: '/warehouses' },
-    { labelKey: 'appShell.crumb.edit', href: null },
-  ] },
-  { test: /^\/price-lists\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.priceLists', href: null },
-  ] },
-  { test: /^\/price-lists\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.priceLists', href: '/price-lists' },
-    { labelKey: 'appShell.crumb.detail', href: null },
-  ] },
+  // Seventeen hand-written trails stood here until feature 091's Phase 4 batch
+  // 13 — the five `/pim-ergonode*`, the four `/inventory*`, the three
+  // `/warehouses*`, the two `/price-lists*` — plus `/orders/quick-order`, which
+  // never had one and fell to the humanised-segment fallback.
+  // `registryCrumbs` derives all of them now, from the sidebar entries the four
+  // modules declare, which is what keeps a converted module's breadcrumb from
+  // being a third shared file to edit. Four operator-visible changes, stated
+  // rather than glossed:
+  //
+  //  - *Inventory* and *Pricing* lose their link, because neither section holds
+  //    a host-declared entry any more for `registryCrumbs` to point at (batch
+  //    11's *Messaging*, arriving again).
+  //  - Ergonode's five trails were three crumbs deep and are two: the derived
+  //    trail is *Catalog → <the entry's own label>*, and the leaf for the four
+  //    sub-screens becomes *Ergonode PIM* linked to nothing, because a nav
+  //    entry is a landing surface and these four have none of their own. The
+  //    three `appShell.nav.pimErgonode*` keys and `appShell.crumb.importRun`
+  //    that only these rules rendered are retired from `_i18n` with them.
+  //  - `/warehouses/new` and `/warehouses/:id` lose their *New* and *Edit*
+  //    leaves for the same reason, which is the shape every converted module's
+  //    sub-screen already gets.
+  //  - the *Catalog* crumb on the Ergonode trails keeps its `/catalog/products`
+  //    href, that being the section's first host-declared entry — the same
+  //    answer the hand-written rules gave.
   { test: /^\/delivery-methods\/dhl-parcel\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
@@ -916,8 +876,16 @@ function matchesQuery(needle: string, ...haystacks: string[]): boolean {
 const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.home', sub: 'appShell.palette.sub.dashboard', icon: HomeIcon, to: '/', keywords: 'home dashboard strona główna pulpit' , module: null },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.products', sub: 'appShell.palette.sub.catalogRows', icon: Package, to: '/catalog/products', keywords: 'products catalog items produkty katalog', requiredPermission: 'catalog:read' , module: 'catalog' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.stockOverview', sub: 'appShell.palette.sub.stockLevels', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse magazyn stany', requiredPermission: 'inventory:read', module: 'inventory' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.priceLists', sub: 'appShell.palette.sub.pricingRules', icon: CircleDollarSign, to: '/price-lists', keywords: 'pricing prices price list cennik', requiredPermission: 'price_lists:read' , module: 'price_lists' },
+  // The `/inventory` and `/price-lists` rows left here in feature 091's Phase 4
+  // batch 13, and they left by the two routes batches 10 and 12 already
+  // established. `inventory` was batch 12's case: its manifest already declared
+  // `open-inventory` with the same destination and the same code, so the row
+  // was a second copy the server was never asked about and nothing replaces it.
+  // `price_lists` was batch 10's: it declared no action at all, so
+  // `open-price-lists` arrives with this row's destination, code and keywords,
+  // and its label and description are the two strings the row rendered, moved
+  // into that module's own bundle. Either way the advertisement is now the one
+  // surface the effective enabled-set filters.
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.organizations', sub: 'appShell.palette.sub.customerAccounts', icon: Building2, to: '/organizations', keywords: 'org orgs customer organization organizacja klient', requiredPermission: ['customers:read', 'customers:manage'] , module: 'organizations' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.orders', sub: 'appShell.palette.sub.openOrders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales zamówienia sprzedaż', requiredPermission: 'orders:read' , module: 'orders' },
   // The `/quote-requests` row left here in feature 091's Phase 4 batch 12, and

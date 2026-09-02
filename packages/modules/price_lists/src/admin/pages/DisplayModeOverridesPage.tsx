@@ -11,10 +11,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { DisplayMode } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-import { normalize } from '@/lib/text-normalization';
-
+import { ApiError, apiClient, normalize } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 type Scope = 'organization' | 'category' | 'product';
 
 interface DisplayModeOverrideRow {
@@ -611,3 +609,10 @@ function AddOverrideDialog(props: {
     </>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default DisplayModeOverridesPage;
