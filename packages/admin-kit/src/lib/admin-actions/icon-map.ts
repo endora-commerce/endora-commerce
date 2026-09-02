@@ -5,6 +5,7 @@ import {
   BookOpen,
   Box,
   Boxes,
+  Building2,
   CircleDollarSign,
   ClipboardList,
   CloudUpload,
@@ -44,6 +45,7 @@ import {
   ShoppingCart,
   Smartphone,
   Sparkles,
+  Store,
   Tag,
   TrendingDown,
   Truck,
@@ -150,6 +152,12 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   TrendingDown,
   Bell,
   PackageOpen,
+  // Feature 091 (Phase 4, batch 14) — the same, for `organizations`' and
+  // `sales_channels`' sidebar entries and the two palette actions that replace
+  // their hand-written *Navigate* rows. `customers`' two rows needed no entry:
+  // `Users` is already above.
+  Building2,
+  Store,
 };
 
 export function resolveIcon(name: string): LucideIcon {

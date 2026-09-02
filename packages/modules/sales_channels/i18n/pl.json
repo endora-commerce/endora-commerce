@@ -1,4 +1,7 @@
 {
+  "nav.salesChannels.label": "Kanały sprzedaży",
+  "actions.openSalesChannels.label": "Kanały sprzedaży",
+  "actions.openSalesChannels.description": "Kanały sklepu",
   "actions.newSalesChannel.label": "Nowy kanał sprzedaży",
   "actions.newSalesChannel.description": "Skonfiguruj nowy kanał sprzedaży witryny",
   "list.page.title": "Kanały sprzedaży",

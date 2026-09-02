@@ -38,17 +38,35 @@ let presentModules: readonly string[] = ['organizations'];
 
 
 const get = vi.fn();
-vi.mock('@/lib/api-client', () => ({
-  apiClient: {
-    get: (...args: unknown[]) => get(...args),
-    post: vi.fn(),
-    delete: vi.fn(),
-  },
-  ApiError: class ApiError extends Error {},
-}));
+// **Re-keyed by feature 091's Phase 4 batch 14, and this is the trap that has
+// now met seven merge requests in a row.** The mock named `@/lib/api-client`
+// while the subject was under `admin/src`; the subject is inside a module
+// package now and resolves `@endora-commerce/admin-kit/lib`, of which
+// `@/lib/api-client` is only a re-export shim — so the old spelling intercepted
+// nothing and vitest reported that by making the mock **inert** rather than by
+// failing. `tsc` cannot see it: both specifiers compile. A programmatic sweep
+// of every mock against the file's own imports is what found it.
+//
+// The factory spreads `importActual` rather than returning two keys, which the
+// `@/lib/api-client` spelling did not have to: that shim published exactly
+// `apiClient` and `ApiError`, and this barrel publishes the whole of the kit's
+// `lib` — `useSurfaceVisibility`, which this very screen calls, among it.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
+  return {
+    ...actual,
+    apiClient: {
+      get: (...args: unknown[]) => get(...args),
+      post: vi.fn(),
+      delete: vi.fn(),
+    },
+  };
+});
 
 const { OrganizationSalesRepsTab } = await import(
-  '../../src/modules/organizations/OrganizationSalesRepsTab'
+  '../../../packages/modules/organizations/src/admin/components/OrganizationSalesRepsTab'
 );
 
 const bundle = passthroughBundle('core', [

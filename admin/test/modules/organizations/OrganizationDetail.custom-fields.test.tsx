@@ -40,23 +40,33 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 // Ten sibling panels, each with a data chain of its own; none is under test.
-vi.mock('@/modules/organizations/panels/FulfilmentStrategyPanel', () => ({
+//
+// **Every spelling is the package's own source, and that is feature 091's
+// batch 14 re-keying them rather than tidying them.** They named the `@/`
+// alias until that batch, and the screen now imports `../panels/….js` and
+// `../components/OrganizationSalesRepsTab.js` from inside
+// `@endora-commerce/mod-organizations`, where that alias resolves to nothing —
+// so the old spellings would have named files that are gone, and vitest
+// answers a mock over a deleted path by making it **inert** rather than by
+// failing. All seven panels would have mounted for real against the stubbed
+// `apiClient`. `tsc` is what found it, by the dynamic import below.
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/FulfilmentStrategyPanel', () => ({
   FulfilmentStrategyPanel: () => null,
 }));
-vi.mock('@/modules/organizations/panels/ModerationActionsPanel', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/ModerationActionsPanel', () => ({
   ModerationActionsPanel: () => null,
 }));
-vi.mock('@/modules/organizations/panels/ApplicablePriceListsPanel', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/ApplicablePriceListsPanel', () => ({
   ApplicablePriceListsPanel: () => null,
 }));
-vi.mock('@/modules/organizations/panels/HierarchyPanel', () => ({ HierarchyPanel: () => null }));
-vi.mock('@/modules/organizations/panels/VatValidationPanel', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/HierarchyPanel', () => ({ HierarchyPanel: () => null }));
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/VatValidationPanel', () => ({
   VatValidationPanel: () => null,
 }));
-vi.mock('@/modules/organizations/panels/RestrictionsPanel', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/RestrictionsPanel', () => ({
   RestrictionsPanel: () => null,
 }));
-vi.mock('@/modules/organizations/OrganizationSalesRepsTab', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/components/OrganizationSalesRepsTab', () => ({
   OrganizationSalesRepsTab: () => null,
 }));
 // Three more `vi.mock`s stood here until feature 091's P7b, one per module
@@ -71,7 +81,7 @@ vi.mock('@/modules/organizations/OrganizationSalesRepsTab', () => ({
 // panel and not the zone.
 
 const { OrganizationDetail } = await import(
-  '../../../src/modules/organizations/OrganizationDetail'
+  '../../../../packages/modules/organizations/src/admin/pages/OrganizationDetail'
 );
 
 const CORE_EN = JSON.parse(

@@ -40,19 +40,12 @@ import { AttributeSetsPage } from './modules/catalog/AttributeSetsPage.js';
 import { AttachmentTypesPage } from './modules/catalog/AttachmentTypesPage.js';
 import { BulkOperationsPage } from './modules/catalog/BulkOperationsPage.js';
 import { BulkOperationDetailPage } from './modules/catalog/BulkOperationDetailPage.js';
-import { OrganizationsList } from './modules/organizations/OrganizationsList.js';
-import { OrganizationDetail } from './modules/organizations/OrganizationDetail.js';
-import { CustomersList } from './modules/customers/CustomersList.js';
-import { CustomerDetail } from './modules/customers/CustomerDetail.js';
-import { OnlineCustomers } from './modules/customers/OnlineCustomers.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
 import { HomePage } from './modules/home/HomePage.js';
 import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
-import { SalesChannelsListPage } from './modules/sales_channels/pages/SalesChannelsListPage.js';
-import { SalesChannelEditPage } from './modules/sales_channels/pages/SalesChannelEditPage.js';
 import { ProfilePage } from './modules/profile/ProfilePage.js';
 
 function NotFoundPage(): ReactNode {
@@ -200,11 +193,14 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/catalog/attachment-types" element={<AttachmentTypesPage />} />
         <Route path="/catalog/bulk-operations" element={<BulkOperationsPage />} />
         <Route path="/catalog/bulk-operations/:id" element={<BulkOperationDetailPage />} />
-        <Route path="/organizations" element={<OrganizationsList />} />
-        <Route path="/organizations/:id" element={<OrganizationDetail />} />
-        <Route path="/customers" element={<CustomersList />} />
-        <Route path="/customers/online" element={<OnlineCustomers />} />
-        <Route path="/customers/:id" element={<CustomerDetail />} />
+        {/* The three `/customers*` and two `/organizations*` routes were
+            declared here until feature 091's Phase 4 batch 14. Both modules are
+            zone **hosts** — `CustomerDetail` renders `customer.detail.after`
+            and `OrganizationDetail` renders `organization.detail.after`, the
+            two members P7b published — and a host moves on the same terms a
+            contributor does, because a zone is neither a route nor a nav entry.
+            Their declarations are in
+            `packages/modules/{customers,organizations}/src/admin/index.ts`. */}
         <Route path="/orders" element={<OrdersList />} />
         <Route path="/orders/new" element={<OrderCreatePage />} />
         <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
@@ -291,9 +287,12 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
           declarations are in
           `packages/modules/{settings,pwa}/src/admin/index.ts`.
         */}
-        <Route path="/sales-channels" element={<SalesChannelsListPage />} />
-        <Route path="/sales-channels/new" element={<SalesChannelEditPage />} />
-        <Route path="/sales-channels/:code" element={<SalesChannelEditPage />} />
+        {/* The three `/sales-channels*` routes were declared here until feature
+            091's Phase 4 batch 14. `SalesChannelEditPage` renders
+            `sales_channel.editor.after`, the member P7c published, so this
+            module is a zone host as well as the contributor P7a and P7b made
+            it. Its declaration is in
+            `packages/modules/sales_channels/src/admin/index.ts`. */}
         <Route path="/profile" element={<ProfilePage />} />
         {/* Every module-owned screen, from the generated registry. `App.tsx`
             declares the host's own routes and nothing else; a module adds one

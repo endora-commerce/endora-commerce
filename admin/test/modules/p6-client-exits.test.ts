@@ -45,7 +45,8 @@ import { resolve } from 'node:path';
  * below start `../packages/modules/`: feature 091's batch 10 moved `settings`,
  * `dictionaries` and `credentials` into their packages and batch 11 moved
  * `transactional_emails`, so a caller and an owner named here can sit on
- * either side of that line. The assertion is
+ * either side of that line, and batch 14 moved the fifth, `sales_channels`,
+ * which is both a caller here and one of the four owners below. The assertion is
  * unchanged — this file's subject is the **request** each caller names, not
  * where the file lives. Batch 11 moved a fourth, `transactional_emails`, and
  * that entry follows its file for the same reason — this ledger is derived
@@ -124,7 +125,11 @@ const EXITS: readonly ClientExit[] = [
     endpoints: ['/api/v1/admin/dictionary/languages?pageSize='],
   },
   {
-    caller: 'src/modules/sales_channels/components/ChannelIdentityForm.tsx',
+    // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `sales_channels`
+    // took its admin surface into its package and this caller went with it. The
+    // exit is unchanged; only its address moved.
+    caller:
+      '../packages/modules/sales_channels/src/admin/components/ChannelIdentityForm.tsx',
     owner: 'dictionaries',
     binding: 'dictionaryClient',
     clientPath: 'modules/dictionaries/client',
@@ -174,7 +179,10 @@ describe('the owners keep their clients, because their own screens read them', (
    */
   it.each([
     ['../packages/modules/settings/src/admin/api/settings-client.ts', 'settingsClient'],
-    ['src/modules/sales_channels/api/sales-channels-client.ts', 'salesChannelsClient'],
+    [
+      '../packages/modules/sales_channels/src/admin/api/sales-channels-client.ts',
+      'salesChannelsClient',
+    ],
     ['../packages/modules/dictionaries/src/admin/api/client.ts', 'dictionaryClient'],
     ['../packages/modules/credentials/src/admin/api/credentials-client.ts', 'credentialsClient'],
   ])('%s still exports %s', (path, binding) => {

@@ -164,6 +164,18 @@ export const KnownIconNameSchema = z.enum([
   'TrendingDown',
   'Bell',
   'PackageOpen',
+  // Feature 091 (Phase 4, batch 14) — `organizations`' sidebar entry and the
+  // palette action that replaces its hand-written *Navigate* row, and
+  // `sales_channels`' sidebar entry and the palette action that replaces its
+  // row. `AppShell.tsx` imported both glyphs from `lucide-react` by hand, and a
+  // module declaration has to *name* its icon rather than import it, so the
+  // names join the allowlist here instead of four declarations degrading to
+  // names that happen to be on it already — which would be two operator-visible
+  // glyph changes bought for nothing. `customers`' two rows and its two
+  // existing actions need nothing: `Users` has been above since the first
+  // palette actions of that module.
+  'Building2',
+  'Store',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

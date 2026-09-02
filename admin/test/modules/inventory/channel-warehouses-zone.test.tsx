@@ -148,7 +148,16 @@ describe('inventory contributes the sales-channel editor zone', () => {
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const host = readFileSync(
-      resolve(process.cwd(), 'src/modules/sales_channels/pages/SalesChannelEditPage.tsx'),
+      // Re-keyed by feature 091's Phase 4 batch 14, not tidied: the host
+      // screen moved into its own package, and a `readFileSync` of the old
+      // path throws rather than reporting a missing mount. This assertion is
+      // derived *about* a file another merge request moves, which is the
+      // shape that has produced a stale ledger in every batch that did not
+      // look for it.
+      resolve(
+        process.cwd(),
+        '../packages/modules/sales_channels/src/admin/pages/SalesChannelEditPage.tsx',
+      ),
       'utf8',
     );
     expect(host).not.toContain('ChannelMembershipPanel');

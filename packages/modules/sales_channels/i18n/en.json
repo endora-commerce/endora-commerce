@@ -1,4 +1,7 @@
 {
+  "nav.salesChannels.label": "Sales channels",
+  "actions.openSalesChannels.label": "Sales channels",
+  "actions.openSalesChannels.description": "Storefront channels",
   "actions.newSalesChannel.label": "New sales channel",
   "actions.newSalesChannel.description": "Configure a new storefront sales channel",
   "list.page.title": "Sales channels",
