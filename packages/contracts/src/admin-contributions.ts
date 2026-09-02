@@ -207,6 +207,58 @@ export const AdminZoneNameSchema = z.enum([
    * exists to refuse.
    */
   'invoice.detail.after',
+  /**
+   * The end of the category editor's form, after its save/cancel row.
+   *
+   * Mounted **once** per open category, and named from the host's own word for
+   * the place (Z14): `catalog`'s `CategoriesTree.tsx` is the editor, and the
+   * place is *after* everything the editor itself offers. Props:
+   * {@link CategoryEditorZoneProps}.
+   *
+   * The first member whose contributor is `price_lists`. `catalog` imported
+   * `DisplayModeOverrideRow` by path and handed it its own label and its own
+   * hint — one of the three admin keys in
+   * `backend/scripts/ledgers/cross-module-imports/catalog.ts`. A host cannot
+   * hand copy to a contributor it does not know, so the two `catalog` strings
+   * go with the import and the control renders `price_lists`' own.
+   */
+  'category.editor.after',
+  /**
+   * The end of the product editor's Pricing tab.
+   *
+   * Mounted **once** per editor, and the twin of
+   * `product.editor.pricing.before`: two places in one editor, one before the
+   * platform's own pricing fields and one after them. Props:
+   * {@link ProductEditorZoneProps}, reused rather than aliased — a props type
+   * is the *shape* the mount carries, and both places carry a product id.
+   */
+  'product.editor.pricing.after',
+  /**
+   * The **body** of the product editor's Channels tab.
+   *
+   * Mounted **once** per editor. Props: {@link ProductEditorZoneProps}.
+   *
+   * The host keeps the tab strip and the label — `channels` is `catalog`'s own
+   * tab id — and stops knowing which module fills it: the button is shown by
+   * `useAdminZone(name, props).length > 0` (Z15), which has already applied
+   * both presence axes and the contributor's permission. A strip zone that
+   * contributed the button too was rejected: one contributor, one host, and the
+   * label is the host's own vocabulary.
+   */
+  'product.editor.channels',
+  /**
+   * Below the sales-channel editor's identity form.
+   *
+   * Mounted **once** per channel, and only for a channel that already exists —
+   * the create form has no id to pass. Props:
+   * {@link SalesChannelEditorZoneProps}.
+   *
+   * The first member whose host is `sales_channels` and whose contributor is
+   * `inventory`. The panel behind it is warehouse↔channel routing, which is a
+   * fact about fulfilment rather than about the channel's identity, and its
+   * four routes take `inventory:read` / `inventory:write`.
+   */
+  'sales_channel.editor.after',
 ]);
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
@@ -247,6 +299,29 @@ export interface InvoiceDetailZoneProps {
   /** `proforma` | `invoice` | `correction` — {@link InvoiceKind}. */
   readonly kind: InvoiceKind;
   readonly ksefReferenceNumber: string | null;
+}
+
+/**
+ * A zone mounted once at the end of the category editor's form.
+ *
+ * The entity's own id and nothing else, which is what the one contribution
+ * reads: `DisplayModeOverrideRow` takes a scope and a target id, and the scope
+ * is the contributor's constant — `catalog`'s editor is always editing a
+ * category.
+ */
+export interface CategoryEditorZoneProps {
+  readonly categoryId: string;
+}
+
+/**
+ * A zone mounted once below the sales-channel editor's identity form.
+ *
+ * The channel's **id**, not its code: every route the one contribution calls is
+ * `/api/v1/admin/sales-channels/:channelId/warehouses`, and `channelId` there
+ * is the id. The host has both loaded, so the mount costs no request.
+ */
+export interface SalesChannelEditorZoneProps {
+  readonly channelId: string;
 }
 
 /** A zone mounted beside one field of the product editor. */
@@ -296,6 +371,12 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'product.editor.field.after': ProductEditorFieldZoneProps;
   'delivery_method.list.integrations': DeliveryMethodIntegrationsZoneProps;
   'invoice.detail.after': InvoiceDetailZoneProps;
+  'category.editor.after': CategoryEditorZoneProps;
+  // Reused, not aliased: a props type is the shape the mount carries, and two
+  // places in one editor that both carry a product id carry the same shape.
+  'product.editor.pricing.after': ProductEditorZoneProps;
+  'product.editor.channels': ProductEditorZoneProps;
+  'sales_channel.editor.after': SalesChannelEditorZoneProps;
 }
 
 /** The props of one zone, by name. */

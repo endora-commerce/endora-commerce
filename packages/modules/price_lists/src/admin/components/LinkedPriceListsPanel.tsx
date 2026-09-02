@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, CircleDollarSign, Star } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-import { DisplayModeOverrideRow } from './DisplayModeOverrideRow';
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { DisplayModeOverrideRow } from './DisplayModeOverrideRow.js';
 
 type PriceListType = 'base' | 'sale';
 type PriceListStatus = 'draft' | 'active' | 'scheduled' | 'expired';
@@ -41,6 +41,12 @@ const STATUS_BADGE: Record<PriceListStatus, string> = {
  * `/admin/price-lists/...`; the admin SPA routes the same view at
  * `/price-lists/...`, so we strip the `/admin` prefix when navigating
  * within the React Router tree.
+ *
+ * **Moved out of `admin/src/modules/price_lists/` by feature 091's P7a**, where
+ * `catalog`'s product editor imported it by path — one of the three admin keys
+ * in `backend/scripts/ledgers/cross-module-imports/catalog.ts`. It reaches that
+ * screen as a `product.editor.pricing.after` contribution now, so neither
+ * module names the other.
  */
 export function LinkedPriceListsPanel({ productId }: { productId: string }): ReactNode {
   const t = useTranslation('core');
@@ -121,12 +127,10 @@ export function LinkedPriceListsPanel({ productId }: { productId: string }): Rea
   return (
     <div className="b2b-col" style={{ gap: 16 }}>
       <div className="b2b-card" style={{ padding: 12 }}>
-        <DisplayModeOverrideRow
-          scope="product"
-          targetId={productId}
-          label={t('priceLists.linked.displayModeLabel')}
-          inheritHint={t('priceLists.linked.displayModeHint')}
-        />
+        {/* No `label` / `inheritHint`: the row renders its own copy in every
+            place it appears now (P7a), so this panel's two `linked.displayMode*`
+            keys went with the props. */}
+        <DisplayModeOverrideRow scope="product" targetId={productId} />
       </div>
       <LinkedPriceListsList rows={rows} />
     </div>

@@ -165,8 +165,6 @@
   "categories.mainImage.pick": "Pick",
   "categories.mainImage.change": "Change",
   "categories.mainImage.clear": "Clear main image",
-  "categories.priceDisplayMode.label": "Price display mode for this category",
-  "categories.priceDisplayMode.help": "Inherits from the next-deepest category, then Organization, then the platform default.",
   "attributes.page.title": "Attributes",
   "attributes.page.description": "Searchable + filterable attributes drive Meilisearch and the storefront filter panel. Hot-toggle to see results within seconds.",
   "attributes.error.load": "Failed to load.",
