@@ -13,8 +13,8 @@ import {
 /**
  * A check killed by the kernel must not report as a check that printed nothing.
  *
- * `check-read-size.test.ts` spawns twenty-seven processes and tolerates a
- * non-zero exit on purpose. That tolerance made **SIGKILL indistinguishable
+ * `check-read-size.test.ts` spawns one process per check in `CHECKS` and
+ * tolerates a non-zero exit on purpose. That tolerance made **SIGKILL indistinguishable
  * from silence**: on the 4 GB CI runner the two heaviest checks were OOM-killed
  * before writing a byte and were reported as `printed no read line`, a
  * content-shaped assertion for a resource failure.

@@ -12,6 +12,7 @@ import {
   resolveModuleLayout,
   sourceRootOfIndex,
 } from '../../../scripts/lib/module-roots.js';
+import { ADMIN_SOURCE_ALIAS } from '../../../scripts/lib/admin-surfaces.js';
 import {
   nodeWorkspaceFs,
   workspaceGlobs,
@@ -409,6 +410,43 @@ describe('the roots themselves', () => {
     roots.push(outside);
     expect(findRepoRoot(outside)).toBeNull();
     await expect(resolveModuleLayout(outside)).rejects.toThrow(ModuleLayoutUnresolvableError);
+  });
+});
+
+/**
+ * The admin refusal travels with the answer (feature 091, Phase 5 T2;
+ * `contracts/admin-kit-surface.md` §7.3 R17).
+ *
+ * `adminSurfaces()` collapses five distinct causes into one `null`, and every
+ * caller used to print a sentence of its own choosing. Measured on the merge of
+ * batches 15 and 16: the tree refused on the **module root** and both callers
+ * reported the **alias**, which is a correct file — `admin/tsconfig.json`, which
+ * has declared `"@/*"` throughout — sent for repair.
+ *
+ * The invariant is two-way and is what makes a caller's `??` branch dead code:
+ * the reason is non-null exactly when the layout is `null`.
+ */
+describe('the admin layout refusal', () => {
+  it('answers the cause it measured, for a workspace with no frontend at all', async () => {
+    const root = splitCheckout();
+    const layout = await resolveModuleLayout(root);
+    expect(await layout.adminSurfaces()).toBeNull();
+    const reason = await layout.adminSurfacesRefusal();
+    expect(reason).not.toBeNull();
+    // The measured cause, not the first one on a list: no member declares the
+    // alias in this fixture, so that is what the sentence has to say.
+    expect(reason).toContain(ADMIN_SOURCE_ALIAS);
+  });
+
+  it('memoises on the same call, so the two accessors cannot disagree', async () => {
+    const root = splitCheckout();
+    const layout = await resolveModuleLayout(root);
+    // The reason asked for **first**, which is the order a caller that only
+    // prints refusals uses; it has to resolve the layout for itself.
+    const reason = await layout.adminSurfacesRefusal();
+    expect(reason).not.toBeNull();
+    expect(await layout.adminSurfaces()).toBeNull();
+    expect(await layout.adminSurfacesRefusal()).toBe(reason);
   });
 });
 

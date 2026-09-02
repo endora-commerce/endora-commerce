@@ -49,9 +49,12 @@ function codeOf(relativePath: string): string {
  * application's own: four routes (the dashboard, the `/settings/dhl-parcel`
  * redirect, `/platform/modules` and `/profile`) and three nav entries (the
  * dashboard's sidebar row and palette row, and `/platform/modules`). That is
- * SC-007, and the last case in this file is what says so in a form that keeps
- * saying it once `check:admin-registrations` — the instrument that has counted
- * the drain batch by batch — is deleted for having nothing left to ratchet.
+ * SC-007, and what says so is `host-admin-registrations.test.tsx` — a file
+ * named after the claim rather than after this batch, because the assertion
+ * outlives every batch (`contracts/admin-registry.md` R13a). It is the
+ * successor to `backend/scripts/check-admin-registrations.ts`, the instrument
+ * that counted the drain batch by batch and that Phase 5's T5 deletes for
+ * having nothing left to ratchet.
  *
  * ## The batch's one judgement: `PageBuilderEditor`
  *
@@ -945,59 +948,5 @@ describe('the one published component, and the reach it keeps', () => {
     const manifest = sourceOf('../packages/modules/blog/src/manifest.ts');
     const dependencies = /dependencies:\s*\[([\s\S]*?)\n  \]/.exec(manifest)?.[1] ?? '';
     expect(dependencies).toContain("'cms',");
-  });
-});
-
-describe('SC-007 — what `App.tsx` and `AppShell.tsx` still declare is the admin’s own', () => {
-  /**
-   * The four routes and three nav entries that belong to no module.
-   *
-   * **This case is the one that outlives `check:admin-registrations`.** That
-   * check's inventory row says it is deleted with its ledger once the last
-   * module entry goes, because an instrument with an empty population is a done
-   * signal that says nothing — and what goes with it is the only thing in the
-   * estate that said *these four routes and three rows are the host's own*. A
-   * later reader finding four `<Route>` elements in a file this feature emptied
-   * has no way to tell "unmigrated debt" from "the admin application's own
-   * screens" unless something says so. This is that something, and it is an
-   * assertion rather than a sentence: a fifth host route added without a module
-   * to own it fails here, and so does a module registration that creeps back.
-   */
-  const HOST_ROUTES = [
-    // The dashboard. `modules/home/` is claimed by no nav entry, so it is the
-    // admin application's.
-    '<Route index element={<HomePage />} />',
-    // A redirect for deep links that predate `dhl_parcel`'s screen moving. Its
-    // element comes from `react-router-dom` rather than from a surface
-    // directory, which is what makes it the host's and not that module's.
-    '<Route path="/settings/dhl-parcel"',
-    // D-36: the screen that switches modules on and off may belong to no
-    // module, or it could switch itself out of existence.
-    '<Route path="/platform/modules"',
-    // The signed-in admin's own profile.
-    '<Route path="/profile"',
-  ];
-
-  it('declares the four host routes, each the admin’s own for a stated reason', () => {
-    const app = codeOf('src/App.tsx');
-    for (const route of HOST_ROUTES) {
-      expect(app, route).toContain(route);
-    }
-  });
-
-  it('declares the three host nav entries', () => {
-    const shell = codeOf('src/components/AppShell.tsx');
-    // `module: null` is the shell's own attribution for a surface no module
-    // owns — the dashboard's sidebar row, its palette row, and
-    // `/platform/modules`. Asserted as *at least* these three rather than as a
-    // total, and the reason is the schedule rather than the design: batch 15
-    // (`catalog`, `orders`) is in flight beside this one, so on this branch the
-    // shell still carries its twelve module rows and `App.tsx` its twelve module
-    // routes. **The totals are what makes this case a fence rather than a
-    // reminder, and they belong in whichever of the two batches merges second.**
-    // Until then the positive half stands: these three are the host's, they are
-    // declared, and each has its reason above.
-    const hostRows = [...shell.matchAll(/module: null/g)].length;
-    expect(hostRows).toBeGreaterThanOrEqual(3);
   });
 });

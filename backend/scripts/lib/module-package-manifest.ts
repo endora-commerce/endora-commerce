@@ -1788,9 +1788,9 @@ const MODULE_DEPENDENCY_RANGE = 'workspace:*';
  * ## Which application, and how it is found
  *
  * The member declaring the `"@/*"` tsconfig alias — the same derivation
- * `check:admin-registrations`, `check:admin-surface` and the registry generator
- * use, and for the same reason: that alias is what `tsc` and Vite both resolve
- * the admin's own imports through, so it is a live declaration rather than a
+ * `check:admin-surface`, `check:admin-zones` and the registry generator use,
+ * and for the same reason: that alias is what `tsc` and Vite both resolve the
+ * admin's own imports through, so it is a live declaration rather than a
  * convention. Zero or two members declaring it is a refusal.
  */
 export function renderAdminApplicationManifest(input: {

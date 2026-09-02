@@ -1471,7 +1471,7 @@ export function renderMigrationsRegistry(sources: SourceTree = readSourceTree())
 // `backend/src` plus the manifest index come out of the same command; this one
 // is written into the **admin** application, because that is the program that
 // consumes it, and its location is derived from the `"@/*"` alias exactly as
-// `check:admin-registrations` and `check:admin-surface` derive theirs.
+// `check:admin-surface` and `check:admin-zones` derive theirs.
 
 /** The layer directory a module package publishes its admin contributions from. */
 const ADMIN_LAYER_ENTRY = 'src/admin/index.ts';

@@ -73,23 +73,12 @@ import {
   RELATION_DECORATOR_HINT,
 } from '../../../scripts/check-kernel-boundary.js';
 import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
-import {
-  checkAdminRegistrations,
-  vacuousReason as adminRegistrationsVacuousReason,
-  type AdminRegistrationFinding,
-} from '../../../scripts/check-admin-registrations.js';
 import { ADMIN_HOST_OWNER } from '../../../scripts/lib/admin-surfaces.js';
 import { checkEmittedFreshness } from '../../../scripts/lib/emitted-freshness.js';
 import {
   createEmittingPackageFixture,
   type EmittingPackageFixtureOptions,
 } from '../../helpers/emitted-freshness-fixture.js';
-import type {
-  AdminNavDeclaration,
-  AdminRouteDeclaration,
-  AdminSurfaceLayout,
-} from '../../../scripts/lib/admin-surfaces.js';
-import type { AdminRegistrationCounts } from '../../../scripts/ledgers/admin-registrations.js';
 import {
   adminZoneFindingCount,
   declarationSource as zoneDeclarationSource,
@@ -1696,54 +1685,6 @@ const ORDERS_READS_A_PRODUCT_TWICE = [
 ].join('\n');
 const CROSS_MODULE_KEY = `${ORDER_SERVICE_FILE}:catalog/entities/product.entity`;
 
-// --- check-admin-registrations (feature 091, FR-018) -------------------------
-//
-// The fixture is a route table and a nav, as declarations, plus the import map
-// that says which surface directory a component comes from. That is where the
-// attribution happens and therefore where the proof has to enter: a fixture
-// handing in a ready-made owner would exercise the subtraction and leave the
-// two attributions — the one that reads `App.tsx`'s imports and the one that
-// reads `AppShell.tsx`'s `module` field — unrun (issue #130).
-function adminRegistrationFindings(
-  baseline: Readonly<Record<string, AdminRegistrationCounts>>,
-  blog: AdminRegistrationCounts | null,
-): readonly AdminRegistrationFinding[] {
-  const routes: AdminRouteDeclaration[] = [];
-  const nav: AdminNavDeclaration[] = [];
-  if (blog !== null) {
-    for (let at = 0; at < blog.routes; at += 1) {
-      routes.push({ path: `/blog/${at}`, component: 'BlogPage', line: at + 1 });
-    }
-    for (let at = 0; at < blog.nav; at += 1) {
-      nav.push({ to: `/blog/${at}`, module: 'blog', line: at + 1 });
-    }
-  }
-  return checkAdminRegistrations(
-    {
-      routes,
-      nav,
-      componentDirectories: new Map([['BlogPage', 'blog']]),
-      moduleOfDirectory: new Map([['blog', 'blog']]),
-      registered: new Set(['blog']),
-    },
-    baseline,
-  ).findings;
-}
-
-/** 1 when the record refuses the run, 0 when it does not. */
-function adminRegistrationsVacuous(record: {
-  readonly admin?: AdminSurfaceLayout | null;
-  readonly routes: number;
-  readonly nav: number;
-  readonly baselineEntries: number;
-}): number {
-  const admin =
-    record.admin === undefined
-      ? ({ sourceRoot: 'admin/src' } as AdminSurfaceLayout)
-      : record.admin;
-  return adminRegistrationsVacuousReason({ ...record, admin }) === null ? 0 : 1;
-}
-
 function moduleBoundaryTree(source: string): Map<string, string> {
   return new Map([
     ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
@@ -2539,11 +2480,17 @@ type AdminSurfaceVacuousRecord = Parameters<typeof adminSurfaceVacuous>[0];
 function adminSurfaceRefuses(record: Partial<AdminSurfaceVacuousRecord>): number {
   return adminSurfaceVacuous({
     adminResolved: true,
+    adminRefusal: null,
     kitFound: true,
     implementationSubpaths: 4,
     barrelsRead: 4,
     barrelWithStar: null,
     walkedFiles: 1,
+    // The terminal state's own record: the application half is empty and the
+    // package half carries the walk. A proof that varied `shims` from a
+    // non-empty application half would prove the *old* refusal (R18(6)).
+    applicationFiles: 0,
+    registryLayers: 54,
     shims: 1,
     ...record,
   }) === null
@@ -3081,80 +3028,16 @@ const CHECKS: readonly CheckEntry[] = [
       'unreadable-barrel-refuses': top(() => adminSurfaceRefuses({ barrelsRead: 3 })),
       'export-star-barrel-refuses': top(() => adminSurfaceRefuses({ barrelWithStar: 'ui' })),
       'empty-walk-refuses': top(() => adminSurfaceRefuses({ walkedFiles: 0 })),
-      'no-shim-refuses': top(() => adminSurfaceRefuses({ shims: 0 })),
-    },
-  },
-  {
-    // Feature 091's FR-018. Four findings, and the two count drifts are the
-    // ones the ratchet exists for — a batch that moves a module's admin
-    // directory does not touch either host file, so the number it leaves
-    // behind describes a registration that is now declared twice. Every
-    // fixture enters as route and nav **declarations** plus the import map,
-    // because the attribution — a route by the directory its component comes
-    // from, a nav entry by the `module` field it carries — is where the defect
-    // lives; a proof handed a ready-made owner would count the arithmetic and
-    // nothing above it (issue #130).
-    script: 'backend/scripts/check-admin-registrations.ts',
-    npmScript: 'check:admin-registrations',
-    job: 'quality',
-    companionTest: 'backend/test/unit/scripts/check-admin-registrations.test.ts',
-    vacuousGuard: 'exit-2',
-    readSize: 'reported',
-    // Its population is the admin's two host registries, which a moved backend
-    // module tree does not touch. What it *does* follow is the admin module
-    // root, derived from the source alias — and losing that is exit 2 through
-    // its own first vacuous reason, proven below.
-    residueGuard: 'not-a-module-walk',
-    red: {
-      'unrecorded-module': top(
-        () =>
-          adminRegistrationFindings({}, { routes: 1, nav: 1 }).filter(
-            (finding) => finding.kind === 'unrecorded-module',
-          ).length,
-      ),
-      'stale-baseline-entry': top(
-        () =>
-          adminRegistrationFindings({ blog: { routes: 3, nav: 1 } }, null).filter(
-            (finding) => finding.kind === 'stale-baseline-entry' && finding.owner === 'blog',
-          ).length,
-      ),
-      // The direction Story 3 produces: the screens moved into the package and
-      // the `<Route>` stayed, so the admin declares it twice.
-      'route-count-drift-above': top(
-        () =>
-          adminRegistrationFindings({ blog: { routes: 3, nav: 1 } }, { routes: 1, nav: 1 }).filter(
-            (finding) => finding.kind === 'route-count-drift',
-          ).length,
-      ),
-      // The other direction: a module grew a hand-written registration, which
-      // after Phase 2 is no longer how an admin screen is added.
-      'route-count-drift-below': top(
-        () =>
-          adminRegistrationFindings({ blog: { routes: 0, nav: 1 } }, { routes: 1, nav: 1 }).filter(
-            (finding) => finding.kind === 'route-count-drift',
-          ).length,
-      ),
-      'nav-count-drift': top(
-        () =>
-          adminRegistrationFindings({ blog: { routes: 1, nav: 4 } }, { routes: 1, nav: 1 }).filter(
-            (finding) => finding.kind === 'nav-count-drift',
-          ).length,
-      ),
-      // The four vacuous reasons, each entered on the record a real run builds.
-      // Without them a tree whose admin had moved would compare an empty walk
-      // against an empty baseline and report a cheerful zero.
-      'no-admin-layout-refuses': top(() =>
-        adminRegistrationsVacuous({ admin: null, routes: 0, nav: 0, baselineEntries: 1 }),
-      ),
-      'no-routes-refuses': top(() =>
-        adminRegistrationsVacuous({ routes: 0, nav: 1, baselineEntries: 1 }),
-      ),
-      'no-nav-refuses': top(() =>
-        adminRegistrationsVacuous({ routes: 1, nav: 0, baselineEntries: 1 }),
-      ),
-      'empty-baseline-refuses': top(() =>
-        adminRegistrationsVacuous({ routes: 1, nav: 1, baselineEntries: 0 }),
-      ),
+      // R18(4). The registry is on disk and names no module package, so the
+      // package half's floor has no independent author — the shape that would
+      // otherwise report clean over a walk nothing corroborates.
+      'registry-names-no-package-refuses': top(() => adminSurfaceRefuses({ registryLayers: 0 })),
+      // R18(6). The shim refusal is conditional on the application half being
+      // non-empty, so the proof has to supply one. The *other* half of that
+      // claim — with the application half empty the same record does not refuse
+      // — is a green and belongs in the companion test, not in a map whose
+      // every entry is a shape this check refuses.
+      'no-shim-refuses': top(() => adminSurfaceRefuses({ applicationFiles: 3, shims: 0 })),
     },
   },
   {
@@ -7256,10 +7139,13 @@ describe('every red proof enters at the top of the analysis', () => {
       CHECKS.map((check) => [check.script, Object.keys(check.red).length]),
     );
     expect(shapes).toEqual({
-      // Four findings and the four vacuous reasons, plus both directions of the
-      // route count — the ratchet's whole claim is that it fails either way.
-      'backend/scripts/check-admin-registrations.ts': 9,
-      'backend/scripts/check-admin-surface.ts': 15,
+      // Six reach proofs, both stale directions of the ledger, and — since
+      // feature 091's Phase 5 — **eight** vacuous reasons rather than seven:
+      // R18(4)'s registry/walk disagreement is the new one. R18(6)'s shim
+      // refusal is not a new shape, it is the same one made conditional, so it
+      // adds no key here; its other direction is a green and lives in the
+      // companion test.
+      'backend/scripts/check-admin-surface.ts': 16,
       // Five zone findings, then five for the sixth: the `foreign-module-id`
       // predicate has three populations, an unreadable case and — since the walk
       // widened to a module's own sources — the module-owned spelling of the
@@ -7558,7 +7444,8 @@ describe('a check whose population is the module tree proves it read the tree', 
 /**
  * Checks that do not yet print what they read, with what it would take.
  *
- * **Two-way**, and empty: all twenty-seven print a read line today. An entry
+ * **Two-way**, and empty: every check in `CHECKS` prints a read line today. An
+ * entry
  * here is a check whose green still cannot be told from a check that read
  * nothing, which is the family issue #244 closes — so an entry is a statement
  * that one member of the family is still live, not a to-do.
@@ -7573,7 +7460,7 @@ describe('every check says how much it read (issue #244)', () => {
   // `test/helpers/check-read-sizes.ts` records what that line says on this
   // tree. The behavioural half — spawning each check and comparing — is
   // `check-read-size.test.ts`, for the same reason the moved-tree proof is its
-  // own file: twenty-seven spawns are too slow to sit in a file a developer
+  // own file: one spawn per check is too slow to sit in a file a developer
   // runs constantly.
   const RECORDS_FILE = 'backend/test/helpers/check-read-sizes.ts';
   const RATCHET_FILE = 'backend/test/unit/scripts/check-read-size.test.ts';
@@ -7594,7 +7481,7 @@ describe('every check says how much it read (issue #244)', () => {
   it('names the shared reporter in the script itself', () => {
     // Presence, not behaviour: a private `console.log` that happened to spell
     // the grammar would drift from it, and the point of a shared reporter is
-    // that the ratchet parses one shape for twenty-seven checks.
+    // that the ratchet parses one shape for every check in `CHECKS`.
     const missing = reported
       .filter((check) => !/reportReadSize|read_size_report/.test(read(check.script)))
       .map((check) => check.script);
