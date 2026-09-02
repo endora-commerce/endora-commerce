@@ -28,6 +28,52 @@
  *     import that "completed with 4 000 failures" is a worse report than one
  *     that stopped and named the module that is off.
  *
+ * ## Two spellings of one rule: `try`/`catch` and `.catch(handler)`
+ *
+ * The rule is about **absorbing a presence answer**, not about a keyword, and
+ * this check read the keyword for its first year: one `ts.CatchClause` and no
+ * mention of `.catch` anywhere in it. So
+ * `port.remove(id).catch(() => undefined)` was outside the population, and a
+ * rule a caller leaves by changing punctuation is not a rule. Both spellings
+ * are judged here, by one predicate ({@link bodyHandles}) over one site record,
+ * because two implementations of "does this handler re-throw" are two answers
+ * waiting to disagree.
+ *
+ * **`.then(onOk, onErr)`'s second argument is in scope**, stated rather than
+ * left to be discovered: it *is* a rejection handler, and reading only
+ * `.catch` would leave the identical swallow one keystroke away. `.finally(f)`
+ * is **not** in scope, for the opposite reason: it consumes no rejection and
+ * re-throws, so there is nothing there to swallow. What a promise-form site
+ * guards is its **receiver chain** and nothing else — `p.then(ok, onErr)` does
+ * not route `ok`'s own rejection to `onErr`, so a port called in the success
+ * arm is not guarded by the arm beside it, while `p.then(ok).catch(onErr)`
+ * guards `ok` and needs no special case, `ok` being inside the outer receiver.
+ *
+ * ### The bound worth knowing, because it is measured and it is not obvious
+ *
+ * Whether a `.catch` **actually** receives the presence answer depends on an
+ * `async` boundary this analysis cannot see, and both answers occur for
+ * byte-identical source text. `lazyPort`'s forwarding function is *synchronous*
+ * — it reads `ctx.cradle()[name]`, where the transient gate throws — so:
+ *
+ *   - `proxy.method(x).catch(h)` **escapes the handler**: the throw happens
+ *     while the receiver is being evaluated, before `.catch` is reached, and
+ *     the error propagates to the caller. Fail-closed, by accident.
+ *   - the same port behind anything `async` — a holder built around it (issue
+ *     #133), a `this.` method (D-88), a hand-written adapter object, a
+ *     decorated registration — turns that throw into a **rejection**, which
+ *     `.catch(() => fallback)` swallows. Fail-open.
+ *
+ * Both were run rather than reasoned about, against the real `lazyPort`. The
+ * check reports both, and that is a decision rather than an oversight: the
+ * distinction is invisible at the call site, it is not stable under any
+ * refactoring (wrapping a port in one `async` method flips it), and it is not
+ * even stable under a change to `lazyPort` itself. The direction of the doubt
+ * is the one this file takes everywhere else — report it — and the remedy is
+ * correct in both worlds, being inert in the first and load-bearing in the
+ * second. `orders`' confirmation recipients were the second kind, live, when
+ * this widening landed.
+ *
  * ## What counts as a gated-port call
  *
  * A gated port is a name registered through `ctx.di.providePort`. Reaching one
@@ -204,7 +250,14 @@
  * Anything else is a violation, including `catch (err) { if (rare) throw err; }`
  * — a conditional re-throw is exactly the shape that keeps the presence answer.
  * Adding the one-line call is cheaper than teaching a static check to read a
- * condition, and it says at the site what the site decided.
+ * condition, and it says at the site what the site decided. `ModuleDisabledError`
+ * is an `HttpError`, so a status-code test lets it through by accident rather
+ * than by decision, which is why the shape is refused and not merely disliked.
+ *
+ * The promise form answers the same four ways over the handler's body, plus two
+ * that only a reference can express: `.catch(rethrowIfModuleDisabled)` and
+ * `.catch(someRethrowingDelegate)`. `.catch((e) => { if (rare) throw e; })` is
+ * refused identically — same predicate, same reason.
  *
  * ## `OWNER LOCKED` — the answer the check derives for itself (D-63)
  *
@@ -237,9 +290,21 @@
  * error and the check still names the site; what changes is what the reader is
  * being asked to do about it.
  *
+ * ## Population floors
+ *
+ * Two, because the module floor cannot see the second. `refuseVacuousModulePopulation`
+ * refuses a walk that came back short of the modules the generated index
+ * registers (issue #215) — and it is satisfied by *any* file a module
+ * contributes, none of which need hold a promise at all. So a `.catch`
+ * recogniser that stopped resolving would leave that floor green and print
+ * `violations=0` over a population nothing was judging. The census of
+ * **rejection handlers read**, port-reaching or not, is the second floor, and
+ * zero is exit 2 — `check:subscribe-seam`'s worker half, one check across.
+ *
  * Usage: `tsx scripts/check-port-catches.ts [--list]`
- * Exit 0 = every such `catch` handles it (or is ledgered, or its owners are
- * locked); exit 1 = at least one does not, or a ledger entry is stale.
+ * Exit 0 = every such site handles it (or is ledgered, or its owners are
+ * locked); exit 1 = at least one does not, or a ledger entry is stale; exit 2 =
+ * the walk read nothing it was supposed to read.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -496,6 +561,41 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'this entry used to carry; it is a distributed-transaction wish rather than a ' +
     'fix, and it is not what this entry is waiting for. Nothing is: do not drain ' +
     'this by narrowing it.',
+  'packages/modules/catalog/src/backend/plugin.ts:svc#promise':
+    'A HOLDER WHOSE GATES THIS CALL DOES NOT REACH, and there is no rename that ' +
+    'clears it. `bulkOperationService` is constructed with `admin_notifications`, ' +
+    "`transactional_emails`, `admin_users` and `search`'s ports (issue #133's holder " +
+    'rule, which attributes a value and not a method), so every call through it reads ' +
+    'as a port call — including `findPendingIds()`, which is a database read on this ' +
+    "module's own manager. The `catch` guards a boot-time re-enqueue of rows left " +
+    '`pending`; the only other thing in the chain is `bulkOperationQueue.add`. What the ' +
+    'operator sees while any of those four modules is off: exactly what they see today ' +
+    '— the rows are enqueued onto the durable queue and the ports are reached later, ' +
+    'inside the worker, where `processById` answers the presence question for them. ' +
+    '`rethrowIfModuleDisabled` is not available here and would not be an improvement: ' +
+    'the chain is `void`ed at boot, so a re-throw is an unhandled rejection rather than ' +
+    'an answer to anybody, which is D-62/D-67 verbatim. Retires when the analysis ' +
+    "attributes a holder's gates per method rather than per value — not before, and " +
+    'not by renaming the binding, because the alias follows the value.',
+  'packages/modules/product_feeds/src/backend/services/feed-generation.service.ts:deliverArtefact#promise':
+    'AFTER THE FACT — the shape is right, the argument written beside it is not, and ' +
+    'this is drainable rather than permanent. The site absorbs a presence answer from ' +
+    'the inline (no-Redis) delivery path after the artefact is published and the run ' +
+    'row is `finished`. Its comment cites the `webhooks` entry below, and the load-' +
+    'bearing half of that argument does not transfer: `webhooks` re-throws into a ' +
+    'BullMQ retry that would deliver the same event **twice**, a duplicate side effect ' +
+    'the consumer must not see. Nothing is delivered here, so there is no duplicate — ' +
+    'what is left is only "do not fail a run that succeeded", which is real and is ' +
+    'satisfied by **recording** the refusal rather than by discarding it. What the ' +
+    'operator sees today: a published feed, no delivery attempt row, and no reason — ' +
+    'they cannot tell an unreachable Redis from a `credentials` module they themselves ' +
+    'switched off, which is the disclosure Principle XVII exists for. The entry retires ' +
+    'when the inline path writes a delivery attempt whose failure names the absent ' +
+    'module, which is this module\'s own attempt history doing the job it already has ' +
+    '(`delivery-config.service.ts` keeps that history precisely so "did the partner get ' +
+    'last month\'s file?" stays answerable). That is a `product_feeds` product change ' +
+    'and not a `catch` somebody forgot to narrow, which is why it is ledgered and not ' +
+    'repaired here.',
   'packages/modules/product_feeds/src/backend/index.ts:run':
     'BOOT HOOK, and now a genuine tolerance rather than a swallowed presence ' +
     'answer (issue #147, D-62). The hook asks ' +
@@ -528,13 +628,23 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * Which spelling of "absorb this error" the site is.
+ *
+ * `statement` is `try { … } catch { … }`; `promise` is `.catch(handler)` and
+ * `.then(onOk, onErr)`. They are judged identically and kept apart only in the
+ * ledger key — see {@link keyOf}.
+ */
+export type PortCatchForm = 'statement' | 'promise';
+
 export interface PortCatch {
   /** Path under `src/`, POSIX separators. */
   readonly file: string;
   readonly line: number;
   readonly moduleId: string;
-  /** The alias or port name the `try` body called through. */
+  /** The alias or port name the guarded expression called through. */
   readonly port: string;
+  readonly form: PortCatchForm;
   readonly handled: boolean;
   /** The gated port names that alias carries — what the `catch` could swallow. */
   readonly gates: readonly string[];
@@ -544,9 +654,21 @@ export interface PortCatch {
   readonly ownerLocked: boolean;
 }
 
-/** `<file>:<port>` — the ledger key, and the identity of a site. */
+/**
+ * `<file>:<port>` — the ledger key, and the identity of a site, with `#promise`
+ * appended for the promise form.
+ *
+ * The key is deliberately not line-based: moving code inside a file must not
+ * invalidate an entry, and re-opening the hole must not silently inherit one.
+ * The discriminator is the same rule one granularity across. A file can hold
+ * both spellings over one alias — `product_feeds` does — and a single key would
+ * let an entry written for the `try` absorb a `.catch` added later, which is
+ * the inheritance the line-independence was chosen to avoid. It is a **suffix**
+ * so that every entry standing when the promise form landed keeps its key.
+ */
 export function keyOf(found: PortCatch): string {
-  return `${found.file}:${found.port}`;
+  const base = `${found.file}:${found.port}`;
+  return found.form === 'promise' ? `${base}#promise` : base;
 }
 
 /**
@@ -1156,13 +1278,32 @@ function collectRethrowDelegates(parsed: Iterable<ts.SourceFile>): Set<string> {
   return delegates;
 }
 
-/** Does this `catch` let `ModuleDisabledError` through? */
-function handles(clause: ts.CatchClause, delegates: ReadonlySet<string>): boolean {
-  const last = clause.block.statements.at(-1);
-  if (last && ts.isThrowStatement(last)) return true;
+/** The kernel's one-line narrowing, by the name every handler spells it. */
+const NARROWING = 'rethrowIfModuleDisabled';
+
+/**
+ * Does a handler body let `ModuleDisabledError` through?
+ *
+ * One predicate for both forms, deliberately: a `catch` block and a
+ * `.catch(handler)` body answer the same question, and two implementations of
+ * it are two answers waiting to disagree — which is how the promise form came
+ * to be unjudged in the first place.
+ *
+ * A **block** whose last statement is a `throw` re-throws unconditionally. An
+ * **expression** body (a concise arrow) cannot throw at all, so it qualifies
+ * only by naming the narrowing or a delegate. `catch (e) { if (rare) throw e }`
+ * and `.catch((e) => { if (rare) throw e })` both fail the last-statement test
+ * and both are violations: `ModuleDisabledError` is an `HttpError`, so a
+ * status-code test lets it through by accident rather than by decision.
+ */
+function bodyHandles(body: ts.Node, delegates: ReadonlySet<string>): boolean {
+  if (ts.isBlock(body)) {
+    const last = body.statements.at(-1);
+    if (last && ts.isThrowStatement(last)) return true;
+  }
   let named = false;
   const scan = (node: ts.Node): void => {
-    if (ts.isIdentifier(node) && node.text === 'rethrowIfModuleDisabled') named = true;
+    if (ts.isIdentifier(node) && node.text === NARROWING) named = true;
     if (ts.isIdentifier(node) && node.text === 'ModuleDisabledError') named = true;
     if (ts.isCallExpression(node)) {
       const callee = ts.isPropertyAccessExpression(node.expression)
@@ -1174,8 +1315,71 @@ function handles(clause: ts.CatchClause, delegates: ReadonlySet<string>): boolea
     }
     node.forEachChild(scan);
   };
-  clause.block.forEachChild(scan);
+  scan(body);
   return named;
+}
+
+/** Does this `catch` let `ModuleDisabledError` through? */
+function handles(clause: ts.CatchClause, delegates: ReadonlySet<string>): boolean {
+  return bodyHandles(clause.block, delegates);
+}
+
+/**
+ * A promise-form rejection handler: the expression it guards, and the handler
+ * itself.
+ *
+ * `.catch(h)` and `.then(ok, onErr)` are one shape — the second argument of
+ * `then` **is** a rejection handler, and reading only the first spelling would
+ * make the rule escapable by punctuation. `.finally(f)` is deliberately not one:
+ * it consumes no rejection and re-throws, so it swallows nothing.
+ *
+ * What is guarded is the **receiver chain** and nothing else. `p.then(ok, onErr)`
+ * does not route `ok`'s own rejection to `onErr` — that is the language's rule,
+ * not a simplification — so a port called inside the success arm is not guarded
+ * by the arm beside it. `p.then(ok).catch(onErr)` *does* guard `ok`, and it
+ * falls out for free: `ok` is inside the outer `.catch`'s receiver.
+ */
+interface RejectionHandlerSite {
+  readonly guarded: ts.Expression;
+  readonly handler: ts.Expression;
+}
+
+function rejectionHandlerOf(node: ts.Node): RejectionHandlerSite | null {
+  if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) return null;
+  const method = node.expression.name.text;
+  const guarded = node.expression.expression;
+  if (method === 'catch') {
+    const [handler] = node.arguments;
+    // `.catch()` with no argument consumes nothing; it is not a site.
+    return handler === undefined ? null : { guarded, handler };
+  }
+  if (method === 'then') {
+    const handler = node.arguments[1];
+    return handler === undefined ? null : { guarded, handler };
+  }
+  return null;
+}
+
+/**
+ * Does a promise-form handler let `ModuleDisabledError` through?
+ *
+ * Three ways, and the first two have no counterpart in the statement form
+ * because a `catch` block cannot be written as a reference: the narrowing
+ * handed over directly (`.catch(rethrowIfModuleDisabled)`), a re-throwing
+ * delegate handed over directly (`.catch(toCatalogHttpError)` — the same
+ * delegates the statement form accepts being *called*), and a function
+ * expression whose body qualifies under {@link bodyHandles}.
+ *
+ * Anything else — a bare identifier the analysis cannot see through, a logger,
+ * `() => undefined` — is a violation, in the direction the doubt has to fail.
+ */
+function handlerHandles(handler: ts.Expression, delegates: ReadonlySet<string>): boolean {
+  if (ts.isArrowFunction(handler) || ts.isFunctionExpression(handler)) {
+    return bodyHandles(handler.body, delegates);
+  }
+  const named = tailName(handler);
+  if (named === null) return false;
+  return named === NARROWING || delegates.has(named);
 }
 
 /**
@@ -1336,8 +1540,27 @@ function classesIn(sf: ts.SourceFile): Map<string, Map<string, ts.Node>> {
   return classes;
 }
 
-/** Every `try` in `src/**` whose body calls through a gated port. */
+/**
+ * Every site in `src/**` that could absorb a presence answer, plus the
+ * **census** of promise-form rejection handlers the walk read.
+ *
+ * The census is the population floor for the promise form, and it is separate
+ * from the findings on purpose: the module-population floor stays satisfied by
+ * files that hold no promise at all, so a `.catch` recogniser that stopped
+ * resolving would print a reassuring `violations=0` over an unprotected tree
+ * (`check:subscribe-seam`'s worker half, one check across).
+ */
+interface SiteScan {
+  readonly found: PortCatch[];
+  readonly rejectionHandlerSites: number;
+}
+
+/** Every `try` and every promise-form rejection handler that reaches a gated port. */
 export function findPortCatches(input: PortCatchInput): PortCatch[] {
+  return scanSources(input).found;
+}
+
+function scanSources(input: PortCatchInput): SiteScan {
   const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   const analysis = analyze(input.sources, hostResident);
   const locked = lockedOwners(input.manifests ?? []);
@@ -1354,6 +1577,8 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
       return owner !== undefined && locked.has(owner);
     });
   const found: PortCatch[] = [];
+  /** Every `.catch(h)` / `.then(ok, onErr)` the walk read — see {@link SiteScan}. */
+  let rejectionHandlerSites = 0;
   // The analysis's own ASTs, not a second parse of the same text: the shadowing
   // rule (issue #278) records **declaration nodes** as carriers, and node
   // identity only holds across one parse.
@@ -1392,8 +1617,21 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
     const readsAsPort = (name: string, at?: ts.Node): boolean =>
       analysis.readsAsPort(name, moduleId, file, at);
 
-    const visit = (node: ts.Node): void => {
-      if (ts.isTryStatement(node) && node.catchClause) {
+    /**
+     * One site, whichever spelling it is written in.
+     *
+     * `guardedRoots` are the expressions the handler would absorb a throw from
+     * — the `try` block's statements, or the receiver chain a `.catch` hangs
+     * off. Everything below that point is identical for the two forms by
+     * construction, which is what stops the promise form drifting into a
+     * second, weaker rule.
+     */
+    const record = (
+      guardedRoots: readonly ts.Node[],
+      at: ts.Node,
+      handled: boolean,
+      form: PortCatchForm,
+    ): void => {
         /**
          * The name the site is reported under → the port/alias names it stands
          * for. Identity for a direct reach; for a D-88 method hop the key is the
@@ -1406,7 +1644,7 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
           for (const one of via) carried.add(one);
           ports.set(name, carried);
         };
-        const className = enclosingClassName(node);
+        const className = enclosingClassName(at);
         /** D-88's shadowing rule — see {@link declaredMembers}. */
         const ownMethod = (inner: ts.CallExpression): string | null => {
           const method = className === null ? null : thisMethodCalled(inner);
@@ -1459,11 +1697,10 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
           }
           inner.forEachChild(scan);
         };
-        node.tryBlock.forEachChild(scan);
+        for (const root of guardedRoots) scan(root);
 
         if (ports.size > 0) {
-          const handled = handles(node.catchClause, delegates);
-          const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+          const line = sf.getLineAndCharacterOfPosition(at.getStart(sf)).line + 1;
           for (const [port, via] of ports) {
             const gates = [
               ...new Set(
@@ -1478,6 +1715,7 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
               line,
               moduleId,
               port,
+              form,
               handled,
               gates,
               gateOwners: [
@@ -1491,6 +1729,19 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
             });
           }
         }
+    };
+
+    const visit = (node: ts.Node): void => {
+      if (ts.isTryStatement(node) && node.catchClause) {
+        record([...node.tryBlock.statements], node, handles(node.catchClause, delegates), 'statement');
+      }
+      const rejection = rejectionHandlerOf(node);
+      if (rejection !== null) {
+        // Counted before the port test, and over every rejection handler in the
+        // tree: it is the population floor, and a floor derived from the
+        // findings would be satisfied by a recogniser that had stopped working.
+        rejectionHandlerSites += 1;
+        record([rejection.guarded], node, handlerHandles(rejection.handler, delegates), 'promise');
       }
       node.forEachChild(visit);
     };
@@ -1498,7 +1749,7 @@ export function findPortCatches(input: PortCatchInput): PortCatch[] {
   }
 
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
-  return found;
+  return { found, rejectionHandlerSites };
 }
 
 export interface CheckResult {
@@ -1509,13 +1760,19 @@ export interface CheckResult {
   readonly ownerLocked: readonly PortCatch[];
   /** Ledger keys that no longer describe a violation — the staleness half. */
   readonly stale: readonly string[];
+  /**
+   * Every promise-form rejection handler the walk read, whether or not it
+   * reaches a port. Zero over a real tree means the recogniser is blind, not
+   * that the tree is clean — the CLI exits 2 on it.
+   */
+  readonly rejectionHandlerSites: number;
 }
 
 export function checkPortCatches(
   input: PortCatchInput,
   ledger: Readonly<Record<string, string>> = PORT_CATCHES_TO_DRAIN,
 ): CheckResult {
-  const all = findPortCatches(input);
+  const { found: all, rejectionHandlerSites } = scanSources(input);
   const unhandled = all.filter((entry) => !entry.handled);
   const ownerLocked = unhandled.filter((entry) => entry.ownerLocked);
   const open = unhandled.filter((entry) => !entry.ownerLocked);
@@ -1529,6 +1786,7 @@ export function checkPortCatches(
     ledgered: open.filter((entry) => ledger[keyOf(entry)] !== undefined),
     ownerLocked,
     stale: Object.keys(ledger).filter((key) => !keys.has(key)),
+    rejectionHandlerSites,
   };
 }
 
@@ -1578,9 +1836,10 @@ async function main(): Promise<void> {
     hostResidentModules: layout.hostResidentModules,
   };
   const result = checkPortCatches(catchInput);
+  const result_all = listMode ? findPortCatches(catchInput) : [];
 
   if (listMode) {
-    for (const entry of findPortCatches(catchInput)) {
+    for (const entry of result_all) {
       const tag = entry.handled
         ? 'HANDLED '
         : entry.ownerLocked
@@ -1588,7 +1847,10 @@ async function main(): Promise<void> {
           : PORT_CATCHES_TO_DRAIN[keyOf(entry)] !== undefined
             ? 'LEDGERED'
             : 'BARE    ';
-      console.log(`${tag} ${entry.file}:${entry.line}  [${entry.moduleId}] ${entry.port}`);
+      console.log(
+        `${tag} ${entry.file}:${entry.line}  [${entry.moduleId}] ${entry.port} ` +
+          `(${entry.form})`,
+      );
     }
     console.log('');
   }
@@ -1608,10 +1870,28 @@ async function main(): Promise<void> {
     console.log('');
   }
 
-  // What was read, in the shared grammar (issue #244). The `catch` sites around
-  // a gated port are the finer population: every one of them is classified
-  // below, so a narrowing that stops recognising a port shows up here as fewer
-  // sites rather than as the same reassuring `violations=0`.
+  // The promise form's own floor. `refuseVacuousModulePopulation` above is
+  // satisfied by any file a registered module contributes, and a file need hold
+  // no promise at all — so a `.catch` recogniser that stopped resolving would
+  // leave the module floor green and print `violations=0` over a tree nothing
+  // was judging. This is the same refusal `check:subscribe-seam` makes about
+  // its worker half, for the same reason.
+  if (result.rejectionHandlerSites === 0) {
+    console.error(
+      '[port-catches] no promise-form rejection handler was read anywhere in ' +
+        `${sources.size} files — a tree this size holds \`.catch(h)\` and ` +
+        '`.then(ok, onErr)`, so this is the recogniser having gone blind rather than ' +
+        'the tree being clean, and a clean line over an unjudged population is the one ' +
+        'thing a check may not print',
+    );
+    process.exit(2);
+    return;
+  }
+
+  // What was read, in the shared grammar (issue #244). The sites around a gated
+  // port are the finer population: every one of them is classified below, so a
+  // narrowing that stops recognising a port shows up here as fewer sites rather
+  // than as the same reassuring `violations=0`.
   reportReadSize({
     prefix: '[port-catches]',
     files: sources.size,
@@ -1622,12 +1902,14 @@ async function main(): Promise<void> {
     `[port-catches] guarded-port catches=${result.total} ` +
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
       `owner-locked=${result.ownerLocked.length} ` +
+      `rejection-handlers=${result.rejectionHandlerSites} ` +
       `ledger-size=${Object.keys(PORT_CATCHES_TO_DRAIN).length} stale=${result.stale.length}`,
   );
 
   if (result.violations.length > 0) {
     console.error(
-      '\nA `catch` around a gated-port call swallows `ModuleDisabledError`.\n' +
+      '\nA `catch` around a gated-port call — `try`/`catch` or `.catch(handler)` —\n' +
+        'swallows `ModuleDisabledError`.\n' +
         'Delete it if it was only defensive, move the degrade into the port`s return\n' +
         'type, or keep it and add `rethrowIfModuleDisabled(error)`:\n',
     );

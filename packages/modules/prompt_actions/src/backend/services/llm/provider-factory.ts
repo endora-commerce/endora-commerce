@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import {
   PromptActionsProviderSchema,
   type PromptActionsCapability,
@@ -140,7 +141,15 @@ export class LlmProviderFactory {
     refCode: string,
   ): Promise<{ provider: PromptActionsProvider; model: string; apiKey: string } | null> {
     if (!this.deps.credentials || !refCode) return null;
-    const resolved = await this.deps.credentials.resolve(refCode).catch(() => null);
+    // Tolerated: an unresolvable reference means the assistant is not
+    // configured, and reporting that is the product's answer (feature 058).
+    // **A presence answer is a different sentence**: with `credentials` off
+    // there is nothing for the operator to configure, and `not_configured`
+    // would send them to fix a setting that is already right.
+    const resolved = await this.deps.credentials.resolve(refCode).catch((error: unknown) => {
+      rethrowIfModuleDisabled(error);
+      return null;
+    });
     if (!resolved || resolved.status !== 'ok') return null;
     // Only providers prompt_actions has an adapter for (anthropic/google/openai)
     // are usable; any other resolved provider (e.g. deepseek) is not_configured.

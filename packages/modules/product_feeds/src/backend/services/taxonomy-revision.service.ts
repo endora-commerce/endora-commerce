@@ -193,7 +193,8 @@ export class TaxonomyRevisionService {
       makeStartTaxonomyCheckCommand({
         providerCode,
         checkId,
-        open: () => this.deps.refresh.openCheck({ providerCode, trigger: 'manual', id: checkId }),
+        openCheck: () =>
+          this.deps.refresh.openCheck({ providerCode, trigger: 'manual', id: checkId }),
       }),
     );
     await this.deps.enqueueCheck?.({ providerCode, checkId: started.checkId });
