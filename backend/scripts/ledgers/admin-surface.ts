@@ -7,12 +7,29 @@
  * does not, because the verdict is per symbol and an entry that only counted
  * them could not be checked against the barrel it disagrees with.
  *
- * R15 said this ledger opens **empty**. It does not, and the correction is
+ * R15 said this ledger opens **empty**. It did not, and the correction is
  * recorded in the contract: Phase 1b publishes 1690 of the 1782 measured host
  * reaches, and the 92 that remained fell into two groups, each with a retiring
  * condition that is somebody's next merge request rather than a sentence of
- * intent. **Both groups are now down to one entry each way**: what is left is
- * two keys, one component, and a mechanism that genuinely does not exist yet.
+ * intent.
+ *
+ * **It is empty now** — P4d drained the last two keys on 2026-09-02 — and R15's
+ * sentence is true of the tree it was written about rather than of the tree it
+ * was written for. The two groups' histories are kept below rather than deleted
+ * with their entries: a retiring condition that turned out to be wrong twice is
+ * the thing this file is for, and a ledger with no entries and no memory reads
+ * as a ledger nobody ever needed.
+ *
+ * **An empty ledger is not a check that stopped looking**, and that is a
+ * property of `check:admin-surface` rather than a promise made here. Its
+ * population is the walk — every module-owned admin file and every reach in it
+ * — so an unledgered reach is a finding whether this file holds two entries or
+ * none, and `vacuousReason` refuses a run on an empty *walk*, an unreadable
+ * barrel or a tree with no shim, never on an empty ledger. The stale direction
+ * is vacuous rather than absent: with no keys there is nothing to go stale, and
+ * the first entry added brings its own stale check with it.
+ * `backend/test/unit/scripts/check-admin-surface.test.ts` proves both halves
+ * over the empty ledger directly.
  *
  * ## Group A — the pickers over another module's data (0 sites)
  *
@@ -82,20 +99,30 @@
  * permission gate asserted against a stub of the predicate asserts that the stub
  * was consulted.
  *
- * **What is left is one tab component, and it is not two.** This entry read
- * *"the two tab components … each renders on two modules' pages and belongs to
- * neither"*. Measured, that was true of one of them. `InvoiceSectionTabs`' two
- * tabs are both `/invoices*`, its presence gate asks about `invoices`, and both
- * of its consumers are `invoices`' own screens — so it belonged to `invoices`
- * entirely and needed no mechanism at all. P4c moved the file into
- * `admin/src/modules/invoices/components/` and its two keys went with it.
- * `OrderEntryTabs` is the real case and keeps the sentence: it spans `orders`
- * and `quick_order`, and its own comment says the strip must lose one tab rather
- * than the strip when `quick_order` goes off.
+ * **The last two keys were one tab component, and the entry describing it said
+ * "two" until P4c measured it.** The sentence read *"the two tab components …
+ * each renders on two modules' pages and belongs to neither"*; that was true of
+ * one of them. `InvoiceSectionTabs`' two tabs are both `/invoices*`, its
+ * presence gate asks about `invoices`, and both of its consumers are `invoices`'
+ * own screens — so it belonged to `invoices` entirely and needed no mechanism at
+ * all. P4c moved the file into `admin/src/modules/invoices/components/` and its
+ * two keys went with it.
  *
- * Nothing here is an exception to a rule. Every entry is a reach that should
- * one day be a bare specifier into a published subpath, and it has a named
- * event that removes it.
+ * `OrderEntryTabs` was the real case, and P4d is the merge request its recorded
+ * retiring condition named. It rendered on `orders`' order-create screen and on
+ * `quick_order`'s on-behalf screen, built a two-element array naming both module
+ * ids, resolved both labels out of the shared `core` bundle and filtered itself
+ * by `useModulePresence` — module knowledge twice over, which is why publishing
+ * it into the kit would have broken R6. `order.entry.tabs` is the place now:
+ * the kit renders `<RouteTabsZone>` over `useAdminZone`, each module
+ * contributes its own tab with its own label in its own bundle, and *"fewer
+ * than two tabs is not a choice"* is the strip counting what the hook already
+ * filtered. Nothing about the retiring condition needed correcting — the one
+ * entry in this file whose first sentence survived intact.
+ *
+ * Nothing here was ever an exception to a rule. Every entry was a reach that
+ * should one day be a bare specifier into a published subpath, and every one of
+ * them had a named event that removed it.
  */
 
 export interface UnpublishedAdminReach {
@@ -105,22 +132,13 @@ export interface UnpublishedAdminReach {
   readonly reason: string;
 }
 
-const ORDER_ENTRY_TABS =
-  'A host component that reads module presence to decide which of its tabs to render. The ' +
-  'four hooks this group was named for are the kit’s since P3, and its other tab component ' +
-  '(`InvoiceSectionTabs`) turned out to be `invoices`’ own and moved there in P4c. This one ' +
-  'is the genuine case: `OrderEntryTabs` sits in `admin/src/components/` because it renders ' +
-  'on `orders`’ and `quick_order`’s pages and belongs to neither, and its own comment says ' +
-  'the strip must lose one tab rather than the whole strip when `quick_order` goes off. ' +
-  'Publishing it would put that pairing in the kit, which is module knowledge (R6). ' +
-  'Retires with **P4**, in batch 10: a tab strip over two modules’ surfaces is a zone with ' +
-  'two contributions — the kit renders `<RouteTabsZone name="order.entry.tabs" />` over ' +
-  '`useAdminZone`, `orders` contributes the standard tab and `quick_order` the quick one, ' +
-  'and *“fewer than two tabs is not a choice”* becomes the strip counting contributions the ' +
-  'hook has already filtered. At that point this ledger is empty and its two-way ratchet is ' +
-  'the ordinary kind.';
-
-export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdminReach>> = {
-  'admin/src/modules/orders/OrderCreatePage.tsx::admin/src/components/OrderEntryTabs.tsx': { symbols: ['OrderEntryTabs'], reason: ORDER_ENTRY_TABS },
-  'admin/src/modules/quick_order/QuickOrderOnBehalfPage.tsx::admin/src/components/OrderEntryTabs.tsx': { symbols: ['OrderEntryTabs'], reason: ORDER_ENTRY_TABS },
-};
+/**
+ * The ledger, **empty** since feature 091's P4d.
+ *
+ * Adding a key is adding debt: say what the reach is, name every symbol it
+ * takes — the verdict is per symbol, and an entry that only counted them could
+ * not be checked against the barrel it disagrees with — and name the event that
+ * removes it. "Retires with a later phase" is a sentence of intent; "retires
+ * when `<module>` declares the zone its host renders" is an event.
+ */
+export const UNPUBLISHED_ADMIN_REACHES: Readonly<Record<string, UnpublishedAdminReach>> = {};

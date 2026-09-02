@@ -514,7 +514,24 @@ function enumMembers(initializer: ts.Node): string[] {
 // Reading the sites
 // ---------------------------------------------------------------------------
 
-/** Every `<AdminZone name=…>` and `useAdminZone(…)` in one source. */
+/**
+ * The JSX components that render a **place**, each taking the zone as a `name`
+ * prop.
+ *
+ * Enumerated for the reason the two contribution spellings are enumerated: a
+ * renderer this walk does not know reads as *no render at all*, so the member
+ * it mounts is reported `unrendered-zone` while a host is mounting it. Both are
+ * the kit's `./zones` subpath — `<AdminZone>` renders the contributions as a
+ * stack, `<RouteTabsZone>` (feature 091, P4d) renders them as a tab strip and
+ * decides from `useAdminZone(...).length` whether the strip is a choice at all.
+ * A third renderer belongs here in the merge request that publishes it.
+ */
+const ZONE_RENDERER_TAGS = new Set(['AdminZone', 'RouteTabsZone']);
+
+/**
+ * Every `<AdminZone name=…>`, `<RouteTabsZone name=…>` and `useAdminZone(…)` in
+ * one source.
+ */
 export function zoneRenderSites(source: string, file: string): ZoneRenderSite[] {
   const parsed = parse(source, file);
   const found: ZoneRenderSite[] = [];
@@ -525,7 +542,9 @@ export function zoneRenderSites(source: string, file: string): ZoneRenderSite[] 
 
   const visit = (node: ts.Node): void => {
     if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) {
-      if (jsxTagName(node.tagName) === 'AdminZone') {
+      const tag = jsxTagName(node.tagName);
+      if (ZONE_RENDERER_TAGS.has(tag)) {
+        const via = `<${tag}>`;
         const attribute = node.attributes.properties.find(
           (property): property is ts.JsxAttribute =>
             ts.isJsxAttribute(property) &&
@@ -533,15 +552,15 @@ export function zoneRenderSites(source: string, file: string): ZoneRenderSite[] 
             property.name.text === 'name',
         );
         const value = attribute?.initializer;
-        if (value !== undefined && ts.isStringLiteral(value)) record(node, value.text, '<AdminZone>');
+        if (value !== undefined && ts.isStringLiteral(value)) record(node, value.text, via);
         else if (
           value !== undefined &&
           ts.isJsxExpression(value) &&
           value.expression !== undefined &&
           ts.isStringLiteral(value.expression)
         ) {
-          record(node, value.expression.text, '<AdminZone>');
-        } else record(node, null, '<AdminZone>');
+          record(node, value.expression.text, via);
+        } else record(node, null, via);
       }
     }
     if (
@@ -1045,7 +1064,13 @@ async function main(): Promise<void> {
     const source = readFileSync(file, 'utf8');
     const isMechanism =
       zoneImplementationDir !== null && isUnder(resolve(file), zoneImplementationDir);
-    if (!isMechanism && (source.includes('AdminZone') || source.includes('useAdminZone'))) {
+    // The prefilter is derived from the renderer set, not written twice:
+    // `RouteTabsZone` does not contain the substring `AdminZone`, so a spelled
+    // pair would have skipped every file that mounts a strip.
+    const mentionsRenderer =
+      source.includes('useAdminZone') ||
+      [...ZONE_RENDERER_TAGS].some((tag) => source.includes(tag));
+    if (!isMechanism && mentionsRenderer) {
       renders.push(...zoneRenderSites(source, key(file)));
     }
     if (source.includes('zoneComponent') || (source.includes('zone:') && source.includes('component'))) {

@@ -1,6 +1,6 @@
 /**
- * `quick_order`'s admin surface — two zone contributions and nothing else
- * (feature 091, P7b;
+ * `quick_order`'s admin surface — three zone contributions and nothing else
+ * (feature 091, P7b and P4d;
  * `specs/091-module-owned-admin-surfaces/contracts/admin-component-contribution.md`
  * §10).
  *
@@ -16,6 +16,12 @@
  * deleted, and one of the three in `organizations.ts`. Each entry's recorded
  * retiring condition is *"the owner declaring an admin contribution zone"*, and
  * this is that declaration.
+ *
+ * **And, with P4d, one of the last two keys of
+ * `backend/scripts/ledgers/admin-surface.ts`**:
+ * `admin/src/modules/quick_order/QuickOrderOnBehalfPage.tsx` importing
+ * `OrderEntryTabs` out of `admin/src/components/`. `orders` drains the other
+ * with the twin tab, and with the pair gone that ledger is empty.
  *
  * **Zone and not a published component**, decided from the signature read off
  * the file in this merge request (§9.3): `({ scope, scopeId })` — two
@@ -66,6 +72,18 @@ export const contributions: AdminContributions = {
     // contributor arrives beside it rather than ahead of it by accident.
     zoneComponent('customer.detail.after', () => import('./zones/CustomerDefaults.js'), {
       weight: 100,
+      requiredPermission: PREFERENCES_PERMISSION,
+    }),
+    // Weight 200 of the two tabs in the order-entry strip: `orders`' standard
+    // tab at 100, then this one. That is the order the operator has seen since
+    // the strip existed, preserved rather than re-chosen.
+    //
+    // The same `orders:write`, and for the same reason one level down: the two
+    // `POST`s behind `/orders/quick-order`
+    // (`src/backend/routes.admin.ts`) carry it, and there is no
+    // `quick_order:*` code in the platform at all.
+    zoneComponent('order.entry.tabs', () => import('./zones/OrderEntryQuickTab.js'), {
+      weight: 200,
       requiredPermission: PREFERENCES_PERMISSION,
     }),
   ],

@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PageHeader } from '@/components/ui/page-header';
-import { OrderEntryTabs } from '@/components/OrderEntryTabs';
+import { RouteTabsZone } from '@endora-commerce/admin-kit/zones';
 import { useTranslation } from '@/i18n/useTranslation';
 import { FileDropzone } from '@/components/FileDropzone';
 import {
@@ -96,7 +96,7 @@ export function QuickOrderOnBehalfPage(): ReactNode {
         description={t('onBehalf.page.description')}
       />
 
-      <OrderEntryTabs />
+      <RouteTabsZone name="order.entry.tabs" props={{}} className="mb-4" />
 
       {error ? (
         <Alert variant="destructive">

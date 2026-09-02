@@ -3,23 +3,26 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
-// Feature 073 — every admin surface resolves its own presence from the module
-// projection. These cases are about layout and routing, not about presence, so
-// the projection is stubbed as "everything is here"; the filtering itself is
-// covered in AppShell.module-presence.test.tsx.
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: () => true,
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
+/**
+ * The real providers, not a stubbed hook (feature 091, P3 and P4d).
+ *
+ * This file used to `vi.mock('@/lib/module-presence')` with an
+ * `isPresent: () => true`. That mock was already inert for anything inside the
+ * kit — P3 moved the hook into `@endora-commerce/admin-kit/lib`, where a mock at
+ * the admin's shim path cannot reach it — and P4d is where it started to
+ * matter: this screen mounts the `order.entry.tabs` zone, whose enumeration
+ * runs `useSurfaceVisibility` and `useAdminContributions` inside the package.
+ * `useAdminZone` **refuses** a mount with no `AdminContributionsProvider` above
+ * it rather than answering "nobody contributed", so a host screen's test has to
+ * mount the real thing.
+ *
+ * The registry is deliberately **empty**: these cases are about the order form,
+ * and an empty registry means the strip renders nothing, which is the same
+ * thing the old presence stub produced on screen. The strip's own cases are
+ * `admin/test/modules/orders/order-entry-tabs-zone.test.tsx`.
+ */
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
@@ -138,14 +141,28 @@ async function pick(comboLabel: string, optionLabel: string): Promise<void> {
   await userEvent.click(option);
 }
 
-describe('OrderCreatePage', () => {
-  it('submits the assembled order and navigates to the created order', async () => {
-    renderWithI18n(
+/**
+ * The page under the real session and presence providers, with no zone
+ * contribution — see the note at the top of the file.
+ */
+function renderPage(): void {
+  renderWithI18n(
+    withSession(
       <MemoryRouter>
         <OrderCreatePage />
       </MemoryRouter>,
-      BUNDLE,
-    );
+      {
+        session: adminSession({ permissions: ['*'] }),
+        presence: modulePresence({ present: ['orders', 'quick_order'] }),
+      },
+    ),
+    BUNDLE,
+  );
+}
+
+describe('OrderCreatePage', () => {
+  it('submits the assembled order and navigates to the created order', async () => {
+    renderPage();
 
     // Customer is a server-side search picker: type, then pick the result.
     await userEvent.type(screen.getByLabelText('customerAccountId'), 'Jan');
@@ -178,12 +195,7 @@ describe('OrderCreatePage', () => {
   });
 
   it('keeps submit disabled until required fields are filled', async () => {
-    renderWithI18n(
-      <MemoryRouter>
-        <OrderCreatePage />
-      </MemoryRouter>,
-      BUNDLE,
-    );
+    renderPage();
     expect(screen.getByText('orderCreate.submit')).toBeDisabled();
   });
 });

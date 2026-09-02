@@ -1027,8 +1027,6 @@
   "orderDetail.vatStatus.reverse_charge": "Reverse charge",
   "orderDetail.vatStatus.vat_exempt": "VAT exempt",
   "orderDetail.vatStatus.vat_payer": "VAT payer",
-  "orderEntry.tab.quick": "Quick order",
-  "orderEntry.tab.standard": "Standard order",
   "orderStatusConfig.addStatus": "Add status",
   "orderStatusConfig.addTransition": "Add transition",
   "orderStatusConfig.col.code": "Code",

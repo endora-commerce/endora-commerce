@@ -296,6 +296,38 @@ export const AdminZoneNameSchema = z.enum([
    * whose shard this member deletes.
    */
   'customer.detail.after',
+  /**
+   * The switch between the two ways of entering an order, above the entry form.
+   *
+   * **A tab strip rather than a stack**, and the only member so far whose
+   * renderer is `<RouteTabsZone>`: the contributions are the tabs, the host
+   * supplies the strip, and *"fewer than two tabs is not a choice"* is the
+   * strip counting what `useAdminZone` already filtered rather than a rule any
+   * module states. Props: {@link OrderEntryTabsZoneProps}, which carries
+   * nothing — the mount has no identifier to pass, exactly as
+   * `delivery_method.list.integrations` has none.
+   *
+   * **Two hosts and one place, which is the one exception Z13 leaves open and
+   * is stated here rather than discovered.** Z13 refuses a member shared by
+   * hosts that each have *a place of their own*, because one host's mount then
+   * covers another's absence. This is not that: the place is a single
+   * navigational switch, and it appears on **both** of the pages it switches
+   * between — `orders`' order-create screen and `quick_order`'s on-behalf
+   * screen — because a switch visible from only one side is not a switch. The
+   * cost is real and is the one Z13 names: deleting the mount from one of the
+   * two screens leaves the member rendered, so `unrendered-zone` would not
+   * report it. What does report it is
+   * `admin/test/modules/orders/order-entry-tabs-zone.test.tsx`, which asserts
+   * both mounts by name.
+   *
+   * The contributors are the two modules the strip used to be filtered *by*:
+   * `admin/src/components/OrderEntryTabs.tsx` held a two-element array naming
+   * `orders` and `quick_order`, each with the other module's route and the
+   * other module's label out of the `core` bundle — the last two keys of
+   * `backend/scripts/ledgers/admin-surface.ts`, which this member empties. Each
+   * module now contributes its own tab, with its own label in its own bundle.
+   */
+  'order.entry.tabs',
 ]);
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
@@ -387,6 +419,17 @@ export interface CustomerDetailZoneProps {
   readonly customerId: string;
 }
 
+/**
+ * A zone mounted on the order-entry tab strip, carrying nothing.
+ *
+ * Empty **by measurement, not by omission**, on
+ * {@link DeliveryMethodIntegrationsZoneProps}' terms: the contributions *are*
+ * the tabs, and the host has no identifier to name one by — it is a switch
+ * between two entry modes, not a view of an entity. Declared as a named
+ * interface rather than inline so the map's entry reads like every other one.
+ */
+export interface OrderEntryTabsZoneProps {}
+
 /** A zone mounted beside one field of the product editor. */
 export interface ProductEditorFieldZoneProps {
   readonly productId: string;
@@ -442,6 +485,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'sales_channel.editor.after': SalesChannelEditorZoneProps;
   'organization.detail.after': OrganizationDetailZoneProps;
   'customer.detail.after': CustomerDetailZoneProps;
+  'order.entry.tabs': OrderEntryTabsZoneProps;
 }
 
 /** The props of one zone, by name. */
