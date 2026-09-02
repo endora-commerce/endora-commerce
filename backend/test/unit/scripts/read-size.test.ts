@@ -19,8 +19,8 @@ import { readSizeBounds, READ_SIZE_SLACK } from '../../helpers/check-read-sizes.
  * The companion test for `scripts/lib/read-size.ts` and its shell twin
  * (issue #244).
  *
- * The shared reporter is now the one place twenty-seven checks say what they
- * read, so it inherits the property the checks it serves are held to: **a
+ * The shared reporter is now the one place every check in `CHECKS` says what
+ * it reads, so it inherits the property the checks it serves are held to: **a
  * fixture enters at the top of the analysis**, which here is the record a check
  * hands in, never a formatted string or a pre-computed verdict (issue #130).
  *

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Config } from '@measured/puck';
-import { applyPageBuilderTranslations } from '../../../src/modules/cms/components/page-builder-i18n';
+import { applyPageBuilderTranslations } from '../../../../packages/modules/cms/src/admin/components/page-builder-i18n';
 
 describe('applyPageBuilderTranslations', () => {
   it('translates component and category labels', () => {

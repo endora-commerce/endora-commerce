@@ -16,12 +16,17 @@
  * alias, of `App.tsx` or of `AppShell.tsx` fails here rather than turning a
  * check silently green.
  */
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   ADMIN_SOURCE_ALIAS,
   AdminLayoutUnresolvableError,
   adminModuleDirectories,
+  findAdminModuleRoot,
   adminNavEntries,
   adminRoutes,
   aliasTargetOf,
@@ -124,6 +129,68 @@ describe('reading the two host registries', () => {
   });
 });
 
+/**
+ * The admin module root — **absence is a measurement, ambiguity is blindness**
+ * (feature 091, Phase 5 T1; `contracts/admin-kit-surface.md` §7.2 R16).
+ *
+ * The predicate's two inputs are proved present before it is evaluated: the
+ * source root is refused by {@link resolveAdminSurfaces} when the alias member
+ * is missing, ambiguous or points at nothing, and the registered id set is
+ * refused by `requireModuleLayout` when there is no manifest index. So *"no
+ * directory under the source root is named after a registered module"* is an
+ * answer three artefacts with three authors give together — the tsconfig alias,
+ * the generated manifest index and the filesystem — and it flips back by itself
+ * the day a module directory reappears.
+ *
+ * **Two** roots is still a throw, and for the reason it always was: picking one
+ * narrows every walk to it without saying so.
+ *
+ * Each case is a real directory tree, because the derivation reads the
+ * filesystem; a fixture handed a half-computed root could not prove which
+ * directories it opens (issue #130).
+ */
+describe('the admin module root', () => {
+  const trees: string[] = [];
+
+  afterEach(() => {
+    while (trees.length > 0) rmSync(trees.pop()!, { recursive: true, force: true });
+  });
+
+  function sourceTree(directories: readonly string[]): string {
+    const root = mkdtempSync(join(tmpdir(), 'admin-surfaces-'));
+    trees.push(root);
+    for (const directory of directories) mkdirSync(join(root, directory), { recursive: true });
+    return root;
+  }
+
+  it('answers the one directory holding a child named after a registered module', () => {
+    const root = sourceTree(['modules/blog', 'components']);
+    expect(findAdminModuleRoot(root, new Set(['blog']))).toBe(join(root, 'modules'));
+  });
+
+  it('answers null when no directory is named after a registered module', () => {
+    // The terminal state this feature exists to reach: `admin/src/modules/`
+    // holds `cms_pages`, `home`, `platform` and `profile`, none of them a
+    // registered id. A refusal here would send a reader to repair a tree that
+    // is finished.
+    const root = sourceTree(['modules/cms_pages', 'modules/home', 'modules/platform', 'components']);
+    expect(findAdminModuleRoot(root, new Set(['blog', 'cms']))).toBeNull();
+  });
+
+  it('answers again the day a module directory reappears', () => {
+    // The property a written-down "drain complete" flag would not have.
+    const root = sourceTree(['modules/home', 'screens/blog']);
+    expect(findAdminModuleRoot(root, new Set(['blog']))).toBe(join(root, 'screens'));
+  });
+
+  it('still refuses two, because ambiguity is blindness rather than a measurement', () => {
+    const root = sourceTree(['modules/blog', 'screens/cms']);
+    expect(() => findAdminModuleRoot(root, new Set(['blog', 'cms']))).toThrow(
+      AdminLayoutUnresolvableError,
+    );
+  });
+});
+
 describe('which module owns a surface directory', () => {
   const routes = [
     { path: '/warehouses', component: 'WarehousesList', line: 1 },
@@ -205,52 +272,62 @@ describe('this repository', () => {
     const admin = resolveAdminSurfaces(members, new Set(layout.registeredIds));
 
     expect(admin.sourceRoot.endsWith('/admin/src')).toBe(true);
-    expect(admin.moduleRoot.endsWith('/admin/src/modules')).toBe(true);
     expect(admin.aliasPrefix).toBe('@/');
-    // The floors, so a walk that stopped reading either file cannot leave the
-    // attribution silently empty.
-    expect(admin.directories.length).toBeGreaterThan(0);
+    // The floors that survive the drain, and they are the ones a check rests
+    // on: `sourceRoot` classifies a reach, `aliasPrefix` is what makes an
+    // `aliased-reach` recognisable, and the route table and the nav are what
+    // the host-route assertion reads. `moduleRoot` is deliberately **not**
+    // among them — it is `null` in the terminal state (R16), which is the
+    // measurement the block below asserts.
     expect(admin.routes.length).toBeGreaterThan(0);
     expect(admin.nav.length).toBeGreaterThan(0);
-    expect(admin.componentDirectories.size).toBeGreaterThan(0);
+    expect(admin.registryFiles).toHaveLength(2);
   });
 
-  it('holds no surface directory whose name is not its module id — the case a name cannot answer', async () => {
-    // **Re-keyed by feature 091's Phase 4 batch 13, not deleted.** This case
-    // read `moduleOfDirectory.get('warehouses') === 'inventory'` and was the
-    // repository's own instance of the rule: `AppShell.tsx` attributes
-    // `/warehouses` to `module: 'inventory'`, so that directory belonged to a
-    // module it was not named after, and attributing by `basename` would have
-    // filed its reaches under a name no module answers to. Batch 13 moved both
-    // of `inventory`'s surface directories into
-    // `@endora-commerce/mod-inventory/admin`, so the instance is gone.
+  it('answers null for the module root, an empty attribution, and no orphan', async () => {
+    // SC-007's terminal state, asserted rather than inferred. The three
+    // fields move together — a module root that is `null` has no directories
+    // to list and no components to attribute — and each of them is a
+    // measurement, not a failure: the alias resolved, `App.tsx` and
+    // `AppShell.tsx` were read, and the manifest index yielded its ids.
     //
-    // What replaces it is the same claim read the other way, and it fails in
-    // both directions: a directory whose name is not its module id fails here
-    // if the derivation stopped following the route table and the nav, and a
-    // *new* one appearing fails here too, which is the moment somebody has to
-    // decide whether `basename` would have been good enough. The
-    // discrimination itself — that the derivation reads the registries rather
-    // than the name — is the fixture case above (`WarehouseEditor` imported
-    // from a directory whose name is not its module id), which enters at the
-    // top of the analysis and does not depend on this tree holding an example.
+    // **This is a two-way assertion.** A module surface directory reappearing
+    // under `admin/src` fails here, which is the moment somebody has to decide
+    // whether it belongs to the admin application or to a module's package.
     const layout = await requireModuleLayout('[admin-surfaces-test]');
     const admin = await layout.adminSurfaces();
-    const attributed = [...(admin?.moduleOfDirectory ?? [])];
-    // The floor: an empty map would satisfy the claim below vacuously.
-    expect(attributed.length).toBeGreaterThan(0);
-    expect(attributed.filter(([directory, owner]) => directory !== owner)).toEqual([]);
+    expect(admin).not.toBeNull();
+    expect(admin!.moduleRoot).toBeNull();
+    expect(admin!.directories).toEqual([]);
+    expect([...admin!.moduleOfDirectory]).toEqual([]);
+    expect([...admin!.componentDirectories]).toEqual([]);
+  });
+
+  it('carries no refusal reason while the layout resolves', async () => {
+    // R17's other direction: the reason is non-null **exactly** when the
+    // layout is `null`, so a caller that prints it can never print a stale
+    // sentence over a resolved layout.
+    const layout = await requireModuleLayout('[admin-surfaces-test]');
+    expect(await layout.adminSurfaces()).not.toBeNull();
+    expect(await layout.adminSurfacesRefusal()).toBeNull();
   });
 
   it('leaves the admin application\'s own directories unattributed', async () => {
+    // The four directories `admin/src/modules/` still holds. None is a
+    // registered module id, which is why the module root is `null`; each is
+    // therefore host-owned by the derivation rather than by a list, and
+    // `moduleOfDirectory` — empty — claims none of them.
     const layout = await requireModuleLayout('[admin-surfaces-test]');
     const admin = await layout.adminSurfaces();
-    for (const directory of ['_shared', 'home', 'platform', 'profile']) {
+    for (const directory of ['cms_pages', 'home', 'platform', 'profile']) {
       expect(admin?.moduleOfDirectory.has(directory)).toBe(false);
     }
   });
 
-  it('attributes every other surface directory to a registered module', async () => {
+  it('attributes no directory to anything that is not a registered module', async () => {
+    // Vacuous today and deliberately kept: it is the assertion that catches a
+    // surface directory reappearing under an owner the manifest index does not
+    // know, which is the one way `moduleOfDirectory` can grow a wrong entry.
     const layout = await requireModuleLayout('[admin-surfaces-test]');
     const admin = await layout.adminSurfaces();
     const registered = new Set(layout.registeredIds);

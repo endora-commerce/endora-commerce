@@ -129,7 +129,12 @@ import {
   FOREIGN_MODULE_IDS,
   type ForeignModuleIdLedger,
 } from './ledgers/foreign-module-ids.js';
-import type { AdminSurfaceLayout } from './lib/admin-surfaces.js';
+import { adminRegistryPathOf, type AdminSurfaceLayout } from './lib/admin-surfaces.js';
+import {
+  adminRegistryPresent,
+  moduleAdminLayers,
+  packageSubpathSource,
+} from './lib/module-admin-layers.js';
 import {
   modulePopulationCoverage,
   vacuousModulePopulation,
@@ -832,14 +837,18 @@ export function vacuousReason(input: {
   readonly moduleIdCount: number;
   /**
    * Admin layers the generated contribution registry names, or `null` where
-   * there is no admin application to have derived one from.
+   * that registry is not on disk.
    *
-   * `null` and `0` are deliberately different answers. A workspace with no admin
-   * application has no registry, so there is nothing to be short of; a workspace
-   * that *has* one whose registry names no module package has lost the
-   * independent author of the module-admin floor, and the widened walk would
-   * then report clean over a population nothing corroborates — which is the way
-   * this widening could have created a new silent green.
+   * `null` and `0` are deliberately different answers. A checkout with no
+   * generated registry has nothing to be short of; one that *has* the artefact
+   * and reads no module package out of it has lost the independent author of
+   * the module-admin floor, and the widened walk would then report clean over a
+   * population nothing corroborates — which is the way this widening could have
+   * created a new silent green.
+   *
+   * **The discriminator is the file, never the admin layout** (T4). It was the
+   * layout, and the layout went `null` for an unrelated reason; see the comment
+   * on the call site.
    */
   readonly moduleAdminLayers: number | null;
 }): string | null {
@@ -893,9 +902,9 @@ export function vacuousReason(input: {
   }
   if (input.moduleAdminLayers === 0) {
     return (
-      'the admin application resolved and its generated contribution registry names no ' +
-      'module package, so the module-admin floor has no independent author and the widened ' +
-      'foreign-id walk is corroborated by nothing; refusing to report a vacuous pass'
+      'the generated admin contribution registry is on disk and names no module package, so ' +
+      'the module-admin floor has no independent author and the widened foreign-id walk is ' +
+      'corroborated by nothing; refusing to report a vacuous pass'
     );
   }
   return null;
@@ -934,85 +943,6 @@ function isUnder(child: string, parent: string): boolean {
   return child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
 }
 
-/**
- * The source directory behind a subpath a package declares, or `null`.
- *
- * `./zones` declares `./dist/zones/index.js`; the sources that emit it are
- * `src/zones`. Reading the map rather than spelling the directory is what makes
- * an answer follow a renamed subpath, and what makes a package that declares no
- * such subpath contribute nothing at all — the `null` is a statement, and both
- * callers treat it as one.
- */
-function subpathSource(packageDir: string, subpath: string): string | null {
-  const manifestPath = join(packageDir, 'package.json');
-  if (!existsSync(manifestPath)) return null;
-  let manifest: { exports?: Record<string, unknown> };
-  try {
-    manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-      exports?: Record<string, unknown>;
-    };
-  } catch {
-    return null;
-  }
-  if (manifest.exports?.[subpath] === undefined) return null;
-  return join(packageDir, 'src', subpath.slice('./'.length));
-}
-
-/** One module package's admin layer, as the generated registry names it. */
-interface ModuleAdminLayer {
-  readonly moduleId: string;
-  /** The source directory behind the subpath the registry imports. */
-  readonly directory: string;
-}
-
-/**
- * Which module packages ship an admin layer, and where its sources are.
- *
- * **The independent author is the generated admin contribution registry**, and
- * that is the whole point of this derivation rather than a convenience. This
- * check's module walk computes its own population by listing directories; a
- * floor computed the same way would be the same answer twice, which is what
- * issue #244 is about. `admin/src/modules.generated.ts` is rendered by
- * `generate-composer.ts` out of the layer inventory — a different program
- * reading a different input — and it names both halves of what this floor needs:
- * *which* packages contribute admin code, and *under which subpath*, so nothing
- * here spells `./admin` or `src/admin`. A module package that gains an admin
- * layer raises the expectation in the same run that regenerates the registry.
- *
- * The kit's `AdminContributions` type import resolves to no module package and
- * is therefore not a layer, without being excluded by name.
- */
-function moduleAdminLayers(
-  layout: ModuleTreeLayout,
-  registryPath: string,
-): readonly ModuleAdminLayer[] {
-  if (!existsSync(registryPath)) return [];
-  const source = readFileSync(registryPath, 'utf8');
-  const parsed = parse(source, registryPath);
-  const layers = new Map<string, ModuleAdminLayer>();
-  for (const statement of parsed.statements) {
-    // Literal AST nodes, never a text scan: a specifier inside a comment
-    // explaining the registry is not an import, and this file's header is
-    // thirty lines of prose about the packages it names.
-    if (!ts.isImportDeclaration(statement)) continue;
-    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
-    const specifier = statement.moduleSpecifier.text;
-    const segments = specifier.split('/');
-    const packageName = specifier.startsWith('@')
-      ? segments.slice(0, 2).join('/')
-      : segments.slice(0, 1).join('/');
-    const subpath = specifier.slice(packageName.length);
-    if (subpath === '') continue;
-    const moduleId = layout.modulePackageNames.get(packageName);
-    if (moduleId === undefined) continue;
-    const packageDir = layout.moduleDirectoryOf(moduleId);
-    if (packageDir === null) continue;
-    const directory = subpathSource(packageDir, `.${subpath}`);
-    if (directory === null) continue;
-    layers.set(`${moduleId}${subpath}`, { moduleId, directory });
-  }
-  return [...layers.values()].sort((left, right) => left.directory.localeCompare(right.directory));
-}
 
 function memberDirectory(repoRoot: string, name: string): string | null {
   for (const member of workspaceMembers(repoRoot, nodeWorkspaceFs())) {
@@ -1038,7 +968,8 @@ async function main(): Promise<void> {
   const kitDir = memberDirectory(layout.repoRoot, KIT_PACKAGE);
   const kitFiles = kitDir === null ? [] : walk(join(kitDir, 'src'));
   const kitExemptPath = kitDir === null ? null : join(kitDir, KIT_TRANSLATION_HOOK);
-  const zoneImplementationDir = kitDir === null ? null : subpathSource(kitDir, ZONE_SUBPATH);
+  const zoneImplementationDir =
+    kitDir === null ? null : packageSubpathSource(kitDir, ZONE_SUBPATH);
 
   const moduleFiles = layout.moduleWalkRoots.flatMap((root) => walk(root));
   const adminFiles = admin === null ? [] : walk(admin.sourceRoot);
@@ -1047,9 +978,10 @@ async function main(): Promise<void> {
   // specifically, so leaving it here as well would report one site twice under
   // two keys. `KIT_PACKAGE` therefore stays a name — it is the subject of that
   // rule rather than a derived fact written down.
-  const familyPackages = adminUiPackages(
-    workspaceMembers(layout.repoRoot, nodeWorkspaceFs()),
-  ).filter((pkg) => kitDir === null || resolve(pkg.dir) !== resolve(kitDir));
+  const members = workspaceMembers(layout.repoRoot, nodeWorkspaceFs());
+  const familyPackages = adminUiPackages(members).filter(
+    (pkg) => kitDir === null || resolve(pkg.dir) !== resolve(kitDir),
+  );
   const familyFiles = familyPackages.flatMap((pkg) => walk(join(pkg.dir, 'src')));
 
   const registered = new Set(layout.registeredIds);
@@ -1182,7 +1114,19 @@ async function main(): Promise<void> {
   // widening can suffer in silence, because `manifest-index` stays satisfied by
   // the same module's backend files — is a `short-walk` refusal rather than a
   // clean line.
-  const adminLayers = admin === null ? null : moduleAdminLayers(layout, admin.generatedRegistryFile);
+  // **T4 — the gate is the registry file's presence, never the layout.**
+  // It was `admin === null`, and on the merge of batches 15 and 16 that became
+  // true for a reason having nothing to do with the registry: `admin/src/modules`
+  // held no registered module id, so the layout refused and this token — the
+  // floor added specifically to catch a module package's admin layer dropping
+  // out of the walk — was omitted over 54 layers while the check printed
+  // `findings=0`. The comment defending the old gate said the omission "cannot
+  // become the silent path"; it became one, in exactly the way it excluded.
+  // `admin-kit-surface.md` §7.5 is the measurement.
+  const registryFile = adminRegistryPathOf(members);
+  const adminLayers = adminRegistryPresent(registryFile)
+    ? moduleAdminLayers(layout, registryFile!)
+    : null;
   const walkedModuleFiles = moduleFiles.map((file) => resolve(file));
   const coveredAdminLayers =
     adminLayers === null
@@ -1325,10 +1269,11 @@ async function main(): Promise<void> {
       // The expectation is the generated contribution registry's, which is a
       // second program's answer to *"which packages ship admin code, and
       // under which subpath"*; the coverage is what this walk opened. Omitted
-      // rather than printed `0/0` where there is no admin application, which
-      // `read-size.ts` refuses as `no-expectation` — and a registry that names
-      // none while an application exists is `vacuousReason`'s refusal above,
-      // so the omission cannot become the silent path.
+      // rather than printed `0/0` where that artefact is **not on disk**, which
+      // `read-size.ts` refuses as `no-expectation`; a registry that is there and
+      // names none is `vacuousReason`'s refusal above. The gate is the file and
+      // nothing else — it used to be the admin layout, and that is how the token
+      // vanished over 54 layers with `findings=0` printed beside it.
       ...(adminLayers === null
         ? []
         : [
@@ -1375,6 +1320,10 @@ async function main(): Promise<void> {
  * a host file's `{ module: 'x' }` is the admin shell doing its job.
  */
 function adminOwnerOf(admin: AdminSurfaceLayout, file: string): string | null {
+  // No module root is the terminal state (R16), and `null` is the right answer
+  // for every file under it: the admin application owns them all, and a host
+  // file's `{ module: 'x' }` is the shell doing its job.
+  if (admin.moduleRoot === null) return null;
   const relativePath = relative(admin.moduleRoot, file);
   if (relativePath.startsWith('..') || relativePath === '') return null;
   const directory = relativePath.split(sep)[0];

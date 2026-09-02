@@ -206,15 +206,6 @@ quality:
     # a stale entry, an empty shard, an orphan shard and an entry filed under
     # another module's shard.
     - pnpm --filter backend run check:module-boundary
-    # Feature 091 (FR-018) — the admin's two hand-written registries, counted
-    # per module and held both ways. 145 of `App.tsx`'s 149 routes and 97 of
-    # `AppShell.tsx`'s 100 nav entries belong to a module, and Story 3 moves
-    # them into the modules that own them. The batch that moves a directory
-    # does not touch either file, which is the shape AGENTS.md records as
-    # having produced three reds on `master` in a row — so a batch that leaves
-    # a registration behind declares the screen twice, with `react-router`
-    # silently taking the first match.
-    - pnpm --filter backend run check:admin-registrations
     # Feature 091 (FR-009/FR-016) — a module reaching admin platform surface
     # `@endora-commerce/admin-kit` does not publish. `check:platform-surface`
     # asks this on the backend and had no frontend twin, because until Phase 1b

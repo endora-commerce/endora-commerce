@@ -1733,7 +1733,19 @@ describe('the tree itself', () => {
     const { adminSurfaces: admin, adminFiles, adminHostFiles, moduleFiles } = scan;
     const { sources, schema } = scan.input;
     expect(admin, 'no admin surfaces resolved — a vacuous pass').not.toBeNull();
-    expect(adminFiles.length, 'no admin sources found — a vacuous pass').toBeGreaterThan(100);
+    // **The admin *module* half is empty, and that is SC-007.** Every module's
+    // admin screens now live in that module's package, so `admin.moduleRoot` is
+    // `null` (feature 091, R16) and this walk has nothing to open; it read
+    // `> 100` until batch 16 moved the last two directories. What says the scan
+    // was not vacuous over `admin/src` is the **host** floor below — the half
+    // that outlives the drain, which is the same move `check:admin-surface`'s
+    // R18 makes with its own floors.
+    //
+    // Asserted as an exact zero rather than deleted, because that is two-way: a
+    // surface directory reappearing under `admin/src` fails here, which is the
+    // moment somebody has to decide whether it is the admin application's own
+    // or a module's.
+    expect(adminFiles.length, 'the admin module population is drained (SC-007)').toBe(0);
     // The host half joins on the same terms (feature 091, P1): `admin/src`
     // outside the module root, walked through the function the CLI calls rather
     // than through a second list of roots written here. A test that derived its

@@ -151,5 +151,9 @@
   "errors.CMS_REFERENCED": "Błąd: cms referenced.",
   "errors.CMS_HOOK_SYSTEM_PROTECTED": "Błąd: cms hook system protected.",
   "errors.CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE": "Błąd: cms language not in channel scope.",
-  "errors.CMS_SCHEMA_UPGRADE_FAILED": "Błąd: cms schema upgrade failed."
+  "errors.CMS_SCHEMA_UPGRADE_FAILED": "Błąd: cms schema upgrade failed.",
+  "nav.cmsPages.label": "Strony CMS",
+  "nav.cmsBlocks.label": "Bloki CMS",
+  "nav.cmsTemplates.label": "Szablony CMS",
+  "nav.cmsHooks.label": "Hooki CMS"
 }

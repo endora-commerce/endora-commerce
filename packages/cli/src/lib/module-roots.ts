@@ -263,8 +263,32 @@ export interface ModuleTreeLayout {
    * `null` is the tree with no frontend, and it is the behaviour that shipped.
    * It is not a silent floor: `check:module-boundary` refuses a run whose
    * ledger holds admin keys and whose layout answered `null` here.
+   *
+   * Since feature 091's Phase 5 it no longer answers `null` for an admin
+   * application whose module surfaces have all moved into their packages —
+   * that is {@link AdminSurfaceLayout.moduleRoot} being `null`, which is a
+   * measurement rather than a refusal (R16).
    */
   readonly adminSurfaces: () => Promise<AdminSurfaceLayout | null>;
+  /**
+   * Why {@link ModuleTreeLayout.adminSurfaces} answered `null`, or `null` when
+   * it did not (feature 091, Phase 5 T2; `admin-kit-surface.md` §7.3 R17).
+   *
+   * `resolveAdminSurfaces` refuses for four distinct causes — no member
+   * declares the alias, two do, the alias target is not on disk, and `App.tsx`
+   * or `components/AppShell.tsx` could not be read — and every one of them used
+   * to arrive at a caller as the same bare `null`, whereupon the caller printed
+   * a sentence of its own choosing. Measured: the tree refused on the module
+   * root and both callers reported the alias, which sends a reader to repair a
+   * file that is correct.
+   *
+   * **The reason travels with the answer.** It is memoised on the same call, so
+   * the two accessors cannot come to disagree, and it is non-null *exactly*
+   * when the layout is `null`. A check printing an admin refusal prints this
+   * string; the only case it may word itself is a workspace with no frontend at
+   * all, which is what the string then says.
+   */
+  readonly adminSurfacesRefusal: () => Promise<string | null>;
 }
 
 function isUnder(child: string, parent: string): boolean {
@@ -620,6 +644,7 @@ export async function resolveModuleLayout(
   // do with the module tree. The refusal belongs to the one check whose
   // population this is, where it can be reconciled against the ledger.
   let admin: AdminSurfaceLayout | null | undefined;
+  let adminRefusal: string | null = null;
   const adminSurfaces = async (): Promise<AdminSurfaceLayout | null> => {
     if (admin !== undefined) return admin;
     const { AdminLayoutUnresolvableError, resolveAdminSurfaces } = await import(
@@ -627,11 +652,19 @@ export async function resolveModuleLayout(
     );
     try {
       admin = resolveAdminSurfaces(members, registered);
+      adminRefusal = null;
     } catch (error: unknown) {
       if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
       admin = null;
+      // Set on the same call that produced the `null`, so the two accessors
+      // are one derivation and a caller cannot print a stale sentence.
+      adminRefusal = error.message;
     }
     return admin;
+  };
+  const adminSurfacesRefusal = async (): Promise<string | null> => {
+    await adminSurfaces();
+    return adminRefusal;
   };
 
   const keyOf = (absolutePath: string): string => {
@@ -696,6 +729,7 @@ export async function resolveModuleLayout(
     moduleDirectoryOf,
     modulePackageNames,
     adminSurfaces,
+    adminSurfacesRefusal,
     hostResidentModules: new Map(
       moduleRoots
         .filter(

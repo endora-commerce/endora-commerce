@@ -201,8 +201,11 @@
  * *ledgered* reach rewritten as a package specifier goes stale loudly, while an
  * **unrecorded** one is rewritten and nothing goes red, because there was no
  * entry to strand. So `admin/src` outside the module root is walked, and a reach
- * out of it is attributed to the owner `check:admin-registrations` already uses:
- * {@link ADMIN_HOST_OWNER}, whose shard is `host.ts`.
+ * out of it is attributed to {@link ADMIN_HOST_OWNER}, whose shard is `host.ts`.
+ * That constant lives in `lib/admin-surfaces.ts` and not in a ledger for exactly
+ * this reason: `check:admin-registrations`, which used to own the spelling, was
+ * deleted with its ledger when the drain emptied its population (feature 091,
+ * Phase 5 T5) and this ledger outlives it.
  *
  * **Source side only.** {@link ownerLocationOf} answers `host`; the target
  * position keeps asking {@link moduleLocationOf}, which answers `null` for a
@@ -853,8 +856,16 @@ interface ModuleLocation {
 export interface AdminBoundarySurfaces {
   /** `admin/src` — what the source alias resolves to. */
   readonly sourceRoot: string;
-  /** `admin/src/modules` — the directory holding the module surfaces. */
-  readonly moduleRoot: string;
+  /**
+   * `admin/src/modules` — the directory holding the module surfaces — or `null`
+   * when the application has none left (feature 091, R16).
+   *
+   * The layout's own field, carried through unchanged. Every site below answers
+   * the `null` the same trivial way: nothing is under a directory that does not
+   * exist, so no path is a module surface, no directory is attributed, and the
+   * host population is the whole source root — which is what it now is.
+   */
+  readonly moduleRoot: string | null;
   /** The prefix a specifier writes {@link AdminBoundarySurfaces.sourceRoot} as, slash included. */
   readonly aliasPrefix: string;
   /**
@@ -883,9 +894,13 @@ export interface AdminBoundarySurfaces {
    * route, re-written by every batch.
    *
    * The consequence is stated rather than discovered: a genuine host→module
-   * reach added to either file is invisible to this check. It is visible to
-   * `check:admin-registrations`, whose entire population is those two files and
-   * whose baseline is a two-way count ratchet over exactly what they declare.
+   * reach added to either file is invisible to this check. It used to be
+   * visible to `check:admin-registrations`, whose entire population was those
+   * two files; that check is deleted (feature 091, Phase 5 T5) and what now
+   * holds them is an assertion in the admin's own suite —
+   * `admin/test/modules/host-admin-registrations.test.tsx`, which counts both
+   * registries in **totals** and names the four routes and three nav entries
+   * that are the admin application's own (`contracts/admin-registry.md` R13a).
    */
   readonly registryFiles: ReadonlySet<string>;
   /**
@@ -948,7 +963,7 @@ function adminHostOwnerOf(
 ): ModuleLocation | null {
   if (admin === null) return null;
   if (!path.startsWith(`${admin.sourceRoot}/`)) return null;
-  if (path.startsWith(`${admin.moduleRoot}/`)) return null;
+  if (admin.moduleRoot !== null && path.startsWith(`${admin.moduleRoot}/`)) return null;
   return { id: ADMIN_HOST_OWNER, dir: admin.sourceRoot };
 }
 
@@ -974,7 +989,7 @@ function adminLocationOf(
   path: string,
   admin: AdminBoundarySurfaces | null,
 ): ModuleLocation | null {
-  if (admin === null) return null;
+  if (admin === null || admin.moduleRoot === null) return null;
   const prefix = `${admin.moduleRoot}/`;
   if (!path.startsWith(prefix)) return null;
   const directory = path.slice(prefix.length).split('/')[0];
@@ -1005,7 +1020,11 @@ function moduleLocationOf(
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
   admin: AdminBoundarySurfaces | null = NO_ADMIN_SURFACES,
 ): ModuleLocation | null {
-  if (admin !== null && pathUnderSrc.startsWith(`${admin.moduleRoot}/`)) {
+  if (
+    admin !== null &&
+    admin.moduleRoot !== null &&
+    pathUnderSrc.startsWith(`${admin.moduleRoot}/`)
+  ) {
     return adminLocationOf(pathUnderSrc, admin);
   }
   const id = moduleOf(`/src/${pathUnderSrc}/`, hostResident);
@@ -1908,7 +1927,7 @@ function walk(dir: string, out: string[] = [], extensions: readonly string[] = [
  * the **real** tree through the same function the CLI uses.
  */
 export function collectAdminFiles(admin: AdminBoundarySurfaces | null, repoRoot: string): string[] {
-  if (admin === null) return [];
+  if (admin === null || admin.moduleRoot === null) return [];
   return walk(join(repoRoot, admin.moduleRoot), [], ['.ts', '.tsx']);
 }
 
@@ -1939,15 +1958,18 @@ export function collectAdminHostFiles(
   repoRoot: string,
 ): string[] {
   if (admin === null) return [];
+  // With no module root the two walks stop being complements and this one is
+  // all of `admin/src`, which is the measurement: every file under it is the
+  // admin application's own.
+  const files = walk(join(repoRoot, admin.sourceRoot), [], ['.ts', '.tsx']);
+  if (admin.moduleRoot === null) return files;
   const moduleRoot = join(repoRoot, admin.moduleRoot);
-  return walk(join(repoRoot, admin.sourceRoot), [], ['.ts', '.tsx']).filter(
-    (file) => !file.startsWith(`${moduleRoot}/`),
-  );
+  return files.filter((file) => !file.startsWith(`${moduleRoot}/`));
 }
 
 /** Does this path sit under the admin module root? */
 function isAdminPath(path: string, admin: AdminBoundarySurfaces | null): boolean {
-  return admin !== null && path.startsWith(`${admin.moduleRoot}/`);
+  return admin !== null && admin.moduleRoot !== null && path.startsWith(`${admin.moduleRoot}/`);
 }
 
 /**
@@ -1963,6 +1985,7 @@ export function adminDirectoriesWalked(
   keys: readonly string[],
 ): Set<string> {
   const seen = new Set<string>();
+  if (admin.moduleRoot === null) return seen;
   const prefix = `${admin.moduleRoot}/`;
   for (const key of keys) {
     if (!key.startsWith(prefix)) continue;
@@ -2029,7 +2052,7 @@ export async function adminSurfacesOf(
   if (admin === null) return null;
   return {
     sourceRoot: layout.keyOf(admin.sourceRoot),
-    moduleRoot: layout.keyOf(admin.moduleRoot),
+    moduleRoot: admin.moduleRoot === null ? null : layout.keyOf(admin.moduleRoot),
     aliasPrefix: admin.aliasPrefix,
     moduleOfDirectory: admin.moduleOfDirectory,
     registryFiles: new Set(admin.registryFiles.map(layout.keyOf)),
@@ -2495,12 +2518,23 @@ async function main(): Promise<void> {
   // attribute to a module. A directory that produced no file is a walk that
   // came back short over exactly the population that would otherwise report
   // `violations=0` — issue #215 one frontend over.
+  //
+  // **Printed only while there is a population to protect**, on exactly the
+  // terms the host token below already states: `expected=0` is a refusal in
+  // this grammar, and SC-007 drains this population to zero by design (R16).
+  // What still refuses a blind run over it is {@link adminPopulationLost},
+  // whose anchor is the **ledger** rather than the walk — a run whose shards
+  // name admin files that are still on disk while the layout answered nothing
+  // is exit 2 — plus the unconditional refusal of a resolved layout whose host
+  // walk opened nothing, which R16 makes reachable again.
   if (admin !== null) {
-    coverages.push({
-      source: 'admin-surfaces',
+    const surfaces = {
       expected: admin.moduleOfDirectory.size,
       covered: adminDirectoriesWalked(admin, adminFiles.map(layout.keyOf)).size,
-    });
+    };
+    if (surfaces.expected > 0) {
+      coverages.push({ source: 'admin-surfaces', ...surfaces });
+    }
     // The host population's own floor (feature 091, P1), reconciled against the
     // ledger — the independent author, because a key is written by the merge
     // request that recorded the reach. Printed only while there is host debt to

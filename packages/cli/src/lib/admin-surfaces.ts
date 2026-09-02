@@ -77,14 +77,17 @@ export const ADMIN_SOURCE_ALIAS = '@/*';
 /**
  * The owner id of the admin application itself.
  *
- * Not a module, and it has to be spelled somewhere: `check:admin-registrations`
- * attributes a route or a nav entry no module claims to it, and since P1 of
+ * Not a module, and it has to be spelled somewhere: since P1 of
  * `specs/091-module-owned-admin-surfaces/` § *Phase 4* `check:module-boundary`
  * attributes an admin **host** file to it, so a reach out of one has a consumer
- * to be ledgered under. One spelling, here, because the two instruments must not
- * come to disagree about what the application is called — and because
- * `admin-registrations.ts`, where the constant used to live, is deleted by batch
- * 12 (SC-007) while the boundary ledger outlives it.
+ * to be ledgered under.
+ *
+ * One spelling, **here**, and this is the moment that placement was for:
+ * `check:admin-registrations` — which attributed a route or a nav entry no
+ * module claimed to the same owner — and `ledgers/admin-registrations.ts`,
+ * where this constant used to live, were deleted by batch 16 when the drain
+ * emptied their population (SC-007, Phase 5 T5). The boundary ledger outlives
+ * them and goes on using this name unchanged.
  */
 export const ADMIN_HOST_OWNER = 'host';
 
@@ -132,11 +135,30 @@ export interface AdminSurfaceLayout {
   readonly memberDir: string;
   /** The directory that alias points at — `admin/src`. */
   readonly sourceRoot: string;
-  /** The directory holding the module surfaces — `admin/src/modules`. */
-  readonly moduleRoot: string;
+  /**
+   * The directory holding the module surfaces — `admin/src/modules` — or
+   * `null` when the application has none left (feature 091, R16).
+   *
+   * **Zero module roots is a measurement; two is still blindness.** The
+   * predicate's two inputs are proved present before it is evaluated:
+   * {@link resolveAdminSurfaces} has already refused a missing or ambiguous
+   * alias member and an alias target that is not on disk, and the registered id
+   * set comes from a generated manifest index `requireModuleLayout` refuses a
+   * tree without. With both proved, *"no directory under the source root is
+   * named after a registered module"* is an answer three artefacts with three
+   * authors give together — the tsconfig alias, the manifest index and the
+   * filesystem — and it flips back by itself the day a module directory
+   * reappears, which is the property a written-down "drain complete" flag would
+   * not have.
+   *
+   * `null` rather than `''` so `tsc` forces every consumer to answer; every
+   * answer is the same trivial one, because nothing is under a directory that
+   * does not exist.
+   */
+  readonly moduleRoot: string | null;
   /** The alias prefix a specifier is written with, including its slash: `@/`. */
   readonly aliasPrefix: string;
-  /** Every directory under {@link moduleRoot}, sorted. */
+  /** Every directory under {@link moduleRoot}, sorted — empty where it is `null`. */
   readonly directories: readonly string[];
   /** Directory name → the module that owns it. Absent means host-owned. */
   readonly moduleOfDirectory: ReadonlyMap<string, string>;
@@ -151,11 +173,12 @@ export interface AdminSurfaceLayout {
    * `components/AppShell.tsx`, absolute.
    *
    * Returned rather than left implicit because a consumer has to be able to
-   * exclude them **without spelling them a second time**. They are the whole
-   * population of `check:admin-registrations` (`files=2`), they are what Story 3
-   * deletes, and `App.tsx` imports one component per module screen — so a
-   * boundary ledger that counted them would record the feature's own subject as
-   * its debt, one entry per route, churning with every batch.
+   * exclude them **without spelling them a second time**. `App.tsx` imports one
+   * component per module screen, so a boundary ledger that counted them would
+   * record the feature's own subject as its debt, one entry per route, churning
+   * with every batch. They were the whole population of the deleted
+   * `check:admin-registrations` (`files=2`); what asserts them now is
+   * `admin/test/modules/host-admin-registrations.test.tsx` (R13a).
    */
   readonly registryFiles: readonly string[];
   /**
@@ -232,17 +255,52 @@ export function aliasTargetOf(tsconfigText: string): string | null {
 }
 
 /**
+ * The generated admin contribution registry's path, or `null` when this
+ * workspace has no admin application at all (feature 091, R13b).
+ *
+ * **Narrower than the layout, deliberately.** It needs the alias member and its
+ * target and nothing else — not `App.tsx`, not `components/AppShell.tsx`, not a
+ * module root — because two checks gate a population floor on this file's
+ * presence and *"the gate went true for a reason having nothing to do with the
+ * registry"* is the exact defect §7.5 measured. `resolveAdminSurfaces` builds
+ * {@link AdminSurfaceLayout.generatedRegistryFile} from this function, so there
+ * is one derivation with two entry points rather than two answers.
+ *
+ * `null` here is the honest absence: with no alias member there is no directory
+ * the artefact could be under, and a caller omits its token rather than
+ * printing `0/0`.
+ */
+export function adminRegistryPathOf(
+  members: readonly WorkspaceMember[],
+  readText: (path: string) => string | null = defaultReadText,
+): string | null {
+  let resolved: { readonly member: WorkspaceMember; readonly target: string };
+  try {
+    resolved = findAliasMember(members, readText);
+  } catch (error: unknown) {
+    if (error instanceof AdminLayoutUnresolvableError) return null;
+    throw error;
+  }
+  return join(resolve(resolved.member.dir, resolved.target), ADMIN_REGISTRY_ARTEFACT);
+}
+
+/**
  * The one directory under `sourceRoot` whose children are named after registered
- * modules.
+ * modules, or `null` when none is.
  *
  * The same predicate {@link applicationModuleRoots} applies in `backend/src`,
  * minus its `manifest.ts` half: an admin surface directory has no manifest, so
- * requiring one would find nothing. Ambiguity is refused rather than resolved.
+ * requiring one would find nothing.
+ *
+ * **Absence is a measurement, ambiguity is blindness** (feature 091, R16). Zero
+ * is `null`, because this feature exists to empty that directory and a refusal
+ * would send a reader to repair a finished tree; two is still a throw, because
+ * picking one narrows every walk to it without saying so.
  */
 export function findAdminModuleRoot(
   sourceRoot: string,
   registered: ReadonlySet<string>,
-): string {
+): string | null {
   const roots = new Set<string>();
   const visit = (dir: string): void => {
     let entries: string[];
@@ -270,12 +328,10 @@ export function findAdminModuleRoot(
   };
   visit(sourceRoot);
   const found = [...roots].sort();
-  if (found.length === 0) {
-    throw new AdminLayoutUnresolvableError(
-      `no directory under ${sourceRoot} holds a child named after a registered module — the ` +
-        'admin module root is derived from the registered ids, and none of them is there',
-    );
-  }
+  // The terminal state SC-007 reaches: every module's admin surfaces have moved
+  // into that module's package, so `admin/src/modules/` holds only the admin
+  // application's own directories and none of them is a registered id.
+  if (found.length === 0) return null;
   if (found.length > 1) {
     throw new AdminLayoutUnresolvableError(
       `more than one directory under ${sourceRoot} holds children named after registered ` +
@@ -522,9 +578,12 @@ export function resolveAdminSurfaces(
     );
   }
   const moduleRoot = findAdminModuleRoot(sourceRoot, registered);
-  const directories = readdirSync(moduleRoot)
-    .filter((entry) => !PRUNED.has(entry) && statSync(join(moduleRoot, entry)).isDirectory())
-    .sort();
+  const directories =
+    moduleRoot === null
+      ? []
+      : readdirSync(moduleRoot)
+          .filter((entry) => !PRUNED.has(entry) && statSync(join(moduleRoot, entry)).isDirectory())
+          .sort();
 
   // The two hand-written registries, spelled once. `registryFiles` below is
   // these same two paths, so a consumer that has to exclude them — the boundary
@@ -543,8 +602,12 @@ export function resolveAdminSurfaces(
   }
   const routes = adminRoutes(appSource);
   const nav = adminNavEntries(shellSource);
-  const moduleRootSegment = moduleRoot.slice(sourceRoot.length + 1);
-  const componentDirectories = routeComponentDirectories(appSource, moduleRootSegment);
+  // With no module root there is no directory a route component could be
+  // imported from, so the map is empty — a measurement, like `directories`.
+  const componentDirectories =
+    moduleRoot === null
+      ? new Map<string, string>()
+      : routeComponentDirectories(appSource, moduleRoot.slice(sourceRoot.length + 1));
 
   return {
     memberDir: member.dir,
@@ -563,6 +626,8 @@ export function resolveAdminSurfaces(
     nav,
     componentDirectories,
     registryFiles: [routeTableFile, navFile],
-    generatedRegistryFile: join(sourceRoot, ADMIN_REGISTRY_ARTEFACT),
+    // One derivation, two entry points — see `adminRegistryPathOf`. Non-null
+    // here by construction: the alias member has already resolved above.
+    generatedRegistryFile: adminRegistryPathOf(members, readText)!,
   };
 }

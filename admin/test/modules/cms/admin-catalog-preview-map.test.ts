@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   mapAdminProductToCmsSummary,
   pickAdminLocalizedName,
-} from '@/modules/cms/components/admin-catalog-preview-map';
+} from '../../../../packages/modules/cms/src/admin/components/admin-catalog-preview-map';
 
 describe('pickAdminLocalizedName', () => {
   it('returns string names as-is', () => {

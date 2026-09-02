@@ -13,9 +13,9 @@
  * was never repaired: **a check's output said what it found and never said what
  * it read**, so "found nothing" and "read nothing" printed the same green.
  *
- * Every check now prints a read line — `scripts/lib/read-size.ts` for the
- * twenty-four tsx ones, `scripts/lib/read-size.sh` for the three shell ones —
- * and this file is what makes that number *bite*: it records what each check
+ * Every check now prints a read line — `scripts/lib/read-size.ts` for the tsx
+ * ones, `scripts/lib/read-size.sh` for the shell ones — and this file is what
+ * makes that number *bite*: it records what each check
  * reads on the current tree, and `test/unit/scripts/check-read-size.test.ts`
  * spawns each check and compares.
  *
@@ -690,90 +690,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: 14,
     sources: ['manifest-index', 'contracts-barrel'],
   },
-  'backend/scripts/check-admin-registrations.ts': {
-    prefix: '[admin-registrations]',
-    run: { kind: 'tsx', path: 'scripts/check-admin-registrations.ts', args: [] },
-    // Two, and it is the honest number rather than a rounding of one: this
-    // check's subject is exactly the admin's two hand-written registries.
-    // `sites` is what moves — 122 routes plus 85 nav entries today, shrinking
-    // with every Story 3 batch, and **re-recorded downwards by the batch that
-    // shrinks it**. The band's floor is what refuses a walk that came back
-    // short, so leaving a number the drain has outgrown widens that floor's
-    // distance from the truth batch by batch until it stops refusing anything.
-    // Six batches took it from 249 to 217, `pwa` moving it by one because that
-    // batch was one nav entry; the plan's own batch 6 — `webhooks`,
-    // `comparisons`, `api_keys`, four routes and six nav entries — took it
-    // to 207, and batch 7 — `promotions`, `payment_methods`,
-    // `customer_accounts`, `product_feeds`, seventeen routes and eight nav
-    // entries — takes it to 182. Batch 8 — `seo`, `taxes`, `credit_limits`,
-    // `delivery_methods`, `megamenu`, `returns`, eleven routes and eight nav
-    // entries — took it to 163, which is this band's floor to the unit and was
-    // not re-recorded; batch 9 — `assets_library` and `custom_fields`, two
-    // routes and two nav entries — takes it to 159, and both are recorded here.
-    //
-    // **Batch 10 — `dictionaries`, `settings` and `credentials`, nine routes
-    // and ten nav entries — takes it to 140**, which is that nineteen exactly.
-    // Ten rather than six nav entries because `adminNavEntries` counts a
-    // `PALETTE_ITEMS` row beside a sidebar one: the four Navigate rows those
-    // three modules carried are manifest actions now. Measured on the merge
-    // commit rather than on the branch, which is the thing batch 9 and Phase 1b
-    // both got wrong on the sibling entry below — see its own note.
-    //
-    // **Batch 11 — `newsletter` and `transactional_emails`, seventeen routes
-    // and fifteen nav entries — takes it to 108**, which is that thirty-two
-    // exactly. Fifteen rather than nine again for the `PALETTE_ITEMS` reason:
-    // nine sidebar rows and six hand-written Navigate rows, of which three
-    // named destinations no manifest action covered and are declarations now.
-    // Measured on the merge commit rather than on the branch.
-    //
-    // **Batch 12 — `invoices`, `ksef` and `quote_requests`, eight routes and
-    // four nav entries — takes it to 96**, which is that twelve exactly. Four
-    // rather than three for the `PALETTE_ITEMS` reason once more: three sidebar
-    // rows and one hand-written Navigate row, which was a second copy of
-    // `quote_requests`' own `open-rfq-inbox` action and is deleted rather than
-    // replaced. Measured on the merge commit rather than on the branch.
-    files: 2,
-    // **Batch 13 (feature 091, Phase 4): 96 -> 71.** The sixteen routes and nine
-    // nav entries `price_lists`, `quick_order`, `inventory` and `pim_ergonode`
-    // take out of the two host registries — exactly the twenty-five this
-    // check's own ledger drops in the same merge request, which is the two
-    // derivations agreeing rather than one being adjusted to the other. `files`
-    // stays 2: this check's subject is those two files and nothing else.
-    // **Batch 14 (feature 091, Phase 4): 71 -> 57.** The eight routes and six
-    // nav entries `customers`, `organizations` and `sales_channels` take out of
-    // the two host registries — exactly the fourteen this check's own ledger
-    // drops in the same merge request, which is the two derivations agreeing
-    // rather than one being adjusted to the other. Six rather than four nav
-    // entries for the `PALETTE_ITEMS` reason once more: four sidebar rows and
-    // two hand-written Navigate rows, both of which named destinations no
-    // manifest action covered and are declarations now.
-    // **Batch 15 (feature 091, Phase 4): 57 -> 32.** The twelve routes and
-    // thirteen nav entries `catalog` and `orders` take out of the two host
-    // registries — exactly the twenty-five this check's own ledger drops in the
-    // same merge request, which is the two derivations agreeing rather than one
-    // being adjusted to the other. Thirteen rather than nine nav entries for
-    // the `PALETTE_ITEMS` reason once more: nine sidebar rows and four
-    // hand-written Navigate rows, of which three named destinations no manifest
-    // action covered and are `catalog` declarations now, the fourth being a
-    // second copy of `orders`' own `open-orders`.
-    //
-    // **Feature 089 (`pim_unopim`): 57 -> 65 -> 57, and the number is
-    // deliberately left where it is.** That branch was written against the
-    // pre-batch-13 shape and added seven routes and one nav entry to the two
-    // host registries; converting it takes exactly those eight back out, so the
-    // count it leaves is the one recorded here. A rung that moves no number is
-    // worth a sentence rather than silence: what would be wrong is re-recording
-    // 65 on the way past, which would raise this band's floor for a state no
-    // merge commit ever held.
-    // Feature 089 merges into batch 15 and the count is **32**, measured on the
-    // merged tree rather than carried from either side: this branch's eight
-    // registrations were added and taken back out inside it, so what it
-    // contributes to batch 15's number is nothing.
-    sites: 32,
-    // `AppShell.tsx` writes the `module` strings and the generated index is
-    // rendered from the manifests, so the reconciliation has two authors.
-    sources: ['manifest-index'],
-  },
   'backend/scripts/check-admin-zones.ts': {
     prefix: '[admin-zones]',
     run: { kind: 'tsx', path: 'scripts/check-admin-zones.ts', args: [] },
@@ -872,8 +788,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // four deleted shims, one new `admin/index.ts`. `sites` does not move:
     // `renders=25 contributions=24 foreign-ids=1` on both sides of the move,
     // which is the batch's zone assertion read from this check's side.
-    files: 2243,
-    sites: 50,
+    //
+    // **Batch 16 + Phase 5: 2243 -> 2325, and 50 -> 53.** Two movements, and
+    // only the first is this branch's: `pim_unopim` merged from
+    // `specs/089-unopim-pim-sync/` with a whole module package and an admin
+    // layer, which is +2 contributions and the bulk of the files. This branch
+    // itself moves `cms`' and `blog`' screens into their packages — a wash for
+    // a walk that reads both roots — and then **T4 restores 107 files**: the
+    // `admin/src` walk had silently gone to zero on the merge of batches 15
+    // and 16, because `adminFiles = admin === null ? [] : walk(…)` and the
+    // layout refused for a reason having nothing to do with this check
+    // (`admin-kit-surface.md` §7.5). The fall was 2243 -> 2127, a 5.2% drop
+    // comfortably inside this band; what caught it was the `sources` set
+    // beside it, which lost `module-admin` over 54 layers. **The number is
+    // therefore not comparable to 2243 as a like-for-like** — 2243 was a walk
+    // that included `admin/src` and 2325 is the same walk on a tree that has
+    // since gained a module package.
+    files: 2325,
+    sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -1161,7 +1093,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `admin/src` and arrive under two module packages, which this walk counts
     // either way; what changes the total is the four deleted shims and the one
     // new `catalog/src/admin/index.ts`.
-    files: 382,
+    files: 392,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -1184,12 +1116,28 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // shims were deleted with the directories (`catalog`'s `ProductPicker`,
     // `orders`' `Section`, `StatusTransitionGraph` and `orderStatusColor`),
     // each of which was two or three re-export sites of its own.
-    sites: 2121,
-    // Two derivations, neither the walk counting itself: the generated manifest
-    // index for the modules a surface directory is attributed to, and the kit's
-    // own `exports` map against the barrels on disk — a subpath declared and not
-    // built, or built and not declared, is what makes a reach unjudgeable.
-    sources: ['manifest-index', 'admin-kit-exports'],
+    //
+    // **Batch 16 + Phase 5: 382 -> 392 files, 2121 -> 2158 sites.** The
+    // application half is now **zero directories** — the terminal state SC-007
+    // reaches — so both numbers are the package half alone, which is what
+    // outlives the drain and what grows with every module package (R18). The
+    // rise rather than the fall the previous six batches recorded is two things
+    // arriving together: `pim_unopim` merged from
+    // `specs/089-unopim-pim-sync/` with an admin layer of its own, and this
+    // branch moves `cms`' and `blog`' screens out of `admin/src` and into their
+    // packages, where this walk reads `.tsx` as well as `.ts` and so counts
+    // every screen it used to count under the other root.
+    sites: 2158,
+    // **Three** derivations since Phase 5's T3, none of them the walk counting
+    // itself: the generated manifest index for the modules a walked file is
+    // attributed to; the kit's own `exports` map against the barrels on disk —
+    // a subpath declared and not built, or built and not declared, is what
+    // makes a reach unjudgeable; and `admin-registry`, the generated admin
+    // contribution registry, which is the floor the package half needed once
+    // the application half emptied (R18(4)). `manifest-index` cannot answer for
+    // it: that token is satisfied by any owner the walk produced a file for,
+    // which a module package does plentifully from its backend sources.
+    sources: ['manifest-index', 'admin-kit-exports', 'admin-registry'],
   },
   'backend/scripts/check-module-boundary.ts': {
     prefix: '[module-boundary]',
@@ -1243,7 +1191,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `admin files` 136 -> 111 on the same run, and `cross-module reaches`
     // stays 7 — the batch's drain is zero, every reach its four modules
     // carried having been incoming and repaired by P4b, P7a, P7b, P7c and P4d.
-    files: 3976,
+    //
+    // **Batch 16 + Phase 5: 3976 -> 4147.** Two movements, and the second is
+    // the interesting one. `pim_unopim` merged from
+    // `specs/089-unopim-pim-sync/` with a whole module package, which is most
+    // of it. The rest is **107 admin host files coming back**: on the merge of
+    // batches 15 and 16 the layout answered `null` — `admin/src/modules/` held
+    // no registered module id — so `collectAdminHostFiles` returned `[]` and
+    // this check read `admin host files=0` while exiting 0
+    // (`admin-kit-surface.md` §7.5). T1 makes the layout resolve with
+    // `moduleRoot: null`, so the host walk is all of `admin/src` again and the
+    // unconditional *"the layout resolved and the host walk opened nothing"*
+    // refusal is reachable once more. `admin files` is now **0**, which is
+    // SC-007 and is a measurement rather than a shortfall.
+    files: 4147,
     sites: null,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
@@ -1252,12 +1213,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // package — `expected=0` is a refusal in this grammar, and no module package
     // was the whole tree until !910.
     //
-    // `admin-surfaces` joined with feature 091's FR-017, and it moved `files`
-    // by the 327 `.ts`/`.tsx` files under the admin module root: the check's
-    // population is now module-owned admin code as well, recorded before any
-    // admin directory moves into its module's package. Its expectation is the
-    // surface directories the route table and the nav attribute to a module —
-    // an independent derivation, and not the walk counting itself.
+    // `admin-surfaces` joined with feature 091's FR-017 and moved `files` by
+    // the 327 `.ts`/`.tsx` files under the admin module root. Its expectation
+    // was the surface directories the route table and the nav attribute to a
+    // module — an independent derivation, and not the walk counting itself.
+    // **That population is now empty** (SC-007), so the token goes exactly as
+    // `admin-host` went below and on the same stated terms: `expected=0` is a
+    // refusal in this grammar, and it is removed in the merge request that
+    // drained it rather than left for the next one to find. The walk itself is
+    // unchanged and still refuses a blind run over it — `adminPopulationLost`
+    // anchors on the **ledger** rather than on the walk, and a resolved layout
+    // whose host walk opened nothing is exit 2 unconditionally.
     // `admin-host` joined with P1 and was the host population's short-walk
     // floor. **That day came** (feature 091, P6): `IdleLogout.tsx` was the last
     // host reach, it took the client exit, `host.ts` was deleted, and the token
@@ -1266,7 +1232,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // staleness is the two-way property rather than a defect, so the entry is
     // removed here in the merge request that drained it rather than left for
     // the next one to find.
-    sources: ['manifest-index', 'module-packages', 'admin-surfaces'],
+    sources: ['manifest-index', 'module-packages'],
   },
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',

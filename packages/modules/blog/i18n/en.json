@@ -159,5 +159,8 @@
   "errors.BLOG_URL_PREFIX_RESERVED": "Blog Url Prefix Reserved.",
   "errors.BLOG_DISABLED": "Blog Disabled.",
   "errors.BLOG_ASSET_KIND_MISMATCH": "Blog Asset Kind Mismatch.",
-  "errors.BLOG_RELATED_POST_SELF_REFERENCE": "Blog Related Post Self Reference."
+  "errors.BLOG_RELATED_POST_SELF_REFERENCE": "Blog Related Post Self Reference.",
+  "nav.blogPosts.label": "Blog Posts",
+  "nav.blogCategories.label": "Blog Categories",
+  "nav.blogTags.label": "Blog Tags"
 }

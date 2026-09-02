@@ -268,18 +268,29 @@ describe('bareKitSubpath', () => {
   });
 });
 
-/** A run that read every input `vacuousReason` asks about. */
+/**
+ * A run that read every input `vacuousReason` asks about, **in the terminal
+ * state** (feature 091, Phase 5; `admin-kit-surface.md` §7.4 R18).
+ *
+ * The application half is `0` and the package half carries the walk, which is
+ * what this repository is: every module's admin surfaces live in that module's
+ * package, and `admin/src/modules/` holds four directories none of which is a
+ * registered module id.
+ */
 const VACUOUS_INPUT = {
   adminResolved: true,
+  adminRefusal: null as string | null,
   kitFound: true,
   implementationSubpaths: 4,
   barrelsRead: 4,
   barrelWithStar: null as string | null,
-  walkedFiles: 300,
+  walkedFiles: 373,
+  applicationFiles: 0,
+  registryLayers: 54 as number | null,
   shims: 53,
 };
 
-describe('check:admin-surface — the seven vacuous refusals', () => {
+describe('check:admin-surface — the vacuous refusals', () => {
   const ok = VACUOUS_INPUT;
 
   it('reports no reason for a run that read everything', () => {
@@ -293,9 +304,49 @@ describe('check:admin-surface — the seven vacuous refusals', () => {
     ['a barrel that could not be read', { barrelsRead: 3 }],
     ['a barrel holding an `export *`', { barrelWithStar: 'ui' }],
     ['a walk that opened no module file', { walkedFiles: 0 }],
-    ['a tree with no shim at all', { shims: 0 }],
+    ['a registry on disk that names no module package', { registryLayers: 0 }],
+    ['a tree with an application half and no shim at all', { applicationFiles: 3, shims: 0 }],
   ])('refuses %s', (_label, override) => {
     expect(vacuousReason({ ...ok, ...override })).not.toBeNull();
+  });
+
+  it('prints the layout\'s own refusal rather than a guess of its own', () => {
+    // R17. The sentence used to be written here and said *"no workspace member
+    // declares the admin source alias"*; measured on the merge of batches 15
+    // and 16 the alias was declared and the cause was the module root, so a
+    // correct file was sent for repair.
+    const reason = vacuousReason({
+      ...ok,
+      adminResolved: false,
+      adminRefusal: 'admin has no App.tsx under /w/admin/src',
+    });
+    expect(reason).toBe('admin has no App.tsx under /w/admin/src');
+  });
+
+  it('words itself only for a workspace with no admin application at all', () => {
+    // The `??` branch, and the only case R17 leaves to the caller.
+    expect(vacuousReason({ ...ok, adminResolved: false, adminRefusal: null })).toContain(
+      'no admin application',
+    );
+  });
+
+  it('does not refuse a shimless tree whose application half is empty', () => {
+    // The other half of R18(6), and it is the claim the terminal state rests
+    // on: with no module surface directory left, no packaged file can reach a
+    // shim by any specifier shape — a bare one resolves `external`, a relative
+    // one from `packages/modules/**` never lands under `admin/src`, and a `@/`
+    // one is recorded as `aliased-reach` before `resolveAdmin` is consulted.
+    // The shim set has no reader, so a refusal over it has no subject.
+    expect(vacuousReason({ ...ok, applicationFiles: 0, shims: 0 })).toBeNull();
+    // And it is still live for as long as one surface directory remains.
+    expect(vacuousReason({ ...ok, applicationFiles: 1, shims: 0 })).not.toBeNull();
+  });
+
+  it('says nothing about a checkout with no generated registry', () => {
+    // `null` and `0` are different answers: a checkout that never ran
+    // `composer:generate` has no expectation to be short of, and the token is
+    // omitted rather than printed `0/0`.
+    expect(vacuousReason({ ...ok, registryLayers: null })).toBeNull();
   });
 });
 
@@ -344,7 +395,9 @@ describe('check:admin-surface — an empty ledger is not a vacuous pass', () => 
     // reach zero debt.
     expect(vacuousReason(VACUOUS_INPUT)).toBeNull();
     expect(vacuousReason({ ...VACUOUS_INPUT, walkedFiles: 0 })).toContain('vacuous pass');
-    expect(vacuousReason({ ...VACUOUS_INPUT, shims: 0 })).toContain('not wired');
+    expect(
+      vacuousReason({ ...VACUOUS_INPUT, applicationFiles: 3, shims: 0 }),
+    ).toContain('not wired');
   });
 });
 

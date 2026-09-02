@@ -172,9 +172,11 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 /**
- * `App.tsx` imports every host screen statically, and one of them (`cms`' Puck
- * editor) reaches `@dnd-kit/dom`, which constructs a `ResizeObserver` at module
- * scope. jsdom has none. The stub is a module-load accommodation and nothing
+ * `@dnd-kit/dom` constructs a `ResizeObserver` at module scope, and jsdom has
+ * none. This read *"`App.tsx` imports every host screen statically, and one of
+ * them (`cms`' Puck editor)"* until feature 091's batch 16 moved that editor
+ * into `@endora-commerce/mod-cms`; the stub stays because a lazily loaded
+ * screen reaches the same constructor, and only the reason changed. The stub is a module-load accommodation and nothing
  * this file asserts touches it.
  */
 globalThis.ResizeObserver ??= class {

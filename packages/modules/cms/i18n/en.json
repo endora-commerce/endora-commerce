@@ -151,5 +151,9 @@
   "errors.CMS_REFERENCED": "Cms Referenced.",
   "errors.CMS_HOOK_SYSTEM_PROTECTED": "Cms Hook System Protected.",
   "errors.CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE": "Cms Language Not In Channel Scope.",
-  "errors.CMS_SCHEMA_UPGRADE_FAILED": "Cms Schema Upgrade Failed."
+  "errors.CMS_SCHEMA_UPGRADE_FAILED": "Cms Schema Upgrade Failed.",
+  "nav.cmsPages.label": "CMS Pages",
+  "nav.cmsBlocks.label": "CMS Blocks",
+  "nav.cmsTemplates.label": "CMS Templates",
+  "nav.cmsHooks.label": "CMS Hooks"
 }

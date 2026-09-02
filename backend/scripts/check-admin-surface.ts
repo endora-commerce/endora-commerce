@@ -74,6 +74,8 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 import { UNPUBLISHED_ADMIN_REACHES, type UnpublishedAdminReach } from './ledgers/admin-surface.js';
+import { adminRegistryPathOf } from './lib/admin-surfaces.js';
+import { adminRegistryPresent, moduleAdminLayers } from './lib/module-admin-layers.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
@@ -477,17 +479,47 @@ export function reachesOf(
  */
 export function vacuousReason(input: {
   readonly adminResolved: boolean;
+  /**
+   * The layout's own refusal sentence, printed instead of a guess (R17).
+   *
+   * Non-null exactly when {@link vacuousReason} is told the layout did not
+   * resolve. It used to be a sentence written here — *"no workspace member
+   * declares the admin source alias"* — and on the merge of batches 15 and 16
+   * that sentence was false: the alias was declared, and the cause was the
+   * module root. A correct file was sent for repair.
+   */
+  readonly adminRefusal: string | null;
   readonly kitFound: boolean;
   readonly implementationSubpaths: number;
   readonly barrelsRead: number;
   readonly barrelWithStar: string | null;
   readonly walkedFiles: number;
+  /**
+   * Files the **application** half walked — `admin/src`'s module surface
+   * directories, which this feature drains to zero.
+   *
+   * It gates the `shims === 0` refusal and nothing else. See below.
+   */
+  readonly applicationFiles: number;
+  /**
+   * Admin layers the generated contribution registry names, or `null` when that
+   * artefact is not on disk (R18(4), R13b).
+   *
+   * `null` and `0` are different answers, exactly as they are in
+   * `check:admin-zones`: a checkout that never ran `composer:generate` has no
+   * expectation to be short of, while a registry that is there and names no
+   * package has lost the independent author of the package half's floor.
+   */
+  readonly registryLayers: number | null;
   readonly shims: number;
 }): string | null {
   if (!input.adminResolved) {
     return (
-      'no workspace member declares the admin source alias, so there is no module surface to ' +
-      'walk and no host to judge a reach against — refusing to report a vacuous pass'
+      input.adminRefusal ??
+      // The one case a caller may word itself: a workspace with no frontend at
+      // all, which is every fixture tree under `backend/test/helpers/`.
+      'this workspace has no admin application, so there is no module surface to walk and ' +
+        'no host to judge a reach against — refusing to report a vacuous pass'
     );
   }
   if (!input.kitFound) {
@@ -516,13 +548,33 @@ export function vacuousReason(input: {
       'every symbol would read as published'
     );
   }
+  // **The refusal that carries the terminal state** (R18(3)). Its text is
+  // unchanged and its meaning is not: with the application half legitimately
+  // empty, a zero walk can only be the *package* half having gone missing.
   if (input.walkedFiles === 0) {
     return (
       'the walk opened no module-owned admin file — a finding count over an empty input is ' +
       'not a clean tree; refusing to report a vacuous pass'
     );
   }
-  if (input.shims === 0) {
+  if (input.registryLayers === 0) {
+    return (
+      'the generated admin contribution registry is on disk and names no module package, so ' +
+      "the package half's floor has no independent author and this walk is corroborated by " +
+      'nothing; refusing to report a vacuous pass'
+    );
+  }
+  // **Conditional on the application half being non-empty** (R18(6)), and the
+  // reasoning is measured rather than stylistic: with that half empty no
+  // packaged file can reach a shim at all. A bare specifier resolves
+  // `external`; a relative specifier from `packages/modules/**` never lands
+  // under `admin/src` and resolves `external`; a `@/` specifier is recorded as
+  // `aliased-reach` **before** `resolveAdmin` is consulted. So the shim set has
+  // no reader, and a refusal over a population with no reader is a refusal with
+  // no subject. Leaving it unconditional would refuse the terminal state for a
+  // fact about a population that is gone; deleting it would drop a live refusal
+  // for as long as one surface directory remains.
+  if (input.applicationFiles > 0 && input.shims === 0) {
     return (
       'no file under the admin source root is a re-export shim, so every reach into the host ' +
       'would read as unpublished and the ledger would be the whole tree — the kit is not ' +
@@ -613,7 +665,9 @@ async function main(): Promise<void> {
   const shims = new Map<string, ReadonlySet<string>>();
   if (admin !== null && kit !== null) {
     for (const path of walkFiles(admin.sourceRoot)) {
-      if (path.startsWith(`${admin.moduleRoot}/`)) continue;
+      // A `null` module root excludes nothing, which is the right answer: every
+      // file under the source root is the admin application's own.
+      if (admin.moduleRoot !== null && path.startsWith(`${admin.moduleRoot}/`)) continue;
       const subpaths = shimSubpathsOf(readFileSync(path, 'utf8'), kit.name);
       if (subpaths !== null) shims.set(relative(layout.repoRoot, path), subpaths);
     }
@@ -625,10 +679,14 @@ async function main(): Promise<void> {
   const sites: AdminReachSite[] = [];
   let walkedFiles = 0;
   const owners = new Set<string>();
-  if (admin !== null) {
+  // The **application** half — `admin/src`'s module surface directories. This
+  // feature drains it to zero, and its size gates the shim refusal (R18(6)).
+  let applicationFiles = 0;
+  if (admin !== null && admin.moduleRoot !== null) {
     for (const [directory, owner] of admin.moduleOfDirectory) {
       for (const path of walkFiles(join(admin.moduleRoot, directory))) {
         walkedFiles += 1;
+        applicationFiles += 1;
         owners.add(owner);
         sites.push(
           ...reachesOf(
@@ -641,10 +699,15 @@ async function main(): Promise<void> {
       }
     }
   }
+  // The **package** half — every module package's own `src/admin/`. It is what
+  // outlives the drain, it grows with every module package, and since Phase 5
+  // it is what the floors below rest on.
+  const packagedFiles: string[] = [];
   for (const root of layout.moduleRoots) {
     if (root.origin !== 'workspace-package' || root.moduleId === null) continue;
     for (const path of walkFiles(join(root.directory, 'src', 'admin'))) {
       walkedFiles += 1;
+      packagedFiles.push(resolvePath(path));
       owners.add(root.moduleId);
       sites.push(
         ...reachesOf(readFileSync(path, 'utf8'), relative(layout.repoRoot, path), root.moduleId, true),
@@ -652,13 +715,37 @@ async function main(): Promise<void> {
     }
   }
 
+  // R18(4) — the registry/walk disagreement. `expected` is what the generated
+  // contribution registry names, which is a different program's answer at a
+  // different time and one `overlay:check` refuses stale, foreign or empty;
+  // `covered` is the layers this walk opened a file in. **The token's presence
+  // turns on that file being on disk and on nothing else** — never on the admin
+  // layout, which is precisely the gate that failed silently over 54 layers in
+  // `check:admin-zones` (`admin-kit-surface.md` §7.5).
+  const registryFile = adminRegistryPathOf(members);
+  const registryLayers = adminRegistryPresent(registryFile)
+    ? moduleAdminLayers(layout, registryFile!)
+    : null;
+  const coveredRegistryLayers =
+    registryLayers === null
+      ? 0
+      : registryLayers.filter((layer) => {
+          const directory = resolvePath(layer.directory);
+          return packagedFiles.some(
+            (file) => file === directory || file.startsWith(`${directory}/`),
+          );
+        }).length;
+
   const vacuous = vacuousReason({
     adminResolved: admin !== null,
+    adminRefusal: await layout.adminSurfacesRefusal(),
     kitFound: kit !== null,
     implementationSubpaths,
     barrelsRead: barrels.size,
     barrelWithStar,
     walkedFiles,
+    applicationFiles,
+    registryLayers: registryLayers === null ? null : registryLayers.length,
     shims: shims.size,
   });
   if (vacuous !== null) {
@@ -689,7 +776,7 @@ async function main(): Promise<void> {
       join(stripped, 'index.tsx'),
     ]) {
       if (!existsSync(candidate) || !statSync(candidate).isFile()) continue;
-      return candidate.startsWith(`${admin!.moduleRoot}/`)
+      return admin!.moduleRoot !== null && candidate.startsWith(`${admin!.moduleRoot}/`)
         ? { kind: 'module', path: relative(layout.repoRoot, candidate) }
         : { kind: 'admin', path: relative(layout.repoRoot, candidate) };
     }
@@ -733,6 +820,22 @@ async function main(): Promise<void> {
         expected: implementationSubpaths,
         covered: barrels.size,
       },
+      // R18(4). `manifest-index` above is satisfied by any owner the walk
+      // produced a file for, so it cannot see the case this token exists for: a
+      // module package's admin layer dropping out of the walk while the module
+      // keeps contributing. Omitted rather than printed `0/0` where the
+      // artefact is not on disk, which `read-size.ts` refuses as
+      // `no-expectation`; a registry that is there and names none is
+      // `vacuousReason`'s refusal above.
+      ...(registryLayers === null
+        ? []
+        : [
+            {
+              source: 'admin-registry',
+              expected: registryLayers.length,
+              covered: coveredRegistryLayers,
+            },
+          ]),
     ],
   });
 

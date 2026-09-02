@@ -59,8 +59,6 @@ import { CmsPagePicker } from '@/components/cms-picker/CmsPagePicker';
 import { OrganizationPicker, OrganizationStatusBadge } from '@/components/organization-picker';
 import { OrganizationPickerMulti } from '@/components/organization-picker/OrganizationPickerMulti';
 import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
-import { ContentLanguageTabs } from '@/modules/cms/components/ContentLanguageTabs';
-import { ScopePicker } from '@/modules/cms/components/ScopePicker';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -102,7 +100,15 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     expect(AssetFieldPicker).toBe(kitComponents.AssetFieldPicker);
   });
 
-  it('serves the two remaining P8 members through both spellings', () => {
+  // **All four P8 members have left this group, and the last two left together.**
+  // Batch 15 took `orders`' `Section` and batch 16 `cms`' two content
+  // components, in merge requests that were open at the same time; the
+  // e-mail-outcome pair had gone in batch 12. So there is no P8 member left
+  // with two spellings and nothing here to compare — this is the P9 note
+  // below arriving for a whole family rather than for one component. The
+  // reasoning each removal recorded is kept verbatim, because it is the
+  // evidence that each shim died of its last reader leaving and not of
+  // somebody tidying.
     // Feature 091's P8 published four generic members that sat under a module's
     // admin directory and were reached from another's: `cms`' two content
     // components, `orders`' `Section` and `invoices`' e-mail-outcome helpers.
@@ -138,9 +144,19 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     // three functions still have is `admin/test/kit/kit-invoice-email-outcome.test.ts`,
     // which drives the published bindings; what is gone is a second spelling of
     // them, which is the thing this file exists to compare.
-    expect(ContentLanguageTabs).toBe(kitComponents.ContentLanguageTabs);
-    expect(ScopePicker).toBe(kitComponents.ScopePicker);
-  });
+    // **`cms`' two have left this group**, in feature 091's batch 16, and it is
+    // the same removal a third time — batch 12 took the e-mail-outcome pair and
+    // batch 13 the fulfilment picker, each for this reason. `cms` took its
+    // admin surface into `@endora-commerce/mod-cms/admin`, so
+    // `admin/src/modules/cms/` is gone and the two shims that stood in it went
+    // with the directory. Their only remaining reader was this file — `blog`,
+    // the reach P8 published them for, names the subpath directly now that it
+    // is a package too — so keeping the shims would have kept two files alive
+    // for two assertions, and keeping the assertions without them would have
+    // compared `kitComponents` to itself. What the two components still have is
+    // `admin/test/kit/kit-content-scope.test.tsx`, which drives the published
+    // bindings; what is gone is a second spelling of them, which is the thing
+    // this file exists to compare.
 
   // **The P9 fulfilment picker had a case here and no longer has a shim to
   // compare.** P9 published `inventory`'s warehouse-picking control into the
