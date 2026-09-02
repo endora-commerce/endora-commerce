@@ -137,9 +137,19 @@ export interface ReconcileResult {
  * A backend failure is counted and reconciliation continues. Redis being down
  * must not stop the process from booting or from repairing the feeds it can:
  * Postgres still holds the truth, and the next boot tries again.
+ *
+ * The three `catch` blocks below absorb a Redis failure and nothing else:
+ * {@link SchedulerBackend} is BullMQ's Job Scheduler API plus this module's own
+ * in-memory fake, so no gated port is reachable from any of them and there is no
+ * presence answer to re-throw. The binding is called `schedulers` rather than
+ * `backend` for exactly that reason — `check-port-catches` follows a port
+ * through the value it is constructed into, this module builds one under the
+ * property name `backend` (`ArtefactStore.put` returns `{ backend, locator }`),
+ * and a second binding of that spelling made all three read as a `catch` around
+ * a port. The name is what tells the two apart.
  */
 export async function reconcileSchedulers(
-  backend: SchedulerBackend,
+  schedulers: SchedulerBackend,
   specs: ReadonlyArray<FeedScheduleSpec>,
 ): Promise<ReconcileResult> {
   const result: ReconcileResult = { upserted: 0, removed: 0, failed: 0 };
@@ -149,7 +159,7 @@ export async function reconcileSchedulers(
     const id = feedSchedulerId(spec.productFeedId);
     desired.add(id);
     try {
-      await backend.upsert(id, spec.pattern, spec.timezone);
+      await schedulers.upsert(id, spec.pattern, spec.timezone);
       result.upserted += 1;
     } catch {
       result.failed += 1;
@@ -158,20 +168,20 @@ export async function reconcileSchedulers(
 
   let existing: SchedulerBackendEntry[];
   try {
-    existing = await backend.list();
+    existing = await schedulers.list();
   } catch {
     result.failed += 1;
     return result;
   }
 
-  // command-coverage-ignore: Redis-only. `backend.remove` here drops a BullMQ Job
+  // command-coverage-ignore: Redis-only. `schedulers.remove` here drops a BullMQ Job
   // Scheduler, not a database row; Postgres remains the source of truth for
   // schedules and this pass only makes the derived index agree with it.
   for (const entry of existing) {
     if (productFeedIdFromSchedulerId(entry.id) === null) continue;
     if (desired.has(entry.id)) continue;
     try {
-      await backend.remove(entry.id);
+      await schedulers.remove(entry.id);
       result.removed += 1;
     } catch {
       result.failed += 1;
@@ -227,14 +237,14 @@ export function bullSchedulerBackend(
 }
 
 export class BullFeedScheduler implements FeedScheduler {
-  private readonly backend: SchedulerBackend;
+  private readonly schedulers: SchedulerBackend;
 
   constructor(queue: Queue<FeedGenerationJobData>) {
-    this.backend = bullSchedulerBackend(queue);
+    this.schedulers = bullSchedulerBackend(queue);
   }
 
   async upsert(spec: FeedScheduleSpec): Promise<void> {
-    await this.backend.upsert(
+    await this.schedulers.upsert(
       feedSchedulerId(spec.productFeedId),
       spec.pattern,
       spec.timezone,
@@ -244,11 +254,11 @@ export class BullFeedScheduler implements FeedScheduler {
   async remove(productFeedId: string): Promise<void> {
     // command-coverage-ignore: Redis-only — removes this feed's BullMQ Job
     // Scheduler. The audited write is the feed Command that made it obsolete.
-    await this.backend.remove(feedSchedulerId(productFeedId));
+    await this.schedulers.remove(feedSchedulerId(productFeedId));
   }
 
   async list(): Promise<FeedSchedulerEntry[]> {
-    const entries = await this.backend.list();
+    const entries = await this.schedulers.list();
     const out: FeedSchedulerEntry[] = [];
     for (const entry of entries) {
       const productFeedId = productFeedIdFromSchedulerId(entry.id);
@@ -264,6 +274,6 @@ export class BullFeedScheduler implements FeedScheduler {
   }
 
   async reconcile(specs: FeedScheduleSpec[]): Promise<ReconcileResult> {
-    return reconcileSchedulers(this.backend, specs);
+    return reconcileSchedulers(this.schedulers, specs);
   }
 }

@@ -9,6 +9,7 @@ import {
   type FeedDeliveryProtocol,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { FeedArtefact } from '../../entities/feed-artefact.entity.js';
 import type { FeedDelivery } from '../../entities/feed-delivery.entity.js';
 import { FeedDeliveryAttempt } from '../../entities/feed-delivery-attempt.entity.js';
@@ -44,8 +45,11 @@ import { toFailureDetail } from './delivery-redaction.js';
  *    and `failureDetail` goes through `toFailureDetail`, because a transport
  *    library will put a password into an error message.
  *
- * Nothing here throws at the caller. `deliver` returns an outcome; the worker
- * decides whether to retry from it, and the run is untouched either way.
+ * Nothing here throws at the caller **except a module's presence answer**.
+ * `deliver` returns an outcome; the worker decides whether to retry from it,
+ * and the run is untouched either way. `ModuleDisabledError` is the one
+ * exception, and it is not an outcome: `credentials` being switched off is a
+ * decision the operator took, not a delivery that failed (Constitution XVII).
  */
 
 export interface DeliveryOutcome {
@@ -99,16 +103,27 @@ export class DeliveryService {
   // -------------------------------------------------------------------------
 
   /**
-   * Delivers one published artefact. Never throws.
+   * Delivers one published artefact.
    *
    * `skipped` and `failed` are different answers on purpose: skipped means
    * nothing was configured or delivery is off, which is not a problem; failed
    * means a configured target did not receive the file, which is.
+   *
+   * **It throws for exactly one thing**: `ModuleDisabledError`. Every target's
+   * password lives in `credentials` (FR-107), so `resolveTarget` and `find` go
+   * through `credentialsService` — a gated port whose owner an operator can
+   * switch off. Reporting that as `internal_error` would tell the operator that
+   * this module has a defect when the truth is that they withdrew the capability
+   * it needs, and it would go on doing so on every retry.
    */
   async deliver(request: DeliverRequest): Promise<DeliveryOutcome> {
     try {
       return await this.attemptDelivery(request);
     } catch (err) {
+      // Composition checklist item 7 — first line, and never a status-code test:
+      // `ModuleDisabledError` is an `HttpError`, so anything narrower lets the
+      // presence answer through by accident rather than by decision.
+      rethrowIfModuleDisabled(err);
       // The catch-all exists because FR-103 is absolute: a bug in this file must
       // not be able to fail a run whose artefact is already published and served.
       this.deps.logWarn?.('product_feeds: delivery raised an unexpected error', {
