@@ -244,6 +244,34 @@ export const manifest = defineModuleManifest({
     { code: 'RFQ_NOT_NEW' },
     { code: 'RFQ_NOT_QUOTED' },
   ],
+  /**
+   * `rfqs:handle` is declared in the core `PERMISSION_CATALOGUE`, which carries
+   * its label and names this module as its owner. Re-declaring it here adds no
+   * owner and no label — it adds the one thing only this module can state
+   * (D-175, feature 080 T057).
+   *
+   * `RfqCreatePage` prefills an agreed price from
+   * `GET /api/v1/admin/products/:id/resolved-price`, which `price_lists` gates
+   * with `price_lists:read`. D-173 made that gate deliberately: the route used
+   * to enforce `rfqs:handle`, a code its own switchable owner could take off
+   * `/admin-roles` while `price_lists` — `nonDeactivatable` — went on demanding
+   * it, and !956's repair was for the consumer to gate on a code it owns. The
+   * ruling recorded the operator-visible consequence in the same breath: *"a
+   * role holding only `rfqs:handle` loses the RFQ create screen's price prefill
+   * until granted it; the screen degrades to manual entry rather than
+   * erroring"*, and the dev seed gives `sales_representative` both codes for
+   * that reason.
+   *
+   * That sentence was in a ruling, a route comment and a seed, and in nothing
+   * an operator could read. It is here now. It is advisory only: the screen's
+   * fallback stays, no upsert is refused, and this is **not** a `dependencies`
+   * entry — `price_lists` is not this module's lifecycle dependency and making
+   * it one would put a locked module's schema in the way of switching quote
+   * requests off.
+   */
+  permissions: [
+    { code: 'rfqs:handle', label: 'Handle quote requests', requires: ['price_lists:read'] },
+  ],
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {

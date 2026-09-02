@@ -156,7 +156,10 @@ export class PermissionCatalogueService {
   }
 
   #merge(): MergedRow[] {
-    const byCode = new Map<string, { entry: PermissionCatalogueEntry; owners: Set<string> }>();
+    const byCode = new Map<
+      string,
+      { code: string; module: string; label: string; owners: Set<string>; requires: Set<string> }
+    >();
 
     // Core first: a core row wins the label and the display module on a code
     // collision, which is the long-standing behaviour and what the dedupe test
@@ -164,8 +167,11 @@ export class PermissionCatalogueService {
     // own comment (feature 072, T017).
     for (const row of PERMISSION_CATALOGUE) {
       byCode.set(row.code, {
-        entry: { code: row.code, module: row.module, label: row.label },
+        code: row.code,
+        module: row.module,
+        label: row.label,
         owners: new Set([row.module]),
+        requires: new Set<string>(),
       });
     }
 
@@ -175,25 +181,61 @@ export class PermissionCatalogueService {
         const existing = byCode.get(decl.code);
         if (existing) {
           // A second declarer of an already-known code contributes an owner and
-          // nothing else — the row keeps the first label it was given.
+          // its requirements — the row keeps the first label it was given.
+          //
+          // `requires` is the one field a later declarer adds to rather than
+          // loses (D-175). A shared code opens more than one surface and each
+          // has its own needs, so the union is the only answer that is right for
+          // every one of them; it is advisory, so advising a code an operator
+          // already holds costs nothing while dropping one leaves a screen
+          // half-working with no explanation.
           existing.owners.add(manifest.id);
+          for (const code of decl.requires ?? []) existing.requires.add(code);
           continue;
         }
         byCode.set(decl.code, {
-          entry: {
-            code: decl.code,
-            module: decl.module ?? manifest.id,
-            label: decl.label,
-          },
+          code: decl.code,
+          module: decl.module ?? manifest.id,
+          label: decl.label,
           owners: new Set([manifest.id]),
+          requires: new Set(decl.requires ?? []),
         });
       }
     }
 
-    return [...byCode.values()].sort(
-      (a, b) =>
-        a.entry.module.localeCompare(b.entry.module) ||
-        a.entry.code.localeCompare(b.entry.code),
+    return [...byCode.values()]
+      .map((row) => ({
+        entry: {
+          code: row.code,
+          module: row.module,
+          label: row.label,
+          owners: [...row.owners].sort(),
+          ...(row.requires.size > 0 ? { requires: [...row.requires].sort() } : {}),
+        } satisfies PermissionCatalogueEntry,
+        owners: row.owners as ReadonlySet<string>,
+      }))
+      .sort(
+        (a, b) =>
+          a.entry.module.localeCompare(b.entry.module) ||
+          a.entry.code.localeCompare(b.entry.code),
+      );
+  }
+
+  /**
+   * Every declared requirement, as `code -> the codes a role holding it needs`
+   * (D-175, feature 080 T057).
+   *
+   * The **vocabulary's** view, not the grantable set's: the advisory has to
+   * survive its target's owner being switched off, or it would go quiet at
+   * exactly the moment an operator most needs to know why a screen came back
+   * incomplete. Empty requirement sets are omitted, so `size` is the number of
+   * codes that declare one.
+   */
+  listRequirementsByCode(): Map<string, readonly string[]> {
+    return new Map(
+      this.#merge()
+        .filter((row) => (row.entry.requires?.length ?? 0) > 0)
+        .map((row) => [row.entry.code, row.entry.requires as readonly string[]]),
     );
   }
 }

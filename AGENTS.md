@@ -456,7 +456,23 @@ Full guide, including the contribution-point rules and the request scope:
 Every module with routes gated by `requireAdmin(...)` **must** register its permission codes
 so they appear on `/admin-roles` and pass the CI inventory.
 
-1. **`manifest.ts`** — `permissions: [{ code, label, module? }]` for every code this module owns.
+1. **`manifest.ts`** — `permissions: [{ code, label, module?, requires? }]` for every code this
+   module owns. `requires` is **advisory** (D-175, feature 080 T057): the codes a role holding
+   this one also needs before the surface it opens is whole. Nothing reads it at runtime, no
+   upsert is refused, and it is **not** a lifecycle edge — it puts no module in your
+   `dependencies` and does not stand in the way of an operator switching that owner off. The
+   role editor renders the shortfall for the codes currently ticked, with a one-click add.
+   **Do not write a fact the platform already derives.** *A module enforcing a code another
+   module owns* is a different question, it is derived from the gates and the manifests
+   (`backend/test/helpers/foreign-gates.ts`, D-173), and declaring it here as well would be two
+   answers to one question waiting to disagree — the shape D-100 is about. `requires` carries
+   what nothing here can work out: a coupling running from an admin screen's own fetches to
+   another module's route, plus the judgement of whether a role without the second code is
+   broken or merely degraded in a way somebody accepted. Measured before the field was added:
+   of 705 `apiClient` call sites in module-owned admin layers, 82 name their path as a plain
+   literal, and 299 of the 689 admin route registrations bind their `preHandler` to a variable —
+   so even the derivable half would be a heuristic over a minority of the sites, and the
+   judgement is not derivable at all.
 2. **`manifest-index.generated.ts`** — **generated** (feature 072): a module that ships a
    lifecycle-shape `manifest.ts` is picked up by the tree walk. Run
    `pnpm --filter backend run composer:generate` and commit the result; never edit the file.
@@ -497,11 +513,27 @@ so they appear on `/admin-roles` and pass the CI inventory.
    reporting clean over the modules it can still find (issues #244 and #215). It carries the
    ratchet rather than a new `check-*` script because it is already the instrument that answers
    "does this code have a label", and two derivations of one population are two answers waiting
-   to disagree.
+   to disagree. The file's **third** `describe` is item 1's `requires`, on the same reasoning
+   and with the same disclosure (`[permission-dependencies] read: …`): the machine owns exactly
+   one half of that field — that a requirement names a code the platform's **vocabulary** holds,
+   `listKnownCodes()` and deliberately not the grantable set, so a requirement on a
+   switched-off module's code is not a finding — because a typo, or a code its owner renamed,
+   would otherwise advise an operator forever to grant something that does not exist. The rule
+   and its red proofs are `backend/test/helpers/permission-dependencies.ts` and
+   `backend/test/unit/admin_roles/permission-dependencies.test.ts`.
 
 Do not duplicate shared codes from core `PERMISSION_CATALOGUE`
 (`packages/contracts/src/admin.ts`). Contract:
 `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
+
+**A code has three notions attached to it and they are not one thing** — `module`, a display
+grouping that need not be a module id at all; `owners`, the set whose presence keeps the code
+grantable; and the **vocabulary versus grantable** split. Until D-175's T058 only the first was
+visible anywhere, which is why a reader seeing `module: 'quote_requests'` on `rfqs:handle`
+reasonably concluded there was one owner and D-173 is the proof that a careful reader got it
+wrong. All three are written down **once**, in `docs/docs/architecture/permissions.md`; `owners`
+is now on the wire on `GET /api/v1/admin/permissions` and rendered on `/admin-roles` wherever it
+says something the grouping does not.
 
 ### Command palette (Principle XVI)
 

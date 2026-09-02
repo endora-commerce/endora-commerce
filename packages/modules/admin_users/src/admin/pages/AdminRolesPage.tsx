@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, ShieldAlert } from 'lucide-react';
+import { Info, Plus, ShieldAlert } from 'lucide-react';
+import { missingPermissionRequirements } from '@endora-commerce/contracts';
 import { ApiError, apiClient, cn } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
@@ -30,6 +31,19 @@ interface PermissionRow {
   code: string;
   module: string;
   label: string;
+  /**
+   * The modules whose presence keeps this code grantable — D-175 / T058.
+   *
+   * It is **not** `module`, which is a display grouping: `_lifecycle` files its
+   * codes under `module: 'module_lifecycle'`, and a shared code such as
+   * `integrations:manage` has two owners and one grouping. Only the grouping
+   * used to be on the wire, which is why a reader seeing one module name
+   * reasonably concluded there was one owner — and D-173 is the proof that a
+   * careful reader got it wrong.
+   */
+  owners: string[];
+  /** Codes a role holding this one also needs — advisory (D-175 / T057). */
+  requires?: string[];
 }
 
 const NEW_ROLE_KEY = '__new__';
@@ -262,6 +276,23 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
     return Array.from(byModule.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [props.permissions]);
 
+  /**
+   * What this selection is short of — D-175's advisory panel.
+   *
+   * `missingPermissionRequirements` is `@endora-commerce/contracts`', not a
+   * derivation of this screen's: the same function answers the permission
+   * inventory's sweep, so the panel and the check cannot come to disagree about
+   * what a role is missing. It skips a requirement with no row here, so nothing
+   * is ever offered that has no checkbox to tick.
+   *
+   * Advisory in the strict sense: it changes no submitted value and refuses no
+   * save. A role the operator means to leave incomplete is saved incomplete.
+   */
+  const missing = useMemo(
+    () => (wildcard ? [] : missingPermissionRequirements(permissions, props.permissions)),
+    [wildcard, permissions, props.permissions],
+  );
+
   return (
     <Card>
       <CardContent className="space-y-4 pt-6">
@@ -329,6 +360,45 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
 
           <div className={cn('space-y-3', wildcard && 'pointer-events-none opacity-50')}>
             <h3 className="text-sm font-semibold">{t('adminRoles.permissionsHeading')}</h3>
+            {missing.length > 0 ? (
+              <Alert>
+                <Info className="size-4" />
+                <AlertTitle>{t('adminRoles.dependencies.title')}</AlertTitle>
+                <AlertDescription className="space-y-2">
+                  <p>{t('adminRoles.dependencies.description')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {missing.map((code) => (
+                      <Button
+                        key={code}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={(): void =>
+                          setPermissions((prev) => new Set(prev).add(code))
+                        }
+                      >
+                        {t('adminRoles.dependencies.add', { code })}
+                      </Button>
+                    ))}
+                    {missing.length > 1 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={(): void =>
+                          setPermissions((prev) => {
+                            const next = new Set(prev);
+                            for (const code of missing) next.add(code);
+                            return next;
+                          })
+                        }
+                      >
+                        {t('adminRoles.dependencies.addAll')}
+                      </Button>
+                    ) : null}
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ) : null}
             {grouped.map(([module, perms]) => (
               <fieldset key={module} className="rounded-md border p-3">
                 <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -363,6 +433,16 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
                           fallbackBundle,
                         })}
                       </span>
+                      {p.requires?.length ? (
+                        <span className="text-xs text-muted-foreground">
+                          ({t('adminRoles.requires', { codes: p.requires.join(', ') })})
+                        </span>
+                      ) : null}
+                      {ownersWorthShowing(p) ? (
+                        <span className="text-xs text-muted-foreground">
+                          ({t('adminRoles.owners', { modules: p.owners.join(', ') })})
+                        </span>
+                      ) : null}
                     </label>
                   ))}
                 </div>
@@ -382,6 +462,21 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * Whether this row's owner set says anything its display grouping does not —
+ * T058.
+ *
+ * The model has three notions and only `module` was ever visible, so the fix is
+ * to show `owners` where the two differ: a shared code kept alive by either of
+ * two modules, or a code filed under a grouping that is no module id at all.
+ * Rendering it on every row as well would bury the cases that matter under one
+ * repeated word, which is how the distinction became invisible in the first
+ * place.
+ */
+function ownersWorthShowing(row: PermissionRow): boolean {
+  return row.owners.length > 1 || row.owners[0] !== row.module;
 }
 
 function translateRoleName(
