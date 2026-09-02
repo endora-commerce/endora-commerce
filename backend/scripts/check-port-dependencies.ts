@@ -215,6 +215,7 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // decides whether the consumers are built at all (T131).
   'pimErgonodeRunWorkers',
   'pimPimcoreRunWorkers',
+  'pimUnopimRunWorkers',
   'productFeedsRunWorkers',
   // Pinned per composition and read at construction, so each root registers
   // them early beside the worker flag: production derives the feed base URL
@@ -527,6 +528,9 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // Same category: whether this process runs the Pimcore import consumer
   // (feature 089).
   'pimPimcoreRunWorkers',
+  // Same category: whether this process runs the UnoPim import and reaper
+  // consumers (feature 089).
+  'pimUnopimRunWorkers',
   // Same category: whether this process runs the feed generation and reaper
   // consumers, read at construction because it decides whether they are built
   // at all (T137).

@@ -1,8 +1,6 @@
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import {
-  PIM_CONNECTOR_REGISTRY_PORT,
-  type PimConnectorRegistryPort,
-} from '@endora-commerce/contracts';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import type { PimConnectorRegistryPort } from '@endora-commerce/contracts';
 import { PimConnectorActivationLock } from './entities/pim-connector-activation-lock.entity.js';
 import { PimConnectorRegistryService } from './services/pim-connector-registry.service.js';
 
@@ -13,7 +11,6 @@ export {
 
 interface PimConnectorCradle {
   emFactory: () => import('@mikro-orm/postgresql').EntityManager;
-  pimConnectorRegistryPort: PimConnectorRegistryPort;
 }
 
 interface ModuleActivationChangedPayload {
@@ -23,7 +20,7 @@ interface ModuleActivationChangedPayload {
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<PimConnectorRegistryPort>(
-    PIM_CONNECTOR_REGISTRY_PORT,
+    'pimConnectorRegistryPort',
     ctx
       .asFunction(({ emFactory }: PimConnectorCradle) => new PimConnectorRegistryService(emFactory))
       .singleton(),
@@ -38,7 +35,7 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.subscribe('module.activation.changed', async (payload) => {
     const event = payload as ModuleActivationChangedPayload;
     if (event.moduleId !== 'pim_unopim' || typeof event.active !== 'boolean') return;
-    const registry = ctx.cradle<PimConnectorCradle>().pimConnectorRegistryPort;
+    const registry = lazyPort<PimConnectorRegistryPort>(ctx, 'pimConnectorRegistryPort');
     if (event.active) {
       await registry.recordActive('pim_unopim', null);
     } else {
