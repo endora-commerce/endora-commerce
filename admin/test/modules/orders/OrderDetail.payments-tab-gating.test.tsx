@@ -26,6 +26,23 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * The gate is at the tab strip rather than inside the panel, because the
  * refusal has to be an **absent tab** and the tab button is rendered by
  * `OrderDetail`.
+ *
+ * ## What P7d changed, and what it deliberately did not
+ *
+ * Every case below still holds and every expectation is unchanged. What moved
+ * is **who answers**: this screen used to write
+ * `isVisible({ module: 'payments', requiredPermission: 'payments:read' })`
+ * itself — the `visibility-gate` key of
+ * `backend/scripts/ledgers/foreign-module-ids.ts` — and now shows the button by
+ * counting `useAdminZone('order.detail.payment', …)` (Z15), which has already
+ * applied both axes and the contributor's own declared code. So the registry is
+ * part of the fixture: a screen with no contribution enumerates none and shows
+ * no tab, which is the same answer for a different reason and is asserted last.
+ *
+ * The contribution is `payments`' **real** one, imported from the package,
+ * because the subject here is that the host's count agrees with what the module
+ * declares. `admin/test/modules/payments/order-payments-zone.test.tsx` is where
+ * that declaration is asserted in its own right.
  */
 
 /** The codes the operator holds, and the modules the projection reports, per case. */
@@ -52,6 +69,11 @@ vi.mock('@/lib/api-client', async () => {
 });
 
 const { OrderDetail } = await import('../../../src/modules/orders/OrderDetail');
+const payments = await import('@endora-commerce/mod-payments/admin');
+
+/** The registry the admin would have built from `modules.generated.ts`. */
+const REGISTRY = [{ moduleId: 'payments', contributions: payments.contributions }];
+let registry: typeof REGISTRY = REGISTRY;
 
 const ORDER = {
   id: 'o1',
@@ -101,7 +123,11 @@ function renderDetail(): void {
           <Route path="/orders/:id" element={<OrderDetail />} />
         </Routes>
       </MemoryRouter>,
-      { session: adminSession({ permissions: [...permissions] }), presence: modulePresence({ present: [...presentModules] }) },
+      {
+        session: adminSession({ permissions: [...permissions] }),
+        presence: modulePresence({ present: [...presentModules] }),
+        contributions: registry,
+      },
     ),
     BUNDLE,
   );
@@ -115,6 +141,7 @@ beforeEach(() => {
   getSpy.mockReset();
   permissions = [];
   presentModules = ['orders', 'payments'];
+  registry = REGISTRY;
 });
 
 describe('OrderDetail — the payments tab is gated on payments:read', () => {
@@ -146,5 +173,27 @@ describe('OrderDetail — the payments tab is gated on payments:read', () => {
 
     await waitFor(() => expect(tabNames().length).toBeGreaterThan(0));
     expect(tabNames()).not.toContain('orderDetail.tabs.payment');
+  });
+
+  it('omits the payments tab when nothing contributes the zone at all', async () => {
+    // Z15's other half: the button is a *count*, so a platform where no module
+    // fills this place shows no tab and needs no host edit to say so. The old
+    // gate could not express this — it asked about one module by name.
+    permissions = ['*'];
+    registry = [];
+    renderDetail();
+
+    await waitFor(() => expect(tabNames().length).toBeGreaterThan(0));
+    expect(tabNames()).not.toContain('orderDetail.tabs.payment');
+    expect(tabNames()).toContain('orderDetail.tabs.overview');
+  });
+
+  it('leaves the host naming no module of its own', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const host = readFileSync(resolve(process.cwd(), 'src/modules/orders/OrderDetail.tsx'), 'utf8');
+    expect(host).not.toContain("module: 'payments'");
+    expect(host).not.toContain('OrderPaymentsTab');
+    expect(host).toContain('name="order.detail.payment"');
   });
 });

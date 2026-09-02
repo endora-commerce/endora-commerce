@@ -1,20 +1,20 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { FileDown } from 'lucide-react';
-import { apiClient } from '@/lib/api-client';
-import { formatDateTime } from '@/lib/format';
-import { formatMoney as formatMoneyShared } from '@/lib/money';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import type { AdminZoneProps } from '@endora-commerce/contracts';
+import { apiBaseUrl, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
 import {
+  Badge,
+  type BadgeProps,
+  Button,
+  Section,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { useTranslation } from '@/i18n/useTranslation';
-import { Section } from '@endora-commerce/admin-kit/ui';
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 type PaymentStatus =
   | 'awaiting_payment'
@@ -115,7 +115,7 @@ const INVOICE_STATUS_VARIANT: Record<InvoiceRow['status'], BadgeProps['variant']
 };
 
 function money(amount: number, currency: string): string {
-  return formatMoneyShared(amount, currency);
+  return formatMoney(amount, currency);
 }
 
 /**
@@ -124,8 +124,35 @@ function money(amount: number, currency: string): string {
  * (`GET /api/v1/admin/invoices?filter[orderId]=…`). The PDF download reuses the
  * order invoice endpoint already linked from the page header; it serves the
  * most recent ready invoice, so the link is offered only for ready invoices.
+ *
+ * ## It is this module's surface on `orders`' screen now (feature 091, P7d)
+ *
+ * It stood at `admin/src/modules/orders/OrderPaymentsTab.tsx` and was rendered
+ * by `OrderDetail.tsx` behind
+ * `isVisible({ module: 'payments', requiredPermission: 'payments:read' })` —
+ * `orders` naming this module in its own file, which is the `visibility-gate`
+ * key of `backend/scripts/ledgers/foreign-module-ids.ts` that this
+ * contribution retires. The host renders `order.detail.payment` instead and
+ * shows the tab button by counting the zone (Z15); the presence axis, the
+ * permission and the ordering are the zone renderer's.
+ *
+ * **`useTranslation('core')` is kept, deliberately.** Twenty-three of the keys
+ * below are `orderDetail.*` in `_i18n`'s bundle and one family —
+ * `orderDetail.paymentStatus.*` — is read by `orders`' own list screen through
+ * `admin/src/modules/orders/paymentStatus.ts` as well. That is R-1 §9.2's
+ * *second* population, module code rendering out of `core`, which that ruling
+ * names and deliberately does **not** rule on; P7a and P7b left their moved
+ * panels on `core` for the same reason. Moving a family the host still reads
+ * would be the failure §9.2's own correction records: no throw, no 404, the
+ * raw key on the operator's screen.
+ *
+ * `apiBaseUrl` and not `import.meta.env`: this file compiles under `tsc` inside
+ * a module package, which carries no `vite/client` types, and the kit publishes
+ * the one place that expression is read.
  */
-export function OrderPaymentsTab(props: { orderId: string }): ReactNode {
+export type OrderPaymentsTabProps = AdminZoneProps<'order.detail.payment'>;
+
+export function OrderPaymentsTab(props: OrderPaymentsTabProps): ReactNode {
   const t = useTranslation('core');
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
@@ -161,7 +188,7 @@ export function OrderPaymentsTab(props: { orderId: string }): ReactNode {
     };
   }, [props.orderId]);
 
-  const invoiceHref = `${import.meta.env['VITE_API_BASE_URL'] ?? ''}/api/v1/orders/${props.orderId}/invoice`;
+  const invoiceHref = `${apiBaseUrl}/api/v1/orders/${props.orderId}/invoice`;
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
@@ -253,3 +280,9 @@ export function OrderPaymentsTab(props: { orderId: string }): ReactNode {
     </>
   );
 }
+
+/**
+ * The zone renderer loads a contribution through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013).
+ */
+export default OrderPaymentsTab;

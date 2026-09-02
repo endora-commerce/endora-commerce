@@ -30,6 +30,7 @@ import { z } from 'zod';
 
 import { KnownIconNameSchema } from './admin-actions.js';
 import type { InvoiceKind } from './invoices.js';
+import type { ShipmentStatus } from './shipping-methods.js';
 
 // ---------------------------------------------------------------------------
 // Field-level patterns
@@ -297,6 +298,62 @@ export const AdminZoneNameSchema = z.enum([
    */
   'customer.detail.after',
   /**
+   * The **body** of the order detail's Payment tab.
+   *
+   * Mounted **once** per order, and named from the host's own word for the
+   * place (Z14): `orders`' `OrderDetail.tsx` calls the tab `payment` and its
+   * label `orderDetail.tabs.payment`. Props: {@link OrderDetailZoneProps}.
+   *
+   * The host keeps the tab strip and the label and stops knowing which module
+   * fills it: the button is shown by `useAdminZone(name, props).length > 0`
+   * (Z15), which has already applied both presence axes and the contributor's
+   * permission. `orders` used to render `payments`' tab itself, gated on
+   * `isVisible({ module: 'payments', requiredPermission: 'payments:read' })` —
+   * the `visibility-gate` key of `backend/scripts/ledgers/foreign-module-ids.ts`
+   * whose recorded retiring condition is this member.
+   */
+  'order.detail.payment',
+  /**
+   * The per-row action cell of the order detail's Delivery tab.
+   *
+   * Mounted **once per shipment attempt**, each mount carrying that attempt's
+   * own {@link OrderShipmentRowZoneProps} — the first member in this enum whose
+   * contributions narrow themselves with `match` rather than by returning
+   * `null`, which is the population Z13 reserves for it: one host, one place,
+   * many mounts.
+   *
+   * `providerCode` and `status` are props **because** they are matched on. A
+   * key the mount's props do not carry never agrees (fail-closed), so a
+   * contribution matching a prop this interface omits renders nowhere and
+   * nothing reports it — which is why the two are declared here and not left
+   * for the contributor to read out of a payload.
+   *
+   * `orders` used to write `inpost`'s knowledge into its own JSX —
+   * `providerDetails?.['provider'] === 'inpost' && status === 'success'`, under
+   * an `isVisible({ module: 'inpost', … })` gate and an `inpost` translation
+   * namespace, which is two of the three `foreign-module-ids` keys this member
+   * retires.
+   */
+  'order.shipment.row.actions',
+  /**
+   * The footer action bar of the order detail's Delivery tab.
+   *
+   * Mounted **once** per tab, below the attempts table and beside the host's
+   * own "generate again" button. Props:
+   * {@link OrderShipmentsActionsZoneProps}.
+   *
+   * Its contributor is the carrier the ledgers could not see: `dhl_parcel` was
+   * named by **delivery-method code** (`'dhl_parcel_courier'`,
+   * `'dhl_parcel_pickup'`) rather than by module id, so
+   * `check:admin-zones`' `foreign-module-id` predicate — which reads module ids
+   * out of strings — never had it in its population and never will. The three
+   * buttons behind those codes carried **no permission gate at all** while the
+   * routes behind them enforce `dhl_parcel:read` and `dhl_parcel:write`; a
+   * contribution declares one code, so the conversion closes that
+   * over-exposure by construction.
+   */
+  'order.shipments.tab.actions',
+  /**
    * The switch between the two ways of entering an order, above the entry form.
    *
    * **A tab strip rather than a stack**, and the only member so far whose
@@ -420,6 +477,69 @@ export interface CustomerDetailZoneProps {
 }
 
 /**
+ * A zone mounted once as the body of the order detail's Payment tab.
+ *
+ * The order's own id and nothing else, which is what the one contribution
+ * reads: the panel fetches the order's payments and its invoices from two
+ * routes that take an order id, and it owns both requests.
+ */
+export interface OrderDetailZoneProps {
+  readonly orderId: string;
+}
+
+/**
+ * A zone mounted once per shipment attempt on the order detail's Delivery tab.
+ *
+ * Five props, and the last two are here **because a contribution matches on
+ * them**. `match` compares by string value against the mount's props and a key
+ * the props do not carry never agrees, so a `providerCode` or a `status` left
+ * out of this interface would hide its contribution rather than widen it — the
+ * one way this conversion can regress in silence, and a `tsc` error at the
+ * mount rather than at the declaration.
+ *
+ * `providerCode` is nullable because an attempt the carrier never answered has
+ * no provider envelope, and a `null` there is the fail-closed direction: no
+ * carrier's contribution agrees with it.
+ */
+export interface OrderShipmentRowZoneProps {
+  readonly orderId: string;
+  readonly shipmentId: string;
+  /** The order's delivery-method code, e.g. `dhl_parcel_courier`. */
+  readonly deliveryMethodCode: string;
+  /**
+   * Which carrier opened *this attempt*, from the adapter's own envelope —
+   * `inpost`, `dhl_parcel`, or `null` when nothing was recorded.
+   *
+   * A provider code and not a module id: they coincide for both carriers today
+   * and the string is data the adapter deposited, which is why
+   * `check:admin-zones` reads it as neither.
+   */
+  readonly providerCode: string | null;
+  /** {@link ShipmentStatus} — the attempt's own state, matched on. */
+  readonly status: ShipmentStatus;
+}
+
+/**
+ * A zone mounted once in the footer action bar of the order detail's Delivery
+ * tab.
+ *
+ * The **latest** attempt and not the list: every action a carrier offers here
+ * acts on the most recent attempt, which is the only one an operator can still
+ * do anything about, and the host already computes it. Both latest fields are
+ * nullable for an order with no attempt yet — a contributor that needs one
+ * renders nothing, which it decides for itself rather than through `match`,
+ * because `match` compares strings and has no negation.
+ */
+export interface OrderShipmentsActionsZoneProps {
+  readonly orderId: string;
+  /** The order's delivery-method code, which is what `dhl_parcel` matches on. */
+  readonly deliveryMethodCode: string;
+  readonly latestShipmentId: string | null;
+  /** {@link ShipmentStatus} of the latest attempt, or `null` when there is none. */
+  readonly latestStatus: ShipmentStatus | null;
+}
+
+/**
  * A zone mounted on the order-entry tab strip, carrying nothing.
  *
  * Empty **by measurement, not by omission**, on
@@ -485,6 +605,9 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'sales_channel.editor.after': SalesChannelEditorZoneProps;
   'organization.detail.after': OrganizationDetailZoneProps;
   'customer.detail.after': CustomerDetailZoneProps;
+  'order.detail.payment': OrderDetailZoneProps;
+  'order.shipment.row.actions': OrderShipmentRowZoneProps;
+  'order.shipments.tab.actions': OrderShipmentsActionsZoneProps;
   'order.entry.tabs': OrderEntryTabsZoneProps;
 }
 

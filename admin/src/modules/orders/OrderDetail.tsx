@@ -23,7 +23,6 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
-import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import {
   Table,
   TableBody,
@@ -33,7 +32,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { issueInvoiceNotice } from '@endora-commerce/admin-kit/lib';
-import { OrderPaymentsTab } from './OrderPaymentsTab';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { OrderShipmentsTab } from './OrderShipmentsTab';
 import { Section } from '@endora-commerce/admin-kit/ui';
 import { orderStatusBadgeStyle } from './orderStatusColor';
@@ -181,20 +180,23 @@ export function OrderDetail(): ReactNode {
   const [tab, setTab] = useState<OrderTab>('overview');
 
   /**
-   * The payments tab is a surface `payments` owns on a screen `orders` owns, so
-   * it answers to `payments`' own authority and to `payments`' own presence.
-   * `useSurfaceVisibility` is the predicate the sidebar, the palette and the
-   * dashboard already use, which is what keeps this from becoming a fourth
-   * answer to "may this operator see this" (issue #230).
+   * Feature 091 / P7d, Z15 — the Payment tab's button is a count of its own
+   * body.
    *
-   * The refusal is an **absent tab**, never a disabled one and never a 403
-   * inside the panel: the panel's endpoint is gated `payments:read`, so without
-   * the code the tab could only ever advertise a refusal. The gate has to live
-   * here rather than inside `OrderPaymentsTab` because the tab button is
-   * rendered here.
+   * This screen used to name the owning module itself, in a
+   * `useSurfaceVisibility` call carrying that module's id and its read code —
+   * the `visibility-gate` key `backend/scripts/ledgers/foreign-module-ids.ts`
+   * recorded against this file, whose id is deliberately not quoted here
+   * either. `useAdminZone` has already applied both
+   * presence axes and each contributor's permission, so its length is the
+   * honest answer to "is there anything behind this tab" — and the refusal is
+   * still an **absent tab**, never a disabled one and never a 403 inside the
+   * panel.
+   *
+   * What this file keeps knowing is that it has a tab called Payment (Z14);
+   * what it stops knowing is which module fills it.
    */
-  const isVisible = useSurfaceVisibility();
-  const showPayments = isVisible({ module: 'payments', requiredPermission: 'payments:read' });
+  const paymentContributions = useAdminZone('order.detail.payment', { orderId: id });
 
   // Warn before leaving with an unsent comment draft.
   useUnsavedChangesPrompt(commentBody.trim() !== '');
@@ -462,7 +464,7 @@ export function OrderDetail(): ReactNode {
                 active={tab}
                 onChange={setTab}
               />
-              {showPayments ? (
+              {paymentContributions.length > 0 ? (
                 <TabBtn
                   id="payment"
                   label={t('orderDetail.tabs.payment')}
@@ -735,7 +737,9 @@ export function OrderDetail(): ReactNode {
             </>
           ) : null}
 
-          {tab === 'payment' && showPayments ? <OrderPaymentsTab orderId={id} /> : null}
+          {tab === 'payment' ? (
+            <AdminZone name="order.detail.payment" props={{ orderId: id }} />
+          ) : null}
           {tab === 'delivery' ? (
             <OrderShipmentsTab orderId={id} deliveryMethodCode={order.deliveryMethod.code} />
           ) : null}

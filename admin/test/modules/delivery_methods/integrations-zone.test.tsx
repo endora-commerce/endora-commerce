@@ -219,11 +219,18 @@ describe('the delivery-methods integrations card is a zone', () => {
     // Both ends of `AdminZonePropsMap` are checked by `tsc`; what is checked
     // here is the datum in between, because `check:admin-zones` reads the
     // declaration as text and this reads the value the admin composes.
+    //
+    // **Once per carrier, not "the only zone the carrier declares"**, and this
+    // assertion read the second until P7d gave both carriers contributions on
+    // the order screen. The subject here is *this* member: a carrier
+    // contributing to it twice would render two cards for one integration,
+    // which is what the filter and the count below refuse. What the carrier
+    // does elsewhere is its own test's.
     for (const entry of CARRIER_ENTRIES) {
-      const zones = entry.contributions.zones ?? [];
-      expect(zones.map((zone) => zone.zone), entry.moduleId).toEqual([
-        'delivery_method.list.integrations',
-      ]);
+      const zones = (entry.contributions.zones ?? []).filter(
+        (zone) => zone.zone === 'delivery_method.list.integrations',
+      );
+      expect(zones, entry.moduleId).toHaveLength(1);
       // FR-013: the chunk is behind a factory the renderer reaches only after
       // it has decided presence and permission.
       expect(typeof zones[0]!.component).toBe('function');
