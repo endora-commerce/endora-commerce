@@ -683,6 +683,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entries for the `PALETTE_ITEMS` reason once more: four sidebar rows and
     // two hand-written Navigate rows, both of which named destinations no
     // manifest action covered and are declarations now.
+    //
+    // **Feature 089 (`pim_unopim`): 57 -> 65 -> 57, and the number is
+    // deliberately left where it is.** That branch was written against the
+    // pre-batch-13 shape and added seven routes and one nav entry to the two
+    // host registries; converting it takes exactly those eight back out, so the
+    // count it leaves is the one recorded here. A rung that moves no number is
+    // worth a sentence rather than silence: what would be wrong is re-recording
+    // 65 on the way past, which would raise this band's floor for a state no
+    // merge commit ever held.
     sites: 57,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
