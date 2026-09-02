@@ -106,6 +106,13 @@ import { ErgonodeAttributeMappingPage } from './modules/pim_ergonode/ErgonodeAtt
 import { ErgonodeCategoryMappingPage } from './modules/pim_ergonode/ErgonodeCategoryMappingPage.js';
 import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
 import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
+import { UnopimConnectionPage } from './modules/pim_unopim/UnopimConnectionPage.js';
+import { UnopimRunsPage } from './modules/pim_unopim/UnopimRunsPage.js';
+import { UnopimRunDetailPage } from './modules/pim_unopim/UnopimRunDetailPage.js';
+import { UnopimAttributeMappingsPage } from './modules/pim_unopim/UnopimAttributeMappingsPage.js';
+import { UnopimChannelLocaleMappingsPage } from './modules/pim_unopim/UnopimChannelLocaleMappingsPage.js';
+import { UnopimCategoryMappingsPage } from './modules/pim_unopim/UnopimCategoryMappingsPage.js';
+import { UnopimAssociationMappingsPage } from './modules/pim_unopim/UnopimAssociationMappingsPage.js';
 import { InvoiceTemplateEditor } from './modules/invoices/templates/InvoiceTemplateEditor.js';
 import { TaxesPage } from './modules/taxes/TaxesPage.js';
 import { PromotionsPage } from './modules/promotions/PromotionsPage.js';
@@ -278,6 +285,14 @@ export function App(): ReactNode {
         />
         <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
         <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
+        {/* Feature 089 — UnoPim PIM. Same routing discipline as Ergonode above. */}
+        <Route path="/pim-unopim" element={<UnopimConnectionPage />} />
+        <Route path="/pim-unopim/channel-locale-mappings" element={<UnopimChannelLocaleMappingsPage />} />
+        <Route path="/pim-unopim/attribute-mappings" element={<UnopimAttributeMappingsPage />} />
+        <Route path="/pim-unopim/category-mappings" element={<UnopimCategoryMappingsPage />} />
+        <Route path="/pim-unopim/association-mappings" element={<UnopimAssociationMappingsPage />} />
+        <Route path="/pim-unopim/runs" element={<UnopimRunsPage />} />
+        <Route path="/pim-unopim/runs/:runId" element={<UnopimRunDetailPage />} />
         <Route path="/taxes" element={<TaxesPage />} />
         <Route path="/promotions" element={<PromotionsPage />} />
         <Route path="/promotions/new" element={<PromotionEditPage />} />

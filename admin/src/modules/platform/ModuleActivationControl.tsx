@@ -60,8 +60,20 @@ export function activationErrorMessage(
   t: Props['t'],
 ): string {
   if (!(err instanceof ApiError)) return String(err);
-  const refusal = DEPENDENCY_REFUSALS[err.envelope.error.code];
+  const code = err.envelope.error.code;
   const details = err.envelope.error.details;
+
+  if (code === 'PIM_CONNECTOR_ALREADY_ACTIVE' && details && !Array.isArray(details)) {
+    const activeModuleId = (details as Record<string, unknown>)['activeModuleId'];
+    if (typeof activeModuleId === 'string' && activeModuleId.length > 0) {
+      return t('platform.modules.error.pimConnectorAlreadyActive', {
+        name: moduleName,
+        activeModuleId,
+      });
+    }
+  }
+
+  const refusal = DEPENDENCY_REFUSALS[code];
   if (refusal && details && !Array.isArray(details)) {
     const named = (details as Record<string, unknown>)[refusal.field];
     if (Array.isArray(named) && named.length > 0) {

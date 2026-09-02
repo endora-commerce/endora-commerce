@@ -143,6 +143,12 @@ export * from './credentials.js';
 export * from './ksef.js';
 export * from './product-feeds.js';
 export * from './pim-ergonode.js';
+export * from './pim-connector.js';
+export {
+  canonicalisePimFieldPath,
+  isValidPimFieldPath,
+} from './pim-field-path.js';
+export * from './pim-unopim.js';
 export * from './kernel.js';
 // Port contracts published by feature 075's Phase P for providers that had no
 // contracts file of their own.

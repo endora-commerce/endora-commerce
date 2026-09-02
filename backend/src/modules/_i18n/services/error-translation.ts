@@ -156,5 +156,7 @@ function moduleIdForErrorCode(code: ErrorCode): string {
   // they simply look for their sentence in the right bundle now.
   if (code.startsWith('MFA_')) return 'mfa';
   if (code.startsWith('MODULE_')) return 'core';
+  // Feature 089 — mutual-exclusion refusal owned by the shared PIM layer.
+  if (code.startsWith('PIM_CONNECTOR_')) return 'pim_connector';
   return 'core';
 }

@@ -172,10 +172,15 @@ import type {
 import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-adapter.interface.js';
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
+import type { PimUnopimCradle } from '@endora-commerce/mod-pim-unopim/backend';
+import type { PimConnectorRegistryPort } from '@endora-commerce/contracts';
 import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
+import type { UnopimMediaFetcherPort } from '../../../packages/modules/pim_unopim/src/backend/services/unopim-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
+import { refusingUnopimClient } from './scripted-unopim-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
+import { ScriptedUnopimMediaFetcher } from './scripted-unopim-media-fetcher.js';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
@@ -257,6 +262,16 @@ export interface BackendServerOptions {
    * `ScriptedErgonodeMediaFetcher` holding their files.
    */
   ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
+  /**
+   * Feature 089 — the UnoPim source transport. Defaults to a client that throws
+   * on every stream read so no test reaches the network without scripting fixtures.
+   */
+  unopimClient?: PimUnopimCradle['pimUnopimSourceOverrides']['unopimClient'];
+  /**
+   * Feature 089 / US5 — the byte source for imported media. Defaults to a
+   * fetcher that has nothing scripted and therefore answers `not_found`.
+   */
+  unopimMediaFetcher?: UnopimMediaFetcherPort;
   /**
    * Feature 072 (T073) — arm the cross-process pub/sub path: subscribe the
    * second Redis client to the custom-field and module-state channels.
@@ -342,6 +357,10 @@ export interface BackendServerHandle {
   productFeeds: ProductFeedsCradle['productFeeds']['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
   pimErgonode: PimErgonodeCradle['pimErgonode']['handle'];
+  /** Feature 089 — shared PIM connector registry port. */
+  pimConnectorRegistry: PimConnectorRegistryPort;
+  /** Feature 089 — UnoPim PIM handle (source client seam). */
+  pimUnopim: PimUnopimCradle['pimUnopim']['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
   /**
@@ -913,6 +932,7 @@ export async function setupBackendServer(
     apiInterceptors,
     // The module's `ctx.onBoot` schedule reconcile resolves this (T131).
     pimErgonodeRunWorkers: false,
+    pimUnopimRunWorkers: false,
     productFeedsRunWorkers: false,
     productFeedsPublicBaseUrl: 'http://feeds.test.local',
     productFeedsTokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
@@ -1959,6 +1979,10 @@ export async function setupBackendServer(
       ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
       mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
     },
+    pimUnopimSourceOverrides: {
+      unopimClient: options.unopimClient ?? refusingUnopimClient(),
+      mediaFetcher: options.unopimMediaFetcher ?? new ScriptedUnopimMediaFetcher(),
+    },
     productFeedsTestOverrides: {
       taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
       taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
@@ -2711,6 +2735,10 @@ export async function setupBackendServer(
     ksef: ksefCradle.ksef.handle,
     productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,
     pimErgonode: (container.cradle as unknown as PimErgonodeCradle).pimErgonode.handle,
+    pimConnectorRegistry: (
+      container.cradle as unknown as { pimConnectorRegistryPort: PimConnectorRegistryPort }
+    ).pimConnectorRegistryPort,
+    pimUnopim: (container.cradle as unknown as PimUnopimCradle).pimUnopim.handle,
     pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,

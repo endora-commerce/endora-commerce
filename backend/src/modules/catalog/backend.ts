@@ -22,6 +22,7 @@ import type {
   CatalogProductLinkPort,
   CatalogProductReadPort,
   CatalogProductWritePort,
+  CatalogProductValueOverrideWritePort,
   CatalogPromoAttributePort,
   CatalogQuickSearchPort,
   InventoryProductThresholdWritePort,
@@ -57,6 +58,7 @@ import { CatalogProductFilterService } from './services/catalog-product-filter.s
 import { CatalogProductReadService } from './services/catalog-product-read.service.js';
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogQuickSearchService } from './services/catalog-quick-search.service.js';
+import { ProductOverridesService } from './services/product-overrides.service.js';
 import {
   createCatalogCategoryWritePort,
   createCatalogProductWritePort,
@@ -479,6 +481,30 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(() =>
         createCatalogProductWritePort(() => ctx.cradle<CatalogCradle>().catalogAdminService),
       )
+      .singleton(),
+  );
+
+  /**
+   * Feature 089 — channel/locale-scoped product value writes for PIM importers.
+   * Narrows `ProductOverridesService.applyBulk` so a foreign module never holds
+   * the class (and never reaches `product_value_overrides` by SQL).
+   */
+  ctx.di.providePort<CatalogProductValueOverrideWritePort>(
+    'catalogProductValueOverrideWritePort',
+    ctx
+      .asFunction(({ emFactory, commandBus }: CatalogCradle) => {
+        const service = new ProductOverridesService(
+          emFactory,
+          lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+          commandBus,
+          lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
+        );
+        return {
+          async applyBulk(productId, input) {
+            await service.applyBulk(productId, { upserts: [...input.upserts], deletes: [] });
+          },
+        };
+      })
       .singleton(),
   );
 

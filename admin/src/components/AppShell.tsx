@@ -175,6 +175,13 @@ const NAV: NavSection[] = [
         requiredPermission: 'pim_ergonode:read',
         module: 'pim_ergonode',
       },
+      {
+        to: '/pim-unopim',
+        labelKey: 'appShell.nav.pimUnopim',
+        icon: PlugZap,
+        requiredPermission: 'pim_unopim:read',
+        module: 'pim_unopim',
+      },
       // A feed publishes the catalogue, so it belongs beside the catalogue
       // rather than under Channels. Templates are a view of the same surface
       // and are reached through the tab strip there, not a second sidebar row.
@@ -584,6 +591,42 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   { test: /^\/pim-ergonode\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimErgonode', href: null },
+  ] },
+  // Feature 089 — UnoPim PIM. Same breadcrumb discipline as Ergonode above.
+  { test: /^\/pim-unopim\/runs\/[^/]+\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
+    { labelKey: 'appShell.nav.pimUnopimRuns', href: '/pim-unopim/runs' },
+    { labelKey: 'appShell.crumb.importRun', href: null },
+  ] },
+  { test: /^\/pim-unopim\/runs\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
+    { labelKey: 'appShell.nav.pimUnopimRuns', href: null },
+  ] },
+  { test: /^\/pim-unopim\/attribute-mappings\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
+    { labelKey: 'appShell.nav.pimUnopimAttributeMappings', href: null },
+  ] },
+  { test: /^\/pim-unopim\/channel-locale-mappings\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
+    { labelKey: 'appShell.nav.pimUnopimChannelLocaleMappings', href: null },
+  ] },
+  { test: /^\/pim-unopim\/category-mappings\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
+    { labelKey: 'appShell.nav.pimUnopimCategoryMappings', href: null },
+  ] },
+  { test: /^\/pim-unopim\/association-mappings\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
+    { labelKey: 'appShell.nav.pimUnopimAssociationMappings', href: null },
+  ] },
+  { test: /^\/pim-unopim\/?$/, build: () => [
+    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
+    { labelKey: 'appShell.nav.pimUnopim', href: null },
   ] },
   { test: /^\/product-feeds\/?$/, build: () => [
     { labelKey: 'appShell.section.catalog', href: '/product-feeds' },

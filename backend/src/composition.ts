@@ -364,6 +364,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // The module's `ctx.onBoot` schedule reconcile resolves this (T131), and
     // nothing else in this file has an opinion about it.
     pimErgonodeRunWorkers: runWorkers,
+    pimUnopimRunWorkers: runWorkers,
     productFeedsRunWorkers: runWorkers,
     productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],

@@ -12,6 +12,7 @@ import { MultiSelect } from '@/components/ui/multi-select';
 // here; it also decides on its own whether the attribute takes one toggle or one
 // per language (FR-052).
 import { ErgonodeAttributeValueProtection } from '../pim_ergonode/components/FieldProtectionToggle';
+import { UnopimAttributeValueProtection } from '../pim_unopim/components/FieldProtectionToggle';
 
 /**
  * Feature: product Attributes tab.
@@ -282,11 +283,18 @@ function AttributeField({
   // attributes". A language-scoped value is curated one language at a time, and
   // the control below renders itself accordingly.
   const protection = (
-    <ErgonodeAttributeValueProtection
-      productId={productId}
-      attributeKey={attr.key}
-      languageScoped={attr.languageScoped === true}
-    />
+    <>
+      <ErgonodeAttributeValueProtection
+        productId={productId}
+        attributeKey={attr.key}
+        languageScoped={attr.languageScoped === true}
+      />
+      <UnopimAttributeValueProtection
+        productId={productId}
+        attributeKey={attr.key}
+        languageScoped={attr.languageScoped === true}
+      />
+    </>
   );
 
   // The boolean control renders its own inline label.

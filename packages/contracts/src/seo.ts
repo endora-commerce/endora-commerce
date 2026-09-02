@@ -74,3 +74,20 @@ export const sitemapChannelListResponseSchema = z.object({
   data: z.array(sitemapChannelStatusSchema),
 });
 export type SitemapChannelListResponse = z.infer<typeof sitemapChannelListResponseSchema>;
+
+/**
+ * Container name: `seoMetaWritePort`. Owner: `seo`.
+ *
+ * Narrow write surface for PIM importers (feature 089 / FR-029): upsert product
+ * meta overrides by locale. Channel dimension does not exist on Endora SEO rows.
+ *
+ * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
+ */
+export interface SeoMetaWritePort {
+  upsertProductMeta(input: {
+    productId: string;
+    locale: string;
+    title?: string | null;
+    description?: string | null;
+  }): Promise<void>;
+}

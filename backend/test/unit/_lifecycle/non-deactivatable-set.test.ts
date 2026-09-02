@@ -32,7 +32,7 @@ import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered
  * category its author forgot.
  */
 
-/** Core — 23 modules, each declaring `nonDeactivatable` with its own reason. */
+/** Core — 24 modules, each declaring `nonDeactivatable` with its own reason. */
 const CORE_MODULES = [
   '_i18n',
   '_lifecycle',
@@ -52,6 +52,7 @@ const CORE_MODULES = [
   'languages',
   'orders',
   'organizations',
+  'pim_connector',
   'price_lists',
   'sales_channels',
   'settings',
@@ -120,9 +121,9 @@ describe('the classification partitions the discovered manifest set (FR-007, SC-
     expect(classified).toEqual(allIds);
   });
 
-  it('is 23 core + 43 operator-controlled + 1 structurally unswitchable', () => {
-    expect(CORE_MODULES).toHaveLength(23);
-    expect(controlIds).toHaveLength(43);
+  it('is 24 core + 44 operator-controlled + 1 structurally unswitchable', () => {
+    expect(CORE_MODULES).toHaveLength(24);
+    expect(controlIds).toHaveLength(44);
     expect(STRUCTURALLY_UNSWITCHABLE).toHaveLength(1);
     expect(CORE_MODULES.length + controlIds.length + STRUCTURALLY_UNSWITCHABLE.length).toBe(
       manifests.length,

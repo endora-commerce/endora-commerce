@@ -63,6 +63,11 @@ import {
   FieldProtectionSummary,
   FieldProtectionToggle,
 } from '../pim_ergonode/components/FieldProtectionToggle';
+import {
+  UnopimFieldProtectionSummary,
+  UnopimFieldProtectionToggle,
+  UnopimPriceProtectionPanel,
+} from '../pim_unopim/components/FieldProtectionToggle';
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { PackagingUnitsEditor } from './components/PackagingUnitsEditor';
 import { ProductAttributesTab } from './ProductAttributesTab';
@@ -545,6 +550,7 @@ export function ProductEditor(): ReactNode {
                     indicators (FR-068). The name and description controls sit
                     here because the panel below is their sole editor. */}
                 <FieldProtectionSummary productId={id} />
+                <UnopimFieldProtectionSummary productId={id} />
                 {id ? (
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     {LOCALES.map((l) => (
@@ -558,6 +564,22 @@ export function ProductEditor(): ReactNode {
                     {LOCALES.map((l) => (
                       <FieldProtectionToggle
                         key={`protect-description-${l}`}
+                        productId={id}
+                        fieldPath="description"
+                        languageCode={l}
+                      />
+                    ))}
+                    {LOCALES.map((l) => (
+                      <UnopimFieldProtectionToggle
+                        key={`unopim-protect-name-${l}`}
+                        productId={id}
+                        fieldPath="name"
+                        languageCode={l}
+                      />
+                    ))}
+                    {LOCALES.map((l) => (
+                      <UnopimFieldProtectionToggle
+                        key={`unopim-protect-description-${l}`}
                         productId={id}
                         fieldPath="description"
                         languageCode={l}
@@ -771,6 +793,7 @@ export function ProductEditor(): ReactNode {
                   import could write here. Renders `null` when no binding covers
                   this product, which is every product until one is bound. */}
               <ErgonodePriceProtectionPanel productId={id} />
+              <UnopimPriceProtectionPanel productId={id} />
               <LinkedPriceListsPanel productId={id} />
             </div>
           ) : null}

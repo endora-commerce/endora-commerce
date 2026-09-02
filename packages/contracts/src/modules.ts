@@ -300,6 +300,12 @@ export const ModuleManifestSchema = z.object({
    * supplied separately at runtime via the EmailDefaultsRegistry.
    */
   transactionalEmails: z.array(transactionalEmailManifestEntrySchema).optional(),
+  /**
+   * When `true`, the module participates in the PIM connector mutual-exclusion
+   * set (feature 089). Consumed by `pim_connector` registry discovery — not by
+   * install ordering.
+   */
+  pimConnector: z.literal(true).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
