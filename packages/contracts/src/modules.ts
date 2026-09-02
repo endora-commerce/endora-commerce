@@ -22,6 +22,7 @@ import { KnownIconNameSchema, ModuleActionsManifestSchema } from './admin-action
 import { modulePermissionDeclarationSchema } from './admin.js';
 import { errorCodeRe } from './errors.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
+import { BlockCategorySchema, BlockDefinitionSchema, blockNameRe } from './cms.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -361,6 +362,31 @@ export const ModuleManifestSchema = z.object({
    * true of most modules and is not a finding.
    */
   errorCodes: z.array(ModuleErrorCodeDeclarationSchema).optional(),
+  /**
+   * The Page Builder blocks this module owns (feature 096, FR-001/FR-006).
+   *
+   * A block's `name` is `<this module's id>.<LocalName>` and is **persisted**:
+   * it is written into the `type` position of a Puck node in a `jsonb` column
+   * and is the only link between a stored node and the module that can render
+   * it. Which module owns a block is the domain noun its fields and data belong
+   * to — the rule `specs/082-error-code-ownership/contracts/error-code-ownership.md`
+   * §1 already applies to error codes — never the package the renderer file
+   * currently sits in.
+   *
+   * Absent means "this module owns no Page Builder block", which is true of
+   * most modules and is not a finding.
+   */
+  blocks: z.array(BlockDefinitionSchema).optional(),
+  /**
+   * The palette sections this module declares (feature 096, FR-009).
+   *
+   * Declared rather than hard-coded so that contributing a block into a section
+   * costs no edit to a shared `categories` map in a package the contributor
+   * does not own. Two modules declaring the same key for the same context is
+   * expected and merges; a category exists per context, so `layout` for `cms`
+   * and `layout` for `email` are two entries.
+   */
+  blockCategories: z.array(BlockCategorySchema).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
@@ -551,6 +577,95 @@ function assertErrorCodeRules(m: ModuleManifest): void {
 }
 
 /**
+ * The three block-declaration rules (feature 096,
+ * `specs/096-page-builder-block-ownership/contracts/block-definition.md` §1).
+ *
+ * They live here rather than in the schema for the reason the activation rules
+ * do: each is cross-field — one reads a block's `name` against the outer `id`,
+ * one reads its `category` against the manifest's own `blockCategories` — and
+ * every message has to name the module the author is looking at. They fire on
+ * import, on the author's machine, with no instance and no database, which
+ * matters more here than anywhere else in this file: a block name is written
+ * into `jsonb` and never rewritten, so a wrong one caught in CI has already
+ * been typed into a manifest, and one caught after a release is permanent.
+ *
+ * `check:block-names` re-derives all three for a manifest built without this
+ * helper — the same belt-and-braces `check-port-dependencies.ts` applies to
+ * `nonBindingDependencies`.
+ *
+ * **What this layer cannot decide is anything about a second manifest**, and
+ * the limit is the one `assertErrorCodeRules` states for itself. Two modules
+ * declaring one block name, and a category one module declares and another
+ * names, are composition's questions and the check's. Rule 2 is therefore
+ * enforced **within the declaring manifest**: a block's category must be
+ * declared beside it. That is what FR-009 asks for — a contributor declares the
+ * section in its own manifest instead of editing a shared map — and it is the
+ * shape `contracts/block-definition.md` §1's own worked example writes, where
+ * `catalog` declares both the block and the `catalog` category that `cms` also
+ * declares.
+ */
+function assertBlockRules(m: ModuleManifest): void {
+  for (const block of m.blocks ?? []) {
+    // 0. The grammar, before anything reads a segment of it. A name with no
+    //    separator has no owner segment to compare against `id`, so a message
+    //    about ownership would be a message about the wrong thing. The schema
+    //    refuses it too (`BlockDefinitionSchema`), and parses last; this is the
+    //    copy that names the module, exactly as `assertErrorCodeRules` re-tests
+    //    `errorCodeRe`.
+    if (!blockNameRe.test(block.name)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares block "${block.name}", which is ` +
+          `not a namespaced block name (${String(blockNameRe)}) — the name is persisted ` +
+          'into `jsonb` and its owner segment is the only link between a stored node and ' +
+          'the module that can render it.',
+      );
+    }
+
+    // 1. One block, one owner, stated once. The owner is the name's first
+    //    segment and there is no `ownerModule` field to disagree with it.
+    const owner = block.name.slice(0, block.name.indexOf('.'));
+    if (owner !== m.id) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares block "${block.name}", whose ` +
+          `owner segment "${owner}" is not this module's id — a block has exactly one ` +
+          'owner and the name is where that owner is stated, so declaring it here would ' +
+          `make "${owner}" unable to own its own block.`,
+      );
+    }
+
+    // 2. A block offered on no surface. Refused before the category, which
+    //    cannot be judged without the contexts to judge it against.
+    if (block.contexts.length === 0) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares block "${block.name}" with an ` +
+          'empty `contexts` — a block offered on no surface appears in no palette, which ' +
+          'is a declaration with no reader.',
+      );
+    }
+
+    // 3. The category is a declared key, not free text. "At least one of the
+    //    block's contexts", never all of them: a block offered in two surfaces
+    //    whose section exists in one of them is legible, and the palette simply
+    //    does not render it in the other.
+    const declaresCategory = (m.blockCategories ?? []).some(
+      (category) =>
+        category.key === block.category &&
+        category.contexts.some((context) => block.contexts.includes(context)),
+    );
+    if (!declaresCategory) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares block "${block.name}" in ` +
+          `category "${block.category}", which this manifest does not declare in ` +
+          '`blockCategories` for any of the block\'s contexts ' +
+          `(${block.contexts.join(', ')}) — a section is declared, never assumed, so ` +
+          'that contributing a block into one costs no edit to a file the contributor ' +
+          'does not own.',
+      );
+    }
+  }
+}
+
+/**
  * Identity-with-validation helper for module authors. Modules export a
  * single `manifest` constant via this helper so TypeScript inference is
  * preserved and the loader can ingest the validated payload directly.
@@ -594,6 +709,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   }
   assertNonBindingRules(m);
   assertErrorCodeRules(m);
+  assertBlockRules(m);
   return ModuleManifestSchema.parse(m);
 }
 

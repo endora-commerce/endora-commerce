@@ -57,6 +57,9 @@
     "lint": "eslint src",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@endora-commerce/contracts": "workspace:*"
+  },
   "peerDependencies": {
     "@measured/puck": "*",
     "react": "^19.0.0"

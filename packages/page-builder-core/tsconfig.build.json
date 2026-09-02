@@ -2,10 +2,13 @@
   // Emit configuration — see `packages/contracts/tsconfig.build.json` for why the
   // type-check config and the emit config are two files.
   //
-  // This package imports no sibling `@endora-commerce/*` package, so clearing `paths` changes
-  // nothing it resolves today. It is cleared anyway: the guarantee is "the emitting
-  // configuration never reaches another package's source", and a guarantee that holds
-  // only until somebody adds the first sibling import is not one.
+  // This package imports one sibling `@endora-commerce/*` package — `contracts`, for the
+  // block-name grammar, since feature 096 — so clearing `paths` is now what makes the emit
+  // read that sibling's `dist` instead of its source. It was cleared before there was
+  // anything to clear, on the reasoning that "the emitting configuration never reaches
+  // another package's source" is not a guarantee if it holds only until somebody adds the
+  // first sibling import. That import has arrived; the clearing was already correct, and
+  // the sentence that used to say the package had no siblings was not.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "paths": {},

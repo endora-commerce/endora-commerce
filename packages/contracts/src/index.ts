@@ -68,6 +68,13 @@ export {
   cmsHookAttachmentRequestSchema,
   cmsFieldDescriptorSchema,
   cmsPageBuilderDescriptorSchema,
+  // Feature 096 — the Page Builder block vocabulary. `blockNameRe` is the one
+  // authored copy of the persisted-name grammar; `page-builder-core` imports it
+  // rather than restating it.
+  blockNameRe,
+  blockCategoryKeyRe,
+  BlockDefinitionSchema,
+  BlockCategorySchema,
   cmsColorPaletteEntrySchema,
   cmsColorPaletteSchema,
   putCmsColorPaletteRequestSchema,
@@ -97,6 +104,8 @@ export {
   type CmsHookAttachmentRequest,
   type CmsFieldDescriptor,
   type CmsPageBuilderDescriptor,
+  type BlockDefinition,
+  type BlockCategory,
   type CmsColorPaletteEntry,
   type CmsColorPalette,
   type PutCmsColorPaletteRequest,

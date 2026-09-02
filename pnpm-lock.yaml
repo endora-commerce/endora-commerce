@@ -3993,6 +3993,10 @@ importers:
         version: 7.3.2(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/page-builder-core:
+    dependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../contracts
     devDependencies:
       '@measured/puck':
         specifier: '*'
