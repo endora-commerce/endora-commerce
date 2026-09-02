@@ -826,7 +826,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // therefore not comparable to 2243 as a like-for-like** — 2243 was a walk
     // that included `admin/src` and 2325 is the same walk on a tree that has
     // since gained a module package.
-    files: 2325,
+    //
+    // **D-168 repair: 2325 -> 2324.** One file, and it is the whole of this
+    // branch: `pim_connector`'s `services/field-path.ts` is deleted. It was a
+    // four-line re-export of two `@endora-commerce/contracts` functions that
+    // nothing imported, and its only reader was the module's own `./backend`
+    // barrel, which republished them — the bare specifier the D-168 analysis
+    // reports as `unresolvable-reexport`. `sites` does not move: the file
+    // rendered no zone, contributed to none and named no module id.
+    files: 2324,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -1226,12 +1234,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // unconditional *"the layout resolved and the host walk opened nothing"*
     // refusal is reachable once more. `admin files` is now **0**, which is
     // SC-007 and is a measurement rather than a shortfall.
-    // **`files` does not move with feature 097**, and that is the whole shape of
-    // this row's change. The migration rules judge sources the walk was already
-    // opening — a module's `migrations/` directory is inside
+    // **`files` moves for one reason and not the other, and both are recorded
+    // because the two branches that produced them are being merged.**
+    //
+    // Feature 097 moved **nothing** here: its migration rules judge sources the
+    // walk was already opening — a module's `migrations/` directory is inside
     // `layout.moduleWalkRoots` and always has been — so what changed is the rule
     // applied to 225 files already in the count, not the count.
-    files: 4147,
+    //
+    // The D-168 repair moved it **4147 -> 4145**: `pim_connector`'s
+    // `services/field-path.ts` goes, and so does the emitted
+    // `dist/backend/services/field-path.js` this walk reads for D-171's
+    // contract-surface designation. Two files for one deletion. Every other
+    // recorded entry in this file drifted upwards against a baseline already
+    // stale before either branch; these matched the tree exactly, measured,
+    // which is why they are the only ones re-recorded.
+    files: 4145,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -1244,11 +1262,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (`importSites`, `tableSites`), so a sum cannot hide an addend that went to
     // zero because zero is refused before the sum is printed.
     //
-    // 11127 = 10922 import specifiers plus 205 table references, of which the
-    // 205 are every DML access in all 225 migration files and every one outside
-    // them. It is far larger than `files` because the unit is a specifier: an
-    // average module source names five.
-    sites: 11127,
+    // The figure below was measured on the **merge result** of the two branches
+    // rather than composed from either. 097 recorded 11127 over a 4147-file
+    // tree; the deletion above takes two specifiers with it, so the combined
+    // tree reads 11125. Composing the two recorded numbers would have written
+    // 11127 beside `files: 4145` — internally consistent, and wrong by two.
+    sites: 11125,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by

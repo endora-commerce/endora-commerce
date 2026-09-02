@@ -17,7 +17,7 @@ pipeline are documented in [UnoPim PIM connector](./pim-unopim.md).
 | Concern | Where it lives |
 | --- | --- |
 | Mutual exclusion — only one PIM connector may be operator-active at a time | `PimConnectorRegistryService`, `pim_connector_activation_lock` table |
-| Shared field-protection path grammar | `canonicalisePimFieldPath()` in `services/field-path.ts` |
+| Shared field-protection path grammar | `canonicalisePimFieldPath()` in `packages/contracts/src/pim-field-path.ts` |
 | Contract vocabulary for runs, issues, triggers | `packages/contracts/src/pim-connector.ts` |
 | Admin run/issue badge primitives | nothing — see below |
 
@@ -107,8 +107,7 @@ packages/modules/pim_connector/
         ├── index.ts            registerModule, entities
         ├── entities/pim-connector-activation-lock.entity.ts
         └── services/
-            ├── pim-connector-registry.service.ts
-            └── field-path.ts
+            └── pim-connector-registry.service.ts
 
 packages/contracts/src/pim-connector.ts
 backend/test/{unit,contract}/pim_connector/
