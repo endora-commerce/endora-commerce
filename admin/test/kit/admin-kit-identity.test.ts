@@ -61,7 +61,6 @@ import { OrganizationPickerMulti } from '@/components/organization-picker/Organi
 import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
 import { ContentLanguageTabs } from '@/modules/cms/components/ContentLanguageTabs';
 import { ScopePicker } from '@/modules/cms/components/ScopePicker';
-import { Section } from '@/modules/orders/Section';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -103,7 +102,7 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     expect(AssetFieldPicker).toBe(kitComponents.AssetFieldPicker);
   });
 
-  it('serves the four P8 members through both spellings', () => {
+  it('serves the two remaining P8 members through both spellings', () => {
     // Feature 091's P8 published four generic members that sat under a module's
     // admin directory and were reached from another's: `cms`' two content
     // components, `orders`' `Section` and `invoices`' e-mail-outcome helpers.
@@ -111,9 +110,25 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     // paths are the spelling each owner's own tests and any client tree already
     // hold, and a second resolution would be a second copy.
     //
-    // **The e-mail-outcome pair has left this group**, in feature 091's batch
-    // 12, and the removal is the `CustomFieldValuesPanel` note below arriving a
-    // second time: `invoices` took its admin surface into
+    // **`Section` has left this group too**, in feature 091's batch 15, for the
+    // same reason and by the same measurement: `orders` took its admin surface
+    // into `@endora-commerce/mod-orders/admin`, so `admin/src/modules/orders/`
+    // is gone and the shim that stood in it went with the directory. Its only
+    // remaining reader was this file — `quote_requests`, the reach P8 published
+    // the layout primitive for, already names the subpath — so keeping the shim
+    // would have kept a file alive for one assertion, and keeping the assertion
+    // without it would have compared `kitUi` to itself. Two more `orders` shims
+    // went with the same directory and never had a case here:
+    // `StatusTransitionGraph` (batch 8) and `orderStatusColor` (P8), whose four
+    // readers were all that module's own screens and now name
+    // `@endora-commerce/admin-kit/components`, `@endora-commerce/admin-kit/lib`
+    // and `@endora-commerce/contracts` directly. `catalog`'s `ProductPicker`
+    // shim (P2) had **no** reader left at all and went with its directory in the
+    // same batch.
+    //
+    // **The e-mail-outcome pair left in feature 091's batch
+    // 12**, and that removal is the `CustomFieldValuesPanel` note below arriving
+    // a second time: `invoices` took its admin surface into
     // `@endora-commerce/mod-invoices/admin`, so `admin/src/modules/invoices/`
     // is gone and the shim that stood in it went with the directory. Its only
     // remaining reader was this file — `orders`, the reach P8 published the
@@ -125,7 +140,6 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     // them, which is the thing this file exists to compare.
     expect(ContentLanguageTabs).toBe(kitComponents.ContentLanguageTabs);
     expect(ScopePicker).toBe(kitComponents.ScopePicker);
-    expect(Section).toBe(kitUi.Section);
   });
 
   // **The P9 fulfilment picker had a case here and no longer has a shim to

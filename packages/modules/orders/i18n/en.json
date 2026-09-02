@@ -30,5 +30,8 @@
   "errors.ORDER_NOT_FOUND": "Order not found.",
   "errors.ORDER_NOT_CANCELLABLE": "This order can no longer be cancelled.",
   "errors.CURRENCY_MISMATCH": "The credit limit paying for this order is held in a different currency than the order itself, and a limit can only cover an order in its own currency. Pay with another method, or ask your account manager to set up a credit limit in this currency.",
-  "orderEntry.tab.standard": "Standard order"
+  "orderEntry.tab.standard": "Standard order",
+  "nav.orders.label": "Orders",
+  "nav.newOrder.label": "New order",
+  "nav.orderStatuses.label": "Order statuses"
 }

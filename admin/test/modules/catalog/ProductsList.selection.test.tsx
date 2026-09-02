@@ -3,14 +3,26 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { BULK_EDIT_HARD_MAX } from '../../../src/modules/catalog/lib/resolve-product-selection';
+import { BULK_EDIT_HARD_MAX } from '../../../../packages/modules/catalog/src/admin/lib/resolve-product-selection';
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(
-    '@/lib/api-client',
+// **Re-keyed by feature 091's Phase 4 batch 15, and this is the trap batch 14
+// found by sweeping rather than by running.** The mock named `@/lib/api-client`
+// while the subject was under `admin/src`; the subject is inside a module
+// package now and resolves `@endora-commerce/admin-kit/lib`, of which
+// `@/lib/api-client` is only a re-export shim — so the old spelling intercepts
+// nothing and vitest reports that by making the mock **inert** rather than by
+// failing. `tsc` cannot see it: both specifiers compile.
+//
+// The `usePageSizePreference` stub is folded into this one factory rather than kept
+// beside it: both shims re-export from the same kit barrel, so two `vi.mock`
+// calls naming `@endora-commerce/admin-kit/lib` would be one module mocked
+// twice, with the last factory silently replacing the first.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
   );
   return {
     ...actual,
@@ -21,15 +33,13 @@ vi.mock('@/lib/api-client', async () => {
       patch: vi.fn(),
       delete: vi.fn(),
     },
+    PAGE_SIZE_OPTIONS: [5, 10, 20, 50, 100, 500] as const,
+    usePageSizePreference: () => ({ pageSize: 2 as const, setPageSize: vi.fn() }),
   };
 });
 
-vi.mock('@/lib/use-page-size-preference', () => ({
-  PAGE_SIZE_OPTIONS: [5, 10, 20, 50, 100, 500] as const,
-  usePageSizePreference: () => ({ pageSize: 2 as const, setPageSize: vi.fn() }),
-}));
 
-const { ProductsList } = await import('../../../src/modules/catalog/ProductsList');
+const { ProductsList } = await import('../../../../packages/modules/catalog/src/admin/pages/ProductsList');
 
 const BUNDLE = passthroughBundle('catalog', [
   'productsList.title',

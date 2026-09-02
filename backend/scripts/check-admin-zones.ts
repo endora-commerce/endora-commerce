@@ -24,8 +24,11 @@
  * `foreign-module-id` is one predicate — **a module id written as a string
  * literal, in a file the module does not own** — over three populations, and
  * the tree is what says they are one thing:
- * `admin/src/modules/orders/OrderShipmentsTab.tsx` carries
+ * `orders`' `OrderShipmentsTab.tsx` carried
  * `useSurfaceVisibility()({ module: 'inpost' })` *and* `useTranslation('inpost')`.
+ * (P7d retired both couplings and feature 091's batch 15 moved the file into
+ * `packages/modules/orders/src/admin/components/`; the example is kept in the
+ * past tense because it is what the finding was written from.)
  * Nothing in this estate reads either. `check:module-boundary` reads import
  * specifiers and a string names none; `check:admin-surface`'s subject is kit
  * symbols; `i18n:hardcoded` reads literals and not scopes. So a coupling

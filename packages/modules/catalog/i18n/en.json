@@ -614,5 +614,17 @@
   "activity.verb.product.bulk_update": "bulk-updated products",
   "activity.verb.product.create": "created product",
   "activity.verb.product.unarchive": "unarchived product",
-  "activity.verb.product.update": "updated product"
+  "activity.verb.product.update": "updated product",
+  "nav.products.label": "Products",
+  "nav.categories.label": "Categories",
+  "nav.attributes.label": "Attributes",
+  "nav.attributeSets.label": "Attribute sets",
+  "nav.attachmentTypes.label": "Attachment types",
+  "nav.bulkOperations.label": "Bulk actions",
+  "actions.openProducts.label": "Products",
+  "actions.openProducts.description": "Catalog rows",
+  "actions.openCategories.label": "Categories",
+  "actions.openCategories.description": "Tree of catalog categories",
+  "actions.openAttributes.label": "Attributes",
+  "actions.openAttributes.description": "Attribute definitions"
 }
