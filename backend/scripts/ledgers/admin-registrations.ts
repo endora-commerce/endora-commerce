@@ -400,6 +400,44 @@
  * routes and six nav entries exactly, and the recorded `sites` band moves
  * 71 -> 57.
  *
+ * **Batch 16 removes two entries and 25 registrations** — `blog` (7/3) and
+ * `cms` (11/4) — and it is the batch that empties the module half of this
+ * ledger. `cms` was the heaviest owner left in the table and `blog` travels
+ * with it because the two are each other's only remaining admin coupling.
+ *
+ * **The drain is two keys, re-keyed rather than retired, and it is the first
+ * batch in which both endpoints of a reach move at once.** `blog`'s two editors
+ * render `cms`' `PageBuilderEditor`; those are the two entries in
+ * `backend/scripts/ledgers/cross-module-imports/blog.ts` and the only cross-module
+ * admin debt either module carries — `admin-surface.ts` is empty and
+ * `foreign-module-ids.ts` names neither. Because both ends are in one merge
+ * request the seam was decided here rather than inherited:
+ * `admin-component-contribution.md` Z1 reads the signature, the signature is
+ * `data` in and `onChange` back, so the **consumer** decides that the canvas
+ * appears — a published component and not a zone contribution, which is what
+ * the shard already said and what this batch confirmed by opening the file. The
+ * exit is D-191's `./admin-ui` on `cms`' own package, and Z11 keeps the reach
+ * counted, so `check:module-boundary` reads
+ * `cross-module reaches=7 (imports=3 sql=4) ledger-size=7 shards=4` on both
+ * sides of the move. The shard's own retiring condition — D-192's page-builder
+ * family growing a home for the whole builder — is untouched.
+ *
+ * **Neither module had an `./admin` layer**, and `cms` grows a second UI layer
+ * as well: `src/admin-ui/`, the second package in the repository to publish one
+ * and the first to publish a component that has an *internal* consumer too.
+ *
+ * **Eleven `admin/src` files go with the move that are not `cms`' code**: the
+ * nine re-export shims P5b left pointing into
+ * `@endora-commerce/page-builder-admin` and the two P8 left pointing into
+ * `@endora-commerce/admin-kit/components`. A shim exists so that files still
+ * under `admin/src` reach a moved binding by the specifier they always used;
+ * with the last of those files in a package, the shims have no reader.
+ *
+ * The run after them reads
+ * `routes=16 nav=16 module-owned (routes=12 nav=13) over 2 modules`, from
+ * `routes=34 nav=23 module-owned (routes=30 nav=20) over 4 modules` — the
+ * eighteen routes and seven nav entries exactly.
+ *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.
@@ -427,8 +465,6 @@ export const HOST_OWNER = ADMIN_HOST_OWNER;
 
 export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistrationCounts>> = {
   host: { routes: 4, nav: 3 },
-  blog: { routes: 7, nav: 3 },
   catalog: { routes: 8, nav: 9 },
-  cms: { routes: 11, nav: 4 },
   orders: { routes: 4, nav: 4 },
 };

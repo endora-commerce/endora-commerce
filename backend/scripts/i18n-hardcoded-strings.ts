@@ -296,9 +296,17 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': 4,
   'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 5,
   'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 13,
-  'admin/src/modules/cms/components/ButtonLinkFields.tsx': 4,
-  'admin/src/modules/cms/components/ComponentDragHandle.tsx': 1,
-  'admin/src/modules/cms/components/RowLayoutPicker.tsx': 2,
+  // Feature 091, Phase 4 batch 16 — re-keyed, not raised and not dropped:
+  // `cms` took its admin surface into its package and these three files went
+  // with it. Every count is unmoved; the same strings in the same components,
+  // under the paths the walk reads them at now. This baseline is a ledger
+  // *about* the files it names rather than one of them, so the merge request
+  // that moves a file is structurally the one that cannot see the entry go
+  // stale — the shape the six entries above record for P5b, and the reason both
+  // halves are corrected here rather than one of them going red later.
+  'packages/modules/cms/src/admin/components/ButtonLinkFields.tsx': 4,
+  'packages/modules/cms/src/admin/components/ComponentDragHandle.tsx': 1,
+  'packages/modules/cms/src/admin/components/RowLayoutPicker.tsx': 2,
   // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `invoices` took its
   // admin surface into its package and this file went with it. The count is
   // untouched; nothing about the strings changed, only their address. This

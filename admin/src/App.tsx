@@ -20,18 +20,6 @@ import {
   type PermissionRequirement,
 } from './lib/surface-visibility.js';
 import type { SupportedAdminLanguage } from './i18n/types.js';
-import { PagesListPage } from './modules/cms/pages/PagesListPage.js';
-import { PageEditor } from './modules/cms/editors/PageEditor.js';
-import { BlocksListPage } from './modules/cms/pages/BlocksListPage.js';
-import { BlockEditor } from './modules/cms/editors/BlockEditor.js';
-import { TemplatesListPage } from './modules/cms/pages/TemplatesListPage.js';
-import { TemplateEditor } from './modules/cms/editors/TemplateEditor.js';
-import { HooksPage } from './modules/cms/pages/HooksPage.js';
-import { BlogPostListPage } from './modules/blog/pages/BlogPostListPage.js';
-import { BlogPostEditor } from './modules/blog/pages/BlogPostEditor.js';
-import { BlogCategoryTreePage } from './modules/blog/pages/BlogCategoryTreePage.js';
-import { BlogCategoryEditor } from './modules/blog/pages/BlogCategoryEditor.js';
-import { BlogTagListPage } from './modules/blog/pages/BlogTagListPage.js';
 import { ProductsList } from './modules/catalog/ProductsList.js';
 import { ProductEditor } from './modules/catalog/ProductEditor.js';
 import { CategoriesTree } from './modules/catalog/CategoriesTree.js';
@@ -256,24 +244,22 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
           spellings left the same way in batch 10, into
           `packages/modules/{credentials,dictionaries}/src/admin/index.ts`.
         */}
-        <Route path="/cms" element={<PagesListPage />} />
-        <Route path="/cms/pages" element={<PagesListPage />} />
-        <Route path="/cms/pages/new" element={<PageEditor />} />
-        <Route path="/cms/pages/:id" element={<PageEditor />} />
-        <Route path="/cms/blocks" element={<BlocksListPage />} />
-        <Route path="/cms/blocks/new" element={<BlockEditor />} />
-        <Route path="/cms/blocks/:id" element={<BlockEditor />} />
-        <Route path="/cms/templates" element={<TemplatesListPage />} />
-        <Route path="/cms/templates/new" element={<TemplateEditor />} />
-        <Route path="/cms/templates/:id" element={<TemplateEditor />} />
-        <Route path="/cms/hooks" element={<HooksPage />} />
-        <Route path="/blog/posts" element={<BlogPostListPage />} />
-        <Route path="/blog/posts/new" element={<BlogPostEditor />} />
-        <Route path="/blog/posts/:id" element={<BlogPostEditor />} />
-        <Route path="/blog/categories" element={<BlogCategoryTreePage />} />
-        <Route path="/blog/categories/new" element={<BlogCategoryEditor />} />
-        <Route path="/blog/categories/:id" element={<BlogCategoryEditor />} />
-        <Route path="/blog/tags" element={<BlogTagListPage />} />
+        {/* The eleven `/cms…` and seven `/blog/…` routes were declared here
+            until feature 091's Phase 4 batch 16 — the batch that takes the last
+            module-owned registration out of this file. Both modules own their
+            screens now and their declarations are in
+            `packages/modules/{cms,blog}/src/admin/index.ts`. `/cms` stays a
+            second declaration of the page list rather than becoming a
+            `<Navigate>`: a redirect's element comes from `react-router-dom`
+            rather than from a surface directory, which is how
+            `/settings/dhl-parcel` below came to be the admin application's own,
+            and moving a `cms` deep link into the host's registry is the
+            direction this feature exists to reverse.
+
+            `blog`'s two editors render `cms`' `PageBuilderEditor` through
+            `@endora-commerce/mod-cms/admin-ui` — D-191's published-component
+            subpath, decided from the component's own signature (Z1: `data` in,
+            `onChange` back, so the consumer decides that it appears). */}
         <Route path="/platform/modules" element={<PlatformModulesPage />} />
         {/*
           `/settings`, `/settings/groups`, `/settings/cache` and `/settings/pwa`

@@ -66,7 +66,10 @@ const PALETTE_MODAL_SOURCE = join(
 
 /** The three files that render a component out of `PageBuilderHeaderActions.tsx`. */
 const CALLERS = [
-  'admin/src/modules/cms/components/PageBuilderEditor.tsx',
+  // Feature 091, Phase 4 batch 16 — re-keyed, not dropped, for the reason the
+  // entry below already gives one line down: `cms` took its admin surface into
+  // its package and this caller went with it.
+  'packages/modules/cms/src/admin/components/PageBuilderEditor.tsx',
   // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `invoices` took its
   // admin surface into its package and this caller went with it. This list is
   // a ledger *about* the files it names rather than one of them, so the merge

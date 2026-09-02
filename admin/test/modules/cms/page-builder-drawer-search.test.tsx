@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { PageBuilderDrawer } from '../../../src/modules/cms/components/PageBuilderDrawer';
+import { PageBuilderDrawer } from '../../../../packages/modules/cms/src/admin/components/PageBuilderDrawer';
 
 /**
  * Issue #236 — the page-builder drawer shipped its own copy of the folding

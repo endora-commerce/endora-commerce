@@ -1161,14 +1161,21 @@ describe('check-diacritic-folds — the tree it guards', () => {
   // Two of them changed address in feature 091's Phase 1b — the admin's design
   // system moved into `@endora-commerce/admin-kit` — so the specifier they hold
   // is now the package's own relative one rather than the application's `@/`
-  // alias. The pairing is the point: a path and the specifier that path is
-  // expected to write, so a file that moved and stopped importing is still a
-  // failure rather than a lookup that silently found nothing.
+  // alias, and a third changed address again in that feature's batch 16, when
+  // `cms` took its admin surface into its package. The pairing is the point: a
+  // path and the specifier that path is expected to write, so a file that moved
+  // and stopped importing is still a failure rather than a lookup that silently
+  // found nothing — and it is why this list, like `slugGenerators` below, is
+  // re-keyed by the batch that moves a file rather than left to go stale in the
+  // one after it.
   const repaired: readonly (readonly [string, string])[] = [
     ['admin/src/components/AppShell.tsx', "from '@/lib/text-normalization'"],
     ['packages/admin-kit/src/ui/combobox.tsx', "from '../lib/text-normalization.js'"],
     ['packages/admin-kit/src/ui/multi-select.tsx', "from '../lib/text-normalization.js'"],
-    ['admin/src/modules/cms/components/PageBuilderDrawer.tsx', "from '@/lib/text-normalization'"],
+    [
+      'packages/modules/cms/src/admin/components/PageBuilderDrawer.tsx',
+      "from '@endora-commerce/admin-kit/lib'",
+    ],
   ];
 
   it.each(repaired)('%s imports the shared fold instead of writing its own', (path, specifier) => {
@@ -1229,9 +1236,17 @@ describe('check-diacritic-folds — the tree it guards', () => {
     // request that moves a caller is structurally the one that cannot see the
     // entry go stale — and this one did, which is why it is corrected here.
     'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx',
-    'admin/src/modules/cms/editors/BlockEditor.tsx',
-    'admin/src/modules/cms/editors/PageEditor.tsx',
-    'admin/src/modules/blog/pages/BlogPostEditor.tsx',
+    // Feature 091, Phase 4 batch 16 — re-keyed, not dropped, exactly as the two
+    // entries above were: `cms` and `blog` took their admin surfaces into their
+    // packages and these three editors went with them. The calls are unchanged
+    // and are still at the same cut (180, 180 and 160). This list is a ledger
+    // **about** the files it names rather than one of them, so the batch that
+    // moves them is structurally the one that cannot see the entries go stale;
+    // a key left behind would read as *"this site stopped slugifying"*, which is
+    // the only claim the list makes.
+    'packages/modules/cms/src/admin/editors/BlockEditor.tsx',
+    'packages/modules/cms/src/admin/editors/PageEditor.tsx',
+    'packages/modules/blog/src/admin/pages/BlogPostEditor.tsx',
     // Feature 091, Phase 4, the plan's batch 7 — the file is
     // `@endora-commerce/mod-product-feeds`' admin layer now. This list is a
     // ledger *about* the files it names rather than one of them, so the batch

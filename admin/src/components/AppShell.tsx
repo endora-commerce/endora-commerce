@@ -14,14 +14,12 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
-  Newspaper,
   Package,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
   Tag,
   Sparkles,
-  Webhook,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -242,13 +240,23 @@ const NAV: NavSection[] = [
     key: 'content',
     labelKey: 'appShell.section.content',
     items: [
-      { to: '/cms/pages', labelKey: 'appShell.nav.cmsPages', icon: Newspaper, requiredPermission: 'cms.read', module: 'cms' },
-      { to: '/cms/blocks', labelKey: 'appShell.nav.cmsBlocks', icon: Newspaper, requiredPermission: 'cms.read', module: 'cms' },
-      { to: '/cms/templates', labelKey: 'appShell.nav.cmsTemplates', icon: Newspaper, requiredPermission: 'cms.read', module: 'cms' },
-      { to: '/cms/hooks', labelKey: 'appShell.nav.cmsHooks', icon: Webhook, requiredPermission: 'cms.read', module: 'cms' },
-      { to: '/blog/posts', labelKey: 'appShell.nav.blogPosts', icon: Newspaper, requiredPermission: 'blog.read', module: 'blog' },
-      { to: '/blog/categories', labelKey: 'appShell.nav.blogCategories', icon: Newspaper, requiredPermission: 'blog.read', module: 'blog' },
-      { to: '/blog/tags', labelKey: 'appShell.nav.blogTags', icon: Newspaper, requiredPermission: 'blog.read', module: 'blog' },
+      // All seven rows of this section stood here until feature 091's Phase 4
+      // batch 16 — the four `/cms/…` and the three `/blog/…` — and `/megamenu`
+      // left in batch 8. `cms` and `blog` declare theirs now, at weights 100 to
+      // 400 and 600 to 800, in
+      // `packages/modules/{cms,blog}/src/admin/index.ts`. `megamenu` has
+      // declared 500 since batch 8 with a comment saying it sits after the four
+      // `/cms/…` rows and before the three `/blog/…` ones; it could not while
+      // both neighbours were the host's and `composeNav` appended every
+      // registry entry after every host one, and those seven weights are what
+      // make it true again.
+      //
+      // The section now holds **no host-declared row**, with the one
+      // operator-visible consequence every emptied section has: the breadcrumb
+      // `registryCrumbs` derives for these screens renders *Content* unlinked,
+      // because there is no host entry left for it to point at. That is batches
+      // 13's *Inventory* and *Pricing* and 14's *Customers* and *Channels*
+      // arriving one last time.
     ],
   },
   {
@@ -570,41 +578,31 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   // note above records: the *Channels* crumb loses its link and
   // `/sales-channels/:code` loses its *Detail* leaf.
   //
-  // **The `/cms*` rules below keep naming `/sales-channels` by hand and are
-  // right to.** A hand-written trail links a section to a real route, not to a
-  // host-owned one; that route is the registry's now and resolves exactly as it
-  // did. Those eleven rules retire with `cms` in batch 16.
-  { test: /^\/cms(?:\/pages)?\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.cmsPages', href: null },
-  ] },
-  { test: /^\/cms\/pages\/(?:new|[^/]+)\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.cmsPages', href: '/cms/pages' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/cms\/blocks\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.cmsBlocks', href: null },
-  ] },
-  { test: /^\/cms\/blocks\/(?:new|[^/]+)\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.cmsBlocks', href: '/cms/blocks' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/cms\/templates\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.cmsTemplates', href: null },
-  ] },
-  { test: /^\/cms\/templates\/(?:new|[^/]+)\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.cmsTemplates', href: '/cms/templates' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/cms\/hooks\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.cmsHooks', href: null },
-  ] },
+  // The seven `/cms…` rules stood here until feature 091's Phase 4 batch 16,
+  // which is where the note above said they would retire. `registryCrumbs`
+  // derives ten of the eleven `/cms…` trails now, out of the four sidebar
+  // entries `cms` declares, and the seven `/blog/…` screens — which never had a
+  // hand-written trail at all and fell to the humanised-segment fallback — gain
+  // the labels their sidebar rows carry. Three operator-visible changes, stated
+  // rather than glossed:
+  //
+  //  * the section crumb becomes **Content**, unlinked. These seven rules named
+  //    *Channels* linked to `/sales-channels`, which was already the wrong
+  //    section — the sidebar has put these rows under *Content* for as long as
+  //    the section has existed — and `registryCrumbs` reads the section the
+  //    module declares. It is unlinked for the reason every emptied section's
+  //    is: there is no host-declared row left for it to point at;
+  //  * the six editor screens lose their `Editor` leaf and render
+  //    `Content / CMS Pages →`, which is the trail every converted module's
+  //    sub-screen already gets;
+  //  * `/cms` — the bare alias, which has no sidebar row and which
+  //    `registryCrumbs` therefore does not match — falls to the
+  //    humanised-segment fallback and renders a lone *cms*. It is the one trail
+  //    of the eleven that is worse than it was. Repairing it would mean either a
+  //    host `<Navigate>`, which moves a `cms` deep link into the admin's own
+  //    registry and is the direction this feature reverses, or a second sidebar
+  //    row for a path no operator is shown. Neither is worth an unadvertised
+  //    alias, and `/dictionaries/audit` took the same answer in batch 10.
   // `/dictionary` and the two audit spellings had a hand-written trail here
   // until feature 091's Phase 4 batch 10. `registryCrumbs` derives them now,
   // from `dictionaries`' own nav contribution — two crumbs where the audit

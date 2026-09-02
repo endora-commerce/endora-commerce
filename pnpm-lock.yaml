@@ -74,9 +74,15 @@ importers:
       '@endora-commerce/mod-autopay':
         specifier: workspace:*
         version: link:../packages/modules/autopay
+      '@endora-commerce/mod-blog':
+        specifier: workspace:*
+        version: link:../packages/modules/blog
       '@endora-commerce/mod-carts':
         specifier: workspace:*
         version: link:../packages/modules/carts
+      '@endora-commerce/mod-cms':
+        specifier: workspace:*
+        version: link:../packages/modules/cms
       '@endora-commerce/mod-comparisons':
         specifier: workspace:*
         version: link:../packages/modules/comparisons
@@ -1344,12 +1350,21 @@ importers:
 
   packages/modules/blog:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-cms':
+        specifier: workspace:*
+        version: link:../cms
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
@@ -1362,12 +1377,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1467,15 +1491,27 @@ importers:
 
   packages/modules/cms:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/cms-components':
+        specifier: workspace:*
+        version: link:../../cms-components
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:*
+        version: link:../../page-builder-admin
       '@endora-commerce/page-builder-core':
         specifier: workspace:*
         version: link:../../page-builder-core
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
@@ -1488,12 +1524,30 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.2.5
+        version: 19.2.5(react@19.2.5)
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
