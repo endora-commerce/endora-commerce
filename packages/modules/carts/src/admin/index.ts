@@ -1,6 +1,7 @@
 /**
- * `carts`' admin surface — two routes and no sidebar entry, declared by the
- * module that owns them (feature 091, Phase 4, batch four;
+ * `carts`' admin surface — two routes, one zone contribution and no sidebar
+ * entry, declared by the module that owns them (feature 091, Phase 4, batch
+ * four, and P7b;
  * `specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md`).
  *
  * **The locked-and-nav-less shape.** Batch two rejected this module twice over
@@ -32,7 +33,10 @@
  * qualify, so a consumer reaching into another module's `./admin` stays a
  * counted boundary reach.
  */
-import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import {
+  zoneComponent,
+  type AdminContributions,
+} from '@endora-commerce/admin-kit/contributions';
 
 /** The module's landing route: the platform-wide cart list. */
 const ROUTE_PATH = '/carts';
@@ -50,5 +54,24 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/CartDetail.js'),
       requiredPermission: 'carts:read',
     },
+  ],
+  zones: [
+    // Weight 400 of four contributors to the organization detail's zone
+    // (feature 091, P7b): `sales_channels` at 100, `price_lists` at 200,
+    // `quick_order` at 300, then this panel. The first three are the order the
+    // operator saw when those panels were scattered through
+    // `OrganizationDetail.tsx`; this one is last because it is the addition —
+    // the panel behind it was imported by nothing and rendered nowhere (§10.5).
+    //
+    // **`customers:manage`, and not `carts:read`.** Both halves of the policy
+    // route enforce it — `packages/modules/carts/src/backend/routes.admin.ts`
+    // gates the `GET` and the `PATCH` on that one code — and a contribution
+    // declares one. `carts:read` opens this module's cart list and says nothing
+    // about an organization's policy, so declaring it would render a toggle
+    // that 403s on its first use.
+    zoneComponent('organization.detail.after', () => import('./zones/CartApprovalPolicy.js'), {
+      weight: 400,
+      requiredPermission: 'customers:manage',
+    }),
   ],
 };

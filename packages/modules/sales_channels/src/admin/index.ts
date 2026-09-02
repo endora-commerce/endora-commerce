@@ -1,6 +1,6 @@
 /**
- * `sales_channels`' admin surface — one zone contribution and nothing else
- * (feature 091, P7a;
+ * `sales_channels`' admin surface — two zone contributions and nothing else
+ * (feature 091, P7a and P7b;
  * `specs/091-module-owned-admin-surfaces/contracts/admin-component-contribution.md`
  * §10).
  *
@@ -22,9 +22,11 @@
  * identifiers in, a change notification back and no `value`/`onChange` pair, so
  * the component owns its own persistence. That is Z1 question 2.
  *
- * `organizations`' detail screen mounts the same component today and is P7b's;
- * it will be a second contribution to a different member, never a `match` on
- * this one, because two hosts with a place each are two members (Z13).
+ * **P7b added the second contribution**, over the same component: it drains the
+ * `EntityChannelMembership` key of
+ * `backend/scripts/ledgers/cross-module-imports/organizations.ts`, and it is a
+ * contribution to a *different* member rather than a `match` on this one,
+ * because two hosts with a place each are two members (Z13).
  *
  * **This entry exports data and nothing else** (R2); every component is a
  * dynamic-import factory (R6).
@@ -59,6 +61,16 @@ export const contributions: AdminContributions = {
         weight: 100,
         requiredPermission: READ_PERMISSION,
       },
+    ),
+    // Weight 100 of four contributors to the organization detail's zone
+    // (feature 091, P7b): this panel first, then `price_lists` at 200,
+    // `quick_order` at 300 and `carts` at 400. That is the order the operator
+    // saw when the panels were scattered through `OrganizationDetail.tsx`,
+    // preserved rather than re-chosen.
+    zoneComponent(
+      'organization.detail.after',
+      () => import('./zones/OrganizationChannelMembership.js'),
+      { weight: 100, requiredPermission: READ_PERMISSION },
     ),
   ],
 };

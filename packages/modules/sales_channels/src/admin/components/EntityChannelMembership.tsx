@@ -42,12 +42,20 @@ import { DefaultChannelBadge } from './DefaultChannelBadge.js';
  * dragging `admin/src/modules/sales_channels/api/sales-channels-client.ts`
  * along, which would be a package reaching back into the admin application.
  *
- * A copy is still at `admin/src/modules/sales_channels/components/`, serving
- * `organizations`' detail screen until P7b converts that reach. Delete it with
- * that conversion.
+ * **P7b deleted the copy.** One stood at
+ * `admin/src/modules/sales_channels/components/` for the length of P7a, serving
+ * `organizations`' detail screen; that screen is a zone mount now, nothing
+ * imported the file, and it is gone. Nothing in this estate compares two copies
+ * of one component, so the retiring condition was written here rather than left
+ * to be remembered.
  *
- * The `entityId` guard below is unreachable under a zone — both mounts have an
- * id before they mount — and stays as the component's own contract.
+ * `DefaultChannelBadge` beside it is the other half of that copy and is
+ * **not** gone: this module's own two screens still import it from
+ * `admin/src/modules/sales_channels/components/`, and it retires when they move
+ * into this package in Phase 4's batch 14.
+ *
+ * The `entityId` guard below is unreachable under a zone — all three mounts
+ * have an id before they mount — and stays as the component's own contract.
  */
 
 export interface EntityChannelMembershipProps {

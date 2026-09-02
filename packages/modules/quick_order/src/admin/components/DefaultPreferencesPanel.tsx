@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
-import { useTranslation } from '@/i18n/useTranslation';
-import { adminGetPreference, adminUpsertPreference, type PreferenceScope } from './api/quick-order-client';
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Label,
+  Select,
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * DefaultPreferencesPanel — feature 039 (US2 / FR-018).
@@ -21,7 +26,63 @@ import { adminGetPreference, adminUpsertPreference, type PreferenceScope } from 
  * dropdowns populated with the real methods / addresses available for that
  * scope. For the customer scope an empty value means "inherit the
  * organization default"; for the organization scope it means "no default".
+ *
+ * ## Why the calls are rebuilt rather than the client moved (feature 091, P7b)
+ *
+ * The file used to live at `admin/src/modules/quick_order/`, imported by path
+ * from `organizations`' and `customers`' detail screens — the two
+ * `DefaultPreferencesPanel` keys of the boundary ledger, one in each shard. It
+ * is this module's panel, so it lives in this module's package and reaches both
+ * screens as `organization.detail.after` and `customer.detail.after`
+ * contributions instead.
+ *
+ * `admin/src/modules/quick_order/api/quick-order-client.ts` did **not** travel
+ * with it: `QuickOrderOnBehalfPage` still imports that file, and moving it here
+ * would leave a package reaching back into the admin application. Its two
+ * preference bindings are HTTP paths over a payload this file already declares,
+ * so they are rebuilt from the published `apiClient` (P2's exit) — twelve lines
+ * against a reach.
+ *
+ * The copy stays in the `core` namespace rather than moving to this module's
+ * own, on P7a's reading of `contracts/admin-component-contribution.md` §9.2:
+ * that population is 62 files wide and no P7 row is the merge request that
+ * answers it.
  */
+
+/** Which entity the defaults belong to. */
+export type PreferenceScope = 'organization' | 'customer';
+
+interface QuickOrderPreference {
+  scope: PreferenceScope;
+  scopeId: string;
+  defaultPaymentMethodId: string | null;
+  defaultDeliveryMethodId: string | null;
+  defaultBillingAddressId: string | null;
+  defaultShippingAddressId: string | null;
+}
+
+interface QuickOrderPreferenceUpsert {
+  scope: PreferenceScope;
+  scopeId: string;
+  defaultPaymentMethodId: string | null;
+  defaultDeliveryMethodId: string | null;
+  defaultBillingAddressId: string | null;
+  defaultShippingAddressId: string | null;
+}
+
+async function readPreference(
+  scope: PreferenceScope,
+  scopeId: string,
+): Promise<QuickOrderPreference | null> {
+  const res = await apiClient.get<{ data: QuickOrderPreference | null }>(
+    `/api/v1/admin/quick-order/preferences?scope=${scope}&scopeId=${encodeURIComponent(scopeId)}`,
+  );
+  return res.data;
+}
+
+async function writePreference(body: QuickOrderPreferenceUpsert): Promise<void> {
+  await apiClient.put('/api/v1/admin/quick-order/preferences', body);
+}
 
 interface Option {
   id: string;
@@ -97,7 +158,7 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
           '/api/v1/admin/delivery-methods?pageSize=200',
         ),
         addressesReq,
-        adminGetPreference(scope, scopeId),
+        readPreference(scope, scopeId),
       ]);
 
       setPaymentMethods((pms.data ?? []).map((m) => ({ id: m.id, label: pickLabel(m.name, m.code) })));
@@ -127,7 +188,7 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
     setError(null);
     setInfo(null);
     try {
-      await adminUpsertPreference({
+      await writePreference({
         scope,
         scopeId,
         defaultPaymentMethodId: payment || null,

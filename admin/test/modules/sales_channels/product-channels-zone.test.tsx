@@ -96,15 +96,21 @@ describe('sales_channels contributes the product editor channels zone', () => {
     });
   });
 
-  it('declares one member, with no match and the read code its routes enforce', () => {
+  it('declares this member, with no match and the read code its routes enforce', () => {
     // One host, one mount: `match` narrows the mounts of one place (Z13) and
     // has nothing to narrow here. Asserted absent so a later author cannot add
     // one quietly.
-    const zones = salesChannels.contributions.zones ?? [];
-    expect(zones.map((zone) => zone.zone)).toEqual(['product.editor.channels']);
-    expect(zones[0]!.match).toBeUndefined();
-    expect(zones[0]!.requiredPermission).toBe('sales_channels:read');
-    expect(typeof zones[0]!.component).toBe('function');
+    //
+    // The **set** of members this module declares is asserted in
+    // `organization-channels-zone.test.tsx`, which is the file P7b changed it
+    // in; two copies of one list are two answers waiting to disagree.
+    const zone = (salesChannels.contributions.zones ?? []).find(
+      (candidate) => candidate.zone === 'product.editor.channels',
+    );
+    expect(zone).toBeDefined();
+    expect(zone!.match).toBeUndefined();
+    expect(zone!.requiredPermission).toBe('sales_channels:read');
+    expect(typeof zone!.component).toBe('function');
   });
 
   it('renders the membership panel for the product it is mounted on', async () => {

@@ -177,6 +177,40 @@ export interface RecordedReadSize {
  * `e7bbadce7` and at the branch point, 1902 here. The remaining +3 is P7a and
  * P7c's three `src/admin/index.ts`. A record swept on a branch describes that
  * branch's tree, not the tree it merges into.
+ *
+ * **Re-recorded on 2026-09-02 by feature 091's P7b**, twenty-eight entries, and
+ * every one of them is this merge request's own doing rather than a share of
+ * somebody else's: P7a and P7c had swept the file to zero drift the day before,
+ * so the branch point had thirty-five entries in agreement and nothing to
+ * apportion. Two of the twenty-eight move **down**, which is worth stating
+ * because down is the defect direction and neither of these is a defect:
+ * `check-lock-claims` reads two ledger shards fewer (`cross-module-imports/`'s
+ * `customers.ts` and `organizations.ts` are deleted, the second being the last
+ * of P7b's four boundary keys), and `check-admin-surface` reads four kit-symbol
+ * sites fewer because the two duplicated `admin/src` components that imported
+ * them are gone.
+ *
+ * The rest is one row's arithmetic seen from twenty-six angles. P7b adds a
+ * `src/admin/` layer to `quick_order` (its first) and a zone file to each of
+ * `price_lists`, `sales_channels` and `carts`; it moves
+ * `DefaultPreferencesPanel` and `CartApprovalPolicyPanel` out of `admin/src` and
+ * deletes the duplicate `DisplayModeOverrideRow` and `EntityChannelMembership`
+ * left standing by P7a; it adds four test files and one `tsconfig.ui.json`. So a
+ * walk over module sources gains one `.ts` (`quick_order`'s `src/admin/index.ts`
+ * — the family at 1902 -> 1903), a walk over `backend/test` gains one (the new
+ * contract test, 1649 -> 1650), and a walk over the whole tree gains eight
+ * (`check-diacritic-folds`, 4935 -> 4943). `check-module-boundary` reports both
+ * halves in place: module files 1865 -> 1873, admin files 142 -> 138.
+ *
+ * Two `sites` numbers are exact rather than approximate and are the ones to read
+ * if this record is ever doubted. `check-admin-zones` moves 35 -> 41: two renders
+ * (`OrganizationDetail` and `CustomerDetail`), five contributions (`price_lists`,
+ * `sales_channels`, `carts`, and `quick_order` twice), less one foreign module
+ * id (`CartApprovalPolicyPanel`'s `carts` namespace, whose ledger entry retires
+ * here). And `check-default-language-prose` moves 29300 -> 29315: twenty new
+ * `carts` bundle strings — ten keys in each shipped language — less the five
+ * `core` keys this merge request removes, which are unread the moment the host
+ * stops handing its own copy to a contributor.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -193,14 +227,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-channel-resolution.ts': {
     prefix: '[channel-resolution]',
     run: { kind: 'tsx', path: 'scripts/check-channel-resolution.ts', args: ['--enforce'] },
-    files: 1902,
+    files: 1903,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-command-coverage.ts': {
     prefix: '[command-coverage]',
     run: { kind: 'tsx', path: 'scripts/check-command-coverage.ts', args: ['--strict'] },
-    files: 1456,
+    files: 1457,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -209,14 +243,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-container-imports.ts': {
     prefix: '[container-imports]',
     run: { kind: 'tsx', path: 'scripts/check-container-imports.ts', args: [] },
-    files: 1703,
+    files: 1704,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-diacritic-folds.ts': {
     prefix: '[diacritic-folds]',
     run: { kind: 'tsx', path: 'scripts/check-diacritic-folds.ts', args: [] },
-    files: 4935,
+    files: 4943,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -236,21 +270,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-entity-tenant-classification.ts': {
     prefix: '[tenant-classification]',
     run: { kind: 'tsx', path: 'scripts/check-entity-tenant-classification.ts', args: [] },
-    files: 1902,
+    files: 1903,
     sites: 236,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
     prefix: '[entry-presence]',
     run: { kind: 'tsx', path: 'scripts/check-entry-presence.ts', args: [] },
-    files: 1902,
+    files: 1903,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-scope.ts': {
     prefix: '[entry-scope]',
     run: { kind: 'tsx', path: 'scripts/check-entry-scope.ts', args: [] },
-    files: 1902,
+    files: 1903,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -332,21 +366,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tree growing since 2026-08-19, which `files` shows at 1237 → 1302. Both
     // numbers were inside the band; this is the MR that changed the population,
     // so this is where they get re-recorded.
-    files: 1649,
+    files: 1650,
     sites: 530,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
     prefix: '[harness-teardown]',
     run: { kind: 'tsx', path: 'scripts/check-harness-teardown.ts', args: [] },
-    files: 1649,
+    files: 1650,
     sites: null,
     sources: [],
   },
   'backend/scripts/check-kernel-boundary.ts': {
     prefix: '[kernel-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-kernel-boundary.ts', args: [] },
-    files: 1902,
+    files: 1903,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -358,7 +392,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the widening landed against. The second source is the contracts barrel,
     // `index.ts`, which is what the package says it publishes — the same
     // derived floor the manifest index provides for the module half.
-    files: 204,
+    files: 202,
     sites: 14,
     sources: ['manifest-index', 'contracts-barrel'],
   },
@@ -493,8 +527,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **No zone member is added** — `zone-enum` stays 5/5 — because all three
     // places were already declared and already rendered by P4a, which is what
     // `unrendered-zone` having no ledger requires.
-    files: 2239,
-    sites: 35,
+    files: 2243,
+    sites: 41,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -570,13 +604,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pim_pimcore`'s descriptor. The three `.tsx` zone components in each
     // package are outside this walk, which reads `.ts`; nothing the kit gains
     // is in it either, the population being a **module's** own directory.
-    files: 1467,
+    files: 1468,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
     // larger than `files`, which is what makes it the number that moves first
     // when a position filter or the parser narrows.
-    sites: 29300,
+    sites: 29315,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -754,8 +788,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `./field-protection` — which is the second derivation doing its job: a
     // subpath declared and not built, or built and not declared, is what makes
     // a reach unjudgeable, and this one is both.
-    files: 378,
-    sites: 2340,
+    files: 382,
+    sites: 2336,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not
@@ -807,7 +841,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `@endora-commerce/admin-kit` is an `admin-ui` package that is neither.
     // The two `cross-module-imports` keys this batch retires are the whole
     // point and move `files` by nothing — they are `ledger-size 17 -> 15`.
-    files: 3959,
+    files: 3964,
     sites: null,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
@@ -841,7 +875,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // because the two generated trees that made them differ, `.docusaurus` and
     // `backend/var/assets`, are declared exclusions. Re-recorded here on this
     // branch, which is the tree the exclusions were measured on.
-    files: 6963,
+    files: 6971,
     sites: null,
     sources: [],
   },
@@ -885,20 +919,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // merge base are earlier batches' registry entries, inside the band and not
     // re-recorded; named here rather than absorbed, and `files` is left at 6
     // because this batch did not move it.
-    sites: 505,
+    sites: 506,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
     prefix: '[port-catches]',
     run: { kind: 'tsx', path: 'scripts/check-port-catches.ts', args: [] },
-    files: 1902,
+    files: 1903,
     sites: 162,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
     prefix: '[port-deps]',
     run: { kind: 'tsx', path: 'scripts/check-port-dependencies.ts', args: [] },
-    files: 1688,
+    files: 1689,
     sites: 1427,
     sources: ['manifest-index'],
   },
@@ -915,7 +949,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-platform-surface.ts': {
     prefix: '[platform-surface]',
     run: { kind: 'tsx', path: 'scripts/check-platform-surface.ts', args: [] },
-    files: 1846,
+    files: 1854,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -970,7 +1004,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-port-shape.ts': {
     prefix: '[port-shape]',
     run: { kind: 'tsx', path: 'scripts/check-port-shape.ts', args: [] },
-    files: 1782,
+    files: 1783,
     sites: 664,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -1034,21 +1068,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-shared-table-wipes.ts': {
     prefix: '[shared-table-wipes]',
     run: { kind: 'tsx', path: 'scripts/check-shared-table-wipes.ts', args: [] },
-    files: 1649,
+    files: 1650,
     sites: 154,
     sources: [],
   },
   'backend/scripts/check-subscribe-seam.ts': {
     prefix: '[subscribe-seam]',
     run: { kind: 'tsx', path: 'scripts/check-subscribe-seam.ts', args: [] },
-    files: 1902,
+    files: 1903,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-transaction-context.ts': {
     prefix: '[transaction-context]',
     run: { kind: 'tsx', path: 'scripts/check-transaction-context.ts', args: [] },
-    files: 1902,
+    files: 1903,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1060,7 +1094,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources and every module package's. The test tree is in it because that is
     // where 176 of the 181 files holding a reach live, and leaving it out would
     // have made the check blind to both defects it exists for.
-    files: 3817,
+    files: 3824,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -1125,7 +1159,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // set, so it is 7 down; `@endora-commerce/page-builder-admin/src` arrives
     // carrying all fourteen, so the walk is 7 up. The package's eleven `.ts`
     // files move no number here and are outside this walk by construction.
-    files: 414,
+    files: 417,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -1139,14 +1173,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'scripts/check-naming.sh': {
     prefix: '[naming]',
     run: { kind: 'bash', path: 'scripts/check-naming.sh', args: [] },
-    files: 7023,
+    files: 7031,
     sites: null,
     sources: ['manifest-index'],
   },
   'scripts/check-language.sh': {
     prefix: '[language]',
     run: { kind: 'bash', path: 'scripts/check-language.sh', args: [] },
-    files: 5245,
+    files: 5251,
     sites: null,
     sources: ['manifest-index'],
   },

@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * The organization screen still renders its custom fields and still saves them,
@@ -58,15 +59,16 @@ vi.mock('@/modules/organizations/panels/RestrictionsPanel', () => ({
 vi.mock('@/modules/organizations/OrganizationSalesRepsTab', () => ({
   OrganizationSalesRepsTab: () => null,
 }));
-vi.mock('@/modules/quick_order/DefaultPreferencesPanel', () => ({
-  DefaultPreferencesPanel: () => null,
-}));
-vi.mock('@/modules/sales_channels/components/EntityChannelMembership', () => ({
-  EntityChannelMembership: () => null,
-}));
-vi.mock('@/modules/price_lists/DisplayModeOverrideRow', () => ({
-  DisplayModeOverrideRow: () => null,
-}));
+// Three more `vi.mock`s stood here until feature 091's P7b, one per module
+// panel this screen imported by path: `quick_order`'s `DefaultPreferencesPanel`,
+// `sales_channels`' `EntityChannelMembership` and `price_lists`'
+// `DisplayModeOverrideRow`. All three are `organization.detail.after`
+// contributions now and their `admin/src` copies are deleted, so the mocks
+// named modules that no longer exist — and vitest answered that by making them
+// **inert** rather than by failing, which is the trap this feature has now
+// reported three times. What replaces them is the empty registry below: the
+// zone enumerates nothing here, because this file's subject is the custom-field
+// panel and not the zone.
 
 const { OrganizationDetail } = await import(
   '../../../src/modules/organizations/OrganizationDetail'
@@ -122,11 +124,20 @@ function renderDetail(): void {
     return Promise.resolve({ data: [] });
   });
   renderWithI18n(
-    <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
-      <Routes>
-        <Route path="/organizations/:id" element={<OrganizationDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
+        <Routes>
+          <Route path="/organizations/:id" element={<OrganizationDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: ['*'] }),
+        presence: modulePresence({ present: ['organizations'] }),
+        // No contribution: `organization.detail.after` renders nothing here, so
+        // the four panels that used to be mocked cost this file nothing at all.
+        contributions: [],
+      },
+    ),
     bundle,
   );
 }

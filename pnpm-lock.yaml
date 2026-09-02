@@ -161,6 +161,9 @@ importers:
       '@endora-commerce/mod-pwa':
         specifier: workspace:*
         version: link:../packages/modules/pwa
+      '@endora-commerce/mod-quick-order':
+        specifier: workspace:*
+        version: link:../packages/modules/quick_order
       '@endora-commerce/mod-quote-requests':
         specifier: workspace:*
         version: link:../packages/modules/quote_requests
@@ -3139,6 +3142,9 @@ importers:
 
   packages/modules/quick_order:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -3157,12 +3163,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

@@ -19,6 +19,14 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * `catalog` now renders `category.editor.after` and
  * `product.editor.pricing.after`; this module declares the other end.
  *
+ * **P7b added a third**, `organization.detail.after`, for the same control on
+ * `organizations`' detail screen — the `DisplayModeOverrideRow` key of
+ * `cross-module-imports/organizations.ts`, whose shard is deleted with it. It
+ * is a contribution to a member of its own rather than a `match` on the
+ * category one, because two hosts with a place each are two members (Z13), and
+ * it is the one wrapper in this module that renders a `Card`: the zone it joins
+ * is a stack of panels and the other three contributors each render one.
+ *
  * ## Why the registry is real and the declarations are imported
  *
  * A contribution asserted against a copy of itself asserts nothing about the
@@ -58,6 +66,7 @@ const { manifest } = await import('@endora-commerce/mod-price-lists');
 
 const CATEGORY_ID = '33333333-3333-4333-8333-333333333303';
 const PRODUCT_ID = '11111111-1111-4111-8111-111111111101';
+const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000a1';
 
 const REGISTRY = [{ moduleId: 'price_lists', contributions: priceLists.contributions }];
 
@@ -103,7 +112,7 @@ function renderZone(options: {
   return container;
 }
 
-describe('price_lists contributes the category and pricing zones', () => {
+describe('price_lists contributes the category, pricing and organization zones', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSpy.mockImplementation(async (url: string) => {
@@ -113,7 +122,7 @@ describe('price_lists contributes the category and pricing zones', () => {
     });
   });
 
-  it('declares exactly the two members P7a adds, with no match on either', () => {
+  it('declares exactly the three members P7a and P7b add, with no match on any', () => {
     // `match` narrows the *mounts of one place* (Z13). Each of these members
     // has one host and one mount, so a `match` here could only ever be an
     // enumeration of another module's vocabulary — asserted absent so a later
@@ -122,6 +131,7 @@ describe('price_lists contributes the category and pricing zones', () => {
     expect(zones.map((zone) => zone.zone)).toEqual([
       'category.editor.after',
       'product.editor.pricing.after',
+      'organization.detail.after',
     ]);
     for (const zone of zones) {
       expect(zone.match, zone.zone).toBeUndefined();
@@ -154,6 +164,56 @@ describe('price_lists contributes the category and pricing zones', () => {
     expect(getSpy).toHaveBeenCalledWith(
       `/api/v1/admin/products/${PRODUCT_ID}/price-lists`,
     );
+  });
+
+  it('orders itself second among the organization detail\'s four contributors', () => {
+    // The weights preserve the order the operator saw when the panels were
+    // scattered through `OrganizationDetail.tsx`: `sales_channels` (100), this
+    // row (200), `quick_order` (300), `carts` (400).
+    const organization = (priceLists.contributions.zones ?? []).find(
+      (zone) => zone.zone === 'organization.detail.after',
+    );
+    expect(organization?.weight).toBe(200);
+  });
+
+  it('renders the display-mode row into the organization detail zone', async () => {
+    const container = renderZone({
+      name: 'organization.detail.after',
+      props: { organizationId: ORGANIZATION_ID },
+    });
+    await waitFor(() =>
+      expect(container.textContent).toContain('priceLists.displayMode.rowLabel'),
+    );
+    expect(getSpy).toHaveBeenCalledWith(
+      `/api/v1/admin/pricing/display-mode-overrides/organization/${ORGANIZATION_ID}`,
+    );
+  });
+
+  it('leaves the organization host naming neither this module nor its control', async () => {
+    // P7b's half of the evidence, and the copy change with it: the host used to
+    // pass `organizations.detail.pricingLabel` and `.pricingHint` into this
+    // module's control and wrap it in a card titled `.pricingCard`. All three
+    // keys are read by nothing now and are removed from the `core` bundle in
+    // both shipped languages.
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const host = readFileSync(
+      resolve(process.cwd(), 'src/modules/organizations/OrganizationDetail.tsx'),
+      'utf8',
+    );
+    expect(host).not.toContain('DisplayModeOverrideRow');
+    expect(host).not.toContain('organizations.detail.pricing');
+    expect(host).toContain('name="organization.detail.after"');
+    const core = JSON.parse(
+      readFileSync(resolve(process.cwd(), '../packages/modules/_i18n/i18n/en.json'), 'utf8'),
+    ) as Record<string, string>;
+    for (const key of [
+      'organizations.detail.pricingCard',
+      'organizations.detail.pricingHint',
+      'organizations.detail.pricingLabel',
+    ]) {
+      expect(core[key], key).toBeUndefined();
+    }
   });
 
   it('renders neither zone without price_lists:read, and fetches no chunk', async () => {

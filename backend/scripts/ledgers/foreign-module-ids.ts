@@ -195,10 +195,16 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
     "The InPost label button's own labels, beside the gate above it. This file is why §9.3 " +
     'folds the two populations into one finding rather than shipping them as two: it is in ' +
     'both, and they are one coupling. Retires with the gate, at batch 10.',
-  'admin/src/modules/organizations/panels/CartApprovalPolicyPanel.tsx:module-namespace:carts':
-    "The cart approval policy is `carts`' concept rendered on an organization's screen, so " +
-    "the copy follows the concept. Retires when the panel becomes `carts`' own contribution " +
-    "rather than `organizations`' component.",
+  // **The `carts` entry retired the way its own reason predicted** (P7b). The
+  // cart-approval policy panel became `carts`' `organization.detail.after`
+  // contribution rather than `organizations`' component, so the namespace it
+  // names is its own. The file moved and the coupling went in the same merge
+  // request, which is what this header asks a removal to say: it was the
+  // repair, not the walk losing sight of the file. Worth one more sentence,
+  // because the file was imported by nothing and the copy it named was in no
+  // bundle under any spelling — the entry recorded a coupling that had never
+  // rendered a word, and the repair is the first time the operator sees the
+  // capability at all.
   // **`settings`' `ConfigurationReferenceInput` had the fourth entry and the
   // coupling is repaired, not relocated** (batch 10). It named `credentials`
   // for one label, `action.preview`, on the button that opens the credential

@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * The customer screen still renders its custom fields and still saves them,
@@ -57,9 +58,13 @@ vi.mock('@/modules/customers/panels/ManagementPanels', () => ({
   CustomerGroupPanel: () => null,
   AddressesPanel: () => null,
 }));
-vi.mock('@/modules/quick_order/DefaultPreferencesPanel', () => ({
-  DefaultPreferencesPanel: () => null,
-}));
+// A fourth `vi.mock` stood here until feature 091's P7b — `quick_order`'s
+// `DefaultPreferencesPanel`, which this screen imported by path. It is a
+// `customer.detail.after` contribution now and its `admin/src` copy is deleted,
+// so the mock named a module that no longer exists — and vitest answered that by
+// making it **inert** rather than by failing. What replaces it is the empty
+// registry below: the zone enumerates nothing here, because this file's subject
+// is the custom-field panel and not the zone.
 
 const { CustomerDetail } = await import('../../../src/modules/customers/CustomerDetail');
 
@@ -114,11 +119,18 @@ function renderDetail(): void {
     return Promise.reject(new Error(`unexpected GET ${path}`));
   });
   renderWithI18n(
-    <MemoryRouter initialEntries={[`/customers/${CUSTOMER_ID}`]}>
-      <Routes>
-        <Route path="/customers/:id" element={<CustomerDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={[`/customers/${CUSTOMER_ID}`]}>
+        <Routes>
+          <Route path="/customers/:id" element={<CustomerDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: ['*'] }),
+        presence: modulePresence({ present: ['customers'] }),
+        contributions: [],
+      },
+    ),
     bundle,
   );
 }
