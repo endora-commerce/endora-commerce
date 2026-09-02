@@ -71,21 +71,22 @@ import { contributions as contributions35 } from '@endora-commerce/mod-paypal/ad
 import { contributions as contributions36 } from '@endora-commerce/mod-payu/admin';
 import { contributions as contributions37 } from '@endora-commerce/mod-pim-ergonode/admin';
 import { contributions as contributions38 } from '@endora-commerce/mod-pim-pimcore/admin';
-import { contributions as contributions39 } from '@endora-commerce/mod-price-lists/admin';
-import { contributions as contributions40 } from '@endora-commerce/mod-product-feeds/admin';
-import { contributions as contributions41 } from '@endora-commerce/mod-promotions/admin';
-import { contributions as contributions42 } from '@endora-commerce/mod-pwa/admin';
-import { contributions as contributions43 } from '@endora-commerce/mod-quick-order/admin';
-import { contributions as contributions44 } from '@endora-commerce/mod-quote-requests/admin';
-import { contributions as contributions45 } from '@endora-commerce/mod-returns/admin';
-import { contributions as contributions46 } from '@endora-commerce/mod-sales-channels/admin';
-import { contributions as contributions47 } from '@endora-commerce/mod-seo/admin';
-import { contributions as contributions48 } from '@endora-commerce/mod-settings/admin';
-import { contributions as contributions49 } from '@endora-commerce/mod-stripe/admin';
-import { contributions as contributions50 } from '@endora-commerce/mod-taxes/admin';
-import { contributions as contributions51 } from '@endora-commerce/mod-tpay/admin';
-import { contributions as contributions52 } from '@endora-commerce/mod-transactional-emails/admin';
-import { contributions as contributions53 } from '@endora-commerce/mod-webhooks/admin';
+import { contributions as contributions39 } from '@endora-commerce/mod-pim-unopim/admin';
+import { contributions as contributions40 } from '@endora-commerce/mod-price-lists/admin';
+import { contributions as contributions41 } from '@endora-commerce/mod-product-feeds/admin';
+import { contributions as contributions42 } from '@endora-commerce/mod-promotions/admin';
+import { contributions as contributions43 } from '@endora-commerce/mod-pwa/admin';
+import { contributions as contributions44 } from '@endora-commerce/mod-quick-order/admin';
+import { contributions as contributions45 } from '@endora-commerce/mod-quote-requests/admin';
+import { contributions as contributions46 } from '@endora-commerce/mod-returns/admin';
+import { contributions as contributions47 } from '@endora-commerce/mod-sales-channels/admin';
+import { contributions as contributions48 } from '@endora-commerce/mod-seo/admin';
+import { contributions as contributions49 } from '@endora-commerce/mod-settings/admin';
+import { contributions as contributions50 } from '@endora-commerce/mod-stripe/admin';
+import { contributions as contributions51 } from '@endora-commerce/mod-taxes/admin';
+import { contributions as contributions52 } from '@endora-commerce/mod-tpay/admin';
+import { contributions as contributions53 } from '@endora-commerce/mod-transactional-emails/admin';
+import { contributions as contributions54 } from '@endora-commerce/mod-webhooks/admin';
 
 /** One module's contribution set, keyed by the module id that shipped it. */
 export interface AdminRegistryEntry {
@@ -133,19 +134,20 @@ export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
   { moduleId: 'payu', contributions: contributions36 },
   { moduleId: 'pim_ergonode', contributions: contributions37 },
   { moduleId: 'pim_pimcore', contributions: contributions38 },
-  { moduleId: 'price_lists', contributions: contributions39 },
-  { moduleId: 'product_feeds', contributions: contributions40 },
-  { moduleId: 'promotions', contributions: contributions41 },
-  { moduleId: 'pwa', contributions: contributions42 },
-  { moduleId: 'quick_order', contributions: contributions43 },
-  { moduleId: 'quote_requests', contributions: contributions44 },
-  { moduleId: 'returns', contributions: contributions45 },
-  { moduleId: 'sales_channels', contributions: contributions46 },
-  { moduleId: 'seo', contributions: contributions47 },
-  { moduleId: 'settings', contributions: contributions48 },
-  { moduleId: 'stripe', contributions: contributions49 },
-  { moduleId: 'taxes', contributions: contributions50 },
-  { moduleId: 'tpay', contributions: contributions51 },
-  { moduleId: 'transactional_emails', contributions: contributions52 },
-  { moduleId: 'webhooks', contributions: contributions53 },
+  { moduleId: 'pim_unopim', contributions: contributions39 },
+  { moduleId: 'price_lists', contributions: contributions40 },
+  { moduleId: 'product_feeds', contributions: contributions41 },
+  { moduleId: 'promotions', contributions: contributions42 },
+  { moduleId: 'pwa', contributions: contributions43 },
+  { moduleId: 'quick_order', contributions: contributions44 },
+  { moduleId: 'quote_requests', contributions: contributions45 },
+  { moduleId: 'returns', contributions: contributions46 },
+  { moduleId: 'sales_channels', contributions: contributions47 },
+  { moduleId: 'seo', contributions: contributions48 },
+  { moduleId: 'settings', contributions: contributions49 },
+  { moduleId: 'stripe', contributions: contributions50 },
+  { moduleId: 'taxes', contributions: contributions51 },
+  { moduleId: 'tpay', contributions: contributions52 },
+  { moduleId: 'transactional_emails', contributions: contributions53 },
+  { moduleId: 'webhooks', contributions: contributions54 },
 ];

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { toAbsoluteAssetUrl } from '../lib/asset-url';
 
 /**
  * Feature 002 US3 — Product Attachments list for the PDP.
@@ -7,7 +8,9 @@ import type { ReactNode } from 'react';
  * card, PDF, …) so customers can scan by purpose. Each row renders the
  * attachment name, an optional description, and a download anchor that
  * targets the underlying Asset's url (CDN/storage handles the actual
- * download).
+ * download). Host-relative `/assets/file/…` paths are rebased onto the
+ * public API origin — the same contract as gallery images — so the
+ * browser does not fetch HTML from the storefront and save it as a PDF.
  */
 
 export interface AttachmentItem {
@@ -69,7 +72,7 @@ export function AttachmentsList(props: {
               <li key={att.id} className="py-1">
                 <a
                   className="text-[13px] text-accent hover:text-accent-hover"
-                  href={att.asset.url}
+                  href={toAbsoluteAssetUrl(att.asset.url)}
                   rel="noopener"
                   target="_blank"
                   download={att.asset.filename}

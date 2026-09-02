@@ -78,6 +78,7 @@ import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment
 import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import { entities as paypalEntities } from '@endora-commerce/mod-paypal/backend';
 import { entities as payuEntities } from '@endora-commerce/mod-payu/backend';
+import { entities as pimConnectorEntities } from '@endora-commerce/mod-pim-connector/backend';
 import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
 import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
 import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
@@ -94,6 +95,7 @@ import { entities as stripeEntities } from '@endora-commerce/mod-stripe/backend'
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as tpayEntities } from '@endora-commerce/mod-tpay/backend';
 import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
+import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
 
 export const ALL_ENTITIES = [
@@ -148,6 +150,7 @@ export const ALL_ENTITIES = [
   ...(paymentsEntities as readonly EntityClassLike[]),
   ...(paypalEntities as readonly EntityClassLike[]),
   ...(payuEntities as readonly EntityClassLike[]),
+  ...(pimConnectorEntities as readonly EntityClassLike[]),
   ...(pimPimcoreEntities as readonly EntityClassLike[]),
   ...(priceListsEntities as readonly EntityClassLike[]),
   ...(promptActionsEntities as readonly EntityClassLike[]),
@@ -164,5 +167,6 @@ export const ALL_ENTITIES = [
   ...(taxesEntities as readonly EntityClassLike[]),
   ...(tpayEntities as readonly EntityClassLike[]),
   ...(i18nEntities as readonly EntityClassLike[]),
+  ...(pimUnopimEntities as readonly EntityClassLike[]),
   ...(webhooksEntities as readonly EntityClassLike[]),
 ] as const;

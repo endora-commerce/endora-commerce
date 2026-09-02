@@ -70,6 +70,8 @@ const bundle = passthroughBundle('core', [
 // sentence, which a passthrough key cannot show.
 bundle['core']!['platform.modules.error.dependentsPresent'] = 'blocked: {name} needs {modules}';
 bundle['core']!['platform.modules.error.dependenciesAbsent'] = 'missing: {name} wants {modules}';
+bundle['core']!['platform.modules.error.pimConnectorAlreadyActive'] =
+  'pim blocked: {name} vs {activeModuleId}';
 
 function moduleItem(patch: Partial<ModuleListItem> & { id: string }): ModuleListItem {
   return {
@@ -220,6 +222,30 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
     );
 
     expect(await screen.findByText('blocked: Settings needs organizations')).toBeInTheDocument();
+  });
+
+  it('names the incumbent PIM connector when mutual exclusion refuses the flip (FR-003)', async () => {
+    setModuleActivation.mockRejectedValueOnce(
+      new ApiError(409, {
+        error: {
+          code: 'PIM_CONNECTOR_ALREADY_ACTIVE',
+          message: 'Another PIM connector is already active: pim_ergonode',
+          details: { activeModuleId: 'pim_ergonode' },
+          requestId: 'req_test',
+        },
+      }),
+    );
+    listed = [moduleItem({ id: 'pim_unopim', name: 'UnoPim PIM' })];
+    presence = [presenceItem({ id: 'pim_unopim', present: false, activated: false })];
+    await renderPage();
+
+    await userEvent.click(
+      within(row('pim_unopim')).getByRole('button', { name: /platform.modules.action.enable/ }),
+    );
+
+    expect(
+      await screen.findByText('pim blocked: UnoPim PIM vs pim_ergonode'),
+    ).toBeInTheDocument();
   });
 
   it('keeps the server sentence for a refusal that names no modules', async () => {

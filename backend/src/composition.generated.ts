@@ -73,106 +73,110 @@ import * as module17 from '@endora-commerce/mod-settings/backend';
 import { manifest as manifest17 } from '@endora-commerce/mod-settings';
 import * as module18 from '@endora-commerce/mod-credentials/backend';
 import { manifest as manifest18 } from '@endora-commerce/mod-credentials';
-import * as module19 from '@endora-commerce/mod-prompt-actions/backend';
-import { manifest as manifest19 } from '@endora-commerce/mod-prompt-actions';
-import * as module20 from '@endora-commerce/mod-sales-channels/backend';
-import { manifest as manifest20 } from '@endora-commerce/mod-sales-channels';
-import * as module21 from '@endora-commerce/mod-catalog/backend';
-import { manifest as manifest21 } from '@endora-commerce/mod-catalog';
-import * as module22 from '@endora-commerce/mod-cms/backend';
-import { manifest as manifest22 } from '@endora-commerce/mod-cms';
-import * as module23 from '@endora-commerce/mod-blog/backend';
-import { manifest as manifest23 } from '@endora-commerce/mod-blog';
-import * as module24 from '@endora-commerce/mod-google-analytics/backend';
-import { manifest as manifest24 } from '@endora-commerce/mod-google-analytics';
-import * as module25 from '@endora-commerce/mod-google-tag-manager/backend';
-import { manifest as manifest25 } from '@endora-commerce/mod-google-tag-manager';
-import * as module26 from '@endora-commerce/mod-linkedin-ads/backend';
-import { manifest as manifest26 } from '@endora-commerce/mod-linkedin-ads';
-import * as module27 from '@endora-commerce/mod-megamenu/backend';
-import { manifest as manifest27 } from '@endora-commerce/mod-megamenu';
-import * as module28 from '@endora-commerce/mod-meta-ads/backend';
-import { manifest as manifest28 } from '@endora-commerce/mod-meta-ads';
-import * as module29 from '@endora-commerce/mod-seo/backend';
-import { manifest as manifest29 } from '@endora-commerce/mod-seo';
-import * as module30 from '@endora-commerce/mod-taxes/backend';
-import { manifest as manifest30 } from '@endora-commerce/mod-taxes';
-import * as module31 from '@endora-commerce/mod-transactional-emails/backend';
-import { manifest as manifest31 } from '@endora-commerce/mod-transactional-emails';
-import * as module32 from '@endora-commerce/mod-organizations/backend';
-import { manifest as manifest32 } from '@endora-commerce/mod-organizations';
-import * as module33 from '@endora-commerce/mod-addresses/backend';
-import { manifest as manifest33 } from '@endora-commerce/mod-addresses';
-import * as module34 from '@endora-commerce/mod-customer-accounts/backend';
-import { manifest as manifest34 } from '@endora-commerce/mod-customer-accounts';
-import * as module35 from '@endora-commerce/mod-api-keys/backend';
-import { manifest as manifest35 } from '@endora-commerce/mod-api-keys';
-import * as module36 from '@endora-commerce/mod-delivery-methods/backend';
-import { manifest as manifest36 } from '@endora-commerce/mod-delivery-methods';
-import * as module37 from '@endora-commerce/mod-mfa/backend';
-import { manifest as manifest37 } from '@endora-commerce/mod-mfa';
-import * as module38 from '@endora-commerce/mod-payment-methods/backend';
-import { manifest as manifest38 } from '@endora-commerce/mod-payment-methods';
-import * as module39 from '@endora-commerce/mod-price-lists/backend';
-import { manifest as manifest39 } from '@endora-commerce/mod-price-lists';
-import * as module40 from '@endora-commerce/mod-comparisons/backend';
-import { manifest as manifest40 } from '@endora-commerce/mod-comparisons';
-import * as module41 from '@endora-commerce/mod-orders/backend';
-import { manifest as manifest41 } from '@endora-commerce/mod-orders';
-import * as module42 from '@endora-commerce/mod-credit-limits/backend';
-import { manifest as manifest42 } from '@endora-commerce/mod-credit-limits';
-import * as module43 from '@endora-commerce/mod-inventory/backend';
-import { manifest as manifest43 } from '@endora-commerce/mod-inventory';
-import * as module44 from '@endora-commerce/mod-invoices/backend';
-import { manifest as manifest44 } from '@endora-commerce/mod-invoices';
-import * as module45 from '@endora-commerce/mod-ksef/backend';
-import { manifest as manifest45 } from '@endora-commerce/mod-ksef';
-import * as module46 from '@endora-commerce/mod-payments/backend';
-import { manifest as manifest46 } from '@endora-commerce/mod-payments';
-import * as module47 from '@endora-commerce/mod-pim-ergonode/backend';
-import { manifest as manifest47 } from '@endora-commerce/mod-pim-ergonode';
-import * as module48 from '@endora-commerce/mod-pim-pimcore/backend';
-import { manifest as manifest48 } from '@endora-commerce/mod-pim-pimcore';
-import * as module49 from '@endora-commerce/mod-product-feeds/backend';
-import { manifest as manifest49 } from '@endora-commerce/mod-product-feeds';
-import * as module50 from '@endora-commerce/mod-promotions/backend';
-import { manifest as manifest50 } from '@endora-commerce/mod-promotions';
-import * as module51 from '@endora-commerce/mod-pwa/backend';
-import { manifest as manifest51 } from '@endora-commerce/mod-pwa';
-import * as module52 from '@endora-commerce/mod-quote-requests/backend';
-import { manifest as manifest52 } from '@endora-commerce/mod-quote-requests';
-import * as module53 from '@endora-commerce/mod-carts/backend';
-import { manifest as manifest53 } from '@endora-commerce/mod-carts';
-import * as module54 from '@endora-commerce/mod-quick-order/backend';
-import { manifest as manifest54 } from '@endora-commerce/mod-quick-order';
-import * as module55 from '@endora-commerce/mod-customers/backend';
-import { manifest as manifest55 } from '@endora-commerce/mod-customers';
-import * as module56 from '@endora-commerce/mod-newsletter/backend';
-import { manifest as manifest56 } from '@endora-commerce/mod-newsletter';
-import * as module57 from '@endora-commerce/mod-returns/backend';
-import { manifest as manifest57 } from '@endora-commerce/mod-returns';
-import * as module58 from '@endora-commerce/mod-autopay/backend';
-import { manifest as manifest58 } from '@endora-commerce/mod-autopay';
-import * as module59 from '@endora-commerce/mod-paypal/backend';
-import { manifest as manifest59 } from '@endora-commerce/mod-paypal';
-import * as module60 from '@endora-commerce/mod-payu/backend';
-import { manifest as manifest60 } from '@endora-commerce/mod-payu';
-import * as module61 from '@endora-commerce/mod-search/backend';
-import { manifest as manifest61 } from '@endora-commerce/mod-search';
-import * as module62 from '@endora-commerce/mod-shipments/backend';
-import { manifest as manifest62 } from '@endora-commerce/mod-shipments';
-import * as module63 from '@endora-commerce/mod-dhl-parcel/backend';
-import { manifest as manifest63 } from '@endora-commerce/mod-dhl-parcel';
-import * as module64 from '@endora-commerce/mod-inpost/backend';
-import { manifest as manifest64 } from '@endora-commerce/mod-inpost';
-import * as module65 from '@endora-commerce/mod-shopping-lists/backend';
-import { manifest as manifest65 } from '@endora-commerce/mod-shopping-lists';
-import * as module66 from '@endora-commerce/mod-stripe/backend';
-import { manifest as manifest66 } from '@endora-commerce/mod-stripe';
-import * as module67 from '@endora-commerce/mod-tpay/backend';
-import { manifest as manifest67 } from '@endora-commerce/mod-tpay';
-import * as module68 from '@endora-commerce/mod-webhooks/backend';
-import { manifest as manifest68 } from '@endora-commerce/mod-webhooks';
+import * as module19 from '@endora-commerce/mod-pim-connector/backend';
+import { manifest as manifest19 } from '@endora-commerce/mod-pim-connector';
+import * as module20 from '@endora-commerce/mod-prompt-actions/backend';
+import { manifest as manifest20 } from '@endora-commerce/mod-prompt-actions';
+import * as module21 from '@endora-commerce/mod-sales-channels/backend';
+import { manifest as manifest21 } from '@endora-commerce/mod-sales-channels';
+import * as module22 from '@endora-commerce/mod-catalog/backend';
+import { manifest as manifest22 } from '@endora-commerce/mod-catalog';
+import * as module23 from '@endora-commerce/mod-cms/backend';
+import { manifest as manifest23 } from '@endora-commerce/mod-cms';
+import * as module24 from '@endora-commerce/mod-blog/backend';
+import { manifest as manifest24 } from '@endora-commerce/mod-blog';
+import * as module25 from '@endora-commerce/mod-google-analytics/backend';
+import { manifest as manifest25 } from '@endora-commerce/mod-google-analytics';
+import * as module26 from '@endora-commerce/mod-google-tag-manager/backend';
+import { manifest as manifest26 } from '@endora-commerce/mod-google-tag-manager';
+import * as module27 from '@endora-commerce/mod-linkedin-ads/backend';
+import { manifest as manifest27 } from '@endora-commerce/mod-linkedin-ads';
+import * as module28 from '@endora-commerce/mod-megamenu/backend';
+import { manifest as manifest28 } from '@endora-commerce/mod-megamenu';
+import * as module29 from '@endora-commerce/mod-meta-ads/backend';
+import { manifest as manifest29 } from '@endora-commerce/mod-meta-ads';
+import * as module30 from '@endora-commerce/mod-seo/backend';
+import { manifest as manifest30 } from '@endora-commerce/mod-seo';
+import * as module31 from '@endora-commerce/mod-taxes/backend';
+import { manifest as manifest31 } from '@endora-commerce/mod-taxes';
+import * as module32 from '@endora-commerce/mod-transactional-emails/backend';
+import { manifest as manifest32 } from '@endora-commerce/mod-transactional-emails';
+import * as module33 from '@endora-commerce/mod-organizations/backend';
+import { manifest as manifest33 } from '@endora-commerce/mod-organizations';
+import * as module34 from '@endora-commerce/mod-addresses/backend';
+import { manifest as manifest34 } from '@endora-commerce/mod-addresses';
+import * as module35 from '@endora-commerce/mod-customer-accounts/backend';
+import { manifest as manifest35 } from '@endora-commerce/mod-customer-accounts';
+import * as module36 from '@endora-commerce/mod-api-keys/backend';
+import { manifest as manifest36 } from '@endora-commerce/mod-api-keys';
+import * as module37 from '@endora-commerce/mod-delivery-methods/backend';
+import { manifest as manifest37 } from '@endora-commerce/mod-delivery-methods';
+import * as module38 from '@endora-commerce/mod-mfa/backend';
+import { manifest as manifest38 } from '@endora-commerce/mod-mfa';
+import * as module39 from '@endora-commerce/mod-payment-methods/backend';
+import { manifest as manifest39 } from '@endora-commerce/mod-payment-methods';
+import * as module40 from '@endora-commerce/mod-price-lists/backend';
+import { manifest as manifest40 } from '@endora-commerce/mod-price-lists';
+import * as module41 from '@endora-commerce/mod-comparisons/backend';
+import { manifest as manifest41 } from '@endora-commerce/mod-comparisons';
+import * as module42 from '@endora-commerce/mod-orders/backend';
+import { manifest as manifest42 } from '@endora-commerce/mod-orders';
+import * as module43 from '@endora-commerce/mod-credit-limits/backend';
+import { manifest as manifest43 } from '@endora-commerce/mod-credit-limits';
+import * as module44 from '@endora-commerce/mod-inventory/backend';
+import { manifest as manifest44 } from '@endora-commerce/mod-inventory';
+import * as module45 from '@endora-commerce/mod-invoices/backend';
+import { manifest as manifest45 } from '@endora-commerce/mod-invoices';
+import * as module46 from '@endora-commerce/mod-ksef/backend';
+import { manifest as manifest46 } from '@endora-commerce/mod-ksef';
+import * as module47 from '@endora-commerce/mod-payments/backend';
+import { manifest as manifest47 } from '@endora-commerce/mod-payments';
+import * as module48 from '@endora-commerce/mod-pim-ergonode/backend';
+import { manifest as manifest48 } from '@endora-commerce/mod-pim-ergonode';
+import * as module49 from '@endora-commerce/mod-pim-pimcore/backend';
+import { manifest as manifest49 } from '@endora-commerce/mod-pim-pimcore';
+import * as module50 from '@endora-commerce/mod-pim-unopim/backend';
+import { manifest as manifest50 } from '@endora-commerce/mod-pim-unopim';
+import * as module51 from '@endora-commerce/mod-product-feeds/backend';
+import { manifest as manifest51 } from '@endora-commerce/mod-product-feeds';
+import * as module52 from '@endora-commerce/mod-promotions/backend';
+import { manifest as manifest52 } from '@endora-commerce/mod-promotions';
+import * as module53 from '@endora-commerce/mod-pwa/backend';
+import { manifest as manifest53 } from '@endora-commerce/mod-pwa';
+import * as module54 from '@endora-commerce/mod-quote-requests/backend';
+import { manifest as manifest54 } from '@endora-commerce/mod-quote-requests';
+import * as module55 from '@endora-commerce/mod-carts/backend';
+import { manifest as manifest55 } from '@endora-commerce/mod-carts';
+import * as module56 from '@endora-commerce/mod-quick-order/backend';
+import { manifest as manifest56 } from '@endora-commerce/mod-quick-order';
+import * as module57 from '@endora-commerce/mod-customers/backend';
+import { manifest as manifest57 } from '@endora-commerce/mod-customers';
+import * as module58 from '@endora-commerce/mod-newsletter/backend';
+import { manifest as manifest58 } from '@endora-commerce/mod-newsletter';
+import * as module59 from '@endora-commerce/mod-returns/backend';
+import { manifest as manifest59 } from '@endora-commerce/mod-returns';
+import * as module60 from '@endora-commerce/mod-autopay/backend';
+import { manifest as manifest60 } from '@endora-commerce/mod-autopay';
+import * as module61 from '@endora-commerce/mod-paypal/backend';
+import { manifest as manifest61 } from '@endora-commerce/mod-paypal';
+import * as module62 from '@endora-commerce/mod-payu/backend';
+import { manifest as manifest62 } from '@endora-commerce/mod-payu';
+import * as module63 from '@endora-commerce/mod-search/backend';
+import { manifest as manifest63 } from '@endora-commerce/mod-search';
+import * as module64 from '@endora-commerce/mod-shipments/backend';
+import { manifest as manifest64 } from '@endora-commerce/mod-shipments';
+import * as module65 from '@endora-commerce/mod-dhl-parcel/backend';
+import { manifest as manifest65 } from '@endora-commerce/mod-dhl-parcel';
+import * as module66 from '@endora-commerce/mod-inpost/backend';
+import { manifest as manifest66 } from '@endora-commerce/mod-inpost';
+import * as module67 from '@endora-commerce/mod-shopping-lists/backend';
+import { manifest as manifest67 } from '@endora-commerce/mod-shopping-lists';
+import * as module68 from '@endora-commerce/mod-stripe/backend';
+import { manifest as manifest68 } from '@endora-commerce/mod-stripe';
+import * as module69 from '@endora-commerce/mod-tpay/backend';
+import { manifest as manifest69 } from '@endora-commerce/mod-tpay';
+import * as module70 from '@endora-commerce/mod-webhooks/backend';
+import { manifest as manifest70 } from '@endora-commerce/mod-webhooks';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -194,54 +198,56 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'dictionaries', version: manifest16.version, registerModule: module16.registerModule },
   { id: 'settings', version: manifest17.version, registerModule: module17.registerModule },
   { id: 'credentials', version: manifest18.version, registerModule: module18.registerModule },
-  { id: 'prompt_actions', version: manifest19.version, registerModule: module19.registerModule },
-  { id: 'sales_channels', version: manifest20.version, registerModule: module20.registerModule },
-  { id: 'catalog', version: manifest21.version, registerModule: module21.registerModule },
-  { id: 'cms', version: manifest22.version, registerModule: module22.registerModule },
-  { id: 'blog', version: manifest23.version, registerModule: module23.registerModule },
-  { id: 'google_analytics', version: manifest24.version, registerModule: module24.registerModule },
-  { id: 'google_tag_manager', version: manifest25.version, registerModule: module25.registerModule },
-  { id: 'linkedin_ads', version: manifest26.version, registerModule: module26.registerModule },
-  { id: 'megamenu', version: manifest27.version, registerModule: module27.registerModule },
-  { id: 'meta_ads', version: manifest28.version, registerModule: module28.registerModule },
-  { id: 'seo', version: manifest29.version, registerModule: module29.registerModule },
-  { id: 'taxes', version: manifest30.version, registerModule: module30.registerModule },
-  { id: 'transactional_emails', version: manifest31.version, registerModule: module31.registerModule },
-  { id: 'organizations', version: manifest32.version, registerModule: module32.registerModule },
-  { id: 'addresses', version: manifest33.version, registerModule: module33.registerModule },
-  { id: 'customer_accounts', version: manifest34.version, registerModule: module34.registerModule },
-  { id: 'api_keys', version: manifest35.version, registerModule: module35.registerModule },
-  { id: 'delivery_methods', version: manifest36.version, registerModule: module36.registerModule },
-  { id: 'mfa', version: manifest37.version, registerModule: module37.registerModule },
-  { id: 'payment_methods', version: manifest38.version, registerModule: module38.registerModule },
-  { id: 'price_lists', version: manifest39.version, registerModule: module39.registerModule },
-  { id: 'comparisons', version: manifest40.version, registerModule: module40.registerModule },
-  { id: 'orders', version: manifest41.version, registerModule: module41.registerModule },
-  { id: 'credit_limits', version: manifest42.version, registerModule: module42.registerModule },
-  { id: 'inventory', version: manifest43.version, registerModule: module43.registerModule },
-  { id: 'invoices', version: manifest44.version, registerModule: module44.registerModule },
-  { id: 'ksef', version: manifest45.version, registerModule: module45.registerModule },
-  { id: 'payments', version: manifest46.version, registerModule: module46.registerModule },
-  { id: 'pim_ergonode', version: manifest47.version, registerModule: module47.registerModule },
-  { id: 'pim_pimcore', version: manifest48.version, registerModule: module48.registerModule },
-  { id: 'product_feeds', version: manifest49.version, registerModule: module49.registerModule },
-  { id: 'promotions', version: manifest50.version, registerModule: module50.registerModule },
-  { id: 'pwa', version: manifest51.version, registerModule: module51.registerModule },
-  { id: 'quote_requests', version: manifest52.version, registerModule: module52.registerModule },
-  { id: 'carts', version: manifest53.version, registerModule: module53.registerModule },
-  { id: 'quick_order', version: manifest54.version, registerModule: module54.registerModule },
-  { id: 'customers', version: manifest55.version, registerModule: module55.registerModule },
-  { id: 'newsletter', version: manifest56.version, registerModule: module56.registerModule },
-  { id: 'returns', version: manifest57.version, registerModule: module57.registerModule },
-  { id: 'autopay', version: manifest58.version, registerModule: module58.registerModule },
-  { id: 'paypal', version: manifest59.version, registerModule: module59.registerModule },
-  { id: 'payu', version: manifest60.version, registerModule: module60.registerModule },
-  { id: 'search', version: manifest61.version, registerModule: module61.registerModule },
-  { id: 'shipments', version: manifest62.version, registerModule: module62.registerModule },
-  { id: 'dhl_parcel', version: manifest63.version, registerModule: module63.registerModule },
-  { id: 'inpost', version: manifest64.version, registerModule: module64.registerModule },
-  { id: 'shopping_lists', version: manifest65.version, registerModule: module65.registerModule },
-  { id: 'stripe', version: manifest66.version, registerModule: module66.registerModule },
-  { id: 'tpay', version: manifest67.version, registerModule: module67.registerModule },
-  { id: 'webhooks', version: manifest68.version, registerModule: module68.registerModule },
+  { id: 'pim_connector', version: manifest19.version, registerModule: module19.registerModule },
+  { id: 'prompt_actions', version: manifest20.version, registerModule: module20.registerModule },
+  { id: 'sales_channels', version: manifest21.version, registerModule: module21.registerModule },
+  { id: 'catalog', version: manifest22.version, registerModule: module22.registerModule },
+  { id: 'cms', version: manifest23.version, registerModule: module23.registerModule },
+  { id: 'blog', version: manifest24.version, registerModule: module24.registerModule },
+  { id: 'google_analytics', version: manifest25.version, registerModule: module25.registerModule },
+  { id: 'google_tag_manager', version: manifest26.version, registerModule: module26.registerModule },
+  { id: 'linkedin_ads', version: manifest27.version, registerModule: module27.registerModule },
+  { id: 'megamenu', version: manifest28.version, registerModule: module28.registerModule },
+  { id: 'meta_ads', version: manifest29.version, registerModule: module29.registerModule },
+  { id: 'seo', version: manifest30.version, registerModule: module30.registerModule },
+  { id: 'taxes', version: manifest31.version, registerModule: module31.registerModule },
+  { id: 'transactional_emails', version: manifest32.version, registerModule: module32.registerModule },
+  { id: 'organizations', version: manifest33.version, registerModule: module33.registerModule },
+  { id: 'addresses', version: manifest34.version, registerModule: module34.registerModule },
+  { id: 'customer_accounts', version: manifest35.version, registerModule: module35.registerModule },
+  { id: 'api_keys', version: manifest36.version, registerModule: module36.registerModule },
+  { id: 'delivery_methods', version: manifest37.version, registerModule: module37.registerModule },
+  { id: 'mfa', version: manifest38.version, registerModule: module38.registerModule },
+  { id: 'payment_methods', version: manifest39.version, registerModule: module39.registerModule },
+  { id: 'price_lists', version: manifest40.version, registerModule: module40.registerModule },
+  { id: 'comparisons', version: manifest41.version, registerModule: module41.registerModule },
+  { id: 'orders', version: manifest42.version, registerModule: module42.registerModule },
+  { id: 'credit_limits', version: manifest43.version, registerModule: module43.registerModule },
+  { id: 'inventory', version: manifest44.version, registerModule: module44.registerModule },
+  { id: 'invoices', version: manifest45.version, registerModule: module45.registerModule },
+  { id: 'ksef', version: manifest46.version, registerModule: module46.registerModule },
+  { id: 'payments', version: manifest47.version, registerModule: module47.registerModule },
+  { id: 'pim_ergonode', version: manifest48.version, registerModule: module48.registerModule },
+  { id: 'pim_pimcore', version: manifest49.version, registerModule: module49.registerModule },
+  { id: 'pim_unopim', version: manifest50.version, registerModule: module50.registerModule },
+  { id: 'product_feeds', version: manifest51.version, registerModule: module51.registerModule },
+  { id: 'promotions', version: manifest52.version, registerModule: module52.registerModule },
+  { id: 'pwa', version: manifest53.version, registerModule: module53.registerModule },
+  { id: 'quote_requests', version: manifest54.version, registerModule: module54.registerModule },
+  { id: 'carts', version: manifest55.version, registerModule: module55.registerModule },
+  { id: 'quick_order', version: manifest56.version, registerModule: module56.registerModule },
+  { id: 'customers', version: manifest57.version, registerModule: module57.registerModule },
+  { id: 'newsletter', version: manifest58.version, registerModule: module58.registerModule },
+  { id: 'returns', version: manifest59.version, registerModule: module59.registerModule },
+  { id: 'autopay', version: manifest60.version, registerModule: module60.registerModule },
+  { id: 'paypal', version: manifest61.version, registerModule: module61.registerModule },
+  { id: 'payu', version: manifest62.version, registerModule: module62.registerModule },
+  { id: 'search', version: manifest63.version, registerModule: module63.registerModule },
+  { id: 'shipments', version: manifest64.version, registerModule: module64.registerModule },
+  { id: 'dhl_parcel', version: manifest65.version, registerModule: module65.registerModule },
+  { id: 'inpost', version: manifest66.version, registerModule: module66.registerModule },
+  { id: 'shopping_lists', version: manifest67.version, registerModule: module67.registerModule },
+  { id: 'stripe', version: manifest68.version, registerModule: module68.registerModule },
+  { id: 'tpay', version: manifest69.version, registerModule: module69.registerModule },
+  { id: 'webhooks', version: manifest70.version, registerModule: module70.registerModule },
 ];

@@ -179,6 +179,10 @@ export const DEFAULTED_FIXTURE_READS: Readonly<Record<string, string>> = {
     'count(*) always yields one row; "0" is "no channel bindings", not a missing fixture',
   'integration/pim_ergonode/price-binding.test.ts:rows':
     'count(*) always yields one row; 0 is "no price-list products", not a missing fixture',
+  'integration/pim_unopim/price-binding.test.ts:rows':
+    'count(*) always yields one row; 0 is "no price-list products", not a missing fixture',
+  'integration/pim_unopim/category-backfill.test.ts:rows':
+    'count(*) always yields one row; 0 is "no product-category rows", not a missing fixture',
   // A sentinel the assertion reads, not a value the test computes with: every
   // caller compares it against an expected status, so a vanished RFQ fails the
   // comparison loudly with `"missing"` in the diff. Retire the entry if the

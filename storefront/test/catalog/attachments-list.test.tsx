@@ -8,7 +8,10 @@ import { AttachmentsList } from '../../components/AttachmentsList';
  *
  * Pins the spec.md US3 attachment requirements:
  *   - Each attachment renders type → name → optional description
- *   - The download anchor points at the Asset's url
+ *   - The download anchor points at the Asset's url, rebased onto the
+ *     API origin when the catalog returns a host-relative `/assets/file/…`
+ *     path (same contract as gallery images — otherwise Next.js serves
+ *     HTML and the customer saves a broken "PDF")
  *   - Multiple attachments of the same type are grouped under one heading
  *   - Empty list → component renders nothing (caller decides on absence UX)
  */
@@ -67,7 +70,29 @@ describe('AttachmentsList — SSR contract', () => {
     );
     expect(html).toContain('Certificate');
     expect(html).toContain('CE Marking');
-    expect(html).toContain('href="/files/ce.pdf"');
+    expect(html).toContain('href="http://localhost:3001/files/ce.pdf"');
+  });
+
+  it('rebases a host-relative Assets Library URL onto the API origin', () => {
+    const html = renderToString(
+      <AttachmentsList
+        attachments={[
+          a(
+            '1',
+            'pdf',
+            'PDF',
+            'Manual',
+            null,
+            '/assets/file/dd02c65e-6d1c-454d-bae4-1bf016c2e47e',
+          ),
+        ]}
+        locale="en-US"
+      />,
+    );
+    expect(html).toContain(
+      'href="http://localhost:3001/assets/file/dd02c65e-6d1c-454d-bae4-1bf016c2e47e"',
+    );
+    expect(html).not.toContain('href="/assets/file/');
   });
 
   it('renders optional description when present', () => {

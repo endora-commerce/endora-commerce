@@ -1249,6 +1249,7 @@
   "platform.modules.empty": "No modules to show.",
   "platform.modules.error.dependenciesAbsent": "\"{name}\" cannot be switched on while everything it needs is not: {modules}. Switch those on first.",
   "platform.modules.error.dependentsPresent": "\"{name}\" cannot be switched off while these modules need it: {modules}. Switch them off first.",
+  "platform.modules.error.pimConnectorAlreadyActive": "\"{name}\" cannot be switched on while another PIM connector is active ({activeModuleId}). Switch that connector off first.",
   "platform.modules.flag.depDisabled": "Dependency disabled",
   "platform.modules.flag.depMissing": "Dependency missing",
   "platform.modules.flag.orphan": "No code on disk",

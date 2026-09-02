@@ -343,6 +343,12 @@ export const ModuleManifestSchema = z.object({
    */
   transactionalEmails: z.array(transactionalEmailManifestEntrySchema).optional(),
   /**
+   * When `true`, the module participates in the PIM connector mutual-exclusion
+   * set (feature 089). Consumed by `pim_connector` registry discovery — not by
+   * install ordering.
+   */
+  pimConnector: z.literal(true).optional(),
+  /**
    * The operator-visible error codes this module owns (feature 090, D-182).
    *
    * The declaration is what routes the code's sentence to this module's bundle:

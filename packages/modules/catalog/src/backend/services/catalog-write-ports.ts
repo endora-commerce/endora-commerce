@@ -43,6 +43,7 @@ export function createCatalogProductWritePort(
       getService().updateAttributeByIdOrKey(idOrKey, req, auditCtx),
     addAttributeOption: (attributeIdOrKey, input) =>
       getService().addAttributeOption(attributeIdOrKey, input),
+    patchAttributeOption: (optionId, input) => getService().patchAttributeOption(optionId, input),
     async createVariant(parentProductId, req) {
       return toCatalogProductVariantRecord(await getService().createVariant(parentProductId, req));
     },

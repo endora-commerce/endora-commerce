@@ -756,6 +756,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // hand-written Navigate rows, of which three named destinations no manifest
     // action covered and are `catalog` declarations now, the fourth being a
     // second copy of `orders`' own `open-orders`.
+    //
+    // **Feature 089 (`pim_unopim`): 57 -> 65 -> 57, and the number is
+    // deliberately left where it is.** That branch was written against the
+    // pre-batch-13 shape and added seven routes and one nav entry to the two
+    // host registries; converting it takes exactly those eight back out, so the
+    // count it leaves is the one recorded here. A rung that moves no number is
+    // worth a sentence rather than silence: what would be wrong is re-recording
+    // 65 on the way past, which would raise this band's floor for a state no
+    // merge commit ever held.
+    // Feature 089 merges into batch 15 and the count is **32**, measured on the
+    // merged tree rather than carried from either side: this branch's eight
+    // registrations were added and taken back out inside it, so what it
+    // contributes to batch 15's number is nothing.
     sites: 32,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.

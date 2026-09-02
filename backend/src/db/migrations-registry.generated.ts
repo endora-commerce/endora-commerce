@@ -236,6 +236,9 @@ import { Migration20260801T100943PayuInit } from '@endora-commerce/mod-payu/migr
 import { Migration20260816T053830PayuSeedPaymentMethods } from '@endora-commerce/mod-payu/migrations';
 import { Migration20260821T084923PayuFailureStatusOnHold } from '@endora-commerce/mod-payu/migrations';
 
+// ── pim_connector ───────────────────────────────────────────────────────────
+import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-pim-connector/migrations';
+
 // ── pim_ergonode ────────────────────────────────────────────────────────────
 import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pim-ergonode/migrations';
 import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-commerce/mod-pim-ergonode/migrations';
@@ -244,6 +247,9 @@ import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-comm
 import { Migration20260818T102204PimPimcoreInit } from '@endora-commerce/mod-pim-pimcore/migrations';
 import { Migration20260820T150317PimPimcoreCompleteRecordDelivery } from '@endora-commerce/mod-pim-pimcore/migrations';
 import { Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths } from '@endora-commerce/mod-pim-pimcore/migrations';
+
+// ── pim_unopim ──────────────────────────────────────────────────────────────
+import { Migration20260826T160000PimUnopimInit } from '@endora-commerce/mod-pim-unopim/migrations';
 
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';
@@ -535,6 +541,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('payu', Migration20260816T053830PayuSeedPaymentMethods),
   migration('payu', Migration20260821T084923PayuFailureStatusOnHold),
 
+  // ── pim_connector ───────────────────────────────────────────────────────────
+  migration('pim_connector', Migration20260826T153500PimConnectorInit),
+
   // ── pim_ergonode ────────────────────────────────────────────────────────────
   migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
   migration('pim_ergonode', Migration20260819T193653PimErgonodeFoldDerivedKeys),
@@ -543,6 +552,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('pim_pimcore', Migration20260818T102204PimPimcoreInit),
   migration('pim_pimcore', Migration20260820T150317PimPimcoreCompleteRecordDelivery),
   migration('pim_pimcore', Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths),
+
+  // ── pim_unopim ──────────────────────────────────────────────────────────────
+  migration('pim_unopim', Migration20260826T160000PimUnopimInit),
 
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),
