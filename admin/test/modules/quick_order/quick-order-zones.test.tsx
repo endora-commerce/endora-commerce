@@ -239,9 +239,17 @@ describe('quick_order contributes the organization and customer detail zones', (
     // retire on the two host screens no longer importing this module's panel.
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
+    // Both paths were re-keyed by feature 091's Phase 4 batch 14, not tidied:
+    // the two host screens moved into their own packages, and a `readFileSync`
+    // of an old path throws rather than reporting a missing mount. This list is
+    // derived *about* files another merge request moves, which is the shape that
+    // has produced a stale ledger in every batch that did not look for it.
     for (const [file, member] of [
-      ['src/modules/organizations/OrganizationDetail.tsx', 'organization.detail.after'],
-      ['src/modules/customers/CustomerDetail.tsx', 'customer.detail.after'],
+      [
+        '../packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx',
+        'organization.detail.after',
+      ],
+      ['../packages/modules/customers/src/admin/pages/CustomerDetail.tsx', 'customer.detail.after'],
     ] as const) {
       const host = readFileSync(resolve(process.cwd(), file), 'utf8');
       expect(host, file).not.toContain('DefaultPreferencesPanel');

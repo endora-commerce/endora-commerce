@@ -1,4 +1,7 @@
 {
+  "nav.customers.label": "Klienci",
+  "nav.customersOnline.label": "Klienci online",
+
   "actions.openCustomers.label": "Klienci",
   "actions.openCustomers.description": "Przeglądaj i zarządzaj kontami klientów",
   "actions.onlineCustomers.label": "Klienci online",

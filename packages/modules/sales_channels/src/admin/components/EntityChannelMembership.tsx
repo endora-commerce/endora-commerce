@@ -39,8 +39,12 @@ import { DefaultChannelBadge } from './DefaultChannelBadge.js';
  * `product.editor.channels` contribution. Its four reads and writes are HTTP
  * paths whose payload types are already `@endora-commerce/contracts`', so they
  * are rebuilt from the published `apiClient` here (P2's exit) rather than
- * dragging `admin/src/modules/sales_channels/api/sales-channels-client.ts`
- * along, which would be a package reaching back into the admin application.
+ * dragging that module's admin API client along, which at the time would have
+ * been a package reaching back into the admin application. Batch 14 moved the
+ * client into this package as `../api/sales-channels-client.ts`; this file goes
+ * on building its own requests, because a zone contribution rendered inside
+ * another module's screen has no business carrying a client whose only other
+ * readers are two screens it never renders with.
  *
  * **P7b deleted the copy.** One stood at
  * `admin/src/modules/sales_channels/components/` for the length of P7a, serving
@@ -49,10 +53,10 @@ import { DefaultChannelBadge } from './DefaultChannelBadge.js';
  * of one component, so the retiring condition was written here rather than left
  * to be remembered.
  *
- * `DefaultChannelBadge` beside it is the other half of that copy and is
- * **not** gone: this module's own two screens still import it from
- * `admin/src/modules/sales_channels/components/`, and it retires when they move
- * into this package in Phase 4's batch 14.
+ * `DefaultChannelBadge` beside it is the other half of that copy and **went
+ * the same way in batch 14**, which is what the note that stood here said would
+ * happen: this module's own two screens moved into this package, they import the
+ * sibling file, and the `admin/src` copy is deleted.
  *
  * The `entityId` guard below is unreachable under a zone — all three mounts
  * have an id before they mount — and stays as the component's own contract.

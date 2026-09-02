@@ -295,6 +295,41 @@ export const manifest = defineModuleManifest({
     { code: 'customers:manage', label: 'Manage customer organizations' },
   ],
   settings,
+  /**
+   * The module's landing surface in the command palette (Principle XVI) — its
+   * first action, declared by feature 091's Phase 4 batch 14.
+   *
+   * `AppShell.tsx` carried a hand-written *Navigate* row for `/organizations`
+   * until that batch. A hand-written palette row is a copy the server was never
+   * asked about, so it went on advertising the screen whatever the effective
+   * enabled-set said; a manifest action is the one surface that set filters.
+   * The destination and the keywords are the row's, and the label and
+   * description are the two strings it rendered
+   * (`appShell.nav.organizations`, `appShell.palette.sub.customerAccounts`),
+   * moved into this module's own bundle.
+   *
+   * **`customers:read` and not the row's any-of pair.**
+   * `ModuleActionSchema.requiredPermission` is a single string, and either code
+   * alone opens `/organizations` — the gate is
+   * `requireAdminAny(['customers:read', 'customers:manage'])`, which is the
+   * sufficiency `check:action-route-permissions` reads. The narrowing is real
+   * for a role holding only `customers:manage` and is recorded where the row
+   * used to stand; the sidebar entry keeps the pair, because
+   * `AdminNavDeclaration.requiredPermission` takes the whole
+   * `PermissionRequirement`.
+   */
+  actions: [
+    {
+      id: 'open-organizations',
+      labelKey: 'actions.openOrganizations.label',
+      descriptionKey: 'actions.openOrganizations.description',
+      icon: 'Building2',
+      targetRoute: '/organizations',
+      requiredPermission: 'customers:read',
+      keywords: ['org', 'orgs', 'customer', 'organization', 'organizacja', 'klient'],
+      weight: 220,
+    },
+  ],
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [
     {

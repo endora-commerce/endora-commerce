@@ -15,9 +15,17 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 const postSpy = vi.fn();
 const onChangedSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(
-    '@/lib/api-client',
+// **Re-keyed by feature 091's Phase 4 batch 14, and this is the trap that has
+// now met seven merge requests in a row.** The mock named `@/lib/api-client`
+// while the subject was under `admin/src`; the subject is inside a module
+// package now and resolves `@endora-commerce/admin-kit/lib`, of which
+// `@/lib/api-client` is only a re-export shim — so the old spelling intercepted
+// nothing and vitest reported that by making the mock **inert** rather than by
+// failing. `tsc` cannot see it: both specifiers compile. A programmatic sweep
+// of every mock against the file's own imports is what found it.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
   );
   return {
     ...actual,
@@ -32,7 +40,7 @@ vi.mock('@/lib/api-client', async () => {
 });
 
 const { ModerationActionsPanel } = await import(
-  '../../../src/modules/organizations/panels/ModerationActionsPanel'
+  '../../../../packages/modules/organizations/src/admin/panels/ModerationActionsPanel'
 );
 
 const BUNDLE = passthroughBundle('core', [

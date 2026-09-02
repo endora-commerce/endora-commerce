@@ -22,8 +22,18 @@ import { renderWithI18n } from '../../helpers/render-with-i18n';
 // isolate is `apiClient`. The stub answers **by URL**, which makes the mock a
 // behavioural check on the rebuilt paths: a caller that names the wrong one
 // throws rather than quietly rendering an empty list.
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+// **Re-keyed by feature 091's Phase 4 batch 14, and this is the trap that has
+// now met seven merge requests in a row.** The mock named `@/lib/api-client`
+// while the subject was under `admin/src`; the subject is inside a module
+// package now and resolves `@endora-commerce/admin-kit/lib`, of which
+// `@/lib/api-client` is only a re-export shim — so the old spelling intercepted
+// nothing and vitest reported that by making the mock **inert** rather than by
+// failing. `tsc` cannot see it: both specifiers compile. A programmatic sweep
+// of every mock against the file's own imports is what found it.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
   return {
     ...actual,
     apiClient: {
@@ -38,7 +48,7 @@ vi.mock('@/lib/api-client', async () => {
 });
 
 const { ChannelIdentityForm } = await import(
-  '../../../src/modules/sales_channels/components/ChannelIdentityForm'
+  '../../../../packages/modules/sales_channels/src/admin/components/ChannelIdentityForm'
 );
 
 // `process.cwd()` rather than `import.meta.url`: this suite runs under jsdom,

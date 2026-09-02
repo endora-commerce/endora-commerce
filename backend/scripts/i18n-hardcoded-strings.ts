@@ -424,7 +424,13 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 17,
   'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 22,
   'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
-  'admin/src/modules/organizations/panels/RestrictionsPanel.tsx': 1,
+  // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `organizations`
+  // took its admin surface into its package and this panel went with it. The
+  // finding is unchanged, and this ledger is one **about** the files it names
+  // rather than one of them, so the batch that moves a screen is structurally
+  // the batch that cannot see the entry go stale — which is why it is
+  // corrected here, in the same merge request.
+  'packages/modules/organizations/src/admin/panels/RestrictionsPanel.tsx': 1,
   // Feature 091, Phase 4 batch 13 — re-keyed, not dropped: `pim_ergonode` took
   // its admin surface into its package and this screen went with it. The
   // finding is unchanged (one `placeholder` reading `https://pim.example.com`),
