@@ -18,7 +18,6 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
-  PlugZap,
   Search,
   Tag,
   Sparkles,
@@ -159,15 +158,6 @@ const NAV: NavSection[] = [
       // Feature 068's placement note stands and is why the section is *Catalog*
       // rather than *Channels*: it is where catalogue content comes *from*, and
       // the three surfaces it writes are its neighbours here.
-      // Feature 089 — UnoPim PIM. Host-registered until the package grows its
-      // own `./admin` routes and nav.
-      {
-        to: '/pim-unopim',
-        labelKey: 'appShell.nav.pimUnopim',
-        icon: PlugZap,
-        requiredPermission: 'pim_unopim:read',
-        module: 'pim_unopim',
-      },
     ],
   },
   {
@@ -498,42 +488,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   //  - the *Catalog* crumb on the Ergonode trails keeps its `/catalog/products`
   //    href, that being the section's first host-declared entry — the same
   //    answer the hand-written rules gave.
-  // Feature 089 — UnoPim PIM. Same breadcrumb discipline as Ergonode above.
-  { test: /^\/pim-unopim\/runs\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
-    { labelKey: 'appShell.nav.pimUnopimRuns', href: '/pim-unopim/runs' },
-    { labelKey: 'appShell.crumb.importRun', href: null },
-  ] },
-  { test: /^\/pim-unopim\/runs\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
-    { labelKey: 'appShell.nav.pimUnopimRuns', href: null },
-  ] },
-  { test: /^\/pim-unopim\/attribute-mappings\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
-    { labelKey: 'appShell.nav.pimUnopimAttributeMappings', href: null },
-  ] },
-  { test: /^\/pim-unopim\/channel-locale-mappings\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
-    { labelKey: 'appShell.nav.pimUnopimChannelLocaleMappings', href: null },
-  ] },
-  { test: /^\/pim-unopim\/category-mappings\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
-    { labelKey: 'appShell.nav.pimUnopimCategoryMappings', href: null },
-  ] },
-  { test: /^\/pim-unopim\/association-mappings\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimUnopim', href: '/pim-unopim' },
-    { labelKey: 'appShell.nav.pimUnopimAssociationMappings', href: null },
-  ] },
-  { test: /^\/pim-unopim\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.pimUnopim', href: null },
-  ] },
   { test: /^\/delivery-methods\/dhl-parcel\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },

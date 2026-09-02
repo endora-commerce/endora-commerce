@@ -19,10 +19,21 @@ pipeline are documented in [UnoPim PIM connector](./pim-unopim.md).
 | Mutual exclusion — only one PIM connector may be operator-active at a time | `PimConnectorRegistryService`, `pim_connector_activation_lock` table |
 | Shared field-protection path grammar | `canonicalisePimFieldPath()` in `services/field-path.ts` |
 | Contract vocabulary for runs, issues, triggers | `packages/contracts/src/pim-connector.ts` |
-| Admin run/issue badge primitives | `admin/src/modules/pim_connector/` |
+| Admin run/issue badge primitives | nothing — see below |
 
 It does **not** own catalogue writes, import phases, vendor clients, or webhook
 ingress — those stay in each connector package.
+
+**And it owns no admin code**, which is a correction rather than an omission.
+T080 put a shared `PimRunStatusBadge` and `PimIssueList` under
+`admin/src/modules/pim_connector/`, and feature 091's Phase 4 measured that the
+directory had one consumer: `pim_ergonode`'s badge went back to its own
+kit-based implementation when that module was packaged, so both files moved
+into `packages/modules/pim_unopim/src/admin/components/` with the screens that
+render them. A module package cannot name `admin/src` at all, so a shared admin
+component needs a *published* home — the kit, or a supported subpath of this
+package — and neither exists yet because one consumer does not need one. A
+third connector wanting that chrome is what would buy it.
 
 ## Mutual exclusion (FR-003)
 
@@ -100,7 +111,6 @@ packages/modules/pim_connector/
             └── field-path.ts
 
 packages/contracts/src/pim-connector.ts
-admin/src/modules/pim_connector/
 backend/test/{unit,contract}/pim_connector/
 ```
 

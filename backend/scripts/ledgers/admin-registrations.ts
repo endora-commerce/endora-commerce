@@ -431,10 +431,4 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   catalog: { routes: 8, nav: 9 },
   cms: { routes: 11, nav: 4 },
   orders: { routes: 4, nav: 4 },
-  // Feature 089 — UnoPim screens sit in `admin/src/modules/pim_unopim/`, the
-  // shape `pim_ergonode`'s had until batch 13. The package owns field-protection
-  // *zones* (`src/admin/`); the seven mapping/connection/run routes are still the
-  // host's. Recording the count here is the check's own escape hatch for that
-  // shape — not a number to raise later.
-  pim_unopim: { routes: 7, nav: 1 },
 };

@@ -44,13 +44,6 @@ import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
-import { UnopimConnectionPage } from './modules/pim_unopim/UnopimConnectionPage.js';
-import { UnopimRunsPage } from './modules/pim_unopim/UnopimRunsPage.js';
-import { UnopimRunDetailPage } from './modules/pim_unopim/UnopimRunDetailPage.js';
-import { UnopimAttributeMappingsPage } from './modules/pim_unopim/UnopimAttributeMappingsPage.js';
-import { UnopimChannelLocaleMappingsPage } from './modules/pim_unopim/UnopimChannelLocaleMappingsPage.js';
-import { UnopimCategoryMappingsPage } from './modules/pim_unopim/UnopimCategoryMappingsPage.js';
-import { UnopimAssociationMappingsPage } from './modules/pim_unopim/UnopimAssociationMappingsPage.js';
 import { HomePage } from './modules/home/HomePage.js';
 import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
 import { ProfilePage } from './modules/profile/ProfilePage.js';
@@ -226,14 +219,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
             detail publishes the `invoice.detail.after` zone that replaced its
             import of `ksef`'s panel, which is what retires the one key in
             `backend/scripts/ledgers/cross-module-imports/invoices.ts`. */}
-        {/* Feature 089 — UnoPim PIM. Host-registered until the package grows an ./admin layer. */}
-        <Route path="/pim-unopim" element={<UnopimConnectionPage />} />
-        <Route path="/pim-unopim/channel-locale-mappings" element={<UnopimChannelLocaleMappingsPage />} />
-        <Route path="/pim-unopim/attribute-mappings" element={<UnopimAttributeMappingsPage />} />
-        <Route path="/pim-unopim/category-mappings" element={<UnopimCategoryMappingsPage />} />
-        <Route path="/pim-unopim/association-mappings" element={<UnopimAssociationMappingsPage />} />
-        <Route path="/pim-unopim/runs" element={<UnopimRunsPage />} />
-        <Route path="/pim-unopim/runs/:runId" element={<UnopimRunDetailPage />} />
         {/*
           A redirect for the deep links that predate the screen's move to
           `/delivery-methods/dhl-parcel`, and the admin application's own:
