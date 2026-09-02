@@ -18,6 +18,10 @@
       "types": "./dist/backend/index.d.ts",
       "default": "./dist/backend/index.js"
     },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "default": "./dist/admin/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -28,20 +32,24 @@
     "node": ">=22.17.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
     "lint": "eslint src"
   },
   "peerDependencies": {
+    "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/email-components": "workspace:*",
     "@endora-commerce/mod-orders": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "@mikro-orm/core": "^6",
     "@mikro-orm/postgresql": "^6",
-    "fastify": "^5"
+    "fastify": "^5",
+    "lucide-react": "^1",
+    "react": "^19"
   },
   "devDependencies": {
+    "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/email-components": "workspace:*",
     "@endora-commerce/mod-orders": "workspace:*",
@@ -49,7 +57,10 @@
     "@mikro-orm/core": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",
     "@types/node": "^22.9.0",
+    "@types/react": "^19.2.14",
     "fastify": "^5.8.5",
+    "lucide-react": "^1.11.0",
+    "react": "^19.2.5",
     "typescript": "^5.9.3"
   }
 }

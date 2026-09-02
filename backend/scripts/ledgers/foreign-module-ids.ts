@@ -128,15 +128,18 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
   // permission gate and the ordering are the zone renderer's now, so a third
   // carrier needs no edit to a file its author does not own — which is the whole
   // of what FR-007 asks for.
-  'admin/src/modules/orders/OrderDetail.tsx:visibility-gate:payments':
-    "The payments tab button is rendered here, in the file's own words, so the gate is here " +
-    'too. Retires at batch 10, when `orders` renders `order.detail.tabs` and `payments` ' +
-    'contributes the tab.',
-  'admin/src/modules/orders/OrderShipmentsTab.tsx:visibility-gate:inpost':
-    'The InPost label button, and the reach `068-inpost-shipping` made by editing this file ' +
-    '— the one FR-007 cites by name. Retires at batch 10 into `order.shipment.row.actions`, ' +
-    "a repeated parameterised zone whose props carry the row's `deliveryMethodCode`, with " +
-    '`dhl_parcel` as its second contributor.',
+  // **The two `orders` entries retired the way their own reasons predicted**
+  // (P7d). `OrderDetail.tsx` renders `order.detail.payment` and shows its tab
+  // button by counting the zone (Z15), so `payments`' presence and permission
+  // are the renderer's; `OrderShipmentsTab.tsx` renders
+  // `order.shipment.row.actions` once per attempt, and `inpost`'s label button
+  // is a contribution narrowed by `match` — `match`'s first user in this
+  // repository, on the member Z13 reserves for it.
+  //
+  // One thing about that removal is worth saying rather than leaving to be
+  // inferred, because the ledger's own header asks a removal to say which of
+  // the two happened: both files are still `admin/src/modules/orders/`'s and
+  // are still in the walk. Nothing left sight of them — the couplings went.
   // The third entry is the one the widened walk found, and it is a **correct**
   // gate rather than a defect — which is why it is recorded here rather than
   // repaired. Z12 added it in batch 10, in the same merge request that moved
@@ -191,10 +194,21 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
   // naming `cms` where it stands: the copy it renders belonged to no module in
   // the first place, which is the case where the bundle moves and the screen
   // does not.
-  'admin/src/modules/orders/OrderShipmentsTab.tsx:module-namespace:inpost':
-    "The InPost label button's own labels, beside the gate above it. This file is why §9.3 " +
-    'folds the two populations into one finding rather than shipping them as two: it is in ' +
-    'both, and they are one coupling. Retires with the gate, at batch 10.',
+  // **`OrderShipmentsTab.tsx`'s `module-namespace` entry retired with the gate
+  // above it, in one merge request**, which is what its own reason said would
+  // happen and the reason §9.3 folds the two populations into one finding: the
+  // file was in both and they were one coupling. The two labels are
+  // `packages/modules/inpost/src/admin/zones/InpostLabelButton.tsx`'s now, in
+  // that module's own namespace, and the file that renders them is that
+  // module's own.
+  //
+  // **The carrier this ledger never saw left in the same merge request.**
+  // `dhl_parcel` was named in the same host file by **delivery-method code** —
+  // `'dhl_parcel_courier'`, `'dhl_parcel_pickup'` — which is not a module id,
+  // so the predicate had it in no population and never will. It is recorded
+  // here because the absence is the point: the three buttons behind those
+  // codes carried no permission gate at all, and nothing in this estate could
+  // have said so. §10.4 is where that argument is written down.
   // **The `carts` entry retired the way its own reason predicted** (P7b). The
   // cart-approval policy panel became `carts`' `organization.detail.after`
   // contribution rather than `organizations`' component, so the namespace it
