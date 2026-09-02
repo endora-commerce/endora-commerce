@@ -71,6 +71,22 @@ describe('check-admin-zones — the site walks', () => {
     expect(zoneRenderSites(source, 'f.tsx').map((site) => site.zone)).toEqual([ZONE, OTHER_ZONE]);
   });
 
+  it('reads a zone name off <RouteTabsZone>, the kit\'s second renderer', () => {
+    // `RouteTabsZone` is a *renderer of a place* (feature 091, P4d): it counts
+    // what `useAdminZone` filtered and renders the contributions as a tab
+    // strip. A host that mounts a zone through it mounts a zone, so the walk
+    // has to see it — otherwise the member it renders reads as
+    // `unrendered-zone` and the two-way refusal fires on a place that is
+    // rendered.
+    const source = `const a = <RouteTabsZone name="${ZONE}" props={{}} />;`;
+    expect(zoneRenderSites(source, 'f.tsx').map((site) => site.zone)).toEqual([ZONE]);
+  });
+
+  it('refuses a computed name on <RouteTabsZone> exactly as on <AdminZone>', () => {
+    const source = 'const a = <RouteTabsZone name={ZONE} props={{}} />;';
+    expect(zoneRenderSites(source, 'f.tsx').map((site) => site.zone)).toEqual([null]);
+  });
+
   it('reads a contribution in both published spellings', () => {
     const source = [
       `zoneComponent('${ZONE}', () => import('./A.js'));`,

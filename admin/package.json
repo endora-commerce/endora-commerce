@@ -48,6 +48,7 @@
     "@endora-commerce/mod-meta-ads": "workspace:*",
     "@endora-commerce/mod-mfa": "workspace:*",
     "@endora-commerce/mod-newsletter": "workspace:*",
+    "@endora-commerce/mod-orders": "workspace:*",
     "@endora-commerce/mod-payment-methods": "workspace:*",
     "@endora-commerce/mod-payments": "workspace:*",
     "@endora-commerce/mod-paypal": "workspace:*",

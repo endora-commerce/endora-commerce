@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { PageHeader } from '@/components/ui/page-header';
-import { OrderEntryTabs } from '@/components/OrderEntryTabs';
+import { RouteTabsZone } from '@endora-commerce/admin-kit/zones';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { CountrySelect } from '@/components/country-select';
 import { ProductPicker } from '@endora-commerce/admin-kit/components';
@@ -648,7 +648,7 @@ export function OrderCreatePage(): ReactNode {
         }
       />
 
-      <OrderEntryTabs />
+      <RouteTabsZone name="order.entry.tabs" props={{}} className="mb-4" />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">

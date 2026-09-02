@@ -268,16 +268,19 @@ describe('bareKitSubpath', () => {
   });
 });
 
+/** A run that read every input `vacuousReason` asks about. */
+const VACUOUS_INPUT = {
+  adminResolved: true,
+  kitFound: true,
+  implementationSubpaths: 4,
+  barrelsRead: 4,
+  barrelWithStar: null as string | null,
+  walkedFiles: 300,
+  shims: 53,
+};
+
 describe('check:admin-surface — the seven vacuous refusals', () => {
-  const ok = {
-    adminResolved: true,
-    kitFound: true,
-    implementationSubpaths: 4,
-    barrelsRead: 4,
-    barrelWithStar: null,
-    walkedFiles: 300,
-    shims: 53,
-  };
+  const ok = VACUOUS_INPUT;
 
   it('reports no reason for a run that read everything', () => {
     expect(vacuousReason(ok)).toBeNull();
@@ -296,10 +299,62 @@ describe('check:admin-surface — the seven vacuous refusals', () => {
   });
 });
 
+/**
+ * The ledger emptied in feature 091's P4d, and an emptied two-way ledger is a
+ * state to prove rather than to assume.
+ *
+ * This block asserted `keys.length > 0` until then — the honest assertion while
+ * the ledger held debt, and one that would have gone red on the merge request
+ * whose whole point was to drain it. What replaces it is the property that
+ * actually matters: with **no** entries at all, the check still refuses an
+ * unledgered reach, still reports it under the same key, and still does not
+ * treat the empty ledger as a reason to stop looking. The population is the
+ * walk; `vacuousReason` refuses an empty *walk*, an unreadable barrel and a
+ * tree with no shim, and holds no opinion about the ledger's size.
+ */
+describe('check:admin-surface — an empty ledger is not a vacuous pass', () => {
+  it('still refuses an unledgered reach when the ledger holds nothing', () => {
+    const result = checkAdminSurface(
+      input({ sites: [site({ specifier: '@/components/organization-picker' })] }),
+      {},
+    );
+    expect(result.ledgered).toEqual([]);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.kind).toBe('unpublished-symbol');
+    expect(result.findings[0]?.key).toBe(
+      reachKey(
+        'admin/src/modules/orders/OrdersList.tsx',
+        'admin/src/components/organization-picker.tsx',
+      ),
+    );
+  });
+
+  it('has nothing to report stale, rather than skipping the stale sweep', () => {
+    // The stale direction is vacuous with no keys, not absent: the first entry
+    // added brings its own stale check with it, which the block above proves
+    // over a one-entry ledger.
+    const result = checkAdminSurface(input({ sites: [site()] }), {});
+    expect(result.stale).toEqual([]);
+    expect(result.staleSymbols).toEqual([]);
+  });
+
+  it('refuses a run for a reason that is never the ledger', () => {
+    // Every input `vacuousReason` names is something the run *read*. An empty
+    // ledger is not one of them, and a check that refused on one could never
+    // reach zero debt.
+    expect(vacuousReason(VACUOUS_INPUT)).toBeNull();
+    expect(vacuousReason({ ...VACUOUS_INPUT, walkedFiles: 0 })).toContain('vacuous pass');
+    expect(vacuousReason({ ...VACUOUS_INPUT, shims: 0 })).toContain('not wired');
+  });
+});
+
 describe('the ledger this repository ships', () => {
-  it('is not empty, and every key is `<file>::<target>` in one namespace', () => {
+  it('is empty, and every key it ever holds is `<file>::<target>` in one namespace', () => {
     const keys = Object.keys(UNPUBLISHED_ADMIN_REACHES);
-    expect(keys.length).toBeGreaterThan(0);
+    // P4d drained the last two. The grammar below is kept for the entry
+    // somebody adds next: an entry written in a shape the check cannot match
+    // is caught here rather than as a stale entry six merges later.
+    expect(keys).toEqual([]);
     for (const key of keys) {
       const parts = key.split('::');
       expect(parts).toHaveLength(2);

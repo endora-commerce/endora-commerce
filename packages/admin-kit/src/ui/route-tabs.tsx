@@ -69,3 +69,46 @@ export function RouteTabs({ tabs, className }: RouteTabsProps): ReactNode {
     </div>
   );
 }
+
+/**
+ * One tab of a strip whose tabs are contributed rather than listed.
+ *
+ * `RouteTabs` above takes the whole set and is the right primitive whenever one
+ * component knows every tab. A **zone** strip (`<RouteTabsZone>`, feature 091
+ * P4d) never does: each tab arrives as a separate module's contribution, loaded
+ * behind its own dynamic import, so no component sees the set and the tab has
+ * to decide its own selected state.
+ *
+ * **What that costs, stated rather than discovered.** `activeTabPath` resolves
+ * a prefix collision by *longest wins*, which is why `/product-feeds` and
+ * `/product-feeds/templates` do not light up together. A contributed tab cannot
+ * do that — it has nothing to be longer *than* — so the rule here is the
+ * per-tab half alone: this route, or a route below it. Two contributed tabs
+ * whose paths are prefixes of one another would therefore both read as
+ * selected. Measured for the one strip that exists: `/orders/new` and
+ * `/orders/quick-order` are prefixes of neither, so the rendered result is
+ * identical to `RouteTabs`'. A strip whose contributors *do* nest is the case
+ * to bring back to this comment.
+ */
+export interface RouteTabLinkProps {
+  /** Absolute admin route this tab opens. */
+  to: string;
+  label: string;
+}
+
+export function RouteTabLink({ to, label }: RouteTabLinkProps): ReactNode {
+  const { pathname } = useLocation();
+  const isActive = pathname === to || pathname.startsWith(`${to}/`);
+  return (
+    <NavLink
+      to={to}
+      role="tab"
+      aria-selected={isActive}
+      // `is-active` is the class the design system styles; NavLink's own
+      // `isActive` is deliberately ignored, for `RouteTabs`' reason.
+      className={cn('b2b-tab', isActive && 'is-active')}
+    >
+      {label}
+    </NavLink>
+  );
+}
