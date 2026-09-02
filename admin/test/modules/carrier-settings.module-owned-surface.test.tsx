@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { RenderResult } from '@testing-library/react';
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
@@ -229,6 +229,15 @@ interface Carrier {
    * declaration objects and none of the screen code behind their factories.
    */
   readonly contributions: AdminContributions;
+  /**
+   * Every zone this carrier contributes to, in declaration order.
+   *
+   * Written down per carrier rather than compared to a single literal, because
+   * the two stopped agreeing at P7d: `dhl_parcel` contributes twice to the
+   * order's footer bar (its two actions split by permission code) and `inpost`
+   * once to the shipment row.
+   */
+  readonly zones: readonly string[];
   readonly page: string;
 }
 
@@ -245,6 +254,13 @@ const CARRIERS: readonly Carrier[] = [
     // would let through.
     foreignCode: 'dhl_parcel:write',
     contributions: dhlParcelContributions,
+    zones: [
+      'delivery_method.list.integrations',
+      // P7d: the label + protocol at `dhl_parcel:read`, the courier booking at
+      // `dhl_parcel:write`. Two contributions because one declares one code.
+      'order.shipments.tab.actions',
+      'order.shipments.tab.actions',
+    ],
     page: '../packages/modules/dhl_parcel/src/admin/pages/DhlParcelSettingsPage.tsx',
   },
   {
@@ -256,6 +272,8 @@ const CARRIERS: readonly Carrier[] = [
     code: 'inpost:manage',
     foreignCode: 'dhl_parcel:read',
     contributions: inpostContributions,
+    // P7d: the label button on a shipment row, narrowed by `match`.
+    zones: ['delivery_method.list.integrations', 'order.shipment.row.actions'],
     page: '../packages/modules/inpost/src/admin/pages/InpostSettingsPage.tsx',
   },
 ];
@@ -299,7 +317,7 @@ describe.each(CARRIERS)('$id owns its admin surface, and its proof is the route'
     await waitFor(() => expect(headingIsRendered()).toBe(true));
   });
 
-  it('declares one lazily-loaded route, one gate, no nav entry and one zone', async () => {
+  it('declares one lazily-loaded route, one gate, no nav entry and its zones', async () => {
     // FR-013, and the declaration this whole file is about. `nav` being absent
     // is the contribution set saying so, which is what Ruling 1 asks a nav-less
     // batch member's test to derive rather than assert by omission.
@@ -320,9 +338,19 @@ describe.each(CARRIERS)('$id owns its admin surface, and its proof is the route'
     // same code as the screen it links to so it never advertises a 403. The
     // ordering of the two carriers' cards is asserted where it is observable:
     // `admin/test/modules/delivery_methods/integrations-zone.test.tsx`.
+    //
+    // **P7d added the order-surface contributions**, so this assertion is the
+    // integrations card *plus* whatever that row gave each carrier, and it is
+    // written as a first-member check rather than as an equality: an equality
+    // here would make every future contribution of either carrier a failure in
+    // a file whose subject is the settings route. Each carrier's own zone test
+    // asserts its declaration in full —
+    // `admin/test/modules/inpost/inpost-shipment-row-zone.test.tsx` and
+    // `admin/test/modules/dhl_parcel/dhl-shipment-actions-zone.test.tsx`.
     const zones = carrier.contributions.zones ?? [];
-    expect(zones.map((zone) => zone.zone)).toEqual(['delivery_method.list.integrations']);
-    expect(zones.map((zone) => zone.requiredPermission)).toEqual([carrier.code]);
+    expect(zones[0]?.zone).toBe('delivery_method.list.integrations');
+    expect(zones[0]?.requiredPermission).toBe(carrier.code);
+    expect(zones.map((zone) => zone.zone)).toEqual(carrier.zones);
     const card = await zones[0]!.component();
     expect(typeof card.default).toBe('function');
   });
@@ -380,6 +408,21 @@ describe('the shell no longer names either carrier by hand', () => {
     expect(tab).not.toContain('modules/inpost');
     expect(tab).not.toContain('@endora-commerce/mod-dhl-parcel');
     expect(tab).not.toContain('@endora-commerce/mod-inpost');
-    expect(tab).toContain("from './api/carrier-documents-client'");
+    // **This line asserted the client file until P7d**, which is the half of
+    // the drain batch five could pay: `orders` built the calls itself rather
+    // than importing a carrier's client. P7d gave both carriers a place to
+    // contribute to, so the calls went home and the file went with them — the
+    // exit its own header ruled for when it said *"both carriers are one
+    // shipment tab reaching two adapters"*.
+    // The import, not the word: the file's own header still cites the client by
+    // name to say where those calls went, which is the record this assertion
+    // exists to keep rather than something to scrub.
+    expect(tab).not.toContain("from './api/carrier-documents-client'");
+    expect(tab).not.toContain('carrierDocumentsClient');
+    expect(
+      existsSync(resolve(process.cwd(), 'src/modules/orders/api/carrier-documents-client.ts')),
+    ).toBe(false);
+    expect(tab).toContain('name="order.shipment.row.actions"');
+    expect(tab).toContain('name="order.shipments.tab.actions"');
   });
 });

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PackageX } from 'lucide-react';
+import type { ShipmentStatus } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/format';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -15,20 +16,23 @@ import {
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useSurfaceVisibility } from '@/lib/surface-visibility';
-import { carrierDocumentsClient } from './api/carrier-documents-client';
+import {
+  AdminZone,
+  selectZoneContributions,
+  useAdminContributions,
+} from '@endora-commerce/admin-kit/zones';
 import { Section } from '@endora-commerce/admin-kit/ui';
-
-const API_BASE = (import.meta.env['VITE_API_BASE_URL'] as string | undefined) ?? '';
 
 interface ShipmentRow {
   id: string;
-  status: 'pending' | 'pending_manual' | 'success' | 'failure';
+  status: ShipmentStatus;
   externalReference: string | null;
   /**
    * The carrier envelope the adapter deposited on the attempt. Read here for
-   * one thing only: which carrier opened this row, so a per-carrier affordance
-   * (the InPost label below) can be offered on the attempt it belongs to rather
-   * than on whichever delivery-method code the order happens to carry.
+   * one thing only: which carrier opened this row, so that the row's zone mount
+   * carries it as `providerCode` and a carrier's contribution can narrow itself
+   * to the attempt it belongs to rather than to whichever delivery-method code
+   * the order happens to carry.
    */
   providerDetails: Record<string, unknown> | null;
   failureReason: string | null;
@@ -56,37 +60,90 @@ function latestAttempt(rows: readonly ShipmentRow[]): ShipmentRow | undefined {
 }
 
 /**
+ * Which carrier opened this attempt, from the adapter's own envelope.
+ *
+ * A **provider code**, not a module id: it is a string the adapter deposited,
+ * and it is `null` for an attempt no carrier ever answered — the fail-closed
+ * value, which no contribution's `match` agrees with.
+ */
+function providerCodeOf(row: ShipmentRow): string | null {
+  const provider = row.providerDetails?.['provider'];
+  return typeof provider === 'string' ? provider : null;
+}
+
+/**
  * Delivery tab — lists the shipment generation attempts tied to an order
  * (`GET /api/v1/admin/orders/:id/shipments`). A new attempt is appended on
  * each retry, so the most recent attempt has the highest `attemptNo`.
+ *
+ * ## What P7d took out of it (feature 091, §10.4)
+ *
+ * Two carriers' affordances, which this file rendered itself. `inpost` was
+ * named three ways — a `useSurfaceVisibility` gate, a `useTranslation`
+ * namespace and a `providerDetails.provider` comparison — the first two being
+ * the pair of `foreign-module-ids` keys this conversion retires. The other
+ * carrier was named by its two **delivery-method codes** rather than by its
+ * module id, so no ledger and no check ever saw it; its three buttons carried
+ * no permission gate at all while the routes behind them enforce a read and a
+ * write code. Neither carrier's name is written in this file any more, in any
+ * spelling — `OrderShipmentsTab.carrier-zones.test.tsx` asserts that, so the
+ * codes are deliberately not quoted here either.
+ *
+ * Both carriers left together, which is what `api/carrier-documents-client.ts`
+ * ruled in its own header before it was deleted with them: *"both carriers are
+ * one shipment tab reaching two adapters … a repair naming one is a repair that
+ * has not understood the shape"*.
+ *
+ * Two zones stand in their place. `order.shipment.row.actions` is mounted once
+ * per attempt and carries that attempt's `providerCode` and `status`;
+ * `order.shipments.tab.actions` is mounted once in the footer bar and carries
+ * the order's delivery-method code and its latest attempt. What this file keeps
+ * knowing is that a shipment row may have an action and that the tab has a
+ * footer bar; what it stops knowing is which carrier fills either.
  */
 export function OrderShipmentsTab(props: {
   orderId: string;
   deliveryMethodCode: string;
 }): ReactNode {
   const t = useTranslation('core');
-  const tinpost = useTranslation('inpost');
-  /**
-   * Both axes at once, as `DeliveryMethodsPage` asks them: the operator's
-   * `inpost:manage` permission and `inpost`'s effective presence. A label
-   * button offered while the module is off is a 503 the operator cannot act on.
-   */
-  const isVisible = useSurfaceVisibility();
-  const showInpostLabel = isVisible({ module: 'inpost', requiredPermission: 'inpost:manage' });
   const [rows, setRows] = useState<ShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
-  const [busyAction, setBusyAction] = useState<'label' | 'protocol' | 'courier' | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
-  // DHL admin actions were wired without an adapter check — Book courier / PnP
-  // only apply to door courier; POP/BOX uses Parcelshop createShipment alone.
-  const isDhlCourier = props.deliveryMethodCode === 'dhl_parcel_courier';
-  const isDhlPickup = props.deliveryMethodCode === 'dhl_parcel_pickup';
-  const showDhlLabel = isDhlCourier || isDhlPickup;
-  const showDhlCourierOps = isDhlCourier;
+  /**
+   * Whether the attempts table needs its action column at all.
+   *
+   * `useAdminZone` is a hook, so it cannot be asked once per row;
+   * `selectZoneContributions` is the pure function that hook is a `useMemo`
+   * over, and the kit publishes it for exactly this. Asking it per row is the
+   * honest question — *"will any row show an action"* — and strictly narrower
+   * than the answer this file gave before, which was one carrier's presence
+   * and permission with no reference to the rows at all.
+   */
+  const contributions = useAdminContributions();
+  const isVisible = useSurfaceVisibility();
+  const showRowActions = useMemo(
+    () =>
+      rows.some(
+        (row) =>
+          selectZoneContributions(
+            contributions,
+            'order.shipment.row.actions',
+            {
+              orderId: props.orderId,
+              shipmentId: row.id,
+              deliveryMethodCode: props.deliveryMethodCode,
+              providerCode: providerCodeOf(row),
+              status: row.status,
+            },
+            isVisible,
+          ).length > 0,
+      ),
+    [rows, contributions, isVisible, props.orderId, props.deliveryMethodCode],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -143,93 +200,6 @@ export function OrderShipmentsTab(props: {
   const canGenerate =
     rows.length === 0 || latest?.status === 'failure' || latest?.status === 'pending_manual';
 
-  const downloadBase64 = (filename: string, content: string): void => {
-    const anchor = document.createElement('a');
-    anchor.href = `data:application/pdf;base64,${content}`;
-    anchor.download = filename;
-    anchor.click();
-  };
-
-  const downloadInpostLabel = useCallback(
-    async (shipmentId: string): Promise<void> => {
-      setActionError(null);
-      const res = await fetch(
-        `${API_BASE.replace(/\/+$/, '')}${carrierDocumentsClient.inpostLabelPath(shipmentId)}`,
-        { credentials: 'include', headers: { Accept: 'application/pdf' } },
-      );
-      if (!res.ok) {
-        setActionError(tinpost('label.notReady'));
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    },
-    [tinpost],
-  );
-
-  const downloadLabel = useCallback(async () => {
-    if (!latest) return;
-    setBusyAction('label');
-    setActionError(null);
-    try {
-      const data = await carrierDocumentsClient.dhlLabel(latest.id);
-      if (data.labelBase64) downloadBase64(`dhl-label-${latest.id}.pdf`, data.labelBase64);
-    } catch (err) {
-      setActionError(
-        err instanceof ApiError
-          ? err.envelope.error.message
-          : t('orderDetail.shipments.actions.error'),
-      );
-    } finally {
-      setBusyAction(null);
-    }
-  }, [latest, t]);
-
-  const downloadProtocol = useCallback(async () => {
-    if (!latest) return;
-    setBusyAction('protocol');
-    setActionError(null);
-    try {
-      const data = await carrierDocumentsClient.dhlProtocol(latest.id);
-      if (!data.protocolBase64) {
-        setActionError(t('orderDetail.shipments.actions.protocolMissing'));
-        return;
-      }
-      downloadBase64(`dhl-protocol-${latest.id}.pdf`, data.protocolBase64);
-    } catch (err) {
-      setActionError(
-        err instanceof ApiError
-          ? err.envelope.error.message
-          : t('orderDetail.shipments.actions.error'),
-      );
-    } finally {
-      setBusyAction(null);
-    }
-  }, [latest, t]);
-
-  const bookCourier = useCallback(async () => {
-    if (!latest) return;
-    setBusyAction('courier');
-    setActionError(null);
-    try {
-      const data = await carrierDocumentsClient.dhlBookCourier({ shipmentIds: [latest.id] });
-      if (data.protocolBase64) {
-        downloadBase64(`dhl-protocol-${latest.id}.pdf`, data.protocolBase64);
-      }
-      setReloadToken((token) => token + 1);
-    } catch (err) {
-      setActionError(
-        err instanceof ApiError
-          ? err.envelope.error.message
-          : t('orderDetail.shipments.actions.error'),
-      );
-    } finally {
-      setBusyAction(null);
-    }
-  }, [latest, t]);
-
   return (
     <Section title={t('orderDetail.shipments.title')}>
       {loading ? (
@@ -267,7 +237,7 @@ export function OrderShipmentsTab(props: {
                   <TableHead>{t('orderDetail.shipments.columns.tracking')}</TableHead>
                   <TableHead>{t('orderDetail.shipments.columns.createdAt')}</TableHead>
                   <TableHead>{t('orderDetail.shipments.columns.failure')}</TableHead>
-                  {showInpostLabel ? <TableHead /> : null}
+                  {showRowActions ? <TableHead /> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -282,18 +252,18 @@ export function OrderShipmentsTab(props: {
                     <TableCell className="font-mono text-xs">{s.externalReference ?? '—'}</TableCell>
                     <TableCell>{formatDateTime(s.createdAt)}</TableCell>
                     <TableCell className="text-destructive">{s.failureReason ?? ''}</TableCell>
-                    {showInpostLabel ? (
+                    {showRowActions ? (
                       <TableCell>
-                        {s.providerDetails?.['provider'] === 'inpost' && s.status === 'success' ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            type="button"
-                            onClick={() => void downloadInpostLabel(s.id)}
-                          >
-                            {tinpost('label.download')}
-                          </Button>
-                        ) : null}
+                        <AdminZone
+                          name="order.shipment.row.actions"
+                          props={{
+                            orderId: props.orderId,
+                            shipmentId: s.id,
+                            deliveryMethodCode: props.deliveryMethodCode,
+                            providerCode: providerCodeOf(s),
+                            status: s.status,
+                          }}
+                        />
                       </TableCell>
                     ) : null}
                   </TableRow>
@@ -311,44 +281,19 @@ export function OrderShipmentsTab(props: {
                     : t('orderDetail.shipments.generate.again')}
               </Button>
             ) : null}
-            {latest && latest.status !== 'pending_manual' && showDhlLabel ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void downloadLabel()}
-                  disabled={busyAction !== null}
-                >
-                  {busyAction === 'label'
-                    ? t('common.state.loading')
-                    : t('orderDetail.shipments.actions.downloadLabel')}
-                </Button>
-                {showDhlCourierOps ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void downloadProtocol()}
-                      disabled={busyAction !== null}
-                    >
-                      {busyAction === 'protocol'
-                        ? t('common.state.loading')
-                        : t('orderDetail.shipments.actions.downloadProtocol')}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void bookCourier()}
-                      disabled={busyAction !== null}
-                    >
-                      {busyAction === 'courier'
-                        ? t('common.state.loading')
-                        : t('orderDetail.shipments.actions.bookCourier')}
-                    </Button>
-                  </>
-                ) : null}
-              </>
-            ) : null}
+            {/* The carriers' own footer actions. A contributor decides for
+                itself whether the latest attempt is one it can act on — the
+                two nullable props are what it decides from — because `match`
+                compares strings and has no negation. */}
+            <AdminZone
+              name="order.shipments.tab.actions"
+              props={{
+                orderId: props.orderId,
+                deliveryMethodCode: props.deliveryMethodCode,
+                latestShipmentId: latest?.id ?? null,
+                latestStatus: latest?.status ?? null,
+              }}
+            />
           </div>
         </>
       )}

@@ -137,6 +137,9 @@ importers:
       '@endora-commerce/mod-payment-methods':
         specifier: workspace:*
         version: link:../packages/modules/payment_methods
+      '@endora-commerce/mod-payments':
+        specifier: workspace:*
+        version: link:../packages/modules/payments
       '@endora-commerce/mod-paypal':
         specifier: workspace:*
         version: link:../packages/modules/paypal
@@ -2689,6 +2692,9 @@ importers:
 
   packages/modules/payments:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2710,9 +2716,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
