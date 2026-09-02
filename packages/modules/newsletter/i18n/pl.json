@@ -13,5 +13,15 @@
   "newsletter.editor.viewportNarrow": "Wąski (320px)",
   "newsletter.editor.insertVariable": "Wstaw zmienną",
   "newsletter.editor.variable": "Zmienna",
-  "newsletter.editor.livePreview": "Podgląd HTML na żywo"
+  "newsletter.editor.livePreview": "Podgląd HTML na żywo",
+  "actions.openCampaigns.label": "Kampanie newslettera",
+  "actions.openCampaigns.description": "Kampanie newslettera i wysyłki",
+  "actions.openAutomations.label": "Automatyzacje newslettera",
+  "actions.openAutomations.description": "Automatyczne procesy newslettera",
+  "nav.subscribers.label": "Subskrybenci",
+  "nav.campaigns.label": "Kampanie",
+  "nav.automations.label": "Automatyzacje",
+  "nav.tags.label": "Tagi i pola",
+  "nav.blocks.label": "Bloki",
+  "nav.provider.label": "Usługa wysyłki"
 }

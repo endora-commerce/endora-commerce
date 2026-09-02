@@ -34,12 +34,15 @@ import {
  *      message whatever language the caller prefers, so a difference is proof
  *      that `resolvePreferredLanguage` → `translate` → the bundle all ran.
  *
- * `NOT_FOUND` routes to `core` in `ERROR_TRANSLATION_KEYS`, and `core` is the
- * namespace `_i18n`'s own bundle is exposed under — so this also covers the
- * `_i18n` → `core` rename that sits between the map and the row.
+ * `NOT_FOUND` is declared by `_i18n`, whose bundle is exposed to clients under
+ * the namespace `core` — so this also covers the `_i18n` → `core` rename that
+ * sits between the routing map and the row, and which since D-185 is written in
+ * exactly one place.
  */
 
-const CORE_BUNDLES = fileURLToPath(new URL('../../../src/modules/_i18n/i18n/', import.meta.url));
+const CORE_BUNDLES = fileURLToPath(
+  new URL('../../../../packages/modules/_i18n/i18n/', import.meta.url),
+);
 
 function sentence(language: 'en' | 'pl', key: string): string {
   const bundle = JSON.parse(readFileSync(`${CORE_BUNDLES}${language}.json`, 'utf8')) as Record<

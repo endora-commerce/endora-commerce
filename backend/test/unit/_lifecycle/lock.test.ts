@@ -3,7 +3,7 @@ import {
   acquireLifecycleLock,
   LifecycleLockError,
   LOCK_KEY,
-} from '../../../src/modules/_lifecycle/services/lock.js';
+} from '../../../src/lifecycle/services/lock.js';
 
 /**
  * Minimal Redis stub. Implements only the four operations the lock uses

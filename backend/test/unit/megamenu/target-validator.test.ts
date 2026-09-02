@@ -4,7 +4,7 @@ import { HttpError } from '../../../src/http/error-envelope.js';
 import {
   validateTarget,
   type TargetValidatorDeps,
-} from '../../../src/modules/megamenu/services/target-validator.js';
+} from '../../../../packages/modules/megamenu/src/backend/services/target-validator.js';
 
 const stubDeps = (overrides: Partial<TargetValidatorDeps> = {}): TargetValidatorDeps => ({
   categoryExists: async () => true,

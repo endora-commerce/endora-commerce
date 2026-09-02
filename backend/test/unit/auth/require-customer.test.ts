@@ -7,8 +7,8 @@ import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import type { RequireCustomerGuard } from '../../../src/kernel/ports/require-customer.js';
-import { registerModule as registerAuth } from '../../../src/modules/auth/backend.js';
-import { createRequireCustomer } from '../../../src/modules/auth/require-customer.js';
+import { registerModule as registerAuth } from '@endora-commerce/mod-auth/backend';
+import { createRequireCustomer } from '@endora-commerce/mod-auth/backend';
 
 /**
  * The customer guard — **one implementation**, shared by production and the

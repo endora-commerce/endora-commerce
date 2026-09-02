@@ -1,89 +1,18 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError } from '@/lib/api-client';
-import { salesChannelsClient } from '@/modules/sales_channels/api/sales-channels-client';
-import { useAppLanguage } from '@/i18n/app-language-context';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-
 /**
- * Single-select sales-channel picker.
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/components` (feature 091, P2).
  *
- * Channels are few and unpaged in practice, so the first (large) page is
- * fetched on mount and the <Combobox> filters client-side. The committed
- * value is the channel `id` (UUID) — the identifier persisted on
- * channel-scoped records. Labels are locale-aware; the channel `code` is
- * shown as the secondary line.
+ * The picker stayed in `admin/src` through Phase 1b because it fetched from
+ * another module's admin API client, which publishing would have put in the kit
+ * (`admin-kit-surface.md` R6). P2 takes the client exit instead — the component
+ * builds its own request from the published `apiClient` and the owner's
+ * contract types — so it holds no module knowledge and is published like the
+ * rest of the design system.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's
+ * own bindings; `admin/test/kit/admin-kit-identity.test.ts` asserts reference
+ * equality across the seam, because a second React context or a second class
+ * passes every structural comparison and still breaks at runtime.
  */
-
-export interface SalesChannelPickerProps {
-  value: string | null;
-  onChange: (salesChannelId: string | null) => void;
-  activeOnly?: boolean;
-  placeholder?: string;
-  emptyMessage?: string;
-  clearable?: boolean;
-  disabled?: boolean;
-  ariaLabel?: string;
-  id?: string;
-  className?: string;
-}
-
-export function SalesChannelPicker(props: SalesChannelPickerProps): ReactNode {
-  const { language } = useAppLanguage();
-  const [options, setOptions] = useState<ComboboxOption<string>[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const activeOnly = props.activeOnly ?? false;
-
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    salesChannelsClient
-      .list({ pageSize: 200, activeOnly })
-      .then((res) => {
-        if (!alive) return;
-        setOptions(
-          res.items.map((ch) => {
-            const name =
-              ch.name[language] ?? ch.name['en-US'] ?? Object.values(ch.name)[0] ?? ch.code;
-            return {
-              value: ch.id,
-              label: name,
-              description: ch.active ? ch.code : `${ch.code} · inactive`,
-            };
-          }),
-        );
-      })
-      .catch((err: unknown) => {
-        if (!alive) return;
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load channels.');
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return (): void => {
-      alive = false;
-    };
-  }, [activeOnly, language]);
-
-  const emptyMessage = useMemo(
-    () => props.emptyMessage ?? error ?? 'No sales channels.',
-    [props.emptyMessage, error],
-  );
-
-  return (
-    <Combobox<string>
-      options={options}
-      value={props.value}
-      onChange={props.onChange}
-      loading={loading}
-      clearable={props.clearable ?? true}
-      disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Select a sales channel…'}
-      emptyMessage={emptyMessage}
-      ariaLabel={props.ariaLabel ?? 'Select sales channel'}
-      id={props.id ?? ''}
-      className={props.className ?? ''}
-    />
-  );
-}
+export { SalesChannelPicker } from '@endora-commerce/admin-kit/components';
+export type { SalesChannelPickerProps } from '@endora-commerce/admin-kit/components';

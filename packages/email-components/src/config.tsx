@@ -215,6 +215,13 @@ export const EmailLogo = {
     },
   }),
   render: ({ alt, width, align }: EmailLogoProps) => {
+    // Puck calls `render` as a React component — it is mounted, not invoked —
+    // so a hook here obeys the rules of hooks. The linter cannot see that
+    // through `ComponentConfig`, and it is the field's name rather than the
+    // call that it objects to. Surfaced when feature 091 registered
+    // `react-hooks` for every `.tsx` in the repository rather than for the
+    // admin application alone; the call has always been correct.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const { logoUrl } = useEmailBrandingPreview();
     const margin =
       align === 'center' ? '0 auto' : align === 'right' ? '0 0 0 auto' : '0';
@@ -1130,6 +1137,8 @@ export const EmailInsertBlock: ComponentConfig<EmailInsertBlockProps> = {
   fields: { code: { type: 'text', label: 'Block code' } },
   defaultProps: { code: '' },
   render: ({ code }) => {
+    // Puck mounts `render` as a component — see `EmailLogo` above.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const { blocks } = useEmailEmbeds();
     const preview = code ? blocks[code] : null;
     if (preview) return <>{preview}</>;

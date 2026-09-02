@@ -122,8 +122,10 @@ Workflow for any developer adding a new string to the Admin UI:
 
 1. **Find the owning module**: usually `backend/src/modules/<module>/i18n/`.
    Chrome strings (AppShell, top bar, command palette, profile, login,
-   language picker) live in `backend/src/modules/_i18n/i18n/` under the
-   `core` scope.
+   language picker) live in `packages/modules/_i18n/i18n/` under the
+   `core` scope — the `_i18n` module ships as the package
+   `@endora-commerce/mod-i18n`, and a module package keeps its bundles at its
+   own root rather than under `src/`.
 2. **Pick a stable key path**: dotted lowercase, e.g. `page.title`,
    `actions.save`, `editor.applyTo.label`. Reuse existing keys where the
    meaning is identical; do not invent parallel keys for "Save".

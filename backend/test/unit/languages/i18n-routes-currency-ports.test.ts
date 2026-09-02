@@ -1,11 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { describe, expect, it } from 'vitest';
-import type {
-  CurrencyAdminPort,
-  CurrencyReadPort,
-  CurrencyRecord,
-} from '@endora-commerce/contracts';
+import type { CurrencyReadPort, CurrencyRecord } from '@endora-commerce/contracts';
 import {
   registerI18nRoutes,
   type I18nRoutesDeps,
@@ -15,17 +11,23 @@ import {
  * Feature 075, Phase C — `languages` asks `currencies` over its published
  * ports (FR-010, FR-012).
  *
- * The i18n route surface serves both catalogues, so it needs currency data it
- * does not own. It used to take `CurrencyService` — the class, imported across
- * the module boundary — which meant the currency half of these routes kept
- * answering out of `currencies`' tables whatever state `currencies` was in,
- * and made `languages` uncompilable without it.
+ * `GET /api/v1/i18n/config` answers with both catalogues, so it needs currency
+ * data it does not own. It used to take `CurrencyService` — the class, imported
+ * across the module boundary — which meant the currency half of this route kept
+ * answering out of `currencies`' tables whatever state `currencies` was in, and
+ * made `languages` uncompilable without it.
  *
  * The assertion is deliberately about the **shape the routes accept**: a stub
- * implementing only `CurrencyReadPort` and `CurrencyAdminPort` — no entity, no
- * service class, nothing `currencies` has not published — must be enough to
- * serve every currency route. A stub that is enough is a boundary that is
- * real.
+ * implementing only `CurrencyReadPort` — no entity, no service class, nothing
+ * `currencies` has not published — must be enough. A stub that is enough is a
+ * boundary that is real.
+ *
+ * **The write half of this file moved on 2026-08-29**, with the four
+ * `/api/v1/admin/currencies*` routes it covered, to
+ * `test/unit/currencies/currency-routes-ports.test.ts`. `languages` was serving
+ * another module's admin write surface — on `catalog:write`, for no caller in
+ * this repository — and what is left here is the one read a public aggregate
+ * composes.
  */
 
 function record(overrides: Partial<CurrencyRecord> = {}): CurrencyRecord {
@@ -44,34 +46,12 @@ function record(overrides: Partial<CurrencyRecord> = {}): CurrencyRecord {
   };
 }
 
-interface Calls {
-  readonly upsert: unknown[];
-  readonly setDefault: string[];
-  readonly remove: string[];
-}
-
-async function buildApp(): Promise<{ app: FastifyInstance; calls: Calls }> {
-  const calls: Calls = { upsert: [], setDefault: [], remove: [] };
+async function buildApp(): Promise<FastifyInstance> {
   const currencyRead: CurrencyReadPort = {
     list: async () => [record({ isDefault: true })],
     listActive: async () => [record({ isDefault: true })],
     getDefault: async () => record({ isDefault: true }),
     findByCode: async (code) => (code === 'XAA' ? record() : null),
-  };
-  const currencyAdmin: CurrencyAdminPort = {
-    create: async () => record(),
-    upsert: async (input) => {
-      calls.upsert.push(input);
-      return record({ label: input.label });
-    },
-    update: async () => record(),
-    setDefault: async (code) => {
-      calls.setDefault.push(code);
-      return record({ code, isDefault: true });
-    },
-    remove: async (code) => {
-      calls.remove.push(code);
-    },
   };
 
   const languageService = {
@@ -86,16 +66,15 @@ async function buildApp(): Promise<{ app: FastifyInstance; calls: Calls }> {
   await registerI18nRoutes(app, {
     languageService,
     currencyRead,
-    currencyAdmin,
     requireAdmin: () => async () => undefined,
   });
   await app.ready();
-  return { app, calls };
+  return app;
 }
 
-describe('languages i18n routes — currency data comes from the published ports', () => {
+describe('languages i18n routes — currency data comes from the published read port', () => {
   it('serves the public i18n config from the currency read port alone', async () => {
-    const { app } = await buildApp();
+    const app = await buildApp();
     const res = await app.inject({ method: 'GET', url: '/api/v1/i18n/config' });
     expect(res.statusCode).toBe(200);
     const body = res.json() as {
@@ -106,39 +85,25 @@ describe('languages i18n routes — currency data comes from the published ports
     await app.close();
   });
 
-  it('lists currencies for the admin surface from the read port', async () => {
-    const { app } = await buildApp();
-    const res = await app.inject({ method: 'GET', url: '/api/v1/admin/currencies' });
-    expect(res.statusCode).toBe(200);
-    expect((res.json() as { data: unknown[] }).data).toHaveLength(1);
-    await app.close();
-  });
-
-  it('routes every currency write to the admin port', async () => {
-    const { app, calls } = await buildApp();
-
-    const upsert = await app.inject({
-      method: 'PUT',
-      url: '/api/v1/admin/currencies/XAA',
-      payload: { label: 'Renamed', symbol: 'X' },
-    });
-    expect(upsert.statusCode).toBe(200);
-    expect(calls.upsert).toEqual([{ code: 'XAA', label: 'Renamed', symbol: 'X' }]);
-
-    const setDefault = await app.inject({
-      method: 'POST',
-      url: '/api/v1/admin/currencies/XAA/default',
-    });
-    expect(setDefault.statusCode).toBe(200);
-    expect(calls.setDefault).toEqual(['XAA']);
-
-    const removed = await app.inject({
-      method: 'DELETE',
-      url: '/api/v1/admin/currencies/XAA',
-    });
-    expect(removed.statusCode).toBe(204);
-    expect(calls.remove).toEqual(['XAA']);
-
+  /**
+   * The move, asserted where it can be seen rather than left to a commit
+   * message: this module registers no currency admin route any more, so a
+   * `languages` app built with no currency **admin** port at all serves none.
+   * Without this the four routes could quietly come back — the deps object no
+   * longer names the port, but nothing else here would notice a new
+   * registration.
+   */
+  it('registers no currency admin route of its own', async () => {
+    const app = await buildApp();
+    for (const [method, url] of [
+      ['GET', '/api/v1/admin/currencies'],
+      ['PUT', '/api/v1/admin/currencies/XAA'],
+      ['POST', '/api/v1/admin/currencies/XAA/default'],
+      ['DELETE', '/api/v1/admin/currencies/XAA'],
+    ] as const) {
+      const res = await app.inject({ method, url, payload: { label: 'x', symbol: 'X' } });
+      expect(res.statusCode, `${method} ${url} is no longer this module's`).toBe(404);
+    }
     await app.close();
   });
 });

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'node:crypto';
 import {
@@ -10,12 +11,11 @@ import {
   runWithoutTenantContext,
   MissingTenantContextError,
 } from '../../../src/tenancy/tenant-context.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
-import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
+import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 056 (T032) — customer-side roll-up.

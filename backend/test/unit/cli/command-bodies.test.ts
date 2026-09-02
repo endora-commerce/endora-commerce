@@ -8,7 +8,7 @@ import {
   createModuleRegistrationSink,
   type ModuleContext,
 } from '../../../src/kernel/module-context.js';
-import { coverage } from '../../../src/modules/_i18n/cli/coverage.js';
+import { coverage } from '../../../../packages/modules/_i18n/src/backend/cli/coverage.js';
 import { abandonmentSweep } from '../../../../packages/modules/carts/src/backend/cli/abandonment-sweep.js';
 import { reindex } from '../../../../packages/modules/search/src/backend/cli/reindex.js';
 import { cacheClear } from '../../../../packages/modules/settings/src/backend/cli/cache-clear.js';

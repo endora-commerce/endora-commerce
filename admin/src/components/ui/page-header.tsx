@@ -1,47 +1,17 @@
-import { type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
 /**
- * The standard page header: title + optional description on the left,
- * an actions slot on the right. Used across every admin module page.
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/ui` (feature 091, Phase 1b).
  *
- * An optional `back` link renders above the title as a small muted
- * affordance (chevron + label), mirroring the detail-view pattern in the
- * Admin UI design reference.
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
  */
-export interface PageHeaderProps {
-  title: ReactNode;
-  description?: ReactNode;
-  actions?: ReactNode;
-  back?: { label: ReactNode; to: string };
-  className?: string;
-}
-
-export function PageHeader({
-  title,
-  description,
-  actions,
-  back,
-  className,
-}: PageHeaderProps): ReactNode {
-  return (
-    <header className={cn('mb-6 flex flex-wrap items-start justify-between gap-4', className)}>
-      <div className="space-y-1">
-        {back ? (
-          <Link
-            to={back.to}
-            className="-ml-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ChevronLeft className="size-3.5" />
-            {back.label}
-          </Link>
-        ) : null}
-        <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">{title}</h1>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
-      </div>
-      {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
-    </header>
-  );
-}
+export { PageHeader } from '@endora-commerce/admin-kit/ui';
+export type { PageHeaderProps } from '@endora-commerce/admin-kit/ui';

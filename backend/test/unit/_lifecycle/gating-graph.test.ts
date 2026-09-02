@@ -6,8 +6,8 @@ import {
   acknowledgedPortEdgesFrom,
   gatingGraph,
   nonBindingPortEdgesFrom,
-} from '../../../src/modules/_lifecycle/services/gating-graph.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+} from '../../../src/lifecycle/services/gating-graph.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * The graph the flip-time refusals read — feature 073, FR-008, Amendment A1

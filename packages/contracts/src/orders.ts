@@ -189,6 +189,12 @@ export const placeOrderRequestSchema = z.object({
       address: z.string().max(500).optional(),
     })
     .optional(),
+  /**
+   * Optional adapter-specific shipping payload persisted on the order
+   * (feature 068). Shape is interpreted by the selected delivery method's
+   * ShippingAdapter. InPost locker: `{ targetPoint: string }`.
+   */
+  shippingAdapterData: z.record(z.string(), z.unknown()).optional(),
 });
 export type PlaceOrderRequest = z.infer<typeof placeOrderRequestSchema>;
 
@@ -793,6 +799,14 @@ export interface OrderRecord {
   deliveryAddress: OrderAddressSnapshot;
   billingAddress: OrderAddressSnapshot;
   deliveryPointSnapshot?: OrderDeliveryPointSnapshot | null;
+  /**
+   * The adapter-specific shipping envelope captured at placement (feature 068).
+   * Opaque here on purpose: only the delivery method's own `ShippingAdapter`
+   * knows its shape, and it is published on the record so a carrier module can
+   * read the order it is shipping over `OrderReadPort` rather than reaching for
+   * this module's entity.
+   */
+  shippingAdapterData?: Record<string, unknown> | null;
   deliveryMethodId: string;
   deliveryMethodSnapshot: OrderDeliveryMethodSnapshot;
   paymentMethodId: string;

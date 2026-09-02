@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Product } from '../../src/modules/catalog/entities/product.entity.js';
-import { Category } from '../../src/modules/catalog/entities/category.entity.js';
-import { AttributeSetAttribute } from '../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
+import { Product } from './package-entities.js';
+import { Category } from './package-entities.js';
+import { AttributeSetAttribute } from './package-entities.js';
 import { createAttributeFixture } from '../../src/seeds/attribute-fixtures.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 

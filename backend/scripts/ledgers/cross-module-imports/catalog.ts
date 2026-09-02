@@ -2,10 +2,13 @@
  * Cross-module reaches still standing in `catalog` (feature 075,
  * FR-022…FR-026; feature 077, D-87; issue #187).
  *
- * Keyed `<path under src/>:<target module>/<target path>` for an import and
- * `<path under src/>:sql:<owner>/<table>` for a raw statement or a query builder, so
+ * Keyed `<file>:<target module>/<target path>` for an import and
+ * `<file>:sql:<owner>/<table>` for a raw statement or a query builder, so
  * moving code inside a file does not invalidate an entry and re-opening a hole does not
- * silently inherit one.
+ * silently inherit one. The file is spelled as `layout.keyOf` spells it — a path under
+ * `src/` for a module still in `backend/src`, and the repo-relative package path for one
+ * that has become a package, which is what these three keys carry since `catalog` moved
+ * (feature 080, T040b).
  *
  * Two-way: an unledgered reach fails the build, and an entry that no longer describes one
  * fails it too. Delete this file when the last entry goes; an empty shard is refused,
@@ -17,6 +20,14 @@
  * says so.
  *
  * **All three are SQL reaches, and none of the three is an open design question any
+ * more — nor was any of them a blocker on packaging this module.** Batch six measured
+ * that combination for the first time (`seo`, !1048): a shard is read as a packaging
+ * blocker because it usually holds *import* reaches, which stop resolving once the owner
+ * is a package, and a SQL reach does not. This shard is the first to carry the finding
+ * for real rather than by injection — the check found, attributed and accepted all three
+ * under keys re-spelled to the package form, and nothing else about them moved.
+ *
+ * **All three are SQL reaches, and none of the three is an open design question any
  * more.** Re-read for feature 080's SQL-reach sweep, which retired the fourth of the
  * family (`admin_actions`' `module_registrations` join). What each of these waits for is
  * named below and is a *fact about another module* rather than a shape nobody has
@@ -25,6 +36,19 @@
  * on — a SQL reach compiles and runs from a package exactly as it does from the tree, so
  * what it costs the boundary is never a build failure, only a column rename that breaks a
  * stranger in silence.
+ *
+ * **The three admin surface reaches this shard held are gone** (feature 091, P7a).
+ * `CategoriesTree.tsx` imported `price_lists`' `DisplayModeOverrideRow`, and `ProductEditor.tsx`
+ * imported that module's `LinkedPriceListsPanel` and `sales_channels`' `EntityChannelMembership`.
+ * Each entry's recorded retiring condition was the owner declaring an **admin contribution
+ * zone**, and that is what retired them: `catalog` renders `category.editor.after`,
+ * `product.editor.pricing.after` and `product.editor.channels`, the two owners contribute into
+ * them, and neither module names the other. Nothing was moved and no specifier was rewritten,
+ * which is what the condition refused.
+ *
+ * What is left is the three SQL reaches above. Do not read this shard as the admin's — a future
+ * admin reach out of `catalog` belongs here on the same terms, keyed on a repository-relative
+ * path under the admin's module root, and recorded before the directory moves.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
@@ -48,7 +72,7 @@ const NO_OPERATOR_HALF =
   'this sentence has to be rewritten with the edge.';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/catalog/services/catalog-admin.service.ts:sql:carts/cart_items':
+  'packages/modules/catalog/src/backend/services/catalog-admin.service.ts:sql:carts/cart_items':
     'Issue #187 seed — `assertProductDeletable` refuses a product delete that would ' +
     'orphan a cart line, and it asks with `select count(*) … from "cart_items" where ' +
     '"product_id" = ?`. SQL names no import specifier, so this crossed the boundary ' +
@@ -89,7 +113,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     '`assertProductDeletable` converting together to `EntityManager`-taking read ports on ' +
     'the two owners\' `./ports` subpaths, with an `acknowledgedDependencies` entry for ' +
     'each edge.',
-  'modules/catalog/services/catalog-admin.service.ts:sql:orders/order_items':
+  'packages/modules/catalog/src/backend/services/catalog-admin.service.ts:sql:orders/order_items':
     'Issue #187 seed — the twin of the `cart_items` entry above, in the same method and ' +
     'the same transaction: `assertProductDeletable` counts `orders`\' `order_items` ' +
     'before letting a product go. **What it couples is one column**, ' +
@@ -107,7 +131,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     NO_OPERATOR_HALF + '\n\n' +
     'Retired by: `orders` becoming a package, with the `carts` half above — the two are ' +
     'one decision and one method, and cutting either alone is refused for that reason.',
-  'modules/catalog/services/catalog-quick-search.service.ts:sql:kernel/sales_channel_products':
+  'packages/modules/catalog/src/backend/services/catalog-quick-search.service.ts:sql:kernel/sales_channel_products':
     'D-87 seed, added at rebase — this site did not exist when the sweep ran. It arrived ' +
     'with `cb5be278`, the #174 fix that moved the quick-order type-ahead out of ' +
     '`quick_order` and into its owner and gave it the channel scoping it had never had: ' +

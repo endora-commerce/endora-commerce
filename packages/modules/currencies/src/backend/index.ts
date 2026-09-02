@@ -7,18 +7,23 @@ import {
   type DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import {
+  lazyPort,
+  type ModuleContext,
+  type RequireAdminFactory,
+} from '@endora-commerce/platform/kernel';
 import { CurrencyService } from './services/currency-service.js';
 import { CurrencyReadService, createCurrencyAdminPort } from './services/currency-ports.js';
 import { CurrencyReferenceRegistry } from './services/currency-reference-registry.js';
 import { CurrencySeedService } from './services/currency-seed-service.js';
 import { Currency } from './entities/currency.entity.js';
+import { registerCurrencyRoutes } from './routes.js';
 
 /**
  * `currencies` — one service, where there were two (feature 072, wave 1).
  *
- * The module owns no routes: `dictionaries` serves
- * `/api/v1/admin/dictionary/currencies/*` and `languages` serves
+ * The module used to own no routes: `dictionaries` served
+ * `/api/v1/admin/dictionary/currencies/*` and `languages` served
  * `/api/v1/admin/currencies/*`. Both write the same table, and **each built its
  * own `CurrencyService` with different constructor arguments** — `dictionaries`
  * passed the dictionary invalidator, `languages` passed `undefined`.
@@ -40,6 +45,7 @@ import { Currency } from './entities/currency.entity.js';
 
 export interface CurrenciesCradle {
   readonly emFactory: () => EntityManager;
+  readonly requireAdmin: RequireAdminFactory;
   readonly auditLogService: AuditPort;
   readonly eventBus: { emit: (event: string, payload: unknown) => void };
   readonly currencyService: CurrencyService;
@@ -122,6 +128,33 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
   );
+
+  /**
+   * The admin surface for this module's own table (2026-08-29), moved here from
+   * `languages`.
+   *
+   * `ctx.routes` is what makes the module-presence gate structural: it wraps the
+   * whole registration, so every route this module ever adds is covered
+   * (Constitution XVII item 1, "never gate per handler"). `languages` had to say
+   * in a comment that the currency routes answered 503 when this module was
+   * absent, because there the gate was a property of the two ports it happened
+   * to resolve rather than of the registration.
+   *
+   * The two ports are resolved lazily and are this module's own — a
+   * self-resolution, so no boundary is crossed and the gates are the ones every
+   * other consumer already gets. Destructuring them here instead would run the
+   * gate at *registration* time, which `buildServer` performs whatever the
+   * module's effective state is, and so would stop the next start rather than
+   * the routes (D-40).
+   */
+  ctx.routes(async (app) => {
+    const { requireAdmin } = ctx.cradle<CurrenciesCradle>();
+    await registerCurrencyRoutes(app, {
+      currencyRead: lazyPort<CurrencyReadPort>(ctx, 'currencyReadPort'),
+      currencyAdmin: lazyPort<CurrencyAdminPort>(ctx, 'currencyAdminPort'),
+      requireAdmin,
+    });
+  });
 }
 
 /**

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import type { z } from 'zod';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
 import { NewsletterOptInService } from '../../../../packages/modules/newsletter/src/backend/services/opt-in.service.js';
@@ -40,6 +41,12 @@ describe('newsletter subscribe/confirm (US1)', () => {
       emFactory: () => db.em(),
       optIn,
       defaultChannelId: null,
+      // Feature 087 Group B / D-187 — the real read port, over this
+      // transaction's own `customer_accounts`. Every subscribe in this file is
+      // anonymous, so the port is never asked anything; wiring the real one
+      // rather than a stub is what keeps that a fact about the file instead of
+      // a fact about the stub.
+      customerAccounts: customerAccountPortsFor(() => db.em()).read,
       links: {
         confirm: (t) => `http://x/confirm?token=${t}`,
         unsubscribe: (t) => `http://x/unsubscribe?token=${t}`,

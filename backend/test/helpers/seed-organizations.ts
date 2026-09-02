@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import { Organization } from './package-entities.js';
+import { CustomerAccount } from './package-entities.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import {
   TEST_CUSTOMER_EMPTY_ID,
   TEST_CUSTOMER_ID,

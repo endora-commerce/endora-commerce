@@ -8,7 +8,7 @@ import {
   OTHER_TEST_ORGANIZATION_ID,
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**

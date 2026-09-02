@@ -58,6 +58,24 @@ import { getCurrentPlatformScope } from './scope.js';
  *
  * The fallback is a real write, never a no-op: turning an unstructured line
  * into a dropped one would be a worse platform than the one this replaces.
+ *
+ * ## One shape, one name
+ *
+ * This interface is **the** structured-logger surface of the platform, and it
+ * is the type of `ModuleContext.log`, of `DefineModuleWorkerOptions.logger`,
+ * and of every `log` a module is handed. It used to have three names —
+ * `WorkerLogger` in `lifecycle/plugin-helpers.ts` (identical body, published on
+ * the `./kernel` barrel), `ModuleLifecycleLogger` in `module-context.ts` (an
+ * alias of that), and this one — for one shape. Structural typing made the
+ * duplication invisible: `moduleLogger` returns a `PlatformLogger` and the
+ * field it lands in was declared as the other two.
+ *
+ * The name that did the damage was `ModuleLifecycleLogger`, because
+ * `@endora-commerce/contracts` **also** exports one — the install/uninstall
+ * hook logger, whose `info(msg)` takes a message and no bound object. A module
+ * author who read the published package and wrote `ctx.log.info('…')` was
+ * wrong, and both names resolved. Do not reintroduce an alias of this
+ * interface: a second name for one shape is what that defect was made of.
  */
 export interface PlatformLogger {
   info(obj: object, msg: string): void;

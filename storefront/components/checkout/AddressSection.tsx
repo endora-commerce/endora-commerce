@@ -113,6 +113,9 @@ function NewAddressFields({
       <input
         name={`${prefix}_phone`}
         placeholder={t('checkout.address.phone')}
+        required={required}
+        inputMode="tel"
+        autoComplete="tel"
         className={FIELD_CLASS}
       />
     </div>
@@ -170,7 +173,7 @@ export function AddressSection({
         {shippingMode === 'saved' && deliveryAddresses.length > 0 ? (
           <select name="deliveryAddressId" defaultValue={deliveryDefaultId} className={SELECT_CLASS}>
             {deliveryAddresses.map((a) => (
-              <option key={a.id} value={a.id}>
+              <option key={a.id} value={a.id} data-phone={a.phone ?? ''}>
                 {label(a)}
               </option>
             ))}

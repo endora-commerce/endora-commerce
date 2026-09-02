@@ -1,27 +1,7 @@
 import type { Data } from '@measured/puck';
-import { slugify, type CmsTemplateDetail, type CmsTemplateSummary } from '@endora-commerce/contracts';
+import type { CmsTemplateDetail, CmsTemplateSummary } from '@endora-commerce/contracts';
 import { cmsClient } from '../api/cms-client';
 import { emptyPageBuilderData, isEmptyPageBuilderData } from './page-builder-data';
-
-/**
- * A CMS (and, through `email-template-layout.ts`, an e-mail) template code,
- * prefilled from the template's name.
- *
- * `slugify` from `@endora-commerce/contracts`, **imported, never re-implemented** (issue
- * #245). The chain this carried had **no fold step at all**: it lowercased and
- * went straight to `[^a-z0-9]+`, deleting every non-ASCII letter instead of
- * folding it — `Łatwy szablon` produced `atwy-szablon`, `Żółw` produced `w`,
- * `Świeże Ćwikła` produced `wie-e-wik-a`. That is issue #240's defect, and
- * `check:diacritic-folds` was structurally blind to it: it counts folds written
- * outside the shared helper, and a site that folds nothing writes none.
- *
- * The 180-character cut is this caller's own (the `cmsCodeRe` limit) and is
- * passed explicitly; the trailing separator a cut used to leave behind is now
- * stripped after it rather than before.
- */
-export function codeFromTemplateName(input: string): string {
-  return slugify(input, { maxLength: 180 });
-}
 
 export async function saveCanvasAsCmsTemplate(input: {
   name: string;

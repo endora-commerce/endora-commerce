@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'node:crypto';
 import {
@@ -7,13 +8,12 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
 import { CreditLimitReservation } from '../../helpers/package-entities.js';
-import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
-import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';
+import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
+import { OrganizationInheritanceService } from '../../../../packages/modules/organizations/src/backend/services/organization-inheritance-service.js';
 import { CreditLimitReadService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-read.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 056 US3 — credit-limit inheritance + concurrency (T022, money path).

@@ -55,7 +55,7 @@ import {
 } from './cli/module-commands.js';
 import { composeApp } from './composition.js';
 import { ModuleDisabledError } from './kernel/lifecycle/plugin-helpers.js';
-import { resolvedManifestEntries } from './modules/_lifecycle/registered-manifests.js';
+import { resolvedManifestEntries } from './lifecycle/registered-manifests.js';
 import { enterSystemScope } from './kernel/scope.js';
 
 const USAGE = `usage: endora <module id> <command> [args…]

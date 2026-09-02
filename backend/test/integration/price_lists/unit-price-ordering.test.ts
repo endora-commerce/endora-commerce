@@ -1,4 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  PriceList,
+  PriceListPriceBracket,
+  PriceListProduct,
+  type ProductRow,
+} from '../../helpers/package-entities.js';
 import type { ListingPriceViewerContext } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -6,11 +12,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
+import { Category } from '../../helpers/package-entities.js';
+import { Product } from '../../helpers/package-entities.js';
 import { OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**
@@ -95,7 +98,7 @@ async function seedList(
 
 describe('orderByUnitPrice is resolveListingPrices, sorted', () => {
   let h: BackendServerHandle;
-  let products: Product[] = [];
+  let products: ProductRow[] = [];
   let channelId = '';
 
   beforeAll(async () => {

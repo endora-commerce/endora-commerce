@@ -1,15 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
-import { PriceListProduct } from '../../../src/modules/price_lists/entities/price-list-product.entity.js';
-import { PriceListPriceBracket } from '../../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
-import { CatalogProductReadService } from '../../../src/modules/catalog/services/catalog-product-read.service.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
+import { CatalogProductReadService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-product-read.service.js';
 
 /**
  * Feature 011 / US1 — Default seed + legacy migration.
@@ -207,8 +205,7 @@ describe('Feature 011 / US1 — Default price list + legacy migration (T027)', (
   it('FR-005 / FR-006: PriceListService refuses to delete the Default row, reject empty rule changes, and reject status moves away from active', async () => {
     try {
       const em = db.em();
-      const { PriceListService } =
-        await import('../../../src/modules/price_lists/services/price-list-service.js');
+      const { PriceListService } = await import('@endora-commerce/mod-price-lists/backend');
       const svc = new PriceListService(() => em);
 
       // Delete refused.

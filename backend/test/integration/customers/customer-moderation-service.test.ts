@@ -1,21 +1,22 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SessionService } from '../../../src/modules/auth/services/session-service.js';
-import { createAuthSessionPort } from '../../../src/modules/auth/services/session-port.js';
+import { SessionService } from '@endora-commerce/mod-auth/backend';
+import { createAuthSessionPort } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { CustomerAuthService } from '../../../src/modules/customer_accounts/services/customer-auth-service.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import { CustomerAuthService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-auth-service.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import {
   CustomerAuthorityService,
   type SalesRepVisibility,
 } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
 import { CustomerModerationService } from '../../../../packages/modules/customers/src/backend/services/customer-moderation-service.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
-import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
+import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { customerAccountLifecycleWriteFor } from '../../helpers/customer-account-ports.js';
 
 /**
@@ -70,7 +71,7 @@ describe('CustomerModerationService', () => {
   function makeService(canSee: boolean): CustomerModerationService {
     const visibility: SalesRepVisibility = { canSeeOrganization: async () => canSee };
     return new CustomerModerationService(
-      new CustomerAccountReadService(() => em),
+      new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer')),
       customerAccountLifecycleWriteFor(() => em, audit),
       new CustomerAuthorityService(visibility),
       sessions,

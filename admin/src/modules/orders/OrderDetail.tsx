@@ -31,12 +31,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { issueInvoiceNotice } from '../invoices/email-outcome';
-import { OrderPaymentsTab } from './OrderPaymentsTab';
+import { issueInvoiceNotice } from '@endora-commerce/admin-kit/lib';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { OrderShipmentsTab } from './OrderShipmentsTab';
-import { Section } from './Section';
+import { Section } from '@endora-commerce/admin-kit/ui';
 import { orderStatusBadgeStyle } from './orderStatusColor';
-import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
+import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
 import {
   SELECTABLE_PAYMENT_STATUSES,
   paymentStatusLabelKey,
@@ -178,6 +178,25 @@ export function OrderDetail(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [tab, setTab] = useState<OrderTab>('overview');
+
+  /**
+   * Feature 091 / P7d, Z15 — the Payment tab's button is a count of its own
+   * body.
+   *
+   * This screen used to name the owning module itself, in a
+   * `useSurfaceVisibility` call carrying that module's id and its read code —
+   * the `visibility-gate` key `backend/scripts/ledgers/foreign-module-ids.ts`
+   * recorded against this file, whose id is deliberately not quoted here
+   * either. `useAdminZone` has already applied both
+   * presence axes and each contributor's permission, so its length is the
+   * honest answer to "is there anything behind this tab" — and the refusal is
+   * still an **absent tab**, never a disabled one and never a 403 inside the
+   * panel.
+   *
+   * What this file keeps knowing is that it has a tab called Payment (Z14);
+   * what it stops knowing is which module fills it.
+   */
+  const paymentContributions = useAdminZone('order.detail.payment', { orderId: id });
 
   // Warn before leaving with an unsent comment draft.
   useUnsavedChangesPrompt(commentBody.trim() !== '');
@@ -445,13 +464,15 @@ export function OrderDetail(): ReactNode {
                 active={tab}
                 onChange={setTab}
               />
-              <TabBtn
-                id="payment"
-                label={t('orderDetail.tabs.payment')}
-                icon={<CreditCard size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
+              {paymentContributions.length > 0 ? (
+                <TabBtn
+                  id="payment"
+                  label={t('orderDetail.tabs.payment')}
+                  icon={<CreditCard size={14} />}
+                  active={tab}
+                  onChange={setTab}
+                />
+              ) : null}
               <TabBtn
                 id="delivery"
                 label={t('orderDetail.tabs.delivery')}
@@ -716,7 +737,9 @@ export function OrderDetail(): ReactNode {
             </>
           ) : null}
 
-          {tab === 'payment' ? <OrderPaymentsTab orderId={id} /> : null}
+          {tab === 'payment' ? (
+            <AdminZone name="order.detail.payment" props={{ orderId: id }} />
+          ) : null}
           {tab === 'delivery' ? (
             <OrderShipmentsTab orderId={id} deliveryMethodCode={order.deliveryMethod.code} />
           ) : null}

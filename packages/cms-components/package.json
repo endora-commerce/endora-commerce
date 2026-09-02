@@ -35,7 +35,7 @@
     "build": "tsc -p tsconfig.build.json && tailwindcss -i styles/cms-components.css -o dist/cms-components.css --minify",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/page-builder-core": "workspace:^",

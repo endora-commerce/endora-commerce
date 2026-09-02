@@ -21,7 +21,7 @@ import type {
   PricingLineResult,
   PricingResolutionInput,
   PricingServiceContract,
-} from '../../../src/modules/price_lists/services/pricing-service.interface.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 
 /**
  * Decoration — a client customises core without forking (feature 072, US7 /

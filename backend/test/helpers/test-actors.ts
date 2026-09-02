@@ -1,10 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { SessionService } from '../../src/modules/auth/services/session-service.js';
-import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import type { SessionService } from '@endora-commerce/mod-auth/backend';
+import { CustomerAccount } from './package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
+import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { RequireAdminFactory } from '../../src/kernel/ports/require-admin.js';
-import { createRequireAdmin } from '../../src/modules/auth/require-admin.js';
+import { createRequireAdmin } from '@endora-commerce/mod-auth/backend';
 
 /**
  * Test-only auth wiring. The US1 contract and integration tests identify the
@@ -156,6 +156,147 @@ export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   },
   'stub-rfq-handler-session': {
     adminUserId: '00000000-0000-4000-8000-0000000000d6',
+  },
+  // `payments` owns its codes — the three roles that prove it. A catalogue
+  // editor must be refused every payments route, a payments viewer must read
+  // the history and be refused the two writes, and the third carries the
+  // seeded `sales_representative` permission list verbatim so the shipped
+  // role's loss of payment access is asserted rather than assumed. All three
+  // roles and users are created by
+  // `test/contract/payments/permission-authority.test.ts`, the way the
+  // scoped-role contract test creates its four.
+  'stub-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d7',
+  },
+  'stub-payments-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d8',
+  },
+  'stub-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000d9',
+  },
+  // `payment_methods` owns its codes — the four roles that prove it. Its own
+  // stub set rather than a reuse of the three above: those are created by the
+  // `payments` file, and two files sharing an admin user id would make each
+  // one's fixtures depend on whether the other had booted first.
+  //
+  // A catalogue editor must be refused the payment-method configuration it
+  // could read and rewrite before; a viewer holding only `payment_methods:read`
+  // must read it and be refused every write; an editor holding the pair must
+  // complete the write, so the pair is shown to be *sufficient* and not merely
+  // newly required; and the fourth carries the seeded `sales_representative`
+  // permission list verbatim. All four roles and users are created by
+  // `test/contract/payment_methods/permission-authority.test.ts`.
+  'stub-pm-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000da',
+  },
+  'stub-payment-methods-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000db',
+  },
+  'stub-payment-methods-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000dc',
+  },
+  'stub-pm-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000dd',
+  },
+  // `delivery_methods` owns its codes — the four roles that prove it, on the
+  // same terms as the `payment_methods` set above and with ids of its own for
+  // the same reason: two files sharing an admin user id would make each one's
+  // fixtures depend on whether the other had booted first.
+  //
+  // A catalogue editor must be refused the delivery-method configuration it
+  // could read, rewrite and delete before; a viewer holding only
+  // `delivery_methods:read` must read it and be refused every write; an editor
+  // holding the pair must complete the write, so the pair is shown to be
+  // *sufficient* and not merely newly required; and the fourth carries the
+  // seeded `sales_representative` permission list verbatim. All four roles and
+  // users are created by
+  // `test/contract/delivery_methods/permission-authority.test.ts`.
+  'stub-dm-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000de',
+  },
+  'stub-delivery-methods-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000df',
+  },
+  'stub-delivery-methods-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e0',
+  },
+  'stub-dm-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e1',
+  },
+  // The delivery-method read code is the second member of the shared
+  // `GET /admin/order-statuses` gate, which `payment_methods` registers, so the
+  // `payment_methods` authority file needs a role holding it. Its own id, for
+  // the reason every other role in both files has one.
+  'stub-pm-delivery-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e2',
+  },
+  // `taxes` owns its codes — the four roles that prove it, on the same terms as
+  // the two method sets above and with ids of its own for the same reason: two
+  // files sharing an admin user id would make each one's fixtures depend on
+  // whether the other had booted first.
+  //
+  // The catalogue editor holds the code all four tax routes used to enforce —
+  // `catalog:write`, the reads included — and must now be refused the whole
+  // surface; a viewer holding only `taxes:read` must read the table and the
+  // preview and be refused every write, which is a capability that did not
+  // exist before this change; an editor holding the pair must complete the
+  // write, so the pair is shown to be *sufficient* and not merely newly
+  // required; and the fourth carries the seeded `sales_representative`
+  // permission list verbatim. All four roles and users are created by
+  // `test/contract/taxes/permission-authority.test.ts`.
+  'stub-tax-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e3',
+  },
+  'stub-taxes-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e4',
+  },
+  'stub-taxes-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e5',
+  },
+  'stub-tax-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e6',
+  },
+  // `currencies` and `inventory` own their codes (2026-08-29) — the roles that
+  // prove it, on the same terms as the sets above and with ids of their own for
+  // the same reason: two files sharing an admin user id would make each one's
+  // fixtures depend on whether the other had booted first.
+  //
+  // For `currencies` the negative is the catalogue **editor**: all four
+  // currency routes enforced `catalog:write`, the list read included, so
+  // `catalog:read` never opened them. For `inventory` there are two negatives,
+  // because it borrowed two codes on two halves of one surface — an orders
+  // reader, who could enumerate every warehouse and its address, and a
+  // catalogue editor, who could delete one. The viewer and editor roles then
+  // show the new pair is *sufficient* and not merely newly required, and the
+  // read half is a capability that did not exist: seeing a currency, a stock
+  // level or a warehouse required nobody's read code before.
+  //
+  // All roles and users are created by
+  // `test/contract/currencies/permission-authority.test.ts` and
+  // `test/contract/inventory/permission-authority.test.ts`.
+  'stub-currencies-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e7',
+  },
+  'stub-currencies-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e8',
+  },
+  'stub-currencies-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000e9',
+  },
+  'stub-inventory-orders-reader-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000ea',
+  },
+  'stub-inventory-catalog-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000eb',
+  },
+  'stub-inventory-viewer-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000ec',
+  },
+  'stub-inventory-editor-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000ed',
+  },
+  'stub-inventory-seeded-sales-rep-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000000ee',
   },
 };
 

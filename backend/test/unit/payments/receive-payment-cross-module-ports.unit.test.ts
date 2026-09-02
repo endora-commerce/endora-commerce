@@ -7,14 +7,21 @@ import type {
 } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import type { OrderPaymentStatusApplyPort } from '../../../src/modules/orders/ports/index.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
+import type { OrderPaymentStatusApplyPort } from '@endora-commerce/mod-orders/ports';
+// `dist`, not `src`, and it is this file's central assertion that depends on it:
+// `PAYMENTS_TRANSACTIONAL_ENTITIES` is a `Set` of entity **classes** and the fake
+// `findOne` below decides membership by identity. `Payment` comes from the
+// package's published `entities` array (`package-entities.ts`), so a handler
+// built from the package's *source* would pass a second `Payment` class of the
+// same name, the set would not contain it, and the test would report `payments`
+// querying an entity it may not — a false red whose real cause is two copies.
 import {
   ReceivePaymentHandler,
   type SettlementLogger,
-} from '../../../src/modules/payments/services/receive-payment-handler.js';
+} from '../../../../packages/modules/payments/dist/backend/services/receive-payment-handler.js';
 import { PaymentMethod } from '../../helpers/package-entities.js';
+import { Order } from '../../helpers/package-entities.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 /**
  * Feature 075, C-W3 — the two cross-module reads `receive-payment-handler.ts`

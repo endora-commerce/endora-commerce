@@ -12,6 +12,7 @@ export * from './errors.js';
 export * from './envelopes.js';
 export * from './pagination.js';
 export * from './common.js';
+export * from './scope-notice.js';
 export * from './catalog.js';
 export * from './quote-requests.js';
 export * from './organizations.js';
@@ -33,6 +34,7 @@ export * from './payu.js';
 export * from './autopay.js';
 export * from './paypal.js';
 export * from './dhl-parcel.js';
+export * from './inpost.js';
 export * from './shipping-methods.js';
 export * from './admin.js';
 export * from './credit-limits.js';
@@ -126,6 +128,7 @@ export * from './blog.js';
 export * from './dictionary.js';
 export * from './modules.js';
 export * from './admin-actions.js';
+export * from './admin-contributions.js';
 export * from './product-scope-overrides.js';
 export * from './product-value-resolver.js';
 export * from './mfa.js';
@@ -149,6 +152,7 @@ export {
   isValidPimFieldPath,
 } from './pim-field-path.js';
 export * from './pim-unopim.js';
+export * from './pim-pimcore.js';
 export * from './kernel.js';
 // Port contracts published by feature 075's Phase P for providers that had no
 // contracts file of their own.

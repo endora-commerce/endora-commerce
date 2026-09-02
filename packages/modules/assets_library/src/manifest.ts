@@ -127,6 +127,69 @@ export const manifest = defineModuleManifest({
       'Media storage. Product images, CMS media and e-mail assets all resolve here, and "we ' +
       'do not want files" is not a business decision.',
   },
+  /**
+   * The fifteen error codes this module owns — feature 090 Phase 3
+   * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
+   * §1.1). This is where each sentence is looked up from: `errors.<CODE>` in
+   * this module's own `i18n/{en,pl}.json`, which holds all fifteen in both
+   * languages and no sixteenth.
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5): it is
+   * exactly what the prefix chain in `@endora-commerce/mod-i18n` routes here
+   * today, copied from the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts` rather than
+   * re-derived. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * **One code a reader will look for here and not find.**
+   * `ASSET_KIND_NOT_SUPPORTED` carries this module's own `ASSET_` prefix and is
+   * `catalog`'s: the chain's `CATALOG_MISC_ERROR_CODES` set names it thirty
+   * lines before the `ASSET_` rule is reached, so the prefix never runs on it.
+   * `catalog` declares it and holds its sentence in that module's bundle. Read
+   * from the chain's source it looks like ours; read from its answer — the only
+   * reading that matches what a client receives today — it is not.
+   *
+   * **This module's list and this module's `throw`s are two different sets, in
+   * both directions**, because ownership follows the domain noun and never the
+   * thrower (D-95.2). Going one way, `ASSET_STORAGE_MISCONFIGURED` is declared
+   * here, is written in both languages, and has **no raise site anywhere in the
+   * tree** — nothing routes to it, so its two sentences are unreachable today.
+   * That is neither this merge request's to fix nor a finding any check makes
+   * (`check:error-translations`' `unreachable` asks the other question: a
+   * sentence written where the chain does not route). Going the other way, the
+   * two codes this module raises and does not own are `INTERNAL` and
+   * `VALIDATION_FAILED`, both the platform's.
+   *
+   * **No `tokens`, and it is derived rather than assumed.** The envelope's
+   * `refusalToken` (`packages/platform/src/http/error-envelope.ts`) reads
+   * exactly one member of `details` — `code`, and only when `details` is an
+   * object — as the tail of `errors.<CODE>.<token>`. All twenty-nine raises of
+   * these codes were enumerated over `packages` and `backend/src` rather than
+   * over this package alone (runbook §5): twenty-seven pass no fourth argument
+   * at all, and the two that do — `ASSET_REFERENCED` in
+   * `assets-library.service.ts` and in `folders.service.ts` — pass the
+   * Zod-style **array** of `{ path, issue }` pairs, which `refusalToken`
+   * refuses by construction. The bundle agrees from the other direction: it
+   * holds fifteen `errors.<CODE>` keys and not one `errors.<CODE>.<token>`.
+   */
+  errorCodes: [
+    { code: 'ASSET_ACCESS_DENIED' },
+    { code: 'ASSET_FILE_MISSING' },
+    { code: 'ASSET_FOLDER_CYCLE' },
+    { code: 'ASSET_FOLDER_NAME_CONFLICT' },
+    { code: 'ASSET_FOLDER_NOT_EMPTY' },
+    { code: 'ASSET_FOLDER_NOT_FOUND' },
+    { code: 'ASSET_GONE' },
+    { code: 'ASSET_LEGACY_LOCATOR_CANNOT_HARDEN' },
+    { code: 'ASSET_NOT_FOUND' },
+    { code: 'ASSET_REFERENCED' },
+    { code: 'ASSET_STORAGE_MISCONFIGURED' },
+    { code: 'ASSET_STORAGE_UNAVAILABLE' },
+    { code: 'ASSET_UPLOAD_NO_FILE' },
+    { code: 'ASSET_UPLOAD_TOO_LARGE' },
+    { code: 'ASSET_UPLOAD_TYPE_NOT_ALLOWED' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'assets.read', label: 'Browse assets library' },

@@ -241,6 +241,120 @@ export const manifest = defineModuleManifest({
       'The configuration surface for every other module. A module that is off has no editable ' +
       'configuration, so switching this off would leave nothing on the platform configurable.',
   },
+  /**
+   * The ten error codes this module owns — feature 090 Phase 3
+   * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
+   * §1.1). This is where each one's sentence is looked up from: `errors.<CODE>`
+   * in this module's own `i18n/{en,pl}.json`.
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5), and it was
+   * not written by hand: it is the verbatim output of the runbook's step-1
+   * derivation over the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts`, which records
+   * what the prefix chain in `@endora-commerce/mod-i18n` answered at
+   * `49f3c6817`. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * Nine of the ten carry a written sentence in both languages in this
+   * package's bundles, and those nine are exactly the `errors.*` keys those
+   * bundles hold — so there is no dead sentence in either direction. The tenth,
+   * `SETTING_SECRET_KEY_MISSING`, is already a `check-error-translations.ts`
+   * `UNTRANSLATED_ERROR_CODES` entry and stays one; declaring it changes
+   * nothing about that ledger, which is keyed off the chain.
+   *
+   * **No shadow reaches this module, and it is the one module that could have
+   * cast one.** Trap T1 is about the chain being an ordered `if`, and
+   * `SETTING_` is its *first* branch — ahead even of the generic set — so
+   * nothing above it can claim a `SETTING_`-prefixed code and every such member
+   * of `ERROR_CODES` lands here. Reading the rule's source and reading the
+   * chain's answer coincide, which for a migrating author is a conclusion of
+   * reading the whole chain and never a premise: the list below still comes off
+   * the answer. Nor does this branch take anything from a later one — no
+   * `SETTING_`-prefixed code belongs anywhere else under any reading.
+   *
+   * **Two codes here read like another module's, and both stay** (trap T2).
+   * `SETTING_OUT_OF_SCOPE_FOR_CHANNEL` names a sales channel and !1125 recorded
+   * it as a code `sales_channels` would look for and not find;
+   * `SETTING_SECRET_KEY_MISSING` is raised out of a secret codec that
+   * `@endora-commerce/platform`, `credentials` and `ksef` each ship a copy of.
+   * Both are refusals about a setting's value, which is the noun the chain
+   * follows.
+   *
+   * **The inverse holds and is the larger half.** This module raises four codes
+   * it does not own: `MODULE_ACTIVATION_PROTECTED` (twice) and
+   * `MODULE_SETTING_READ_ONLY` on the chain's `MODULE_` branch,
+   * `VERSION_CONFLICT` and `INTERNAL` in its generic set — all four route to
+   * `core` and are not declared here. And `invoices`'
+   * `INVOICE_NUMBER_PATTERN_COLLIDES` is refused *inside this module's write
+   * path*: the D-95.2 validator seam has `settings` answer "what would every
+   * channel's value be after this write" and the declaring module answer "is
+   * that legal", so the throw is `invoices`' own and !1121 declared it there.
+   * Routing follows the domain noun, never the thrower.
+   *
+   * **Three of the ten are raised outside this package**, which is the same
+   * rule seen from the other side and is why the raise-site grep is over
+   * `packages backend/src` rather than over this module: the platform's
+   * activation Command and `audit_logs`' recent-activity Command each raise
+   * `SETTING_NOT_REGISTERED` when a module declares a setting the reconciler
+   * never created a row for, and `search`'s LLM toggle raises
+   * `SETTING_OUT_OF_SCOPE_FOR_CHANNEL`.
+   *
+   * **Two of the ten are raised by nothing, and they are a kind the register
+   * does not yet hold** — `SETTING_CODE_CONFLICT` and
+   * `SETTING_BREAKING_CHANGE_REJECTED`.
+   * Both rules exist, both are enforced today and both are asserted by
+   * `backend/test/unit/settings/manifest-reconciler.test.ts`; they refuse where
+   * no envelope reaches. `@endora-commerce/platform`'s settings manifest
+   * reconciler throws `SettingCodeConflict` and `BreakingChangeRejected`, plain
+   * `Error` subclasses, at boot and on `module:install`, and a setting
+   * *definition* has no HTTP door at all — `routes.admin.ts` exposes values and
+   * groups and never definitions — so the HTTP code was never wired to the
+   * refusal it names. That is none of the four kinds
+   * `specs/deferred-defects.md` records: the schema does not pre-empt it, no
+   * sibling guard answers differently, no later rule superseded it, and it was
+   * not left unbuilt. The rule was built, and the `errors.*` sentence is a
+   * second representation of it that no client can receive. Not repaired here —
+   * both are declared, because ownership follows the capture and not the raise
+   * sites (trap T10), and dropping either reds the progress test as
+   * `undeclared`.
+   *
+   * Both spellings were searched, which trap T12 asks for: `ERROR_CODES.<CODE>`
+   * and the bare quoted literal, over `packages`, `backend`, `admin` and
+   * `storefront`. The only occurrences of either are the enumeration entry in
+   * `@endora-commerce/contracts` and this declaration. What makes the miss
+   * legible is that the pattern which would have connected them exists in the
+   * same directory and was not applied: `SettingNotRegistered`,
+   * `SettingOutOfScopeForChannel` and `SettingValueShapeMismatch` in
+   * `kernel/settings/settings.service.ts` each carry
+   * `readonly code = 'SETTING_…' as const`, while `BreakingChangeRejected`
+   * carries no `code` and `SettingCodeConflict`'s `code` is the *setting's*
+   * code, not an error code — a name collision that reads like the link and is
+   * not one.
+   *
+   * No `tokens`, derived rather than assumed. `refusalToken`
+   * (`packages/platform/src/http/error-envelope.ts`) reads `details.code` and
+   * nothing else; all seventeen raises of these ten codes across `packages` and
+   * `backend/src` were read, fifteen pass no fourth argument at all, and the
+   * two that do — `search`'s LLM toggle and this module's own `valueType`
+   * refusal — pass the Zod-style `Array<{path, issue}>`, which `refusalToken`
+   * returns `null` for by construction. The runbook's §5 raise-site scan
+   * attributes the tree's ten token-carrying codes over 41 sites to `core`,
+   * `invoices` and `carts` and names none of these, and the bundles hold no
+   * `errors.<CODE>.<token>` key in the other direction.
+   */
+  errorCodes: [
+    { code: 'SETTING_BREAKING_CHANGE_REJECTED' },
+    { code: 'SETTING_CODE_CONFLICT' },
+    { code: 'SETTING_EMPTY_SUBSET' },
+    { code: 'SETTING_GROUP_CODE_CONFLICT' },
+    { code: 'SETTING_GROUP_NOT_FOUND' },
+    { code: 'SETTING_GROUP_PROTECTED' },
+    { code: 'SETTING_NOT_REGISTERED' },
+    { code: 'SETTING_OUT_OF_SCOPE_FOR_CHANNEL' },
+    { code: 'SETTING_SECRET_KEY_MISSING' },
+    { code: 'SETTING_VALUE_SHAPE_MISMATCH' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'settings:read', label: 'View settings' },

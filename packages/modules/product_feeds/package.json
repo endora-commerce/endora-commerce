@@ -22,6 +22,10 @@
       "types": "./dist/migrations/index.d.ts",
       "default": "./dist/migrations/index.js"
     },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "default": "./dist/admin/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -32,26 +36,32 @@
     "node": ">=22.17.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node ../../../scripts/copy-package-assets.mjs --src src --out dist",
-    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json && node ../../../scripts/copy-package-assets.mjs --src src --out dist && tsc -p tsconfig.ui.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
     "lint": "eslint src"
   },
   "peerDependencies": {
+    "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "@fastify/rate-limit": "^10",
     "@mikro-orm/core": "^6",
     "@mikro-orm/migrations": "^6",
     "@mikro-orm/postgresql": "^6",
+    "@types/ssh2-sftp-client": "^9",
     "basic-ftp": "^6",
     "bullmq": "^5",
     "exceljs": "^4",
     "fastify": "^5",
     "ioredis": "^5",
+    "lucide-react": "^1",
+    "react": "^19",
+    "react-router-dom": "^7",
     "ssh2-sftp-client": "^12",
     "zod": "^4"
   },
   "devDependencies": {
+    "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "@fastify/rate-limit": "^10.3.0",
@@ -59,12 +69,16 @@
     "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",
     "@types/node": "^22.9.0",
+    "@types/react": "^19.2.14",
     "@types/ssh2-sftp-client": "^9.0.6",
     "basic-ftp": "^6.2.0",
     "bullmq": "^5.76.1",
     "exceljs": "^4.4.0",
     "fastify": "^5.8.5",
     "ioredis": "^5.10.1",
+    "lucide-react": "^1.11.0",
+    "react": "^19.2.5",
+    "react-router-dom": "^7.14.2",
     "ssh2-sftp-client": "^12.1.1",
     "typescript": "^5.9.3",
     "zod": "^4.2.0"

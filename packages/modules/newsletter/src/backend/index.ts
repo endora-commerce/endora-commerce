@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type { FastifyRequest } from 'fastify';
-import type { CmsBlockSeedPort } from '@endora-commerce/contracts';
+import type { CmsBlockSeedPort, CustomerAccountReadPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -110,6 +110,14 @@ export function registerModule(ctx: ModuleContext): void {
             ctx,
             'credentialsService',
           ),
+          // Feature 087 Group B / D-187 — the organisation an owned subscriber
+          // carries. A new edge for this module, and it needs no manifest
+          // change: `check:port-dependencies` uses the transitive closure of
+          // `dependencies`, and `customers` (declared) reaches
+          // `customer_accounts`. No deactivation-consequence entry either —
+          // `customer_accounts` declares `nonDeactivatable`, so it has no
+          // absent state for a consequence to describe.
+          customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
           requireAdmin: (permission) => async (req, reply) =>
             ctx.cradle<NewsletterCradle>().requireAdmin(permission)(req, reply),
           requireCustomer: (req, reply) =>

@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MODULES } from '../../../src/composition.generated.js';
@@ -13,12 +13,14 @@ import {
   BASELINE_THROUGH,
   type MigrationRegistryEntry,
 } from '../../../src/db/migration-order.js';
-import { DISCOVERED_MANIFESTS } from '../../../src/modules/_lifecycle/manifest-index.generated.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+import { platformResidentModuleRoots } from '../../../scripts/lib/module-roots.js';
+import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
 import {
   REGISTERED_MANIFESTS,
   type RegisteredManifestEntry,
-} from '../../../src/modules/_lifecycle/registered-manifests.js';
-import { listAssignablePermissionCodes } from '../../../src/modules/admin_roles/services/permission-catalogue.service.js';
+} from '../../../src/lifecycle/registered-manifests.js';
+import { listAssignablePermissionCodes } from '../../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 import {
   declaredEntityNamesFor,
   registeredEntityNamesFor,
@@ -142,17 +144,32 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // exist because `db:fresh` seeds from fixtures. Neither is F3 work, and
   // neither is served by moving the file somewhere this test cannot walk.
   //
-  // `catalog` (wave 4, T142). `composition.ts` types the five contributions a
-  // root supplies — the bulk-operation worker flag, the admin audit actor
-  // shape, availability bands, the image placeholder, and the Meilisearch
-  // reindex production runs and the harness must not. The two seed files are
-  // new here for the reason above, and `catalog` is on the list because the
-  // seed writes products and categories like it writes everything else.
-  catalog: [
-    'src/composition.ts',
-    'src/seeds/attribute-fixtures.ts',
-    'src/seeds/dev-catalog-seed.ts',
-  ],
+  // `catalog` (wave 4, T142), now two entries rather than three (feature 080,
+  // T040b). **`src/composition.ts` is gone and is a real retirement**: its one
+  // reference was `import type { CatalogQueryService }` from a path inside the
+  // module's directory, and the module is a package, so the root type-imports it
+  // from `@endora-commerce/mod-catalog/backend` — the same door it already uses
+  // for nine other packaged modules' interfaces. A bare specifier into a package
+  // is not a reference into `backend/src/modules/`, so deleting the directory
+  // breaks nothing there. The five contributions the root supplies — the
+  // bulk-operation worker flag, the admin audit actor shape, availability bands,
+  // the image placeholder, and the Meilisearch reindex production runs and the
+  // harness must not — are container names and were never what held the entry.
+  //
+  // **The two seed files stay, and for criterion 7's reason** (the block below,
+  // verbatim): the dev seed constructs `Product`, `Category` and
+  // `AttributeSetAttribute`, and `attribute-fixtures.ts` constructs
+  // `ProductAttribute`. A module package publishes an `entities` array and no
+  // named class (D-168), so each is taken off that array by name — and needs a
+  // row type to be taken precisely, which for this module matters more than
+  // anywhere else: the array holds **eighteen** classes, so the union `find`
+  // returns collapses to a constructor that is almost certainly not the one
+  // asked for. The row type is an `import type` of the declaration inside the
+  // package's built artefact, whose `packages/modules/catalog/dist/…` path
+  // carries the `modules/catalog/` substring this scan reads. So the reference
+  // is real — deleting the package breaks the **build** — and it is not runtime
+  // coupling, because the type imports erase.
+  catalog: ['src/seeds/attribute-fixtures.ts', 'src/seeds/dev-catalog-seed.ts'],
   // The three modules the dev seed holds and nothing else does. Each is a plain
   // entity import in the seed — a warehouse, a stock level, a delivery method,
   // and the custom-field definition half of a product attribute.
@@ -224,14 +241,23 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // carried forward — see `admin_roles` below, which lost the same reference in
   // the same commit and had the same wrong reason recorded.
   //
-  // `organizations` (wave 4, T138). `composition.ts` for the deployment inputs
-  // and the login hook. There used to be another entry: the kernel
-  // type-imported the `Organization` entity to declare `OrganizationReadPort`,
-  // recorded here as "meant to be permanent". D-55 dissolved it — the port now
-  // declares a structural `OrganizationSnapshot` over `@endora-commerce/contracts`' status
+  // `organizations` (wave 4, T138). The dev seed type-imports the `Organization`
+  // row, and that is all that is left. There used to be another entry: the
+  // kernel type-imported the entity to declare `OrganizationReadPort`, recorded
+  // here as "meant to be permanent". D-55 dissolved it — the port now declares a
+  // structural `OrganizationSnapshot` over `@endora-commerce/contracts`' status
   // union, and the entity stays in this module. The kernel owning the shape
   // never required it to own the class.
-  organizations: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
+  //
+  // **`src/composition.ts` was here and was stale on `master`** (found while
+  // packaging `auth`, T040b). The root type-imports `OrganizationTreeService`
+  // and `OrganizationTaxProfilePort` from
+  // `@endora-commerce/mod-organizations/backend`, and this scan asks whether a
+  // specifier contains `modules/<id>/`, which a bare specifier does not. So the
+  // entry drained when that module was packaged and nothing in that merge
+  // request read this file — the standing shape of this ledger's failures, and
+  // the reason the entry is recorded as corrected rather than quietly deleted.
+  organizations: ['src/seeds/dev-catalog-seed.ts'],
 
   // `composition.ts` reaches into `email` once: for the `EmailCradle` type it
   // resolves the mailer with. It disappears when the mailer's consumers resolve
@@ -250,14 +276,19 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // specifier into a package is not a reference into `backend/src/modules/`,
   // which is the same reason the `payment_methods` note above gives. The entries
   // are deleted rather than re-pointed.
-  // `auth` (T078). `composition.ts` imports `promoteAdminActor` and the
-  // `AuthCradle` type. The type import is the ordinary shape of a root
-  // resolving a module's registrations. `promoteAdminActor` is the interesting
-  // one: the MFA actor bridge promotes a partially-authenticated session before
-  // asserting it is an admin, and it leaves when `auth` provides actor
-  // promotion as a port. It was never the customer guard's — that one is
-  // `auth`'s `requireCustomer` port since issue #43 and promotes nothing.
-  auth: ['src/composition.ts'],
+  // **`auth` is absent too** (T040b), and it is the one case where the value
+  // import was the *blocker* rather than a consequence. `composition.ts`
+  // imported `promoteAdminActor` from `./modules/auth/plugin.js` — a file
+  // inside the module — so packaging `auth` would have left the root evaluating
+  // the package's source a second time (D-160.6.1). Unlike
+  // `absolutizePublicUrl`, the function could not move to the platform: `auth`
+  // reads it itself, and promotion is about two request decorations `auth`
+  // owns. It is published from `./backend` instead, so the root's reach is a
+  // bare specifier and no longer a reference into `backend/src/modules/`.
+  //
+  // The further step is still open and is recorded where it belongs, in
+  // `test/contract/kernel/harness-parity.test.ts`'s `auth:promoteAdminActor`
+  // entry: actor promotion published as a port, resolved from the container.
   // `admin_roles` (wave 1). The dev seed writes roles like it writes everything
   // else, and that is all that is left.
   //
@@ -284,31 +315,47 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // push into. The host keeps `promptActionBulkProgressRegistry` now, so
   // `catalog` pushes from its own boot hook and no root imports
   // `catalog/prompt-tools.js` either.
-  // `customer_accounts` (wave 1, T094). `composition.ts` imports the cradle
-  // type to annotate the services it resolves and hands to `customers` and
-  // `organizations`. Both of those built their own before this conversion, and
-  // the reference leaves when they convert.
-  customer_accounts: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
+  // `customer_accounts` (wave 1, T094). The dev seed type-imports the account
+  // row; that is what is left.
+  //
+  // `src/composition.ts` was here and was **stale on `master`** — see the note
+  // on `organizations` above. The root still imports the cradle type to
+  // annotate the services it resolves and hands to `customers` and
+  // `organizations`; what changed is that the specifier is now
+  // `@endora-commerce/mod-customer-accounts/backend`, which contains no
+  // `modules/<id>/`. The residue this entry described is real and is measured by
+  // `harness-parity.test.ts`'s value-import ledger, which counts declarations
+  // rather than substrings.
+  customer_accounts: ['src/seeds/dev-catalog-seed.ts'],
   // `assets_library` (wave 1, T092). `composition.ts` imports the cradle type
   // to annotate the handle it resolves and hands the `catalog`, `cms` and
   // `megamenu` reference resolvers to. Contributing those is a root's job —
   // which modules a deployment ships is not this module's business — so that
   // one stays.
-  // `_i18n` (wave 1, T089). `composition.ts` imports the cradle type and, since
-  // D-54, the `ERROR_TRANSLATION_KEYS` map it injects into the error envelope.
-  // That map used to be imported by `src/http/error-envelope.ts` itself, which
-  // made a kernel-obeying platform peer name a module (D-52) and put the cycle
+  // `_i18n`'s entry (wave 1, T089) was deleted here by T040b, which packaged the
+  // module: `composition.ts` still imports the cradle type and the routing map
+  // D-54 makes it inject into the error envelope (a `buildErrorTranslationTargets`
+  // call since feature 090's Phase 4, a static table before it), and both arrive
+  // by bare specifier — which is not a reference into `backend/src/modules/`,
+  // the same reason every other packaged module's entry went. What the entry
+  // recorded is unchanged and still true: that map used to
+  // be imported by `src/http/error-envelope.ts` itself, which made a
+  // kernel-obeying platform peer name a module (D-52) and put the cycle
   // `kernel → http → mod-i18n → kernel` in F4's package graph. A root naming a
   // module is ordinary; a peer doing it is the defect.
-  _i18n: ['src/composition.ts'],
-  // `megamenu` (wave 2, T107). `composition.ts` imports the cradle type plus
-  // the two dependency-bundle types, because the bundles themselves stay in the
-  // root — they are existence checks and URL lookups against `catalog`, `cms`
-  // and `assets_library` tables, and moving them into the module would give it
-  // direct reads of another module's storage. Those references are a root's by
-  // design rather than a leftover, so unlike most entries here they do not go
-  // when some other module converts.
-  megamenu: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
+  // `megamenu` (wave 2, T107). The dev seed type-imports three rows.
+  //
+  // `src/composition.ts` was here and was **stale on `master`**, the third of
+  // three found together — see `organizations` above. The root still imports the
+  // cradle type plus the two dependency-bundle types, because the bundles
+  // themselves stay in the root: they are existence checks and URL lookups
+  // against `catalog`, `cms` and `assets_library` tables, and moving them into
+  // the module would give it direct reads of another module's storage. Those
+  // references are a root's by design rather than a leftover, so they are the
+  // one entry here that was never going to drain — and packaging re-spelled it
+  // out of this scan's reach anyway, which is exactly why a substring ledger
+  // cannot be the record of a design decision.
+  megamenu: ['src/seeds/dev-catalog-seed.ts'],
   // `invoices` (wave 2, T113). `composition.ts` imports the bridge type to
   // annotate what it contributes. The cradle import went with T143c: it existed
   // to reach `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root
@@ -319,7 +366,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // for. The second is a root's by design — see `audit_logs/backend.ts` — and
   // the first goes when a deployment stops needing to say which module supplies
   // MFA.
-  admin_users: ['src/composition.ts', 'src/seeds/dev-catalog-seed.ts'],
+  //
+  // **`src/composition.ts` left with T040b's fifth batch.** The reach was the
+  // `AdminUsersCradle` **type**, and this module is a package now, so the root
+  // writes `@endora-commerce/mod-admin-users/backend` — a bare specifier into a
+  // package is not a reference into `backend/src/modules/`, the same reason the
+  // `payment_methods` note above gives. The recorded reason above was right and
+  // was about the *other* half: the two contributions both roots make survive
+  // the move untouched, and they are `check:port-dependencies`' subject rather
+  // than this one. The seed entry stays: it constructs `AdminUser`, so it names
+  // the row type inside this package's built artefact, which carries the
+  // `modules/admin_users/` substring this scan reads.
+  admin_users: ['src/seeds/dev-catalog-seed.ts'],
   // `settings` needs no entry and gets none, since feature 080's T040b — this
   // module is now **absent** from the ledger, which is the strongest state a
   // key can reach.
@@ -345,7 +403,8 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // activation propagation) and the manifest index the migration order is
   // built from — which issue #289 moved out of `mikro-orm.config.ts` into
   // `configured-migrations.ts`, so that the ordering could be computed without
-  // importing a config that captures `DATABASE_URL` at import.
+  // importing a config that captures `DATABASE_URL` at import. That last one is
+  // the entry T040b drained; see below.
   //
   // **`src/cli.ts` is a *new reference*, which by this ledger's own rule is the
   // regression half and not the conversion half — so it is named rather than
@@ -367,16 +426,67 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // named `modules/blog/` was `composition.generated.ts`, and a generated file
   // is excluded here by construction — deleting the directory and regenerating
   // removes the reference, which is the whole point of generating it (FR-030).
-  _lifecycle: ['src/cli.ts', 'src/composition.ts', 'src/db/configured-migrations.ts'],
-  // `price_lists` (wave 3, T127). Two entries left this ledger together when
-  // the `apps/<deployment>/decorations/` seam was retired: the decoration file
-  // itself, and `src/composition.ts` — which named this module for exactly one
-  // reason, the `PricingServiceContract` type import the decoration lookup
-  // needed. A deployment wraps the `pricingService` registration from its own
-  // overlay module now (D-103), and that module declares the wrapped shape
-  // structurally, so no file outside this directory names it. What remains is
-  // the dev seed, which value-constructs `DefaultPriceListMigrator`.
-  price_lists: ['src/seeds/dev-catalog-seed.ts'],
+  //
+  // **`src/db/configured-migrations.ts` left with T040b's last move**, and it
+  // left without anything in that file changing: the reference it held was the
+  // *manifest index*, which is now host-owned under `backend/src/` (D-160.3)
+  // rather than a file of this module's.
+  //
+  // **The whole entry was rewritten by D-160.11's second half, and what it
+  // records is a different kind of reference.** The module's sources moved into
+  // `@endora-commerce/platform`; what stayed at `backend/src/lifecycle/` is the
+  // host half the ruling names — the manifest registry, the reduced-deployment
+  // reader, the five `module:*` commands — plus twelve **re-export shims**, one
+  // per moved file that something in `backend/` still names at its old path.
+  // Those shims are the bridge, and they are the only files in this application
+  // that reach the module's directory: `src/cli.ts` and `src/composition.ts`
+  // reach a shim, which is a sibling of theirs and not this module's file, so
+  // they left the ledger without a line of either changing.
+  //
+  // Each shim is a real dangling reference — delete the module's directory and
+  // its forwarding target goes with the next build — and the entry is therefore
+  // the honest count of what the bridge costs. It drains as consumers stop
+  // naming the old paths, shim by shim, and not before: a shim with no importer
+  // is a shim to delete.
+  //
+  // The scan very nearly reported this entry as **drained**, which is worth
+  // recording because it is the failure mode this ledger has: `ownDirectoryOf`
+  // read the module's location off the index's `manifestPath`, that field now
+  // names the package's *built* manifest, the containment test failed, and the
+  // fallback returned a `src/modules/_lifecycle/` nothing has ever imported.
+  // Twelve real references would have read as zero, in the file whose subject
+  // is references that survive a move.
+  _lifecycle: [
+    'src/lifecycle/plugin.ts',
+    'src/lifecycle/routes.admin.ts',
+    'src/lifecycle/services/deactivation-ledger.ts',
+    'src/lifecycle/services/dep-graph.ts',
+    'src/lifecycle/services/gating-graph.ts',
+    'src/lifecycle/services/lock.ts',
+    'src/lifecycle/services/manifest-loader.ts',
+    'src/lifecycle/services/migration-ownership.ts',
+    'src/lifecycle/services/module-origin.ts',
+    'src/lifecycle/services/orchestrator.ts',
+    'src/lifecycle/services/presence-load.ts',
+    'src/lifecycle/services/static-registry.ts',
+  ],
+  // `price_lists` needs no entry and gets none, since T040b's fifth batch — this
+  // module is now **absent** from the ledger.
+  //
+  // Two entries left it together when the `apps/<deployment>/decorations/` seam
+  // was retired: the decoration file itself, and `src/composition.ts`. The last
+  // one was the dev seed, which value-constructs `DefaultPriceListMigrator`, and
+  // that is the entry the packaging cleared — but **not** by the route the three
+  // criterion-7 entries above take. A row type off `dist` would have kept the
+  // substring; what happened instead is that the module now publishes the
+  // migrator itself on `./backend`, so the seed names a bare specifier and holds
+  // the same class the platform composed. It had to: the reach is to a
+  // *service*, and the duplicate entity class it would have carried sits one hop
+  // behind it, where `check:singleton-identity`'s conjunct 2 cannot see it
+  // (D-160.6.1). The residue drained as a side effect of a correctness repair,
+  // which is worth recording because the reverse — a ledger entry that looks
+  // drained because a reach was re-spelled — is the failure this file exists to
+  // refuse.
   // `product_feeds` needs no entry and gets none, for `blog`'s reason and not
   // for a cleared coupling. Its move to a workspace package (feature 080,
   // criterion 8) left the contributions exactly where they were — both roots
@@ -428,18 +538,111 @@ function importSpecifiers(source: string): string[] {
  * That is the whole point of generating them (FR-030).
  */
 function residueFor(moduleId: string): string[] {
-  const needle = `modules/${moduleId}/`;
-  const own = join(srcRoot, 'modules', moduleId);
+  const own = ownDirectoryOf(moduleId);
+  // The addresses the module keeps *outside* this application, as text — a
+  // specifier that leaves `src/` cannot be resolved against the filesystem the
+  // way one that stays inside it is, because a bare specifier goes through an
+  // `exports` map.
+  //
+  // `modules/<id>/` is where a packaged module's own directory sits. A module
+  // inside the platform package has **two**: its source directory, and the
+  // built directory the index's own `manifestPath` names — which is the one
+  // `backend/src/lifecycle/`'s re-export shims reach, and therefore the one
+  // that makes them residue. Both are read off artefacts rather than derived
+  // from each other; a `src`→`dist` rewrite here would be a convention this
+  // file invented about somebody else's build.
+  const elsewhere: string[] = [];
+  if (own === join(srcRoot, 'modules', moduleId)) {
+    elsewhere.push(`modules/${moduleId}/`);
+  } else if (!own.startsWith(`${srcRoot}${sep}`)) {
+    const repoRoot = resolve(srcRoot, '../..');
+    elsewhere.push(`${relative(repoRoot, own).split(sep).join('/')}/`);
+    const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === moduleId);
+    if (entry !== undefined) {
+      const built = relative(repoRoot, dirname(entry.manifestPath)).split(sep).join('/');
+      if (!built.startsWith('..')) elsewhere.push(`${built}/`);
+    }
+  }
   const offenders = new Set<string>();
   for (const file of walk(srcRoot)) {
-    if (file.startsWith(`${own}/`)) continue;
+    if (file.startsWith(`${own}${sep}`)) continue;
     if (file.endsWith('.generated.ts')) continue;
     const specs = importSpecifiers(readFileSync(file, 'utf8'));
-    if (specs.some((spec) => spec.includes(needle))) {
+    if (specs.some((spec) => reaches(spec, file, own, elsewhere))) {
       offenders.add(relative(resolve(srcRoot, '..'), file));
     }
   }
   return [...offenders].sort();
+}
+
+/**
+ * Every module whose sources sit inside the platform package, by id.
+ *
+ * There is one — `_lifecycle`, which merged into `@endora-commerce/platform`
+ * with D-160.11's second half — and it cannot be found through the index's
+ * `manifestPath`, because a module inside the platform is imported at that
+ * package's **built** file. The layout's own derivation finds it by the marker
+ * core discovery uses, which is the same answer every check gets.
+ */
+const PLATFORM_RESIDENT_DIRECTORIES: ReadonlyMap<string, string> = new Map(
+  platformResidentModuleRoots(
+    platformSourceRootAt(resolve(srcRoot, '../..')),
+    [],
+    new Set(DISCOVERED_MANIFESTS.map((entry) => entry.id)),
+  ).map((root) => [root.moduleId!, root.directory] as const),
+);
+
+/**
+ * The module's own directory, which is no longer always `src/modules/<id>`.
+ *
+ * Three answers now. A module the application's own tree holds is read off the
+ * index's `manifestPath`; a module inside the platform package comes from the
+ * map above; and a module package answers outside `src/`, for which the name
+ * below is the address a relative specifier would still use.
+ *
+ * **The platform case may not go through `manifestPath`**, and that is what
+ * this function got wrong for one run: the field names `packages/platform/dist/
+ * lifecycle/manifest.js`, so the containment test failed, the fallback returned
+ * a `src/modules/_lifecycle/` that does not exist, and the scan reported the
+ * whole entry drained. A residue ledger that empties because the scanner lost
+ * the module is the exact silence this file exists to refuse.
+ */
+function ownDirectoryOf(moduleId: string): string {
+  const resident = PLATFORM_RESIDENT_DIRECTORIES.get(moduleId);
+  if (resident !== undefined) return resident;
+  const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === moduleId);
+  const directory = entry === undefined ? null : dirname(entry.manifestPath);
+  return directory !== null && directory.startsWith(`${srcRoot}${sep}`)
+    ? directory
+    : join(srcRoot, 'modules', moduleId);
+}
+
+/**
+ * Does this specifier reach the module's own directory?
+ *
+ * A specifier that stays **inside** the application's source tree is resolved
+ * and compared, because a substring test is ambiguous the moment a module's
+ * directory is one path segment: the kernel's own `lifecycle/` (the gating
+ * wrappers, D-37 A1) would answer for `_lifecycle` in every file that imports
+ * `effective-state`. One that leaves it is compared as text against the address
+ * the module keeps out there — which is how a packaged module's built artefact
+ * is recognised (`packages/modules/<id>/dist/…`, the dev seed's row type) and
+ * which resolving would not answer, since a bare specifier goes through an
+ * `exports` map rather than the filesystem.
+ */
+function reaches(
+  specifier: string,
+  file: string,
+  own: string,
+  elsewhere: readonly string[],
+): boolean {
+  if (specifier.startsWith('.')) {
+    const resolved = resolve(dirname(file), specifier);
+    if (resolved === srcRoot || resolved.startsWith(`${srcRoot}${sep}`)) {
+      return resolved === own || resolved.startsWith(`${own}${sep}`);
+    }
+  }
+  return elsewhere.some((address) => specifier.includes(address));
 }
 
 describe('T055 — deleting the module directory leaves no dangling reference', () => {

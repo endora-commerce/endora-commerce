@@ -52,23 +52,23 @@
 import { initOrm, closeOrm } from '../db/index.js';
 import { mustBeNonProduction } from './dev-seed-guard.js';
 import { SEED_SCOPE_REASON } from './seed-scope.js';
+import { SALES_REPRESENTATIVE_PERMISSIONS } from './seeded-role-permissions.js';
 import { enterSystemScope } from '../kernel/scope.js';
-import { Product } from '../modules/catalog/entities/product.entity.js';
-import { Category } from '../modules/catalog/entities/category.entity.js';
-import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
+import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
+import type { Product as ProductRow } from '../../../packages/modules/catalog/dist/backend/entities/product.entity.js';
+import type { Category as CategoryRow } from '../../../packages/modules/catalog/dist/backend/entities/category.entity.js';
+import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/dist/backend/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from './attribute-fixtures.js';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
-import { Megamenu } from '../modules/megamenu/entities/megamenu.entity.js';
-import { MegamenuItem } from '../modules/megamenu/entities/megamenu-item.entity.js';
-import { MegamenuBinding } from '../modules/megamenu/entities/megamenu-binding.entity.js';
-import { Organization } from '../modules/organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
-import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
-import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
+import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/backend';
+import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
+import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
+import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
+import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
 import { entityNamed } from '../packages/package-entity-lookup.js';
 // The row shapes for the three classes above. A module package publishes its
 // entities as one array and no class by name (D-168), so the *value* comes off
@@ -81,13 +81,54 @@ import type { DeliveryMethod as DeliveryMethodRow } from '../../../packages/modu
 import type { PaymentMethod as PaymentMethodRow } from '../../../packages/modules/payment_methods/dist/backend/entities/payment-method.entity.js';
 import type { Tax as TaxRow } from '../../../packages/modules/taxes/dist/backend/entities/tax.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/dist/backend/entities/credit-limit.entity.js';
-import { DefaultPriceListMigrator } from '../modules/price_lists/services/default-price-list-migration.js';
-import { CatalogProductReadService } from '../modules/catalog/services/catalog-product-read.service.js';
+import type { Megamenu as MegamenuRow } from '../../../packages/modules/megamenu/dist/backend/entities/megamenu.entity.js';
+import type { MegamenuItem as MegamenuItemRow } from '../../../packages/modules/megamenu/dist/backend/entities/megamenu-item.entity.js';
+import type { MegamenuBinding as MegamenuBindingRow } from '../../../packages/modules/megamenu/dist/backend/entities/megamenu-binding.entity.js';
+import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/dist/backend/entities/organization.entity.js';
+import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/dist/backend/entities/admin-user.entity.js';
+import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/dist/backend/entities/admin-role.entity.js';
+import type { CustomerAccount as CustomerAccountRow } from '../../../packages/modules/customer_accounts/dist/backend/entities/customer-account.entity.js';
+import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse.entity.js';
+import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse-channel-assignment.entity.js';
+import type { StockLevel as StockLevelRow } from '../../../packages/modules/inventory/dist/backend/entities/stock-level.entity.js';
+import { DefaultPriceListMigrator } from '@endora-commerce/mod-price-lists/backend';
+import { CatalogProductReadService } from '@endora-commerce/mod-catalog/backend';
 import { hashPassword } from '../kernel/crypto/password-hasher.js';
-import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../modules/inventory/entities/warehouse.entity.js';
-import { WarehouseChannelAssignment } from '../modules/inventory/entities/warehouse-channel-assignment.entity.js';
-import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
-import { WarehouseChannelReconciler } from '../modules/inventory/services/warehouse-channel-reconciler.js';
+import {
+  entities as inventoryEntities,
+  DEFAULT_WAREHOUSE_ID,
+  WarehouseChannelReconciler,
+} from '@endora-commerce/mod-inventory/backend';
+
+/**
+ * `catalog`'s three entity classes, taken off the package's published `entities`
+ * array by name (D-168, feature 080 T040b — criterion 7).
+ *
+ * At module scope rather than inside `seedDevCatalog` because the category loop
+ * constructs a `Category` two hundred lines above the block below, which is
+ * where the other packages' classes are resolved. The row types come from an
+ * `import type` of the declaration inside the package's **built** artefact —
+ * `dist` and not `src`, because `backend/tsconfig.build.json` sets
+ * `rootDir: ./src` and a `.ts` outside it is TS6059 even for a type-only import.
+ * With eighteen classes in the array the row type is what stops `em.create`
+ * checking a product payload against whichever constituent of the union
+ * TypeScript picks.
+ */
+const Product = entityNamed<ProductRow>(
+  catalogEntities,
+  'Product',
+  '@endora-commerce/mod-catalog/backend',
+);
+const Category = entityNamed<CategoryRow>(
+  catalogEntities,
+  'Category',
+  '@endora-commerce/mod-catalog/backend',
+);
+const AttributeSetAttribute = entityNamed<AttributeSetAttributeRow>(
+  catalogEntities,
+  'AttributeSetAttribute',
+  '@endora-commerce/mod-catalog/backend',
+);
 
 const DEMO_ADMIN_EMAIL = 'admin@demo.local';
 const DEMO_ADMIN_PASSWORD = 'ChangeMe!123';
@@ -304,7 +345,7 @@ async function main(): Promise<void> {
     { slug: 'electronics', nameEn: 'Electronics' },
     { slug: 'safety', nameEn: 'Safety equipment' },
   ];
-  const sections: Category[] = [];
+  const sections: CategoryRow[] = [];
   for (const s of sectionDefs) {
     const cat = em.create(Category, {
       parentCategoryId: root.id,
@@ -325,7 +366,7 @@ async function main(): Promise<void> {
     { parentSlug: 'safety', slug: 'gloves', nameEn: 'Gloves' },
     { parentSlug: 'safety', slug: 'helmets', nameEn: 'Helmets' },
   ];
-  const leaves: Category[] = [];
+  const leaves: CategoryRow[] = [];
   for (const l of leafDefs) {
     const parent = sections.find((s) => s.slug === l.parentSlug)!;
     leaves.push(
@@ -338,9 +379,9 @@ async function main(): Promise<void> {
   }
   await em.persistAndFlush(leaves);
 
-  // Three entity classes come from packages, and a module package publishes one
-  // `entities` array and no class by name (D-168). `entityNamed` takes each off
-  // the array the ORM itself registered — `entities-registry.generated.ts`
+  // Fourteen more entity classes come from packages, and a module package publishes
+  // one `entities` array and no class by name (D-168). `entityNamed` takes each
+  // off the array the ORM itself registered — `entities-registry.generated.ts`
   // imports the same export — under the row type imported above, so the payloads
   // below are checked against the entity actually being created rather than
   // against whichever constituent of the array's union TypeScript picks.
@@ -359,6 +400,56 @@ async function main(): Promise<void> {
     creditLimitsEntities,
     'CreditLimit',
     '@endora-commerce/mod-credit-limits/backend',
+  );
+  const Megamenu = entityNamed<MegamenuRow>(
+    megamenuEntities,
+    'Megamenu',
+    '@endora-commerce/mod-megamenu/backend',
+  );
+  const MegamenuItem = entityNamed<MegamenuItemRow>(
+    megamenuEntities,
+    'MegamenuItem',
+    '@endora-commerce/mod-megamenu/backend',
+  );
+  const MegamenuBinding = entityNamed<MegamenuBindingRow>(
+    megamenuEntities,
+    'MegamenuBinding',
+    '@endora-commerce/mod-megamenu/backend',
+  );
+  const Organization = entityNamed<OrganizationRow>(
+    organizationsEntities,
+    'Organization',
+    '@endora-commerce/mod-organizations/backend',
+  );
+  const AdminUser = entityNamed<AdminUserRow>(
+    adminUsersEntities,
+    'AdminUser',
+    '@endora-commerce/mod-admin-users/backend',
+  );
+  const AdminRole = entityNamed<AdminRoleRow>(
+    adminRolesEntities,
+    'AdminRole',
+    '@endora-commerce/mod-admin-roles/backend',
+  );
+  const CustomerAccount = entityNamed<CustomerAccountRow>(
+    customerAccountsEntities,
+    'CustomerAccount',
+    '@endora-commerce/mod-customer-accounts/backend',
+  );
+  const Warehouse = entityNamed<WarehouseRow>(
+    inventoryEntities,
+    'Warehouse',
+    '@endora-commerce/mod-inventory/backend',
+  );
+  const WarehouseChannelAssignment = entityNamed<WarehouseChannelAssignmentRow>(
+    inventoryEntities,
+    'WarehouseChannelAssignment',
+    '@endora-commerce/mod-inventory/backend',
+  );
+  const StockLevel = entityNamed<StockLevelRow>(
+    inventoryEntities,
+    'StockLevel',
+    '@endora-commerce/mod-inventory/backend',
   );
 
   // --- Megamenu (feature 015) -----------------------------------------
@@ -403,7 +494,7 @@ async function main(): Promise<void> {
   );
   await em.persistAndFlush(topItems);
 
-  const childItems: MegamenuItem[] = [];
+  const childItems: MegamenuItemRow[] = [];
   sections.forEach((section, sectionIdx) => {
     const parentItem = topItems[sectionIdx]!;
     const childLeaves = leaves.filter((l) => l.parentCategoryId === section.id);
@@ -533,8 +624,8 @@ async function main(): Promise<void> {
   // name loop used a 1-based index while the category loop used a 0-based one,
   // which shifted every product into the neighbouring category (e.g. a product
   // named "Screws …" ended up filed under Helmets).
-  const products: Product[] = [];
-  const productLeaves: Category[] = [];
+  const products: ProductRow[] = [];
+  const productLeaves: CategoryRow[] = [];
   for (let i = 1; i <= PRODUCT_COUNT; i++) {
     const idx = String(i).padStart(4, '0');
     const leaf = leaves[i % leaves.length]!;
@@ -815,16 +906,7 @@ async function main(): Promise<void> {
   const salesRepRole = em.create(AdminRole, {
     code: 'sales_representative',
     name: 'Sales representative',
-    permissions: [
-      'rfqs:handle',
-      'organizations:read.assigned',
-      'catalog:read',
-      // D-173 — the RFQ create screen prefills the agreed unit price from
-      // `GET /admin/products/:id/resolved-price`, which is `price_lists`' own
-      // endpoint and is gated on `price_lists:read` rather than on
-      // `rfqs:handle`. Without this code the prefill answers 403.
-      'price_lists:read',
-    ],
+    permissions: [...SALES_REPRESENTATIVE_PERMISSIONS],
   });
   await em.persistAndFlush(salesRepRole);
 

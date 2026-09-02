@@ -44,5 +44,8 @@
   "displayMode.differencesOnly": "Tylko różnice",
   "displayMode.all": "Wszystkie atrybuty",
   "displayMode.common": "Wspólne atrybuty",
-  "displayMode.differences": "Różnice"
+  "displayMode.differences": "Różnice",
+  "nav.comparisons.label": "Porównania",
+  "actions.openComparisons.label": "Porównania",
+  "actions.openComparisons.description": "Audyt porównań"
 }

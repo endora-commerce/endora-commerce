@@ -15,7 +15,6 @@
   "errors.ASSET_GONE": "Asset Gone.",
   "errors.ASSET_ACCESS_DENIED": "Asset Access Denied.",
   "common.search": "Search",
-  "common.close": "Close",
   "common.loading": "Loading…",
   "common.save": "Save",
   "common.optional": "(optional)",
@@ -28,15 +27,7 @@
   "assets.searchPlaceholder": "Search filename or label…",
   "assets.emptyFolder": "No assets in this folder yet.",
   "assets.loadMore": "Load more",
-  "picker.searchPlaceholder": "Search by filename or label…",
-  "picker.empty": "No assets match this query yet.",
-  "picker.uploadNew": "Or upload a new asset",
-  "uploader.trigger": "Upload file",
   "uploader.triggerCurrentFolder": "Upload to current folder",
-  "uploader.uploading": "Uploading…",
-  "uploader.dropAria": "Drop a file here or click to upload",
-  "uploader.dropCopy": "Drop a file here, or click to choose one",
-  "uploader.error.wrongType": "Expected a {expected} file; got \"{actual}\".",
   "detail.title": "Asset detail",
   "detail.openFile": "Open file",
   "detail.filename": "Filename",
@@ -58,5 +49,6 @@
   "folders.namePlaceholder": "Folder name",
   "folders.newSubfolder": "New sub-folder",
   "folders.deleteConfirm": "Delete this folder?\n\nOK = move its contents to the parent folder, then delete.\nCancel = abort.",
-  "folders.removed": "Folder removed ({id})."
+  "folders.removed": "Folder removed ({id}).",
+  "nav.assetsLibrary.label": "Assets library"
 }

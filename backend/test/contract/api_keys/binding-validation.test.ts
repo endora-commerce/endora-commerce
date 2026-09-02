@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -6,8 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
 /**

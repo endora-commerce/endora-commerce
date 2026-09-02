@@ -60,6 +60,11 @@ const BUNDLE_KEYS = [
   'productsList.bulkEdit.queued.viewAll',
   'productsList.bulkEdit.action.close',
   'productsList.bulkEdit.empty',
+];
+
+// `CategoryTreePicker` renders out of `core`, not out of `catalog` — feature 091
+// R-1: a translation namespace is module knowledge and the kit holds none.
+const CATEGORY_TREE_PICKER_KEYS = [
   'categoryTreePicker.filter.placeholder',
   'categoryTreePicker.aria.treeLabel',
   'categoryTreePicker.expand',
@@ -68,7 +73,10 @@ const BUNDLE_KEYS = [
   'categoryTreePicker.empty.noMatches',
 ];
 
-const BUNDLE = passthroughBundle('catalog', BUNDLE_KEYS);
+const BUNDLE = {
+  ...passthroughBundle('catalog', BUNDLE_KEYS),
+  ...passthroughBundle('core', CATEGORY_TREE_PICKER_KEYS),
+};
 
 interface MockAttribute {
   id: string;

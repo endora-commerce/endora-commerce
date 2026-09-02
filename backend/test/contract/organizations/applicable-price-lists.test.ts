@@ -1,11 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization, PriceList } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**

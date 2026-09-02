@@ -129,6 +129,87 @@ export const manifest = defineModuleManifest({
   ],
   settings,
   activation: { settingCode: 'search.enabled', default: true },
+  /**
+   * Feature 090, Phase 3 — the error codes this module owns.
+   *
+   * The list is the incumbent prefix chain's *answer* for `search`, copied from
+   * the frozen capture at `backend/test/fixtures/error-code-routing/chain-answers.ts`
+   * (`grep -oE "^  [A-Z0-9_]+: 'search'," …`). It is a transcription, not a
+   * judgement: the migration is answer-preserving over all 289 codes and
+   * re-routing is out of scope (`specs/090-module-owned-error-codes/` §6.2, §6.5).
+   *
+   * **Trap T1 does not bite here, and that was measured rather than assumed.**
+   * The chain answers `search` from three prefixes — `QUERY_`, `SEARCH_`,
+   * `PHRASE_` — plus a three-member `SEARCH_MISC_ERROR_CODES` set. Every code in
+   * the enumeration carrying one of those prefixes routes here (five of them),
+   * no earlier rule shadows any of them, and all three misc members survive to
+   * this rule. So reading the chain's source would have given the same eight as
+   * reading its answer. `inventory` and `assets_library` are where it does bite;
+   * this module is the case where the two agree, which is worth recording so the
+   * next reader knows the question was asked.
+   *
+   * **Six of the eight are codes a reader would attribute to `core`.**
+   * `LIMIT_OUT_OF_RANGE`, `PHRASE_REQUIRED`, `PHRASE_TOO_LONG`, `QUERY_TOO_LONG`,
+   * `QUERY_TOO_SHORT` and `RESULT_COUNT_INVALID` carry no `SEARCH_` prefix and
+   * read as generic request-validation refusals; only `SEARCH_BACKEND_UNAVAILABLE`
+   * and `LLM_CONFIG_INCOMPLETE` name this module's domain. They belong here
+   * because `routes.public.ts` hand-parses `?q=&limit=` precisely to avoid the
+   * generic `VALIDATION_FAILED` — its own comment says so — and nothing else in
+   * `packages`, `backend/src`, `admin/src` or `storefront/src` names any of the
+   * six. Do not read the plain names as a routing accident; they are this
+   * module's refusals wearing generic clothes.
+   *
+   * **The inverse is the larger half: this package raises three codes it does
+   * not own, and one of the three is recorded nowhere else.** `routes.public.ts`
+   * raises `sales_channels`' `MISSING_SALES_CHANNEL_CONTEXT` (which
+   * `sales_channels` recorded in !1128), `llm-toggle.service.ts` raises
+   * `settings`' `SETTING_OUT_OF_SCOPE_FOR_CHANNEL` (which `settings` recorded in
+   * !1133), and `search-query.service.ts` raises `catalog`'s
+   * `FILTER_NOT_ALLOWED` when a requested facet is not a filterable attribute —
+   * `catalog` declared that code in !1117 and named no thrower, so this is the
+   * first record of it. All three are the D-95.2 rule seen from the thrower's
+   * side: routing follows the domain noun, and a channel, a setting scope and an
+   * attribute's filterability are not search nouns. None is declared here.
+   *
+   * **No code is raised by nothing.** All eight have a live raise site. This
+   * package throws `HttpError` ten times; seven of the ten raise one of these
+   * eight (six in `routes.public.ts`, one in `llm-toggle.service.ts`) and the
+   * other three are the foreign codes above — so it contributes nothing to the
+   * register entry that splits unraised codes by kind, in any of its five. Three
+   * of the eight reach the `throw` through a computed local rather than at the
+   * call: `routes.public.ts` picks `PHRASE_TOO_LONG` / `RESULT_COUNT_INVALID` /
+   * `PHRASE_REQUIRED` into a `const code` from the first Zod issue and throws
+   * that, and all three branches are reachable under
+   * `RecordPhraseRequestSchema`. The route carrying them is mounted
+   * unconditionally by `plugin.ts`, so the reachability question the register's
+   * fifth kind asks — is there an HTTP door — answers yes for every one.
+   *
+   * Both spellings were searched, which trap T12 asks for: `ERROR_CODES.<CODE>`
+   * and the bare quoted literal, over `packages`, `backend/src`, `admin/src` and
+   * `storefront/src`. Outside the enumeration in `@endora-commerce/contracts`,
+   * the chain's own `SEARCH_MISC_ERROR_CODES` set and this declaration, every
+   * occurrence is one of those seven raise sites.
+   *
+   * No `tokens`, derived rather than assumed. `refusalToken`
+   * (`packages/platform/src/http/error-envelope.ts`) reads `details.code` and
+   * nothing else; all seven raise sites were read, and the six that pass a
+   * fourth argument all pass the Zod-style `Array<{ path, issue }>`, which
+   * `refusalToken` returns `null` for by construction. The runbook's §5
+   * raise-site scan attributes the tree's ten token-carrying codes over 41 sites
+   * to `core`, `invoices` and `carts` and names none of these, and in the other
+   * direction the module's own bundles hold eight `errors.<CODE>` sentences and
+   * no `errors.<CODE>.<token>` key.
+   */
+  errorCodes: [
+    { code: 'LIMIT_OUT_OF_RANGE' },
+    { code: 'LLM_CONFIG_INCOMPLETE' },
+    { code: 'PHRASE_REQUIRED' },
+    { code: 'PHRASE_TOO_LONG' },
+    { code: 'QUERY_TOO_LONG' },
+    { code: 'QUERY_TOO_SHORT' },
+    { code: 'RESULT_COUNT_INVALID' },
+    { code: 'SEARCH_BACKEND_UNAVAILABLE' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [{ code: 'search:write', label: 'Configure search (LLM / indexing)' }],
 });

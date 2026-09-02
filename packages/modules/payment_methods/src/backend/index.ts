@@ -4,7 +4,10 @@ import type { PaymentMethodReadPort, PaymentReadPort } from '@endora-commerce/co
 import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type {
+  RequireAdminAnyFactory,
+  RequireAdminFactory,
+} from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import {
   registerPaymentMethodsAdminRoutes,
@@ -45,6 +48,11 @@ import { PaymentMethod } from './entities/payment-method.entity.js';
 export interface PaymentMethodsCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
+  /**
+   * The any-of form of the same `auth` guard, for the one admin route two
+   * editors read (`GET /admin/order-statuses`); `routes.ts` says why.
+   */
+  readonly requireAdminAny: RequireAdminAnyFactory;
   readonly commandBus: CommandBus;
   readonly salesChannelMembershipPort: SalesChannelMembershipPort | undefined;
   /**
@@ -122,6 +130,7 @@ export function registerModule(ctx: ModuleContext): void {
     const {
       emFactory,
       requireAdmin,
+      requireAdminAny,
       paymentAdapterRegistry: registry,
       paymentMethodEligibility,
       paymentOrderStatusRegistry,
@@ -173,6 +182,7 @@ export function registerModule(ctx: ModuleContext): void {
     await registerPaymentMethodsAdminRoutes(app, {
       emFactory,
       requireAdmin,
+      requireAdminAny,
       commandBus: ctx.cradle<PaymentMethodsCradle>().commandBus,
       registry,
       orderStatusRegistry: paymentOrderStatusRegistry,

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * The three-way classification of every shipped module — feature 074, Phase 1.
@@ -121,9 +121,11 @@ describe('the classification partitions the discovered manifest set (FR-007, SC-
     expect(classified).toEqual(allIds);
   });
 
-  it('is 24 core + 44 operator-controlled + 1 structurally unswitchable', () => {
+  it('is 24 core + 46 operator-controlled + 1 structurally unswitchable', () => {
     expect(CORE_MODULES).toHaveLength(24);
-    expect(controlIds).toHaveLength(44);
+    // 46: master's `pim_pimcore` (feature 092) plus this branch's `pim_unopim`.
+    // `pim_connector` is the extra core lock (non-deactivatable shared registry).
+    expect(controlIds).toHaveLength(46);
     expect(STRUCTURALLY_UNSWITCHABLE).toHaveLength(1);
     expect(CORE_MODULES.length + controlIds.length + STRUCTURALLY_UNSWITCHABLE.length).toBe(
       manifests.length,

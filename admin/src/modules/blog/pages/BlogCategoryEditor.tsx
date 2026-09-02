@@ -10,9 +10,8 @@ import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
-import { ContentLanguageTabs } from '../../cms/components/ContentLanguageTabs';
+import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { PageBuilderEditor } from '../../cms/components/PageBuilderEditor';
-import { ScopePicker, type CmsScopeValue } from '../../cms/components/ScopePicker';
 import { blogClient } from '../api/blog-client';
 
 interface FormState {
@@ -61,7 +60,7 @@ export function BlogCategoryEditor(): ReactNode {
   const [category, setCategory] = useState<BlogCategoryDetail | null>(null);
   const [parentId, setParentId] = useState<string | null>(initialParentId);
   const [form, setForm] = useState<FormState>(blankForm);
-  const [scope, setScope] = useState<CmsScopeValue>({
+  const [scope, setScope] = useState<ScopePickerValue>({
     salesChannelIds: [],
     languages: ['en-US'],
   });

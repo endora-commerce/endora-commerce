@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { ModulePresence } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import {
+  adminSession,
+  everyDeclaredModule,
+  modulePresence,
+  withSession,
+} from '../helpers/render-with-session';
 
 /**
  * Feature 073 / US1, FR-031 and FR-032 — the Admin UI resolves its surfaces
@@ -26,35 +31,7 @@ import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 
 let presentModules = new Set<string>();
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    me: {
-      adminUser: {
-        id: '1',
-        email: 'admin@test.com',
-        firstName: 'Ada',
-        lastName: 'Min',
-        preferredLanguage: 'en',
-      },
-      role: { name: 'Admin' },
-    },
-    logout: vi.fn(),
-    hasPermission: () => true,
-  }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [] as ModulePresence[],
-    isPresent: (moduleId: string) => presentModules.has(moduleId),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async () => {},
-  }),
-  setModuleActivation: vi.fn(),
-  getModulePresence: vi.fn(),
-}));
 
 vi.mock('@/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
@@ -92,36 +69,38 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.googleAnalytics',
   'appShell.nav.linkedinAds',
   'appShell.nav.metaAds',
-  'appShell.nav.comparisons',
+  'appShell.nav.orders',
   'appShell.nav.home',
 ]);
 
 const { AppShell } = await import('../../src/components/AppShell');
 
-/** Everything the AppShell can render, minus the ids the caller switches off. */
-const ALL_MODULES = [
-  'orders', 'quick_order', 'returns', 'quote_requests', 'invoices', 'ksef',
-  'catalog', 'assets_library', 'pim_ergonode', 'product_feeds', 'inventory',
-  'price_lists', 'promotions', 'taxes', 'delivery_methods', 'payment_methods',
-  'customers', 'organizations', 'credit_limits', 'comparisons',
-  'sales_channels', 'dictionaries', 'seo', 'cms', 'megamenu', 'blog',
-  'transactional_emails', 'newsletter', 'analytics', 'google_analytics',
-  'linkedin_ads', 'meta_ads', 'admin_users', 'admin_roles', 'audit_logs',
-  'api_keys', 'webhooks', 'credentials', 'import_export', 'settings', 'pwa',
-  'custom_fields',
-];
+/**
+ * Everything the AppShell can render, minus the ids the caller switches off.
+ *
+ * Derived from the shell's own `NAV` rather than listed here. The list this
+ * replaced held 42 ids where the declarations hold 51, which is what a written
+ * copy of a derived fact does: a module added to the sidebar was absent from
+ * every case in this file and nothing said so — *"lists a present module"*
+ * would have gone on passing about `pim_ergonode` while the new entry was
+ * hidden in every one of them.
+ */
+const ALL_MODULES = everyDeclaredModule();
 
 function renderShell(off: readonly string[] = []): void {
   presentModules = new Set(ALL_MODULES.filter((id) => !off.includes(id)));
   setMobileViewport(false);
   renderWithI18n(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<div>Home content</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<div>Home content</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: [...presentModules] }) },
+    ),
     coreBundle,
   );
 }
@@ -186,14 +165,33 @@ describe('AppShell — module presence drives the command palette (FR-032)', () 
   it('offers a present module in the Navigate group', async () => {
     renderShell();
     const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.comparisons'))).toBe(true);
+    expect(items.some((text) => text.includes('appShell.nav.orders'))).toBe(true);
   });
 
   it('drops a switched-off module from the Navigate group', async () => {
-    // `/comparisons` is one of the entries the palette advertised regardless of
+    // `/orders` is one of the entries the palette advertised regardless of
     // module state before this feature.
-    renderShell(['comparisons']);
+    //
+    // **This pair has now moved twice, and the second move is the reason to
+    // record how it is chosen.** The subject was `/comparisons` until feature
+    // 091's Phase 4 drain moved that module's palette entry into its manifest,
+    // where the **server** resolves it against the effective enabled-set and
+    // `PALETTE_ITEMS` no longer carries a copy; then `/credentials`, which
+    // batch 10 moved the same way. This file's subject is the hand-written
+    // Navigate group, so it needs an entry that is still in it, and the pair
+    // has to move together: with the subject gone the positive control goes red
+    // and this negative goes **vacuously green**, which is the worse of the two.
+    //
+    // `/orders` is the longest-lived choice left rather than an arbitrary one:
+    // `orders` is one of the four heaviest remaining owners, which `plan.md`
+    // places in the drain's last batches, and it is the row the sibling
+    // `AppShell.permission-gating.test.tsx` already uses for the same reason.
+    // The axis driven here is the **platform** one — `orders` declares
+    // `nonDeactivatable`, so an operator cannot produce this state, and a
+    // deployment that never installs the module can. That is the same axis the
+    // `/settings` case above already drives.
+    renderShell(['orders']);
     const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.comparisons'))).toBe(false);
+    expect(items.some((text) => text.includes('appShell.nav.orders'))).toBe(false);
   });
 });

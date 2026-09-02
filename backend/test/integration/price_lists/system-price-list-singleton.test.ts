@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { PriceList } from '../../helpers/package-entities.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { PriceList } from '../../../src/modules/price_lists/entities/price-list.entity.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import {
   SINGLE_SYSTEM_PRICE_LIST_SQL,
   SYSTEM_PRICE_LIST_INDEX,
-} from '../../../src/modules/price_lists/migrations/20260817T055457_price_lists_single_system_price_list.js';
+} from '../../../../packages/modules/price_lists/src/migrations/20260817T055457_price_lists_single_system_price_list.js';
 
 /**
  * Issue #50 — exactly one system price list, and the database says so.

@@ -20,4 +20,5 @@ export const manifest = defineModuleManifest({
       'The shared PIM connector registry must stay available so operator activation of a PIM connector can be refused when another is already active.',
   },
   i18n: { bundlesDir: 'i18n' },
+  errorCodes: [{ code: 'PIM_CONNECTOR_ALREADY_ACTIVE' }],
 });

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { parseReadSize, type ParsedReadSize } from '../../../scripts/lib/read-size.js';
 import {
@@ -17,6 +17,7 @@ import {
   readSizeBounds,
   type RecordedReadSize,
 } from '../../helpers/check-read-sizes.js';
+import { formatDriftReport } from '../../helpers/read-size-drift.js';
 
 /**
  * Issue #244 — the ratchet on what each check *reads*.
@@ -156,6 +157,50 @@ beforeAll(async () => {
   };
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 }, SPAWN_TIMEOUT_MS);
+
+/**
+ * The drift report — the numbers this file already has, said out loud
+ * (`specs/095-read-size-drift-report/`).
+ *
+ * The band above is a ratchet on *blindness*: it refuses a walk that came back
+ * short. It is not, and cannot be, a ratchet on *staleness* — on
+ * `check-admin-surface` the floor sits 241 sites below the record, so a drain
+ * batch moving it by 41 is comfortably inside it. Three recorded values went
+ * wrong in ten days that way, two of them silently, and every one was found by
+ * a later merge request rather than by the one that caused it.
+ *
+ * The run had the numbers each time. It parsed `files=358 sites=2367`, compared
+ * them against 354 and 2408, found them in band, and threw them away. So this
+ * prints them instead. It adds no assertion and removes none: an author who
+ * cannot tell *which* of the recorded entries their change moved — which is the
+ * computation each check performs, not a thing a checklist can enlarge — is
+ * told, in a command they already run.
+ *
+ * Three properties, each load-bearing:
+ *
+ *   * **`afterAll`, not a test body.** It has to print on a run whose band
+ *     assertions failed, so the failing entry is read beside the ones that
+ *     merely drifted.
+ *   * **`warn`, like {@link POOL_NOTE}.** The harness's own commentary goes
+ *     where the harness's other lines go.
+ *   * **Every run, green or red.** A report that appears only on failure is
+ *     indistinguishable from a report that did not run — which is issue #244's
+ *     own defect arriving inside the instrument built to answer #244. The
+ *     header is a census and it prints `0 drifted` too.
+ *
+ * An entry the sweep never reached — a hook that timed out, a child the kernel
+ * killed — is absent from `observed` or carries no parsed line, and is counted
+ * as *not measured* rather than as agreeing.
+ */
+afterAll(() => {
+  const drift = new Map(
+    [...observed].map(([script, seen]) => [
+      script,
+      { files: seen.read?.files ?? null, sites: seen.read?.sites ?? null, measured: seen.read !== null },
+    ]),
+  );
+  for (const line of formatDriftReport(RECORDED_READ_SIZES, drift)) console.warn(line);
+});
 
 describe('every static check discloses the size of what it read', () => {
   for (const [script, recorded] of Object.entries(RECORDED_READ_SIZES)) {

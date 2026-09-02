@@ -271,6 +271,20 @@ export type MessageKey =
   | 'paypal.pay.processing'
   | 'paypal.pay.failure'
   | 'paypal.pay.missingClientId'
+  // Feature 068 — InPost Parcel Locker Geowidget at checkout.
+  | 'inpost.locker.free'
+  | 'inpost.locker.regionLabel'
+  | 'inpost.locker.widgetLabel'
+  | 'inpost.locker.pickHint'
+  | 'inpost.locker.selectedPrefix'
+  | 'inpost.locker.required'
+  | 'inpost.locker.loading'
+  | 'inpost.locker.configError'
+  | 'inpost.locker.inactive'
+  | 'inpost.locker.showMap'
+  | 'inpost.locker.hideMap'
+  | 'inpost.locker.changeLocker'
+  | 'inpost.phone.required'
   // Feature 008 — Quote Request success page (parallel to checkout success).
   | 'quoteRequest.success.title'
   | 'quoteRequest.success.numberPrefix'
@@ -305,7 +319,23 @@ export type MessageKey =
   | 'orders.paymentReturn.returned'
   | 'orders.paymentReturn.cancelled'
   | 'orders.paymentReturn.failed'
-  | 'orders.actionFailed';
+  | 'orders.actionFailed'
+  // The validity deadline an operator sets on a quote request. !1137 made it a
+  // rule — accept-revision answers 410 `RFQ_EXPIRED` and convert-to-order 410
+  // `QUOTE_VALIDITY_ENDED` past it — while no storefront component rendered
+  // `expiresAt` at all, so the buyer's first sight of the deadline was the
+  // refusal. Two labels, because "expires <date>" reads as a promise the
+  // platform has stopped keeping once the date is behind us; two blocked
+  // sentences, mirroring the two error codes, which name the same date from
+  // the two sides the buyer meets it on and carry different remedies.
+  | 'quoteRequests.validity.validUntil'
+  | 'quoteRequests.validity.endedOn'
+  | 'quoteRequests.validity.acceptBlocked'
+  | 'quoteRequests.validity.convertBlocked'
+  // The remedy both of those sentences name. Keyed because a sentence telling
+  // the buyer to press a button has to be readable in the same language as the
+  // button; the rest of this screen's copy is Polish-only and stays so.
+  | 'quoteRequests.resubmit';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -581,6 +611,23 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'paypal.pay.processing': 'Processing payment…',
     'paypal.pay.failure': 'Payment failed. Please try again.',
     'paypal.pay.missingClientId': 'PayPal is not configured for this store.',
+    // Feature 068 — InPost locker Geowidget.
+    'inpost.locker.free': 'free',
+    'inpost.locker.regionLabel': 'InPost Parcel Locker selection',
+    'inpost.locker.widgetLabel': 'InPost Parcel Locker map',
+    'inpost.locker.pickHint': 'Select a Parcel Locker on the map to continue.',
+    'inpost.locker.selectedPrefix': 'Selected locker:',
+    'inpost.locker.required': 'Select a Parcel Locker before placing your order.',
+    'inpost.locker.loading': 'Loading the locker map…',
+    'inpost.locker.configError':
+      'We could not load the InPost locker map. Try again, or choose another delivery method.',
+    'inpost.locker.inactive':
+      'InPost locker delivery is temporarily unavailable. Choose another delivery method.',
+    'inpost.locker.showMap': 'Show locker map',
+    'inpost.locker.hideMap': 'Hide locker map',
+    'inpost.locker.changeLocker': 'Change Parcel Locker',
+    'inpost.phone.required':
+      'InPost requires a Polish mobile phone (9 digits) on the delivery address before placing the order.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Thank you — your quote request is submitted',
     'quoteRequest.success.numberPrefix': 'Your quote request number is ',
@@ -617,6 +664,13 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'orders.paymentReturn.failed':
       'Your payment did not go through. Your order is placed and is still waiting for payment, so you can try again.',
     'orders.actionFailed': 'We could not complete that action.',
+    'quoteRequests.validity.validUntil': 'Valid until ',
+    'quoteRequests.validity.endedOn': 'Validity ended ',
+    'quoteRequests.validity.acceptBlocked':
+      'This offer\u2019s validity period has ended, so these prices can no longer be accepted. Submit the request again to get a current quote.',
+    'quoteRequests.validity.convertBlocked':
+      'The quote you accepted is no longer valid, so it can no longer be turned into an order. Once a quote has been approved its deadline can no longer be moved \u2014 submit the request again to get a current quote.',
+    'quoteRequests.resubmit': 'Submit again',
   },
   'pl-PL': {
     'nav.home': 'Strona glowna',
@@ -891,6 +945,23 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'paypal.pay.processing': 'Przetwarzanie płatności…',
     'paypal.pay.failure': 'Płatność nie powiodła się. Spróbuj ponownie.',
     'paypal.pay.missingClientId': 'PayPal nie jest skonfigurowany dla tego sklepu.',
+    // Feature 068 — InPost Paczkomat Geowidget.
+    'inpost.locker.free': 'bezpłatnie',
+    'inpost.locker.regionLabel': 'Wybór Paczkomatu InPost',
+    'inpost.locker.widgetLabel': 'Mapa Paczkomatów InPost',
+    'inpost.locker.pickHint': 'Wybierz Paczkomat na mapie, aby kontynuować.',
+    'inpost.locker.selectedPrefix': 'Wybrany Paczkomat:',
+    'inpost.locker.required': 'Wybierz Paczkomat przed złożeniem zamówienia.',
+    'inpost.locker.loading': 'Ładowanie mapy Paczkomatów…',
+    'inpost.locker.configError':
+      'Nie udało się wczytać mapy Paczkomatów InPost. Spróbuj ponownie albo wybierz inną metodę dostawy.',
+    'inpost.locker.inactive':
+      'Dostawa do Paczkomatu InPost jest chwilowo niedostępna. Wybierz inną metodę dostawy.',
+    'inpost.locker.showMap': 'Pokaż mapę Paczkomatów',
+    'inpost.locker.hideMap': 'Ukryj mapę Paczkomatów',
+    'inpost.locker.changeLocker': 'Zmień Paczkomat',
+    'inpost.phone.required':
+      'InPost wymaga polskiego numeru telefonu komórkowego (9 cyfr) w adresie dostawy przed złożeniem zamówienia.',
     // Feature 008 — Quote Request success page.
     'quoteRequest.success.title': 'Dziekujemy — Twoje zapytanie ofertowe zostalo zlozone',
     'quoteRequest.success.numberPrefix': 'Numer Twojego zapytania ofertowego: ',
@@ -927,6 +998,13 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'orders.paymentReturn.failed':
       'Płatność nie doszła do skutku. Twoje zamówienie zostało złożone i nadal czeka na opłacenie, więc możesz spróbować ponownie.',
     'orders.actionFailed': 'Nie udało się wykonać tej operacji.',
+    'quoteRequests.validity.validUntil': 'Ważne do ',
+    'quoteRequests.validity.endedOn': 'Ważność zakończona ',
+    'quoteRequests.validity.acceptBlocked':
+      'Okres ważności tej oferty minął, więc nie można już zaakceptować tych cen. Złóż zapytanie ponownie, aby otrzymać aktualną ofertę.',
+    'quoteRequests.validity.convertBlocked':
+      'Zaakceptowana oferta straciła ważność, więc nie można już złożyć z niej zamówienia. Terminu zatwierdzonej oferty nie da się już przesunąć — złóż zapytanie ponownie, aby otrzymać aktualną ofertę.',
+    'quoteRequests.resubmit': 'Złóż ponownie',
   },
 };
 

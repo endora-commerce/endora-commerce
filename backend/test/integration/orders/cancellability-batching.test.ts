@@ -12,7 +12,7 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-entities.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 /**
  * Issue #284 — the buyer's order list reads the transition history **once**.

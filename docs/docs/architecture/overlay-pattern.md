@@ -215,8 +215,8 @@ and pass the permission-inventory check per deployment.
 # 2. Override a core service from its registerModule, by registration name:
 #    ctx.di.decorate('pricingService', (inner) => wrap(inner))
 
-# 3. Build for the deployment (resolver + manifest run automatically):
-DEPLOYMENT=acme pnpm --filter backend run build
+# 3. Render the deployment's override manifest and commit it:
+DEPLOYMENT=acme pnpm --filter backend run overlay:manifest
 
 # 4. Verify divergence in the emitted manifest and check determinism:
 pnpm --filter backend run overlay:check

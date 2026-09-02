@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * A composition that lacks a required module refuses to start, and says which
@@ -50,9 +50,9 @@ const ALL_MODULE_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);
  * the first module registers, so a state seeded earlier would simply be
  * overwritten.
  */
-vi.mock('../../../src/modules/_lifecycle/services/presence-load.js', async (importOriginal) => {
+vi.mock('../../../src/lifecycle/services/presence-load.js', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../../src/modules/_lifecycle/services/presence-load.js')>();
+    await importOriginal<typeof import('../../../src/lifecycle/services/presence-load.js')>();
   return {
     ...actual,
     loadModulePresence: async (

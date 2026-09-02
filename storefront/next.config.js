@@ -10,6 +10,31 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /**
+   * Cap the build's worker parallelism. `build:storefront` was killed by the
+   * host's OOM killer on `master` (pipelines 11950 and 11951) even with
+   * `resource_group: image-builds` giving it the machine to itself, so this is
+   * the same "necessary and not sufficient" shape `.gitlab-ci.yml`'s Memory
+   * block already records for the backend shards.
+   *
+   * Measured on one machine (16 cores), peak RSS of the whole process group:
+   *
+   *   default parallelism ................ 6144 MB
+   *   `cpus: 2` .......................... 2722 MB
+   *   `cpus: 1` .......................... 2777 MB
+   *
+   * Two workers cost the same as one and do more, so the jump is between two
+   * and "as many as the host has cores" rather than being linear — which is
+   * why a cap fixes this and a bigger box only postpones it.
+   *
+   * **A hypothesis measured and refuted, kept because it is the obvious one:**
+   * `next build` re-runs the type-check and ESLint that `quality` has already
+   * run over the whole tree, and disabling both looked like the lever. It is
+   * not — 6334 MB without them against 6144 MB with, which is noise. The
+   * duplication is real and is `build:admin`'s recorded reason for not running
+   * `tsc`, but it is not what makes this build large.
+   */
+  experimental: { cpus: 2 },
   reactStrictMode: true,
   poweredByHeader: false,
   // Self-contained production server (`.next/standalone/storefront/server.js`)

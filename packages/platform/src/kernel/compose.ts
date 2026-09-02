@@ -23,10 +23,10 @@ import {
   type DecorationRecord,
   type ModuleBootHook,
   type ModuleContext,
-  type ModuleLifecycleLogger,
   type ModuleRegistrationSink,
   type RegistrationOwnership,
 } from './module-context.js';
+import type { PlatformLogger } from './logging.js';
 
 export {
   AmbiguousDecorationError,
@@ -164,7 +164,7 @@ export interface ModuleEntry {
 export interface ComposeModulesOptions {
   readonly container: KernelContainer;
   readonly eventBus: EventBus;
-  readonly log: ModuleLifecycleLogger;
+  readonly log: PlatformLogger;
   /** Absent in composition roots that mount no interceptor surface. */
   readonly interceptorRegistry?: ApiInterceptorRegistry | undefined;
   /**

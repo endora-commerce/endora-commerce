@@ -90,7 +90,83 @@ quality:
     # limited it before, so nobody measured it. **The container limit did not
     # cause that failure, it made it visible — which is what it is for**, and
     # the fix is the runner's `memory`, not this file.
-    NODE_OPTIONS: --max-old-space-size=2048
+    #
+    # **2048 -> 2560, because the backend program grew past it** (pipeline
+    # 12269, exit 134). Bracketed in this job's own image, `node:22.17-slim`
+    # in a 3 GB container, running `tsc -p backend/tsconfig.json --noEmit`
+    # directly: 2048 is not a margin, it is the **cliff** — three of four runs
+    # died with V8's named `Reached heap limit`, the fourth passed — and 2080
+    # passed twice, as did 2112, 2176, 2240, 2304 and 2560. So the requirement
+    # today sits between **2048 and 2080 MB**, and it has sat *on* 2048 for a
+    # while: that is why `master` was intermittently green, and why the same
+    # commit type-checks on a developer's machine, where Node 26 defaults the
+    # old space to about 4 GB and nothing here applies.
+    #
+    # **The `(2083.7) MB` in that crash log is not the cap and must not be read
+    # as one.** It is V8's *total* limit — the 2048 MB old space plus the
+    # semi-spaces — so it looks like a default nobody set and is in fact this
+    # very setting. `--max-old-space-size=2083`, which is a different and
+    # larger heap, passes three runs out of three; the bracket below is stated
+    # in the units this variable is written in.
+    #
+    # **The ceiling is the container, not the host.** The job container's limit
+    # is 3072 MB, and the cgroup's own `memory.peak` says ~130 MB of the
+    # process sits outside the old space: the run that died with its heap full
+    # at 2080 MB peaked at 2210 MB. A cap at or near 3072 would therefore turn
+    # a genuine exhaustion into a cgroup SIGKILL (137) instead of the named V8
+    # error — the failure mode `test:backend:unit` has, which AGENTS.md rules
+    # is the runner's `memory` setting to answer and not this file's. That puts
+    # the usable ceiling near 2816. 2560 is chosen inside it, with ~480 MB over
+    # the measured requirement and ~330 MB between the worst case (2560 filled,
+    # plus overhead) and the container.
+    #
+    # **What the raise costs the shared host, which is the question the Memory
+    # block above `test:backend` makes the important one: 104 MB, not 512.**
+    # `--max-old-space-size` is a cap, not an allocation — a larger one only
+    # lets V8 collect less eagerly, so the job's real footprint moves by what
+    # the collector stops reclaiming, not by the 512 MB the number moved.
+    # Measured from the container's own cgroup, `node:22.17-slim` under
+    # `--memory=3g`, running this job's two script lines: **2292 MB** at 2048
+    # (with the typecheck dying) and **2396 MB** at 2560 (green) — **+104 MB**.
+    # Over `pnpm -r run typecheck` alone the same pair is 2210 -> 2392 MB.
+    # Neither run touched the container: `memory.events` reads `max 0,
+    # oom_kill 0` on both.
+    #
+    # **Concurrency.** `quality` carries no `resource_group`, and stages
+    # serialise only within a pipeline, so this job can run beside a
+    # `test:backend` shard of *another* pipeline — 2396 MB next to that job's
+    # measured 2521 MB, on the 7.9 GB box the Memory block describes. Putting
+    # `quality` into `backend-suite` was considered and **rejected**: it would
+    # queue every merge request's typecheck behind a two-hour test stage from
+    # an unrelated pipeline, and that same block already records that
+    # `resource_group` cannot see the neighbour which actually causes the
+    # host's OOM kills. Inside the job there is nothing to contend with when it
+    # matters — `pnpm -r run typecheck` is topological, `backend` is last, and
+    # that whole recursive run's peak (2392 MB) is 79 MB above `backend` on its
+    # own (2313 MB).
+    #
+    # **What would make this decision wrong later.** The program is 5907 files,
+    # 3.17M instantiations, 2.32 GB of `tsc`'s own `Memory used`, and it is the
+    # *test* tree: `src/**` alone is 2450 files and 665 MB, while `test/**`
+    # — which pulls `src` in — is 5882 files and 2.16 GB. `backend/test` went
+    # from 483 files to 1572 in three months, so this number will be reached
+    # again. The structural answers were measured rather than assumed, and two
+    # of the three buy nothing: project references and a narrower `include` are
+    # already in force, because the 66 module packages have no `paths` entry
+    # and so enter as `.d.ts` (their cheapest representation) while
+    # `backend/src` is 144 files; and splitting `src` from `test` buys nothing
+    # because the test program subsumes `src`. The one real lever, splitting
+    # `backend/test` in two (`unit` | `contract`+`integration`+`perf`),
+    # measured **1957 MB** and **1816 MB** peak — 15% off the peak for a second
+    # ~50 s program over ~5000 files, plus an invariant nothing checks: a test
+    # directory in neither config is silently unchecked, which is issue #215's
+    # shape and would need a check of its own. So when 2560 is reached, raise
+    # the runner's container `memory` first — it is a runner setting, and the
+    # same answer AGENTS.md already gives for `test:backend:unit` — and split
+    # only when the container can no longer grow. Do **not** raise this number
+    # past ~2816 while the container is 3 GB: above that the named error is
+    # lost and the job starts failing as a SIGKILL instead.
+    NODE_OPTIONS: --max-old-space-size=2560
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
@@ -130,6 +206,33 @@ quality:
     # a stale entry, an empty shard, an orphan shard and an entry filed under
     # another module's shard.
     - pnpm --filter backend run check:module-boundary
+    # Feature 091 (FR-018) — the admin's two hand-written registries, counted
+    # per module and held both ways. 145 of `App.tsx`'s 149 routes and 97 of
+    # `AppShell.tsx`'s 100 nav entries belong to a module, and Story 3 moves
+    # them into the modules that own them. The batch that moves a directory
+    # does not touch either file, which is the shape AGENTS.md records as
+    # having produced three reds on `master` in a row — so a batch that leaves
+    # a registration behind declares the screen twice, with `react-router`
+    # silently taking the first match.
+    - pnpm --filter backend run check:admin-registrations
+    # Feature 091 (FR-009/FR-016) — a module reaching admin platform surface
+    # `@endora-commerce/admin-kit` does not publish. `check:platform-surface`
+    # asks this on the backend and had no frontend twin, because until Phase 1b
+    # the admin's design system was 74 files under `admin/src` reachable by an
+    # alias that resolves for every file in the application and for nothing an
+    # installed package runs under. A target is published iff it is a re-export
+    # shim into the kit — read from the file, never listed — so a shim that
+    # grows a local declaration makes every module reaching it a finding in the
+    # same run.
+    - pnpm --filter backend run check:admin-surface
+    # Feature 091 (P4a) — the zone mechanism's two-way refusal, which
+    # `AdminZoneNameSchema`'s own contract promised from the day it landed and which
+    # nothing implemented in either direction: every one of its four opening members
+    # was rendered by nothing and contributed to by nothing. Plus `foreign-module-id`,
+    # one predicate over three populations — a module id written as a string literal in
+    # a file the module does not own — which no other instrument here can see, because
+    # `check:module-boundary` reads import specifiers and a string names none.
+    - pnpm --filter backend run check:admin-zones
     # Feature 072 (FR-020) — every non-HTTP entry point (CLI script, BullMQ
     # consumer, repeating-timer sweep) establishes a scope explicitly. The timer
     # class was `setInterval(` as a string until issue #128, so `search`'s
@@ -309,6 +412,31 @@ quality:
     # envelope does not read, while all six of its codes rendered untranslated.
     # The ledger is the standing debt and may only shrink.
     - pnpm --filter backend run check:error-translations
+    # `specs/094-translation-boundary/` — the owner's ruling of 2026-09-01: a
+    # module that ships a bundle in any language ships one in every language the
+    # platform ships. A **conditional**, because 7 of the 69 registered modules
+    # legitimately ship none and a universal would be repaired by seven empty
+    # files. It lands at zero violations, which is the argument for landing it:
+    # nothing held the invariant there.
+    # `registered-bundles-shape.test.ts` looked like the enforcer and was a
+    # two-way miss — its symmetry case skipped exactly the module that drops a
+    # bundle, and its action-key case asked each module about the languages it
+    # happened to ship. Both are repaired in the same merge request; this check
+    # is the file-level precondition neither of them can be.
+    # No ledger, deliberately: an entry could only license a single-language
+    # module, which is the thing the ruling forbids.
+    - pnpm --filter backend run check:bundle-pairing
+    # `specs/094-translation-boundary/` — the same ruling's first clause: English
+    # is the default, so a prose literal in another language, outside a
+    # per-language structure, in a module's own sources is a defect. The second
+    # signal, in a check of its own because `check:untranslated-delivery` asks
+    # about a delivery *call* — a `return`, an array push and a field assignment
+    # are none of them — and `check:language`'s scope is comments by
+    # constitutional design (D-8).
+    # It lands **red-free and not empty**: 46 sites over 41 keys, recorded in a
+    # per-module ledger under `scripts/ledgers/non-english-defaults/`, two-way
+    # and expected to empty. What it refuses is the 42nd.
+    - pnpm --filter backend run check:default-language-prose
     # Feature 021 / Principle VIII (issue #116) — a user-visible string in the
     # admin SPA is a translation key, not a literal. `AGENTS.md` has cited this
     # script as the gate since 021 and it ran in no job at all: first because its
@@ -949,7 +1077,13 @@ acceptance:package-schema:
         # Discovery and composition: the seam a package plugs into.
         - backend/src/composition.ts
         - backend/src/overlay/**/*
-        - backend/src/modules/_lifecycle/**/*
+        # The lifecycle subsystem: host-owned since feature 080's T040b
+        # (D-160.11), so it is `src/lifecycle/` rather than a module directory,
+        # and the manifest index it used to hold is at the source root
+        # (D-160.3).
+        - backend/src/lifecycle/**/*
+        - backend/src/manifest-index.generated.ts
+        - backend/src/manifest-locations.ts
         # The deployments themselves, not only the machinery that loads them.
         # `src/overlay/**` is the loader; `src/apps/**` is what it loads, and a
         # criterion that asserts a deployment's behaviour has to run when that
@@ -1165,6 +1299,18 @@ boot-gate:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  # Memory, and the same fact about this host that serialises `test:backend`.
+  # The three image builds share one stage and used to run concurrently: two of
+  # them are frontend builds (Vite and Next), each of which holds the whole
+  # module graph in one process, and the runner is 4 vCPU on a box that also
+  # carries another project. Pipeline 11938 died `cannot allocate memory` in
+  # `build:admin` **and** `build:storefront` at once, which is the shape a
+  # concurrency limit fixes and a heap flag does not — the OOM is the host's,
+  # not V8's, so `--max-old-space-size` would only move which fork the kernel
+  # picks. Serialising costs wall clock on a stage that already only runs on
+  # `master`. Revisit from the runner's own `concurrent` setting once the suite
+  # has a machine to itself, not from here.
+  resource_group: image-builds
 
 build:backend:
   extends: .build-base

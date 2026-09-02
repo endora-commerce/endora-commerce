@@ -12,7 +12,7 @@ import {
   type ChannelIdentityFormValue,
 } from '../components/ChannelIdentityForm';
 import { DefaultChannelBadge } from '../components/DefaultChannelBadge';
-import { ChannelMembershipPanel } from '../../warehouses/ChannelMembershipPanel';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -248,9 +248,16 @@ export function SalesChannelEditPage(): ReactNode {
         onSubmit={(v) => void handleSubmit(v)}
         onCancel={() => navigate('/sales-channels')}
       />
+      {/* Feature 091 / P7c — the place below this screen's identity form.
+          `inventory` contributes its warehouse routing panel here; this screen
+          used to import that panel out of `admin/src/modules/warehouses/`. The
+          mount is conditional on an existing channel, not on the zone being
+          empty: a create form has no id to pass, and `<AdminZone>` renders
+          nothing at all when no contribution survives the filter, so there is
+          no chrome of this screen's to hide. */}
       {channel && !isCreate ? (
         <div style={{ marginTop: 24 }}>
-          <ChannelMembershipPanel channelId={channel.id} />
+          <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id }} />
         </div>
       ) : null}
     </>

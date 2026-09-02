@@ -6,7 +6,16 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import type { DictionaryCurrency, DictionaryLanguage, SalesChannelDetail } from '@endora-commerce/contracts';
+import {
+  STOREFRONT_THEME_CODES,
+  isStorefrontThemeCode,
+  type DictionaryCurrenciesPageResponse,
+  type DictionaryCurrency,
+  type DictionaryLanguage,
+  type DictionaryLanguagesPageResponse,
+  type SalesChannelDetail,
+} from '@endora-commerce/contracts';
+import { apiClient } from '@/lib/api-client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +23,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { dictionaryClient } from '../../dictionaries/client';
 import { useTranslation } from '@/i18n/useTranslation';
 
 /**
@@ -28,6 +36,23 @@ import { useTranslation } from '@/i18n/useTranslation';
  * v1 (matches the test-server seed). A multi-locale editor lands as
  * a follow-up — the contract already supports the wider shape.
  */
+
+/**
+ * List dictionary entries (feature 091, P6).
+ *
+ * The requests are built here rather than through `dictionaries`' own admin
+ * API client: that client is another module's **code**, which is what the
+ * cross-module ledger recorded, while `/api/v1/admin/dictionary/*` and the
+ * `Dictionary*PageResponse` types are an HTTP path and
+ * `@endora-commerce/contracts` types that both sides already compile. That is
+ * the exit P2 established and `admin-kit-surface.md` R6 records.
+ */
+function listDictionary<T>(entry: 'languages' | 'currencies', pageSize: number): Promise<T> {
+  const qs = new URLSearchParams();
+  qs.set('pageSize', String(pageSize));
+  qs.set('sort', 'sortOrder');
+  return apiClient.get<T>(`/api/v1/admin/dictionary/${entry}?${qs.toString()}`);
+}
 
 export interface ChannelIdentityFormValue {
   code: string;
@@ -97,8 +122,8 @@ export function ChannelIdentityForm({
   useEffect(() => {
     let cancelled = false;
     void Promise.all([
-      dictionaryClient.listLanguages({ pageSize: 250, sort: 'sortOrder' }),
-      dictionaryClient.listCurrencies({ pageSize: 250, sort: 'sortOrder' }),
+      listDictionary<DictionaryLanguagesPageResponse>('languages', 250),
+      listDictionary<DictionaryCurrenciesPageResponse>('currencies', 250),
     ])
       .then(([languagePage, currencyPage]) => {
         if (cancelled) return;
@@ -219,12 +244,29 @@ export function ChannelIdentityForm({
 
           <div className="grid gap-2">
             <Label htmlFor="sc-theme">{t('identity.theme.label')}</Label>
-            <Input
+            <Select
               id="sc-theme"
               value={themeCode}
               onChange={(e) => setThemeCode(e.target.value)}
-              placeholder={t('identity.theme.placeholder')}
-            />
+            >
+              <option value="">{t('identity.theme.none')}</option>
+              {STOREFRONT_THEME_CODES.map((theme) => (
+                <option key={theme} value={theme}>
+                  {t(`identity.theme.option.${theme}`)}
+                </option>
+              ))}
+              {/* A code the storefront no longer implements — a value saved
+                  while this was a free-text box, or a fork's own theme. Kept
+                  as a selectable option so opening the form does not silently
+                  change what the channel is set to, and labelled so the
+                  operator can see that it is not one of the shipped sets. */}
+              {themeCode !== '' && !isStorefrontThemeCode(themeCode) && (
+                <option value={themeCode}>
+                  {t('identity.theme.unknown', { code: themeCode })}
+                </option>
+              )}
+            </Select>
+            <p className="text-xs text-muted-foreground">{t('identity.theme.help')}</p>
           </div>
 
           <div className="grid gap-2 md:grid-cols-[2fr_1fr]">

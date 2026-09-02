@@ -80,8 +80,8 @@ Segment normalization has exactly two special cases:
 | Owning directory | `<SEGMENT>` | Registry `moduleId` |
 |------------------|-------------|---------------------|
 | `backend/src/modules/orders/migrations/` | `orders` | `'orders'` |
-| `backend/src/modules/_i18n/migrations/` | `i18n` | `'_i18n'` |
-| `backend/src/modules/_lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
+| `packages/modules/_i18n/src/migrations/` | `i18n` | `'_i18n'` |
+| `packages/platform/src/lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
 | `backend/src/db/migrations/` | `core` | `'core'` |
 
 **The class-name tail must begin with the module's segment**, and that is a rule now,
@@ -101,7 +101,8 @@ costs and how to ship it.
 
 ## How to create a migration
 
-This section is the **core tree** — a module under `backend/src/modules/`, or the
+This section is this **repository's own** modules — a workspace member declaring
+`endora: { type: 'module', id }`, a module under the application's source root, or the
 cross-cutting migrations under `backend/src/db/migrations/`. Both commands below need this
 repository's layout. If you are writing a module that ships as an installed npm package,
 neither is available to you: skip to
@@ -113,17 +114,29 @@ pnpm --filter backend run migration:new -- --module orders --name placement_inte
 
 The scaffolder (`backend/scripts/new-migration.ts`):
 
-1. validates `--module` against the module directories that carry a `manifest.ts`
-   (plus the literal `core`), and lists the valid ids when it does not match;
+1. validates `--module` against the ids the **generated manifest index** registers (plus
+   the literal `core`), and lists the valid ids when it does not match;
 2. resolves a **free UTC timestamp**, advancing by whole seconds until no migration
-   file anywhere in the core tree uses it. Tree-wide freedom is tidiness, not ordering:
+   file anywhere in the tree uses it. Tree-wide freedom is tidiness, not ordering:
    only per-module uniqueness is required;
 3. **clamps the timestamp above `BASELINE_THROUGH`.** Today's wall clock can still be
    *earlier* than `BASELINE_THROUGH = 20260801T000000`; a naive stamp would then land
    inside the frozen historical prefix, whose order is history and is never recomputed
    — the migration would be ordered by that history instead of by its module's
    `dependencies`. The scaffolder emits a stamp one second past the watermark instead;
-4. writes the file from a template into the module's `migrations/` directory.
+4. writes the file from a template into the module's own `migrations/` directory, and
+   refuses a target the registry generator would not pick up — a scaffolder that writes
+   where nothing reads produces a migration that never runs and says nothing.
+
+**Where that directory is, is resolved and never spelled.** All three questions above —
+which ids are valid, which stamps are taken, where the file goes — come off
+`backend/scripts/lib/module-roots.ts`, the same derivation the static-check estate shares:
+the generated manifest index is located, and a module's directory is either one under the
+application's source root or the workspace member declaring
+`endora: { type: 'module', id }`. A module package's `migrations/` is then the directory
+its own `exports` map publishes as `./migrations`. Each of those was a path literal reading
+`backend/src/modules` until 2026-08-30, which is why the tool answered
+`Valid ids are: core.` for every module in this repository once F4 emptied that directory.
 
 Register it by regenerating the committed registry, and commit both files:
 
@@ -162,10 +175,11 @@ from the migrator.
 
 ## How to create a migration in an extension package
 
-Everything above is the **core tree**. A module that ships as an installed npm package
-(`endora.type: "module"` in its `package.json`) can run neither command: `migration:new`
-resolves `backend/src/modules` and `backend/src/db/migrations` as path literals, and both
-generated registries are deliberately core-only — which packages an instance installed is a
+Everything above is this repository's own tree. A module that ships as an **installed** npm
+package (`endora.type: "module"` in its `package.json`) can run neither command:
+`migration:new` resolves a module through this checkout's workspace members and its
+generated manifest index, neither of which reaches `node_modules`, and both generated
+registries are deliberately core-only — which packages an instance installed is a
 fact about the *process*, not about the tree, so a committed artefact must not claim to know
 it. The host discovers a package's migrations at runtime instead, through the package's own
 `./migrations` export.

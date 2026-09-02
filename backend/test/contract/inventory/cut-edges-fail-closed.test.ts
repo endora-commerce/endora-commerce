@@ -6,9 +6,9 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
-import { AvailabilityNotification } from '../../../src/modules/inventory/entities/availability-notification.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { StockLevel } from '../../helpers/package-entities.js';
+import { AvailabilityNotification } from '../../helpers/package-entities.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 
 /**
  * Feature 075, Phase C — the `inventory` cut fails closed.
@@ -71,6 +71,13 @@ describe('inventory — the cut edges fail closed (feature 075, Phase C)', () =>
     em.create(AvailabilityNotification, {
       productId: SEED_PRODUCT_101_ID,
       customerAccountId: customer.id,
+      // Feature 087 Group B / D-187 — `availability_notifications` carries its
+      // organisation and
+      // `availability_notifications_organization_attribution_chk` refuses an
+      // owned row without one. This is the stamp
+      // `AvailabilityNotificationService.subscribe` writes, done by hand
+      // because the fixture writes the row directly.
+      organizationId: customer.organizationId,
       email: customer.email,
       status: 'queued',
     });

@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AdminUser } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
-import { Migration20260819T155150AdminUsersFoldEmailCase } from '../../../src/modules/admin_users/migrations/20260819T155150_admin_users_fold_email_case.js';
+import { Migration20260819T155150AdminUsersFoldEmailCase } from '@endora-commerce/mod-admin-users/migrations';
 
 /**
  * The backfill's collision policy, executed rather than described.

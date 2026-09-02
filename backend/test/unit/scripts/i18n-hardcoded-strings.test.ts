@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   analyzeSource,
   collectTsxFiles,
+  defaultRoots,
   compareToBaseline,
   countByFile,
   HARDCODED_STRINGS_BASELINE,
@@ -128,11 +129,25 @@ describe('the baseline ratchet goes red in BOTH directions', () => {
 
 describe('the tree itself (what CI asserts)', () => {
   it('matches HARDCODED_STRINGS_BASELINE exactly — no new string, no stale entry', () => {
-    const adminSrc = fileURLToPath(new URL('../../../../admin/src', import.meta.url));
+    // **The roots come from the script, not from a copy of them here** (feature
+    // 091, Phase 4 batch three). This test spelled two — `admin/src` and the
+    // kit — which was right when Phase 1b wrote it and stopped being right when
+    // Phase 4's first batch added module packages' own `src/admin` layers to
+    // `defaultRoots`. Nothing reported the divergence for two batches, because
+    // neither moved a file the baseline named, so both walks agreed on the
+    // empty set. Batch three moved the first one that is named, and the two
+    // populations disagreed about it in opposite directions in the same run:
+    // the script counted the finding at its new key, this test — blind to the
+    // root it sits under — reported the entry as drained.
+    //
+    // So the derivation is shared rather than mirrored. A batch that adds a
+    // fourth root family now moves both answers at once, which is the only way
+    // a ratchet over relocations can stay honest about relocations.
+    const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
     const files: string[] = [];
-    collectTsxFiles(adminSrc, files);
+    for (const root of defaultRoots()) collectTsxFiles(root, files);
     const findings = files.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
-    const verdict = compareToBaseline(countByFile(findings, adminSrc), HARDCODED_STRINGS_BASELINE);
+    const verdict = compareToBaseline(countByFile(findings, repoRoot), HARDCODED_STRINGS_BASELINE);
     expect(verdict.regressions).toEqual([]);
     expect(verdict.drained).toEqual([]);
   });

@@ -1,7 +1,8 @@
 #!/usr/bin/env tsx
 /**
  * Writes every module package's `package.json` from its layer inventory
- * (feature 080, T041).
+ * (feature 080, T041), and the admin application's dependency on the module
+ * packages whose `./admin` layer the generated registry imports (feature 091).
  *
  *   pnpm --filter backend run manifests:generate     # write
  *   pnpm --filter backend run manifests:check        # refuse drift, write nothing
@@ -53,6 +54,8 @@ import {
   nodeManifestFs,
   renderModulePackageManifests,
 } from './lib/module-package-manifest.js';
+import { AdminLayoutUnresolvableError } from './lib/admin-surfaces.js';
+import { UnreadableSubpathError } from './lib/module-package-subpaths.js';
 import { findManifestIndex, findRepoRoot } from './lib/module-roots.js';
 
 const PREFIX = '[module-manifests]';
@@ -75,8 +78,28 @@ async function main(): Promise<void> {
   );
 
   const check = process.argv.includes('--check');
+  // D-181's predicate is a question about the built artefact — does this
+  // specifier survive into the emitted `.d.ts`? — so a package that has never
+  // been built has no answer, only this generator's fail-closed guess. Writing
+  // that guess is right, because a package cannot be built before its manifest
+  // exists; holding the tree to it is not, because it is not what the next run
+  // after a build will render.
+  if (check && run.unbuiltPackages.length > 0) {
+    process.stderr.write(
+      `${PREFIX} ${run.unbuiltPackages.length} package(s) have no emitted declarations, so ` +
+        `D-181's derivation had nothing to read and every reach was taken to survive: ` +
+        `${run.unbuiltPackages.join(', ')}\n` +
+        `  Build them first: pnpm run build:packages\n`,
+    );
+    process.exit(2);
+  }
   let stale = false;
-  for (const artefact of run.rendered) {
+  // The admin application's manifest is reconciled beside the module packages'
+  // (feature 091): the generated admin registry names each contributing module
+  // by bare specifier, and a bare specifier resolves only through a declared
+  // dependency. It is written by the same command and refused by the same
+  // `--check` so the two cannot land apart.
+  for (const artefact of [...run.rendered, ...run.applicationRendered]) {
     const onDisk = existsSync(artefact.outputPath)
       ? readFileSync(artefact.outputPath, 'utf8')
       : null;
@@ -99,7 +122,9 @@ async function main(): Promise<void> {
 
   // What was read, beside what was found (issue #244). `files` counts every
   // file opened — sources, module manifests, build configurations, the two
-  // application manifests and the index. `sites` is the finer population the
+  // application manifests, the index, and every owner manifest and emitted
+  // module the D-171 surfaces predicate opened to decide whether a reach into
+  // another module package is contract surface. `sites` is the finer population the
   // peer derivation actually answers over: every import specifier examined,
   // which is the number that moves when a module gains a dependency without
   // gaining a file. The independent derivation is the generated manifest index:
@@ -117,6 +142,29 @@ async function main(): Promise<void> {
         expected: run.registeredPackageNames.length,
         covered: run.registeredPackageNames.filter((name) => renderedNames.has(name)).length,
       },
+      // D-181's own population, reconciled against the same set: a package
+      // whose emitted declarations this run could not read answered the
+      // survival question by guessing, and a run that guessed for all of them
+      // is one that read no artefact at all.
+      //
+      // **A package this run is rendering a first manifest for is out of that
+      // population**, and it has to be: nothing can build a package that is not
+      // yet a workspace member, so a module just moved into place or scaffolded
+      // has no `dist` by construction and never will until this command has run
+      // once. Counting it made the floor refuse the one run that must succeed —
+      // measured, `manifests:generate` wrote the new manifest and then exited 2
+      // on `emitted-declarations 66/67`. The exclusion is derived from the
+      // absence of the file this command writes, so it covers exactly the first
+      // run and no later one; every already-manifested package that has not been
+      // built is still a short walk and still refused.
+      {
+        source: 'emitted-declarations',
+        expected: run.rendered.length - run.newPackages.length,
+        covered:
+          run.rendered.length -
+          run.newPackages.length -
+          run.unbuiltPackages.filter((name) => !run.newPackages.includes(name)).length,
+      },
     ],
   });
 
@@ -130,7 +178,21 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     await main();
   } catch (error: unknown) {
-    if (error instanceof ModulePackageManifestError) {
+    // Two refusals, one exit code, and they are kept apart deliberately.
+    // `ModulePackageManifestError` says the manifest cannot be derived;
+    // `UnreadableSubpathError` says a subpath's emitted module could not be
+    // read, which is a cold `dist` and not a coupling — R4's narrowing must
+    // never dress the second up as the first (D-171, issue #113).
+    if (
+      error instanceof ModulePackageManifestError ||
+      error instanceof UnreadableSubpathError ||
+      // A third: the admin application could not be located, so the manifest
+      // whose dependencies make the generated registry resolvable has no
+      // subject. Ambiguity is refused there rather than resolved, for the
+      // reason `lib/admin-surfaces.ts` gives — picking one of two members
+      // narrows every admin derivation to it without saying so.
+      error instanceof AdminLayoutUnresolvableError
+    ) {
       process.stderr.write(`${PREFIX} ${error.message}\n`);
       process.exit(2);
     }

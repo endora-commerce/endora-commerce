@@ -484,9 +484,151 @@ export const ERROR_CODES = {
   PIM_UNOPIM_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_UNOPIM_ATTRIBUTE_NOT_PRICE_TYPE',
   PIM_UNOPIM_BINDING_EXISTS: 'PIM_UNOPIM_BINDING_EXISTS',
   PIM_UNOPIM_FIELD_PATH_INVALID: 'PIM_UNOPIM_FIELD_PATH_INVALID',
+
+  // Pimcore PIM integration (feature 092). Transport-level codes for the
+  // module's admin surface — see specs/092-pimcore-pim-sync/contracts/admin-api.md.
+  /** No connection row exists yet, so there is nothing to read or import from. */
+  PIM_PIMCORE_NOT_CONFIGURED: 'PIM_PIMCORE_NOT_CONFIGURED',
+  /** A second *enabled* connection was attempted (FR-004). */
+  PIM_PIMCORE_CONNECTION_EXISTS: 'PIM_PIMCORE_CONNECTION_EXISTS',
+  /** Another PIM module already has an enabled connection (FR-075). */
+  PIM_PIMCORE_OTHER_PIM_ENABLED: 'PIM_PIMCORE_OTHER_PIM_ENABLED',
+  /** Enabling a connection or triggering an import without a category root (FR-043). */
+  PIM_PIMCORE_ROOT_REQUIRED: 'PIM_PIMCORE_ROOT_REQUIRED',
+  /** Enabling a connection without a product folder (FR-093). */
+  PIM_PIMCORE_PRODUCT_FOLDER_REQUIRED: 'PIM_PIMCORE_PRODUCT_FOLDER_REQUIRED',
+  /** Media host allowlist entry failed validation (FR-060). */
+  PIM_PIMCORE_ALLOWLIST_INVALID: 'PIM_PIMCORE_ALLOWLIST_INVALID',
+  /** The overlap claim is held by a run already in flight (FR-006). */
+  PIM_PIMCORE_IMPORT_ALREADY_RUNNING: 'PIM_PIMCORE_IMPORT_ALREADY_RUNNING',
+  PIM_PIMCORE_CONNECTION_DISABLED: 'PIM_PIMCORE_CONNECTION_DISABLED',
+  /** The chosen Endora attribute cannot represent that source type; `details[]` lists what can (FR-029). */
+  PIM_PIMCORE_TYPE_INCOMPATIBLE: 'PIM_PIMCORE_TYPE_INCOMPATIBLE',
+  PIM_PIMCORE_TARGET_ATTRIBUTE_NOT_FOUND: 'PIM_PIMCORE_TARGET_ATTRIBUTE_NOT_FOUND',
+  /** Another source field already binds that Endora target. */
+  PIM_PIMCORE_TARGET_ALREADY_MAPPED: 'PIM_PIMCORE_TARGET_ALREADY_MAPPED',
+  /** A price binding named a currency that is not active; `details[]` lists the active codes (FR-072). */
+  PIM_PIMCORE_CURRENCY_INACTIVE: 'PIM_PIMCORE_CURRENCY_INACTIVE',
+  PIM_PIMCORE_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_PIMCORE_ATTRIBUTE_NOT_PRICE_TYPE',
+  PIM_PIMCORE_BINDING_EXISTS: 'PIM_PIMCORE_BINDING_EXISTS',
+  /** A protected field path does not match the grammar (data-model.md §9). */
+  PIM_PIMCORE_FIELD_PATH_INVALID: 'PIM_PIMCORE_FIELD_PATH_INVALID',
+  /**
+   * Push / manual object sync refused because the connection has not finished
+   * its first full import yet (FR-083 / FR-087).
+   */
+  PIM_PIMCORE_BOOTSTRAP_INCOMPLETE: 'PIM_PIMCORE_BOOTSTRAP_INCOMPLETE',
+  /** Inbound push rejected: missing or invalid HMAC signature (FR-088). */
+  PIM_PIMCORE_PUSH_AUTH_REJECTED: 'PIM_PIMCORE_PUSH_AUTH_REJECTED',
+
+  // Payments — the buyer's retry refusals (!1159). Three codes and not one,
+  // because the money term and the lifecycle term are orthogonal rather than
+  // alternative: an order can be unpaid and cancelled, or paid and open, so
+  // neither implies the other and a cancelled-but-unpaid buyer told "there is
+  // nothing to pay" is told something false.
+  /** The order owes nothing — already paid, deferred to credit, or refunded. */
+  PAYMENT_NOT_DUE: 'PAYMENT_NOT_DUE',
+  /** The order's lifecycle is over, so no payment can be started against it. */
+  PAYMENT_ORDER_CLOSED: 'PAYMENT_ORDER_CLOSED',
+  /**
+   * The money is still owed and the order is open; the shop cannot start a
+   * session because the method it was placed with is gone. Named for the
+   * adapter and not the method, because `PAYMENT_METHOD_*` is the family
+   * `payment_methods` would reach for and D-182 routes a contested code to
+   * neither claimant.
+   */
+  PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
+
+/**
+ * The shape of every error code on the wire — the platform's own and a
+ * module's alike (`specs/090-module-owned-error-codes/`, `contracts/error-code-declaration.md` §1.1).
+ *
+ * SCREAMING_SNAKE_CASE, and it is the one grammar three separate things agree
+ * on: `ERROR_CODES`' own members, a module's `errorCodes` manifest declaration,
+ * and the `errors.<CODE>` key the sentence is written under.
+ */
+export const errorCodeRe = /^[A-Z][A-Z0-9_]*$/;
+
+declare const moduleErrorCodeBrand: unique symbol;
+
+/**
+ * An error code declared by a module rather than enumerated by the platform.
+ *
+ * `ERROR_CODES` stays closed and stays the vocabulary of the codes **this
+ * repository's** modules declare (`error-code-declaration.md` §5). A module
+ * written outside this repository has no way into it, so its codes need a type
+ * of their own — and D-182's amendment of 2026-08-28 rules that the type is
+ * **branded**, produced only by {@link defineModuleErrorCodes}:
+ *
+ * > *"the stranger gets the protection our own core modules already have: a typo
+ * > at a raise site is a compile error rather than a code that travels the whole
+ * > path and renders raw to an operator with nothing reporting it."*
+ *
+ * **What the brand buys, exactly**, because it is easy to over-read. It bites on
+ * *assignability*: a bare `'ACME_TYPO'` is assignable to neither `ErrorCode` nor
+ * this type, so `new HttpError(400, 'ACME_TYPO', …)` does not compile. It does
+ * **not** bite on *comparability*, which is the `===` at a reading site —
+ * measured on TypeScript 5.9: with `code: ErrorCode | ModuleErrorCode`, both
+ * `code === 'ACME_TYPO'` and `code === 'PRDUCT_NOT_FOUND'` compile, where the
+ * second is a type error today against the closed enumeration. That is the cost
+ * `research.md` §7 records and `plan.md` Q3 leaves open; the brand does not pay
+ * it. And it says nothing at all about a code declared and never translated
+ * (the reconciliation) or about two modules claiming one code (the collision
+ * rule) — two things the same amendment is careful to spell out.
+ */
+export type ModuleErrorCode = string & {
+  readonly [moduleErrorCodeBrand]: 'module-error-code';
+};
+
+/**
+ * The authoring shape for a module's own error codes.
+ *
+ * ```ts
+ * export const acmeErrorCodes = defineModuleErrorCodes([
+ *   'ACME_SYNC_NOT_CONFIGURED',
+ *   'ACME_SYNC_REJECTED',
+ * ]);
+ *
+ * throw new HttpError(409, acmeErrorCodes.ACME_SYNC_REJECTED, 'Sync rejected.');
+ * ```
+ *
+ * The returned object's keys are the codes, so a typo at a raise site is a
+ * property that does not exist; its values carry the brand, so a bare string
+ * literal cannot stand in for one. Declaring the code in the manifest
+ * (`errorCodes: [{ code: 'ACME_SYNC_REJECTED' }]`) is a separate act and remains
+ * what routes the sentence — this helper decides nothing about routing.
+ *
+ * Two refusals, both at import time on the author's own machine, neither needing
+ * an instance: a code that is not SCREAMING_SNAKE_CASE, and the same code twice.
+ * The second matters because the return value is an object, where a duplicate
+ * collapses silently into one key.
+ */
+export function defineModuleErrorCodes<const Codes extends readonly string[]>(
+  codes: Codes,
+): { readonly [Code in Codes[number]]: ModuleErrorCode } {
+  const seen = new Set<string>();
+  const declared: Record<string, string> = {};
+  for (const code of codes) {
+    if (!errorCodeRe.test(code)) {
+      throw new Error(
+        `[contracts/errors] "${code}" is not a valid error code — it must match ` +
+          `${String(errorCodeRe)} (SCREAMING_SNAKE_CASE).`,
+      );
+    }
+    if (seen.has(code)) {
+      throw new Error(
+        `[contracts/errors] error code "${code}" is declared twice — the codes ` +
+          'become object keys, so the duplicate would collapse into one silently.',
+      );
+    }
+    seen.add(code);
+    declared[code] = code;
+  }
+  return declared as { readonly [Code in Codes[number]]: ModuleErrorCode };
+}
 
 export const errorDetailSchema = z.object({
   path: z.string().describe('dot-path to the offending field inside the request body or query'),
@@ -495,7 +637,22 @@ export const errorDetailSchema = z.object({
 
 export const errorEnvelopeSchema = z.object({
   error: z.object({
-    code: z.enum(Object.values(ERROR_CODES) as [ErrorCode, ...ErrorCode[]]),
+    // Relaxed from `z.enum(Object.values(ERROR_CODES))` by feature 090
+    // (`contracts/error-code-declaration.md` §5): a module declares its own
+    // codes, so the wire's vocabulary is no longer the platform's enumeration.
+    // Every envelope valid before is valid after — this widens and never
+    // narrows — and the change is inert at runtime: the schema's only consumers
+    // in the tree are the `z.infer` below and one documentation reference, so no
+    // request or response validation moves.
+    //
+    // The `refine` carries no runtime decision (the regex above is the whole
+    // check); it is there to state the **output type**, which is the union and
+    // not a bare `string`. Losing that would relax `ErrorEnvelope` further than
+    // the feature asks for, and it is the type both applications read.
+    code: z
+      .string()
+      .regex(errorCodeRe)
+      .refine((value): value is ErrorCode | ModuleErrorCode => errorCodeRe.test(value)),
     message: z.string(),
     // Two shapes: (a) the legacy Zod-style array of {path, issue}, used by
     // request-validation failures, and (b) a free-form object used by

@@ -5,7 +5,7 @@ import {
   discoverManifests,
   folderNameFromPath,
   ManifestLoadError,
-} from '../../../src/modules/_lifecycle/services/manifest-loader.js';
+} from '../../../src/lifecycle/services/manifest-loader.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturesRoot = resolve(here, '../../fixtures/manifests');

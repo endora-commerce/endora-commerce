@@ -8,10 +8,10 @@ import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/s
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { EventBus } from '../../../src/events/bus.js';
-import { OrderService, type OrderEventBus } from '../../../src/modules/orders/services/order-service.js';
+import { OrderService, type OrderEventBus } from '../../../../packages/modules/orders/dist/backend/services/order-service.js';
 import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
-import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
+import { builtInPaymentAdapters } from '../../../../packages/modules/payments/src/backend/adapters/built-in-adapters.js';
 import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
 
 const SALES_CHANNEL_ID = '00000000-0000-4000-8000-0000000000c1';

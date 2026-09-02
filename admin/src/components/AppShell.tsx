@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFocusTrap } from './hooks/useFocusTrap.js';
+import { BrandLogo } from './BrandLogo';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Boxes,
@@ -8,45 +9,27 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
-  CreditCard,
   Bell as BellOutline,
   Box,
   Factory,
   FileText,
-  Rss,
   HelpCircle,
   Home as HomeIcon,
-  Image as ImageIcon,
   Menu,
-  Inbox,
-  KeyRound,
-  Languages,
   LayoutDashboard,
-  LineChart,
   ListChecks,
   LogOut,
   Newspaper,
-  Layers,
   Package,
   PackageOpen,
   PanelLeftClose,
   PanelLeftOpen,
-  PercentDiamond,
   PlugZap,
-  Receipt,
-  ReceiptText,
-  Scale,
   Search,
-  Settings,
-  Eraser,
-  Smartphone,
-  ShieldCheck,
   Store,
   Tag,
   Sparkles,
   TrendingDown,
-  Truck,
-  Upload,
   Users,
   Warehouse as WarehouseIcon,
   Webhook,
@@ -55,6 +38,9 @@ import {
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useTranslationContext } from '@/i18n/TranslationProvider';
+import { MODULE_ADMIN_CONTRIBUTIONS } from '@/modules.generated';
+import { registryNavFor } from '@/lib/module-registry';
 import { LanguagePicker } from './LanguagePicker.js';
 import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications';
@@ -79,6 +65,17 @@ interface NavItem extends GatedSurface {
    * the label flips when the admin changes preferred language.
    */
   labelKey: string;
+  /**
+   * The i18n scope `labelKey` resolves in. Absent means `'core'`, the shared
+   * bundle every host entry's key lives in.
+   *
+   * A module-contributed entry (feature 091) carries its own module id here:
+   * its `labelKey` is module-relative (`nav.importExport.label`) and its
+   * translations ship in the module's own `i18n/` directory, which is what
+   * takes a new module's sidebar label out of the shared `_i18n` bundle — one
+   * of the four shared files 11 of the last 12 module additions had to edit.
+   */
+  labelScope?: string;
   icon: LucideIcon;
   /**
    * The permission code (or any-of set) that gates the entry's visibility, read
@@ -135,12 +132,19 @@ const NAV: NavSection[] = [
       // order-entry page rather than on its own sidebar row.
       { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck, requiredPermission: 'orders:write', module: 'orders' },
       { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck, requiredPermission: 'orders:read', module: 'orders' },
-      { to: '/returns', labelKey: 'appShell.nav.returns', icon: Package, requiredPermission: 'returns:read', module: 'returns' },
-      { to: '/quote-requests', labelKey: 'appShell.nav.quoteRequests', icon: FileText, requiredPermission: 'rfqs:handle', module: 'quote_requests' },
-      // Templates are how an invoice is rendered, not a separate destination:
-      // they are reached through the tab strip on the invoices page.
-      { to: '/invoices', labelKey: 'appShell.nav.invoices', icon: Receipt, requiredPermission: 'invoices:read', module: 'invoices' },
-      { to: '/ksef', labelKey: 'appShell.nav.ksef', icon: ReceiptText, requiredPermission: 'ksef:read', module: 'ksef' },
+      // `/quote-requests`, `/invoices` and `/ksef` were declared here until
+      // feature 091's Phase 4 batch 12. The three modules declare them now and
+      // they arrive through `composeNav` from `modules.generated.ts`, at
+      // weights 400, 500 and 600 — the order they stood in here. The three
+      // `orders` rows above are still the host's, so the registry entries
+      // append after them, which is where these three already sat. That
+      // *templates are reached through the tab strip on the invoices page and
+      // not from here* is still true and is now recorded where the routes are,
+      // in `packages/modules/invoices/src/admin/index.ts`.
+      //
+      // `/ksef`'s glyph changes from `ReceiptText` to `Receipt`:
+      // `KnownIconNameSchema` does not carry the first, and `Receipt` is what
+      // this module's own `open-ksef` palette action has always named.
     ],
   },
   {
@@ -152,13 +156,6 @@ const NAV: NavSection[] = [
       { to: '/catalog/attributes', labelKey: 'appShell.nav.attributes', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
       { to: '/catalog/attribute-sets', labelKey: 'appShell.nav.attributeSets', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
       { to: '/catalog/attachment-types', labelKey: 'appShell.nav.attachmentTypes', icon: FileText, requiredPermission: 'catalog:read', module: 'catalog' },
-      {
-        to: '/assets-library',
-        labelKey: 'appShell.nav.assetsLibrary',
-        icon: ImageIcon,
-        requiredPermission: 'assets.read',
-        module: 'assets_library',
-      },
       // Feature 068 — the Ergonode PIM connector sits in Catalog rather than
       // Channels: it is where catalogue content comes *from*, and the three
       // surfaces it writes (products, attributes, categories) are its
@@ -182,27 +179,21 @@ const NAV: NavSection[] = [
         requiredPermission: 'pim_unopim:read',
         module: 'pim_unopim',
       },
-      // A feed publishes the catalogue, so it belongs beside the catalogue
-      // rather than under Channels. Templates are a view of the same surface
-      // and are reached through the tab strip there, not a second sidebar row.
-      {
-        to: '/product-feeds',
-        labelKey: 'appShell.nav.productFeeds',
-        icon: Rss,
-        requiredPermission: 'product_feeds:read',
-        module: 'product_feeds',
-      },
     ],
   },
   {
     key: 'inventory',
     labelKey: 'appShell.section.inventory',
     items: [
-      { to: '/inventory', labelKey: 'appShell.nav.stockOverview', icon: Box, requiredPermission: 'orders:read', module: 'inventory' },
-      { to: '/warehouses', labelKey: 'appShell.nav.warehouses', icon: WarehouseIcon, requiredPermission: 'orders:read', module: 'inventory' },
-      { to: '/inventory/low-stock', labelKey: 'appShell.nav.lowStock', icon: TrendingDown, requiredPermission: 'orders:read', module: 'inventory' },
-      { to: '/inventory/notifications', labelKey: 'appShell.nav.notifyWhenAvailable', icon: BellOutline, requiredPermission: 'orders:read', module: 'inventory' },
-      { to: '/inventory/import', labelKey: 'appShell.nav.importStock', icon: PackageOpen, requiredPermission: 'catalog:write', module: 'inventory' },
+      // `inventory` took its own codes on 2026-08-29. Every one of these five
+      // used to name a module that owns none of the data behind them —
+      // `orders:read` for four screens about warehouses and stock, and
+      // `catalog:write` for the CSV importer.
+      { to: '/inventory', labelKey: 'appShell.nav.stockOverview', icon: Box, requiredPermission: 'inventory:read', module: 'inventory' },
+      { to: '/warehouses', labelKey: 'appShell.nav.warehouses', icon: WarehouseIcon, requiredPermission: 'inventory:read', module: 'inventory' },
+      { to: '/inventory/low-stock', labelKey: 'appShell.nav.lowStock', icon: TrendingDown, requiredPermission: 'inventory:read', module: 'inventory' },
+      { to: '/inventory/notifications', labelKey: 'appShell.nav.notifyWhenAvailable', icon: BellOutline, requiredPermission: 'inventory:read', module: 'inventory' },
+      { to: '/inventory/import', labelKey: 'appShell.nav.importStock', icon: PackageOpen, requiredPermission: 'inventory:write', module: 'inventory' },
     ],
   },
   {
@@ -210,13 +201,8 @@ const NAV: NavSection[] = [
     labelKey: 'appShell.section.pricing',
     items: [
       { to: '/price-lists', labelKey: 'appShell.nav.priceLists', icon: CircleDollarSign, requiredPermission: 'price_lists:read', module: 'price_lists' },
-      { to: '/promotions', labelKey: 'appShell.nav.promotions', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
-      { to: '/promotion-rules', labelKey: 'appShell.nav.promotionRules', icon: PercentDiamond, requiredPermission: 'promotions:read', module: 'promotions' },
-      { to: '/taxes', labelKey: 'appShell.nav.taxes', icon: Receipt, requiredPermission: 'catalog:write', module: 'taxes' },
-      { to: '/delivery-methods', labelKey: 'appShell.nav.deliveryMethods', icon: Truck, requiredPermission: 'catalog:read', module: 'delivery_methods' },
-      { to: '/payment-methods', labelKey: 'appShell.nav.paymentMethods', icon: CreditCard, requiredPermission: 'catalog:read', module: 'payment_methods' },
-      // Stripe settings are no longer a top-level sidebar entry — they are
-      // reached as an "integration" from the Payment methods page (below).
+      // Carrier / payment gateway settings are reached as integrations from the
+      // Delivery methods / Payment methods pages (not top-level sidebar).
     ],
   },
   {
@@ -249,25 +235,12 @@ const NAV: NavSection[] = [
         requiredPermission: ['customers:read', 'customers:manage'],
         module: 'organizations',
       },
-      // Feature 076 (D-79) — customer groups belong to the customer, so the
-      // screen is filed here and the module that owns it is the one that owns
-      // the account. `customer_accounts` is non-deactivatable, so this entry
-      // never disappears; the permission is what decides who sees it.
-      {
-        to: '/customer-groups',
-        labelKey: 'appShell.nav.customerGroups',
-        icon: Users,
-        requiredPermission: 'customer_groups:read',
-        module: 'customer_accounts',
-      },
-      { to: '/credit-limits', labelKey: 'appShell.nav.creditLimits', icon: CreditCard, requiredPermission: 'credit_limits:manage', module: 'credit_limits' },
-      {
-        to: '/comparisons',
-        labelKey: 'appShell.nav.comparisons',
-        icon: Scale,
-        requiredPermission: 'comparisons:read',
-        module: 'comparisons',
-      },
+      // `/comparisons` is declared by `comparisons` since feature 091's Phase 4
+      // (the plan's batch 6) and arrives through `composeNav` from
+      // `modules.generated.ts`. Every other row in this section is still the
+      // host's, so the registry entry appends after all of them — which is the
+      // position this one already had. The reasoning is in
+      // `packages/modules/comparisons/src/admin/index.ts`.
     ],
   },
   {
@@ -281,9 +254,12 @@ const NAV: NavSection[] = [
         requiredPermission: 'sales_channels:read',
         module: 'sales_channels',
       },
-      { to: '/dictionary', labelKey: 'appShell.nav.dictionary', icon: Languages, requiredPermission: 'dictionary.write', module: 'dictionaries' },
-      { to: '/admin/dictionaries/audit', labelKey: 'appShell.nav.dictionaryAudit', icon: ListChecks, requiredPermission: 'dictionary.write', module: 'dictionaries' },
-      { to: '/seo', labelKey: 'appShell.nav.seo', icon: Search, requiredPermission: 'catalog:write', module: 'seo' },
+      // `/dictionary` and `/admin/dictionaries/audit` are declared by
+      // `dictionaries` since feature 091's Phase 4 batch 10, and arrive through
+      // `composeNav` from `modules.generated.ts`. `/sales-channels` above is
+      // still the host's, so both append after it — which is exactly where they
+      // sat. The declaration is in
+      // `packages/modules/dictionaries/src/admin/index.ts`.
     ],
   },
   {
@@ -294,13 +270,6 @@ const NAV: NavSection[] = [
       { to: '/cms/blocks', labelKey: 'appShell.nav.cmsBlocks', icon: Newspaper, requiredPermission: 'cms.read', module: 'cms' },
       { to: '/cms/templates', labelKey: 'appShell.nav.cmsTemplates', icon: Newspaper, requiredPermission: 'cms.read', module: 'cms' },
       { to: '/cms/hooks', labelKey: 'appShell.nav.cmsHooks', icon: Webhook, requiredPermission: 'cms.read', module: 'cms' },
-      {
-        to: '/megamenu',
-        labelKey: 'appShell.nav.megamenu',
-        icon: Newspaper,
-        requiredPermission: 'megamenu.read',
-        module: 'megamenu',
-      },
       { to: '/blog/posts', labelKey: 'appShell.nav.blogPosts', icon: Newspaper, requiredPermission: 'blog.read', module: 'blog' },
       { to: '/blog/categories', labelKey: 'appShell.nav.blogCategories', icon: Newspaper, requiredPermission: 'blog.read', module: 'blog' },
       { to: '/blog/tags', labelKey: 'appShell.nav.blogTags', icon: Newspaper, requiredPermission: 'blog.read', module: 'blog' },
@@ -309,41 +278,26 @@ const NAV: NavSection[] = [
   {
     key: 'messaging',
     labelKey: 'appShell.section.messaging',
-    items: [
-      {
-        to: '/transactional-emails',
-        labelKey: 'appShell.nav.transactionalEmails',
-        icon: Inbox,
-        requiredPermission: 'transactional_emails:read',
-        module: 'transactional_emails',
-      },
-      {
-        to: '/transactional-emails/blocks',
-        labelKey: 'appShell.nav.emailBlocks',
-        icon: Inbox,
-        requiredPermission: 'transactional_emails:read',
-        module: 'transactional_emails',
-      },
-      {
-        to: '/transactional-emails/templates',
-        labelKey: 'appShell.nav.emailTemplates',
-        icon: Inbox,
-        requiredPermission: 'transactional_emails:read',
-        module: 'transactional_emails',
-      },
-    ],
+    // **Empty on purpose** (feature 091, Phase 4 batch 11), which is
+    // `analyticsAds`' shape below. All three entries — `/transactional-emails`
+    // and its blocks and templates screens — are declared by
+    // `transactional_emails` and arrive through `composeNav` from
+    // `modules.generated.ts`. The section stays here because the shell owns the
+    // section taxonomy: `composeNav` refuses a contribution naming a section
+    // this file does not declare.
+    //
+    // With no host-declared entry left, the weights the module declares (100,
+    // 200, 300) are the whole of this section's order and reproduce exactly the
+    // order this table had.
+    items: [],
   },
   {
     key: 'newsletter',
     labelKey: 'appShell.section.newsletter',
-    items: [
-      { to: '/newsletter/subscribers', labelKey: 'appShell.nav.newsletterSubscribers', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/campaigns', labelKey: 'appShell.nav.newsletterCampaigns', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/automations', labelKey: 'appShell.nav.newsletterAutomations', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/tags', labelKey: 'appShell.nav.newsletterTags', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/blocks', labelKey: 'appShell.nav.newsletterBlocks', icon: Inbox, requiredPermission: 'newsletter:read', module: 'newsletter' },
-      { to: '/newsletter/provider', labelKey: 'appShell.nav.newsletterProvider', icon: Inbox, requiredPermission: 'newsletter:write', module: 'newsletter' },
-    ],
+    // Empty on purpose, for the reason above and in the same batch: all six
+    // entries are `newsletter`'s, declared at weights 100 through 600, which is
+    // the order they stood in here.
+    items: [],
   },
   // Reporting and paid-acquisition surfaces. They were originally filed under
   // System because each arrived as a lone integration, but together they are a
@@ -351,36 +305,22 @@ const NAV: NavSection[] = [
   {
     key: 'analyticsAds',
     labelKey: 'appShell.section.analyticsAds',
-    items: [
-      {
-        to: '/analytics',
-        labelKey: 'appShell.nav.analytics',
-        icon: LineChart,
-        requiredPermission: 'analytics:read',
-        module: 'analytics',
-      },
-      {
-        to: '/google-analytics',
-        labelKey: 'appShell.nav.googleAnalytics',
-        icon: Sparkles,
-        requiredPermission: 'google_analytics:read',
-        module: 'google_analytics',
-      },
-      {
-        to: '/linkedin-ads',
-        labelKey: 'appShell.nav.linkedinAds',
-        icon: Sparkles,
-        requiredPermission: 'linkedin_ads:read',
-        module: 'linkedin_ads',
-      },
-      {
-        to: '/meta-ads',
-        labelKey: 'appShell.nav.metaAds',
-        icon: Sparkles,
-        requiredPermission: 'meta_ads:read',
-        module: 'meta_ads',
-      },
-    ],
+    // **Empty on purpose, and the first section that is** (feature 091, Phase 4
+    // batch three). All four of this section's entries — `/analytics`,
+    // `/google-analytics`, `/linkedin-ads`, `/meta-ads` — are now declared by
+    // the modules that own them and arrive through `composeNav` from
+    // `modules.generated.ts`. The section itself stays here because the shell
+    // owns the section taxonomy: `composeNav` refuses a contribution naming a
+    // section this file does not declare, since an entry in a section nobody
+    // renders is a surface that silently appears nowhere.
+    //
+    // The consequence is worth stating rather than discovering: with no
+    // host-declared entry left, `registryNavFor`'s `weight` is the whole of
+    // this section's order, and the weights the four modules declare (100, 200,
+    // 300, 400) reproduce exactly the order the hand-written table had. Batch
+    // one and batch two each recorded the append-to-the-end ordering as an
+    // operator-visible regression; this is where it is repaired.
+    items: [],
   },
   {
     key: 'system',
@@ -397,13 +337,17 @@ const NAV: NavSection[] = [
         requiredPermission: 'platform.modules.read',
         module: null,
       },
-      { to: '/admin-users', labelKey: 'appShell.nav.users', icon: Users, requiredPermission: 'admin_users:manage', module: 'admin_users' },
-      // `admin_users:manage`, not an `admin_roles:*` code: `admin_roles` ships no
-      // routes at all, and the screen is fed by `/api/v1/admin/admin-roles` in
-      // `admin_users` (`admin_users/routes.admin.ts:177`). The module attribution
-      // and the permission answer to two different questions here, which is the
-      // whole reason they are two fields.
-      { to: '/admin-roles', labelKey: 'appShell.nav.roles', icon: ShieldCheck, requiredPermission: 'admin_users:manage', module: 'admin_roles' },
+      // `/admin-users`, `/admin-roles` and `/audit-log` are declared by the
+      // modules that own them since feature 091's Phase 4 batch four, and
+      // arrive through `composeNav` from `modules.generated.ts` — including the
+      // split this file used to carry a comment about: the roles row is
+      // `admin_roles`' while the screen it points at is `admin_users`'. Their
+      // declarations, and that comment's reasoning, are in
+      // `packages/modules/{admin_users,admin_roles,audit_logs}/src/admin/index.ts`.
+      //
+      // Unlike *Analytics & Ads*, this section still holds host entries, so a
+      // registry entry appends after every one of them whatever its weight says
+      // — the operator-visible consequence the batch records.
       // Bulk operations may span many domains (not just products), so the
       // entry lives under System. The URL stays `/catalog/bulk-operations`
       // to keep existing deep-links (e.g. the bulk-edit "queued" ack) valid.
@@ -414,54 +358,21 @@ const NAV: NavSection[] = [
         requiredPermission: 'catalog:read',
         module: 'catalog',
       },
-      // Custom fields extend Organizations, Orders, Customers, Categories and
-      // more, so the entry belongs to System rather than to any one domain.
-      {
-        to: '/custom-fields',
-        labelKey: 'appShell.nav.customFields',
-        icon: Layers,
-        requiredPermission: 'custom_fields:read',
-        module: 'custom_fields',
-      },
-      { to: '/audit-log', labelKey: 'appShell.nav.auditLog', icon: ListChecks, requiredPermission: 'audit_log:read', module: 'audit_logs' },
-      { to: '/api-keys', labelKey: 'appShell.nav.apiKeys', icon: KeyRound, requiredPermission: 'integrations:manage', module: 'api_keys' },
-      { to: '/webhooks', labelKey: 'appShell.nav.webhooks', icon: Webhook, requiredPermission: 'integrations:manage', module: 'webhooks' },
-      {
-        to: '/credentials',
-        labelKey: 'appShell.nav.credentials',
-        icon: KeyRound,
-        requiredPermission: 'credentials:read',
-        module: 'credentials',
-      },
-      { to: '/import-export', labelKey: 'appShell.nav.importExport', icon: Upload, requiredPermission: 'catalog:write', module: 'import_export' },
-      {
-        to: '/settings',
-        labelKey: 'appShell.nav.settings',
-        icon: Settings,
-        requiredPermission: 'settings:read',
-        module: 'settings',
-      },
-      {
-        to: '/settings/groups',
-        labelKey: 'appShell.nav.settingGroups',
-        icon: Settings,
-        requiredPermission: 'settings:read',
-        module: 'settings',
-      },
-      {
-        to: '/settings/cache',
-        labelKey: 'appShell.nav.cache',
-        icon: Eraser,
-        requiredPermission: 'settings:write',
-        module: 'settings',
-      },
-      {
-        to: '/settings/pwa',
-        labelKey: 'appShell.nav.pwa',
-        icon: Smartphone,
-        requiredPermission: 'pwa:read',
-        module: 'pwa',
-      },
+      // `/api-keys` and `/webhooks` are declared by the modules that own them
+      // since feature 091's Phase 4 (the plan's batch 6), and arrive through
+      // `composeNav` from `modules.generated.ts`. Their declarations are in
+      // `packages/modules/{api_keys,webhooks}/src/admin/index.ts`.
+      // `/credentials`, `/settings`, `/settings/groups` and `/settings/cache`
+      // are declared by the modules that own them since feature 091's Phase 4
+      // batch 10, and arrive through `composeNav` from `modules.generated.ts`.
+      // Their declarations are in
+      // `packages/modules/{credentials,settings}/src/admin/index.ts`.
+      //
+      // `/settings/pwa` is `pwa`'s and has been since batch six, when only the
+      // advertisement moved because the screen lived under
+      // `modules/settings/pages/`. Batch 10 moved that directory, so the screen
+      // went with it and the route is `pwa`'s too — the split closes rather
+      // than standing.
     ],
   },
 ];
@@ -535,8 +446,20 @@ function persistCollapsed(value: Set<string>): void {
  * leaves that aren't represented in the side navigation.
  */
 type Crumb =
-  | { labelKey: string; literal?: undefined; href: string | null }
-  | { labelKey?: undefined; literal: string; href: string | null };
+  | {
+      labelKey: string;
+      /**
+       * The i18n scope `labelKey` resolves in; absent means `'core'`.
+       *
+       * A module-contributed crumb (feature 091) carries the module id, so its
+       * label comes out of the module's own bundle — the same split
+       * {@link NavItem.labelScope} makes for the sidebar entry it mirrors.
+       */
+      labelScope?: string;
+      literal?: undefined;
+      href: string | null;
+    }
+  | { labelKey?: undefined; labelScope?: undefined; literal: string; href: string | null };
 
 const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] }> = [
   { test: /^\/$/, build: () => [{ labelKey: 'appShell.nav.home', href: null }] },
@@ -628,59 +551,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
     { labelKey: 'appShell.nav.pimUnopim', href: null },
   ] },
-  { test: /^\/product-feeds\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: null },
-  ] },
-  { test: /^\/product-feeds\/new\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.crumb.new', href: null },
-  ] },
-  { test: /^\/product-feeds\/templates\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedTemplates', href: null },
-  ] },
-  { test: /^\/product-feeds\/templates\/new\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
-    { labelKey: 'appShell.crumb.new', href: null },
-  ] },
-  { test: /^\/product-feeds\/templates\/import\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
-    { labelKey: 'appShell.crumb.import', href: null },
-  ] },
-  { test: /^\/product-feeds\/templates\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedTemplates', href: '/product-feeds/templates' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/product-feeds\/[^/]+\/runs\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.crumb.feedRun', href: null },
-  ] },
-  { test: /^\/product-feeds\/category-mapping\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedCategoryMapping', href: null },
-  ] },
-  { test: /^\/product-feeds\/taxonomy-revisions\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.feedCategoryMapping', href: '/product-feeds/category-mapping' },
-    { labelKey: 'appShell.nav.feedTaxonomyRevisions', href: null },
-  ] },
-  { test: /^\/product-feeds\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/product-feeds' },
-    { labelKey: 'appShell.nav.productFeeds', href: '/product-feeds' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/assets-library\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.assetsLibrary', href: null },
-  ] },
   { test: /^\/inventory\/?$/, build: () => [
     { labelKey: 'appShell.section.inventory', href: null },
   ] },
@@ -719,41 +589,15 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.priceLists', href: '/price-lists' },
     { labelKey: 'appShell.crumb.detail', href: null },
   ] },
-  { test: /^\/promotions\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.promotions', href: null },
-  ] },
-  { test: /^\/promotions\/new\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
-    { labelKey: 'promotions.edit.titleNew', href: null },
-  ] },
-  { test: /^\/promotions\/[^/]+\/stats\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
-    { labelKey: 'promotionStats.title', href: null },
-  ] },
-  { test: /^\/promotions\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.promotions', href: '/promotions' },
-    { labelKey: 'promotions.edit.titleEdit', href: null },
-  ] },
-  { test: /^\/taxes\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.taxes', href: null },
-  ] },
-  { test: /^\/delivery-methods\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.deliveryMethods', href: null },
-  ] },
   { test: /^\/delivery-methods\/dhl-parcel\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
     { labelKey: 'appShell.nav.dhlParcel', href: null },
   ] },
-  { test: /^\/payment-methods\/?$/, build: () => [
+  { test: /^\/settings\/inpost\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.paymentMethods', href: null },
+    { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
+    { labelKey: 'appShell.nav.inpost', href: null },
   ] },
   { test: /^\/settings\/tpay\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
@@ -809,37 +653,17 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.nav.orders', href: '/orders' },
     { labelKey: 'appShell.crumb.detail', href: null },
   ] },
-  { test: /^\/invoices\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.invoices', href: null },
-  ] },
-  { test: /^\/invoices\/(?!templates)[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.invoices', href: '/invoices' },
-    { labelKey: 'appShell.crumb.detail', href: null },
-  ] },
-  { test: /^\/credit-limits\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.creditLimits', href: null },
-  ] },
-  { test: /^\/quote-requests\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.quoteRequests', href: null },
-  ] },
-  { test: /^\/quote-requests\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.quoteRequests', href: '/quote-requests' },
-    { labelKey: 'appShell.crumb.detail', href: null },
-  ] },
-  { test: /^\/comparisons\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.comparisons', href: null },
-  ] },
-  { test: /^\/comparisons\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.customers', href: '/organizations' },
-    { labelKey: 'appShell.nav.comparisons', href: '/comparisons' },
-    { labelKey: 'appShell.crumb.detail', href: null },
-  ] },
+  // The four `/invoices*` and `/quote-requests*` trails stood here until
+  // feature 091's Phase 4 batch 12. `registryCrumbs` derives all four now, out
+  // of the sidebar entries the two modules declare, and `/ksef` — which never
+  // had a trail at all and fell to the humanised-segment fallback — gains the
+  // label its sidebar row already carries. One operator-visible change, stated
+  // rather than glossed: these four named *Customers* as their section crumb
+  // and linked it to `/organizations`, while the sidebar rows they describe sit
+  // in *Sales*. The derived trail reads the section the module declares, so the
+  // crumb becomes *Sales* linked to `/orders` — the section's first host entry,
+  // which is what every hand-written trail in this table uses and what the
+  // sidebar has said all along.
   { test: /^\/sales-channels\/?$/, build: () => [
     { labelKey: 'appShell.section.channels', href: '/sales-channels' },
     { labelKey: 'appShell.nav.salesChannels', href: null },
@@ -880,114 +704,117 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
     { labelKey: 'appShell.section.channels', href: '/sales-channels' },
     { labelKey: 'appShell.nav.cmsHooks', href: null },
   ] },
-  { test: /^\/megamenu\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.megamenu', href: null },
-  ] },
-  { test: /^\/megamenu\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.megamenu', href: '/megamenu' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/dictionary\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.dictionary', href: null },
-  ] },
-  { test: /^\/(?:admin\/)?dictionaries\/audit\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.dictionary', href: '/dictionary' },
-    { labelKey: 'appShell.crumb.audit', href: null },
-  ] },
-  { test: /^\/seo\/?$/, build: () => [
-    { labelKey: 'appShell.section.channels', href: '/sales-channels' },
-    { labelKey: 'appShell.nav.seo', href: null },
-  ] },
-  { test: /^\/admin-users\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.users', href: null },
-  ] },
-  { test: /^\/admin-roles\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.roles', href: null },
-  ] },
-  { test: /^\/audit-log\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.auditLog', href: null },
-  ] },
-  { test: /^\/api-keys\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.apiKeys', href: null },
-  ] },
-  { test: /^\/webhooks\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.webhooks', href: null },
-  ] },
-  { test: /^\/google-analytics(\/.*)?$/, build: () => [
-    { labelKey: 'appShell.nav.googleAnalytics', href: '/google-analytics' },
-  ] },
-  { test: /^\/linkedin-ads(\/.*)?$/, build: () => [
-    { labelKey: 'appShell.nav.linkedinAds', href: '/linkedin-ads' },
-  ] },
-  { test: /^\/meta-ads(\/.*)?$/, build: () => [
-    { labelKey: 'appShell.nav.metaAds', href: '/meta-ads' },
-  ] },
-  { test: /^\/analytics\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.analytics', href: null },
-  ] },
-  { test: /^\/import-export\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.importExport', href: null },
-  ] },
+  // `/dictionary` and the two audit spellings had a hand-written trail here
+  // until feature 091's Phase 4 batch 10. `registryCrumbs` derives them now,
+  // from `dictionaries`' own nav contribution — two crumbs where the audit
+  // trail built three, the third having been a literal *audit* leaf there is
+  // nothing to derive. The unadvertised `/dictionaries/audit` spelling keeps
+  // resolving as a route and falls to the humanised-segment trail, which is
+  // what an unadvertised alias gets.
+  // `/admin-users`, `/admin-roles` and `/audit-log` had a hand-written trail
+  // here until feature 091's Phase 4 batch four. They are the modules' own
+  // declarations now, so `registryCrumbs` derives the trail from the composed
+  // sidebar — the label and the section come off the nav contribution, which is
+  // what stops this third registry from being a fifth shared file every
+  // converted module has to edit. Two consequences, both operator-visible and
+  // both stated rather than discovered: the section crumb's href becomes
+  // *System*'s first host entry, `/platform/modules`, where these three trails
+  // named `/admin-users` by hand; and the leaf label resolves in the owning
+  // module's namespace rather than in `core`.
   { test: /^\/platform\/modules\/?$/, build: () => [
     { labelKey: 'appShell.section.system', href: '/admin-users' },
     { labelKey: 'appShell.nav.platformModules', href: null },
   ] },
-  { test: /^\/settings\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.settings', href: null },
-  ] },
-  { test: /^\/settings\/groups\/?$/, build: () => [
-    { labelKey: 'appShell.section.system', href: '/admin-users' },
-    { labelKey: 'appShell.nav.settingGroups', href: null },
-  ] },
+  // `/settings` and `/settings/groups` had a hand-written trail here until
+  // feature 091's Phase 4 batch 10, and `/settings/cache` and `/settings/pwa`
+  // never had one at all — both fell to the humanised-segment fallback.
+  // `registryCrumbs` derives all four now, so the two that had a trail keep it
+  // with the section link corrected (*System*'s first host row is
+  // `/platform/modules`, where these named `/admin-users` by hand — batch
+  // four's recorded change, arriving again) and the two that had none gain the
+  // label their sidebar row already carries.
   { test: /^\/profile\/?$/, build: () => [
     { labelKey: 'appShell.crumb.myProfile', href: null },
   ] },
-  { test: /^\/transactional-emails\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.transactionalEmails', href: null },
-  ] },
-  { test: /^\/transactional-emails\/blocks\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.emailBlocks', href: null },
-  ] },
-  { test: /^\/transactional-emails\/blocks\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.emailBlocks', href: '/transactional-emails/blocks' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/transactional-emails\/templates\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.emailTemplates', href: null },
-  ] },
-  { test: /^\/transactional-emails\/templates\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.emailTemplates', href: '/transactional-emails/templates' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/transactional-emails\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.messaging', href: '/transactional-emails' },
-    { labelKey: 'appShell.nav.transactionalEmails', href: '/transactional-emails' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
+  // The six `/transactional-emails*` trails stood here until feature 091's
+  // Phase 4 batch 11. `registryCrumbs` derives all six now, out of the sidebar
+  // entries `transactional_emails` declares — which is what keeps a converted
+  // module's breadcrumb from being a third shared file to edit. Two of them
+  // change: the fragment editors lose their `Editor` leaf and render
+  // `Messaging / Email Blocks →` instead, which is the trail every other
+  // converted module's sub-screen already gets, and the *Messaging* crumb loses
+  // its link because that section now holds no host-declared entry for
+  // `registryCrumbs` to point at.
 ];
+
+/**
+ * The trail for a screen a **module** contributes, derived from the composed
+ * sidebar (feature 091).
+ *
+ * `CRUMB_DICT` is a third host registry naming module routes by hand — this
+ * feature converts `App.tsx`'s and `AppShell.tsx`'s, and the plan does not
+ * cover this one. Deriving the leaf instead of adding an entry per module is
+ * what keeps a converted module's breadcrumb from being a fifth shared file to
+ * edit: the label and the section are already declared in the module's nav
+ * contribution, and the parent link is the section's own first host entry —
+ * exactly what every hand-written trail in this table uses.
+ *
+ * Returns `null` for a path no module claims, so `CRUMB_DICT` keeps precedence
+ * and the URL-segment fallback keeps the last word.
+ */
+function registryCrumbs(pathname: string): Crumb[] | null {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  let best: { section: NavSection; item: NavItem; labelScope: string } | null = null;
+  for (const section of COMPOSED_NAV) {
+    for (const item of section.items) {
+      const labelScope = item.labelScope;
+      if (labelScope === undefined) continue;
+      // The entry's own destination, or anything beneath it. A module's second
+      // and third routes (`/x/new`, `/x/:id`) have no sidebar row of their own
+      // and never will — a nav entry is a landing surface — so matching only
+      // the exact `to` would drop every converted module's sub-screens onto the
+      // humanised-segment fallback below. The hand-written trails this table is
+      // draining already covered subpaths that way, with the same shape.
+      if (item.to !== path && !path.startsWith(`${item.to}/`)) continue;
+      // **The longest match wins, and it is first-match no longer** (feature
+      // 091, batch 10). Until this batch no module contributed both a parent
+      // route and a child of it, so "the first entry that matches" and "the
+      // entry that matches most" were the same answer. `settings` contributes
+      // `/settings`, `/settings/groups` and `/settings/cache` and `pwa`
+      // contributes `/settings/pwa`; under first-match, all four screens would
+      // have rendered *Settings* as their leaf, because `/settings` sorts
+      // ahead of the rest by weight. That is a trail that no longer names where
+      // the operator is, which is the whole of what a breadcrumb does.
+      //
+      // `CRUMB_DICT` gets the same property for free by listing its specific
+      // patterns above its general ones; this is that ordering rule, derived
+      // instead of maintained.
+      if (best !== null && best.item.to.length >= item.to.length) continue;
+      best = { section, item, labelScope };
+    }
+  }
+  if (best === null) return null;
+  const { section, item, labelScope } = best;
+  const parent = section.items.find((other) => other.labelScope === undefined);
+  const trail: Crumb[] = [];
+  if (section.labelKey) {
+    trail.push({ labelKey: section.labelKey, href: parent?.to ?? null });
+  }
+  trail.push({
+    labelKey: item.labelKey,
+    labelScope,
+    href: item.to === path ? null : item.to,
+  });
+  return trail;
+}
 
 function buildCrumbs(pathname: string): Crumb[] {
   for (const entry of CRUMB_DICT) {
     const match = pathname.match(entry.test);
     if (match) return entry.build(match);
   }
+  const contributed = registryCrumbs(pathname);
+  if (contributed !== null) return contributed;
   // Keep real path segments in hrefs; only humanize the visible label.
   const segments = pathname.split('/').filter(Boolean);
   return segments.map((segment, idx) => ({
@@ -1082,10 +909,20 @@ function matchesQuery(needle: string, ...haystacks: string[]): boolean {
  * is how a wrong code gets propagated twice, and several of these are not what
  * the neighbourhood suggests:
  *
- *  - `/inventory` and `/warehouses` are gated by `orders:read`, not by anything
- *    named after inventory (`inventory/routes.admin.ts:103,183`);
- *  - `/payment-methods` and `/delivery-methods` by `catalog:read`
- *    (`payment_methods/routes.ts:108`, `delivery_methods/routes.ts:97`);
+ *  - `/inventory`, `/warehouses`, `/inventory/low-stock` and
+ *    `/inventory/notifications` by `inventory:read`, and `/inventory/import` by
+ *    `inventory:write` — the module's own codes since 2026-08-29. Until then
+ *    all four reads said `orders:read` and the importer said `catalog:write`,
+ *    which is how a merchandiser came to be able to delete a warehouse and
+ *    anyone who could read orders came to be able to enumerate every warehouse
+ *    address (`packages/modules/inventory/src/backend/routes.admin.ts`);
+ *  - `/payment-methods` by `payment_methods:read` and `/delivery-methods` by
+ *    `delivery_methods:read`, each its owner's own code since 2026-08-28. They
+ *    look like a pair and are not one: the codes are separate, they are granted
+ *    separately, and neither is `catalog:read`, which is what both said until
+ *    the two modules stopped borrowing the catalogue's authority
+ *    (`packages/modules/payment_methods/src/backend/routes.ts:125`,
+ *    `packages/modules/delivery_methods/src/backend/routes.ts:106`);
  *  - `/api-keys` and `/webhooks` by one shared `integrations:manage`
  *    (`api_keys/routes.ts:20`, `webhooks/routes.ts:21`);
  *  - `/dictionary` and its audit view by `dictionary.write` — the module
@@ -1122,37 +959,107 @@ function matchesQuery(needle: string, ...haystacks: string[]): boolean {
 const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.home', sub: 'appShell.palette.sub.dashboard', icon: HomeIcon, to: '/', keywords: 'home dashboard strona główna pulpit' , module: null },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.products', sub: 'appShell.palette.sub.catalogRows', icon: Package, to: '/catalog/products', keywords: 'products catalog items produkty katalog', requiredPermission: 'catalog:read' , module: 'catalog' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.stockOverview', sub: 'appShell.palette.sub.stockLevels', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse magazyn stany', requiredPermission: 'orders:read' , module: 'inventory' },
+  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.stockOverview', sub: 'appShell.palette.sub.stockLevels', icon: Factory, to: '/inventory', keywords: 'inventory stock warehouse magazyn stany', requiredPermission: 'inventory:read', module: 'inventory' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.priceLists', sub: 'appShell.palette.sub.pricingRules', icon: CircleDollarSign, to: '/price-lists', keywords: 'pricing prices price list cennik', requiredPermission: 'price_lists:read' , module: 'price_lists' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.organizations', sub: 'appShell.palette.sub.customerAccounts', icon: Building2, to: '/organizations', keywords: 'org orgs customer organization organizacja klient', requiredPermission: ['customers:read', 'customers:manage'] , module: 'organizations' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.creditLimits', sub: 'appShell.palette.sub.creditLimits', icon: CreditCard, to: '/credit-limits', keywords: 'credit limit limits balance terms limity kredytowe saldo', requiredPermission: 'credit_limits:manage' , module: 'credit_limits' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.orders', sub: 'appShell.palette.sub.openOrders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales zamówienia sprzedaż', requiredPermission: 'orders:read' , module: 'orders' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.quoteRequests', sub: 'appShell.palette.sub.customerRfqs', icon: FileText, to: '/quote-requests', keywords: 'rfq quote zapytanie ofertowe', requiredPermission: 'rfqs:handle' , module: 'quote_requests' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.comparisons', sub: 'appShell.palette.sub.compareAudit', icon: Scale, to: '/comparisons', keywords: 'compare comparisons porównanie', requiredPermission: 'comparisons:read' , module: 'comparisons' },
+  // The `/quote-requests` row left here in feature 091's Phase 4 batch 12, and
+  // nothing replaced it: `quote_requests`' manifest already declares
+  // `open-rfq-inbox` with the same destination, the same code and the same
+  // keywords, so the row was a second copy of a declaration the server has been
+  // serving all along — and a copy the server was never asked about, which for
+  // a module an operator can withdraw means a palette that goes on advertising
+  // the screen after the withdrawal.
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.salesChannels', sub: 'appShell.palette.sub.storefrontChannels', icon: Store, to: '/sales-channels', keywords: 'sales channel channels kanał sprzedaży', requiredPermission: 'sales_channels:read' , module: 'sales_channels' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.paymentMethods', sub: 'appShell.palette.sub.paymentMethods', icon: CreditCard, to: '/payment-methods', keywords: 'payment methods pay gateway checkout metody płatności płatności bramka', requiredPermission: 'catalog:read' , module: 'payment_methods' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.deliveryMethods', sub: 'appShell.palette.sub.deliveryMethods', icon: Truck, to: '/delivery-methods', keywords: 'delivery shipping methods courier metody dostawy wysyłka kurier', requiredPermission: 'catalog:read' , module: 'delivery_methods' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionary', sub: 'appShell.palette.sub.dictionary', icon: Languages, to: '/dictionary', keywords: 'dictionary countries currencies languages i18n słownik kraje waluty języki', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.dictionaryAudit', sub: 'appShell.palette.sub.dictionaryAudit', icon: ListChecks, to: '/admin/dictionaries/audit', keywords: 'dictionary audit orphan references audyt słownika', requiredPermission: 'dictionary.write' , module: 'dictionaries' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.settings', sub: 'appShell.palette.sub.platformConfiguration', icon: Settings, to: '/settings', keywords: 'settings configuration config ustawienia konfiguracja', requiredPermission: 'settings:read' , module: 'settings' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.apiKeys', sub: 'appShell.palette.sub.apiKeys', icon: KeyRound, to: '/api-keys', keywords: 'api keys bearer token integration klucze api token integracja', requiredPermission: 'integrations:manage' , module: 'api_keys' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.webhooks', sub: 'appShell.palette.sub.webhooks', icon: Webhook, to: '/webhooks', keywords: 'webhook webhooks events signing secret integration webhooki zdarzenia integracja', requiredPermission: 'integrations:manage' , module: 'webhooks' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.credentials', sub: 'appShell.palette.sub.credentials', icon: KeyRound, to: '/credentials', keywords: 'credentials credential secrets provider llm smtp poświadczenia sekrety dostawca', requiredPermission: 'credentials:read' , module: 'credentials' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotions', sub: 'appShell.palette.sub.promotions', icon: PercentDiamond, to: '/promotions', keywords: 'promotion promotions discount coupon marketing promocje rabaty kupony', requiredPermission: 'promotions:read' , module: 'promotions' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.promotionRules', sub: 'appShell.palette.sub.promotionRules', icon: PercentDiamond, to: '/promotion-rules', keywords: 'promotion rules rule builder reguły promocji', requiredPermission: 'promotions:read' , module: 'promotions' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterSubscribers', sub: 'appShell.palette.sub.newsletterSubscribers', icon: Newspaper, to: '/newsletter/subscribers', keywords: 'newsletter subscribers marketing subskrybenci newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterCampaigns', sub: 'appShell.palette.sub.newsletterCampaigns', icon: Newspaper, to: '/newsletter/campaigns', keywords: 'newsletter campaigns email marketing kampanie newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.newsletterAutomations', sub: 'appShell.palette.sub.newsletterAutomations', icon: Newspaper, to: '/newsletter/automations', keywords: 'newsletter automations workflow automatyzacje newslettera', requiredPermission: 'newsletter:read' , module: 'newsletter' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.transactionalEmails', sub: 'appShell.palette.sub.transactionalEmails', icon: Inbox, to: '/transactional-emails', keywords: 'transactional emails notifications maile transakcyjne powiadomienia', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailBlocks', sub: 'appShell.palette.sub.emailBlocks', icon: Inbox, to: '/transactional-emails/blocks', keywords: 'email blocks fragments bloki maili', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.emailTemplates', sub: 'appShell.palette.sub.emailTemplates', icon: Inbox, to: '/transactional-emails/templates', keywords: 'email templates layout szablony maili', requiredPermission: 'transactional_emails:read' , module: 'transactional_emails' },
+  // The four `dictionaries`, `settings` and `credentials` rows left here in
+  // feature 091's Phase 4 batch 10. A hand-written palette row is a copy the
+  // server was never asked about — it went on advertising the screen after an
+  // operator withdrew the module — so each is a manifest **action** now, which
+  // is the surface the effective enabled-set filters. `settings` and
+  // `credentials` already declared theirs (`open-settings`, `open-credentials`,
+  // `new-credential`); `dictionaries` declares `open-dictionary` and
+  // `open-dictionary-audit` for the first time, with the destinations, codes
+  // and keywords these rows carried.
   // Feature 020 — the Actions group is now sourced from the module
   // registry via useAdminActions(); the previously-hardcoded "New
   // product" and "Import products" entries are declared by the
   // catalog and import_export module manifests respectively.
 ];
+
+
+/**
+ * `[...hostNav, ...registryNav]`, per section (feature 091, FR-010;
+ * `contracts/admin-registry.md` R11).
+ *
+ * Built once at module scope because the registry is a static import: a
+ * contribution set cannot change without a rebuild, and recomputing it per
+ * render would allocate a new array on every keystroke in the palette input.
+ *
+ * **A module's entries append to their section**, ordered among themselves by
+ * `weight` then module id. R11 describes the end state — the whole section
+ * weight-ordered — which needs a weight on all 97 host entries and is Story 3's
+ * to deliver as it drains them; inventing one per host entry now would be a
+ * hundred numbers nothing derives. The consequence is visible and worth
+ * stating: `/import-export` used to sit between Credentials and Settings in the
+ * System group and now sits at that group's end.
+ *
+ * **A module may not invent a section** (D-23): `AdminNavSectionNameSchema` is
+ * closed, and a contribution naming a section this shell does not declare
+ * renders nowhere — so the composition refuses it here rather than dropping it
+ * silently.
+ */
+function composeNav(sections: readonly NavSection[]): NavSection[] {
+  const declared = new Set(sections.map((section) => section.key));
+  for (const entry of MODULE_ADMIN_CONTRIBUTIONS) {
+    for (const item of entry.contributions.nav ?? []) {
+      if (declared.has(item.section)) continue;
+      throw new Error(
+        `Module '${entry.moduleId}' contributes a sidebar entry in section '${item.section}', ` +
+          `which this shell does not declare. An entry in a section nobody renders is a ` +
+          `surface that silently appears nowhere.`,
+      );
+    }
+  }
+  return sections.map((section) => ({
+    ...section,
+    items: [
+      ...section.items,
+      ...registryNavFor(section.key).map(
+        (item): NavItem => ({
+          to: item.to,
+          labelKey: item.labelKey,
+          labelScope: item.module,
+          icon: resolveIcon(item.icon),
+          // `exactOptionalPropertyTypes` — an ungated entry has no property,
+          // not a property holding `undefined`.
+          ...(item.requiredPermission === undefined
+            ? {}
+            : { requiredPermission: item.requiredPermission }),
+          module: item.module,
+        }),
+      ),
+    ],
+  }));
+}
+
+const COMPOSED_NAV: NavSection[] = composeNav(NAV);
+
+/**
+ * `t` for a nav entry's label, in whichever scope the entry declares.
+ *
+ * The host's entries resolve in `core` and a module's in its own namespace, and
+ * both go through the one translation context — a second resolver would be the
+ * drift issue #230 removed from the visibility question, in the label.
+ */
+function useNavLabel(): (item: NavItem) => string {
+  const { t } = useTranslationContext();
+  return useCallback(
+    (item: NavItem): string => t(item.labelScope ?? 'core', item.labelKey),
+    [t],
+  );
+}
 
 export function AppShell(): ReactNode {
   const { me, logout, hasPermission } = useAuth();
@@ -1180,6 +1087,10 @@ export function AppShell(): ReactNode {
     });
   }, []);
   const t = useTranslation('core');
+  const navLabel = useNavLabel();
+  // The raw, scope-taking resolver, for the breadcrumb: a crumb a module
+  // contributed resolves its label in that module's own namespace.
+  const { t: tScoped } = useTranslationContext();
 
   const fullName = me ? `${me.adminUser.firstName} ${me.adminUser.lastName}`.trim() : '';
   const role = me?.role?.name ?? 'Admin';
@@ -1260,8 +1171,15 @@ export function AppShell(): ReactNode {
           aria-label={t('appShell.brand.dashboardLink')}
           title={railMode ? t('appShell.brand.text') : undefined}
         >
-          <span className="b2b-sidebar__brand-logo">EC</span>
-          <span className="b2b-sidebar__brand-text">{t('appShell.brand.text')}</span>
+          <span className="b2b-sidebar__brand-logo">
+            <BrandLogo label={t('appShell.brand.text')} />
+          </span>
+          <span className="b2b-sidebar__brand-text">
+            {t('appShell.brand.textPrimary')}{' '}
+            <span className="b2b-sidebar__brand-text-accent">
+              {t('appShell.brand.textAccent')}
+            </span>
+          </span>
         </NavLink>
 
         <div className="b2b-sidebar__search">
@@ -1291,7 +1209,7 @@ export function AppShell(): ReactNode {
         </div>
 
         <nav className="b2b-sidebar__nav">
-          {NAV.map((section) => {
+          {COMPOSED_NAV.map((section) => {
             const isOpen = !collapsed.has(section.key);
             // Permission-gate every entry, then presence-gate it (feature 073 /
             // FR-031). Sections with no remaining visible items fold away
@@ -1308,7 +1226,7 @@ export function AppShell(): ReactNode {
             // Feature 019 / 021 — section labels go through useTranslation('core').
             // The empty-labelKey "main" cluster keeps no label; every other
             // group resolves its declared `labelKey`. Polish strings live
-            // in backend/src/modules/_i18n/i18n/pl.json under the same key.
+            // in packages/modules/_i18n/i18n/pl.json under the same key.
             const translatedLabel = section.labelKey ? t(section.labelKey) : '';
             // In rail mode the section reduces to one icon (the first
             // visible item's icon). Hover or click reveals a popover
@@ -1367,7 +1285,7 @@ export function AppShell(): ReactNode {
                         }
                       >
                         <Icon size={16} />
-                        <span style={{ flex: 1 }}>{t(item.labelKey)}</span>
+                        <span style={{ flex: 1 }}>{navLabel(item)}</span>
                       </NavLink>
                     );
                   })}
@@ -1459,11 +1377,11 @@ export function AppShell(): ReactNode {
                     className="crumb-link"
                     style={{ color: 'inherit', textDecoration: 'none' }}
                   >
-                    {c.labelKey !== undefined ? t(c.labelKey) : c.literal}
+                    {c.labelKey !== undefined ? tScoped(c.labelScope ?? 'core', c.labelKey) : c.literal}
                   </NavLink>
                 ) : (
                   <span className="crumb-cur">
-                    {c.labelKey !== undefined ? t(c.labelKey) : c.literal}
+                    {c.labelKey !== undefined ? tScoped(c.labelScope ?? 'core', c.labelKey) : c.literal}
                   </span>
                 )}
               </span>
@@ -1557,7 +1475,7 @@ interface RailSectionProps {
 
 function RailSection(props: RailSectionProps): ReactNode {
   const { section, visibleItems, translatedLabel } = props;
-  const t = useTranslation('core');
+  const navLabel = useNavLabel();
   const [hover, setHover] = useState(false);
   const [sticky, setSticky] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -1605,14 +1523,14 @@ function RailSection(props: RailSectionProps): ReactNode {
   const railSource = visibleItems[0] ?? section.items[0];
   if (!railSource) return null;
   const RailIcon = railSource.icon;
-  const headerLabel = translatedLabel || (visibleItems[0]?.labelKey ? t(visibleItems[0]!.labelKey) : '');
+  const headerLabel = translatedLabel || (visibleItems[0] ? navLabel(visibleItems[0]) : '');
 
   // Single-item section: render a plain link with no popover. The
   // hover area is the link itself; tooltip carries the label.
   if (visibleItems.length === 1) {
     const only = visibleItems[0]!;
     const Icon = only.icon;
-    const onlyLabel = t(only.labelKey);
+    const onlyLabel = navLabel(only);
     return (
       <div className="b2b-sidebar__rail-row">
         <NavLink
@@ -1682,7 +1600,7 @@ function RailSection(props: RailSectionProps): ReactNode {
                 }}
               >
                 <Icon size={14} />
-                <span>{t(item.labelKey)}</span>
+                <span>{navLabel(item)}</span>
               </NavLink>
             );
           })}

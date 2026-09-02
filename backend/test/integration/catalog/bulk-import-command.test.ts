@@ -5,10 +5,10 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CommandBus } from '../../../src/commands/index.js';
-import { CatalogBulkImportService } from '../../../src/modules/catalog/services/catalog-bulk-import.service.js';
+import { CatalogBulkImportService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-bulk-import.service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Category } from '../../helpers/package-entities.js';
+import { Product } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**

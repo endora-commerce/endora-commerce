@@ -21,11 +21,20 @@
  * `listAssignmentsForProducts` has answered "which categories are these products in?" since
  * D-87, and the three sites now ask it. What is left is the one reach in the shard that a
  * batch read cannot retire, because it is not a lookup at all.
+ *
+ * **Since feature 091's Phase 0 this shard also holds admin surface reaches**, keyed on a
+ * repository-relative path under the admin's module root. They were recorded before any admin
+ * directory moves into its module's package, because `module-package-layout.md` §0 measured that
+ * rewriting a ledgered relative import as a package specifier *deletes* the reach from the walk
+ * and makes the entry describing it read stale. What retires one is never the move and never a
+ * rewritten specifier: it is the owner publishing what this consumer needs — into
+ * `@endora-commerce/admin-kit` where the piece is generic, or as an admin contribution zone where
+ * it is the owner's own screen.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'modules/inventory/services/stock-level-service.ts:sql:catalog/products':
+  'packages/modules/inventory/src/backend/services/stock-level-service.ts:sql:catalog/products':
     'Issue #187 seed — the admin stock roster paginates with ' +
     '`knex({ p: \'products\' }).innerJoin({ sl: \'stock_levels\' }, …)`, joining `catalog`\'s ' +
     '`products` to this module\'s `stock_levels`. It is the one reach in this shard that is ' +

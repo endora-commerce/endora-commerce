@@ -47,6 +47,7 @@
   "feeds.create.language": "Język",
   "feeds.create.derived": "Ceny będą pochodzić z rozwiązania cen kanału, pokazane brutto, bez harmonogramu. Wszystko to można zmienić po utworzeniu feedu.",
   "feeds.create.submit": "Utwórz feed",
+  "feeds.create.channelLoadFailed": "Nie udało się wczytać języków i waluty kanału sprzedaży, więc lista języków poniżej jest pusta. Spróbuj ponownie.",
   "feeds.tab.overview": "Przegląd",
   "feeds.tab.runs": "Generowania",
   "feeds.tab.settings": "Ustawienia",
@@ -616,5 +617,6 @@
   "delivery.reason.artefact_unavailable": "Nie udało się odczytać wygenerowanego pliku.",
   "delivery.reason.internal_error": "Coś poszło nie tak po stronie tej platformy.",
   "delivery.lastAttempt.succeeded": "Ostatnio dostarczono {when}",
-  "delivery.lastAttempt.failed": "Ostatnie dostarczenie nie powiodło się {when}"
+  "delivery.lastAttempt.failed": "Ostatnie dostarczenie nie powiodło się {when}",
+  "nav.productFeeds.label": "Feedy produktowe"
 }

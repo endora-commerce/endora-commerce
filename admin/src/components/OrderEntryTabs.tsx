@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { RouteTabs } from '@/components/ui/route-tabs';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useModulePresence } from '@/lib/module-presence';
+import { RouteTabs } from './ui/route-tabs.js';
+import { useTranslation } from '../i18n/useTranslation.js';
+import { useModulePresence } from '../lib/module-presence/index.js';
 
 /**
  * The switch between the two ways of entering an order.

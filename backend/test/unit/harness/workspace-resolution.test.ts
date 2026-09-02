@@ -9,18 +9,30 @@
  * leave the part that actually goes wrong (which link is read, and where it
  * lands) untested.
  *
- * The last two tests are about this repository rather than a fixture: one keeps
+ * The last tests are about this repository rather than a fixture: one keeps
  * the `tsconfig.base.json` `paths` block complete, which is what makes `tsc`
  * resolve `@endora-commerce/*` inside the checkout it is run from, and one asserts that the
  * checkout running the suite is itself correctly wired.
+ *
+ * The final `describe` asks a different question, and it is the one nothing
+ * asked until 2026-08-28: **which runs consult the guard at all?** The guard's
+ * own population is complete — it classifies every declared consumer→package
+ * link in the checkout, 234 of them today, whichever workspace invoked it — but
+ * it is evaluated only when `vitest.config.base.ts` is imported, so a workspace
+ * that runs vitest without a configuration merging the base never asks. Five
+ * packages sat there for as long as they had existed, green and unexamined,
+ * while AGENTS.md correctly said the guard "covers `backend`, `admin` and
+ * `storefront` in one place". That sentence was true; being true is not the
+ * same as being complete, and a list is what let the difference go unnoticed.
  */
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   nodeWorkspaceFs,
   workspaceMembers,
+  type WorkspaceMember,
 } from '../../../scripts/lib/workspace-packages.js';
 import { platformSourceRootOf } from '../../../scripts/lib/platform-root.js';
 import {
@@ -515,10 +527,31 @@ describe('this checkout', () => {
       const member = members.find((m) => m.name === name);
       return member !== undefined && platformDir !== null && platformDir.startsWith(member.dir);
     };
-    /** A member the running platform composes: the host, or a module package. */
+    /**
+     * A member the running platform **composes**: the host, or a module package.
+     *
+     * The predicate is the `endora` block's `type`, and it used to be the block's
+     * mere presence — true while `'platform'` and `'module'` were the only two
+     * values, and false the day feature 091's P5c gave `@endora-commerce/admin-kit`
+     * an `endora: { type: 'admin-ui' }` block so that two instruments could find
+     * every package of admin UI by declaration instead of by name. That is a
+     * third value and it is not a composed member: an admin-ui package is
+     * resolved by `admin` as a library, exactly as the kit was before it carried
+     * the block, so it keeps its `paths` entries and this test went red on
+     * `master` for asserting the opposite.
+     *
+     * What the refusal is actually about is unchanged: `paths` is honoured by
+     * `tsc` and `tsx` and not by `vitest` or `node`, so an entry for something
+     * the platform composes would make one process resolve its source and
+     * another its `dist`. Nothing composes an admin-ui package, and both
+     * frontends resolve it through its own `exports` map in every process.
+     */
     const isComposed = (name: string): boolean => {
       const member = members.find((m) => m.name === name);
-      return member !== undefined && member.manifest['endora'] !== undefined;
+      const endora = member?.manifest['endora'];
+      if (typeof endora !== 'object' || endora === null || Array.isArray(endora)) return false;
+      const type = (endora as Record<string, unknown>)['type'];
+      return type === 'platform' || type === 'module';
     };
 
     const unmapped = report.packages.filter(
@@ -539,5 +572,189 @@ describe('this checkout', () => {
     expect(report.packages.filter(isComposed).length).toBeGreaterThan(1);
     expect(unmapped).toEqual([]);
     expect(wronglyMapped).toEqual([]);
+  });
+});
+
+/**
+ * A workspace member's vitest configuration files: filename → source text.
+ *
+ * Injected so the two findings below enter at the **top** of the analysis
+ * (issue #130). "This member has no vitest configuration" and "this
+ * configuration does not import the base" are both file-level facts, and a
+ * fixture handing in a pre-classified verdict would leave the reading — which
+ * is the half that goes wrong — unrun.
+ *
+ * An unreadable configuration is recorded with empty text rather than skipped,
+ * so it fails as unmerged: a file the reader cannot open is a file whose
+ * imports nobody has seen.
+ */
+export type VitestConfigReader = (memberDir: string) => ReadonlyMap<string, string>;
+
+/** The real filesystem behind {@link VitestConfigReader}. Absence is an empty map, never a throw. */
+export function nodeVitestConfigReader(): VitestConfigReader {
+  return (memberDir: string): ReadonlyMap<string, string> => {
+    const found = new Map<string, string>();
+    let entries: readonly string[];
+    try {
+      entries = readdirSync(memberDir);
+    } catch {
+      return found;
+    }
+    for (const entry of entries) {
+      if (!/^vitest[\w.-]*\.config\.(?:[cm])?[jt]s$/.test(entry)) continue;
+      try {
+        found.set(entry, readFileSync(join(memberDir, entry), 'utf8'));
+      } catch {
+        found.set(entry, '');
+      }
+    }
+    return found;
+  };
+}
+
+/**
+ * Does this script invoke vitest?
+ *
+ * A word test over the script text: `vitest run`, `pnpm exec vitest run --config …`,
+ * `NODE_OPTIONS=… vitest`. It is deliberately over-approximating — `echo vitest` would match
+ * — because the two answers are not symmetrical. A false positive costs one configuration
+ * file nobody needed; a false negative is a workspace that runs vitest and is reported as not
+ * running it, which is this whole file's failure shape.
+ */
+function invokesVitest(script: string): boolean {
+  return /(^|[\s;&|])vitest(\s|$)/.test(script);
+}
+
+/**
+ * Every workspace member whose vitest runs would not evaluate the #255 guard.
+ *
+ * Two findings, because the tree has produced both:
+ *
+ *   * **`no-configuration`** — a member with a script that invokes vitest and no
+ *     `vitest*.config.*` file at all. vitest then runs on its own defaults,
+ *     imports nothing of ours, and the run is outside the guard with nothing in
+ *     its output to say so. `contracts`, `api-client`, `cms-components` and
+ *     `email-components` were all this, and the absence of a file is precisely
+ *     what made it invisible in review.
+ *   * **`unmerged-configuration`** — a configuration that exists and does not
+ *     name the base. Worse than the first, because the file is there:
+ *     `page-builder-core` shipped one for as long as it had tests.
+ *
+ * The predicate is the **import**, not `mergeConfig`. The refusal is a
+ * module-level call in `vitest.config.base.ts`, so importing it is what
+ * evaluates it; a configuration that imported the base and merged nothing would
+ * still be guarded, and one that merges a base it does not import cannot exist.
+ */
+export function runsOutsideTheGuard(
+  members: readonly WorkspaceMember[],
+  read: VitestConfigReader,
+): readonly string[] {
+  const findings: string[] = [];
+  for (const member of members) {
+    const scripts = (member.manifest['scripts'] ?? {}) as Readonly<Record<string, string>>;
+    const configs = read(member.dir);
+    for (const [file, source] of configs) {
+      if (!source.includes('vitest.config.base')) {
+        findings.push(`unmerged-configuration ${member.name} ${file}`);
+      }
+    }
+    if (configs.size > 0) continue;
+    const runner = Object.entries(scripts).find(([, script]) => invokesVitest(script));
+    if (runner !== undefined) {
+      findings.push(`no-configuration ${member.name} (script \`${runner[0]}\`)`);
+    }
+  }
+  return findings.sort();
+}
+
+describe('which runs consult the guard', () => {
+  /** A member list with the manifest fields this predicate reads, and nothing else. */
+  const member = (name: string, scripts: Readonly<Record<string, string>>): WorkspaceMember => ({
+    dir: `/repo/${name}`,
+    name,
+    manifest: { name, scripts },
+  });
+
+  it('reports a member that runs vitest with no configuration at all', () => {
+    // The four packages measured on 2026-08-28. The fixture enters at the
+    // reader: a member directory holding no vitest configuration, which is the
+    // fact the finding is about.
+    const findings = runsOutsideTheGuard(
+      [member('@endora-commerce/contracts', { test: 'vitest run' })],
+      () => new Map(),
+    );
+
+    expect(findings).toEqual(['no-configuration @endora-commerce/contracts (script `test`)']);
+  });
+
+  it('reports a configuration that exists and does not import the base', () => {
+    // `page-builder-core`, which is the shape a reader cannot spot: the file is
+    // there, the run is green, and the guard was never loaded.
+    const findings = runsOutsideTheGuard(
+      [member('@endora-commerce/page-builder-core', { test: 'vitest run' })],
+      () =>
+        new Map([
+          ['vitest.config.ts', "import { defineConfig } from 'vitest/config';\nexport default defineConfig({});\n"],
+        ]),
+    );
+
+    expect(findings).toEqual([
+      'unmerged-configuration @endora-commerce/page-builder-core vitest.config.ts',
+    ]);
+  });
+
+  it('accepts a configuration that imports the base, and is silent about a member that runs no vitest', () => {
+    // Both directions in one, so a predicate that simply reported everything
+    // would fail here: `docs` runs an `echo` naming no runner and is not a
+    // finding, and a merged configuration is not one either.
+    const findings = runsOutsideTheGuard(
+      [
+        member('@endora-commerce/contracts', { test: 'vitest run' }),
+        member('docs', { test: "echo 'docs site has no tests'" }),
+      ],
+      (dir) =>
+        dir.endsWith('contracts')
+          ? new Map([['vitest.config.ts', "import baseConfig from '../../vitest.config.base.js';"]])
+          : new Map(),
+    );
+
+    expect(findings).toEqual([]);
+  });
+
+  it('reads an unreadable configuration as unmerged rather than skipping it', () => {
+    // A file the reader could not open has imports nobody has seen. Failing
+    // closed is the only answer that cannot become a silent pass.
+    const findings = runsOutsideTheGuard(
+      [member('@endora-commerce/contracts', { test: 'vitest run' })],
+      () => new Map([['vitest.config.ts', '']]),
+    );
+
+    expect(findings).toEqual(['unmerged-configuration @endora-commerce/contracts vitest.config.ts']);
+  });
+
+  it('every workspace that runs vitest in this checkout evaluates the guard', () => {
+    // The derivation AGENTS.md now states instead of naming three workspaces:
+    // coverage is every workspace whose vitest configuration imports
+    // `vitest.config.base.ts`, and a run says so itself by printing the
+    // `[workspace-resolution] read:` line. This is that sentence, enforced —
+    // so the next package added to `packages/` is either covered or red here,
+    // rather than quietly outside a list that used to be complete.
+    const root = findCheckoutRoot(process.cwd());
+    const members = workspaceMembers(root!, nodeWorkspaceFs());
+    const read = nodeVitestConfigReader();
+
+    // Floors, one per input whose silence would make this vacuous: members at
+    // all, members that run vitest, and configuration files actually read.
+    const runners = members.filter((m) =>
+      Object.values((m.manifest['scripts'] ?? {}) as Readonly<Record<string, string>>).some(
+        invokesVitest,
+      ),
+    );
+    const configured = members.filter((m) => read(m.dir).size > 0);
+    expect(members.length).toBeGreaterThan(0);
+    expect(runners.length).toBeGreaterThan(0);
+    expect(configured.length).toBeGreaterThan(0);
+
+    expect(runsOutsideTheGuard(members, read)).toEqual([]);
   });
 });

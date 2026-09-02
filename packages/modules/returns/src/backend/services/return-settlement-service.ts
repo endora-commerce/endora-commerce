@@ -1,7 +1,14 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import type { SettlementPrefill, SettlementRequest, SettlementResult } from '@endora-commerce/contracts';
+import type {
+  CorrectiveInvoicePort,
+  CreditTopupPort,
+  PaymentRefundPort,
+  SettlementPrefill,
+  SettlementRequest,
+  SettlementResult,
+} from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -12,9 +19,6 @@ import { RETURN_STATUS_RESOLVED } from '../domain/return-status-graph.js';
 import { exceedsCap, sumApproved } from '../domain/refund-math.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
-import type { PaymentRefundPort } from '../ports/payment-refund.port.js';
-import type { CorrectiveInvoicePort } from '../ports/corrective-invoice.port.js';
-import type { CreditTopupPort } from '../ports/credit-topup.port.js';
 
 export interface ReturnSettlementServiceDeps {
   emFactory: () => EntityManager;

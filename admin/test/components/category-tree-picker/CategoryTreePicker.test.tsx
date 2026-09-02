@@ -22,7 +22,9 @@ const CATEGORIES: CategoryTreePickerCategory[] = [
   },
 ];
 
-const BUNDLE = passthroughBundle('catalog', [
+// `core`, not `catalog` — feature 091 R-1: a translation namespace is module
+// knowledge and `@endora-commerce/admin-kit` holds none.
+const BUNDLE = passthroughBundle('core', [
   'categoryTreePicker.loading',
   'categoryTreePicker.filter.placeholder',
   'categoryTreePicker.empty.noCategories',

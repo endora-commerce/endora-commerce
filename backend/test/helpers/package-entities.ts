@@ -6,6 +6,7 @@ import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delive
 import { entities as mfaEntities } from '@endora-commerce/mod-mfa/backend';
 import { entities as newsletterEntities } from '@endora-commerce/mod-newsletter/backend';
 import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
+import { entities as pwaEntities } from '@endora-commerce/mod-pwa/backend';
 import { entities as returnsEntities } from '@endora-commerce/mod-returns/backend';
 import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping-lists/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
@@ -16,10 +17,12 @@ import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-li
 import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
+import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
 import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/backend';
+import { entities as inpostEntities } from '@endora-commerce/mod-inpost/backend';
 import { entities as comparisonsEntities } from '@endora-commerce/mod-comparisons/backend';
 import { entities as credentialsEntities } from '@endora-commerce/mod-credentials/backend';
 import { entities as dictionariesEntities } from '@endora-commerce/mod-dictionaries/backend';
@@ -30,11 +33,32 @@ import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-l
 import { entities as cartsEntities } from '@endora-commerce/mod-carts/backend';
 import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
 import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
+import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
+import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
+import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
+import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
+import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
+import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend';
+import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
+import type { Session as SessionRow } from '../../../packages/modules/auth/src/backend/entities/session.entity.js';
+import type { AttributeSet as AttributeSetRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set.entity.js';
+import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set-attribute.entity.js';
+import type { BulkOperation as BulkOperationRow } from '../../../packages/modules/catalog/src/backend/entities/bulk-operation.entity.js';
+import type { Category as CategoryRow } from '../../../packages/modules/catalog/src/backend/entities/category.entity.js';
+import type { GalleryItem as GalleryItemRow } from '../../../packages/modules/catalog/src/backend/entities/gallery-item.entity.js';
+import type { GalleryItemLabel as GalleryItemLabelRow } from '../../../packages/modules/catalog/src/backend/entities/gallery-item-label.entity.js';
+import type { GroupedItem as GroupedItemRow } from '../../../packages/modules/catalog/src/backend/entities/grouped-item.entity.js';
+import type { Product as ProductRow } from '../../../packages/modules/catalog/src/backend/entities/product.entity.js';
+import type { ProductAttachment as ProductAttachmentRow } from '../../../packages/modules/catalog/src/backend/entities/product-attachment.entity.js';
+import type { ProductAttribute as ProductAttributeRow } from '../../../packages/modules/catalog/src/backend/entities/product-attribute.entity.js';
+import type { ProductLink as ProductLinkRow } from '../../../packages/modules/catalog/src/backend/entities/product-link.entity.js';
+import type { ProductValueOverride as ProductValueOverrideRow } from '../../../packages/modules/catalog/src/backend/entities/product-value-override.entity.js';
+import type { ProductVariant as ProductVariantRow } from '../../../packages/modules/catalog/src/backend/entities/product-variant.entity.js';
 import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
 import type { AnalyticsEvent as AnalyticsEventRow } from '../../../packages/modules/analytics/src/backend/entities/analytics-event.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/src/backend/entities/credit-limit.entity.js';
@@ -42,11 +66,14 @@ import type { CreditLimitReservation as CreditLimitReservationRow } from '../../
 import type { Currency as CurrencyRow } from '../../../packages/modules/currencies/src/backend/entities/currency.entity.js';
 import type { GaCustomEvent as GaCustomEventRow } from '../../../packages/modules/google_analytics/src/backend/entities/ga-custom-event.entity.js';
 import type { Language as LanguageRow } from '../../../packages/modules/languages/src/backend/entities/language.entity.js';
+import type { TranslationBundle as TranslationBundleRow } from '../../../packages/modules/_i18n/src/backend/entities/translation-bundle.entity.js';
 import type { PaymentMethod as PaymentMethodRow } from '../../../packages/modules/payment_methods/src/backend/entities/payment-method.entity.js';
 import type { Promotion as PromotionRow } from '../../../packages/modules/promotions/src/backend/entities/promotion.entity.js';
 import type { QuoteRequest as QuoteRequestRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request.entity.js';
 import type { QuoteRequestItem as QuoteRequestItemRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-item.entity.js';
 import type { QuoteRequestRevision as QuoteRequestRevisionRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-revision.entity.js';
+import type { InpostWebhookEvent as InpostWebhookEventRow } from '../../../packages/modules/inpost/src/backend/entities/inpost-webhook-event.entity.js';
+import type { InpostShipmentLink as InpostShipmentLinkRow } from '../../../packages/modules/inpost/src/backend/entities/inpost-shipment-link.entity.js';
 import type { Shipment as ShipmentRow } from '../../../packages/modules/shipments/src/backend/entities/shipment.entity.js';
 import type { AdminNotification as AdminNotificationRow } from '../../../packages/modules/admin_notifications/src/backend/entities/admin-notification.entity.js';
 import type { ApiKey as ApiKeyRow } from '../../../packages/modules/api_keys/src/backend/entities/api-key.entity.js';
@@ -78,6 +105,7 @@ import type { TransactionalEmailContent as TransactionalEmailContentRow } from '
 import type { Webhook as WebhookRow } from '../../../packages/modules/webhooks/src/backend/entities/webhook.entity.js';
 import type { WebhookDelivery as WebhookDeliveryRow } from '../../../packages/modules/webhooks/src/backend/entities/webhook-delivery.entity.js';
 import type { Comparison as ComparisonRow } from '../../../packages/modules/comparisons/src/backend/entities/comparison.entity.js';
+import type { PushSubscription as PushSubscriptionRow } from '../../../packages/modules/pwa/src/backend/entities/push-subscription.entity.js';
 import type { ComparisonProduct as ComparisonProductRow } from '../../../packages/modules/comparisons/src/backend/entities/comparison-product.entity.js';
 import type { CredentialConfiguration as CredentialConfigurationRow } from '../../../packages/modules/credentials/src/backend/entities/credential-configuration.entity.js';
 import type { Country as CountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/country.entity.js';
@@ -95,6 +123,16 @@ import type { CartAuditEntry as CartAuditEntryRow } from '../../../packages/modu
 import type { CustomFieldDefinition as CustomFieldDefinitionRow } from '../../../packages/modules/custom_fields/src/backend/entities/custom-field-definition.entity.js';
 import type { CustomFieldOption as CustomFieldOptionRow } from '../../../packages/modules/custom_fields/src/backend/entities/custom-field-option.entity.js';
 import type { CustomerAddress as CustomerAddressRow } from '../../../packages/modules/customers/src/backend/entities/customer-address.entity.js';
+import type { CustomerAccount as CustomerAccountRow } from '../../../packages/modules/customer_accounts/src/backend/entities/customer-account.entity.js';
+import type { CustomerGroup as CustomerGroupRow } from '../../../packages/modules/customer_accounts/src/backend/entities/customer-group.entity.js';
+import type { PasswordResetToken as PasswordResetTokenRow } from '../../../packages/modules/customer_accounts/src/backend/entities/password-reset-token.entity.js';
+import type { AvailabilityNotification as AvailabilityNotificationRow } from '../../../packages/modules/inventory/src/backend/entities/availability-notification.entity.js';
+import type { InventoryThreshold as InventoryThresholdRow } from '../../../packages/modules/inventory/src/backend/entities/inventory-threshold.entity.js';
+import type { ProductWarehouseLowStockThreshold as ProductWarehouseLowStockThresholdRow } from '../../../packages/modules/inventory/src/backend/entities/product-warehouse-low-stock-threshold.entity.js';
+import type { StockAllocation as StockAllocationRow } from '../../../packages/modules/inventory/src/backend/entities/stock-allocation.entity.js';
+import type { StockLevel as StockLevelRow } from '../../../packages/modules/inventory/src/backend/entities/stock-level.entity.js';
+import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/src/backend/entities/warehouse-channel-assignment.entity.js';
+import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/src/backend/entities/warehouse.entity.js';
 import type { ErgonodeAttributeMapping as ErgonodeAttributeMappingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-attribute-mapping.entity.js';
 import type { ErgonodeCategoryMapping as ErgonodeCategoryMappingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-category-mapping.entity.js';
 import type { ErgonodeConnection as ErgonodeConnectionRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-connection.entity.js';
@@ -115,6 +153,14 @@ import type { UnopimAssociationTypeMapping as UnopimAssociationTypeMappingRow } 
 import type { UnopimImportIssue as UnopimImportIssueRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-import-issue.entity.js';
 import type { UnopimMediaLink as UnopimMediaLinkRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-media-link.entity.js';
 import type { UnopimPriceBinding as UnopimPriceBindingRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-price-binding.entity.js';
+import type { PimcoreCatalogueDelivery as PimcoreCatalogueDeliveryRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-catalogue-delivery.entity.js';
+import type { PimcoreConnection as PimcoreConnectionRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-connection.entity.js';
+import type { PimcoreDeliveredRecord as PimcoreDeliveredRecordRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-delivered-record.entity.js';
+import type { PimcoreFieldProtection as PimcoreFieldProtectionRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-field-protection.entity.js';
+import type { PimcoreImportIssue as PimcoreImportIssueRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-import-issue.entity.js';
+import type { PimcoreImportRun as PimcoreImportRunRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-import-run.entity.js';
+import type { PimcoreMediaLink as PimcoreMediaLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-media-link.entity.js';
+import type { PimcoreSourceLink as PimcoreSourceLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-source-link.entity.js';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
 import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
@@ -132,6 +178,30 @@ import type { FeedTaxonomyNode as FeedTaxonomyNodeRow } from '../../../packages/
 import type { FeedTemplate as FeedTemplateRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-template.entity.js';
 import type { FeedTemplateField as FeedTemplateFieldRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-template-field.entity.js';
 import type { ProductFeed as ProductFeedRow } from '../../../packages/modules/product_feeds/src/backend/entities/product-feed.entity.js';
+import { entities as adminActionsEntities } from '@endora-commerce/mod-admin-actions/backend';
+import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
+import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
+import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/backend';
+import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
+import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
+import type { ModuleAction as ModuleActionRow } from '../../../packages/modules/admin_actions/src/backend/entities/module-action.entity.js';
+import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/src/backend/entities/admin-role.entity.js';
+import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/src/backend/entities/admin-user.entity.js';
+import type { Megamenu as MegamenuRow } from '../../../packages/modules/megamenu/src/backend/entities/megamenu.entity.js';
+import type { MegamenuItem as MegamenuItemRow } from '../../../packages/modules/megamenu/src/backend/entities/megamenu-item.entity.js';
+import type { MegamenuBinding as MegamenuBindingRow } from '../../../packages/modules/megamenu/src/backend/entities/megamenu-binding.entity.js';
+import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/src/backend/entities/organization.entity.js';
+import type { OrganizationSalesRepAssignment as OrganizationSalesRepAssignmentRow } from '../../../packages/modules/organizations/src/backend/entities/organization-sales-rep-assignment.entity.js';
+import type { PriceList as PriceListRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list.entity.js';
+import type { PriceListProduct as PriceListProductRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-product.entity.js';
+import type { PriceListPriceBracket as PriceListPriceBracketRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-price-bracket.entity.js';
+import type { PriceDisplayModeOverride as PriceDisplayModeOverrideRow } from '../../../packages/modules/price_lists/src/backend/entities/price-display-mode-override.entity.js';
+import type { Order as OrderRow } from '../../../packages/modules/orders/src/backend/entities/order.entity.js';
+import type { OrderItem as OrderItemRow } from '../../../packages/modules/orders/src/backend/entities/order-item.entity.js';
+import type { OrderComment as OrderCommentRow } from '../../../packages/modules/orders/src/backend/entities/order-comment.entity.js';
+import type { OrderAppliedPromotion as OrderAppliedPromotionRow } from '../../../packages/modules/orders/src/backend/entities/order-applied-promotion.entity.js';
+import type { OrderPlacementIntent as OrderPlacementIntentRow } from '../../../packages/modules/orders/src/backend/entities/order-placement-intent.entity.js';
+import type { Payment as PaymentRow } from '../../../packages/modules/payments/src/backend/entities/payment.entity.js';
 
 /**
  * How a test names a **module package's** entity class (D-168).
@@ -200,15 +270,107 @@ export const Promotion = classNamed<PromotionRow>(promotionsEntities, 'Promotion
 
 export const Address = classNamed<AddressRow>(addressesEntities, 'Address');
 
+/**
+ * `orders`' entity classes, taken off the package's own `entities` array.
+ *
+ * **`Order` is the one entity in this file where a second copy is not the
+ * silent-empty failure D-160.6.1 describes.** It is a `@TransitivelyScoped`
+ * chain parent — `invoices`' `Invoice` names it **by class name** — so two
+ * `Order` classes in one process raise `UnresolvableTenantParentError` at ORM
+ * init, inside `setupBackendServer`, which fails every file in the fork and
+ * attributes the failure to whichever file happened to boot first. That is why
+ * the fifty-two tests that used to name `order.entity.ts` by path come through
+ * here instead.
+ */
+export const Order = classNamed<OrderRow>(ordersEntities, 'Order');
+
+export const Payment = classNamed<PaymentRow>(paymentsEntities, 'Payment');
+
+export const OrderItem = classNamed<OrderItemRow>(ordersEntities, 'OrderItem');
+
+export const OrderComment = classNamed<OrderCommentRow>(ordersEntities, 'OrderComment');
+
+export const OrderAppliedPromotion = classNamed<OrderAppliedPromotionRow>(
+  ordersEntities,
+  'OrderAppliedPromotion',
+);
+
+export const OrderPlacementIntent = classNamed<OrderPlacementIntentRow>(
+  ordersEntities,
+  'OrderPlacementIntent',
+);
+
+
 export const Currency = classNamed<CurrencyRow>(currenciesEntities, 'Currency');
 
 export const Language = classNamed<LanguageRow>(languagesEntities, 'Language');
 
+/**
+ * `_i18n`'s one entity — the table every module's translation bundles land in.
+ *
+ * Six live-ORM files persist or query a row of it while asserting on a
+ * translated sentence, and each of them reached the entity relatively before
+ * the module became a package. `check:singleton-identity` is what refuses that
+ * spelling now, and D-160.6.1 is why: the ORM registered whichever class the
+ * package's `entities` array carries, so a second copy read out of `src` is a
+ * class it never discovered.
+ */
+export const TranslationBundle = classNamed<TranslationBundleRow>(
+  i18nEntities,
+  'TranslationBundle',
+);
+
 export const AnalyticsEvent = classNamed<AnalyticsEventRow>(analyticsEntities, 'AnalyticsEvent');
 
 export const Shipment = classNamed<ShipmentRow>(shipmentsEntities, 'Shipment');
+export const InpostWebhookEvent = classNamed<InpostWebhookEventRow>(
+  inpostEntities,
+  'InpostWebhookEvent',
+);
+export const InpostShipmentLink = classNamed<InpostShipmentLinkRow>(
+  inpostEntities,
+  'InpostShipmentLink',
+);
 
 export const PaymentMethod = classNamed<PaymentMethodRow>(paymentMethodsEntities, 'PaymentMethod');
+
+export const Session = classNamed<SessionRow>(authEntities, 'Session');
+
+/**
+ * `catalog` — twelve of the module's eighteen entity classes, the ones this
+ * repository's tests construct or query. `Product` alone is named by 99 test
+ * imports and `Category` by 35, which is what makes the single-copy property
+ * above load-bearing here rather than theoretical: a relative reach into the
+ * package's source would hand `em.find` a class the ORM never registered.
+ */
+export const AttributeSet = classNamed<AttributeSetRow>(catalogEntities, 'AttributeSet');
+export const AttributeSetAttribute = classNamed<AttributeSetAttributeRow>(
+  catalogEntities,
+  'AttributeSetAttribute',
+);
+export const BulkOperation = classNamed<BulkOperationRow>(catalogEntities, 'BulkOperation');
+export const Category = classNamed<CategoryRow>(catalogEntities, 'Category');
+export const GalleryItem = classNamed<GalleryItemRow>(catalogEntities, 'GalleryItem');
+export const GalleryItemLabel = classNamed<GalleryItemLabelRow>(
+  catalogEntities,
+  'GalleryItemLabel',
+);
+export const GroupedItem = classNamed<GroupedItemRow>(catalogEntities, 'GroupedItem');
+export const Product = classNamed<ProductRow>(catalogEntities, 'Product');
+export const ProductAttachment = classNamed<ProductAttachmentRow>(
+  catalogEntities,
+  'ProductAttachment',
+);
+export const ProductAttribute = classNamed<ProductAttributeRow>(
+  catalogEntities,
+  'ProductAttribute',
+);
+export const ProductLink = classNamed<ProductLinkRow>(catalogEntities, 'ProductLink');
+export const ProductValueOverride = classNamed<ProductValueOverrideRow>(
+  catalogEntities,
+  'ProductValueOverride',
+);
+export const ProductVariant = classNamed<ProductVariantRow>(catalogEntities, 'ProductVariant');
 
 /**
  * The **row shape**, for a test that annotates a variable with it.
@@ -232,6 +394,22 @@ export const PaymentMethod = classNamed<PaymentMethodRow>(paymentMethodsEntities
  * to disagree with.
  */
 export type { PaymentMethodRow };
+
+/**
+ * `catalog`'s row shapes, for the same reason and on the same terms.
+ *
+ * Twenty-eight test files annotate a variable, a parameter or a helper's return
+ * with one of these while also handing the class to a live `EntityManager`, so
+ * both halves are needed and the type half arrives under its own name. `export
+ * type` erases; nothing here is a second copy of anything.
+ */
+export type {
+  BulkOperationRow,
+  CategoryRow,
+  ProductRow,
+  ProductAttributeRow,
+  ProductVariantRow,
+};
 
 /**
  * Batch two (feature 080, T040b). Twenty-nine classes across thirteen packages, each
@@ -329,6 +507,10 @@ export const WebhookDelivery = classNamed<WebhookDeliveryRow>(webhooksEntities, 
  * different object on purpose, and one no ORM ever sees.
  */
 export const Comparison = classNamed<ComparisonRow>(comparisonsEntities, 'Comparison');
+export const PushSubscription = classNamed<PushSubscriptionRow>(
+  pwaEntities,
+  'PushSubscription',
+);
 export const ComparisonProduct = classNamed<ComparisonProductRow>(
   comparisonsEntities,
   'ComparisonProduct',
@@ -427,6 +609,43 @@ export const CustomFieldOption = classNamed<CustomFieldOptionRow>(
   'CustomFieldOption',
 );
 export const CustomerAddress = classNamed<CustomerAddressRow>(customersEntities, 'CustomerAddress');
+export const CustomerAccount = classNamed<CustomerAccountRow>(
+  customerAccountsEntities,
+  'CustomerAccount',
+);
+export const CustomerGroup = classNamed<CustomerGroupRow>(customerAccountsEntities, 'CustomerGroup');
+export const PasswordResetToken = classNamed<PasswordResetTokenRow>(
+  customerAccountsEntities,
+  'PasswordResetToken',
+);
+export const AvailabilityNotification = classNamed<AvailabilityNotificationRow>(
+  inventoryEntities,
+  'AvailabilityNotification',
+);
+export const InventoryThreshold = classNamed<InventoryThresholdRow>(
+  inventoryEntities,
+  'InventoryThreshold',
+);
+export const ProductWarehouseLowStockThreshold = classNamed<ProductWarehouseLowStockThresholdRow>(
+  inventoryEntities,
+  'ProductWarehouseLowStockThreshold',
+);
+export const StockAllocation = classNamed<StockAllocationRow>(
+  inventoryEntities,
+  'StockAllocation',
+);
+export const StockLevel = classNamed<StockLevelRow>(
+  inventoryEntities,
+  'StockLevel',
+);
+export const WarehouseChannelAssignment = classNamed<WarehouseChannelAssignmentRow>(
+  inventoryEntities,
+  'WarehouseChannelAssignment',
+);
+export const Warehouse = classNamed<WarehouseRow>(
+  inventoryEntities,
+  'Warehouse',
+);
 export const EmailDelivery = classNamed<EmailDeliveryRow>(emailEntities, 'EmailDelivery');
 export const Invoice = classNamed<InvoiceRow>(invoicesEntities, 'Invoice');
 export const InvoiceLine = classNamed<InvoiceLineRow>(invoicesEntities, 'InvoiceLine');
@@ -524,6 +743,39 @@ export const UnopimPriceBinding = classNamed<UnopimPriceBindingRow>(
   'UnopimPriceBinding',
 );
 
+export const PimcoreCatalogueDelivery = classNamed<PimcoreCatalogueDeliveryRow>(
+  pimPimcoreEntities,
+  'PimcoreCatalogueDelivery',
+);
+export const PimcoreConnection = classNamed<PimcoreConnectionRow>(
+  pimPimcoreEntities,
+  'PimcoreConnection',
+);
+export const PimcoreDeliveredRecord = classNamed<PimcoreDeliveredRecordRow>(
+  pimPimcoreEntities,
+  'PimcoreDeliveredRecord',
+);
+export const PimcoreFieldProtection = classNamed<PimcoreFieldProtectionRow>(
+  pimPimcoreEntities,
+  'PimcoreFieldProtection',
+);
+export const PimcoreImportIssue = classNamed<PimcoreImportIssueRow>(
+  pimPimcoreEntities,
+  'PimcoreImportIssue',
+);
+export const PimcoreImportRun = classNamed<PimcoreImportRunRow>(
+  pimPimcoreEntities,
+  'PimcoreImportRun',
+);
+export const PimcoreMediaLink = classNamed<PimcoreMediaLinkRow>(
+  pimPimcoreEntities,
+  'PimcoreMediaLink',
+);
+export const PimcoreSourceLink = classNamed<PimcoreSourceLinkRow>(
+  pimPimcoreEntities,
+  'PimcoreSourceLink',
+);
+
 /**
  * The **row shapes** batch four's tests annotate with, on the same terms as
  * `PaymentMethodRow` above: `classNamed` returns a value, so a test that writes
@@ -598,3 +850,88 @@ export type {
   FeedArtefactRow,
   FeedDeliveryAttemptRow,
 };
+
+
+/**
+ * Batch five's six modules (feature 080, T040b).
+ *
+ * Same terms as every block above: the runtime class comes off the package's
+ * published `entities` array **by name** — the one array the ORM registered, so
+ * one copy (D-160.6.1) — and the row type from an `import type` of the package's
+ * own source, which is free because it erases. This file's program has no
+ * `rootDir`, which is why it may name package *source* where
+ * `src/seeds/dev-catalog-seed.ts` may not.
+ */
+export const ModuleAction = classNamed<ModuleActionRow>(adminActionsEntities, 'ModuleAction');
+export const AdminRole = classNamed<AdminRoleRow>(adminRolesEntities, 'AdminRole');
+export const AdminUser = classNamed<AdminUserRow>(adminUsersEntities, 'AdminUser');
+export const Megamenu = classNamed<MegamenuRow>(megamenuEntities, 'Megamenu');
+export const MegamenuItem = classNamed<MegamenuItemRow>(megamenuEntities, 'MegamenuItem');
+export const MegamenuBinding = classNamed<MegamenuBindingRow>(megamenuEntities, 'MegamenuBinding');
+export const Organization = classNamed<OrganizationRow>(organizationsEntities, 'Organization');
+export const OrganizationSalesRepAssignment = classNamed<OrganizationSalesRepAssignmentRow>(organizationsEntities, 'OrganizationSalesRepAssignment');
+export const PriceList = classNamed<PriceListRow>(priceListsEntities, 'PriceList');
+export const PriceListProduct = classNamed<PriceListProductRow>(priceListsEntities, 'PriceListProduct');
+export const PriceListPriceBracket = classNamed<PriceListPriceBracketRow>(priceListsEntities, 'PriceListPriceBracket');
+export const PriceDisplayModeOverride = classNamed<PriceDisplayModeOverrideRow>(priceListsEntities, 'PriceDisplayModeOverride');
+
+/**
+ * The names the test tree also uses as a **type**, aliased.
+ *
+ * Not every name above needs one — a count would go stale on the next move
+ * (D-100), so the list is exactly the names a `const x: Name` or
+ * `Promise<Name>` in `backend/test/` names, and `tsc` is what keeps it honest.
+ *
+ * A real `class` declares a value and a type at once; `classNamed` returns only
+ * the value, so the type has to be declared beside it or every
+ * `const org: Organization` in the test tree becomes TS2749. `export type`
+ * erases, so this constructs nothing and no second copy exists.
+ */
+export type ModuleAction = ModuleActionRow;
+export type AdminRole = AdminRoleRow;
+export type AdminUser = AdminUserRow;
+export type Megamenu = MegamenuRow;
+export type MegamenuItem = MegamenuItemRow;
+export type MegamenuBinding = MegamenuBindingRow;
+export type Organization = OrganizationRow;
+export type OrganizationSalesRepAssignment = OrganizationSalesRepAssignmentRow;
+export type PriceList = PriceListRow;
+export type PriceListProduct = PriceListProductRow;
+export type PriceListPriceBracket = PriceListPriceBracketRow;
+export type PriceDisplayModeOverride = PriceDisplayModeOverrideRow;
+export type CustomerAccount = CustomerAccountRow;
+export type CustomerGroup = CustomerGroupRow;
+export type PasswordResetToken = PasswordResetTokenRow;
+export type AvailabilityNotification = AvailabilityNotificationRow;
+export type InventoryThreshold = InventoryThresholdRow;
+export type ProductWarehouseLowStockThreshold = ProductWarehouseLowStockThresholdRow;
+export type StockAllocation = StockAllocationRow;
+export type StockLevel = StockLevelRow;
+export type WarehouseChannelAssignment = WarehouseChannelAssignmentRow;
+export type Warehouse = WarehouseRow;
+export type Order = OrderRow;
+export type OrderItem = OrderItemRow;
+export type OrderComment = OrderCommentRow;
+export type OrderAppliedPromotion = OrderAppliedPromotionRow;
+export type OrderPlacementIntent = OrderPlacementIntentRow;
+export type Payment = PaymentRow;
+export type InpostWebhookEvent = InpostWebhookEventRow;
+export type InpostShipmentLink = InpostShipmentLinkRow;
+export type Shipment = ShipmentRow;
+export type NewsletterSubscriber = NewsletterSubscriberRow;
+
+/**
+ * The `pim_pimcore` names the test tree also uses as a **type**, on the terms
+ * the block above states: `classNamed` returns only the value, so a
+ * `Promise<PimcoreImportRun>` or a `Partial<PimcoreImportRun>` needs the type
+ * declared beside it. `export type` erases, so nothing is constructed.
+ */
+export type PimcoreCatalogueDelivery = PimcoreCatalogueDeliveryRow;
+export type PimcoreConnection = PimcoreConnectionRow;
+export type PimcoreDeliveredRecord = PimcoreDeliveredRecordRow;
+export type PimcoreFieldProtection = PimcoreFieldProtectionRow;
+export type PimcoreImportIssue = PimcoreImportIssueRow;
+export type PimcoreImportRun = PimcoreImportRunRow;
+export type PimcoreMediaLink = PimcoreMediaLinkRow;
+export type PimcoreSourceLink = PimcoreSourceLinkRow;
+export type AdminNotification = AdminNotificationRow;

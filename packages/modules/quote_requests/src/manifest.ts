@@ -160,6 +160,90 @@ export const manifest = defineModuleManifest({
   settings,
   // Feature 073 (Constitution XVII) — the operator's activation control.
   activation: { settingCode: 'quote_requests.enabled', default: true },
+  /**
+   * The nine error codes this module owns — feature 090 Phase 3
+   * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
+   * §1.1). This is where the sentence for each is looked up from: `errors.<CODE>`
+   * in this module's own `i18n/{en,pl}.json`, which holds all nine in both
+   * languages and no tenth. None of them is a `check-error-translations.ts`
+   * `UNTRANSLATED_ERROR_CODES` entry.
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5), and it was
+   * not written by hand: it is the verbatim output of the runbook's step-1
+   * derivation over the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts`, which records
+   * what the prefix chain in `@endora-commerce/mod-i18n` answered at
+   * `49f3c6817`. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * **No code here is a shadow, and none of this module's is shadowed away.**
+   * Trap T1 exists because the chain is an ordered `if`: an earlier rule can
+   * claim a code a later one names, which cost `inventory` two codes and gave
+   * `catalog` four. This module has a single rule — `RFQ_` or `QUOTE_`, no misc
+   * set — and the three rules above it (`SETTING_`, the generic set, `catalog`'s
+   * prefixes and misc set) name no `RFQ_` or `QUOTE_` code, so the nine the
+   * chain answers with are exactly the nine `RFQ_`/`QUOTE_`-prefixed members of
+   * `ERROR_CODES`. The derivation was still run from the answer, because "no
+   * shadow reaches me" is a conclusion of reading the whole chain and not a
+   * premise a migrating author is entitled to.
+   *
+   * **Four of the nine are raised by nothing** — `QUOTE_INCOMPLETE`,
+   * `RFQ_ALREADY_CLAIMED`, `RFQ_NOT_ACCEPTED` and `RFQ_NOT_NEW`. Each is a
+   * member of `ERROR_CODES` with a sentence in both languages that no `throw`
+   * in `backend/src` or `packages` can produce. They are declared anyway,
+   * because ownership follows the capture and not the raise sites (trap T10):
+   * dropping one reds the progress test as `[undeclared]` and moves an answer
+   * the migrating merge request was not allowed to move. Whether a code nothing
+   * raises should exist is a separate question, filed in
+   * `specs/deferred-defects.md` § *Roughly 29 error codes have translated
+   * sentences no client can ever receive*, and measured for this module in that
+   * merge request's description.
+   *
+   * **It said six until 2026-08-29, and the two it lost are the reason that
+   * register entry is worth keeping.** `RFQ_EXPIRED` and
+   * `QUOTE_VALIDITY_ENDED` were unraised because a rule had been *removed*, not
+   * because nobody ever wrote one: the feature-008 workflow rewrite
+   * (`4f24dc948`) dropped `accept()`'s live `expiresAt` check and nothing
+   * replaced it, so the per-request validity deadline an operator sets with
+   * `expiresInDays` bound nothing while both parties were shown its date. Both
+   * are raised now — `RFQ_EXPIRED` on `accept-revision`,
+   * `QUOTE_VALIDITY_ENDED` on `convert-to-order`, in
+   * `services/rfq-service.ts` — which is the split
+   * `specs/001-b2b-platform-foundation/contracts/quote_requests.contract.md`
+   * assigned them. That is T11's distinction reaching its conclusion: for these
+   * two the sentences were the last surviving evidence of the rule, and the
+   * repair was to restore the rule rather than to retire the codes. The other
+   * four have no such history, and the count here is a fact about the tree that
+   * moves with it — re-derive it, never carry it forward.
+   *
+   * The inverse is also true and is T2's shape: this module raises five codes it
+   * does not own — `CUSTOM_FIELD_VALUE_INVALID`, `FORBIDDEN`, `NOT_FOUND` and
+   * `VERSION_CONFLICT`, which the chain routes to `core`, and
+   * `PRODUCT_NOT_FOUND`, which is `catalog`'s and is declared there. None is
+   * declared here and every one of those sentences stays where it is.
+   *
+   * **No `tokens`, and it is derived rather than assumed.** The envelope's
+   * `refusalToken` (`packages/platform/src/http/error-envelope.ts`) reads
+   * exactly one member of `details` — `code`, and only when `details` is an
+   * object — as the tail of `errors.<CODE>.<token>`. All ten raises of these
+   * codes were enumerated over `packages` and `backend/src` rather than over
+   * this package alone (runbook §5), and not one passes a fourth argument at
+   * all; the six codes nothing raises reach no token by construction. The
+   * bundle agrees from the other direction: nine `errors.<CODE>` keys in each
+   * language and not one `errors.<CODE>.<token>`.
+   */
+  errorCodes: [
+    { code: 'QUOTE_INCOMPLETE' },
+    { code: 'QUOTE_VALIDITY_ENDED' },
+    { code: 'RFQ_ALREADY_CLAIMED' },
+    { code: 'RFQ_EMPTY' },
+    { code: 'RFQ_EXPIRED' },
+    { code: 'RFQ_NOT_ACCEPTED' },
+    { code: 'RFQ_NOT_DRAFT' },
+    { code: 'RFQ_NOT_NEW' },
+    { code: 'RFQ_NOT_QUOTED' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   actions: [
     {

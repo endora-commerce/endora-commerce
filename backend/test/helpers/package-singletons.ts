@@ -1,6 +1,7 @@
 import type { AwilixContainer } from 'awilix';
 
 import type { PaymentAdapterRegistry } from '../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
+import type { GatewayRefundRegistry } from '../../../packages/modules/payments/src/backend/services/gateway-refund-registry.js';
 
 /**
  * How a test reaches a **module package's** process singleton.
@@ -38,4 +39,26 @@ import type { PaymentAdapterRegistry } from '../../../packages/modules/payment_m
  */
 export function paymentAdapterRegistryOf(container: AwilixContainer): PaymentAdapterRegistry {
   return container.resolve<PaymentAdapterRegistry>('paymentAdapterRegistry');
+}
+
+/**
+ * `payments`' refund registry, the second value of exactly this shape.
+ *
+ * The module keeps one `GatewayRefundRegistry` instance in
+ * `services/registry-singleton.ts` and publishes it as `gatewayRefundRegistry`;
+ * each gateway module's boot hook registers its handler into whichever instance
+ * the container holds. So a test that imports the name from the package's
+ * **source** asserts against a second, empty registry: `ownerOf('stripe')`
+ * answers `null` and `list()` answers `[]`, which reads as "the gateway did not
+ * register" rather than as "you are holding the wrong object".
+ *
+ * That is not a hypothetical here. Five of the seven files that reached it are
+ * `payments-off` tests, whose whole subject is whether a gateway's handler is
+ * present while `payments` is absent — so the empty copy answers *the same way
+ * the off-state does*, and the assertion passes for the wrong reason. It is the
+ * `ShippingAdapterRegistry` finding of the second packaging batch, in the module
+ * that pairs with it.
+ */
+export function gatewayRefundRegistryOf(container: AwilixContainer): GatewayRefundRegistry {
+  return container.resolve<GatewayRefundRegistry>('gatewayRefundRegistry');
 }

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Bell, Search } from 'lucide-react';
+import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
+import { ScopeNotice } from '@/components/scope-notice/ScopeNotice';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
 import { normalize } from '@/lib/text-normalization';
 
 interface NotificationRow {
@@ -23,6 +26,11 @@ interface ListResponse {
   page: number;
   pageSize: number;
   total: number;
+  /**
+   * Feature 087 — present only when the server refused every row because these
+   * records name no organization. Read with `scopeNoticeOf`.
+   */
+  meta?: { scopeNotice?: ScopeNoticeCode };
 }
 
 /**
@@ -33,6 +41,12 @@ interface ListResponse {
  */
 export function AvailabilityNotificationsPage(): ReactNode {
   const t = useTranslation('core');
+  // The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
+  // in full. The cancel button is the write half: it was `catalog:write` while
+  // the list beside it was `orders:read`.
+  const isVisible = useSurfaceVisibility();
+  const canRead = isVisible({ module: 'inventory', requiredPermission: 'inventory:read' });
+  const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
   const [rows, setRows] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +54,14 @@ export function AvailabilityNotificationsPage(): ReactNode {
   const [statusFilter, setStatusFilter] = useState<'all' | 'queued' | 'notified' | 'cancelled'>('queued');
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Why the queue looks empty, when it does (feature 087).
+  const [scopeNotice, setScopeNotice] = useState<ScopeNoticeCode | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -52,12 +72,13 @@ export function AvailabilityNotificationsPage(): ReactNode {
         `/api/v1/admin/inventory/availability-notifications?${search.toString()}`,
       );
       setRows(res.items);
+      setScopeNotice(scopeNoticeOf(res));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('inventory.availability.error.load'));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, t]);
+  }, [canRead, statusFilter, t]);
 
   useEffect(() => {
     void refresh();
@@ -73,6 +94,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
         normalize(r.email).includes(q),
     );
   }, [rows, query]);
+
 
   const handleCancel = async (id: string): Promise<void> => {
     if (!window.confirm(t('inventory.availability.confirmCancel'))) {
@@ -94,6 +116,10 @@ export function AvailabilityNotificationsPage(): ReactNode {
       setBusyId(null);
     }
   };
+
+  if (!canRead) {
+    return <div className="b2b-page">{t('inventory.noPermission')}</div>;
+  }
 
   return (
     <div className="b2b-page b2b-page--wide">
@@ -164,10 +190,19 @@ export function AvailabilityNotificationsPage(): ReactNode {
           {loading ? (
             <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('inventory.loading')}</div>
           ) : filtered.length === 0 ? (
-            <div className="b2b-empty">
-              <div className="b2b-empty__icon"><Bell size={20} /></div>
-              <div className="b2b-empty__title">{t('inventory.availability.empty')}</div>
-            </div>
+            // The notice replaces the empty state rather than sitting beside
+            // it: "no subscriptions match the current filters" is a claim about
+            // the data, and it is the false one here.
+            scopeNotice ? (
+              <div style={{ padding: 16 }}>
+                <ScopeNotice notice={scopeNotice} />
+              </div>
+            ) : (
+              <div className="b2b-empty">
+                <div className="b2b-empty__icon"><Bell size={20} /></div>
+                <div className="b2b-empty__title">{t('inventory.availability.empty')}</div>
+              </div>
+            )
           ) : (
             <table className="b2b-tbl">
               <thead>
@@ -214,7 +249,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
                       </span>
                     </td>
                     <td className="actions">
-                      {r.status === 'queued' ? (
+                      {canWrite && r.status === 'queued' ? (
                         <button
                           type="button"
                           className="b2b-btn b2b-btn--ghost b2b-btn--sm"

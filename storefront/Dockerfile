@@ -38,6 +38,13 @@ RUN pnpm install --frozen-lockfile --filter storefront... --filter @endora-comme
 
 COPY packages/ packages/
 COPY storefront/ storefront/
+# `next build` runs ESLint, and `storefront/eslint.config.js` extends the
+# repository-root one — which is outside this image's build context without
+# this line. It failed non-fatally (`⨯ ESLint: Cannot find module
+# '/app/eslint.config.js'`) so the build carried on and the lint step silently
+# checked nothing. Same shape as `backend/Dockerfile`'s missing `scripts/`:
+# a Dockerfile copying a subset while a build step needs a repo-root file.
+COPY eslint.config.js eslint.config.js
 
 # Every `@endora-commerce/*` package resolves through its own `exports` map at `./dist` (feature 080,
 # T042), so all of the storefront's workspace dependencies are built, not just the one

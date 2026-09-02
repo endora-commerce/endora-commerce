@@ -13,7 +13,7 @@ import { registerGoogleTagManagerStorefrontRoutes } from '../../../../packages/m
 import type { GtmConfigService } from '../../../../packages/modules/google_tag_manager/src/backend/services/gtm-config.service.js';
 import type { GtmIngestContext } from '../../../../packages/modules/google_tag_manager/src/backend/services/ss-relay-queue.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 const CHANNEL = { 'x-sales-channel': 'default' };
 

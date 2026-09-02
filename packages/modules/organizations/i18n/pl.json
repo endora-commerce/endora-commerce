@@ -1,0 +1,13 @@
+{
+  "errors.CANNOT_REVOKE_LAST_ADMIN_INVITE": "To ostatnie oczekujące zaproszenie dla administratora, a organizacja nie ma aktywnego administratora, więc nie można go anulować. Najpierw wyślij kolejne zaproszenie dla administratora.",
+  "errors.EMAIL_ALREADY_IN_ORGANIZATION": "Ten adres e-mail już należy do Twojej organizacji — jako członek albo jako oczekujące zaproszenie.",
+  "errors.EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION": "Ten adres e-mail należy do członka innej organizacji, więc nie można go tutaj zaprosić.",
+  "errors.ORGANIZATION_HAS_CHILDREN": "Ta organizacja ma organizacje podrzędne. Najpierw przenieś lub usuń organizacje podrzędne.",
+  "errors.ORGANIZATION_HAS_CHILDREN.has_children": "Ta organizacja ma organizacje podrzędne, więc nie można jej usunąć. Najpierw przenieś je lub usuń.",
+  "errors.ORGANIZATION_SUSPENDED": "Ta organizacja nie jest aktywna, więc nie można składać zamówień. Skontaktuj się ze swoim opiekunem handlowym, aby ją ponownie aktywować.",
+  "errors.ORGANIZATION_TAX_ID_EXISTS": "Organizacja z tym numerem podatkowym jest już zarejestrowana. Zaloguj się albo poproś jej administratora o zaproszenie.",
+  "errors.ORGANIZATION_TREE_INVALID": "Żądane przeniesienie organizacji jest nieprawidłowe (spowodowałoby cykl lub przekroczenie maksymalnej głębokości).",
+  "errors.ORGANIZATION_TREE_INVALID.cycle": "Wybrana organizacja nadrzędna znajduje się w poddrzewie tej organizacji, więc przeniesienie utworzyłoby cykl. Wskaż organizację spoza tego poddrzewa.",
+  "errors.ORGANIZATION_TREE_INVALID.max_depth_exceeded": "Przeniesienie przekroczyłoby maksymalną głębokość drzewa organizacji, czyli {maxDepth} poziomów. Przenieś gałąź wyżej albo najpierw ją spłaszcz.",
+  "errors.ORG_OWNER_DEPLETION": "To konto jest ostatnim aktywnym administratorem organizacji, więc nie można go usunąć, zablokować ani z niej wypisać. Najpierw nadaj rolę administratora innemu członkowi."
+}

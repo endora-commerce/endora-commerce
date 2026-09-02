@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AdminUser } from '../../helpers/package-entities.js';
 import { ERROR_CODES, type AdminUserReadPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
 
 /**
  * An operator created with a mixed-case e-mail must be able to sign in with the

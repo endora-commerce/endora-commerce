@@ -119,7 +119,7 @@ both failed silently. Issue #218 changed both, in different ways:
   first thing in `composeApp()`). Nothing to fill in — but if the backend exits at boot naming
   this variable, `API_DOMAIN` is what is missing.
 - `REVALIDATE_SECRET` is the shared secret the backend presents to the storefront's
-  `/api/revalidate` endpoint after a content write (`backend/src/modules/catalog/backend.ts`,
+  `/api/revalidate` endpoint after a content write (`packages/modules/catalog/src/backend/index.ts`,
   plus the analytics and marketing modules). Unset, the revalidator is a silent no-op and the
   storefront endpoint answers 401: content changes do not appear until the fetch cache expires
   on its own. It is now in `deploy/.env.prod.example` and handed to **both** the backend and the

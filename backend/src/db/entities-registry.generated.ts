@@ -33,69 +33,16 @@ import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
 import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { Setting } from '../kernel/settings/setting.entity.js';
-import { TranslationBundle } from '../modules/_i18n/entities/translation-bundle.entity.js';
-import { ModuleAction } from '../modules/admin_actions/entities/module-action.entity.js';
-import { AdminRole } from '../modules/admin_roles/entities/admin-role.entity.js';
-import { AdminUser } from '../modules/admin_users/entities/admin-user.entity.js';
-import { Session } from '../modules/auth/entities/session.entity.js';
-import { AttachmentType } from '../modules/catalog/entities/attachment-type.entity.js';
-import { AttributeSetAttribute } from '../modules/catalog/entities/attribute-set-attribute.entity.js';
-import { AttributeSet } from '../modules/catalog/entities/attribute-set.entity.js';
-import { BulkOperation } from '../modules/catalog/entities/bulk-operation.entity.js';
-import { BundleSlotOption } from '../modules/catalog/entities/bundle-slot-option.entity.js';
-import { BundleSlot } from '../modules/catalog/entities/bundle-slot.entity.js';
-import { Category } from '../modules/catalog/entities/category.entity.js';
-import { GalleryItemLabel } from '../modules/catalog/entities/gallery-item-label.entity.js';
-import { GalleryItem } from '../modules/catalog/entities/gallery-item.entity.js';
-import { GroupedItem } from '../modules/catalog/entities/grouped-item.entity.js';
-import { ProductAttachment } from '../modules/catalog/entities/product-attachment.entity.js';
-import { ProductAttribute } from '../modules/catalog/entities/product-attribute.entity.js';
-import { ProductEditorPreference } from '../modules/catalog/entities/product-editor-preference.entity.js';
-import { ProductLink } from '../modules/catalog/entities/product-link.entity.js';
-import { ProductPackagingUnit } from '../modules/catalog/entities/product-packaging-unit.entity.js';
-import { ProductValueOverride } from '../modules/catalog/entities/product-value-override.entity.js';
-import { ProductVariant } from '../modules/catalog/entities/product-variant.entity.js';
-import { Product } from '../modules/catalog/entities/product.entity.js';
-import { CustomerAccount } from '../modules/customer_accounts/entities/customer-account.entity.js';
-import { CustomerGroup } from '../modules/customer_accounts/entities/customer-group.entity.js';
-import { PasswordResetToken } from '../modules/customer_accounts/entities/password-reset-token.entity.js';
-import { AvailabilityNotification } from '../modules/inventory/entities/availability-notification.entity.js';
-import { InventoryThreshold } from '../modules/inventory/entities/inventory-threshold.entity.js';
-import { ProductWarehouseLowStockThreshold } from '../modules/inventory/entities/product-warehouse-low-stock-threshold.entity.js';
-import { StockAllocation } from '../modules/inventory/entities/stock-allocation.entity.js';
-import { StockLevel } from '../modules/inventory/entities/stock-level.entity.js';
-import { WarehouseChannelAssignment } from '../modules/inventory/entities/warehouse-channel-assignment.entity.js';
-import { Warehouse } from '../modules/inventory/entities/warehouse.entity.js';
-import { MegamenuBinding } from '../modules/megamenu/entities/megamenu-binding.entity.js';
-import { MegamenuItem } from '../modules/megamenu/entities/megamenu-item.entity.js';
-import { Megamenu } from '../modules/megamenu/entities/megamenu.entity.js';
-import { OrderAppliedPromotion } from '../modules/orders/entities/order-applied-promotion.entity.js';
-import { OrderComment } from '../modules/orders/entities/order-comment.entity.js';
-import { OrderItem } from '../modules/orders/entities/order-item.entity.js';
-import { OrderListSavedView } from '../modules/orders/entities/order-list-saved-view.entity.js';
-import { OrderPlacementIntent } from '../modules/orders/entities/order-placement-intent.entity.js';
-import { OrderStatusTransition } from '../modules/orders/entities/order-status-transition.entity.js';
-import { OrderStatus } from '../modules/orders/entities/order-status.entity.js';
-import { Order } from '../modules/orders/entities/order.entity.js';
-import { EmailVerificationToken } from '../modules/organizations/entities/email-verification-token.entity.js';
-import { OrganizationDeliveryMethodLink } from '../modules/organizations/entities/organization-delivery-method-link.entity.js';
-import { OrganizationInvitation } from '../modules/organizations/entities/organization-invitation.entity.js';
-import { OrganizationPaymentMethodLink } from '../modules/organizations/entities/organization-payment-method-link.entity.js';
-import { OrganizationSalesRepAssignment } from '../modules/organizations/entities/organization-sales-rep-assignment.entity.js';
-import { OrganizationTaxIdValidation } from '../modules/organizations/entities/organization-tax-id-validation.entity.js';
-import { OrganizationWarehouseLink } from '../modules/organizations/entities/organization-warehouse-link.entity.js';
-import { Organization } from '../modules/organizations/entities/organization.entity.js';
-import { Payment } from '../modules/payments/entities/payment.entity.js';
-import { PriceDisplayModeOverride } from '../modules/price_lists/entities/price-display-mode-override.entity.js';
-import { PriceListPriceBracket } from '../modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from '../modules/price_lists/entities/price-list-product.entity.js';
-import { PriceList } from '../modules/price_lists/entities/price-list.entity.js';
 import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
+import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
+import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
 import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
 import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
+import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
 import { entities as autopayEntities } from '@endora-commerce/mod-autopay/backend';
+import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/backend';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
 import { entities as cartsEntities } from '@endora-commerce/mod-carts/backend';
 import { entities as cmsEntities } from '@endora-commerce/mod-cms/backend';
@@ -106,25 +53,34 @@ import { entities as credentialsEntities } from '@endora-commerce/mod-credential
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/backend';
 import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
+import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
 import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as dhlParcelEntities } from '@endora-commerce/mod-dhl-parcel/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
+import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
+import { entities as inpostEntities } from '@endora-commerce/mod-inpost/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
 import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
 import { entities as linkedinAdsEntities } from '@endora-commerce/mod-linkedin-ads/backend';
+import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/backend';
 import { entities as metaAdsEntities } from '@endora-commerce/mod-meta-ads/backend';
 import { entities as mfaEntities } from '@endora-commerce/mod-mfa/backend';
+import { entities as adminActionsEntities } from '@endora-commerce/mod-admin-actions/backend';
 import { entities as newsletterEntities } from '@endora-commerce/mod-newsletter/backend';
+import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
+import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import { entities as paypalEntities } from '@endora-commerce/mod-paypal/backend';
 import { entities as payuEntities } from '@endora-commerce/mod-payu/backend';
 import { entities as pimConnectorEntities } from '@endora-commerce/mod-pim-connector/backend';
+import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
+import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
 import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
 import { entities as pwaEntities } from '@endora-commerce/mod-pwa/backend';
 import { entities as quickOrderEntities } from '@endora-commerce/mod-quick-order/backend';
@@ -132,11 +88,13 @@ import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-re
 import { entities as returnsEntities } from '@endora-commerce/mod-returns/backend';
 import { entities as searchEntities } from '@endora-commerce/mod-search/backend';
 import { entities as seoEntities } from '@endora-commerce/mod-seo/backend';
+import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
 import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/backend';
 import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping-lists/backend';
 import { entities as stripeEntities } from '@endora-commerce/mod-stripe/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as tpayEntities } from '@endora-commerce/mod-tpay/backend';
+import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
 import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
 
@@ -147,69 +105,16 @@ export const ALL_ENTITIES = [
   SettingGroup,
   SettingValue,
   Setting,
-  TranslationBundle,
-  ModuleAction,
-  AdminRole,
-  AdminUser,
-  Session,
-  AttachmentType,
-  AttributeSetAttribute,
-  AttributeSet,
-  BulkOperation,
-  BundleSlotOption,
-  BundleSlot,
-  Category,
-  GalleryItemLabel,
-  GalleryItem,
-  GroupedItem,
-  ProductAttachment,
-  ProductAttribute,
-  ProductEditorPreference,
-  ProductLink,
-  ProductPackagingUnit,
-  ProductValueOverride,
-  ProductVariant,
-  Product,
-  CustomerAccount,
-  CustomerGroup,
-  PasswordResetToken,
-  AvailabilityNotification,
-  InventoryThreshold,
-  ProductWarehouseLowStockThreshold,
-  StockAllocation,
-  StockLevel,
-  WarehouseChannelAssignment,
-  Warehouse,
-  MegamenuBinding,
-  MegamenuItem,
-  Megamenu,
-  OrderAppliedPromotion,
-  OrderComment,
-  OrderItem,
-  OrderListSavedView,
-  OrderPlacementIntent,
-  OrderStatusTransition,
-  OrderStatus,
-  Order,
-  EmailVerificationToken,
-  OrganizationDeliveryMethodLink,
-  OrganizationInvitation,
-  OrganizationPaymentMethodLink,
-  OrganizationSalesRepAssignment,
-  OrganizationTaxIdValidation,
-  OrganizationWarehouseLink,
-  Organization,
-  Payment,
-  PriceDisplayModeOverride,
-  PriceListPriceBracket,
-  PriceListProduct,
-  PriceList,
   ...(addressesEntities as readonly EntityClassLike[]),
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
+  ...(adminRolesEntities as readonly EntityClassLike[]),
+  ...(adminUsersEntities as readonly EntityClassLike[]),
   ...(analyticsEntities as readonly EntityClassLike[]),
   ...(apiKeysEntities as readonly EntityClassLike[]),
   ...(assetsLibraryEntities as readonly EntityClassLike[]),
+  ...(catalogEntities as readonly EntityClassLike[]),
   ...(autopayEntities as readonly EntityClassLike[]),
+  ...(inventoryEntities as readonly EntityClassLike[]),
   ...(blogEntities as readonly EntityClassLike[]),
   ...(cartsEntities as readonly EntityClassLike[]),
   ...(cmsEntities as readonly EntityClassLike[]),
@@ -220,25 +125,34 @@ export const ALL_ENTITIES = [
   ...(creditLimitsEntities as readonly EntityClassLike[]),
   ...(currenciesEntities as readonly EntityClassLike[]),
   ...(customFieldsEntities as readonly EntityClassLike[]),
+  ...(customerAccountsEntities as readonly EntityClassLike[]),
   ...(customersEntities as readonly EntityClassLike[]),
   ...(deliveryMethodsEntities as readonly EntityClassLike[]),
   ...(dhlParcelEntities as readonly EntityClassLike[]),
   ...(transactionalEmailsEntities as readonly EntityClassLike[]),
   ...(emailEntities as readonly EntityClassLike[]),
+  ...(organizationsEntities as readonly EntityClassLike[]),
   ...(pimErgonodeEntities as readonly EntityClassLike[]),
   ...(productFeedsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
+  ...(inpostEntities as readonly EntityClassLike[]),
   ...(invoicesEntities as readonly EntityClassLike[]),
   ...(ksefEntities as readonly EntityClassLike[]),
   ...(languagesEntities as readonly EntityClassLike[]),
   ...(linkedinAdsEntities as readonly EntityClassLike[]),
+  ...(megamenuEntities as readonly EntityClassLike[]),
   ...(metaAdsEntities as readonly EntityClassLike[]),
   ...(mfaEntities as readonly EntityClassLike[]),
+  ...(adminActionsEntities as readonly EntityClassLike[]),
   ...(newsletterEntities as readonly EntityClassLike[]),
+  ...(ordersEntities as readonly EntityClassLike[]),
   ...(paymentMethodsEntities as readonly EntityClassLike[]),
+  ...(paymentsEntities as readonly EntityClassLike[]),
   ...(paypalEntities as readonly EntityClassLike[]),
   ...(payuEntities as readonly EntityClassLike[]),
   ...(pimConnectorEntities as readonly EntityClassLike[]),
+  ...(pimPimcoreEntities as readonly EntityClassLike[]),
+  ...(priceListsEntities as readonly EntityClassLike[]),
   ...(promptActionsEntities as readonly EntityClassLike[]),
   ...(pwaEntities as readonly EntityClassLike[]),
   ...(quickOrderEntities as readonly EntityClassLike[]),
@@ -246,11 +160,13 @@ export const ALL_ENTITIES = [
   ...(returnsEntities as readonly EntityClassLike[]),
   ...(searchEntities as readonly EntityClassLike[]),
   ...(seoEntities as readonly EntityClassLike[]),
+  ...(authEntities as readonly EntityClassLike[]),
   ...(shipmentsEntities as readonly EntityClassLike[]),
   ...(shoppingListsEntities as readonly EntityClassLike[]),
   ...(stripeEntities as readonly EntityClassLike[]),
   ...(taxesEntities as readonly EntityClassLike[]),
   ...(tpayEntities as readonly EntityClassLike[]),
+  ...(i18nEntities as readonly EntityClassLike[]),
   ...(pimUnopimEntities as readonly EntityClassLike[]),
   ...(webhooksEntities as readonly EntityClassLike[]),
 ] as const;

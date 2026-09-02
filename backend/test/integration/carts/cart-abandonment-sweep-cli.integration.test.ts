@@ -18,7 +18,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
 
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
 import { runModuleCommand } from '../../../src/cli/module-commands.js';

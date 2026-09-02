@@ -15,18 +15,26 @@ import { renderWithI18n } from '../../helpers/render-with-i18n';
  * historical codes are not migrated.
  *
  * `Metody płatności` and `Usługa wysyłki` are shipped copy
- * (`appShell.nav.paymentMethods` and `newsletter.nav.provider` in the `pl`
+ * (`appShell.nav.paymentMethods` and `newsletter`'s own `nav.provider.label` in the `pl`
  * bundles), not strings invented to fold nicely.
  */
 
 const createTag = vi.fn(async (_input: unknown) => ({}));
 const createCustomField = vi.fn(async (_input: unknown) => ({}));
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({ hasPermission: () => true }),
-}));
+// The **kit's** barrel, not `@/lib/auth`. The screen is
+// `@endora-commerce/mod-newsletter/admin`'s since feature 091's batch 11, so it
+// resolves `useAuth` there; the admin's own path is a re-export shim of the same
+// binding, and mocking a shim leaves the module the screen actually imports
+// untouched.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
+  return { ...actual, useAuth: () => ({ hasPermission: () => true }) };
+});
 
-vi.mock('@/modules/newsletter/api/newsletter-client', () => ({
+vi.mock('../../../../packages/modules/newsletter/src/admin/api/newsletter-client', () => ({
   newsletterClient: {
     listTags: async () => ({ items: [] }),
     listCustomFields: async () => ({ items: [] }),
@@ -35,7 +43,9 @@ vi.mock('@/modules/newsletter/api/newsletter-client', () => ({
   },
 }));
 
-const { TagsPage } = await import('@/modules/newsletter/pages/TagsPage');
+const { TagsPage } = await import(
+  '../../../../packages/modules/newsletter/src/admin/pages/TagsPage'
+);
 
 function fill(placeholder: string, value: string): void {
   fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value } });

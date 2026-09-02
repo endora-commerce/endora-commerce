@@ -1,13 +1,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { ModuleAction } from '../../helpers/package-entities.js';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { AdminActionsService } from '../../../src/modules/admin_actions/services/admin-actions-service.js';
-import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
+import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { ModuleRegistryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
-import type { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
-import type { PermissionService } from '../../../src/modules/admin_roles/services/permission-service.js';
+import type { I18nService } from '@endora-commerce/mod-i18n/backend';
+import type { PermissionService } from '../../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { SupportedAdminLanguage } from '@endora-commerce/contracts';
 
 /**

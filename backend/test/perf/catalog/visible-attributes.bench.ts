@@ -4,10 +4,13 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { CatalogQueryService } from '../../../src/modules/catalog/services/catalog-query.service.js';
-import type { ProductAttribute } from '../../../src/modules/catalog/entities/product-attribute.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { AttributeSetAttribute } from '../../../src/modules/catalog/entities/attribute-set-attribute.entity.js';
+import { CatalogQueryService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-query.service.js';
+import type {
+  ProductRow,
+  ProductAttributeRow,
+} from '../../helpers/package-entities.js';
+import { Product } from '../../helpers/package-entities.js';
+import { AttributeSetAttribute } from '../../helpers/package-entities.js';
 import { createAttributeFixture } from '../../helpers/seed-catalog.js';
 import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
 
@@ -67,7 +70,7 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
   let h: BackendServerHandle;
   let svc: CatalogQueryService;
   const productSlugs: string[] = [];
-  const products: Product[] = [];
+  const products: ProductRow[] = [];
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -84,7 +87,7 @@ describe.skipIf(!shouldRun)('catalog visibleAttributes — p95 latency', () => {
 
     // Seed 50 attributes — mix of value types so every code branch fires.
     // Feature 061 — each fixture creates the definition + extension pair.
-    const attrs: Array<{ extension: ProductAttribute; key: string; valueType: string }> = [];
+    const attrs: Array<{ extension: ProductAttributeRow; key: string; valueType: string }> = [];
     for (let i = 0; i < attrCount; i++) {
       const valueType =
         i % 5 === 0 ? 'enum' : i % 5 === 1 ? 'multiselect' : i % 5 === 2 ? 'number' : i % 5 === 3 ? 'boolean' : 'string';

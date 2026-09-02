@@ -6,8 +6,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
-import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
@@ -203,7 +203,7 @@ describe('a refused coupon carries the sentence written for its reason (issue #2
     expect(body.error.code).toBe(ERROR_CODES.CART_EMPTY);
     expect(body.error.message).toBe('Your cart is empty.');
 
-    const target = ERROR_TRANSLATION_KEYS[ERROR_CODES.CART_EMPTY];
+    const target = DECLARED_ERROR_TRANSLATION_TARGETS[ERROR_CODES.CART_EMPTY]!;
     expect(target.moduleId).toBe('carts');
     expect(await h.adminI18n.i18nService.translate(target.moduleId, target.key, 'pl')).toBe(
       'Twój koszyk jest pusty.',
@@ -220,7 +220,7 @@ describe('a refused coupon carries the sentence written for its reason (issue #2
    * key the envelope builds, which is the seam the defect lived in.
    */
   describe('every reason resolves at the key the envelope builds', () => {
-    const target = ERROR_TRANSLATION_KEYS[ERROR_CODES.CART_COUPON_REJECTED];
+    const target = DECLARED_ERROR_TRANSLATION_TARGETS[ERROR_CODES.CART_COUPON_REJECTED]!;
     const reasons = Object.keys(EN) as CouponDropReason[];
 
     it.each(reasons)('%s — en and pl', async (reason) => {

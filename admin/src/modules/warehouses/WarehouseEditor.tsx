@@ -10,7 +10,8 @@ import type { CreateWarehouseRequest, Warehouse } from '@endora-commerce/contrac
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
-import { CountryPicker } from '../dictionaries/components/CountryPicker';
+import { useSurfaceVisibility } from '@/lib/surface-visibility';
+import { CountryPicker } from '@endora-commerce/admin-kit/components';
 import { warehousesClient } from './api/warehouses-client';
 
 interface FormState {
@@ -95,6 +96,17 @@ function buildContact(s: FormState) {
  */
 export function WarehouseEditor(): ReactNode {
   const t = useTranslation('core');
+  /**
+   * The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
+   * in full. Both halves are asked here because this one screen is both: the
+   * `:id` form loads a warehouse over the read route and saves it over the
+   * write one, and `/warehouses/new` is a create with nothing to read. So a
+   * read-only operator sees the record and no way to change it, and reaches
+   * `/warehouses/new` and sees nothing at all.
+   */
+  const isVisible = useSurfaceVisibility();
+  const canRead = isVisible({ module: 'inventory', requiredPermission: 'inventory:read' });
+  const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
@@ -106,7 +118,10 @@ export function WarehouseEditor(): ReactNode {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
-    if (isNew) return;
+    if (isNew || !canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -118,7 +133,7 @@ export function WarehouseEditor(): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [id, isNew, t]);
+  }, [canRead, id, isNew, t]);
 
   useEffect(() => {
     void refresh();
@@ -179,7 +194,11 @@ export function WarehouseEditor(): ReactNode {
   if (loading) return <div className="b2b-page">{t('warehouses.loading')}</div>;
 
   const isDefault = loaded?.code === 'default';
-  const canDelete = !isNew && !isDefault;
+  const canDelete = canWrite && !isNew && !isDefault;
+
+  if (!canRead || (isNew && !canWrite)) {
+    return <div className="b2b-page">{t('inventory.noPermission')}</div>;
+  }
 
   return (
     <div className="b2b-page">
@@ -375,9 +394,11 @@ export function WarehouseEditor(): ReactNode {
           >
             {t('warehouses.action.cancel')}
           </button>
-          <button type="submit" className="b2b-btn b2b-btn--primary" disabled={submitting}>
-            {submitting ? t('warehouses.action.saving') : isNew ? t('warehouses.action.create') : t('warehouses.action.saveChanges')}
-          </button>
+          {canWrite ? (
+            <button type="submit" className="b2b-btn b2b-btn--primary" disabled={submitting}>
+              {submitting ? t('warehouses.action.saving') : isNew ? t('warehouses.action.create') : t('warehouses.action.saveChanges')}
+            </button>
+          ) : null}
         </div>
       </form>
     </div>

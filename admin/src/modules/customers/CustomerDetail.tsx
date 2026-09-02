@@ -14,8 +14,8 @@ import {
   CustomerGroupPanel,
   AddressesPanel,
 } from './panels/ManagementPanels';
-import { DefaultPreferencesPanel } from '../quick_order/DefaultPreferencesPanel';
-import { CustomFieldValuesPanel } from '../custom_fields/CustomFieldValuesPanel';
+import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
 
 interface AdminCustomerDetail {
   id: string;
@@ -210,7 +210,17 @@ export function CustomerDetail(): ReactNode {
       <OrganizationAssignmentPanel customerId={id} organizationId={c.organizationId} onChanged={(): void => void refresh()} />
       <CustomerGroupPanel customerId={id} customerGroupId={c.customerGroupId} onChanged={(): void => void refresh()} />
       <AddressesPanel customerId={id} onChanged={(): void => void refresh()} />
-      <DefaultPreferencesPanel scope="customer" scopeId={id} />
+      {/* Feature 091 / P7b — the place at the end of this screen, and the twin
+          of `organization.detail.after`. **One mount**: the member carries no
+          prop that could tell two mounts apart, so a second one would render
+          every contribution twice.
+
+          One contribution today — `quick_order`'s ordering defaults, which this
+          file imported by path — and the member is its own rather than shared
+          with the organization screen, because `unrendered-zone` is computed per
+          member and a shared one would let that host's mount cover this host's
+          absence (Z13). */}
+      <AdminZone name="customer.detail.after" props={{ customerId: id }} />
 
       {/* Feature 055 — operator-defined custom fields for this customer. */}
       <CustomFieldValuesPanel

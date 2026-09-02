@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SessionService } from '../../../src/modules/auth/services/session-service.js';
-import { createAuthSessionPort } from '../../../src/modules/auth/services/session-port.js';
+import { SessionService } from '@endora-commerce/mod-auth/backend';
+import { createAuthSessionPort } from '@endora-commerce/mod-auth/backend';
 import { CustomerRegistrationService } from '../../../../packages/modules/customers/src/backend/services/customer-registration-service.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import {
   customerAccountLifecycleWriteFor,

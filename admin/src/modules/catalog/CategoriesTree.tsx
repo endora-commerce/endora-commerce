@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
-import { DisplayModeOverrideRow } from '../price_lists/DisplayModeOverrideRow';
-import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
+import { AssetPicker } from '@endora-commerce/admin-kit/components';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { useTranslation } from '@/i18n/useTranslation';
 import { useTranslationContext } from '@/i18n/TranslationProvider';
 import {
@@ -429,6 +429,7 @@ function EditForm({
   const [nameEn, setNameEn] = useState(category.name['en-US'] ?? '');
   const [namePl, setNamePl] = useState(category.name['pl-PL'] ?? '');
   const [parentId, setParentId] = useState<string>(category.parentCategoryId ?? '');
+  const contributions = useAdminZone('category.editor.after', { categoryId: category.id });
   return (
     <form
       className="space-y-4"
@@ -477,14 +478,21 @@ function EditForm({
           {t('categories.action.cancel')}
         </Button>
       </div>
-      <div className="space-y-2 pt-3 border-t mt-2">
-        <DisplayModeOverrideRow
-          scope="category"
-          targetId={category.id}
-          label={t('categories.priceDisplayMode.label')}
-          inheritHint={t('categories.priceDisplayMode.help')}
-        />
-      </div>
+      {/* Feature 091 / P7a — the place at the end of the category editor, after
+          everything the editor itself offers. `price_lists` contributes its
+          display-mode override here; this screen used to import that control by
+          path and hand it `catalog`'s own label and hint, which a host cannot do
+          for a contributor it does not know.
+
+          The separator is this form's chrome and must not render alone, so it
+          is behind the count `useAdminZone` already filtered by both presence
+          axes and each contributor's permission — `delivery_methods`' own
+          integrations card, applied to a rule instead of a panel. */}
+      {contributions.length > 0 ? (
+        <div className="space-y-2 pt-3 border-t mt-2">
+          <AdminZone name="category.editor.after" props={{ categoryId: category.id }} />
+        </div>
+      ) : null}
     </form>
   );
 }

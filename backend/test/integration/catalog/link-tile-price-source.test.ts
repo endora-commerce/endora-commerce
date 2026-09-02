@@ -5,13 +5,13 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
-import { ProductLinkService } from '../../../src/modules/catalog/services/product-link.service.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
+import { Product, type ProductRow } from '../../helpers/package-entities.js';
+import { ProductLinkService } from '../../../../packages/modules/catalog/dist/backend/services/product-link.service.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+} from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**
@@ -60,7 +60,7 @@ describe('product link tile price source (#132)', () => {
     await new DefaultPriceListMigrator(h.em).seedDefault();
   });
 
-  async function makeProduct(attributeValues: Record<string, unknown>): Promise<Product> {
+  async function makeProduct(attributeValues: Record<string, unknown>): Promise<ProductRow> {
     counter += 1;
     const suffix = `${Date.now()}-${counter}`;
     const em = h.em();

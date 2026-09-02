@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SaveButtonGroup } from '@/components/ui/save-button-group';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslation } from '@/i18n/useTranslation';
-import { ContentLanguageTabs } from '../components/ContentLanguageTabs';
+import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout';
 import { PageBuilderEditor } from '../components/PageBuilderEditor';
 import { emptyPageBuilderData } from '../components/page-builder-data';
@@ -20,7 +20,6 @@ import {
   loadCmsTemplateCanvas,
   saveCanvasAsCmsTemplate,
 } from '../components/cms-template-layout';
-import { ScopePicker, type CmsScopeValue } from '../components/ScopePicker';
 import { resolveScopedContentLanguage } from '../components/scope-utils';
 import { cmsClient } from '../api/cms-client';
 
@@ -66,7 +65,7 @@ export function BlockEditor(): ReactNode {
   // For a new block the code auto-derives from the name until the editor types
   // into the code field, at which point it stops auto-syncing.
   const [codeEdited, setCodeEdited] = useState(false);
-  const [scope, setScope] = useState<CmsScopeValue>({ salesChannelIds: [], languages: [] });
+  const [scope, setScope] = useState<ScopePickerValue>({ salesChannelIds: [], languages: [] });
   const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
   const [draftData, setDraftData] = useState<Data | null>(null);
   const [languageContentOverrides, setLanguageContentOverrides] = useState<Record<string, Data>>({});

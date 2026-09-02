@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SchedulePresetField } from '../../../src/modules/product_feeds/components/SchedulePresetField';
+import { SchedulePresetField } from '../../../../packages/modules/product_feeds/src/admin/components/SchedulePresetField';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**

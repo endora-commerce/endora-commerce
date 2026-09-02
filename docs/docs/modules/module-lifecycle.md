@@ -6,7 +6,9 @@ title: Module Lifecycle
 
 Platform-internal subsystem (feature 018) that turns every backend module into a first-class lifecycle citizen: declarative manifest, dependency graph, install / uninstall / enable / disable / status, persisted registry, transactional install with migration rollback, and a per-process enabled-set cache — refreshed over Redis pub/sub — that gates HTTP routes, BullMQ workers, and event subscribers without restarting the process.
 
-The subsystem itself lives at `backend/src/modules/_lifecycle/`. The leading underscore marks it as platform-internal (alongside `auth` and `example`); every other backend module opts in by exporting a `manifest` constant from its `manifest.ts`.
+The subsystem itself lives at `packages/platform/src/lifecycle/` — inside the host package, not in a module folder. It is the one registered module the packaging sweep does not turn into a package of its own (feature 080, D-160.11): the lifecycle machinery is the platform's operator half, so it ships with `@endora-commerce/platform` to every instance that installs the platform at all, rather than being a separate package an instance could be missing. Its module id is still `_lifecycle`, and the leading underscore still marks it as platform-internal; every other backend module opts in by exporting a `manifest` constant from its `manifest.ts`.
+
+Two parts of it stay in the application, at `backend/src/lifecycle/`, and they stay for a reason rather than as residue: the **manifest registry** (`registered-manifests.ts`) and the **reduced-deployment reader**, which read the deployment's overlay tree and the instance's installed packages — neither of which the platform can see — and the five `module:*` **CLI scripts**, which boot the ORM. Beside them sit re-export shims, one per moved file that something in `backend/` still names at its old path; they are a bridge and are deleted as their consumers stop naming it.
 
 ## Public surface
 
@@ -219,7 +221,7 @@ The `<YYYYMMDDTHHmmss>` prefix is a UTC timestamp, not a sequence number; the cl
 
 ### 4. Register the module
 
-There is nothing to hand-edit. `backend/src/modules/_lifecycle/manifest-index.generated.ts` is
+There is nothing to hand-edit. `backend/src/manifest-index.generated.ts` is
 **generated** (feature 072): every module directory that exports a lifecycle-shape
 `manifest.ts` is discovered by the tree walk, together with its optional `installHook` /
 `uninstallHook` exports. It is the only file that imports a manifest —
@@ -230,10 +232,13 @@ registry and one command that refreshes it. Regenerate and commit the result:
 pnpm --filter backend run composer:generate
 ```
 
-The generator is also wired into `pnpm --filter backend run build`, and
-`pnpm --filter backend run overlay:check` fails the build when a committed artefact is stale
-with respect to the tree — which is the one drift that is still possible now that the array
-is the walk.
+It is **not** wired into `pnpm --filter backend run build`, and it used to be: a build that
+re-derives a committed artefact writes its answer into its own output rather than into the
+tree, so a checkout with a stale artefact builds cleanly and reports nothing — and the
+production image, which holds only `backend/`, `packages/` and `scripts/`, cannot run a
+generator that walks the whole workspace at all. `pnpm --filter backend run overlay:check`
+is what fails the build when a committed artefact is stale with respect to the tree — the
+one drift that is still possible now that the array is the walk.
 
 ### 5. Wire the routes through the gating wrapper
 

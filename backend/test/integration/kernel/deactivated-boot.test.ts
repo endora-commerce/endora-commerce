@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * The backend still boots with a module switched off (feature 072, D-40).
@@ -153,10 +153,10 @@ let simulatingAbsence = false;
  * an operator who had flipped four activation Settings and disabled one module
  * would have left them.
  */
-vi.mock('../../../src/modules/_lifecycle/services/presence-load.js', async (importOriginal) => {
+vi.mock('../../../src/lifecycle/services/presence-load.js', async (importOriginal) => {
   const actual =
     await importOriginal<
-      typeof import('../../../src/modules/_lifecycle/services/presence-load.js')
+      typeof import('../../../src/lifecycle/services/presence-load.js')
     >();
   return {
     ...actual,

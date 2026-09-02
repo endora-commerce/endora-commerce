@@ -1,24 +1,16 @@
-import { type ReactNode } from 'react';
-import { cn } from '@/lib/utils';
-
 /**
- * A titled content block used inside the order-detail tab card. Mirrors the
- * product-editor pattern where each tab panel is a set of plain sections
- * within a single card body (no nested cards).
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/ui` (feature 091, P8).
+ *
+ * `Section` sat under `orders`' admin directory and was rendered by
+ * `quote_requests`' RFQ detail as well as by three of `orders`' own tabs —
+ * fourteen lines of `<section>`, `cn` and a heading, with no module knowledge
+ * at all. Being a layout primitive rather than a composite, its home in the kit
+ * is `./ui` and not `./components`.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's
+ * own bindings; `admin/test/kit/admin-kit-identity.test.ts` asserts reference
+ * equality across the seam.
  */
-export function Section(props: {
-  title: ReactNode;
-  action?: ReactNode;
-  className?: string;
-  children: ReactNode;
-}): ReactNode {
-  return (
-    <section className={cn('space-y-3', props.className)}>
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold tracking-tight">{props.title}</h2>
-        {props.action ?? null}
-      </div>
-      {props.children}
-    </section>
-  );
-}
+export { Section } from '@endora-commerce/admin-kit/ui';
+export type { SectionProps } from '@endora-commerce/admin-kit/ui';

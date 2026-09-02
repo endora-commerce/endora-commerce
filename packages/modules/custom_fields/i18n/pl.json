@@ -10,5 +10,6 @@
   "customFields.managedBy.catalogAttributes": "Zarządzane w Katalog → Atrybuty",
   "customFields.managedBy.notice": "Definicje dla tego typu encji są zarządzane przez inny moduł i są tutaj tylko do odczytu.",
   "actions.openCustomFields.label": "Pola niestandardowe",
-  "actions.openCustomFields.description": "Definiuj pola na kluczowych encjach."
+  "actions.openCustomFields.description": "Definiuj pola na kluczowych encjach.",
+  "nav.customFields.label": "Pola niestandardowe"
 }

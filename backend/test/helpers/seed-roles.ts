@@ -1,7 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Order } from '../../src/modules/orders/entities/order.entity.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import { CustomerAccount } from './package-entities.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 import {
   SEED_ADDRESS_BILLING_ID,
@@ -10,6 +9,7 @@ import {
   SEED_PAYMENT_METHOD_ID,
 } from './seed-commerce.js';
 import { STUB_CUSTOMER_PASSWORD } from './seed-organizations.js';
+import { Order } from './package-entities.js';
 
 /**
  * Fixture for T169 (Regular User scoping).

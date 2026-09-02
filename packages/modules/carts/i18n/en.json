@@ -82,5 +82,15 @@
   "reject.email.body": "An administrator rejected your cart. Reason: {reason}",
 
   "upsells.heading": "You might also need",
-  "upsells.empty": "No suggestions for this cart."
+  "upsells.empty": "No suggestions for this cart.",
+  "policy.title": "Cart approval",
+  "policy.description": "When this is on, ordinary members of this organization must submit their cart for an Organization Administrator's approval before they can check out.",
+  "policy.on": "Approval required before checkout",
+  "policy.off": "No approval required",
+  "policy.hint": "Turning the policy off returns every pending or approved cart in this organization to “not required”, and each change is recorded in the audit trail.",
+  "policy.saving": "Saving…",
+  "policy.turnedOn": "Cart approval is now required for this organization.",
+  "policy.turnedOff": "Cart approval is no longer required; pending carts were released.",
+  "policy.loadError": "Failed to load the cart-approval policy.",
+  "policy.saveError": "Failed to update the policy."
 }

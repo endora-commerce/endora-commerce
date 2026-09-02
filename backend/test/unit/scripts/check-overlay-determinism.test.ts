@@ -18,6 +18,11 @@ import {
   renderEntitiesRegistry,
   type SourceTree,
 } from '../../../scripts/generate-composer.js';
+import { findAliasMember } from '../../../scripts/lib/admin-surfaces.js';
+import {
+  nodeWorkspaceFs,
+  workspaceMembers,
+} from '../../../scripts/lib/workspace-packages.js';
 import { deploymentsOnDisk } from '../../../src/overlay/overlay-roots.js';
 
 /**
@@ -37,7 +42,7 @@ import { deploymentsOnDisk } from '../../../src/overlay/overlay-roots.js';
  * not about whether two strings match.
  */
 
-const PATH = '/repo/backend/src/modules/_lifecycle/manifest-index.generated.ts';
+const PATH = '/repo/backend/src/manifest-index.generated.ts';
 const RENDERED = 'export const DISCOVERED_MANIFESTS = [];\n';
 
 describe('compareArtifact', () => {
@@ -78,6 +83,22 @@ describe('compareArtifact', () => {
 
 describe('coveredArtifactPaths', () => {
   const srcRoot = resolve(fileURLToPath(new URL('../../../src', import.meta.url)));
+  /**
+   * The **admin's** source root, resolved the way every admin instrument
+   * resolves it: the workspace member declaring the `"@/*"` tsconfig alias.
+   *
+   * The sweep below used to walk `backend/src` alone, which stopped being the
+   * whole population when feature 091's fifth artefact landed in the admin. It
+   * is derived here rather than spelled for `lib/admin-surfaces.ts`' reason —
+   * the alias is what `tsc` and Vite both resolve the admin's own imports
+   * through, and zero or two members declaring it is a refusal rather than a
+   * walk quietly narrowed to whichever sorted first.
+   */
+  const adminSourceRoot = ((): string => {
+    const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+    const { member, target } = findAliasMember(workspaceMembers(repoRoot, nodeWorkspaceFs()));
+    return resolve(member.dir, target);
+  })();
 
   function generatedFilesUnder(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
@@ -99,7 +120,11 @@ describe('coveredArtifactPaths', () => {
     // every deployment's rather than only the one `DEPLOYMENT` selects; before
     // that, `example`'s was uncommitted and its line read `missing` on every run
     // that set the variable and did not exist on every run that did not.
-    expect(generatedFilesUnder(srcRoot).sort()).toEqual([...coveredArtifactPaths()].sort());
+    const onDisk = [
+      ...generatedFilesUnder(srcRoot),
+      ...generatedFilesUnder(adminSourceRoot),
+    ].sort();
+    expect(onDisk).toEqual([...coveredArtifactPaths()].sort());
   });
 
   it('names one override manifest per deployment on disk, plus bare core', () => {
@@ -255,16 +280,22 @@ describe('containmentSites', () => {
     const entities = renderEntitiesRegistry().content;
     const sites = containmentSites(REGISTRY_PATH, entities, ROOTS);
     //
-    // The **totals** carry the floor and the two verdicts carry only presence,
-    // because the `core` share is a *draining* population by construction:
-    // T040b moves modules out of the application tree one batch at a time, so
-    // it fell 129 -> 99 across batches two and three and its terminal value is
-    // zero. A floor on it would go red on correct work, and raising it back
-    // each time is exactly the number-editing the read-size rule forbids. What
-    // the assertion has to keep is that neither verdict is *absent* — that is
-    // what stops the classification collapsing to one — and that is what these
-    // two now say.
-    expect(sites.length).toBeGreaterThan(100);
+    // **The floor is the artefact's own import count, not a number.** The two
+    // verdicts carry only presence, because the `core` share is a *draining*
+    // population by construction: T040b moves modules out of the application
+    // tree one batch at a time and its terminal value is zero. The **total**
+    // drains for the same reason and this assertion did not say so — packaging
+    // collapses a module's N entity imports into one `entities` array import,
+    // so batch five's six modules took it from 111 to 99 and a `> 100` floor
+    // went red on correct work. Re-recording it downward each batch is the
+    // number-editing the read-size rule forbids, so the floor is derived
+    // instead: every `import` line the rendered registry carries must have been
+    // classified. That is this test's own title, it is what issue #215 is
+    // about — a walk of the right length whose result is discarded — and it
+    // does not move when a module becomes a package.
+    const importLines = entities.split('\n').filter((line) => line.startsWith('import ')).length;
+    expect(importLines).toBeGreaterThan(0);
+    expect(sites.length).toBe(importLines);
     expect(sites.filter((site) => site.verdict === 'core').length).toBeGreaterThan(0);
     expect(sites.filter((site) => site.verdict === 'workspace-package').length).toBeGreaterThan(0);
     expect(sites.filter((site) => site.verdict === 'foreign')).toEqual([]);

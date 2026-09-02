@@ -1,4 +1,5 @@
 import type { WebhookService } from '../../../../packages/modules/webhooks/src/backend/services/webhook-service.js';
+import { Organization } from '../../helpers/package-entities.js';
 import { createHmac, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Queue, Worker } from 'bullmq';
@@ -8,7 +9,6 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import {
   createWebhookQueue,
   createWebhookWorker,
@@ -17,7 +17,7 @@ import {
 import { createDeliveryProcessor } from '../../../../packages/modules/webhooks/src/backend/services/webhook-delivery-worker.js';
 import { bridgeEventHandler } from '../../../../packages/modules/webhooks/src/backend/services/event-bridge.js';
 import { BRIDGED_EVENT_TYPES } from '../../../../packages/modules/webhooks/src/backend/index.js';
-import { emitOrderStatusAfter } from '../../../src/modules/orders/events/order-status-events.js';
+import { emitOrderStatusAfter } from '../../../../packages/modules/orders/src/backend/events/order-status-events.js';
 import { WebhookDelivery, type WebhookDeliveryRow } from '../../helpers/package-entities.js';
 
 /**

@@ -11,7 +11,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { seedShippedOrder, RFQ_SHIPPED_ORDER_ID } from '../../helpers/seed-commerce.js';
 import { makePushDeliveryProcessor } from '../../../../packages/modules/pwa/src/backend/workers/push-delivery-worker.js';
 
@@ -213,6 +213,105 @@ describe('PWA module — admin + storefront', () => {
       payload: { endpoint: sub.endpoint },
     });
     expect(revoked.statusCode).toBe(204);
+  });
+
+  // ---- Feature 087 Group B / D-187: the attribution the row carries ----
+
+  /**
+   * The organisation is derived from the **row's own account**, never from the
+   * ambient request context, and it is written in the same statement as the
+   * account.
+   *
+   * `push_subscriptions_organization_attribution_chk` is what would catch a
+   * forgotten stamp on the create — the insert simply fails — so this case is
+   * not only about the constraint. It asserts the value is the **owning
+   * account's** organisation and not some other one the request happened to
+   * know about, which no constraint can express.
+   */
+  it('stamps the owning account organisation on an owned subscription', async () => {
+    await enablePush();
+    const endpoint = `https://fcm.googleapis.com/fcm/send/owned-${randomUUID()}`;
+
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/storefront/pwa/subscriptions',
+      headers: channelHeader,
+      cookies: { b2b_session: 'stub-customer-session' },
+      payload: { endpoint, keys: { p256dh: 'p', auth: 'a' } },
+    });
+    expect(created.statusCode).toBe(201);
+
+    const rows = (await h.em().getConnection().execute(
+      `select customer_account_id, organization_id from push_subscriptions where endpoint = ?`,
+      [endpoint],
+    )) as Array<{ customer_account_id: string | null; organization_id: string | null }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.customer_account_id).toBe(TEST_CUSTOMER_ID);
+    expect(rows[0]!.organization_id).toBe(TEST_ORGANIZATION_ID);
+  });
+
+  /**
+   * The shape the `CHECK` deliberately does **not** catch, asserted here
+   * instead (D-187, and the Q2 the ruling answers).
+   *
+   * The constraint is an **implication** —
+   * `customer_account_id is null or organization_id is not null` — so it says
+   * nothing at all about a row with no account. That was a decision rather
+   * than an oversight: the equivalence would close this shape and would, in
+   * closing it, write R-6's answer ("who does an ownerless row belong to?")
+   * into the schema while R-6 is open.
+   *
+   * `push_subscriptions` is the one table in Group B that can reach the shape,
+   * because its write is an upsert on `endpoint` and the same device can be
+   * re-subscribed by a browser nobody is signed in to. Left uncorrected, the
+   * row would keep the organisation of whoever last signed in on that device
+   * and would go on being listed to that organisation's representative — a
+   * disclosure, small and real. `PushSubscriptionService` writes both columns
+   * from one resolved owner, so the account and the organisation move
+   * together; this is the end-to-end proof of that, and it is the only thing
+   * in the platform that holds the invariant on this side.
+   */
+  it('clears the organisation when a previously owned device re-subscribes anonymously', async () => {
+    await enablePush();
+    const endpoint = `https://fcm.googleapis.com/fcm/send/deassociate-${randomUUID()}`;
+    const attribution = async (): Promise<{
+      customer_account_id: string | null;
+      organization_id: string | null;
+    }> => {
+      const rows = (await h.em().getConnection().execute(
+        `select customer_account_id, organization_id from push_subscriptions where endpoint = ?`,
+        [endpoint],
+      )) as Array<{ customer_account_id: string | null; organization_id: string | null }>;
+      expect(rows).toHaveLength(1);
+      return rows[0]!;
+    };
+
+    const owned = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/storefront/pwa/subscriptions',
+      headers: channelHeader,
+      cookies: { b2b_session: 'stub-customer-session' },
+      payload: { endpoint, keys: { p256dh: 'p', auth: 'a' } },
+    });
+    expect(owned.statusCode).toBe(201);
+    expect(await attribution()).toEqual({
+      customer_account_id: TEST_CUSTOMER_ID,
+      organization_id: TEST_ORGANIZATION_ID,
+    });
+
+    // The same device, nobody signed in. Idempotent upsert on `endpoint`, so
+    // this is the *same row*.
+    const anonymous = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/storefront/pwa/subscriptions',
+      headers: channelHeader,
+      payload: { endpoint, keys: { p256dh: 'p2', auth: 'a2' } },
+    });
+    expect(anonymous.statusCode).toBe(200);
+    expect(await attribution()).toEqual({
+      customer_account_id: null,
+      organization_id: null,
+    });
   });
 
   // ---- T034 admin send ----

@@ -35,6 +35,10 @@
       "@core/*": ["./backend/src/*"],
       "@endora-commerce/contracts": ["./packages/contracts/src/index.ts"],
       "@endora-commerce/contracts/*": ["./packages/contracts/src/*"],
+      "@endora-commerce/cli": ["./packages/cli/src/index.ts"],
+      "@endora-commerce/cli/*": ["./packages/cli/src/*"],
+      "@endora-commerce/admin-kit": ["./packages/admin-kit/src/index.ts"],
+      "@endora-commerce/admin-kit/*": ["./packages/admin-kit/src/*"],
       "@endora-commerce/api-client": ["./packages/api-client/src/index.ts"],
       "@endora-commerce/api-client/*": ["./packages/api-client/src/*"],
       "@endora-commerce/cms-components": ["./packages/cms-components/src/index.ts"],
@@ -42,7 +46,9 @@
       "@endora-commerce/email-components": ["./packages/email-components/src/index.ts"],
       "@endora-commerce/email-components/*": ["./packages/email-components/src/*"],
       "@endora-commerce/page-builder-core": ["./packages/page-builder-core/src/index.ts"],
-      "@endora-commerce/page-builder-core/*": ["./packages/page-builder-core/src/*"]
+      "@endora-commerce/page-builder-core/*": ["./packages/page-builder-core/src/*"],
+      "@endora-commerce/page-builder-admin": ["./packages/page-builder-admin/src/index.ts"],
+      "@endora-commerce/page-builder-admin/*": ["./packages/page-builder-admin/src/*"]
     }
   }
 }

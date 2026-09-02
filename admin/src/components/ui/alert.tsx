@@ -1,46 +1,17 @@
-import { forwardRef, type HTMLAttributes } from 'react';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
-
-const alertVariants = cva(
-  'relative w-full rounded-lg border p-4 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7',
-  {
-    variants: {
-      variant: {
-        default: 'bg-background text-foreground',
-        destructive:
-          'border-destructive/50 bg-destructive/10 text-destructive [&>svg]:text-destructive',
-        success:
-          'border-emerald-500/40 bg-emerald-50 text-emerald-900 [&>svg]:text-emerald-700 dark:bg-emerald-950 dark:text-emerald-100',
-        warning:
-          'border-amber-500/40 bg-amber-50 text-amber-900 [&>svg]:text-amber-700 dark:bg-amber-950 dark:text-amber-100',
-      },
-    },
-    defaultVariants: { variant: 'default' },
-  },
-);
-
-export interface AlertProps
-  extends HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof alertVariants> {}
-
-export const Alert = forwardRef<HTMLDivElement, AlertProps>(
-  ({ className, variant, ...props }, ref) => (
-    <div ref={ref} role="alert" className={cn(alertVariants({ variant }), className)} {...props} />
-  ),
-);
-Alert.displayName = 'Alert';
-
-export const AlertTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h5 ref={ref} className={cn('mb-1 font-medium leading-none tracking-tight', className)} {...props} />
-  ),
-);
-AlertTitle.displayName = 'AlertTitle';
-
-export const AlertDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('text-sm [&_p]:leading-relaxed', className)} {...props} />
-  ),
-);
-AlertDescription.displayName = 'AlertDescription';
+/**
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/ui` (feature 091, Phase 1b).
+ *
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
+ */
+export { Alert, AlertDescription, AlertTitle } from '@endora-commerce/admin-kit/ui';
+export type { AlertProps } from '@endora-commerce/admin-kit/ui';

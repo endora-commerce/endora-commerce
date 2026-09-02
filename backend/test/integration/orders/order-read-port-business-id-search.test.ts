@@ -5,8 +5,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { seedOrdersForInvoiceTests } from '../../helpers/seed-commerce.js';
-import { OrderReadService } from '../../../src/modules/orders/services/order-read-port.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { OrderReadService } from '../../../../packages/modules/orders/dist/backend/services/order-read-port.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 075, Phase P addendum — `OrderReadPort.findIdsByBusinessIdLike`.

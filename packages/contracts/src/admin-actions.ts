@@ -75,6 +75,13 @@ export const KnownIconNameSchema = z.enum([
   'PanelLeft',
   // security
   'KeyRound',
+  // Feature 091 (Phase 4, batch four) — `admin_roles`' sidebar entry and
+  // palette action, which became module declarations and therefore have to name
+  // their icon rather than import it. The allowlist is what a nav entry's
+  // `icon` is validated against too, so the glyph `AppShell.tsx` rendered by
+  // hand joins it here instead of the entry silently changing to a name that
+  // happened to be on the list.
+  'ShieldCheck',
   // Feature 080 (D-163.1) — the six icons the dashboard's recent-activity
   // renderings used before they became manifest declarations. They were
   // lucide imports inside `admin/src/modules/home/activity-render.ts`, which
@@ -86,6 +93,63 @@ export const KnownIconNameSchema = z.enum([
   'Truck',
   'CircleDollarSign',
   'Activity',
+  // Feature 091 (Phase 4, batch two) — `analytics`' sidebar entry, which became
+  // a module declaration and therefore has to name its icon rather than import
+  // it. The allowlist is what a nav entry's `icon` is validated against too, so
+  // the glyph `AppShell.tsx` rendered by hand joins it here instead of the
+  // entry silently changing to a name that happened to be on the list.
+  'LineChart',
+  // Feature 091 (Phase 4, batch six) — `pwa`' sidebar entry, which became a
+  // module declaration and therefore has to name its icon rather than import
+  // it. Same rule as the two entries above and the same reason for adding a
+  // name rather than reusing one: the entry keeps the glyph `AppShell.tsx`
+  // drew for it, so nothing an operator sees moves with the declaration.
+  'Smartphone',
+  // Feature 091 (Phase 4, the plan's batch 6) — `webhooks`' and `comparisons`'
+  // sidebar entries and palette actions, for the same reason: the two glyphs
+  // `AppShell.tsx` imported from `lucide-react` by hand have to be nameable now
+  // that the declarations are the modules' own. `api_keys` needed nothing —
+  // `KeyRound` is already above, because `credentials`' row renders it too.
+  //
+  // The batch numbers collide and the members do not: !1214 shipped `pwa` as
+  // "batch six" while `plan.md`'s batch 6 is this set. Both entries stand.
+  'Webhook',
+  'Scale',
+  // Feature 092 (`specs/092-pimcore-pim-sync/`) — `pim_pimcore`'s sidebar entry.
+  // The glyph `pim_ergonode`'s hand-written NAV row already renders for the
+  // connector directly above it; a module declaration has to name its icon
+  // rather than import it, so the name joins the allowlist here instead of the
+  // entry degrading to one that happens to be on it already.
+  'PlugZap',
+  // Feature 091 (Phase 4, the plan's batch 7) — `promotions`' two sidebar
+  // entries and its two palette rows, which become module declarations here and
+  // therefore have to name their icon rather than import it. Both rows drew the
+  // same glyph by hand in `AppShell.tsx`, so one name keeps both exactly as they
+  // were; the alternative is the entry degrading to a name that happens to be on
+  // the list already. `payment_methods`, `customer_accounts` and `product_feeds`
+  // need nothing — `CreditCard`, `Users` and `Rss` are all above, each added by
+  // an earlier palette action of that same module.
+  'PercentDiamond',
+  // Feature 091 (Phase 4, batch 8) — `megamenu`'s sidebar entry, which becomes a
+  // module declaration here and therefore has to name its icon rather than
+  // import it. `AppShell.tsx` drew `Newspaper` for it by hand, beside the four
+  // `/cms/*` rows and the three `/blog/*` ones; keeping the glyph means adding
+  // the name, and the alternative is the entry silently degrading to a name that
+  // happens to be on the list. The batch's other five need nothing — `Search`,
+  // `Receipt`, `Truck`, `CreditCard` and `Package` are all above.
+  'Newspaper',
+  // Feature 091 (Phase 4, batch 10) — `dictionaries`' two sidebar entries and
+  // the two palette actions that replace its hand-written *Navigate* rows, and
+  // `settings`' cache row. All three glyphs were imported into `AppShell.tsx`
+  // from `lucide-react` by hand; a module declaration has to name its icon
+  // rather than import it, so the names join the allowlist here instead of the
+  // entries degrading to names that happen to be on it already. The batch's
+  // other rows need nothing — `Languages` covers `/dictionary`, `ListChecks` is
+  // already above for `catalog`'s bulk-operations row, and `Settings` and
+  // `KeyRound` have been there since the first palette actions of the two
+  // modules that render them.
+  'Languages',
+  'Eraser',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

@@ -7,7 +7,7 @@ import {
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**
@@ -165,6 +165,61 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
         headers: { authorization: `Bearer ${unboundToken}` },
       });
       expect(res.statusCode).toBe(200);
+    });
+
+    /**
+     * The condition D-186 §3 attaches to homing `API_KEY_CHANNEL_MISMATCH` in
+     * `api_keys` — `specs/090-module-owned-error-codes/d129-sweep.md` §6.4, and
+     * the sweep's MR 5 is what makes it live.
+     *
+     * That code is raised by the **platform**, in the sales-channel resolver
+     * middleware, and its sentence now lives in a switchable module's bundle. A
+     * hard uninstall of `api_keys` sweeps that bundle, so the question is
+     * whether the platform can still produce the code once the module is gone.
+     * It cannot, and the reason is the edge this `describe` is already about:
+     * the raise sits behind `request.actor.kind === 'api_key'`, the only thing
+     * that produces such an actor is `auth`'s request hook calling this
+     * module's gated `apiKeyResolver`, and the presence probe beside that call
+     * answers `null` while the module is off. So the two halves are asserted
+     * together — the same absence that leaves a Bearer request unauthenticated
+     * is what makes the platform's own refusal unreachable.
+     *
+     * The positive control is the first case and is not optional: an assertion
+     * that a code is absent passes just as well when the request was wrong.
+     */
+    it('raises the platform-owned channel mismatch while the module is on', async () => {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/catalog/attribute-sets',
+        headers: {
+          authorization: `Bearer ${boundToken}`,
+          'x-sales-channel': 'not-the-bound-channel',
+        },
+      });
+      expect(res.statusCode).toBe(403);
+      expect((res.json() as { error: { code: string } }).error.code).toBe(
+        'API_KEY_CHANNEL_MISMATCH',
+      );
+    });
+
+    it('cannot raise it at all once the module is off, so the sentence it lost is unreachable too', async () => {
+      deactivate('api_keys');
+
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/catalog/attribute-sets',
+        headers: {
+          authorization: `Bearer ${boundToken}`,
+          'x-sales-channel': 'not-the-bound-channel',
+        },
+      });
+
+      // The key is no longer an identity, so the request is an anonymous one
+      // naming a channel that does not exist — refused for that reason, and by
+      // the resolver's own vocabulary rather than by the API-key branch.
+      expect((res.json() as { error: { code: string } }).error.code).not.toBe(
+        'API_KEY_CHANNEL_MISMATCH',
+      );
     });
   });
 

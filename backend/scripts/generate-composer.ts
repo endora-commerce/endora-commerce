@@ -9,13 +9,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  *   - `backend/src/composition.generated.ts` — the list a composition root
  *     walks: one `{ id, version, registerModule }` entry per converted **core**
  *     module, in the order it must be composed.
- *   - `backend/src/modules/_lifecycle/manifest-index.generated.ts` — the one
+ *   - `backend/src/manifest-index.generated.ts` — the one
  *     manifest registry: every core module's manifest, plus the install hooks
  *     it exports.
  *   - `backend/src/db/entities-registry.generated.ts` — the explicit entity
  *     class list MikroORM discovers through.
  *   - `backend/src/db/migrations-registry.generated.ts` — every migration in
  *     the repository, with the module that owns it.
+ *   - `admin/src/modules.generated.ts` — the admin contribution registry: the
+ *     `./admin` layer of every module package that ships one (feature 091,
+ *     Phase 2). The fifth artefact, and the one that converts the last two
+ *     hand-written registries a module author had to edit, `admin/src/App.tsx`
+ *     and `admin/src/components/AppShell.tsx`.
  *
  * Why generate them (feature 072, FR-030..FR-040): adding a module was three
  * edits in files it does not own, and removing one was an archaeology exercise.
@@ -65,6 +70,8 @@ import {
   PlatformRootUnresolvableError,
 } from './lib/platform-root.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
+import { ADMIN_REGISTRY_ARTEFACT, findAliasMember } from './lib/admin-surfaces.js';
+import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = resolve(here, '../src');
@@ -87,11 +94,7 @@ export function modulePackages(): readonly ModulePackage[] {
 }
 
 const composerOutputPath = join(srcRoot, 'composition.generated.ts');
-const manifestIndexOutputPath = join(
-  modulesRoot,
-  '_lifecycle',
-  'manifest-index.generated.ts',
-);
+const manifestIndexOutputPath = join(srcRoot, 'manifest-index.generated.ts');
 const entitiesRegistryOutputPath = join(srcRoot, 'db', 'entities-registry.generated.ts');
 const migrationsRegistryOutputPath = join(srcRoot, 'db', 'migrations-registry.generated.ts');
 
@@ -103,7 +106,7 @@ const migrationsRegistryOutputPath = join(srcRoot, 'db', 'migrations-registry.ge
  * per D-160.3 — changes this specifier in the next regeneration instead of
  * leaving an artefact that imports a path no longer there (D-100).
  */
-const manifestLocationsPath = join(modulesRoot, '_lifecycle', 'manifest-locations.ts');
+const manifestLocationsPath = join(srcRoot, 'manifest-locations.ts');
 const manifestLocationsSpecifier = ((): string => {
   const relativePath = relative(dirname(manifestIndexOutputPath), manifestLocationsPath)
     .split('\\')
@@ -118,13 +121,22 @@ const manifestLocationsSpecifier = ((): string => {
  * against the `*.generated.ts` files actually on disk — a generated file no
  * determinism gate looks at is a file that drifts unnoticed, which is the
  * defect this generator was consolidated to end.
+ *
+ * A **function** rather than a constant since feature 091's fifth artefact:
+ * the admin registry's location is derived from the workspace member declaring
+ * the `"@/*"` alias, which is filesystem work, and a module-level constant
+ * would do it at *import* time — so a tree with no such member would throw
+ * before any caller had a chance to say what it was doing.
  */
-export const GENERATED_ARTIFACT_PATHS: readonly string[] = [
-  composerOutputPath,
-  manifestIndexOutputPath,
-  entitiesRegistryOutputPath,
-  migrationsRegistryOutputPath,
-];
+export function generatedArtifactPaths(): readonly string[] {
+  return [
+    composerOutputPath,
+    manifestIndexOutputPath,
+    entitiesRegistryOutputPath,
+    migrationsRegistryOutputPath,
+    adminRegistryOutputPath(),
+  ];
+}
 
 /**
  * The one ordering constraint that is a **construction** dependency rather than
@@ -177,6 +189,118 @@ function directoriesIn(root: string): string[] {
     .filter((name) => !name.startsWith('.') && statSync(join(root, name)).isDirectory());
 }
 
+/**
+ * A module whose sources the **host application** owns, rather than a modules
+ * root or a package (feature 080, T040b).
+ *
+ * There is one, `_lifecycle`, and it is one because of D-160.11: the lifecycle
+ * subsystem is the platform's operator half, so it never became
+ * `@endora-commerce/mod-lifecycle` the way the other 66 modules did. It is
+ * still a registered module — it carries a manifest, permissions, an activation
+ * declaration, a palette action and two i18n bundles, and every other module's
+ * installation is recorded against it — so all three walks below have to find
+ * it, and its directory is not under `modulesRoot` any more.
+ *
+ * Two things are deliberately derived rather than written down (D-100). The
+ * directory is found by walking the source root's own children for a
+ * lifecycle-shape `manifest.ts`, the same marker core discovery uses one level
+ * down, so a second host-resident module needs no edit here. And the **id comes
+ * out of the manifest**, never off the directory name: `_lifecycle` lives in
+ * `src/lifecycle/` precisely because the two must differ —
+ * `scripts/lib/module-roots.ts` reads a directory *named* after a registered id
+ * as a module directory, so `src/_lifecycle/` would make `backend/src` itself a
+ * module root and every kernel file a module's source.
+ */
+interface HostResidentModule {
+  readonly id: string;
+  readonly directory: string;
+  readonly manifestPath: string;
+  /**
+   * How a generated artefact at the source root names a file in this module's
+   * directory — `./lifecycle/manifest.js` for a module the application's own
+   * tree holds, `../../packages/platform/dist/lifecycle/manifest.js` for one
+   * inside the platform package. See {@link residentModules}.
+   */
+  readonly specifierFor: (absolutePath: string) => string;
+}
+
+const MANIFEST_ID_RE = /defineModuleManifest\(\{[\s\S]*?\bid:\s*'([^']+)'/;
+
+/**
+ * Every module whose sources are neither a modules root's nor a module
+ * package's — the application's own, and the platform's.
+ *
+ * The application half is `srcRoot`'s immediate children; there are none today,
+ * and there were for the two commits between !1095 and D-160.11's second half.
+ * The platform half is `packages/platform/src`'s, and there is one: `_lifecycle`
+ * merged into the host package, which is what D-160.11 rules. Both are found by
+ * the **same marker** core discovery uses one level down — a lifecycle-shape
+ * `manifest.ts` — and the **id comes out of the manifest**, never off the
+ * directory name: `_lifecycle` lives in `lifecycle/` precisely because the two
+ * must differ, since `scripts/lib/module-roots.ts` reads a directory *named*
+ * after a registered id as a module directory and a `src/_lifecycle/` would make
+ * the whole source root one.
+ *
+ * **The platform half's specifier names the package's `dist`, not its `src`.**
+ * The host publishes five subpaths and no more (D-160.7), so there is no bare
+ * specifier that reaches inside it, and naming the *source* would evaluate the
+ * platform a second time — 59 runtime values, none shared, `instanceof
+ * HttpError` false across the boundary (host-package.md §3.5), which is exactly
+ * what `check:singleton-identity` refuses. So it names the built file, as the
+ * re-export shims in `backend/src/{kernel,http,tenancy,commands,events}` and
+ * `backend/src/lifecycle/` already do. `src` and `dist` sit at the same depth
+ * under `backend/`, so the emitted specifier is correct from `backend/src` under
+ * `tsx` and from `backend/dist` in production without being rewritten.
+ */
+function residentModules(): HostResidentModule[] {
+  const found: HostResidentModule[] = [];
+  const collect = (
+    root: string,
+    specifierFor: (absolutePath: string) => string,
+  ): void => {
+    for (const name of directoriesIn(root)) {
+      const directory = join(root, name);
+      if (directory === modulesRoot) continue;
+      const manifestPath = join(directory, 'manifest.ts');
+      if (!existsSync(manifestPath)) continue;
+      const source = readFileSync(manifestPath, 'utf8');
+      const id = MANIFEST_ID_RE.exec(source)?.[1];
+      if (id === undefined) continue;
+      found.push({ id, directory, manifestPath, specifierFor });
+    }
+  };
+  collect(srcRoot, srcSpecifier);
+  const platformRoot = platformSourceRootAt(repoRoot);
+  if (platformRoot !== null) collect(platformRoot, platformDistSpecifier(platformRoot));
+  return found;
+}
+
+/**
+ * `<platform>/src/lifecycle/manifest.ts` -> `../../packages/platform/dist/lifecycle/manifest.js`,
+ * relative to the directory the generated artefacts sit in.
+ */
+function platformDistSpecifier(platformRoot: string): (absolutePath: string) => string {
+  const distRoot = join(dirname(platformRoot), 'dist');
+  return (absolutePath: string): string => {
+    const within = relative(platformRoot, absolutePath).split('\\').join('/');
+    const target = join(distRoot, within);
+    const specifier = relative(dirname(manifestIndexOutputPath), target)
+      .split('\\')
+      .join('/')
+      .replace(/\.ts$/, '.js');
+    return specifier.startsWith('.') ? specifier : `./${specifier}`;
+  };
+}
+
+/** How the emitted index, which sits at the source root, names a file under it. */
+function srcSpecifier(absolutePath: string): string {
+  const relativePath = relative(dirname(manifestIndexOutputPath), absolutePath)
+    .split('\\')
+    .join('/')
+    .replace(/\.ts$/, '.js');
+  return relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
+}
+
 interface DiscoveredConverted {
   id: string;
   /** Absolute path to the module's `manifest.ts` — read for `manifest.dependencies`. */
@@ -213,6 +337,17 @@ function discoverConverted(packages: readonly ModulePackage[] = modulePackages()
       manifestPath: join(modulesRoot, id, 'manifest.ts'),
       backendImportPath: `./modules/${id}/backend.js`,
       manifestImportPath: `./modules/${id}/manifest.js`,
+    });
+  }
+  for (const host of residentModules()) {
+    const backend = join(host.directory, 'backend.ts');
+    if (!existsSync(backend)) continue;
+    exposesRegisterModule(backend);
+    byId.set(host.id, {
+      id: host.id,
+      manifestPath: host.manifestPath,
+      backendImportPath: host.specifierFor(backend),
+      manifestImportPath: host.specifierFor(host.manifestPath),
     });
   }
   for (const pkg of packages) {
@@ -369,6 +504,9 @@ async function discoverPresentModules(
       continue;
     }
     byId.set(id, await loadManifest(manifestPath));
+  }
+  for (const host of residentModules()) {
+    byId.set(host.id, await loadManifest(host.manifestPath));
   }
   for (const pkg of packages) {
     byId.set(pkg.moduleId, await loadManifest(packageEntryPoints(pkg).manifestPath));
@@ -600,13 +738,25 @@ function discoverManifests(
     // detector, so a packaged module declares one on core's terms.
     hasRecentActivity: detectHookExport('recentActivity', source, id),
   });
-  // The index lives in `_lifecycle/`, so a core manifest is one folder up.
+  // The index sits at the source root (D-160.3), so every specifier it emits
+  // for a file of this application is computed from the two paths rather than
+  // written as a shape — the same reason `manifestLocationsSpecifier` is.
   for (const id of directoriesIn(modulesRoot)) {
     const manifestPath = join(modulesRoot, id, 'manifest.ts');
     if (!existsSync(manifestPath)) continue;
     const source = readFileSync(manifestPath, 'utf8');
     if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
-    byId.set(id, entryFrom(id, source, `../${id}/manifest.js`));
+    byId.set(id, entryFrom(id, source, srcSpecifier(manifestPath)));
+  }
+  for (const host of residentModules()) {
+    byId.set(
+      host.id,
+      entryFrom(
+        host.id,
+        readFileSync(host.manifestPath, 'utf8'),
+        host.specifierFor(host.manifestPath),
+      ),
+    );
   }
   // A packaged module's manifest is imported by the **bare** specifier its own
   // exports map publishes (D-149), so this artefact does not change on the day
@@ -1314,6 +1464,142 @@ export function renderMigrationsRegistry(sources: SourceTree = readSourceTree())
   };
 }
 
+
+// ── the admin contribution registry ─────────────────────────────────────────
+//
+// The fifth artefact (feature 091, Phase 2). Its three siblings under
+// `backend/src` plus the manifest index come out of the same command; this one
+// is written into the **admin** application, because that is the program that
+// consumes it, and its location is derived from the `"@/*"` alias exactly as
+// `check:admin-registrations` and `check:admin-surface` derive theirs.
+
+/** The layer directory a module package publishes its admin contributions from. */
+const ADMIN_LAYER_ENTRY = 'src/admin/index.ts';
+
+/** One module package's admin contribution, as the artefact names it. */
+export interface AdminContributionEntry {
+  /** `endora.id`, the identity of record (D-142). */
+  readonly moduleId: string;
+  /** The bare specifier, derived from the package's own `exports` map (D-149). */
+  readonly specifier: string;
+}
+
+/**
+ * Every module package that ships an admin layer, sorted by module id.
+ *
+ * **Discovery is the package's own statement about itself** (R2): the `endora`
+ * block says it is a module, and the presence of `src/admin/index.ts` says it
+ * contributes. Nothing keys on a directory name and `packages/modules` is
+ * spelled nowhere (D-100).
+ *
+ * **A module with the layer and no `./admin` subpath is refused, not skipped**
+ * (R4). `packageSpecifierFor` raises `ModulePackageError` naming the file and
+ * the declared subpaths, because a skip is how a whole layer goes missing
+ * without a word — the same reason a packaged migration covered by no declared
+ * subpath is refused rather than dropped.
+ */
+export function collectAdminContributions(
+  packages: readonly ModulePackage[],
+  exists: (path: string) => boolean = existsSync,
+): readonly AdminContributionEntry[] {
+  const found: AdminContributionEntry[] = [];
+  for (const pkg of packages) {
+    if (!exists(absolutePathInPackage(pkg, ADMIN_LAYER_ENTRY))) continue;
+    found.push({ moduleId: pkg.moduleId, specifier: packageSpecifierFor(pkg, ADMIN_LAYER_ENTRY) });
+  }
+  return found.sort((a, b) => a.moduleId.localeCompare(b.moduleId));
+}
+
+/** A JS identifier for one entry's import binding — `import_export` → `contributions0`. */
+function adminBindingOf(index: number): string {
+  return `contributions${index}`;
+}
+
+/** Pure render of the admin registry, exported so a test can drive it. */
+export function emitAdminRegistry(entries: readonly AdminContributionEntry[]): string {
+  const imports = entries
+    .map(
+      (entry, index) =>
+        `import { contributions as ${adminBindingOf(index)} } from '${entry.specifier}';`,
+    )
+    .join('\n');
+  const body = entries
+    .map(
+      (entry, index) =>
+        `  { moduleId: '${entry.moduleId}', contributions: ${adminBindingOf(index)} },`,
+    )
+    .join('\n');
+
+  return `${HEADER('generate-composer.ts')}//
+// The admin contribution registry — every module package's \`./admin\` layer,
+// named by the bare specifier its own \`exports\` map declares (feature 091,
+// \`contracts/admin-registry.md\`).
+//
+// It exists because \`admin/src/App.tsx\` and \`admin/src/components/AppShell.tsx\`
+// were the last two registries a module author had to hand-edit. Measured over
+// the twelve most recently added modules, 11 of 12 edited each of them, while
+// every backend registration point they also used to edit — the composition,
+// the two \`db/\` registries, the manifest index, the permission inventory — had
+// already been converted to a generator or a derivation. This is that remedy,
+// applied to the two that were left.
+//
+// **Enumerable without being executed.** Every route and zone component in a
+// contribution is a \`() => import('…')\` factory, so importing this file costs
+// the declarations and none of the screens: Vite splits one chunk per module
+// and an operator downloads only what their role can reach.
+//
+// **The registry answers "what could be here", never "what is here now".**
+// Presence and permission are applied at render by \`isSurfaceVisible\`, the one
+// predicate the sidebar, the palette and the dashboard already share — an
+// operator's activation flip must take effect without a rebuild (Principle XVII
+// item 5), and a registry that filtered would make it a restart.
+//
+// **Bare core under every value of \`DEPLOYMENT\`** (D-104), like the manifest
+// index: a deployment's overlay modules are discovered at runtime and
+// contribute to no committed artefact.
+
+import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+
+${imports}
+
+/** One module's contribution set, keyed by the module id that shipped it. */
+export interface AdminRegistryEntry {
+  readonly moduleId: string;
+  readonly contributions: AdminContributions;
+}
+
+export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
+${body}
+];
+`;
+}
+
+/**
+ * Where the registry lands: the source root of the workspace member declaring
+ * the `"@/*"` alias.
+ *
+ * Derived rather than spelled, for the reason `lib/admin-surfaces.ts` gives at
+ * length: that alias is what `tsc` and Vite both resolve the admin's own
+ * imports through, so it is a live declaration, and zero or two members
+ * declaring it is a refusal rather than a walk narrowed to whichever sorted
+ * first.
+ */
+function adminRegistryOutputPath(): string {
+  const members = workspaceMembers(repoRoot, nodeWorkspaceFs());
+  const { member, target } = findAliasMember(members);
+  return join(resolve(member.dir, target), ADMIN_REGISTRY_ARTEFACT);
+}
+
+/** Pure render — the target path + expected content of the admin registry. */
+export function renderAdminRegistry(
+  packages: readonly ModulePackage[] = modulePackages(),
+): { outputPath: string; content: string } {
+  return {
+    outputPath: adminRegistryOutputPath(),
+    content: emitAdminRegistry(collectAdminContributions(packages)),
+  };
+}
+
 /** Every committed artefact, rendered from one read of the tree. */
 export async function renderAll(): Promise<
   ReadonlyArray<{ label: string; outputPath: string; content: string }>
@@ -1326,6 +1612,7 @@ export async function renderAll(): Promise<
     { label: 'manifest-index', ...renderManifestIndex(packages) },
     { label: 'entities-registry', ...renderEntitiesRegistry(sources) },
     { label: 'migrations-registry', ...renderMigrationsRegistry(sources) },
+    { label: 'admin-registry', ...renderAdminRegistry(packages) },
   ];
 }
 

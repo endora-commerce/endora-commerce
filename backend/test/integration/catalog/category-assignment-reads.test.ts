@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CatalogCategoryReadPort } from '@endora-commerce/contracts';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Category } from '../../helpers/package-entities.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import {
   setupBackendServer,

@@ -71,11 +71,30 @@
  * `ACTION_PERMISSION_DISAGREEMENTS` holds those three with the question that
  * would retire each.
  *
+ * ## The artefact this reads, and when it refuses to judge it
+ *
+ * The route half is source text, walked. The **manifest** half is imported, and
+ * a module that has become a workspace package resolves through its own
+ * `exports` map at its build output (D-164) — so an action edited in
+ * `packages/modules/<id>/src/manifest.ts` and not rebuilt is not the action
+ * this check sees. Measured three consecutive times on
+ * `specs/091-module-owned-admin-surfaces/`'s admin drain, most sharply on
+ * !1203, where a `requiredPermission` changed from `payu:read` to `payu:write`
+ * reported `findings=3 violations=0` and exit 0 before
+ * `pnpm --filter @endora-commerce/mod-payu run build`, and `findings=4
+ * violations=1` and exit 1 after it. So a run whose manifest artefact is older
+ * than the source it was emitted from **exits 2** and names the package: the
+ * tree is not in violation, this run could not see it. See
+ * `scripts/lib/emitted-freshness.ts`, where the derivation lives, and the
+ * `emitted-manifests` token on the `read:` line, which is how a clean run says
+ * which artefact it read.
+ *
  * Usage: `tsx scripts/check-action-route-permissions.ts [--list]`
  * Exit 0 = every action's declared code is the one its target enforces (or the
  * disagreement is ledgered); exit 1 = at least one is not, or a ledger entry is
- * stale; exit 2 = the scan read no route or no action, so a green would have
- * meant "not looking" (issue #113).
+ * stale; exit 2 = the scan read no route or no action, or the manifest artefact
+ * it read has been outrun by its source — a green would have meant "not
+ * looking" (issue #113).
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -86,9 +105,17 @@ import { activeOverlayModulesRoot } from '../src/overlay/overlay-roots.js';
 import {
   moduleIdOf as segmentModuleIdOf,
   refuseVacuousModulePopulation,
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
 } from './lib/module-population.js';
+import { UI_LAYER_DIRECTORIES } from './lib/ui-layer.js';
 import { requireModuleLayout } from './lib/module-roots.js';
-import { reportReadSize } from './lib/read-size.js';
+import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
+import {
+  checkEmittedFreshness,
+  emittingPackages,
+  refuseStaleEmittedArtefacts,
+} from './lib/emitted-freshness.js';
 
 
 /** Every admin API path starts here; nothing else is an admin surface. */
@@ -147,6 +174,17 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     'is the write one. Retire this entry with the same answer as the two above: a ' +
     'palette row is a navigation, and the field is a single code, so the label and the ' +
     'gate cannot both be honoured.',
+  'pim_pimcore:skip-pimcore-bootstrap':
+    '"Skip the first full delivery" declares `pim_pimcore:write` and lands on ' +
+    '`/pim-pimcore`, whose landing GETs are `pim_pimcore:read`. `:write` is the ' +
+    'honest declaration and stays: the row promises the skip, not the screen — the ' +
+    'screen is already advertised by `open-pim-pimcore` with the read code — and ' +
+    'POST /api/v1/admin/pim-pimcore/bootstrap/skip enforces `pim_pimcore:write`. An ' +
+    'operator holding only `:read` cannot skip a bootstrap, so advertising it to them ' +
+    'would be a promise the server refuses. Retire this entry when a palette action ' +
+    'can name the code that opens its target separately from the code its own ' +
+    'operation needs; one field cannot say both, and the choice here is the ' +
+    "owner's.",
 };
 
 // ---------------------------------------------------------------------------
@@ -197,6 +235,15 @@ export interface RouteScanInput {
    */
   readonly absolutePathOf?: (file: string) => string;
   readonly lookupConstant?: ConstantLookup;
+  /**
+   * Directories whose files belong to a module no `modules/<id>/` segment names
+   * — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   *
+   * `_lifecycle` serves `/api/v1/admin/modules/**`, so without it those routes
+   * are read as belonging to no module and the third resolution level — the
+   * owning module's own routes — has nothing to fall back to.
+   */
+  readonly hostResidentModules?: HostResidentModules;
 }
 
 // ---------------------------------------------------------------------------
@@ -417,7 +464,7 @@ export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
     if (!text.includes(ADMIN_API_PREFIX)) continue;
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
     const bindings = localBindings(sf);
-    const moduleId = moduleIdOf(file);
+    const moduleId = moduleIdOf(file, input.hostResidentModules);
 
     const visit = (node: ts.Node): void => {
       if (
@@ -466,13 +513,16 @@ export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
  * repository-relative and starts with neither `modules` nor `apps` (feature
  * 080, T040a).
  */
-export function moduleIdOf(file: string): string | null {
+export function moduleIdOf(
+  file: string,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+): string | null {
   const segments = file.split('/');
   if (segments[0] === 'modules') return segments[1] ?? null;
   // `apps/<deployment>/modules/<id>/…` — an overlay module is an ordinary
   // lifecycle participant and owns its actions the same way (feature 057).
   if (segments[0] === 'apps' && segments[2] === 'modules') return segments[3] ?? null;
-  return segmentModuleIdOf(file);
+  return segmentModuleIdOf(file, hostResident);
 }
 
 // ---------------------------------------------------------------------------
@@ -715,8 +765,21 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-async function loadActions(): Promise<ActionRecord[]> {
-  const { resolvedManifestEntries } = await import('../src/modules/_lifecycle/registered-manifests.js');
+/**
+ * The manifest half of the comparison, and **where each manifest came from**.
+ *
+ * The locations are returned alongside the actions because they are the answer
+ * to a question this check could not previously ask: a packaged module's
+ * manifest is imported by bare specifier and therefore read out of the
+ * package's build output, so an action edited in `src/manifest.ts` and not
+ * rebuilt is invisible here. See `scripts/lib/emitted-freshness.ts`.
+ */
+async function loadActions(): Promise<{
+  readonly actions: readonly ActionRecord[];
+  /** One per registered module: the location its manifest was imported from. */
+  readonly manifestLocations: readonly string[];
+}> {
+  const { resolvedManifestEntries } = await import('../src/lifecycle/registered-manifests.js');
   const entries = await resolvedManifestEntries();
   const actions: ActionRecord[] = [];
   for (const entry of entries) {
@@ -731,7 +794,7 @@ async function loadActions(): Promise<ActionRecord[]> {
       });
     }
   }
-  return actions;
+  return { actions, manifestLocations: entries.map((entry) => entry.filePath) };
 }
 
 async function main(): Promise<void> {
@@ -744,9 +807,29 @@ async function main(): Promise<void> {
   // from the core list and is added back below for the active deployment only.
   const layout = await requireModuleLayout('[action-route-permissions]');
   const overlayRoot = activeOverlayModulesRoot(process.env);
+  // A module package's admin layer is **browser** code and is skipped (feature
+  // 091, Phase 4). This walk's subject is Fastify registrations, and the two
+  // idioms are indistinguishable at the syntax this check reads: a screen's
+  // `api/*-client.ts` writes `apiClient.post(`${BASE}/custom-events`, body)`,
+  // which has a method, a path and no `preHandler` — so the first module to
+  // move its admin directory into its package produced a second, ungated
+  // candidate for a route it also registers for real, and the check reported
+  // the disagreement as `unresolvable`. It is right about the disagreement and
+  // wrong about the population; the layer is excluded rather than the shape
+  // guessed at, because a heuristic over the call would eventually exclude a
+  // real registration.
+  // Both UI layers, from the one declaration: `./admin` is the contribution
+  // layer and `./admin-ui` is the published-component one, and the reason to
+  // skip is the same for each — it is browser code, not a Fastify registration.
+  const uiLayers = layout.moduleRoots
+    .filter((root) => root.origin === 'workspace-package')
+    .flatMap((root) =>
+      UI_LAYER_DIRECTORIES.map((layer) => `${join(root.directory, 'src', layer)}/`),
+    );
   const coreFiles = layout.sourceRoots
     .flatMap((root) => walk(root))
-    .filter((file) => !file.startsWith(`${layout.overlayRoot}/`));
+    .filter((file) => !file.startsWith(`${layout.overlayRoot}/`))
+    .filter((file) => !uiLayers.some((layer) => file.startsWith(layer)));
 
   // Before anything is imported out of the tree, and before a finding count can
   // be printed: over a moved module tree the walk comes back with `src/kernel`
@@ -768,13 +851,28 @@ async function main(): Promise<void> {
   // Imported here rather than at the top: both live in the module tree, so a
   // static import would die at module resolution over the residue above and
   // turn an exit 2 into an unhandled rejection.
-  const { ConstantResolver } = await import('../src/modules/admin_roles/permission-inventory.js');
+  const { ConstantResolver } = await import('@endora-commerce/mod-admin-roles/backend');
   const resolver = new ConstantResolver();
-  const actions = await loadActions();
+  const { actions, manifestLocations } = await loadActions();
+
+  // The third floor, and the one the other two cannot see: the manifests above
+  // were **imported**, and a module that has become a workspace package
+  // resolves through its own `exports` map at its build output. So an author
+  // who edits `packages/modules/<id>/src/manifest.ts` and runs this check is
+  // answered about the previous build — measured three consecutive times on
+  // `specs/091-module-owned-admin-surfaces/`'s admin drain, and green every
+  // time. Exit 2 rather than 1: the tree is not in violation, this run could
+  // not see it (issue #113).
+  const freshness = checkEmittedFreshness({
+    read: manifestLocations,
+    packages: emittingPackages(layout.repoRoot),
+  });
+  refuseStaleEmittedArtefacts('[action-route-permissions]', freshness, layout.displayOf);
 
   const result = analyse({
     sources,
     actions,
+    hostResidentModules: layout.hostResidentModules,
     absolutePathOf: layout.absolutePathOf,
     lookupConstant: (file, name, property) => resolver.lookup(file, name, property),
   });
@@ -815,11 +913,27 @@ async function main(): Promise<void> {
   // the unit judged — one action, one declared permission, one target route —
   // so they are the `sites` number; the route index they are compared against
   // stays on the line below.
+  // Which artefact the manifest half came from is a fact this line owes its
+  // reader (issue #244): `files` counts the source text the route walk opened,
+  // and says nothing about the 60-odd manifests that were imported rather than
+  // walked. The token is omitted — not printed as `0/0`, which `read-size.ts`
+  // refuses as `no-expectation` — on a tree where every manifest was read from
+  // source, because then there is no emitted artefact to disclose.
+  const emittedManifests: readonly ReadCoverage[] =
+    freshness.emitted.length === 0
+      ? []
+      : [
+          {
+            source: 'emitted-manifests',
+            expected: freshness.emitted.length,
+            covered: freshness.compared.length,
+          },
+        ];
   reportReadSize({
     prefix: '[action-route-permissions]',
     files: sources.size,
     sites: actions.length,
-    coverage: [coverage],
+    coverage: [coverage, ...emittedManifests],
   });
   console.log(
     `[action-route-permissions] actions=${actions.length} admin-routes=${result.scan.routes.length} ` +

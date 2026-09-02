@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'node:crypto';
 import {
@@ -6,10 +7,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { OrganizationSalesRepAssignment } from '../../../src/modules/organizations/entities/organization-sales-rep-assignment.entity.js';
-import { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
-import { SalesRepAssignmentService } from '../../../src/modules/organizations/services/sales-rep-assignment-service.js';
+import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
+import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
 
 /**
  * Feature 056 US2 — sales-rep subtree-implied assignment with per-descendant

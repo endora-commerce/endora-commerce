@@ -35,6 +35,31 @@ export interface TenantImpersonation {
   readonly impersonatedCustomerAccountId: string;
 }
 
+/**
+ * What the tenant guard **did** to this execution, as opposed to what it was
+ * allowed to do (feature 087, owner decision of 2026-08-29).
+ *
+ * A predicate that refuses every row of a table is correct and silent, and the
+ * two properties are in tension: the caller receives an empty result and cannot
+ * tell "your reach excludes all of these" from "there are none". The filter is
+ * the only thing that knows which it meant, so it records it here and the host
+ * discloses it on the response envelope (`kernel/request-scope-hook.ts`).
+ *
+ * Mutable, and deliberately so: one object per request, created beside the
+ * context it hangs off, written by the filter as queries run and read once the
+ * handler has answered. It is an observation of this execution, never an input
+ * to a decision — nothing in the guard reads it, so a stale or missing sink can
+ * widen no authority.
+ */
+export interface TenantScopeNotices {
+  /**
+   * Set when the `customerAccount` filter answered its `allowed-set` arm with
+   * the match-nothing predicate, i.e. the filtered entity carries no
+   * organization column of its own. See `customerFilterCond`.
+   */
+  organizationAttributionRefused: boolean;
+}
+
 export interface TenantContext {
   readonly mode: TenantScopeMode;
   /** Present for `single-org`. */
@@ -47,6 +72,22 @@ export interface TenantContext {
   readonly impersonation?: TenantImpersonation;
   /** Required for `system` scope entered via the escape hatch. */
   readonly reason?: string;
+  /**
+   * Per-request observation sink. Attached by `resolveTenantContext` to the
+   * contexts whose predicates can refuse wholesale (`allowed-set`), absent
+   * everywhere else — a mode that never refuses has nothing to disclose.
+   */
+  readonly notices?: TenantScopeNotices;
+}
+
+/**
+ * Record that the ambient execution was refused a whole table for want of an
+ * organization column. A context with no sink (every mode but `allowed-set`,
+ * and any context a caller built by hand) drops the observation, which is the
+ * right failure: the disclosure goes missing, never the refusal.
+ */
+export function noteOrganizationAttributionRefusal(ctx: TenantContext): void {
+  if (ctx.notices) ctx.notices.organizationAttributionRefused = true;
 }
 
 /**

@@ -1,49 +1,16 @@
-import { useEffect, type RefObject } from 'react';
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 /**
- * Trap focus inside `containerRef` while `active` (feature 029 mobile drawer).
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/components` (feature 091, Phase 1b).
+ *
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
  */
-export function useFocusTrap(
-  containerRef: RefObject<HTMLElement | null>,
-  active: boolean,
-): void {
-  useEffect(() => {
-    if (!active || !containerRef.current) return;
-    const root = containerRef.current;
-    const previous = document.activeElement as HTMLElement | null;
-
-    const focusables = (): HTMLElement[] =>
-      Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => !el.hasAttribute('disabled') && el.offsetParent !== null,
-      );
-
-    const first = focusables()[0];
-    first?.focus();
-
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.key !== 'Tab') return;
-      const items = focusables();
-      if (items.length === 0) return;
-      const current = document.activeElement as HTMLElement | null;
-      const idx = items.indexOf(current as HTMLElement);
-      if (e.shiftKey) {
-        if (idx <= 0) {
-          e.preventDefault();
-          items[items.length - 1]?.focus();
-        }
-      } else if (idx === items.length - 1) {
-        e.preventDefault();
-        items[0]?.focus();
-      }
-    };
-
-    root.addEventListener('keydown', onKeyDown);
-    return (): void => {
-      root.removeEventListener('keydown', onKeyDown);
-      previous?.focus?.();
-    };
-  }, [active, containerRef]);
-}
+export { useFocusTrap } from '@endora-commerce/admin-kit/components';

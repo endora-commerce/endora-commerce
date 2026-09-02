@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { PriceListService } from '../../../src/modules/price_lists/services/price-list-service.js';
-import { PriceListStatusWorker } from '../../../src/modules/price_lists/services/price-list-status-worker.js';
-import { DefaultPriceListMigrator } from '../../../src/modules/price_lists/services/default-price-list-migration.js';
+import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
+import { PriceListStatusWorker } from '../../../../packages/modules/price_lists/src/backend/services/price-list-status-worker.js';
+import { DefaultPriceListMigrator } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 
 /**

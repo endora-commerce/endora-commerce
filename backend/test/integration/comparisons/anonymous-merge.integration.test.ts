@@ -8,7 +8,11 @@ import {
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
-import { Comparison, ComparisonProduct } from '../../helpers/package-entities.js';
+import {
+  Comparison,
+  ComparisonProduct,
+  CustomerAccount,
+} from '../../helpers/package-entities.js';
 
 /**
  * T070 — R-2 / FR-005 anonymous → authenticated Comparison adoption.
@@ -17,6 +21,16 @@ import { Comparison, ComparisonProduct } from '../../helpers/package-entities.js
  *     (customer_account_id set, anonymous_token cleared).
  *   - Customer with an existing Comparison: the anonymous one is
  *     discarded; the customer's curated set wins.
+ *
+ * **Both cases also carry feature 087 Group B's write invariant** (D-187), and
+ * this file is where the two write paths that can produce an owned comparison
+ * meet: the authenticated create in case 2 and — the one `Cart` has no
+ * counterpart to — the **adoption** in case 1, where a row that legitimately
+ * had no organisation while it was anonymous acquires one in the same unit of
+ * work as its account. The organisation is asserted to be the *account's*, not
+ * merely present: a stamp taken from the wrong place is a row filed under
+ * somebody else's organisation, which reads as attributed and discloses to the
+ * wrong sales representative.
  */
 
 const SALES_CHANNEL_HEADER = { 'x-sales-channel': 'pl_retail' };
@@ -56,6 +70,13 @@ describe('Compare module — anonymous→authenticated merge (Phase 8 / T070)', 
     expect(compareCookie).toBeTruthy();
     const anonymousId = (first.json() as { data: { id: string } }).data.id;
 
+    // Before the adoption: no owner, and therefore no organisation. FR-011
+    // admits exactly this row, and `comparisons_organization_attribution_chk`
+    // says nothing about it.
+    const beforeAdoption = await h.em().findOne(Comparison, { id: anonymousId });
+    expect(beforeAdoption!.customerAccountId ?? null).toBeNull();
+    expect(beforeAdoption!.organizationId ?? null).toBeNull();
+
     // Sign the customer in carrying the compare_token cookie.
     const login = await h.app.inject({
       method: 'POST',
@@ -77,6 +98,13 @@ describe('Compare module — anonymous→authenticated merge (Phase 8 / T070)', 
     // "the anonymous token was cleared" (verified at the DB layer).
     expect(adopted!.anonymousToken ?? null).toBeNull();
     expect(adopted!.customerAccountId).not.toBeNull();
+
+    // D-187 — the organisation arrived with the account, and it is that
+    // account's own. Without it the row would be owned and unattributed, which
+    // is what the constraint refuses and what would otherwise hide this
+    // comparison from the representative who serves this buyer.
+    const owner = await em.findOne(CustomerAccount, { id: adopted!.customerAccountId! });
+    expect(adopted!.organizationId).toBe(owner!.organizationId);
   });
 
   it('discards the anonymous Comparison when the customer already has one', async () => {
@@ -103,6 +131,12 @@ describe('Compare module — anonymous→authenticated merge (Phase 8 / T070)', 
       payload: { productId: SEED_PRODUCT_101_ID },
     });
     const customerComparisonId = (owned.json() as { data: { id: string } }).data.id;
+
+    // D-187 — the other write path: an owned comparison created straight from a
+    // signed-in request carries its buyer's organisation from the insert.
+    const created = await h.em().findOne(Comparison, { id: customerComparisonId });
+    const buyer = await h.em().findOne(CustomerAccount, { id: created!.customerAccountId! });
+    expect(created!.organizationId).toBe(buyer!.organizationId);
 
     // Build an anonymous comparison in a separate "session" (no auth cookie).
     const anonAdd = await h.app.inject({

@@ -1,0 +1,6 @@
+{
+  "errors.WEBHOOK_DELIVERY_NOT_REPLAYABLE": "Ponowić można tylko dostarczenie, które zakończyło się niepowodzeniem albo trafiło do kolejki martwych komunikatów. To wciąż oczekuje albo już się powiodło.",
+  "nav.webhooks.label": "Webhooki",
+  "actions.openWebhooks.label": "Webhooki",
+  "actions.openWebhooks.description": "Subskrypcje zdarzeń i dostarczenia"
+}

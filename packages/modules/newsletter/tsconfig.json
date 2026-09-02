@@ -23,11 +23,29 @@
     "types": ["node"]
   },
   "include": ["src/**/*"],
-  // A co-located test would be compiled into `dist` and would import `vitest`,
-  // a devDependency — an unresolvable specifier in every consumer's install.
-  // Under Ruling A of `specs/084-small-f4-package-layout/` a package may own
-  // its unit tests and T045 defers that split, so this module's tests stay in
-  // `backend/test/`. The patterns stay so that adding one back is a test that
-  // does not run rather than a package that does not install.
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  // A co-located test must not be compiled into `dist`: it imports `vitest`, a
+  // devDependency, which is an unresolvable specifier in every consumer's
+  // install. That is this exclusion's whole job, and it is an *emit* concern —
+  // `tsconfig.build.json` extends this file, which is how it gets there.
+  //
+  // It does not stop those tests running, and the sentence that used to stand
+  // here said it did: it read that this module's tests live in `backend/test/`
+  // and that a co-located one would be "a test that does not run". The first
+  // half is false for this package — the files are under `src/backend/` — and
+  // the second described `specs/deferred-defects.md`'s "co-located tests inside
+  // a module package run nowhere", which feature 089's Phase 1 closes. `vitest`
+  // reads its own `include` and transpiles what it collects, so this package's
+  // `vitest.config.ts` runs every one of them.
+  //
+  // What the exclusion does still cost is the type-check: `pnpm run typecheck`
+  // does not read these files. Measured 2026-08-28, they compile clean when it
+  // does, so moving the patterns down into `tsconfig.build.json` is available
+  // and is deliberately not part of that Phase.
+  //
+  // `src/admin/` is compiled by `tsconfig.ui.json` and by nothing else (feature
+  // 091, R12). Excluded here rather than merged in because this configuration —
+  // and `tsconfig.build.json`, which extends it — is the one that must **not**
+  // carry `jsx` or the `DOM` lib: a service file that referenced `document`
+  // would otherwise compile clean, in the layer that runs in Node.
+  "exclude": ["src/admin/**/*", "src/**/*.test.ts", "src/**/*.spec.ts"]
 }

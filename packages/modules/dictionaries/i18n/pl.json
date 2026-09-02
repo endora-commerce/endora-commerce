@@ -1,10 +1,4 @@
 {
-  "countryPicker.selectCountry": "Wybierz kraj",
-  "countryPicker.inactiveGroup": "Nieaktywne",
-  "countryPicker.inactiveLabel": "{label} (nieaktywny)",
-  "currencyPicker.selectCurrency": "Wybierz walutę",
-  "currencyPicker.inactiveGroup": "Nieaktywne",
-  "currencyPicker.inactiveLabel": "{label} ({code}, nieaktywna)",
   "languagePicker.selectLanguage": "Wybierz język",
   "languagePicker.inactiveGroup": "Nieaktywne",
   "languagePicker.inactiveLabel": "{label} (nieaktywny)",
@@ -84,5 +78,11 @@
   "errors.DICTIONARY_DEFAULT_CANNOT_BE_DEACTIVATED": "Błąd: dictionary default cannot be deactivated.",
   "errors.DICTIONARY_FALLBACK_CYCLE": "Błąd: dictionary fallback cycle.",
   "errors.DICTIONARY_CODE_IMMUTABLE": "Błąd: dictionary code immutable.",
-  "errors.DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE": "Błąd: dictionary translation language inactive."
+  "errors.DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE": "Błąd: dictionary translation language inactive.",
+  "nav.dictionary.label": "Słownik",
+  "nav.dictionaryAudit.label": "Audyt słownika",
+  "actions.openDictionary.label": "Słownik",
+  "actions.openDictionary.description": "Kraje, waluty, języki",
+  "actions.openDictionaryAudit.label": "Audyt słownika",
+  "actions.openDictionaryAudit.description": "Nierozwiązane referencje rejestrów"
 }

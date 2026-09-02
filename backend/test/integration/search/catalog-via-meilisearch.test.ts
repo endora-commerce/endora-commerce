@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SearchIndexer } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 

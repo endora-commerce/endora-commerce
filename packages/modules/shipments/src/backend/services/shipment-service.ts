@@ -125,6 +125,9 @@ export class ShipmentService {
         // Invoke the adapter's shipment_created hook. Status stays pending until
         // receive_shipment; a synchronous `generated` result still deposits the
         // tracking number on the row so admin can see it before terminal ingress.
+        // Carrier references (ShipX id, etc.) must be applied on *this*
+        // transactional EM — a forked emFactory inside the adapter cannot see
+        // the uncommitted row and would silently skip the write.
         if (adapter) {
           const started = await adapter.onShipmentCreated({
             orderId,
@@ -132,9 +135,28 @@ export class ShipmentService {
             deliveryMethodId: order.deliveryMethodId,
             attemptNo: shipment.attemptNo,
           });
-          if (started.kind === 'generated' && started.trackingNumber) {
-            shipment.externalReference = started.trackingNumber;
-            await tx.persistAndFlush(shipment);
+          if (started.kind === 'pending' || started.kind === 'generated') {
+            // `externalReference` is the explicit carrier reference and wins;
+            // `trackingNumber` on a `generated` result is the older spelling an
+            // adapter that names no reference still relies on.
+            const reference =
+              started.externalReference !== undefined
+                ? (started.externalReference ?? null)
+                : started.kind === 'generated' && started.trackingNumber
+                  ? started.trackingNumber
+                  : undefined;
+            if (reference !== undefined) {
+              shipment.externalReference = reference;
+            }
+            if (started.providerDetails) {
+              shipment.providerDetails = started.providerDetails;
+            }
+            if (reference !== undefined || started.providerDetails !== undefined) {
+              // `persistAndFlush` and not `flush`: the row is already managed by
+              // this transaction, so the two are equivalent here, and this is the
+              // spelling every other write in the method uses.
+              await tx.persistAndFlush(shipment);
+            }
           }
         } else if (absentCarrierModule) {
           // Co-transactional with the row it describes (Principle XIII): the

@@ -77,7 +77,20 @@ import {
   absolutizePublicUrl,
   assertPublicApiBaseUrlConfigured,
 } from './kernel/public-api-base-url.js';
-import { promoteAdminActor } from './modules/auth/plugin.js';
+// Feature 080 (T040b) — `auth` is `@endora-commerce/mod-auth`. This is the one
+// **value** import this root takes from a module package, and the bare
+// specifier is what makes it legal: `composition.generated.ts` already imports
+// the same `./backend` subpath, so the process holds one copy of the module
+// (D-160.6.1). The relative path it replaces named a file *inside* the module
+// and would have evaluated the package's source a second time.
+//
+// The helper stays in `auth` rather than moving to the platform the way
+// `absolutizePublicUrl` did, because `auth` reads it itself and because
+// promotion is about `request.actor` and `request.adminActor`, two decorations
+// that module owns. `harness-parity.test.ts`'s `auth:promoteAdminActor` entry
+// names the further step — actor promotion published as a port, resolved from
+// the container — which this change deliberately does not take.
+import { promoteAdminActor } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
 import { effectiveState } from './kernel/lifecycle/effective-state.js';
@@ -86,8 +99,8 @@ import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 // two event subscriptions. T143a — the sales-rep assignment scope too: what is
 // left here is the actor half of the orders/RFQ visibility question, which only
 // a composition can answer.
-import type { OrganizationTreeService } from './modules/organizations/services/organization-tree-service.js';
-import type { OrganizationTaxProfilePort } from './modules/organizations/backend.js';
+import type { OrganizationTreeService } from '@endora-commerce/mod-organizations/backend';
+import type { OrganizationTaxProfilePort } from '@endora-commerce/mod-organizations/backend';
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
 // `backend.ts`; what stays here is the cradle shape the senders below resolve
@@ -102,11 +115,11 @@ import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
 import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
-import type { AdminUsersCradle } from './modules/admin_users/backend.js';
+import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend';
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
-import type { TargetValidatorDeps } from './modules/megamenu/services/target-validator.js';
-import type { StorefrontDeps } from './modules/megamenu/services/storefront-resolver.js';
-import type { CustomerAccountsCradle } from './modules/customer_accounts/backend.js';
+import type { TargetValidatorDeps } from '@endora-commerce/mod-megamenu/backend';
+import type { StorefrontDeps } from '@endora-commerce/mod-megamenu/backend';
+import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
 import type { TaxesCradle } from '@endora-commerce/mod-taxes/backend';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
@@ -125,23 +138,36 @@ import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
 // Feature 066 — Google Tag Manager.
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
-import { lifecycleModuleFromStaticEntries } from './modules/_lifecycle/plugin.js';
-import { loadModulePresence } from './modules/_lifecycle/services/presence-load.js';
+import { lifecycleModuleFromStaticEntries } from './lifecycle/plugin.js';
+import { loadModulePresence } from './lifecycle/services/presence-load.js';
+import { loadReducedDeploymentDeclarations } from './lifecycle/services/reduced-deployment.js';
 import {
   deploymentShippedEntries,
   resolvedManifestEntries,
   type RegisteredManifestEntry,
-} from './modules/_lifecycle/registered-manifests.js';
+} from './lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
 import { loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
 // Feature 080 — installed extension packages, discovered at runtime (D-155).
 import { loadPackageModuleEntries } from './packages/package-runtime.js';
 import { configuredMigrations } from './db/configured-migrations.js';
-import type { AdminI18nCradle } from './modules/_i18n/backend.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
 // kernel-obeying platform peer and may not name a module (D-52). A root may.
-import { ERROR_TRANSLATION_KEYS } from './modules/_i18n/services/error-translation.js';
-import type { CatalogQueryService } from './modules/catalog/services/catalog-query.service.js';
+//
+// Feature 090 — and the map is *derived* rather than imported whole:
+// `buildErrorTranslationTargets` is nothing but the modules' own `errorCodes`
+// declarations. Which modules a deployment resolved is a composition-root
+// input, which is why the call is here and not inside `_i18n` — the same
+// sentence that puts `resolvedModuleRegistry` in this file. Phase 4 deleted the
+// prefix chain and the transitional composition that laid the declarations over
+// it; a code no registered manifest declares now routes nowhere and the
+// envelope answers the raising code's own English (§4.1).
+import {
+  buildErrorTranslationTargets,
+  describeErrorCodeCollisions,
+  type AdminI18nCradle,
+} from '@endora-commerce/mod-i18n/backend';
+import type { CatalogQueryService } from '@endora-commerce/mod-catalog/backend';
 import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
 import type { ShoppingListService } from '@endora-commerce/mod-shopping-lists/backend';
 
@@ -310,6 +336,29 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // thing that knows a package is here.
   const packageModuleEntries = await loadPackageModuleEntries();
 
+  // Feature 090 Phase 2 — which bundle holds which error code's sentence,
+  // derived from the manifests this deployment resolved rather than from a table
+  // (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md` §4).
+  // `resolvedRegistry` is core plus this deployment's overlay modules plus every
+  // installed package, which is exactly the input the contract names, and
+  // activation is deliberately not consulted: a code owned by a switchable module
+  // is raised by other modules too, so a switched-off `carts` must not cost
+  // `orders` its checkout sentence.
+  //
+  // Reported here rather than at the injection site because a collision is a
+  // fact about the composition and an operator has to be able to read it before
+  // the first request that renders wrong — and it is `warn` rather than a
+  // refusal: §3.3's severity gradient reserves a refused boot for the
+  // irreversible, and the blast radius of a contested code is one sentence.
+  const errorTranslation = buildErrorTranslationTargets(resolvedRegistry);
+  if (errorTranslation.collisions.length > 0) {
+    platformLogger().warn(
+      { collisions: errorTranslation.collisions.length },
+      'error codes are claimed by more than one module and therefore route to none of ' +
+        `them:\n${describeErrorCodeCollisions(errorTranslation.collisions)}`,
+    );
+  }
+
   // Feature 072 (D-38) — module presence is a **composition input**, so it is
   // loaded here: before the first module registers, and therefore before any
   // boot hook, plugin body or worker registration asks for it. It used to be
@@ -329,7 +378,17 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // what says which entry that is. Everything else it does — both D-101
     // refusals, the gating graph, the activation declarations, the cache itself
     // — still reads the whole resolved set.
-    () => loadModulePresence({ em, entries: resolvedRegistry }),
+    // `declaredOmissions` is this root's to supply since D-160.11: the platform
+    // may not read `src/overlay/`, and which deployment this process runs as is
+    // a fact about the process rather than about the tree.
+    async () =>
+      loadModulePresence({
+        em,
+        entries: resolvedRegistry,
+        declaredOmissions: (await loadReducedDeploymentDeclarations()).map(
+          (entry) => entry.moduleId,
+        ),
+      }),
     { entryPoint: 'boot' },
   );
 
@@ -364,6 +423,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     // The module's `ctx.onBoot` schedule reconcile resolves this (T131), and
     // nothing else in this file has an opinion about it.
     pimErgonodeRunWorkers: runWorkers,
+    pimPimcoreRunWorkers: runWorkers,
     pimUnopimRunWorkers: runWorkers,
     productFeedsRunWorkers: runWorkers,
     productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
@@ -2504,7 +2564,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
     contextFor: (moduleId) => composedModules.contextFor(moduleId),
     resolvedModules: resolvedRegistry,
     errorEnvelope: {
-      errorTranslationTargets: ERROR_TRANSLATION_KEYS,
+      errorTranslationTargets: errorTranslation.targets,
       // Issue #234 — the ladder is one kernel function, and the root keeps the
       // one rung that reads a module's table (D-137). What stood here was
       // `if (request.actor.kind !== 'admin') return null`, which the envelope

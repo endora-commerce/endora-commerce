@@ -23,6 +23,12 @@ importers:
       eslint:
         specifier: ^10.2.1
         version: 10.2.1(jiti@2.6.1)
+      eslint-plugin-jsx-a11y:
+        specifier: ^6.10.2
+        version: 6.10.2(eslint@10.2.1(jiti@2.6.1))
+      eslint-plugin-react-hooks:
+        specifier: ^7.1.1
+        version: 7.1.1(eslint@10.2.1(jiti@2.6.1))
       prettier:
         specifier: ^3.8.3
         version: 3.8.3
@@ -32,6 +38,9 @@ importers:
 
   admin:
     dependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../packages/admin-kit
       '@endora-commerce/api-client':
         specifier: workspace:*
         version: link:../packages/api-client
@@ -44,6 +53,156 @@ importers:
       '@endora-commerce/email-components':
         specifier: workspace:^
         version: link:../packages/email-components
+      '@endora-commerce/mod-admin-roles':
+        specifier: workspace:*
+        version: link:../packages/modules/admin_roles
+      '@endora-commerce/mod-admin-users':
+        specifier: workspace:*
+        version: link:../packages/modules/admin_users
+      '@endora-commerce/mod-analytics':
+        specifier: workspace:*
+        version: link:../packages/modules/analytics
+      '@endora-commerce/mod-api-keys':
+        specifier: workspace:*
+        version: link:../packages/modules/api_keys
+      '@endora-commerce/mod-assets-library':
+        specifier: workspace:*
+        version: link:../packages/modules/assets_library
+      '@endora-commerce/mod-audit-logs':
+        specifier: workspace:*
+        version: link:../packages/modules/audit_logs
+      '@endora-commerce/mod-autopay':
+        specifier: workspace:*
+        version: link:../packages/modules/autopay
+      '@endora-commerce/mod-carts':
+        specifier: workspace:*
+        version: link:../packages/modules/carts
+      '@endora-commerce/mod-comparisons':
+        specifier: workspace:*
+        version: link:../packages/modules/comparisons
+      '@endora-commerce/mod-credentials':
+        specifier: workspace:*
+        version: link:../packages/modules/credentials
+      '@endora-commerce/mod-credit-limits':
+        specifier: workspace:*
+        version: link:../packages/modules/credit_limits
+      '@endora-commerce/mod-custom-fields':
+        specifier: workspace:*
+        version: link:../packages/modules/custom_fields
+      '@endora-commerce/mod-customer-accounts':
+        specifier: workspace:*
+        version: link:../packages/modules/customer_accounts
+      '@endora-commerce/mod-delivery-methods':
+        specifier: workspace:*
+        version: link:../packages/modules/delivery_methods
+      '@endora-commerce/mod-dhl-parcel':
+        specifier: workspace:*
+        version: link:../packages/modules/dhl_parcel
+      '@endora-commerce/mod-dictionaries':
+        specifier: workspace:*
+        version: link:../packages/modules/dictionaries
+      '@endora-commerce/mod-google-analytics':
+        specifier: workspace:*
+        version: link:../packages/modules/google_analytics
+      '@endora-commerce/mod-import-export':
+        specifier: workspace:*
+        version: link:../packages/modules/import_export
+      '@endora-commerce/mod-inpost':
+        specifier: workspace:*
+        version: link:../packages/modules/inpost
+      '@endora-commerce/mod-inventory':
+        specifier: workspace:*
+        version: link:../packages/modules/inventory
+      '@endora-commerce/mod-invoices':
+        specifier: workspace:*
+        version: link:../packages/modules/invoices
+      '@endora-commerce/mod-ksef':
+        specifier: workspace:*
+        version: link:../packages/modules/ksef
+      '@endora-commerce/mod-linkedin-ads':
+        specifier: workspace:*
+        version: link:../packages/modules/linkedin_ads
+      '@endora-commerce/mod-megamenu':
+        specifier: workspace:*
+        version: link:../packages/modules/megamenu
+      '@endora-commerce/mod-meta-ads':
+        specifier: workspace:*
+        version: link:../packages/modules/meta_ads
+      '@endora-commerce/mod-mfa':
+        specifier: workspace:*
+        version: link:../packages/modules/mfa
+      '@endora-commerce/mod-newsletter':
+        specifier: workspace:*
+        version: link:../packages/modules/newsletter
+      '@endora-commerce/mod-payment-methods':
+        specifier: workspace:*
+        version: link:../packages/modules/payment_methods
+      '@endora-commerce/mod-payments':
+        specifier: workspace:*
+        version: link:../packages/modules/payments
+      '@endora-commerce/mod-paypal':
+        specifier: workspace:*
+        version: link:../packages/modules/paypal
+      '@endora-commerce/mod-payu':
+        specifier: workspace:*
+        version: link:../packages/modules/payu
+      '@endora-commerce/mod-pim-ergonode':
+        specifier: workspace:*
+        version: link:../packages/modules/pim_ergonode
+      '@endora-commerce/mod-pim-pimcore':
+        specifier: workspace:*
+        version: link:../packages/modules/pim_pimcore
+      '@endora-commerce/mod-pim-unopim':
+        specifier: workspace:*
+        version: link:../packages/modules/pim_unopim
+      '@endora-commerce/mod-price-lists':
+        specifier: workspace:*
+        version: link:../packages/modules/price_lists
+      '@endora-commerce/mod-product-feeds':
+        specifier: workspace:*
+        version: link:../packages/modules/product_feeds
+      '@endora-commerce/mod-promotions':
+        specifier: workspace:*
+        version: link:../packages/modules/promotions
+      '@endora-commerce/mod-pwa':
+        specifier: workspace:*
+        version: link:../packages/modules/pwa
+      '@endora-commerce/mod-quick-order':
+        specifier: workspace:*
+        version: link:../packages/modules/quick_order
+      '@endora-commerce/mod-quote-requests':
+        specifier: workspace:*
+        version: link:../packages/modules/quote_requests
+      '@endora-commerce/mod-returns':
+        specifier: workspace:*
+        version: link:../packages/modules/returns
+      '@endora-commerce/mod-sales-channels':
+        specifier: workspace:*
+        version: link:../packages/modules/sales_channels
+      '@endora-commerce/mod-seo':
+        specifier: workspace:*
+        version: link:../packages/modules/seo
+      '@endora-commerce/mod-settings':
+        specifier: workspace:*
+        version: link:../packages/modules/settings
+      '@endora-commerce/mod-stripe':
+        specifier: workspace:*
+        version: link:../packages/modules/stripe
+      '@endora-commerce/mod-taxes':
+        specifier: workspace:*
+        version: link:../packages/modules/taxes
+      '@endora-commerce/mod-tpay':
+        specifier: workspace:*
+        version: link:../packages/modules/tpay
+      '@endora-commerce/mod-transactional-emails':
+        specifier: workspace:*
+        version: link:../packages/modules/transactional_emails
+      '@endora-commerce/mod-webhooks':
+        specifier: workspace:*
+        version: link:../packages/modules/webhooks
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:^
+        version: link:../packages/page-builder-admin
       '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
@@ -171,9 +330,18 @@ importers:
       '@endora-commerce/mod-addresses':
         specifier: workspace:*
         version: link:../packages/modules/addresses
+      '@endora-commerce/mod-admin-actions':
+        specifier: workspace:*
+        version: link:../packages/modules/admin_actions
       '@endora-commerce/mod-admin-notifications':
         specifier: workspace:*
         version: link:../packages/modules/admin_notifications
+      '@endora-commerce/mod-admin-roles':
+        specifier: workspace:*
+        version: link:../packages/modules/admin_roles
+      '@endora-commerce/mod-admin-users':
+        specifier: workspace:*
+        version: link:../packages/modules/admin_users
       '@endora-commerce/mod-analytics':
         specifier: workspace:*
         version: link:../packages/modules/analytics
@@ -186,6 +354,9 @@ importers:
       '@endora-commerce/mod-audit-logs':
         specifier: workspace:*
         version: link:../packages/modules/audit_logs
+      '@endora-commerce/mod-auth':
+        specifier: workspace:*
+        version: link:../packages/modules/auth
       '@endora-commerce/mod-autopay':
         specifier: workspace:*
         version: link:../packages/modules/autopay
@@ -195,6 +366,9 @@ importers:
       '@endora-commerce/mod-carts':
         specifier: workspace:*
         version: link:../packages/modules/carts
+      '@endora-commerce/mod-catalog':
+        specifier: workspace:*
+        version: link:../packages/modules/catalog
       '@endora-commerce/mod-cms':
         specifier: workspace:*
         version: link:../packages/modules/cms
@@ -213,6 +387,9 @@ importers:
       '@endora-commerce/mod-custom-fields':
         specifier: workspace:*
         version: link:../packages/modules/custom_fields
+      '@endora-commerce/mod-customer-accounts':
+        specifier: workspace:*
+        version: link:../packages/modules/customer_accounts
       '@endora-commerce/mod-customers':
         specifier: workspace:*
         version: link:../packages/modules/customers
@@ -237,9 +414,18 @@ importers:
       '@endora-commerce/mod-health-checks':
         specifier: workspace:*
         version: link:../packages/modules/health_checks
+      '@endora-commerce/mod-i18n':
+        specifier: workspace:*
+        version: link:../packages/modules/_i18n
       '@endora-commerce/mod-import-export':
         specifier: workspace:*
         version: link:../packages/modules/import_export
+      '@endora-commerce/mod-inpost':
+        specifier: workspace:*
+        version: link:../packages/modules/inpost
+      '@endora-commerce/mod-inventory':
+        specifier: workspace:*
+        version: link:../packages/modules/inventory
       '@endora-commerce/mod-invoices':
         specifier: workspace:*
         version: link:../packages/modules/invoices
@@ -252,6 +438,9 @@ importers:
       '@endora-commerce/mod-linkedin-ads':
         specifier: workspace:*
         version: link:../packages/modules/linkedin_ads
+      '@endora-commerce/mod-megamenu':
+        specifier: workspace:*
+        version: link:../packages/modules/megamenu
       '@endora-commerce/mod-meta-ads':
         specifier: workspace:*
         version: link:../packages/modules/meta_ads
@@ -261,9 +450,18 @@ importers:
       '@endora-commerce/mod-newsletter':
         specifier: workspace:*
         version: link:../packages/modules/newsletter
+      '@endora-commerce/mod-orders':
+        specifier: workspace:*
+        version: link:../packages/modules/orders
+      '@endora-commerce/mod-organizations':
+        specifier: workspace:*
+        version: link:../packages/modules/organizations
       '@endora-commerce/mod-payment-methods':
         specifier: workspace:*
         version: link:../packages/modules/payment_methods
+      '@endora-commerce/mod-payments':
+        specifier: workspace:*
+        version: link:../packages/modules/payments
       '@endora-commerce/mod-paypal':
         specifier: workspace:*
         version: link:../packages/modules/paypal
@@ -276,9 +474,15 @@ importers:
       '@endora-commerce/mod-pim-ergonode':
         specifier: workspace:*
         version: link:../packages/modules/pim_ergonode
+      '@endora-commerce/mod-pim-pimcore':
+        specifier: workspace:*
+        version: link:../packages/modules/pim_pimcore
       '@endora-commerce/mod-pim-unopim':
         specifier: workspace:*
         version: link:../packages/modules/pim_unopim
+      '@endora-commerce/mod-price-lists':
+        specifier: workspace:*
+        version: link:../packages/modules/price_lists
       '@endora-commerce/mod-product-feeds':
         specifier: workspace:*
         version: link:../packages/modules/product_feeds
@@ -448,6 +652,9 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
     devDependencies:
+      '@endora-commerce/cli':
+        specifier: workspace:*
+        version: link:../packages/cli
       '@mikro-orm/cli':
         specifier: ^6.6.13
         version: 6.6.13(pg@8.20.0)
@@ -522,6 +729,60 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/admin-kit:
+    devDependencies:
+      '@endora-commerce/api-client':
+        specifier: workspace:*
+        version: link:../api-client
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@radix-ui/react-checkbox':
+        specifier: ^1.3.3
+        version: 1.3.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@radix-ui/react-dropdown-menu':
+        specifier: ^2.1.16
+        version: 2.1.16(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@radix-ui/react-label':
+        specifier: ^2.1.8
+        version: 2.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@radix-ui/react-separator':
+        specifier: ^1.1.8
+        version: 1.1.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@radix-ui/react-slot':
+        specifier: ^1.2.4
+        version: 1.2.4(@types/react@19.2.14)(react@19.2.5)
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      echarts:
+        specifier: ^6.1.0
+        version: 6.1.0
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      tailwind-merge:
+        specifier: ^3.5.0
+        version: 3.5.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.2
+        version: 7.3.2(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0)
+
   packages/api-client:
     dependencies:
       '@endora-commerce/contracts':
@@ -534,6 +795,22 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
+
+  packages/cli:
+    dependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
       vitest:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
@@ -648,6 +925,36 @@ importers:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
 
+  packages/modules/_i18n:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
   packages/modules/addresses:
     devDependencies:
       '@endora-commerce/contracts':
@@ -665,6 +972,33 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/modules/admin_actions:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -699,8 +1033,80 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
+  packages/modules/admin_roles:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/modules/admin_users:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/modules/analytics:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -719,15 +1125,27 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
 
   packages/modules/api_keys:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -746,9 +1164,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -761,6 +1188,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1042.0
         version: 3.1042.0
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -785,18 +1215,30 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       file-type:
         specifier: ^22.0.1
         version: 22.0.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
 
   packages/modules/audit_logs:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -809,9 +1251,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -819,8 +1270,41 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
+  packages/modules/auth:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      fastify-plugin:
+        specifier: ^5.1.0
+        version: 5.1.0
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/modules/autopay:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -839,9 +1323,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -884,6 +1377,9 @@ importers:
 
   packages/modules/carts:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -905,6 +1401,57 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/catalog:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/mod-custom-fields':
+        specifier: workspace:*
+        version: link:../custom_fields
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      bullmq:
+        specifier: ^5.76.1
+        version: 5.76.1
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
@@ -956,6 +1503,9 @@ importers:
 
   packages/modules/comparisons:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -980,12 +1530,24 @@ importers:
       '@types/pdfmake':
         specifier: ^0.3.2
         version: 0.3.2
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       pdfmake:
         specifier: ^0.3.7
         version: 0.3.7
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -995,6 +1557,9 @@ importers:
 
   packages/modules/credentials:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1013,9 +1578,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1025,6 +1599,9 @@ importers:
 
   packages/modules/credit_limits:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1043,9 +1620,15 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1067,12 +1650,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
 
   packages/modules/custom_fields:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1091,15 +1680,72 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/modules/customer_accounts:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/mod-organizations':
+        specifier: workspace:*
+        version: link:../organizations
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
   packages/modules/customers:
     devDependencies:
@@ -1136,6 +1782,9 @@ importers:
 
   packages/modules/delivery_methods:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1154,9 +1803,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1167,6 +1825,9 @@ importers:
         specifier: ^5.11.0
         version: 5.11.0
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1185,6 +1846,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -1194,6 +1858,15 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1203,6 +1876,9 @@ importers:
 
   packages/modules/dictionaries:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1221,12 +1897,24 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1266,6 +1954,9 @@ importers:
 
   packages/modules/google_analytics:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1284,6 +1975,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -1293,6 +1987,12 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1359,6 +2059,9 @@ importers:
 
   packages/modules/import_export:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1368,15 +2071,72 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
 
-  packages/modules/invoices:
+  packages/modules/inpost:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/inventory:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1398,15 +2158,78 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
-      '@types/pdfmake':
-        specifier: ^0.3.2
-        version: 0.3.2
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/invoices:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:*
+        version: link:../../page-builder-admin
+      '@endora-commerce/page-builder-core':
+        specifier: workspace:*
+        version: link:../../page-builder-core
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/pdfmake':
+        specifier: ^0.3.2
+        version: 0.3.2
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       pdfmake:
         specifier: ^0.3.7
         version: 0.3.7
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1416,6 +2239,9 @@ importers:
 
   packages/modules/ksef:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1437,6 +2263,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -1446,6 +2275,15 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1482,6 +2320,9 @@ importers:
 
   packages/modules/linkedin_ads:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1500,9 +2341,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1510,8 +2360,11 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/modules/meta_ads:
+  packages/modules/megamenu:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1530,9 +2383,63 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/modules/meta_ads:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1542,6 +2449,9 @@ importers:
 
   packages/modules/mfa:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1563,18 +2473,27 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
       openid-client:
         specifier: ^6.8.4
         version: 6.8.4
       otpauth:
         specifier: ^9.5.0
         version: 9.5.0
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1584,15 +2503,24 @@ importers:
 
   packages/modules/newsletter:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
       '@endora-commerce/email-components':
         specifier: workspace:*
         version: link:../../email-components
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:*
+        version: link:../../page-builder-admin
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
@@ -1608,9 +2536,15 @@ importers:
       '@types/nodemailer':
         specifier: ^7.0.4
         version: 7.0.11
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
+      echarts:
+        specifier: ^6.1.0
+        version: 6.1.0
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
@@ -1620,6 +2554,12 @@ importers:
       nodemailer:
         specifier: ^7.0.9
         version: 7.0.13
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1630,11 +2570,29 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/modules/payment_methods:
+  packages/modules/orders:
     devDependencies:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
+      '@endora-commerce/mod-carts':
+        specifier: workspace:*
+        version: link:../carts
+      '@endora-commerce/mod-credit-limits':
+        specifier: workspace:*
+        version: link:../credit_limits
+      '@endora-commerce/mod-inventory':
+        specifier: workspace:*
+        version: link:../inventory
+      '@endora-commerce/mod-invoices':
+        specifier: workspace:*
+        version: link:../invoices
+      '@endora-commerce/mod-promotions':
+        specifier: workspace:*
+        version: link:../promotions
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
@@ -1653,18 +2611,30 @@ importers:
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
 
-  packages/modules/paypal:
+  packages/modules/organizations:
     devDependencies:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
@@ -1687,8 +2657,11 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
-  packages/modules/payu:
+  packages/modules/payment_methods:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1707,9 +2680,141 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/modules/payments:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
+      '@endora-commerce/mod-orders':
+        specifier: workspace:*
+        version: link:../orders
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/modules/paypal:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/payu:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1740,12 +2845,12 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
 
   packages/modules/pim_ergonode:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1764,6 +2869,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -1773,6 +2881,60 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/pim_pimcore:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      bullmq:
+        specifier: ^5.76.1
+        version: 5.76.1
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1782,12 +2944,12 @@ importers:
 
   packages/modules/pim_unopim:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
-      '@endora-commerce/mod-pim-connector':
-        specifier: workspace:*
-        version: link:../pim_connector
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
@@ -1803,6 +2965,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -1812,6 +2977,54 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/price_lists:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1821,6 +3034,9 @@ importers:
 
   packages/modules/product_feeds:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1842,6 +3058,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       '@types/ssh2-sftp-client':
         specifier: ^9.0.6
         version: 9.0.6
@@ -1860,6 +3079,15 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       ssh2-sftp-client:
         specifier: ^12.1.1
         version: 12.1.1
@@ -1872,6 +3100,9 @@ importers:
 
   packages/modules/promotions:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1890,9 +3121,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1932,6 +3175,9 @@ importers:
 
   packages/modules/pwa:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1953,6 +3199,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       '@types/web-push':
         specifier: ^3.6.4
         version: 3.6.4
@@ -1965,6 +3214,12 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       sharp:
         specifier: ^0.35.2
         version: 0.35.2
@@ -1980,6 +3235,9 @@ importers:
 
   packages/modules/quick_order:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1998,12 +3256,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2016,6 +3280,9 @@ importers:
 
   packages/modules/quote_requests:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2034,9 +3301,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2046,6 +3325,9 @@ importers:
 
   packages/modules/returns:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2067,9 +3349,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2079,6 +3373,9 @@ importers:
 
   packages/modules/sales_channels:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2094,9 +3391,15 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2139,6 +3442,9 @@ importers:
 
   packages/modules/seo:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2157,9 +3463,15 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2169,9 +3481,15 @@ importers:
 
   packages/modules/settings:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-credentials':
+        specifier: workspace:*
+        version: link:../credentials
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
@@ -2184,12 +3502,24 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2253,6 +3583,9 @@ importers:
 
   packages/modules/stripe:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2271,9 +3604,15 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       stripe:
         specifier: ^22.3.0
         version: 22.3.0(@types/node@22.19.17)
@@ -2286,6 +3625,9 @@ importers:
 
   packages/modules/taxes:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2304,15 +3646,27 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
 
   packages/modules/tpay:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2331,9 +3685,15 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2343,15 +3703,24 @@ importers:
 
   packages/modules/transactional_emails:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
       '@endora-commerce/email-components':
         specifier: workspace:*
         version: link:../../email-components
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:*
+        version: link:../../page-builder-admin
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
@@ -2364,9 +3733,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.14.2
+        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2376,6 +3757,9 @@ importers:
 
   packages/modules/webhooks:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2394,6 +3778,9 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       bullmq:
         specifier: ^5.76.1
         version: 5.76.1
@@ -2403,9 +3790,60 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/page-builder-admin:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../admin-kit
+      '@endora-commerce/cms-components':
+        specifier: workspace:^
+        version: link:../cms-components
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:^
+        version: link:../email-components
+      '@endora-commerce/page-builder-core':
+        specifier: workspace:^
+        version: link:../page-builder-core
+      '@measured/puck':
+        specifier: ^0.20.2
+        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.2.5
+        version: 19.2.5(react@19.2.5)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^7.3.2
+        version: 7.3.2(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/page-builder-core:
     devDependencies:
@@ -2520,7 +3958,7 @@ importers:
         version: 1.9.4
       next:
         specifier: ^15.5.15
-        version: 15.5.15(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+        version: 15.5.15(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       react:
         specifier: ^19.2.5
         version: 19.2.5
@@ -21700,7 +23138,7 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  next@15.5.15(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
+  next@15.5.15(@babel/core@7.29.0)(@playwright/test@1.60.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
     dependencies:
       '@next/env': 15.5.15
       '@swc/helpers': 0.5.15
@@ -21708,7 +23146,7 @@ snapshots:
       postcss: 8.4.31
       react: 19.2.5
       react-dom: 19.2.5(react@19.2.5)
-      styled-jsx: 5.1.6(react@19.2.5)
+      styled-jsx: 5.1.6(@babel/core@7.29.0)(react@19.2.5)
     optionalDependencies:
       '@next/swc-darwin-arm64': 15.5.15
       '@next/swc-darwin-x64': 15.5.15
@@ -23706,10 +25144,12 @@ snapshots:
     dependencies:
       inline-style-parser: 0.2.7
 
-  styled-jsx@5.1.6(react@19.2.5):
+  styled-jsx@5.1.6(@babel/core@7.29.0)(react@19.2.5):
     dependencies:
       client-only: 0.0.1
       react: 19.2.5
+    optionalDependencies:
+      '@babel/core': 7.29.0
 
   stylehacks@6.1.1(postcss@8.5.10):
     dependencies:

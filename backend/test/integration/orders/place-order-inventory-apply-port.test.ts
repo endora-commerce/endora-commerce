@@ -13,14 +13,14 @@ import {
   OrderService,
   type OrderEventBus,
   type OrderServiceNeighbourPorts,
-} from '../../../src/modules/orders/services/order-service.js';
+} from '../../../../packages/modules/orders/dist/backend/services/order-service.js';
 import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
-import { builtInPaymentAdapters } from '../../../src/modules/payments/adapters/built-in-adapters.js';
-import { StockAllocation } from '../../../src/modules/inventory/entities/stock-allocation.entity.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { builtInPaymentAdapters } from '../../../../packages/modules/payments/src/backend/adapters/built-in-adapters.js';
+import { StockAllocation } from '../../helpers/package-entities.js';
+import { StockLevel } from '../../helpers/package-entities.js';
 import { orderServiceNeighbours } from '../../helpers/orders-neighbour-ports.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 080, T048 — the stock reservation seam, exercised against a live

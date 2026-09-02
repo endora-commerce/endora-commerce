@@ -103,7 +103,7 @@ export async function registerDeliveryMethodsAdminRoutes(
 
   app.get(
     '/api/v1/admin/delivery-methods',
-    { preHandler: requireAdmin('catalog:read') },
+    { preHandler: requireAdmin('delivery_methods:read') },
     async () => {
       const em = deps.emFactory();
       const rows = await em.find(DeliveryMethod, {}, { orderBy: { code: 'asc' } });
@@ -114,12 +114,16 @@ export async function registerDeliveryMethodsAdminRoutes(
 
   // Note: `GET /api/v1/admin/order-statuses` is registered once by the
   // payment-methods admin routes (same OrderStatusRegistry data); the admin
-  // delivery-methods page reuses that endpoint for its status selectors.
+  // delivery-methods page reuses that endpoint for its status selectors. Since
+  // this module took its own codes it is gated
+  // `requireAdminAny(['payment_methods:read', 'delivery_methods:read'])` — an
+  // any-of over the two editors' read codes, so whichever screen an operator
+  // may open, the shared status list opens with it.
 
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/delivery-methods/:code',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('delivery_methods:write'),
       schema: { body: deliveryMethodUpsertSchema },
     },
     async (request) => {
@@ -173,7 +177,7 @@ export async function registerDeliveryMethodsAdminRoutes(
 
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/delivery-methods/:id',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('delivery_methods:write') },
     async (request, reply) => {
       // The 404 and the delete-guard (FR-003) live inside the Command, so a
       // method that is gone is answered before another module is asked about

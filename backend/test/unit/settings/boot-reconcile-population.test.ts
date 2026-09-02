@@ -5,7 +5,7 @@ import {
   REGISTERED_MANIFESTS,
   deploymentShippedEntries,
   type RegisteredManifestEntry,
-} from '../../../src/modules/_lifecycle/registered-manifests.js';
+} from '../../../src/lifecycle/registered-manifests.js';
 import { collectRegisteredSettingsManifests } from '../../../../packages/modules/settings/src/backend/services/registered-settings-manifests.js';
 import {
   coreModulesRoot,

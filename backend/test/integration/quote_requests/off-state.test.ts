@@ -8,9 +8,9 @@ import {
 import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from '../../../../packages/modules/quote_requests/src/manifest.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * `quote_requests` off-state — Constitution XVII item 6, from a **package**

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { defineModuleManifest, type ModuleManifest } from '@endora-commerce/contracts';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
 
 function m(id: string, deps: string[] = []): ModuleManifest {
   return defineModuleManifest({

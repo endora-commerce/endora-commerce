@@ -87,9 +87,12 @@ export const FALLBACK_BUNDLE_FILE = 'en.json';
  * somewhere nothing reads.
  *
  * It is one function because three callers ask it and a copy per caller is
- * three answers waiting to disagree: the copier's report, the audit's
- * population, and `test/unit/scripts/runtime-assets.test.ts`'s expectation,
- * which went red at `90 vs 88` the day the first module became a package.
+ * three answers waiting to disagree: the copier's report, the copier's own
+ * emptiness guard, and `test/unit/scripts/runtime-assets.test.ts`'s
+ * expectation, which went red at `90 vs 88` the day the first module became a
+ * package. It is **no longer the audit's population** — see
+ * {@link auditBuiltBundles} — and it answers `[]` for this repository today,
+ * which is the fact that made the change necessary.
  */
 export function bundleModulesUnder(
   modules: readonly RegisteredBundleModule[],
@@ -102,15 +105,61 @@ export function bundleModulesUnder(
 }
 
 /**
- * Every registered module whose bundles are absent from the built tree.
+ * Where a module's bundles have to be for the running platform to find them.
+ *
+ * Two answers, because there are two kinds of module and the platform reads
+ * both the same way — it joins `bundlesDir` to `dirname(manifestPath)`, and
+ * what differs is where that manifest is:
+ *
+ *   - a module this build **compiles** has its bundles copied into the built
+ *     tree, mirroring its position under `srcRoot`;
+ *   - a module in a **package** — whether a workspace member or something an
+ *     operator installed — carries them in its own directory, and this build
+ *     ships none of it. `dirname(manifestPath)` resolves there at runtime, so
+ *     that directory is the answer.
+ *
+ * One function because the copier, the audit and the test all need it, and a
+ * copy per caller is three answers waiting to disagree — which is how the
+ * proof in `runtime-assets.test.ts` came to hard-code `modules/<id>/` and
+ * outlive the layout by one merge request.
+ */
+export function builtBundlesPathOf(
+  module: RegisteredBundleModule,
+  srcRoot: string,
+  builtRoot: string,
+): string {
+  const rel = relative(srcRoot, module.moduleDir);
+  const compiled = rel !== '' && !rel.startsWith('..');
+  return compiled
+    ? join(builtRoot, rel, module.bundlesDir)
+    : join(module.moduleDir, module.bundlesDir);
+}
+
+/**
+ * Every registered module whose bundles are absent from the tree this platform
+ * will read them out of.
  *
  * Keyed on **registration**, which is the half `loadModuleBundles` cannot see:
  * it is handed a directory and asked what is in it, so "no directory" and "no
  * strings" are the same input. Here the manifest has already said the module
  * ships bundles, so an absent directory is a build that dropped them.
  *
- * A module whose source directory is not under `srcRoot` is out of the
- * population rather than reported — see {@link bundleModulesUnder}.
+ * **The population is every registered module, not only the ones this build
+ * compiles** (feature 080, D-160.11's second half). It was the compiled half
+ * alone, on the ground that a package's bundles travel with the package and are
+ * none of this build's business. That was true and it stopped being *enough* the
+ * moment the compiled half emptied: `_lifecycle` was the last module whose
+ * sources sat under `backend/src`, and with it in the host package the old
+ * population is zero — an audit over nothing, printing `bundles=0/46` and
+ * exiting 0 over a platform that could be serving raw keys in every screen.
+ * A guard whose population can go to zero is a guard that switches itself off.
+ *
+ * Judging a package's own directory is not this build reaching into somebody
+ * else's artefact. The population comes from the **committed** manifest index,
+ * which is bare core and never holds an installed package (D-119/D-155), so
+ * every member is a module this repository builds — and the directory asked
+ * about is the exact one `dirname(manifestPath)` resolves to at runtime, which
+ * is the only place the answer can be wrong.
  */
 export function auditBuiltBundles(
   modules: readonly RegisteredBundleModule[],
@@ -118,9 +167,8 @@ export function auditBuiltBundles(
   builtRoot: string,
 ): BundleAuditFinding[] {
   const findings: BundleAuditFinding[] = [];
-  for (const module of bundleModulesUnder(modules, srcRoot)) {
-    const rel = relative(srcRoot, module.moduleDir);
-    const expected = join(builtRoot, rel, module.bundlesDir);
+  for (const module of modules) {
+    const expected = builtBundlesPathOf(module, srcRoot, builtRoot);
     if (!existsSync(expected) || !statSync(expected).isDirectory()) {
       findings.push({ kind: 'missing-directory', moduleId: module.moduleId, expected });
       continue;

@@ -7,16 +7,17 @@ import type {
 } from '@endora-commerce/contracts';
 import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
 import type { CommandBus } from '../../src/commands/index.js';
-import type { PersonalOrganizationProvisionApi } from '../../src/modules/organizations/ports/personal-organization-provision.js';
-import { PersonalOrganizationService } from '../../src/modules/organizations/services/personal-organization-service.js';
+import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
+import { PersonalOrganizationService } from '../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
 import {
   CustomerAccountMemberWriteService,
   CustomerAccountReadService,
-} from '../../src/modules/customer_accounts/services/customer-account-ports.js';
+} from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
 import {
   CustomerAccountAdminSearchService,
   CustomerAccountLifecycleWriteService,
-} from '../../src/modules/customer_accounts/services/customer-account-lifecycle-ports.js';
+} from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-lifecycle-ports.js';
+import { twoFactorEnrolmentsFor } from './two-factor-enrolments.js';
 
 /**
  * The two `customer_accounts` ports a hand-built `organizations` service needs
@@ -33,8 +34,11 @@ export function customerAccountPortsFor(emFactory: () => EntityManager): {
   write: CustomerAccountMemberWritePort;
 } {
   return {
-    read: new CustomerAccountReadService(emFactory),
-    write: new CustomerAccountMemberWriteService(emFactory),
+    read: new CustomerAccountReadService(emFactory, twoFactorEnrolmentsFor(emFactory, 'customer')),
+    write: new CustomerAccountMemberWriteService(
+      emFactory,
+      twoFactorEnrolmentsFor(emFactory, 'customer'),
+    ),
   };
 }
 
@@ -55,6 +59,7 @@ export function customerAccountLifecycleWriteFor(
   return new CustomerAccountLifecycleWriteService(
     emFactory,
     auditLog,
+    twoFactorEnrolmentsFor(emFactory, 'customer'),
     personalOrganizations,
     commandBus,
   );
@@ -89,5 +94,8 @@ export function personalOrganizationProvisionFor(
 export function customerAccountAdminSearchFor(
   emFactory: () => EntityManager,
 ): CustomerAccountAdminSearchPort {
-  return new CustomerAccountAdminSearchService(emFactory);
+  return new CustomerAccountAdminSearchService(
+    emFactory,
+    twoFactorEnrolmentsFor(emFactory, 'customer'),
+  );
 }

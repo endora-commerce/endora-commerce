@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
+import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
 /**
@@ -73,13 +73,11 @@ const KEYS = [
 
 describe('the INVOICE_* sentences', () => {
   it('routes the whole family to the invoices bundle', () => {
-    expect(ERROR_TRANSLATION_KEYS[ERROR_CODES.INVOICE_NOT_READY].moduleId).toBe('invoices');
-    expect(
-      ERROR_TRANSLATION_KEYS[ERROR_CODES.INVOICE_NUMBER_PATTERN_COLLIDES].moduleId,
-    ).toBe('invoices');
-    expect(ERROR_TRANSLATION_KEYS[ERROR_CODES.INVOICE_NUMBER_ALREADY_ISSUED].moduleId).toBe(
-      'invoices',
-    );
+    const routed = (code: string): string | undefined =>
+      DECLARED_ERROR_TRANSLATION_TARGETS[code]?.moduleId;
+    expect(routed(ERROR_CODES.INVOICE_NOT_READY)).toBe('invoices');
+    expect(routed(ERROR_CODES.INVOICE_NUMBER_PATTERN_COLLIDES)).toBe('invoices');
+    expect(routed(ERROR_CODES.INVOICE_NUMBER_ALREADY_ISSUED)).toBe('invoices');
   });
 
   for (const language of LANGUAGES) {

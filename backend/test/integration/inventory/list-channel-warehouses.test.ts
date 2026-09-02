@@ -5,9 +5,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { InventoryStockReadService } from '../../../src/modules/inventory/services/inventory-read-port.js';
-import { Warehouse, DEFAULT_WAREHOUSE_ID } from '../../../src/modules/inventory/entities/warehouse.entity.js';
-import { WarehouseChannelAssignment } from '../../../src/modules/inventory/entities/warehouse-channel-assignment.entity.js';
+import { InventoryStockReadService } from '../../../../packages/modules/inventory/src/backend/services/inventory-read-port.js';
+import { Warehouse } from '../../helpers/package-entities.js';
+import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
+import { WarehouseChannelAssignment } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**

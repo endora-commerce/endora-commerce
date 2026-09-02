@@ -2,8 +2,12 @@ import { z } from 'zod';
 import type { Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
-import { NEWSLETTER_SETTING_CODES, type EmailMailerPort } from '@endora-commerce/contracts';
-import type { WorkerLogger } from '@endora-commerce/platform/kernel';
+import {
+  NEWSLETTER_SETTING_CODES,
+  type CustomerAccountReadPort,
+  type EmailMailerPort,
+} from '@endora-commerce/contracts';
+import type { PlatformLogger } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -79,6 +83,17 @@ export interface NewsletterModuleOptions {
   /** Resolve a customer account's email (cross-module lookup). */
   loadCustomerEmail: (customerAccountId: string) => Promise<string | null>;
   /**
+   * `customerAccountReadPort`, owned by `customer_accounts` — the organisation
+   * a subscriber's account belongs to (feature 087 Group B, D-187).
+   *
+   * Required, like the two settings ports above it and unlike `mailer`:
+   * `newsletter_subscribers_organization_attribution_chk` refuses an owned row
+   * with no organisation, so a composition that cannot answer this question
+   * cannot write the table at all. Typed as the published contract rather than
+   * by naming `customer_accounts`' own service class (Principle I).
+   */
+  customerAccounts: CustomerAccountReadPort;
+  /**
    * `emailMailer`, owned by `email` — the container's registration, contributed
    * here by a root. Typed as the published contract (feature 075, Phase C)
    * rather than by naming `email`'s own `Mailer` alias: this module described
@@ -106,7 +121,7 @@ export interface NewsletterModuleOptions {
    * relative path. Taking the seam as an argument is the same gate reached the
    * sanctioned way.
    */
-  registerWorker: (worker: Worker, options?: { logger?: WorkerLogger }) => void;
+  registerWorker: (worker: Worker, options?: { logger?: PlatformLogger }) => void;
   /**
    * Feature 058 — resolves the `newsletter.email_credentials` reference into a
    * usable SMTP transport. Injected as a narrow port (Principle I); when absent
@@ -145,6 +160,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
     optIn,
     defaultChannelId: options.defaultChannelId,
     links,
+    customerAccounts: options.customerAccounts,
     ...(options.mailer ? { mailer: options.mailer } : {}),
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     ...(options.emitEvent ? { emitEvent: options.emitEvent } : {}),

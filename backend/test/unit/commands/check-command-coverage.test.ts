@@ -304,7 +304,10 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
   it('opens route files, command files and the composition seam', () => {
     expect(has('/autopay/routes.admin.ts')).toBe(true);
     expect(has('/product_feeds/commands/product-feed.commands.ts')).toBe(true);
-    expect(has('/customer_accounts/backend.ts')).toBe(true);
+    // The composition seam. A packaged module keeps it at `src/backend/index.ts`,
+    // which the normaliser above strips to `/<id>/index.ts`; the walk names no
+    // file, so the spelling is the module's and not the check's.
+    expect(has('/customer_accounts/index.ts')).toBe(true);
   });
 
   it('opens CLI entry points and boot-time seeds', () => {
@@ -315,9 +318,15 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
     // costs the walk nothing, and this is the assertion that says so.
     expect(has('/admin_users/cli/create-admin.ts')).toBe(true);
     expect(has('/product_feeds/seeds/predefined-templates.ts')).toBe(true);
-    // The five `module:*` platform commands stay hand-built scripts, and stay
-    // in the population (D-157.2/.4 — a platform command must not compose).
-    expect(has('/_lifecycle/scripts/install.ts')).toBe(true);
+    // The five `module:*` platform commands stay hand-built scripts (D-157.2/.4
+    // — a platform command must not compose), and they left this population
+    // with D-160.11's second half: `_lifecycle` merged into the host package and
+    // its host half — the manifest registry and those five scripts — stayed
+    // behind at `backend/src/lifecycle/`, which is host code like `src/db` and
+    // `src/overlay` and is in no module walk. What *is* in the population is the
+    // module's own sources, now inside the platform package.
+    expect(has('/_lifecycle/scripts/install.ts')).toBe(false);
+    expect(has('/_lifecycle/services/orchestrator.ts')).toBe(true);
   });
 
   it('still excludes migrations, tests, declarations and the audit writer', () => {
@@ -379,7 +388,7 @@ describe('the analyzer flags a write in each newly scanned category', () => {
     expect(findings.map((f) => f.method)).toEqual(['apply']);
   });
 
-  it('flags a boot hook in backend.ts that mutates', () => {
+  it('flags a boot hook in a module composition file that mutates', () => {
     const src = `
       export function registerModule(ctx: any) {
         ctx.onBoot(async ({ em }: any) => {
@@ -387,7 +396,10 @@ describe('the analyzer flags a write in each newly scanned category', () => {
           await em.persistAndFlush(row);
         });
       }`;
-    const findings = analyzeSource('src/modules/customer_accounts/backend.ts', src);
+    const findings = analyzeSource(
+      'packages/modules/customer_accounts/src/backend/index.ts',
+      src,
+    );
     expect(findings.map((f) => f.kind)).toEqual(['unaudited-sensitive-write']);
   });
 
@@ -730,7 +742,7 @@ describe('a marker attaches to the unit it is written on', () => {
         for (const m of manifests) em.create('ModuleRegistration', { moduleId: m.id });
         await em.flush();
       }`;
-    expect(analyzeSource('src/modules/_lifecycle/services/presence-load.ts', src)).toEqual([]);
+    expect(analyzeSource('src/lifecycle/services/presence-load.ts', src)).toEqual([]);
   });
 
   it('ignores a file header even when the unit under it has no doc comment', () => {

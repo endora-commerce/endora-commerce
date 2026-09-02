@@ -1,68 +1,17 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { CmsColorPaletteEntry, PutCmsColorPaletteRequest } from '@endora-commerce/contracts';
-import { ColorPaletteProvider as PbColorPaletteProvider } from '@endora-commerce/page-builder-core/client';
-import { cmsClient } from '../api/cms-client';
-import { ColorPaletteModal } from './ColorPaletteModal';
-
-export function PageBuilderColorPaletteProvider({
-  initialEntries,
-  children,
-}: {
-  initialEntries: CmsColorPaletteEntry[];
-  children: ReactNode;
-}): ReactNode {
-  const [entries, setEntries] = useState<CmsColorPaletteEntry[]>(initialEntries);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [pickHandler, setPickHandler] = useState<((hex: string) => void) | null>(null);
-
-  useEffect(() => {
-    setEntries(initialEntries);
-  }, [initialEntries]);
-
-  const refreshPalette = useCallback(async (): Promise<void> => {
-    const config = await cmsClient.getPageBuilderConfig();
-    setEntries(config.colorPalette ?? []);
-  }, []);
-
-  const savePalette = useCallback(async (next: CmsColorPaletteEntry[]): Promise<void> => {
-    const body: PutCmsColorPaletteRequest = { entries: next };
-    const result = await cmsClient.putColorPalette(body);
-    setEntries(result.entries);
-  }, []);
-
-  const openPalette = useCallback((onSelect: (hex: string) => void): void => {
-    setPickHandler(() => onSelect);
-    setModalOpen(true);
-  }, []);
-
-  const contextValue = useMemo(
-    () => ({
-      entries,
-      openPalette,
-      refreshPalette,
-      savePalette,
-    }),
-    [entries, openPalette, refreshPalette, savePalette],
-  );
-
-  return (
-    <PbColorPaletteProvider value={contextValue}>
-      {children}
-      <ColorPaletteModal
-        open={modalOpen}
-        entries={entries}
-        pickMode={pickHandler !== null}
-        onClose={(): void => {
-          setModalOpen(false);
-          setPickHandler(null);
-        }}
-        onPick={(hex): void => {
-          pickHandler?.(hex);
-          setModalOpen(false);
-          setPickHandler(null);
-        }}
-        onSave={savePalette}
-      />
-    </PbColorPaletteProvider>
-  );
-}
+/**
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/page-builder-admin` (feature 091, P5b; D-192).
+ *
+ * The shared page-builder chrome moved into a package of the `page-builder`
+ * family because it names `cms` nowhere and `cms`, `blog` and `invoices` all
+ * render it — `cms` held it only because `cms` was the first builder written
+ * (`admin-component-contribution.md` Z1.2). Every existing `./…` and `@/…`
+ * specifier in this application arrives here and is forwarded, so `cms`' own
+ * screens did not have to be rewritten — the shape P2 and P4c used for the kit.
+ *
+ * **The forwarding is the identity, not a copy**, which matters more here than
+ * for a stateless helper: `ColorPaletteProvider` is a React context and
+ * `action-bar-target` is a module-scoped store, so a second copy of either is a
+ * `null` context and an action bar that never updates.
+ */
+export { PageBuilderColorPaletteProvider } from '@endora-commerce/page-builder-admin';

@@ -14,10 +14,18 @@ vi.mock('@/lib/auth', () => ({
   }),
 }));
 
-const getByCodeSpy = vi.fn();
-vi.mock('@/modules/settings/api/settings-client', () => ({
-  settingsClient: { getByCode: (...args: unknown[]) => getByCodeSpy(...args) },
-}));
+// The component builds the setting read itself since feature 091's P6 — it no
+// longer imports `settings`' admin API client, so the seam a test can isolate
+// is `apiClient`, and the URL it is called with is the behavioural twin of the
+// source-level assertions in `test/modules/p6-client-exits.test.ts`.
+const getSpy = vi.fn();
+vi.mock('@/lib/api-client', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+  return {
+    ...actual,
+    apiClient: { ...actual.apiClient, get: (...args: unknown[]) => getSpy(...args) },
+  };
+});
 
 const { IdleLogout } = await import('../../src/components/IdleLogout');
 
@@ -32,9 +40,9 @@ describe('IdleLogout', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     logoutSpy.mockReset();
-    getByCodeSpy.mockReset();
+    getSpy.mockReset();
     // Configured to 2 minutes to prove the setting value is honoured.
-    getByCodeSpy.mockResolvedValue({ globalValue: 2, defaultValue: 60 });
+    getSpy.mockResolvedValue({ globalValue: 2, defaultValue: 60 });
   });
 
   afterEach(() => {
@@ -47,6 +55,8 @@ describe('IdleLogout', () => {
       render(<IdleLogout />);
     });
     await flushMicrotasks();
+
+    expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/settings/admin.idle_logout_minutes');
 
     act(() => {
       vi.advanceTimersByTime(2 * 60_000 - 1_000);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashPassword, verifyPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
 
 describe('password-hasher', () => {
   it('produces a hash that verifies the original password', async () => {

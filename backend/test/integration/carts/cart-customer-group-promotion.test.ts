@@ -10,8 +10,8 @@ import {
   TEST_CUSTOMER_RFQ_ID,
 } from '../../helpers/test-actors.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 
 /**
  * Issue #177 — a promotion targeted at a customer group must reach that

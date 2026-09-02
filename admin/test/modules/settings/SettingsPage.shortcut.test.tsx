@@ -11,19 +11,32 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  * ⌘K command palette, whose handler skips shifted presses.
  */
 
-vi.mock('@/modules/settings/api/settings-client', () => ({
+vi.mock('../../../../packages/modules/settings/src/admin/api/settings-client', () => ({
   settingsClient: {
     list: vi.fn(async () => ({ groups: [] })),
   },
 }));
 
-vi.mock('@/modules/sales_channels/api/sales-channels-client', () => ({
-  salesChannelsClient: {
-    list: vi.fn(async () => ({ items: [] })),
-  },
-}));
+// `SettingsPage` builds its sales-channel request itself since feature 091's
+// P6 — it no longer imports `sales_channels`' admin API client, so the seam a
+// test can isolate is `apiClient`. Partial, because the page also imports
+// `ApiError` from the same module and compares against it with `instanceof`.
+const channelsGetSpy = vi.fn(async () => ({ items: [] }));
+// The **kit's** barrel, not `@/lib/api-client`. The screen is
+// `@endora-commerce/mod-settings/admin`'s since feature 091's batch 10, so it
+// resolves `apiClient` there; the admin's own path is a re-export shim of the
+// same binding, and mocking a shim leaves the module the screen actually
+// imports untouched.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
+  return { ...actual, apiClient: { ...actual.apiClient, get: channelsGetSpy } };
+});
 
-const { SettingsPage } = await import('@/modules/settings/pages/SettingsPage');
+const { SettingsPage } = await import(
+  '../../../../packages/modules/settings/src/admin/pages/SettingsPage'
+);
 
 const bundle = passthroughBundle('settings', [
   'page.title',

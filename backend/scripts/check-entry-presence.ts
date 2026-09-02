@@ -118,6 +118,10 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { moduleOf } from './check-port-dependencies.js';
 import {
+  NO_HOST_RESIDENT_MODULES,
+  type HostResidentModules,
+} from './lib/module-population.js';
+import {
   callbackOf,
   calleeName,
   enclosingName,
@@ -201,7 +205,7 @@ export interface UngatedEntry {
  * reason has to say why that is *correct* rather than why nobody has fixed it.
  */
 export const TIMERS_WITHOUT_PRESENCE: Readonly<Record<string, string>> = {
-  'modules/_lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
+  'packages/platform/src/lifecycle/services/lock.ts:acquireLifecycleLock:setInterval':
     'The lease heartbeat belongs to an in-flight lifecycle command that already holds the ' +
     'lock, and it stops when that command releases it. `_lifecycle` is non-deactivatable, so ' +
     'there is no state in which the gate would close — and asking the subsystem that resolves ' +
@@ -257,6 +261,15 @@ export interface EntryPresenceInput {
    * caller that forgets it over-reports instead of going quietly blind.
    */
   readonly lockedModules?: ReadonlySet<string> | undefined;
+  /**
+   * Directories whose files belong to a module that no `modules/<id>/` segment
+   * names — `lib/module-roots.ts`' `hostResidentModules` (feature 080, T040b).
+   *
+   * Without it `_lifecycle`'s lease heartbeat attributes to `null` and this
+   * rule skips it as "not a module's file", which is the ledger entry below
+   * going stale while the timer it describes is still there.
+   */
+  readonly hostResidentModules?: HostResidentModules | undefined;
 }
 
 /** Where a presence decision was found, and whether it is the right one. */
@@ -424,8 +437,9 @@ export function findUngatedEntries(input: EntryPresenceInput): UngatedEntry[] {
   const found: UngatedEntry[] = [];
   const locked = input.lockedModules ?? new Set<string>();
 
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   for (const [file, text] of input.sources) {
-    const moduleId = moduleOf(`/src/${file}`);
+    const moduleId = moduleOf(`/src/${file}`, hostResident);
     // Only a module has an effective state to gate on. A file outside one — the
     // kernel, `http/`, `db/`, a composition root — is not this rule's business.
     if (moduleId === null) continue;
@@ -607,7 +621,7 @@ async function main(): Promise<void> {
     sources.set(layout.keyOf(file), readFileSync(file, 'utf8'));
   }
 
-  const input = { sources, lockedModules: locked };
+  const input = { sources, lockedModules: locked, hostResidentModules: layout.hostResidentModules };
   const result = checkEntryPresence(input);
 
   if (listMode) {

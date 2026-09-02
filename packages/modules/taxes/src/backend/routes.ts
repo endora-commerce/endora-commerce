@@ -17,7 +17,7 @@ export async function registerTaxRoutes(
 
   app.get(
     '/api/v1/admin/taxes',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('taxes:read') },
     async () => {
       const rows = await taxService.list();
       return { data: rows.map(serialize) };
@@ -27,7 +27,7 @@ export async function registerTaxRoutes(
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/taxes/:code',
     {
-      preHandler: requireAdmin('catalog:write'),
+      preHandler: requireAdmin('taxes:write'),
       schema: { body: upsertTaxRequestSchema },
     },
     async (request) => {
@@ -50,16 +50,23 @@ export async function registerTaxRoutes(
 
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/taxes/:id',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('taxes:write') },
     async (request, reply) => {
       await taxService.remove(request.params.id);
       return reply.status(204).send();
     },
   );
 
+  /**
+   * `taxes:read`, with the list, and not `taxes:write`: the preview reads the
+   * configuration one resolution further on — "what rate would this order line
+   * be charged" — and writes nothing. All four routes were `catalog:write`
+   * until 2026-08-28, so seeing the tax table at all required the authority to
+   * rewrite it; the pair is what separates the two.
+   */
   app.get<{ Querystring: { country?: string; productType?: string; vatStatus?: string } }>(
     '/api/v1/admin/taxes/preview',
-    { preHandler: requireAdmin('catalog:write') },
+    { preHandler: requireAdmin('taxes:read') },
     async (request) => {
       const input = taxResolutionInputSchema.parse({
         country: request.query.country,

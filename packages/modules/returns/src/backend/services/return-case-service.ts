@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {
   CreateReturnCaseRequest,
+  OrderReturnContextPort,
   ReturnableResponse,
   ReturnCaseDetail,
   ReturnCaseSummary,
@@ -20,7 +21,6 @@ import { isWithinFreeWindow } from '../domain/free-return-window.js';
 import { defaultRefundForQuantity } from '../domain/refund-math.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
-import type { OrderReturnContextPort } from '../ports/order-return-context.port.js';
 
 /** Statuses whose cases do NOT consume returnable quantity (FR-003). */
 const VOID_STATUS_CODES = new Set(['rejected', 'cancelled']);

@@ -2019,6 +2019,76 @@
         }
       }
     },
+    "/api/v1/admin/dhl-parcel/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/connection-test": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/connection-test/api": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/connection-test/api-ps": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/courier-bookings": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/shipments/{shipmentId}/label": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dhl-parcel/shipments/{shipmentId}/protocol": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/dictionary/audit/orphans": {
       "get": {
         "responses": {
@@ -3733,6 +3803,13 @@
       }
     },
     "/api/v1/admin/organizations/{id}/cart-approval-policy": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "patch": {
         "responses": {
           "200": {
@@ -6562,6 +6639,15 @@
       }
     },
     "/api/v1/delivery-methods": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/dhl-parcel/pickup-points": {
       "get": {
         "responses": {
           "200": {

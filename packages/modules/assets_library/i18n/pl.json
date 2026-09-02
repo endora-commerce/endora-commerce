@@ -15,7 +15,6 @@
   "errors.ASSET_GONE": "Błąd: asset gone.",
   "errors.ASSET_ACCESS_DENIED": "Błąd: asset access denied.",
   "common.search": "Szukaj",
-  "common.close": "Zamknij",
   "common.loading": "Wczytywanie…",
   "common.save": "Zapisz",
   "common.optional": "(opcjonalnie)",
@@ -28,15 +27,7 @@
   "assets.searchPlaceholder": "Szukaj po nazwie pliku lub etykiecie…",
   "assets.emptyFolder": "W tym folderze nie ma jeszcze zasobów.",
   "assets.loadMore": "Wczytaj więcej",
-  "picker.searchPlaceholder": "Szukaj po nazwie pliku lub etykiecie…",
-  "picker.empty": "Żadne zasoby nie pasują jeszcze do tego zapytania.",
-  "picker.uploadNew": "Lub prześlij nowy zasób",
-  "uploader.trigger": "Prześlij plik",
   "uploader.triggerCurrentFolder": "Prześlij do bieżącego folderu",
-  "uploader.uploading": "Przesyłanie…",
-  "uploader.dropAria": "Upuść plik tutaj albo kliknij, aby przesłać",
-  "uploader.dropCopy": "Upuść plik tutaj albo kliknij, aby go wybrać",
-  "uploader.error.wrongType": "Oczekiwano pliku typu {expected}; otrzymano \"{actual}\".",
   "detail.title": "Szczegóły zasobu",
   "detail.openFile": "Otwórz plik",
   "detail.filename": "Nazwa pliku",
@@ -58,5 +49,6 @@
   "folders.namePlaceholder": "Nazwa folderu",
   "folders.newSubfolder": "Nowy podfolder",
   "folders.deleteConfirm": "Usunąć ten folder?\n\nOK = przenieś zawartość do folderu nadrzędnego, a potem usuń.\nAnuluj = przerwij.",
-  "folders.removed": "Usunięto folder ({id})."
+  "folders.removed": "Usunięto folder ({id}).",
+  "nav.assetsLibrary.label": "Biblioteka zasobów"
 }

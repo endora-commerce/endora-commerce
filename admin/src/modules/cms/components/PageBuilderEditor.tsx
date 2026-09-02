@@ -425,6 +425,11 @@ export function PageBuilderEditor({
   onResolveTemplateLayout?: (templateId: string) => Data | Promise<Data>;
 }): ReactNode {
   const t = useTranslation('cms');
+  // The shared page-builder chrome (`PageBuilderHeaderShell`,
+  // `PageBuilderTemplateActions`, `PageBuilderHeaderActions`) owns no module
+  // knowledge and reads `core`; this screen's own strings stay `cms`' (feature
+  // 091 P5a, R-1).
+  const tChrome = useTranslation('core');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
   const [blockOptions, setBlockOptions] = useState<BlockOption[]>([]);
   const [embeds, setEmbeds] = useState<CmsRenderEmbeds>({ blocks: {}, templates: {} });
@@ -583,7 +588,7 @@ export function PageBuilderEditor({
   const headerActionsStateRef = useRef({
     fullscreen,
     setFullscreen,
-    t,
+    tChrome,
     languages,
     activeLanguage,
     editorData: data ?? emptyPageBuilderData(),
@@ -598,7 +603,7 @@ export function PageBuilderEditor({
   headerActionsStateRef.current = {
     fullscreen,
     setFullscreen,
-    t,
+    tChrome,
     languages,
     activeLanguage,
     editorData: editorData,
@@ -728,7 +733,7 @@ export function PageBuilderEditor({
                         },
                       }
                     : {})}
-                  t={state.t}
+                  t={state.tChrome}
                 />
               ) : null
             }
@@ -748,7 +753,7 @@ export function PageBuilderEditor({
             currentData={state.editorData}
             {...(state.onCopyFromLanguage ? { onCopyFromLanguage: state.onCopyFromLanguage } : {})}
             {...(state.onClearCanvas ? { onClearCanvas: state.onClearCanvas } : {})}
-            t={state.t}
+            t={state.tChrome}
           />
         );
       },

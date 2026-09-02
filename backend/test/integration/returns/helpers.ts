@@ -1,7 +1,5 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
 import {
   DEFAULT_RETURN_STATUSES,
   computeDefaultTransitions,
@@ -9,6 +7,7 @@ import {
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { ReturnReason } from '../../helpers/package-entities.js';
+import { Order, OrderItem } from '../../helpers/package-entities.js';
 
 export const CUSTOMER_COOKIE = { b2b_session: 'stub-customer-session' };
 export const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };

@@ -1,6 +1,6 @@
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { lockedOwners } from '../../scripts/lib/switchable-modules.js';
-import type { EnforcedGateSite } from '../../src/modules/admin_roles/permission-inventory.js';
+import type { EnforcedGateSite } from '../../../packages/modules/admin_roles/src/backend/permission-inventory.js';
 
 /**
  * D-173 — the `foreign-gate` sweep: a module enforcing a permission code
@@ -54,6 +54,11 @@ export type ForeignGateVerdict = 'pass' | 'violation' | 'ledgerable';
 export type ForeignGateKind =
   /** Some owner declares `nonDeactivatable`, so the code cannot leave. */
   | 'owner-locked'
+  /**
+   * The gate is an any-of, and another of its members is a code that cannot
+   * become un-grantable — see {@link classifyForeignGates}.
+   */
+  | 'sufficient-alternative'
   /** Every owner is switchable and the consumer cannot be switched off with them. */
   | 'locked-consumer'
   /** Both sides switchable, and no manifest declares the edge. */
@@ -117,6 +122,35 @@ function declaredEdges(manifest: ModuleManifest): ReadonlySet<string> {
  * consumer that owns no code and has no activation control, so any foreign gate
  * there reads as `locked-consumer`. There are none today; leaving the case out
  * of the population would be the way the first one arrives unseen.
+ *
+ * ## The any-of narrowing (`sufficient-alternative`, 2026-08-28)
+ *
+ * A `requireAdminAny([...])` site enforces several codes and is satisfied by
+ * **any one** of them, and this sweep classifies one code at a time. That is
+ * right for what the codes *are* and wrong for what the harm *is*: the cost
+ * this sweep measures is a screen left behind a permission nobody can be
+ * granted, and that cannot happen while one member of the any-of is a code
+ * whose grantability no operator can withdraw — an alternative the enforcing
+ * module owns itself, or one a locked module owns. Holding that member still
+ * opens the route, so the route is not stranded, so there is nothing to refuse.
+ *
+ * It is not a widening of what may pass: the finding is still reported, with a
+ * kind naming why, and it is derived from the site and the manifests on every
+ * run like every other verdict here. Withdraw the alternative — narrow the
+ * any-of, or take the lock off the module that owns the alternative — and the
+ * same run reports the same code as a violation again, with no ledger to edit.
+ *
+ * `payment_methods` produced the first instance: `GET /admin/order-statuses` is
+ * registered there and read by two admin editors, so it is
+ * `requireAdminAny(['payment_methods:read', 'delivery_methods:read'])`. The
+ * second member exists for the delivery-method screen, and when `delivery_methods`
+ * is switched off that screen goes with it — while the payment-method screen the
+ * route also serves goes on opening on the first member. The three repairs this
+ * sweep otherwise offers are all false statements here: co-declaring
+ * `delivery_methods:read` would keep it grantable for a module that is not
+ * there, `dependencies` would make the orchestrator refuse to switch
+ * `delivery_methods` off at all, and there is no ledger entry for a
+ * `violation`.
  */
 export function classifyForeignGates(input: ForeignGateInput): readonly ForeignGateFinding[] {
   const locked = lockedOwners(input.manifests.map((entry) => entry.manifest));
@@ -142,13 +176,23 @@ export function classifyForeignGates(input: ForeignGateInput): readonly ForeignG
       }
       const consumerLocked = site.moduleId === null || locked.has(site.moduleId);
       const edges = site.moduleId === null ? new Set<string>() : declared.get(site.moduleId);
+      // An any-of member the operator cannot take away, on this same site.
+      const hasSufficientAlternative = site.codes.some((alternative) => {
+        if (alternative === code) return false;
+        const alternativeOwners = input.owners.get(alternative);
+        if (alternativeOwners === undefined || alternativeOwners.size === 0) return false;
+        if (site.moduleId !== null && alternativeOwners.has(site.moduleId)) return true;
+        return [...alternativeOwners].some((owner) => locked.has(owner));
+      });
       const kind: ForeignGateKind = [...owners].some((owner) => locked.has(owner))
         ? 'owner-locked'
-        : consumerLocked
-          ? 'locked-consumer'
-          : [...owners].some((owner) => edges?.has(owner) === true)
-            ? 'declared-owner'
-            : 'undeclared-owner';
+        : hasSufficientAlternative
+          ? 'sufficient-alternative'
+          : consumerLocked
+            ? 'locked-consumer'
+            : [...owners].some((owner) => edges?.has(owner) === true)
+              ? 'declared-owner'
+              : 'undeclared-owner';
       byKey.set(key, {
         sites: 1,
         finding: {
@@ -158,7 +202,11 @@ export function classifyForeignGates(input: ForeignGateInput): readonly ForeignG
           owners: [...owners].sort(),
           file: site.file,
           verdict:
-            kind === 'owner-locked' ? 'pass' : kind === 'declared-owner' ? 'ledgerable' : 'violation',
+            kind === 'owner-locked' || kind === 'sufficient-alternative'
+              ? 'pass'
+              : kind === 'declared-owner'
+                ? 'ledgerable'
+                : 'violation',
           kind,
         },
       });

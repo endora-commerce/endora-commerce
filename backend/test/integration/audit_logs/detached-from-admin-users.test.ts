@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 

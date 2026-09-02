@@ -6,7 +6,7 @@ import type { DictionaryValidator } from '../../../../packages/modules/dictionar
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Language } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { MegamenuService } from '../../../src/modules/megamenu/services/megamenu-service.js';
+import { MegamenuService } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-service.js';
 
 describe('Megamenu dictionary boundary', () => {
   let db: TestDb;

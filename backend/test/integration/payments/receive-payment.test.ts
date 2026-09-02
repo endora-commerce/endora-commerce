@@ -14,12 +14,12 @@ import {
 import {
   ReceivePaymentHandler,
   type SettlementLogger,
-} from '../../../src/modules/payments/services/receive-payment-handler.js';
-import type { OrderPaymentStatusApplyPort } from '../../../src/modules/orders/ports/index.js';
-import { PaymentService } from '../../../src/modules/payments/services/payment-service.js';
+} from '../../../../packages/modules/payments/src/backend/services/receive-payment-handler.js';
+import type { OrderPaymentStatusApplyPort } from '../../../../packages/modules/orders/src/ports/index.js';
+import { PaymentService } from '../../../../packages/modules/payments/src/backend/services/payment-service.js';
 import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-entities.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
-import { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
+import { Order } from '../../helpers/package-entities.js';
+import { Payment } from '../../helpers/package-entities.js';
 
 interface Fixture {
   method: PaymentMethodRow;

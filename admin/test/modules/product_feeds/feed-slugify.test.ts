@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { slugify } from '@/modules/product_feeds/api';
+import { slugify } from '../../../../packages/modules/product_feeds/src/admin/api';
 
 /**
  * Issue #239 — the feed slug generator dropped `ł` outright.

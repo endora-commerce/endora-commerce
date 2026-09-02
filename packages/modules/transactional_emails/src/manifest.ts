@@ -78,6 +78,59 @@ export const manifest = defineModuleManifest({
   },
   settings: transactionalEmailsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
+  /**
+   * `TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` — D-129's remaining sweep, Tier A
+   * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;
+   * MR 3).
+   *
+   * Declared by `_i18n` until this merge request, not because anybody judged
+   * it the platform's but because the deleted prefix chain had no rule for it
+   * and its last line was `return 'core'`. **D-121 T1 puts it here**: the noun
+   * is one transactional email, and this module owns the email, its content,
+   * its per-channel customization and the registry that says which emails a
+   * business may switch off.
+   *
+   * **The word `NOT_DEACTIVATABLE` is not the platform's here**, which is the
+   * one thing about this code worth reading twice. It sounds like the module
+   * lifecycle's `MODULE_NOT_DEACTIVATABLE`, and it is a different refusal at a
+   * different granularity: the platform's is about a *module* an operator may
+   * not switch off, this one is about a single **email** — `order_confirmation`
+   * and its like — that the registry marks always-on with a reason. Issue #89
+   * introduced the per-email control precisely because the module's own
+   * activation is `nonDeactivatable`; the two codes are the two ends of that
+   * decision and only one of them belongs to the lifecycle.
+   *
+   * **No sentence moves with it.** It has none in either language anywhere in
+   * the tree; it was already on `UNTRANSLATED_ERROR_CODES` under `_i18n` and
+   * moves to this module's group there, so the bundle this module already
+   * ships gains no key. The refusal an operator reads today is the registry's
+   * own `nonDeactivatableReasonOf(code)` prose, which the raise passes as the
+   * message.
+   *
+   * **`tokens` is derived from the raise sites, not from the bundle**
+   * (runbook §5), and this is the case where that rule bites rather than
+   * repeats itself. The single raise
+   * (`commands/email-activation.commands.ts`) puts `{ code, reason }` in
+   * `details`, so `refusalToken` reads a token off every one of these errors
+   * (`packages/platform/src/http/error-envelope.ts`) — and the token is the
+   * **email's** registry code, an open set every module contributing an email
+   * extends, not a fixed vocabulary this manifest could enumerate. Declaring
+   * tokens would therefore be declaring a list that goes stale on the next
+   * email somebody registers. It is `VALIDATION_FAILED`'s shape one layer
+   * along: a machine-readable discriminator on the wire rather than a token
+   * choosing between sentences.
+   *
+   * Two consequences, both recorded rather than repaired here. A base sentence
+   * written at `errors.TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` would be **dead
+   * key** — the envelope always looks up `<key>.<token>` when a token is
+   * present — so whoever drains this code's ledger entry writes
+   * `errors.TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE.<email code>` per protected
+   * email, or leaves the registry's reason to answer. And `_i18n`'s own
+   * `tokens` paragraph counted seven codes carrying a `details.code`; this was
+   * an eighth, so that count is true of the list it describes only now that
+   * this code has left it.
+   */
+  errorCodes: [{ code: 'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE' }],
   permissions: [
     { code: 'transactional_emails:read', label: 'View transactional emails' },
     {
@@ -105,6 +158,28 @@ export const manifest = defineModuleManifest({
       requiredPermission: 'transactional_emails:read',
       keywords: ['email', 'templates', 'layout', 'transactional'],
       weight: 241,
+    },
+    /**
+     * The one `AppShell.tsx` `PALETTE_ITEMS` row feature 091's batch 11
+     * deletes, arriving as a declaration (Principle XVI) — same destination,
+     * same code, same keywords. Its two siblings were declared already, so
+     * this is the row that would otherwise have gone silently.
+     *
+     * This module is `nonDeactivatable`, so the row it replaces never
+     * advertised an absent module; what the declaration buys here is the other
+     * axis, the one a lock leaves — the server resolves the operator's
+     * permission before the entry reaches the palette, and a hand-written row
+     * carried its own copy of that answer.
+     */
+    {
+      id: 'open-email-blocks',
+      labelKey: 'actions.openEmailBlocks.label',
+      descriptionKey: 'actions.openEmailBlocks.description',
+      icon: 'Inbox',
+      targetRoute: '/transactional-emails/blocks',
+      requiredPermission: 'transactional_emails:read',
+      keywords: ['email', 'blocks', 'fragments', 'bloki'],
+      weight: 242,
     },
   ],
 });

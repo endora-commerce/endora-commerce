@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
   analyseErrorTranslations,
+  declaringBundleDirectories,
   findUnreachableSentences,
   findUntranslatedErrorCodes,
+  nonDeclaringModules,
+  reconcileEnumeration,
   treeTranslationInput,
-  routedBundleDirectories,
   UNTRANSLATED_ERROR_CODES,
-  unroutedModules,
   type ErrorTranslationTarget,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
-import { ERROR_TRANSLATION_KEYS } from '../../../src/modules/_i18n/services/error-translation.js';
+import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
 
 /**
  * The error-translation rule's own test (issue #113).
@@ -35,24 +37,34 @@ function input(bundles: Record<string, Record<string, unknown>>): TranslationInp
 }
 
 /**
- * A whole tree, as the two predicates read it: a routing table, and every
- * bundle on disk keyed `<directory>.<language>`.
+ * A whole tree, as the predicates read it: a routing map, the codes the platform
+ * enumerates, the contested codes, and every bundle on disk keyed
+ * `<directory>.<language>`.
  *
- * The two members are deliberately built from **one** map. P1 reads the bundle
- * the table names and P2 reads the bundles it does not, so a fixture that let
- * them disagree could make either predicate look right while describing a tree
- * that cannot exist. `readBundle` applies the `core` → `_i18n` rename to the
- * table's answer, which is where the real reader applies it — `listBundleKeys`
- * yields directory names and never sees `core` (§ 3.4 of the contract).
+ * The bundle members are deliberately built from **one** map. P1 reads the
+ * bundle the routing names and P2 reads the bundles it does not, so a fixture
+ * that let them disagree could make either predicate look right while describing
+ * a tree that cannot exist.
+ *
+ * There is no `core` → `_i18n` rename here, and its absence is the point: the
+ * routing map is keyed on **declaring module ids** since feature 090's Phase 4,
+ * so the comparison is a plain equality and this fixture used to carry the third
+ * copy of an identity that now has exactly one (D-185).
+ *
+ * `enumeratedCodes` defaults to the codes the routing map holds, so a fixture
+ * that says nothing about P3 gets a tree where P3 has nothing to report — the
+ * cases that *are* about P3 pass it explicitly.
  */
 function fixture(
   keys: Readonly<Record<string, ErrorTranslationTarget>>,
   bundles: Record<string, Record<string, unknown>>,
+  extra: Partial<Pick<TranslationInput, 'collisions' | 'enumeratedCodes'>> = {},
 ): TranslationInput {
-  const directoryOf = (moduleId: string): string => (moduleId === 'core' ? '_i18n' : moduleId);
   return {
     keys,
-    readBundle: (moduleId, language) => bundles[`${directoryOf(moduleId)}.${language}`] ?? {},
+    collisions: extra.collisions ?? [],
+    enumeratedCodes: extra.enumeratedCodes ?? Object.keys(keys),
+    readBundle: (moduleId, language) => bundles[`${moduleId}.${language}`] ?? {},
     listBundleKeys: () =>
       Object.entries(bundles).flatMap(([slot, bundle]) => {
         const cut = slot.lastIndexOf('.');
@@ -118,15 +130,15 @@ describe('findUntranslatedErrorCodes — the shapes it has to see', () => {
     ).toEqual([]);
   });
 
-  it('reads the routed module, not the code prefix — an unrouted code is the ledger`s core block', () => {
+  it('reads the declaring module, not the code prefix — the ledger`s _i18n block', () => {
+    // P1 only, so the input is narrowed to the two members it reads: this case
+    // is about which bundle the routing names, and the walk P2 reads is a
+    // different question asked further down this file.
     const findings = findUntranslatedErrorCodes({
-      keys: { KSEF_UNAVAILABLE: { moduleId: 'core', key: 'errors.KSEF_UNAVAILABLE' } },
+      keys: { KSEF_UNAVAILABLE: { moduleId: '_i18n', key: 'errors.KSEF_UNAVAILABLE' } },
       readBundle: (moduleId) => (moduleId === 'ksef' ? { 'errors.KSEF_UNAVAILABLE': 'x' } : {}),
-      // P1 only: this case is about which bundle the table names, and the walk
-      // P2 reads is a different question asked further down this file.
-      listBundleKeys: () => [],
     });
-    expect(findings.map((f) => f.moduleId)).toEqual(['core']);
+    expect(findings.map((f) => f.moduleId)).toEqual(['_i18n']);
   });
 });
 
@@ -257,13 +269,18 @@ describe('findUnreachableSentences — a sentence written where nothing reads it
     expect(findings[0]).toMatchObject({ kind: 'unreachable', code: 'X_REFUSED' });
   });
 
-  it('applies the core → _i18n rename to the table s answer, not to the walk', () => {
-    // The routing table says `core`; the directory holding that bundle is
-    // `_i18n`. Comparing the two literally would report every platform sentence
-    // in the tree as unreachable.
+  it('compares directory to directory — the platform bundle needs no rename', () => {
+    // This asserted the opposite until feature 090's Phase 4: the prefix chain
+    // answered `core` for the platform block, a bundle namespace where every
+    // other answer was a module id, so the check applied a `core` → `_i18n`
+    // rename to the routing answer and comparing the two literally would have
+    // reported every platform sentence in the tree as unreachable. Routing is
+    // the modules' own declarations now and `_i18n` declares the block, so the
+    // rename is gone and this is the assertion that its absence is correct
+    // rather than an oversight.
     const findings = findUnreachableSentences(
       fixture(
-        { VERSION_CONFLICT: { moduleId: 'core', key: 'errors.VERSION_CONFLICT' } },
+        { VERSION_CONFLICT: { moduleId: '_i18n', key: 'errors.VERSION_CONFLICT' } },
         { '_i18n.en': { 'errors.VERSION_CONFLICT': 'Changed elsewhere.' } },
       ),
     );
@@ -294,29 +311,67 @@ describe('findUnreachableSentences — a sentence written where nothing reads it
   });
 });
 
-describe('the two vacuity guards, which are independent', () => {
+describe('the three vacuity guards, which are independent', () => {
   const KEYS_ONLY = { X_REFUSED: { moduleId: 'a', key: 'errors.X_REFUSED' } } as const;
 
-  it('exits 2 when the bundle walk yields no key, even with a full routing table', () => {
-    // The routing table is a static import and the bundles are a filesystem
-    // walk, so either can come back empty while the other is full. A single
-    // guard over one of them lets the other report a clean tree while looking
+  it('exits 2 when the bundle walk yields no key, even with a full routing map', () => {
+    // The declarations, the enumeration and the bundles are three different
+    // reads, so any one can come back empty while the others are full. A single
+    // guard over one of them lets the others report a clean tree while looking
     // at nothing (issue #113).
-    const result = analyseErrorTranslations(
-      { keys: KEYS_ONLY, readBundle: () => ({}), listBundleKeys: () => [] },
-      new Set(['X_REFUSED']),
-    );
+    const result = analyseErrorTranslations(fixture(KEYS_ONLY, {}), new Set(['X_REFUSED']));
     expect(result.exitCode).toBe(2);
     expect(result.summary).toMatch(/vacuous/);
   });
 
-  it('exits 2 when the routing table routes no code, even with bundles on disk', () => {
+  it('exits 2 when no manifest declares a code, even with bundles on disk', () => {
     const result = analyseErrorTranslations(
-      fixture({}, { 'a.en': { 'errors.X_REFUSED': 'Refused.' } }),
+      fixture({}, { 'a.en': { 'errors.X_REFUSED': 'Refused.' } }, { enumeratedCodes: ['X_REFUSED'] }),
       new Set(),
     );
     expect(result.exitCode).toBe(2);
-    expect(result.summary).toMatch(/vacuous/);
+    expect(result.summary).toMatch(/no registered manifest declares an error code/);
+  });
+
+  it('counts a contested code as declared — P4 is what says the platform has none', () => {
+    // "Nobody declares anything" is the state the guard above exists for. A
+    // platform whose every declaration collided has declarations, and reporting
+    // it as an empty read would hide the collision behind a refusal.
+    const result = analyseErrorTranslations(
+      fixture(
+        {},
+        { 'a.en': { 'errors.X_REFUSED': 'Refused.' }, 'a.pl': { 'errors.X_REFUSED': 'Odmowa.' } },
+        {
+          enumeratedCodes: ['X_REFUSED'],
+          collisions: [
+            {
+              code: 'X_REFUSED',
+              claims: [
+                { moduleId: 'a', declaredIn: '/a/manifest.ts' },
+                { moduleId: 'b', declaredIn: '/b/manifest.ts' },
+              ],
+            },
+          ],
+        },
+      ),
+      new Set(),
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.collisions.map((c) => c.code)).toEqual(['X_REFUSED']);
+    expect(result.summary).toContain('collision=1');
+  });
+
+  it('exits 2 when ERROR_CODES enumerates nothing, so P3 compares against nothing', () => {
+    const result = analyseErrorTranslations(
+      fixture(
+        KEYS_ONLY,
+        { 'a.en': { 'errors.X_REFUSED': 'Refused.' }, 'a.pl': { 'errors.X_REFUSED': 'Odmowa.' } },
+        { enumeratedCodes: [] },
+      ),
+      new Set(),
+    );
+    expect(result.exitCode).toBe(2);
+    expect(result.summary).toMatch(/ERROR_CODES enumerates no code/);
   });
 
   it('exits 1 on a P2 finding, which has no ledger to absorb it', () => {
@@ -380,7 +435,7 @@ describe('the tree itself, under P2', () => {
  */
 describe('the bundle-walk population floor', () => {
   const REGISTERED = ['blog', 'catalog', 'orders'];
-  const ROUTED_TO_BLOG = {
+  const DECLARED_BY_BLOG = {
     BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' },
   } as const;
 
@@ -388,42 +443,131 @@ describe('the bundle-walk population floor', () => {
     vacuousModulePopulation({
       registered: REGISTERED,
       files,
-      excluded: unroutedModules(ROUTED_TO_BLOG, REGISTERED),
+      excluded: nonDeclaringModules(DECLARED_BY_BLOG, REGISTERED),
     });
 
-  it('refuses a walk that missed a module the routing table names', () => {
+  it('refuses a walk that missed a module the routing map names', () => {
     const reason = refusal(['/abs/src/modules/catalog/i18n/en.json']);
     expect(reason).not.toBeNull();
     expect(reason).toContain('blog');
   });
 
-  it('says nothing about a module the routing table does not name', () => {
-    // `catalog` and `orders` route no code here, so nothing requires them to
+  it('says nothing about a module that declares no code', () => {
+    // `catalog` and `orders` declare nothing here, so nothing requires them to
     // ship a bundle — 45 of the 66 registered modules ship one on the real
     // tree, and a floor that asked for all 66 would be a list of exceptions.
     expect(refusal(['/abs/src/modules/blog/i18n/en.json'])).toBeNull();
   });
 
-  it('resolves `core` to the bundle that actually holds it', () => {
-    // The routing table's `core` is an answer, not a directory. A floor that
-    // asked for a module called `core` would ask for one nothing can satisfy,
-    // and would refuse every run.
-    expect(
-      routedBundleDirectories({ X: { moduleId: 'core', key: 'errors.X' } }),
-    ).toEqual(['_i18n']);
+  it('names module directories and nothing else — `core` is produced by nothing', () => {
+    // The floor asks each named module for a bundle directory, so a routing
+    // answer that is not a module id would ask for one nothing can satisfy and
+    // refuse every run. That is what `core` was until Phase 4; the routing map
+    // is keyed on declaring modules now, and this is the assertion that the
+    // deleted rename is not needed rather than merely absent.
+    const declaring = declaringBundleDirectories(DECLARED_ERROR_TRANSLATION_TARGETS);
+    expect(declaring.length).toBeGreaterThan(0);
+    expect(declaring).toContain('_i18n');
+    expect(declaring).not.toContain('core');
   });
 
-  it('derives the exclusion rather than taking one, on the real routing table', () => {
-    const routed = routedBundleDirectories();
-    expect(routed.length).toBeGreaterThan(0);
-    expect(routed).toContain('_i18n');
-    expect(routed).not.toContain('core');
-    // The dual, over the table the CLI actually uses: every routed module stays
-    // inside the floor and only the one that routes nothing falls out of it. An
-    // exclusion that quietly covered everything would switch the floor off
+  it('derives the exclusion rather than taking one, on the real routing map', () => {
+    const declaring = declaringBundleDirectories(DECLARED_ERROR_TRANSLATION_TARGETS);
+    // The dual, over the map the CLI actually uses: every declaring module stays
+    // inside the floor and only the one that declares nothing falls out of it.
+    // An exclusion that quietly covered everything would switch the floor off
     // while every run still looked normal.
-    expect(unroutedModules(ERROR_TRANSLATION_KEYS, [...routed, 'zz_routes_nothing'])).toEqual([
-      'zz_routes_nothing',
-    ]);
+    expect(
+      nonDeclaringModules(DECLARED_ERROR_TRANSLATION_TARGETS, [
+        ...declaring,
+        'zz_declares_nothing',
+      ]),
+    ).toEqual(['zz_declares_nothing']);
+  });
+});
+
+/**
+ * P3 — the two-way reconciliation of `ERROR_CODES` against the declarations
+ * (FR-031), and P4's report.
+ *
+ * These are what the deleted prefix chain used to make unnecessary and
+ * unavailable at once: its last line was `return 'core'`, so a code nobody
+ * thought about was routed and silently untranslated forever, and there was
+ * nothing to reconcile because the table was generated from the enumeration
+ * itself. Each proof hands the reconciliation a routing map and an enumeration
+ * that disagree — the top of the analysis, the only input it has.
+ */
+describe('the enumeration and the declarations, reconciled both ways', () => {
+  it('reports an enumerated code no module declares, naming the code', () => {
+    const findings = reconcileEnumeration({
+      keys: { A_CODE: { moduleId: 'blog', key: 'errors.A_CODE' } },
+      collisions: [],
+      enumeratedCodes: ['A_CODE', 'B_CODE'],
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ code: 'B_CODE', kind: 'undeclared-enum-member' });
+    // Naming the code is the requirement, not merely failing: the chain's
+    // fall-through is what this replaces, and "something is undeclared" would
+    // send its reader to read 289 manifest lines.
+    expect(findings[0]?.repair).toContain("{ code: 'B_CODE' }");
+  });
+
+  it('reports a declared code the enumeration does not hold, naming the module', () => {
+    const findings = reconcileEnumeration({
+      keys: {
+        A_CODE: { moduleId: 'blog', key: 'errors.A_CODE' },
+        B_CODE: { moduleId: 'catalog', key: 'errors.B_CODE' },
+      },
+      collisions: [],
+      enumeratedCodes: ['A_CODE'],
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      code: 'B_CODE',
+      kind: 'undeclared-in-enum',
+      moduleId: 'catalog',
+    });
+  });
+
+  it('counts a contested code as declared, so P4 reports it and P3 does not', () => {
+    // Two findings for one code would send its author to add a declaration that
+    // already exists twice, which is the opposite of the repair.
+    const findings = reconcileEnumeration({
+      keys: {},
+      collisions: [
+        {
+          code: 'A_CODE',
+          claims: [
+            { moduleId: 'blog', declaredIn: '/blog/manifest.ts' },
+            { moduleId: 'cms', declaredIn: '/cms/manifest.ts' },
+          ],
+        },
+      ],
+      enumeratedCodes: ['A_CODE'],
+    });
+    expect(findings).toEqual([]);
+  });
+
+  it('says nothing when the two agree', () => {
+    expect(
+      reconcileEnumeration({
+        keys: { A_CODE: { moduleId: 'blog', key: 'errors.A_CODE' } },
+        collisions: [],
+        enumeratedCodes: ['A_CODE'],
+      }),
+    ).toEqual([]);
+  });
+
+  it('the tree agrees in both directions, over the real declarations', () => {
+    // Phase 3 declared all 289 members of `ERROR_CODES` across eighteen
+    // modules, so both directions are empty here — and this is the assertion
+    // that stops the next code being added to one side alone.
+    expect(
+      reconcileEnumeration({
+        keys: DECLARED_ERROR_TRANSLATION_TARGETS,
+        collisions: [],
+        enumeratedCodes: Object.values(ERROR_CODES),
+      }),
+    ).toEqual([]);
   });
 });

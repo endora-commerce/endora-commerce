@@ -371,7 +371,7 @@ depending on an absent one**. Every seam between the two then needs an answer to
 "what happens?", and the operator being asked to accept the flip needs the same
 answer, by name, before the write. There is one artefact for both, and that is
 the point of it rather than an economy:
-`modules/_lifecycle/services/deactivation-ledger.ts`.
+`lifecycle/services/deactivation-ledger.ts`.
 
 `buildDeactivationLedger` assigns every cross-module edge whose owner an
 operator may switch off one of four outcomes:
@@ -1500,6 +1500,28 @@ every check and holds the printed numbers to a band recorded in
 `backend/test/helpers/check-read-sizes.ts` (−10% / +50%, asymmetric on purpose:
 the lower edge is the defect direction, the upper edge only stops the record
 going stale while the tree grows).
+
+**That band ratchets blindness and cannot ratchet staleness, so the same run
+prints a drift report beside it.** A recorded value went wrong three times in
+ten days, twice silently, and every one sat comfortably inside the band: on
+`check-admin-surface` the floor is 241 sites below the record, so a drain batch
+moving it by 41 can never be refused. The run had the number each time — it
+parsed it, compared it, found it in band and discarded it. It now says it
+instead, in an `afterAll`, on every run whether green or red, one
+`[read-size drift]` block naming each recorded entry that no longer describes
+the tree with its recorded value, its observed value, the signed delta and how
+much of the slack to its edge that move consumed. The header is a census —
+`3 drifted, 32 agree, 0 not measured, of 35 recorded` — because a report that
+says nothing when nothing drifted cannot be told from a report that did not run,
+which is issue #244's defect arriving inside the instrument built to answer
+#244; an entry the run could not measure is named as *not measured* and never
+counted as agreeing. It adds no assertion and weakens none. It exists because
+the two prescriptions in force — re-record in the merge request that moved it,
+and read the number off the merged tree — both presuppose the author knows
+*which* entries their change moved, and that mapping is the computation each
+check performs rather than something a checklist can enlarge. The grammar is
+normative in `specs/095-read-size-drift-report/contracts/drift-report-line.md`
+and the formatter is `backend/test/helpers/read-size-drift.ts`.
 
 **A ledger is two-way or it is an allow-list.** An unledgered violation fails,
 *and* an entry that no longer describes a violation fails. The second half is

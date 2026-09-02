@@ -22,6 +22,7 @@ import {
   SLUG_RUNS_ALLOWED,
   type ScannedFile,
 } from '../../../scripts/check-diacritic-folds.js';
+import { CHECK_LIB_ROOT } from '../../helpers/check-lib-root.js';
 
 /**
  * Companion test for `check-diacritic-folds` (issue #240).
@@ -49,7 +50,7 @@ const BACKEND_ROOT = join(REPO_ROOT, 'backend');
 const TSX = join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx');
 const SCRIPT = join(BACKEND_ROOT, 'scripts', 'check-diacritic-folds.ts');
 /** The shared read-size reporter the check imports (issue #244). */
-const READ_SIZE_LIB = join(BACKEND_ROOT, 'scripts', 'lib', 'read-size.ts');
+const READ_SIZE_LIB = join(CHECK_LIB_ROOT, 'read-size.ts');
 const TYPESCRIPT = join(BACKEND_ROOT, 'node_modules', 'typescript');
 
 /** U+0300–U+036F written as the characters themselves, the way one backend slugifier does. */
@@ -1018,6 +1019,10 @@ describe('check-diacritic-folds — the exit codes', () => {
     // reporting, and it would have been 0 before this signal existed.
     const repo = fixtureRepository({ ledgered: true });
     repo.write(
+      // A **fixture** path, not a claim about the tree: this is the file the
+      // wrapper stood in until feature 091's P5b deleted it, and what the proof
+      // is about is the *shape*, which is why the path is written here rather
+      // than derived.
       'admin/src/modules/cms/components/cms-template-layout.ts',
       'export const codeFromTemplateName = (name: string): string =>\n' +
         "  name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n",
@@ -1080,7 +1085,18 @@ describe('check-diacritic-folds — the exit codes', () => {
       "import { normalize } from '@/lib/text-normalization';\nexport const n = normalize;\n",
     );
     repo.write(
-      'admin/src/modules/cms/components/cms-template-layout.ts',
+      // Feature 091, P5b — the CMS/e-mail template `code` prefill. It was
+    // `cms-template-layout`'s `codeFromTemplateName`, a one-line wrapper over
+    // this call with `maxLength: 180`;
+    // `admin-component-contribution.md` Z1.2 deletes the wrapper with the move,
+    // because `PageBuilderHeaderActions` — its only caller — went into
+    // `@endora-commerce/page-builder-admin`, which cannot name `@/modules/cms`.
+    // Re-keyed rather than dropped: the *call* is what issue #245 repaired and
+    // it is still here, at the same cut, under a new address. This list is a
+    // ledger **about** the files it names rather than one of them, so the merge
+    // request that moves a caller is structurally the one that cannot see the
+    // entry go stale — and this one did, which is why it is corrected here.
+    'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx',
       "import { slugify } from '@endora-commerce/contracts';\n" +
         'export const codeFromTemplateName = (name: string): string =>\n' +
         "  slugify(name, { maxLength: 80 });\n",
@@ -1141,17 +1157,24 @@ describe('check-diacritic-folds — the tree it guards', () => {
   // shared helper rather than merely to be free of a fold: a file that stopped
   // folding because it stopped searching would pass the first test and lose the
   // behaviour the fold was for.
-  const repaired = [
-    'admin/src/components/AppShell.tsx',
-    'admin/src/components/ui/combobox.tsx',
-    'admin/src/components/ui/multi-select.tsx',
-    'admin/src/modules/cms/components/PageBuilderDrawer.tsx',
+  //
+  // Two of them changed address in feature 091's Phase 1b — the admin's design
+  // system moved into `@endora-commerce/admin-kit` — so the specifier they hold
+  // is now the package's own relative one rather than the application's `@/`
+  // alias. The pairing is the point: a path and the specifier that path is
+  // expected to write, so a file that moved and stopped importing is still a
+  // failure rather than a lookup that silently found nothing.
+  const repaired: readonly (readonly [string, string])[] = [
+    ['admin/src/components/AppShell.tsx', "from '@/lib/text-normalization'"],
+    ['packages/admin-kit/src/ui/combobox.tsx', "from '../lib/text-normalization.js'"],
+    ['packages/admin-kit/src/ui/multi-select.tsx', "from '../lib/text-normalization.js'"],
+    ['admin/src/modules/cms/components/PageBuilderDrawer.tsx', "from '@/lib/text-normalization'"],
   ];
 
-  it.each(repaired)('%s imports the shared fold instead of writing its own', (path) => {
+  it.each(repaired)('%s imports the shared fold instead of writing its own', (path, specifier) => {
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
     expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
-    expect(source).toContain("from '@/lib/text-normalization'");
+    expect(source).toContain(specifier);
   });
 
   it('the admin helper composes the shared fold rather than carrying a second map', () => {
@@ -1159,7 +1182,9 @@ describe('check-diacritic-folds — the tree it guards', () => {
     // passes because it imports. The map it used to carry disagreed with the
     // shared one over 19 code points, which is the shape of the defect issue
     // #240 is about — two correct-looking folds, neither knowing about the other.
-    const path = 'admin/src/lib/text-normalization.ts';
+    // It moved into the admin kit in Phase 1b; `admin/src/lib/text-normalization.ts`
+    // is now a re-export shim over this file, so this is still the one admin fold.
+    const path = 'packages/admin-kit/src/lib/text-normalization.ts';
     const source = readFileSync(join(REPO_ROOT, path), 'utf8');
     expect(analyzeSource(source, path), `${path} folds on its own again`).toEqual([]);
     expect(source).toContain("import { foldDiacritics } from '@endora-commerce/contracts'");
@@ -1184,13 +1209,35 @@ describe('check-diacritic-folds — the tree it guards', () => {
   const slugGenerators = [
     'packages/modules/product_feeds/src/backend/services/feed-template-io.service.ts',
     'packages/modules/pim_ergonode/src/backend/services/import/category-phase.ts',
-    'backend/src/modules/catalog/services/catalog-admin.service.ts',
-    'admin/src/modules/newsletter/pages/TagsPage.tsx',
-    'admin/src/modules/cms/components/cms-template-layout.ts',
+    'packages/modules/catalog/src/backend/services/catalog-admin.service.ts',
+    // Feature 091, Phase 4 batch 11 — re-keyed, not dropped: `newsletter` took
+    // its admin surface into its package and this screen went with it. The
+    // slug it builds is the tag/field code an operator addresses a tag by, and
+    // the fold is issue #239's repair; a batch that moved the file and left
+    // this key would have read as *"the site stopped slugifying"*, which is the
+    // one claim this list exists to make.
+    'packages/modules/newsletter/src/admin/pages/TagsPage.tsx',
+    // Feature 091, P5b — the CMS/e-mail template `code` prefill. It was
+    // `cms-template-layout`'s `codeFromTemplateName`, a one-line wrapper over
+    // this call with `maxLength: 180`;
+    // `admin-component-contribution.md` Z1.2 deletes the wrapper with the move,
+    // because `PageBuilderHeaderActions` — its only caller — went into
+    // `@endora-commerce/page-builder-admin`, which cannot name `@/modules/cms`.
+    // Re-keyed rather than dropped: the *call* is what issue #245 repaired and
+    // it is still here, at the same cut, under a new address. This list is a
+    // ledger **about** the files it names rather than one of them, so the merge
+    // request that moves a caller is structurally the one that cannot see the
+    // entry go stale — and this one did, which is why it is corrected here.
+    'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx',
     'admin/src/modules/cms/editors/BlockEditor.tsx',
     'admin/src/modules/cms/editors/PageEditor.tsx',
     'admin/src/modules/blog/pages/BlogPostEditor.tsx',
-    'admin/src/modules/product_feeds/api.ts',
+    // Feature 091, Phase 4, the plan's batch 7 — the file is
+    // `@endora-commerce/mod-product-feeds`' admin layer now. This list is a
+    // ledger *about* the files it names rather than one of them, so the batch
+    // that moved this directory is structurally the one that could not see the
+    // entry go stale; it is re-keyed here in the same merge request.
+    'packages/modules/product_feeds/src/admin/api.ts',
   ];
 
   it.each(slugGenerators)('%s slugifies through @endora-commerce/contracts, not its own chain', (path) => {

@@ -7,7 +7,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Category } from '../../../src/modules/catalog/entities/category.entity.js';
+import { Category } from '../../helpers/package-entities.js';
 import { TaxonomyReconcilerService } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-reconciler.service.js';
 import { FeedTaxonomy, FeedTaxonomyMapping, FeedTaxonomyNode } from '../../helpers/package-entities.js';
 

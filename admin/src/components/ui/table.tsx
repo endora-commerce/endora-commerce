@@ -1,87 +1,16 @@
-import {
-  forwardRef,
-  type HTMLAttributes,
-  type TdHTMLAttributes,
-  type ThHTMLAttributes,
-} from 'react';
-import { cn } from '@/lib/utils';
-
-export const Table = forwardRef<HTMLTableElement, HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto b2b-table-scroll">
-      <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
-    </div>
-  ),
-);
-Table.displayName = 'Table';
-
-export const TableHeader = forwardRef<HTMLTableSectionElement, HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <thead ref={ref} className={cn('[&_tr]:border-b', className)} {...props} />
-  ),
-);
-TableHeader.displayName = 'TableHeader';
-
-export const TableBody = forwardRef<HTMLTableSectionElement, HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <tbody ref={ref} className={cn('[&_tr:last-child]:border-0', className)} {...props} />
-  ),
-);
-TableBody.displayName = 'TableBody';
-
-export const TableFooter = forwardRef<HTMLTableSectionElement, HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <tfoot
-      ref={ref}
-      className={cn(
-        'border-t bg-muted/50 font-medium [&>tr]:last:border-b-0',
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
-TableFooter.displayName = 'TableFooter';
-
-export const TableRow = forwardRef<HTMLTableRowElement, HTMLAttributes<HTMLTableRowElement>>(
-  ({ className, ...props }, ref) => (
-    <tr
-      ref={ref}
-      className={cn('border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted', className)}
-      {...props}
-    />
-  ),
-);
-TableRow.displayName = 'TableRow';
-
-export const TableHead = forwardRef<HTMLTableCellElement, ThHTMLAttributes<HTMLTableCellElement>>(
-  ({ className, ...props }, ref) => (
-    <th
-      ref={ref}
-      className={cn(
-        'h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0',
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
-TableHead.displayName = 'TableHead';
-
-export const TableCell = forwardRef<HTMLTableCellElement, TdHTMLAttributes<HTMLTableCellElement>>(
-  ({ className, ...props }, ref) => (
-    <td
-      ref={ref}
-      className={cn('p-2 align-middle [&:has([role=checkbox])]:pr-0', className)}
-      {...props}
-    />
-  ),
-);
-TableCell.displayName = 'TableCell';
-
-export const TableCaption = forwardRef<HTMLTableCaptionElement, HTMLAttributes<HTMLTableCaptionElement>>(
-  ({ className, ...props }, ref) => (
-    <caption ref={ref} className={cn('mt-4 text-sm text-muted-foreground', className)} {...props} />
-  ),
-);
-TableCaption.displayName = 'TableCaption';
+/**
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/ui` (feature 091, Phase 1b).
+ *
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
+ */
+export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';

@@ -1,0 +1,5 @@
+{
+  "nav.apiKeys.label": "Klucze API",
+  "actions.openApiKeys.label": "Klucze API",
+  "actions.openApiKeys.description": "Tokeny bearer dla integracji maszynowych"
+}

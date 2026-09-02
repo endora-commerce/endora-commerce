@@ -16,6 +16,7 @@ import {
   renderModulePackageManifests,
   type ManifestFs,
 } from '../../../scripts/lib/module-package-manifest.js';
+import { UnreadableSubpathError } from '../../../scripts/lib/module-package-subpaths.js';
 
 /**
  * A module package's `package.json` is **derived**, not written (feature 080,
@@ -86,7 +87,26 @@ const BASE_TSCONFIG_BUILD = JSON.stringify({
 function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, string> {
   return {
     [`${ROOT}/pnpm-workspace.yaml`]:
-      'packages:\n  - backend\n  - packages/*\n  - packages/modules/*\n',
+      'packages:\n  - backend\n  - admin\n  - packages/*\n  - packages/modules/*\n',
+    // The admin application. Two things need it since feature 091 and both are
+    // derivations rather than paths: `applicationVersions` reads the range of
+    // every framework a module's **admin** layer can peer on out of it (`react`
+    // and `lucide-react` are declared by no other member), and
+    // `renderAdminApplicationManifest` reconciles its dependency on the module
+    // packages whose `./admin` layer the generated registry imports. It is
+    // found by the `"@/*"` tsconfig alias, the same live declaration every
+    // admin instrument resolves through.
+    [`${ROOT}/admin/package.json`]: JSON.stringify({
+      name: 'admin',
+      dependencies: {
+        '@endora-commerce/contracts': 'workspace:*',
+        'lucide-react': '^1.11.0',
+        react: '^19.2.5',
+      },
+    }),
+    [`${ROOT}/admin/tsconfig.json`]: JSON.stringify({
+      compilerOptions: { paths: { '@/*': ['./src/*'] } },
+    }),
     [`${ROOT}/packages/contracts/package.json`]: JSON.stringify({
       name: '@endora-commerce/contracts',
     }),
@@ -111,9 +131,36 @@ function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, s
       devDependencies: {
         '@types/node': '^22.9.0',
         '@types/nodemailer': '^7.0.4',
+        '@types/react': '^19.2.14',
+        react: '^19.2.5',
         typescript: '^5.9.3',
+        // The real application declares it, and a fixture that ships a test
+        // file has to: the specifier walk reads the test's own `import … from
+        // 'vitest'` and the peer range is the major of what the application
+        // runs, so without this a realistic test fixture is refused for a
+        // reason that has nothing to do with what it is proving.
+        vitest: '^2.1.4',
       },
     }),
+    // The installed `@types/*` packages D-181's split reads, in the two shapes it
+    // distinguishes. `@types/nodemailer` declares only modules — a consumer has no other
+    // way to obtain those types, so a package whose declarations need them declares it.
+    // `@types/react` ships a global-scope declaration file, so it exists once in a
+    // consumer's program by construction and forcing ours is a conflict the application
+    // author cannot fix; those types are theirs to supply. Real files, so the predicate
+    // enters at the top rather than being handed a verdict (issue #130).
+    [`${ROOT}/backend/node_modules/@types/nodemailer/package.json`]: JSON.stringify({
+      name: '@types/nodemailer',
+    }),
+    [`${ROOT}/backend/node_modules/@types/nodemailer/index.d.ts`]:
+      'export declare function createTransport(): unknown;\n',
+    [`${ROOT}/backend/node_modules/@types/react/package.json`]: JSON.stringify({
+      name: '@types/react',
+    }),
+    [`${ROOT}/backend/node_modules/@types/react/index.d.ts`]:
+      'export declare function createElement(): unknown;\n',
+    [`${ROOT}/backend/node_modules/@types/react/global.d.ts`]:
+      'declare namespace JSX { interface Element {} }\n',
     [`${ROOT}/backend/src/index.generated.ts`]:
       "import { manifest as m1 } from '@endora-commerce/mod-widgets';\n" +
       "  { id: 'widgets', manifest: m1, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-widgets') },\n",
@@ -135,6 +182,11 @@ function packageFiles(
       endora: { type: 'module', id },
     }),
     [`${dir}/tsconfig.build.json`]: BASE_TSCONFIG_BUILD,
+    // What the build emitted, which is the population D-181's question is asked of: does
+    // this specifier survive into the package's own `.d.ts`? A package with none answers
+    // by the generator's fail-closed guess instead, so every fixture ships one and the
+    // proofs that are *about* survival write their own.
+    [`${dir}/dist/manifest.d.ts`]: 'export declare const manifest: unknown;\n',
     [`${dir}/src/manifest.ts`]:
       "import { defineModuleManifest } from '@endora-commerce/contracts';\n" +
       `export const manifest = defineModuleManifest({ id: '${id}', name: 'X', description: 'Y' });\n`,
@@ -315,8 +367,86 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         nodemailer: '^7.0.13',
         '@types/nodemailer': '^7.0.4',
       });
-      // It is a build-time declaration, not something a consumer resolves.
+      // A build-time declaration and nothing more, because `nodemailer` appears nowhere in
+      // what this package publishes: the emitted declarations name it, or they do not, and
+      // here they do not. That is the live split in this repository — `email` and
+      // `newsletter` import `nodemailer` inside function bodies, `invoices` and
+      // `comparisons` put `pdfmake/interfaces.js` in an exported signature.
       expect(manifest['peerDependencies']).not.toHaveProperty('@types/nodemailer');
+    });
+
+    /**
+     * D-181, the `@types/*` half: a companion whose types reach a consumer.
+     *
+     * `tsc` copies the import into the emitted `.d.ts`, so a consumer type-checking this
+     * package resolves `nodemailer` — and its *types* come from a package nobody imports
+     * by name. A `devDependency` is not installed for a consumer, so those types are
+     * simply absent and every signature through them becomes `any`, with no diagnostic at
+     * all under the `skipLibCheck: true` that `tsc --init` writes.
+     */
+    it('declares the companion for real when its library reaches the published declarations', () => {
+      const manifest = manifestOf(
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/mail.ts':
+              "import type { Transport } from 'nodemailer';\nexport type T = Transport;\n",
+          },
+          {
+            [`${ROOT}/packages/modules/widgets/dist/backend/index.d.ts`]:
+              "import type { Transport } from 'nodemailer';\nexport declare const t: Transport;\n",
+          },
+        ),
+      );
+      expect(manifest['peerDependencies']).toMatchObject({ '@types/nodemailer': '^7' });
+      expect(manifest['devDependencies']).toMatchObject({ '@types/nodemailer': '^7.0.4' });
+    });
+
+    /**
+     * The other side of D-181's split, and the reason it is a question rather than a list.
+     *
+     * `@types/react` ships a global-scope declaration file, so it exists exactly once in a
+     * consumer's program: forcing our copy on an application that already has its own is a
+     * duplicate-identifier error its author cannot fix by any import. Those types are the
+     * consumer's to supply, and the discriminator is read off the types package itself —
+     * so the fifth such package is answered without anybody adding it anywhere.
+     */
+    it('leaves a globally-declaring companion to the consumer, reached or not', () => {
+      const manifest = manifestOf(
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/ui.ts':
+              "import type { ReactNode } from 'react';\nexport type N = ReactNode;\n",
+          },
+          {
+            [`${ROOT}/packages/modules/widgets/dist/backend/index.d.ts`]:
+              "import type { ReactNode } from 'react';\nexport declare const n: ReactNode;\n",
+          },
+        ),
+      );
+      expect(manifest['peerDependencies']).toMatchObject({ react: '^19' });
+      expect(manifest['peerDependencies']).not.toHaveProperty('@types/react');
+      expect(manifest['devDependencies']).toMatchObject({ '@types/react': '^19.2.14' });
+    });
+
+    it('refuses a companion it cannot read rather than guessing which side it is', () => {
+      // A types package this cannot open must never become an answer in either direction
+      // (issue #113): it would silently be treated as consumer-supplied, which is the
+      // fail-open of the two.
+      const files = widgets(
+        {
+          ...BACKEND_ONLY,
+          'src/backend/mail.ts':
+            "import type { Transport } from 'nodemailer';\nexport type T = Transport;\n",
+        },
+        {
+          [`${ROOT}/packages/modules/widgets/dist/backend/index.d.ts`]:
+            "import type { Transport } from 'nodemailer';\nexport declare const t: Transport;\n",
+        },
+      );
+      delete files[`${ROOT}/backend/node_modules/@types/nodemailer/package.json`];
+      expect(() => render(files)).toThrow(/@types\/nodemailer/);
     });
 
     it('names no companion @types package the application does not declare', () => {
@@ -347,6 +477,451 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         ...packageFiles('gadgets', BACKEND_ONLY),
       };
       expect(() => render(files)).toThrow(/mod-gadgets/);
+    });
+  });
+
+  /**
+   * R4, narrowed to what its reason actually reaches (D-171).
+   *
+   * D-11 rule 3's own words are *"must not list any `@endora-commerce/mod-*` in
+   * **`dependencies`**"*, and the "Why" beneath it names the type-only case by
+   * name — *"Type-only imports of another module's contracts are the mirror
+   * false positive"*. The generator widened that from a field to every import,
+   * because when it was written `./ports` did not exist. It does now, and
+   * D-171 already ruled that a reach into it is not cross-module coupling.
+   *
+   * So: **every** reach into another module package must be a type-only import
+   * at a subpath whose emitted module exports no runtime binding, and then the
+   * name is rendered into `devDependencies` alone. Everything else keeps R4's
+   * refusal and R4's message.
+   *
+   * ## Where these proofs enter
+   *
+   * At the top, like every other proof in this file: a synthetic checkout in
+   * which the owner package carries a **real `exports` map** and a **real
+   * emitted module**, so the surfaces predicate parses the same artefact a real
+   * run parses. A proof that handed in a pre-classified `SubpathSurface` would
+   * prove the branch and leave the predicate unproven (issue #130) — and the
+   * predicate is the whole ruling.
+   */
+  describe('a type-only reach into contract surface is a devDependency (R4 narrowed, D-171)', () => {
+    /** An owner package that really declares a subpath and really emits it. */
+    function ownerFiles(
+      id: string,
+      options: {
+        readonly subpath: string;
+        /** The emitted module's text; `undefined` leaves the file absent. */
+        readonly emitted?: string;
+        /** Declare the subpath in the `exports` map at all? */
+        readonly declared?: boolean;
+      },
+    ): Record<string, string> {
+      const dir = `${ROOT}/packages/modules/${id}`;
+      const name = `@endora-commerce/mod-${id.replace(/_/g, '-')}`;
+      const files: Record<string, string> = {
+        ...packageFiles(id, {
+          ...BACKEND_ONLY,
+          [`src/${options.subpath}/index.ts`]:
+            'export interface GadgetPort { read(): void }\n',
+        }),
+        [`${dir}/package.json`]: JSON.stringify({
+          name,
+          description: 'A module package.',
+          endora: { type: 'module', id },
+          exports: {
+            '.': { types: './dist/manifest.d.ts', default: './dist/manifest.js' },
+            './backend': {
+              types: './dist/backend/index.d.ts',
+              default: './dist/backend/index.js',
+            },
+            ...(options.declared === false
+              ? {}
+              : {
+                  [`./${options.subpath}`]: {
+                    types: `./dist/${options.subpath}/index.d.ts`,
+                    default: `./dist/${options.subpath}/index.js`,
+                  },
+                }),
+            './package.json': './package.json',
+          },
+        }),
+        // `./backend` is the runtime layer every module package publishes, and
+        // it is emitted here so the `./backend` proof measures a real module
+        // rather than an unreadable one.
+        [`${dir}/dist/backend/index.js`]:
+          'export function registerModule(ctx) { void ctx; }\nexport const entities = [];\n',
+      };
+      if (options.emitted !== undefined) {
+        files[`${dir}/dist/${options.subpath}/index.js`] = options.emitted;
+      }
+      return files;
+    }
+
+    /** A consumer whose single foreign specifier is the subject of the proof. */
+    function consumerReaching(line: string): Record<string, string> {
+      return widgets({ ...BACKEND_ONLY, 'src/backend/reach.ts': `${line}\n` });
+    }
+
+    const TYPE_ONLY_PORTS =
+      "import type { GadgetPort } from '@endora-commerce/mod-gadgets/ports';\n" +
+      'export type P = GadgetPort;';
+
+    it('renders it into devDependencies alone when the emitted module exports nothing', () => {
+      const manifest = manifestOf({
+        ...consumerReaching(TYPE_ONLY_PORTS),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      });
+      expect(manifest['devDependencies']).toMatchObject({
+        '@endora-commerce/mod-gadgets': 'workspace:*',
+      });
+      // The two fields an installer resolves. `devDependencies` of a dependency
+      // are never installed, so this creates no edge in any consumer's install
+      // graph and imposes no range on anybody — which is the whole reason it is
+      // the field D-171's exemption may use.
+      expect(manifest['peerDependencies']).not.toHaveProperty(
+        '@endora-commerce/mod-gadgets',
+      );
+      expect(manifest).not.toHaveProperty('dependencies');
+    });
+
+    /**
+     * D-181 — the same reach, once it survives into what this package publishes.
+     *
+     * D-171 reasoned that an `import type` is erased and so *"npm need not know about
+     * it"*. That is true of the emitted **JavaScript** and false of the emitted
+     * **declarations**: `tsc` copies the import into the `.d.ts` verbatim whenever the
+     * type appears in an exported signature, and a consumer type-checking the package must
+     * resolve it. Measured on the real tree with `mod-custom-fields` not installed:
+     * `mod-catalog`'s exported `CatalogCradle.customFieldDefinitionService` became `any`,
+     * with no diagnostic at all under `skipLibCheck: true`.
+     *
+     * So the peer, and deliberately not an *optional* peer — that documents the defect
+     * rather than removing it — and deliberately not `dependencies`, which is R4's own
+     * word and the field a package author owns.
+     */
+    it('declares it for real once the reach survives into the declarations (D-181)', () => {
+      const manifest = manifestOf({
+        ...widgets(
+          { ...BACKEND_ONLY, 'src/backend/reach.ts': `${TYPE_ONLY_PORTS}\n` },
+          {
+            [`${ROOT}/packages/modules/widgets/dist/backend/index.d.ts`]:
+              "import type { GadgetPort } from '@endora-commerce/mod-gadgets/ports';\n" +
+              'export declare const p: GadgetPort;\n',
+          },
+        ),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      });
+      expect(manifest['peerDependencies']).toMatchObject({
+        '@endora-commerce/mod-gadgets': 'workspace:*',
+      });
+      expect(manifest['devDependencies']).toMatchObject({
+        '@endora-commerce/mod-gadgets': 'workspace:*',
+      });
+      expect(manifest).not.toHaveProperty('dependencies');
+    });
+
+    it('fails closed for a package with no emitted declarations at all', () => {
+      // The bootstrap state — a module directory just `git mv`d into place has no
+      // `package.json`, so it cannot be built, so its manifest is rendered before its
+      // `dist` exists. There is no artefact to ask, and the two ways of being wrong are
+      // not equal: over-declaring costs a dependency nobody needed, under-declaring is
+      // D-181's silent `any`. So every reach is taken to survive, and the run reports the
+      // package so `--check` can refuse a verdict taken against the guess.
+      const files = {
+        ...widgets({ ...BACKEND_ONLY, 'src/backend/reach.ts': `${TYPE_ONLY_PORTS}\n` }),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      };
+      delete files[`${ROOT}/packages/modules/widgets/dist/manifest.d.ts`];
+      const run = render(files);
+      expect(run.unbuiltPackages).toContain('@endora-commerce/mod-widgets');
+      const manifest = JSON.parse(
+        run.rendered.find((entry) => entry.moduleId === 'widgets')!.content,
+      ) as Record<string, unknown>;
+      expect(manifest['peerDependencies']).toHaveProperty('@endora-commerce/mod-gadgets');
+    });
+
+    it('reports a package it is rendering a first manifest for, apart from an unbuilt one', () => {
+      // The bootstrap state again, one question further on. A module directory
+      // just `git mv`d into place — or scaffolded by `endora new module` — has
+      // no `package.json`, so it is not a workspace member, so nothing can build
+      // it, so its `dist` is absent by construction and will stay absent until
+      // this command has run once. `unbuiltPackages` alone cannot tell that
+      // apart from a checkout that skipped `pnpm run build:packages`, and the
+      // disclosure line's `emitted-declarations` floor refused the difference:
+      // measured on this repository, `manifests:generate` wrote the new
+      // manifest and then exited 2 on `emitted-declarations 66/67`, so the one
+      // run that has to succeed was the one run that could not.
+      //
+      // The fixture enters at the file — the manifest is removed from the tree,
+      // which is what a first render actually looks like — rather than at a
+      // flag the derivation normally computes.
+      const files = widgets(BACKEND_ONLY);
+      delete files[`${ROOT}/packages/modules/widgets/package.json`];
+      delete files[`${ROOT}/packages/modules/widgets/dist/manifest.d.ts`];
+
+      const run = render(files);
+
+      expect(run.newPackages).toEqual(['@endora-commerce/mod-widgets']);
+      expect(run.unbuiltPackages).toEqual(['@endora-commerce/mod-widgets']);
+    });
+
+    it('reports no first render for a package that already has a manifest', () => {
+      // The other direction, so the flag cannot be read as "unbuilt" wearing a
+      // second name: this package has a `package.json` and no `dist`, which is
+      // the checkout that skipped the build and must stay a short walk.
+      const files = widgets(BACKEND_ONLY);
+      delete files[`${ROOT}/packages/modules/widgets/dist/manifest.d.ts`];
+
+      const run = render(files);
+
+      expect(run.newPackages).toEqual([]);
+      expect(run.unbuiltPackages).toEqual(['@endora-commerce/mod-widgets']);
+    });
+
+    it('refuses it when the subpath emits a const — the exemption fails closed', () => {
+      // D-171 in terms: *"put a `const` on `./ports` and the exemption
+      // evaporates in the same run T050's guard goes red."* Identical specifier,
+      // identical import kind; only the artefact moved.
+      expect(() =>
+        render({
+          ...consumerReaching(TYPE_ONLY_PORTS),
+          ...ownerFiles('gadgets', {
+            subpath: 'ports',
+            emitted: "export const REGISTRY = new Map();\n",
+          }),
+        }),
+      ).toThrow(/surface is 'runtime'.*REGISTRY/s);
+    });
+
+    it('refuses a value import at the same contract-surface subpath', () => {
+      expect(() =>
+        render({
+          ...consumerReaching(
+            "import { GadgetPort } from '@endora-commerce/mod-gadgets/ports';\n" +
+              'export const p = GadgetPort;',
+          ),
+          ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+        }),
+      ).toThrow(/as a value-import, which survives into the emitted JavaScript/);
+    });
+
+    it('refuses a side-effect import at the same contract-surface subpath', () => {
+      // `import '<pkg>/ports'` is erased by nothing: it is in the emitted `.js`
+      // and needs a dependency an installer really resolves.
+      expect(() =>
+        render({
+          ...consumerReaching("import '@endora-commerce/mod-gadgets/ports';"),
+          ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+        }),
+      ).toThrow(/as a side-effect-import, which survives into the emitted JavaScript/);
+    });
+
+    it('refuses a type-only reach at ./backend with R4’s message, unchanged', () => {
+      let message = '';
+      try {
+        render({
+          ...consumerReaching(
+            "import type { Gadget } from '@endora-commerce/mod-gadgets/backend';\n" +
+              'export type G = Gadget;',
+          ),
+          ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+        });
+      } catch (error: unknown) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      // R4's original sentence, verbatim — the narrowing adds one sentence and
+      // rewrites none.
+      expect(message).toContain(
+        'imports @endora-commerce/mod-gadgets, another module package. R4: a module reaches ' +
+          'another through a port declared in its manifest `dependencies`, never through npm ' +
+          '— a package edge is one the lifecycle, the migration order and an operator ' +
+          'switching the owner off all know nothing about.',
+      );
+      expect(message).toMatch(/surface is 'runtime'.*registerModule/s);
+    });
+
+    it('refuses a type-only reach at a subpath the owner does not declare', () => {
+      expect(() =>
+        render({
+          ...consumerReaching(
+            "import type { GadgetPort } from '@endora-commerce/mod-gadgets/internals';\n" +
+              'export type P = GadgetPort;',
+          ),
+          ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+        }),
+      ).toThrow(/surface is 'undeclared'/);
+    });
+
+    it('refuses a declared subpath whose emitted module is missing, as exit 2 and not as R4', () => {
+      // The one direction in which a silence would grant standing rather than
+      // withhold it (issue #113). A cold `dist` is a broken artefact, not a
+      // coupling, and a refusal that said "coupling" would send the author to
+      // redesign a seam that is fine.
+      let caught: unknown;
+      try {
+        render({
+          ...consumerReaching(TYPE_ONLY_PORTS),
+          ...ownerFiles('gadgets', { subpath: 'ports' }),
+        });
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(UnreadableSubpathError);
+      expect(caught).not.toBeInstanceOf(ModulePackageManifestError);
+      expect((caught as Error).message).toContain('pnpm run build:packages');
+    });
+
+    it('counts the owner manifests and emitted modules it opened', () => {
+      // A check that reads files without counting them is issue #244 in the
+      // tool that exists to prevent it.
+      const withReach = render({
+        ...consumerReaching(TYPE_ONLY_PORTS),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      });
+      // The same checkout, file for file, with the one specifier pointing at
+      // the consumer's own tree instead of at the owner — so the difference is
+      // the surfaces reader's two files and nothing else.
+      const withoutReach = render({
+        ...consumerReaching(
+          "import type { ModuleContext } from '@endora-commerce/platform/kernel';\n" +
+            'export type P = ModuleContext;',
+        ),
+        ...ownerFiles('gadgets', { subpath: 'ports', emitted: 'export {};\n' }),
+      });
+      // The owner's `package.json` and its emitted `dist/ports/index.js`: two
+      // files the run would otherwise have read and not reported.
+      expect(withReach.filesRead - withoutReach.filesRead).toBe(2);
+    });
+  });
+
+  /**
+   * A devDependency cycle between two module packages, refused here.
+   *
+   * pnpm's workspace graph includes `devDependencies`, which is what orders
+   * `pnpm -r run build` so an owner's `dist/ports/index.d.ts` exists before its
+   * consumer's `tsc` looks for it. A cycle is where that benefit bites:
+   * measured on this tree, pnpm **warns and does not fail**, loses the ordering,
+   * builds the pair concurrently, and the consumer fails with TS2307 — then
+   * succeeds on a re-run. A CI red that depends on scheduling.
+   *
+   * `orders` ↔ `payments` **is** that pair, and it stopped being hypothetical
+   * while this was being written. T048 (!1052) converted `orders`' reach into
+   * `payments`' `Payment` entity class into a published port, so the tree now
+   * holds both directions, both `import type`, both into a `ports/index`:
+   *
+   *   `orders/services/order-service.ts`     → `payments/ports/index`
+   *   `payments/services/receive-payment-handler.ts` → `orders/ports/index`
+   *
+   * They are relative specifiers today, which is why nothing is red: a relative
+   * specifier has no subpath and names no package. The moment both modules are
+   * packaged and both specifiers become bare, each manifest devDepends on the
+   * other — which is this fixture, with the real names and the real directions.
+   */
+  describe('a mutual type-only devDependency pair is refused (§7)', () => {
+    /**
+     * `orders` and `payments` as packages, each publishing the `./ports` its
+     * `backend/src/modules/<id>/ports/index.ts` already holds and each reaching
+     * the other's, exactly as the two files above reach each other today.
+     */
+    function mutualPair(): Record<string, string> {
+      const files: Record<string, string> = { ...checkoutWith({}) };
+      for (const [id, other, takes] of [
+        ['orders', 'payments', 'PaymentPlacementApplyPort'],
+        ['payments', 'orders', 'OrderPaymentStatusApplyPort'],
+      ] as const) {
+        const dir = `${ROOT}/packages/modules/${id}`;
+        const publishes =
+          id === 'orders' ? 'OrderPaymentStatusApplyPort' : 'PaymentPlacementApplyPort';
+        Object.assign(
+          files,
+          packageFiles(id, {
+            ...BACKEND_ONLY,
+            'src/ports/index.ts': `export interface ${publishes} { apply(): void }\n`,
+            'src/backend/reach.ts':
+              `import type { ${takes} } from '@endora-commerce/mod-${other}/ports';\n` +
+              `export type P = ${takes};\n`,
+          }),
+        );
+        files[`${dir}/package.json`] = JSON.stringify({
+          name: `@endora-commerce/mod-${id}`,
+          description: 'A module package.',
+          endora: { type: 'module', id },
+          exports: {
+            '.': { types: './dist/manifest.d.ts', default: './dist/manifest.js' },
+            './backend': {
+              types: './dist/backend/index.d.ts',
+              default: './dist/backend/index.js',
+            },
+            './ports': {
+              types: './dist/ports/index.d.ts',
+              default: './dist/ports/index.js',
+            },
+            './package.json': './package.json',
+          },
+        });
+        files[`${dir}/dist/ports/index.js`] = 'export {};\n';
+        files[`${dir}/dist/backend/index.js`] =
+          'export function registerModule(ctx) { void ctx; }\nexport const entities = [];\n';
+      }
+      return files;
+    }
+
+    it('refuses the pair, naming both packages and both clean exits', () => {
+      let message = '';
+      try {
+        render(mutualPair());
+      } catch (error: unknown) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).toContain('@endora-commerce/mod-orders');
+      expect(message).toContain('@endora-commerce/mod-payments');
+      expect(message).toContain('would each devDepend on the other');
+      // The two exits the tree already demonstrates. A refusal whose message
+      // stops at "blocked" is a refusal that blocks the sweep.
+      expect(message).toContain('publish the interface on ONE side only');
+      expect(message).toContain('@endora-commerce/contracts');
+    });
+
+    /**
+     * The message must not describe the two-sided failure as a race.
+     *
+     * !1047 measured the pair `returns` ↔ `credit_limits`, where **one**
+     * direction carried a real reach: the other side compiled, emitted its
+     * `dist/ports/index.d.ts`, and an immediate re-run of the consumer went
+     * green — a scheduling-dependent red. Re-measured on this tree for the
+     * shape this refusal was actually written against, `orders` ↔ `payments`,
+     * where **both** directions carry one: every package build sets
+     * `noEmitOnError: true`, so the side that loses the race emits nothing and
+     * the side that would have won never gets the `.d.ts` it is waiting for.
+     * Seven runs, seven reds, the same TS2307 every time — four cold and
+     * concurrent, two warm, one cold at `--workspace-concurrency=1`. **There is
+     * no build order**, which is why `build:packages` cannot be taught one and
+     * why "just re-run it" is advice that cannot work here.
+     *
+     * The distinction is load-bearing for the author who reads this message: a
+     * race invites a retry, and a deadlock does not.
+     */
+    it('says a two-sided pair has no build order, rather than calling it a race', () => {
+      let message = '';
+      try {
+        render(mutualPair());
+      } catch (error: unknown) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).toContain('noEmitOnError');
+      expect(message).toContain('no build order');
+      expect(message).not.toContain('succeeds on a re-run');
+    });
+
+    it('renders the same pair when only one side reaches the other', () => {
+      const files = mutualPair();
+      delete files[`${ROOT}/packages/modules/payments/src/backend/reach.ts`];
+      const orders = manifestOf(files, 'orders');
+      const payments = manifestOf(files, 'payments');
+      expect(orders['devDependencies']).toMatchObject({
+        '@endora-commerce/mod-payments': 'workspace:*',
+      });
+      expect(payments['devDependencies']).not.toHaveProperty('@endora-commerce/mod-orders');
     });
   });
 
@@ -419,6 +994,149 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       const files = widgets(BACKEND_ONLY);
       delete files[`${ROOT}/packages/modules/widgets/tsconfig.build.json`];
       expect(() => render(files)).toThrow(/tsconfig\.build\.json/);
+    });
+  });
+
+  describe('the admin application declares the modules it composes (feature 091)', () => {
+    /** The admin manifest this run reconciled, parsed. */
+    function adminManifestOf(files: Record<string, string>): Record<string, unknown> {
+      const run = render(files);
+      const found = run.applicationRendered.find((entry) => entry.packageName === 'admin');
+      expect(found, 'no admin manifest rendered').toBeDefined();
+      return JSON.parse(found!.content) as Record<string, unknown>;
+    }
+
+    const WITH_ADMIN_LAYER = {
+      ...BACKEND_ONLY,
+      'src/admin/index.ts': "export const contributions = { routes: [] };\n",
+    };
+
+    it('adds a module that ships an admin layer, at its sorted position', () => {
+      // The generated registry names it by bare specifier, and a bare specifier
+      // resolves only through a declared dependency. Without this the module's
+      // screens are registered and unresolvable.
+      const deps = adminManifestOf(widgets(WITH_ADMIN_LAYER))['dependencies'] as Record<
+        string,
+        string
+      >;
+      expect(deps['@endora-commerce/mod-widgets']).toBe('workspace:*');
+      expect(Object.keys(deps)).toEqual([
+        '@endora-commerce/contracts',
+        '@endora-commerce/mod-widgets',
+        'lucide-react',
+        'react',
+      ]);
+    });
+
+    it('adds nothing for a module with no admin layer', () => {
+      // R3 — the layer is optional and its absence is silent. A backend-only
+      // module is not something the admin resolves.
+      const deps = adminManifestOf(widgets(BACKEND_ONLY))['dependencies'] as Record<
+        string,
+        string
+      >;
+      expect(Object.keys(deps)).not.toContain('@endora-commerce/mod-widgets');
+    });
+
+    it('removes a module that has dropped its admin layer', () => {
+      // The stale direction. A dependency on a package the registry no longer
+      // names is an edge nothing declares and nothing removes.
+      const files = widgets(BACKEND_ONLY);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify({
+        name: 'admin',
+        dependencies: {
+          '@endora-commerce/contracts': 'workspace:*',
+          '@endora-commerce/mod-widgets': 'workspace:*',
+          react: '^19.2.5',
+        },
+      });
+      const deps = adminManifestOf(files)['dependencies'] as Record<string, string>;
+      expect(Object.keys(deps)).not.toContain('@endora-commerce/mod-widgets');
+    });
+
+    it('leaves every other dependency, and its order, exactly where it was', () => {
+      // The admin's React, Radix and Tailwind ranges are a human's, with
+      // Constitution IV's justification behind them. This reconciliation owns
+      // one thing and must be seen not to own the rest.
+      const files = widgets(WITH_ADMIN_LAYER);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify(
+        {
+          name: 'admin',
+          private: true,
+          dependencies: { zod: '^4.2.0', '@endora-commerce/contracts': 'workspace:*' },
+          devDependencies: { typescript: '^5.9.3' },
+        },
+        null,
+        2,
+      );
+      const manifest = adminManifestOf(files);
+      expect(Object.keys(manifest)).toEqual([
+        'name',
+        'private',
+        'dependencies',
+        'devDependencies',
+      ]);
+      expect(Object.keys(manifest['dependencies'] as object)).toEqual([
+        '@endora-commerce/mod-widgets',
+        'zod',
+        '@endora-commerce/contracts',
+      ]);
+      expect(manifest['devDependencies']).toEqual({ typescript: '^5.9.3' });
+    });
+
+    it('removes an edge to a workspace member that has gone', () => {
+      // The case the "is it one of ours" question above cannot answer, because
+      // it is answered from the packages this run **found**: a module that has
+      // been deleted, renamed or moved out of the globs is exactly the one it
+      // cannot find. A `workspace:` range naming no current member is the
+      // discriminator, and it is not a stranger's — a registry package carries
+      // a semver range, never the workspace protocol.
+      const files = widgets(BACKEND_ONLY);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify({
+        name: 'admin',
+        dependencies: {
+          '@endora-commerce/mod-departed': 'workspace:*',
+          react: '^19.2.5',
+        },
+      });
+      const deps = adminManifestOf(files)['dependencies'] as Record<string, string>;
+      expect(Object.keys(deps)).not.toContain('@endora-commerce/mod-departed');
+      expect(deps['react']).toBe('^19.2.5');
+    });
+
+    it('never touches a third-party package that merely looks like one of ours', () => {
+      // Ours is answered from the identities this run derived, never from a
+      // `mod-` prefix test: the prefix is a naming convention (§6), and a
+      // stranger's package following it would be silently deleted.
+      const files = widgets(BACKEND_ONLY);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify({
+        name: 'admin',
+        dependencies: { '@endora-commerce/mod-widgets-theme': '^1.0.0', react: '^19.2.5' },
+      });
+      const deps = adminManifestOf(files)['dependencies'] as Record<string, string>;
+      expect(deps['@endora-commerce/mod-widgets-theme']).toBe('^1.0.0');
+    });
+
+    it('is idempotent — a second render over its own output changes nothing', () => {
+      const files = widgets(WITH_ADMIN_LAYER);
+      const first = render(files).applicationRendered[0]!;
+      files[first.outputPath] = first.content;
+      expect(render(files).applicationRendered[0]!.content).toBe(first.content);
+    });
+
+    it('refuses an admin application with no dependencies block', () => {
+      const files = widgets(WITH_ADMIN_LAYER);
+      files[`${ROOT}/admin/package.json`] = JSON.stringify({ name: 'admin' });
+      expect(() => render(files)).toThrow(/dependencies/);
+    });
+
+    it('refuses a checkout where no member declares the admin source alias', () => {
+      // Zero or two is a refusal rather than a walk narrowed to whichever
+      // sorted first — `lib/admin-surfaces.ts`' rule, applied here because this
+      // reconciliation has to know which manifest it is reconciling.
+      const files = widgets(WITH_ADMIN_LAYER);
+      delete files[`${ROOT}/admin/tsconfig.json`];
+      expect(() => render(files)).toThrow(/@\/\*/);
     });
   });
 
@@ -517,9 +1235,94 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       const withTests = manifestOf(
         widgets(BACKEND_ONLY, {
           [`${ROOT}/packages/modules/widgets/test/unit/a.test.ts`]: 'export {};\n',
+          // A test file with no configuration is refused since feature 089's
+          // Phase 1, so a fixture that ships one ships the runner too.
+          [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: 'export default {};\n',
         }),
       );
       expect((withTests['scripts'] as Record<string, string>)['lint']).toBe('eslint src test');
+    });
+  });
+
+  /**
+   * A test file nothing runs (feature 089, Phase 1).
+   *
+   * `specs/deferred-defects.md` recorded the state this closes: four packaged
+   * modules carried fifteen co-located test files, no runner collected them, no
+   * job reported them and no total counted them. They were not failing — as far
+   * as the pipeline was concerned they did not exist, which in review reads as
+   * coverage. The two halves below are the whole repair: an *undeclared* run is
+   * refused here, and a *declared* one is made honest by the script it emits.
+   */
+  describe('a test file has a runner', () => {
+    const VITEST_CONFIG = 'export default {};\n';
+
+    it('refuses a co-located test file when the package declares no vitest config', () => {
+      const tree = (): Record<string, string> =>
+        widgets({
+          ...BACKEND_ONLY,
+          'src/backend/services/thing.service.test.ts': "import { it } from 'vitest';\n",
+        });
+      expect(() => manifestOf(tree())).toThrow(ModulePackageManifestError);
+      expect(() => manifestOf(tree())).toThrow(/src\/backend\/services\/thing\.service\.test\.ts/);
+      expect(() => manifestOf(tree())).toThrow(/vitest\.config\.ts/);
+    });
+
+    it('refuses one under test/ too — the layout contract puts them there', () => {
+      const tree = (): Record<string, string> =>
+        widgets(BACKEND_ONLY, {
+          [`${ROOT}/packages/modules/widgets/test/unit/thing.test.ts`]:
+            "import { it } from 'vitest';\n",
+        });
+      expect(() => manifestOf(tree())).toThrow(ModulePackageManifestError);
+      expect(() => manifestOf(tree())).toThrow(/test\/unit\/thing\.test\.ts/);
+    });
+
+    it('emits a bare `vitest run` for a package that declares one', () => {
+      // Never `--passWithNoTests`: measured on vitest 2.1.9, bare `run` exits 1
+      // on "No test files found" and the flag turns that into 0 — which is the
+      // same "green means not looking" this refusal exists to stop, one layer up.
+      const manifest = manifestOf(
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/services/thing.service.test.ts': "import { it } from 'vitest';\n",
+          },
+          { [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: VITEST_CONFIG },
+        ),
+      );
+      expect((manifest['scripts'] as Record<string, string>)['test']).toBe('vitest run');
+    });
+
+    it('declares the runner that script names, for a package whose tests are under test/', () => {
+      // The half the co-located four hid. Their `vitest` devDependency arrives
+      // through the specifier walk, which reads the test's own
+      // `import … from 'vitest'` — and that walk enters `src/` only. A package
+      // that puts its tests in `test/`, which is where the layout contract puts
+      // them, therefore got a `test` script naming a runner nothing installs:
+      // measured on a scaffolded package, `pnpm run test` answered
+      // `vitest: command not found`.
+      const manifest = manifestOf(
+        widgets(BACKEND_ONLY, {
+          [`${ROOT}/packages/modules/widgets/test/unit/thing.test.ts`]:
+            "import { it } from 'vitest';\n",
+          [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: VITEST_CONFIG,
+        }),
+      );
+      expect((manifest['devDependencies'] as Record<string, string>)['vitest']).toBe('^2.1.4');
+      // A devDependency and not a peer: a consumer never runs this package's
+      // tests, and the emit excludes them, so nothing published names it.
+      expect(manifest['peerDependencies']).not.toHaveProperty('vitest');
+    });
+
+    it('names no runner for a package that declares no configuration', () => {
+      const manifest = manifestOf(widgets(BACKEND_ONLY));
+      expect(manifest['devDependencies']).not.toHaveProperty('vitest');
+    });
+
+    it('emits no test script for a package that ships neither', () => {
+      const manifest = manifestOf(widgets(BACKEND_ONLY));
+      expect((manifest['scripts'] as Record<string, string>)['test']).toBeUndefined();
     });
   });
 
@@ -695,7 +1498,25 @@ describe('module package manifests are generated (feature 080, T041)', () => {
           ],
         ]),
       );
-      expect([...names].sort()).toEqual(['bullmq', 'fastify', 'ioredis', 'zod']);
+      expect([...names.keys()].sort()).toEqual(['bullmq', 'fastify', 'ioredis', 'zod']);
+    });
+
+    it('keeps the subpath and the import kind of every reach (D-171)', () => {
+      // Both facts are what R4's narrowing turns on, and both were discarded one
+      // line before the refusal saw them.
+      const names = peerNamesOf(
+        new Map([
+          [
+            'a.ts',
+            "import type { A } from '@endora-commerce/mod-gadgets/ports';\n" +
+              "import { B } from '@endora-commerce/mod-gadgets';\n",
+          ],
+        ]),
+      );
+      expect(names.get('@endora-commerce/mod-gadgets')).toEqual([
+        { subpath: 'ports', kind: 'type-only-import', file: 'a.ts', line: 1 },
+        { subpath: '', kind: 'value-import', file: 'a.ts', line: 2 },
+      ]);
     });
   });
 });

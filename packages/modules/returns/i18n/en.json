@@ -23,5 +23,6 @@
   "settlement.refund": "Refund money",
   "settlement.credit": "Credit toward future orders",
   "settlement.replacement": "Replacement",
-  "settlement.repair": "Repair"
+  "settlement.repair": "Repair",
+  "nav.returns.label": "Returns"
 }

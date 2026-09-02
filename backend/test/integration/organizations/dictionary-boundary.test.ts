@@ -6,7 +6,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import type { DictionaryValidator } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
-import { RegistrationService } from '../../../src/modules/organizations/services/registration-service.js';
+import { RegistrationService } from '../../../../packages/modules/organizations/src/backend/services/registration-service.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 import { Country } from '../../helpers/package-entities.js';
 

@@ -20,8 +20,8 @@ import { ShipmentService } from '../../../../packages/modules/shipments/src/back
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
 import { builtInShippingAdapters } from '../../../../packages/modules/delivery_methods/src/backend/adapters/built-in-adapters.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
 import { DeliveryMethod, Shipment, type DeliveryMethodRow } from '../../helpers/package-entities.js';
+import { Order } from '../../helpers/package-entities.js';
 
 interface Fixture {
   method: DeliveryMethodRow;

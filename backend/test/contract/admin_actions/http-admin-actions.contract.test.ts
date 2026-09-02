@@ -1,11 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { ModuleAction } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { GetAdminActionsResponseSchema } from '@endora-commerce/contracts';
-import { ModuleAction } from '../../../src/modules/admin_actions/entities/module-action.entity.js';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 

@@ -4,7 +4,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import type { DictionaryValidator } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
-import { WarehouseService } from '../../../src/modules/inventory/services/warehouse-service.js';
+import { WarehouseService } from '../../../../packages/modules/inventory/src/backend/services/warehouse-service.js';
 import { Country } from '../../helpers/package-entities.js';
 
 describe('Inventory warehouse dictionary boundary', () => {

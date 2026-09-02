@@ -20,6 +20,7 @@ import {
 } from './settings.js';
 import { KnownIconNameSchema, ModuleActionsManifestSchema } from './admin-actions.js';
 import { modulePermissionDeclarationSchema } from './admin.js';
+import { errorCodeRe } from './errors.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
 
 // ---------------------------------------------------------------------------
@@ -243,6 +244,47 @@ export type ReducedDeploymentDeclaration = z.infer<
   typeof ReducedDeploymentDeclarationSchema
 >;
 
+/**
+ * Refusal-token grammar for {@link ModuleErrorCodeDeclarationSchema}.
+ *
+ * One code, several reasons — `specs/082-error-code-ownership/contracts/error-code-ownership.md`
+ * §1.4. The envelope reads `details.code` and looks up `errors.<CODE>.<token>`,
+ * or `errors.<CODE>` when the raise carries no token.
+ *
+ * **It is a choice between two keys and not a fall-back**, which this note said
+ * it was until D-190 (`specs/080-f4-real-scope/rulings.md`) measured it:
+ * `localizeErrorEnvelope` composes one key, asks for it once and never re-asks.
+ * So a code every raise of which carries a token has no reader for its
+ * `errors.<CODE>` sentence — the operator never sees it, and deleting it is
+ * still wrong, because `check:error-translations` asks its P1 question at that
+ * key and at no other.
+ */
+export const errorCodeTokenRe = /^[a-z][a-z0-9_]*$/;
+
+/**
+ * One error code a module claims as its own
+ * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md` §1.1).
+ *
+ * **No `message` field, and that is a decision.** The English sentence a caller
+ * sees when nothing is translated is the one the raising code wrote: it already
+ * exists, it is written where the condition is known, and it can interpolate.
+ * A manifest message would be a third English sentence for one condition, and
+ * the two would drift exactly as a permission's `label` and its
+ * `adminRoles.permission.<code>` bundle key already do. The translated
+ * sentences live in the declaring module's own `i18n/<language>.json` under
+ * `errors.<CODE>`, which is where the envelope already looks.
+ *
+ * **`tokens` is declared rather than inferred** because a static reader that
+ * does not know the token set cannot tell `errors.CART_COUPON_REJECTED.expired`
+ * from a key whose tail is not a code at all — which is a finding. Fourteen keys
+ * in `invoices` and `carts` have this shape today.
+ */
+export const ModuleErrorCodeDeclarationSchema = z.object({
+  code: z.string().regex(errorCodeRe),
+  tokens: z.array(z.string().regex(errorCodeTokenRe)).optional(),
+});
+export type ModuleErrorCodeDeclaration = z.infer<typeof ModuleErrorCodeDeclarationSchema>;
+
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
   name: z.string().min(1).max(120),
@@ -306,6 +348,19 @@ export const ModuleManifestSchema = z.object({
    * install ordering.
    */
   pimConnector: z.literal(true).optional(),
+  /**
+   * The operator-visible error codes this module owns (feature 090, D-182).
+   *
+   * The declaration is what routes the code's sentence to this module's bundle:
+   * `errors.<CODE>` in `<module>/i18n/<language>.json`. Which module owns a code
+   * is `specs/082-error-code-ownership/contracts/error-code-ownership.md` §1 —
+   * the domain noun decides, never the thrower, so `orders` raising `CART_EMPTY`
+   * leaves the code owned by `carts`.
+   *
+   * Absent means "this module owns no operator-visible error code", which is
+   * true of most modules and is not a finding.
+   */
+  errorCodes: z.array(ModuleErrorCodeDeclarationSchema).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
@@ -433,6 +488,69 @@ function assertNonBindingRules(m: ModuleManifest): void {
 }
 
 /**
+ * The `errorCodes` refusals (feature 090,
+ * `contracts/error-code-declaration.md` §2, first layer).
+ *
+ * They live here rather than in the schema for the reason the activation rules
+ * do: two of them are cross-element — a duplicate is a relationship between two
+ * entries, which an element schema cannot see — and every message has to name
+ * the module the author is looking at. All four fire on import, on the author's
+ * machine, with no instance and no database.
+ *
+ * What this layer deliberately does **not** refuse is a code **another** module
+ * declares. It sees one manifest and cannot see a second, so a partial refusal
+ * here called "the collision rule" would be a green that means "not looking".
+ * The collision rule is composition's (§3), and an in-repository collision is
+ * refused before that, in CI.
+ *
+ * Nor does it refuse a code that is a member of `ERROR_CODES`. After feature
+ * 090's migration every core module's declarations are members of it, so such a
+ * rule would refuse the platform's own manifests; there is no origin field to
+ * condition it on, and adding one would be a self-certified exemption issued by
+ * the measured party.
+ */
+function assertErrorCodeRules(m: ModuleManifest): void {
+  const seenCodes = new Set<string>();
+  for (const declaration of m.errorCodes ?? []) {
+    if (!errorCodeRe.test(declaration.code)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares error code ` +
+          `"${declaration.code}", which is not SCREAMING_SNAKE_CASE ` +
+          `(${String(errorCodeRe)}) — the code travels verbatim on the wire and ` +
+          'is the tail of the `errors.<CODE>` key its sentence is written under.',
+      );
+    }
+    if (seenCodes.has(declaration.code)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares error code ` +
+          `"${declaration.code}" twice — one code has one owner and one sentence, ` +
+          'so the second entry can only disagree with the first.',
+      );
+    }
+    seenCodes.add(declaration.code);
+
+    const seenTokens = new Set<string>();
+    for (const token of declaration.tokens ?? []) {
+      if (!errorCodeTokenRe.test(token)) {
+        throw new Error(
+          `[contracts/modules] manifest "${m.id}" declares refusal token "${token}" ` +
+            `under "${declaration.code}", which does not match ${String(errorCodeTokenRe)} — ` +
+            'the token is the tail of `errors.<CODE>.<token>` and a key that does not ' +
+            'parse is a key nothing reads.',
+        );
+      }
+      if (seenTokens.has(token)) {
+        throw new Error(
+          `[contracts/modules] manifest "${m.id}" declares refusal token "${token}" ` +
+            `twice under "${declaration.code}" — one token is one sentence.`,
+        );
+      }
+      seenTokens.add(token);
+    }
+  }
+}
+
+/**
  * Identity-with-validation helper for module authors. Modules export a
  * single `manifest` constant via this helper so TypeScript inference is
  * preserved and the loader can ingest the validated payload directly.
@@ -475,6 +593,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
     }
   }
   assertNonBindingRules(m);
+  assertErrorCodeRules(m);
   return ModuleManifestSchema.parse(m);
 }
 
@@ -485,6 +604,17 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
 /**
  * Logger surface a hook may use. Implementations attach the module id as a
  * tag at the orchestrator level so the hook author writes plain messages.
+ *
+ * **This is not `ctx.log`.** It is the logger of the three surfaces below — the
+ * install/uninstall hook context and the two lifecycle-participant events — all
+ * of which the orchestrator calls, and it takes a message and nothing else.
+ * `ModuleContext.log`, which a module writes to from `registerModule`, is a
+ * `PlatformLogger` (`@endora-commerce/platform/kernel`) and takes a bound object
+ * first: `ctx.log.info({ orderId }, 'message')`.
+ *
+ * The two used to share this name, which is how a scaffolded module came to
+ * call `ctx.log.info('…')` with one argument against a two-argument type. Keep
+ * the shapes' names apart; they are not interchangeable in either direction.
  */
 export interface ModuleLifecycleLogger {
   info(msg: string): void;

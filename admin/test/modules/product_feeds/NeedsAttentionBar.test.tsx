@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
-import { NeedsAttentionBar } from '../../../src/modules/product_feeds/components/NeedsAttentionBar';
-import type { DraftField, FieldProblem } from '../../../src/modules/product_feeds/template-draft';
+import { NeedsAttentionBar } from '../../../../packages/modules/product_feeds/src/admin/components/NeedsAttentionBar';
+import type { DraftField, FieldProblem } from '../../../../packages/modules/product_feeds/src/admin/template-draft';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**

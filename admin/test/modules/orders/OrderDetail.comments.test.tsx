@@ -3,9 +3,18 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
+
+/**
+ * `OrderDetail` resolves the payments tab's visibility through
+ * `useSurfaceVisibility`, which reads the auth and module-presence contexts.
+ * This file is about neither, so both are stubbed permissive; the gate itself is
+ * covered in `OrderDetail.payments-tab-gating.test.tsx`.
+ */
+
 
 vi.mock('@/lib/api-client', async () => {
   const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>('@/lib/api-client');
@@ -76,11 +85,14 @@ beforeEach(() => {
 
 function renderDetail(): void {
   renderWithI18n(
-    <MemoryRouter initialEntries={['/orders/o1']}>
-      <Routes>
-        <Route path="/orders/:id" element={<OrderDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/orders/o1']}>
+        <Routes>
+          <Route path="/orders/:id" element={<OrderDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: ['orders', 'payments'] }) },
+    ),
     BUNDLE,
   );
 }

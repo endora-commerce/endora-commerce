@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { defineModuleManifest, type ModuleActivation } from '@endora-commerce/contracts';
-import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/modules/_lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/modules/_lifecycle/services/dep-graph.js';
-import type { LoadedManifestRegistry } from '../../../src/modules/_lifecycle/services/manifest-loader.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/lifecycle/services/orchestrator.js';
+import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
+import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import {
   migrationOwnershipOf,
   type MigrationOwnership,

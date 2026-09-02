@@ -8,6 +8,8 @@ The platform's **shipping-method framework** (feature 035 — _Metoda Dostawy_).
 The module hosts a pluggable adapter registry over the delivery-method catalog,
 the delivery-side twin of `payment_methods`. The first-class `Shipment` record
 and its lifecycle live in the sibling [`shipments`](./shipments.md) module.
+Carrier integrations such as [`inpost`](./inpost) register adapters into this
+framework.
 
 A delivery method is never hard-coded: the platform discovers methods from
 whichever **adapter modules** are installed and enabled. Enabling a recognised
@@ -16,17 +18,26 @@ row visible at `/delivery-methods`.
 
 ## Public surface
 
-Admin routes are gated by `catalog:read` (list) / `catalog:write` (mutations).
+Admin routes are gated by `delivery_methods:read` (reads) and
+`delivery_methods:write` (mutations) — the module's own codes since 2026-08-28.
+They were `catalog:read` / `catalog:write` until then, which meant whoever could
+edit a product could also decide how the shop ships, and delete a delivery
+method outright. A role that was relying on the catalogue codes for this screen
+has to be granted the new ones on `/admin-roles`; nothing grants them
+automatically, deliberately.
 
-| Verb + Path | Audience | Purpose |
-| --- | --- | --- |
-| `GET /api/v1/delivery-methods` | anon | Eligible methods for the storefront checkout (active ∩ sales-channel ∩ Organization allow-list ∩ adapter registered ∩ `validateUseOnStorefront`) |
-| `GET /api/v1/admin/delivery-methods` | admin | Full list with adapter, status mappings, sales channels, renderer key |
-| `PUT /api/v1/admin/delivery-methods/:code` | admin | Upsert by code (name, cost/`price`, status, `statusOnSuccess`/`statusOnFailure`, sales channels) |
-| `DELETE /api/v1/admin/delivery-methods/:id` | admin | Hard delete (guarded: rejected with 409 when a `Shipment` references the method — set status `inactive` instead) |
+| Verb + Path | Audience | Gate | Purpose |
+| --- | --- | --- | --- |
+| `GET /api/v1/delivery-methods` | anon | — | Eligible methods for the storefront checkout (active ∩ sales-channel ∩ Organization allow-list ∩ adapter registered ∩ `validateUseOnStorefront`) |
+| `GET /api/v1/admin/delivery-methods` | admin | `delivery_methods:read` | Full list with adapter, status mappings, sales channels, renderer key |
+| `PUT /api/v1/admin/delivery-methods/:code` | admin | `delivery_methods:write` | Upsert by code (name, cost/`price`, status, `statusOnSuccess`/`statusOnFailure`, sales channels) |
+| `DELETE /api/v1/admin/delivery-methods/:id` | admin | `delivery_methods:write` | Hard delete (guarded: rejected with 409 when a `Shipment` references the method — set status `inactive` instead) |
 
 The admin status selectors read their options from `GET /api/v1/admin/order-statuses`
-(owned by the payment-methods admin routes; shared `OrderStatusRegistry`).
+(owned by the payment-methods admin routes; shared `OrderStatusRegistry`). That
+route is gated `payment_methods:read` **or** `delivery_methods:read` — an any-of
+over the two editors that read it, so the code that opens this screen also opens
+its status selectors.
 
 ## Entry fields
 

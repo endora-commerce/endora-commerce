@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { manifest as catalogManifest } from '../../../src/modules/catalog/manifest.js';
+import { manifest as catalogManifest } from '../../../../packages/modules/catalog/src/manifest.js';
 import { manifest as importExportManifest } from '../../../../packages/modules/import_export/src/manifest.js';
-import { manifest as inventoryManifest } from '../../../src/modules/inventory/manifest.js';
+import { manifest as inventoryManifest } from '../../../../packages/modules/inventory/src/manifest.js';
 import { manifest as quoteRequestsManifest } from '../../../../packages/modules/quote_requests/src/manifest.js';
 import { manifest as cmsManifest } from '../../../../packages/modules/cms/src/manifest.js';
 import { manifest as blogManifest } from '../../../../packages/modules/blog/src/manifest.js';
-import { manifest as megamenuManifest } from '../../../src/modules/megamenu/manifest.js';
+import { manifest as megamenuManifest } from '@endora-commerce/mod-megamenu';
 import { manifest as salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
 import { manifest as settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import { ModuleActionSchema } from '@endora-commerce/contracts';
@@ -63,10 +63,13 @@ const EXPECTED: ReadonlyArray<ExpectedAction> = [
     actionId: 'open-inventory',
     targetRoute: '/inventory',
     icon: 'Boxes',
-    // `orders:read` since issue #232: the stock overview's own route is
-    // `requireAdmin('orders:read')`, and the `catalog:write` this row used to
-    // pin hid the screen from operators who can open it.
-    requiredPermission: 'orders:read',
+    // `inventory:read` since 2026-08-29, when the module took its own codes:
+    // the stock overview's own route is `requireAdmin('inventory:read')`.
+    // This row has now been corrected twice and both reasons are worth keeping.
+    // Issue #232 replaced a `catalog:write` that hid the screen from operators
+    // who can open it with `orders:read`, the code the route then enforced —
+    // correct against the route, and the route's own code was the defect.
+    requiredPermission: 'inventory:read',
     weight: 230,
     labelKey: 'actions.openInventory.label',
   },

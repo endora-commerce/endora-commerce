@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleManifestSchema, defineModuleManifest } from '@endora-commerce/contracts';
-import { manifest as adminI18nManifest } from '../../../src/modules/_i18n/manifest.js';
+import { manifest as adminI18nManifest } from '@endora-commerce/mod-i18n';
 import { manifest as settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 
 /**

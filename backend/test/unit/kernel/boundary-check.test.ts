@@ -22,6 +22,7 @@ import {
   PLATFORM_ROOTS,
 } from '../../../scripts/check-kernel-boundary.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
 
 /** Every root the check itself walks — resolved, never spelled (T040a). */
 const MODULE_LAYOUT = await requireModuleLayout('[kernel-boundary-check]');
@@ -88,9 +89,6 @@ describe('isViolation', () => {
   });
 });
 
-/** A cross-module import that still resolves after the D-32 relocations. */
-const CATALOG_CATEGORY_IMPORT =
-  "import { Category } from '../../catalog/entities/category.entity.js';";
 
 /**
  * Derived, never written out. `analyzeSource` reads the owning module out of the
@@ -102,29 +100,48 @@ const CATALOG_CATEGORY_IMPORT =
 const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const moduleFile = (relative: string): string => join(BACKEND_ROOT, 'src/modules', relative);
 
+/**
+ * A cross-module relation target that really exists — derived, never named, and
+ * shared with `check-inventory`'s rule-A red proof so the two cannot disagree.
+ * See `test/helpers/in-tree-relation-target.ts` for why it is not a literal.
+ */
+const RELATION_TARGET = inTreeRelationTarget();
+const RELATION_TARGET_IMPORT =
+  `import { ${RELATION_TARGET.name} } from '${RELATION_TARGET.specifier}';`;
+/**
+ * The importing file for a proof that names {@link RELATION_TARGET_IMPORT}.
+ *
+ * It has to sit in the **fixture** tree rather than under `backend/src/modules`,
+ * because the specifier above is relative and rule A resolves it against the
+ * importing file. `moduleFile` stays for the proofs whose target is a real
+ * platform file — the kernel's `SalesChannel` — which is where a path under the
+ * application tree is still the right one.
+ */
+const relationFixtureFile = RELATION_TARGET.sourceFile;
+
 describe('analyzeSource', () => {
   it('finds the relation target through the import that declares it', () => {
     const findings = analyzeSource(
       ENTITY(
-        '@ManyToOne(() => Category, { fieldName: "category_id" })',
-        CATALOG_CATEGORY_IMPORT,
+        `@ManyToOne(() => ${RELATION_TARGET.name}, { fieldName: "target_id" })`,
+        RELATION_TARGET_IMPORT,
       ),
-      moduleFile('search/entities/search-phrase-record.entity.ts'),
+      relationFixtureFile('search/entities/search-phrase-record.entity.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       sourceOwner: 'search',
-      targetOwner: 'catalog',
+      targetOwner: RELATION_TARGET.module,
       decorator: 'ManyToOne',
-      targetName: 'Category',
+      targetName: RELATION_TARGET.name,
     });
     expect(isViolation(findings[0]!)).toBe(true);
   });
 
   it('ignores a plain @Property — an FK column is not an ORM relation', () => {
     const findings = analyzeSource(
-      ENTITY('@Property({ type: "uuid" })', CATALOG_CATEGORY_IMPORT),
-      moduleFile('search/entities/x.entity.ts'),
+      ENTITY('@Property({ type: "uuid" })', RELATION_TARGET_IMPORT),
+      relationFixtureFile('search/entities/x.entity.ts'),
     );
     expect(findings).toEqual([]);
   });
@@ -132,13 +149,13 @@ describe('analyzeSource', () => {
   it('reads the entity out of the object form too', () => {
     const findings = analyzeSource(
       ENTITY(
-        '@ManyToMany({ entity: () => Category, pivotTable: "setting_categories" })',
-        CATALOG_CATEGORY_IMPORT,
+        `@ManyToMany({ entity: () => ${RELATION_TARGET.name}, pivotTable: "setting_targets" })`,
+        RELATION_TARGET_IMPORT,
       ),
-      moduleFile('settings/entities/setting.entity.ts'),
+      relationFixtureFile('settings/entities/setting.entity.ts'),
     );
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.targetOwner).toBe('catalog');
+    expect(findings[0]?.targetOwner).toBe(RELATION_TARGET.module);
   });
 
   it('allows the relocated settings → SalesChannel relations, now kernel-internal', () => {
@@ -180,8 +197,11 @@ describe('rule A — the scan scope', () => {
 
   it('flags a cross-module relation declared in a file with no entity suffix', () => {
     const findings = analyzeSource(
-      ENTITY('@OneToMany(() => Category, (c) => c.thing)', CATALOG_CATEGORY_IMPORT),
-      moduleFile('search/entities/index.ts'),
+      ENTITY(
+        `@OneToMany(() => ${RELATION_TARGET.name}, (c) => c.thing)`,
+        RELATION_TARGET_IMPORT,
+      ),
+      relationFixtureFile('search/entities/index.ts'),
     );
     expect(findings).toHaveLength(1);
     expect(isViolation(findings[0]!)).toBe(true);

@@ -3,7 +3,7 @@ import {
   isBuyerCancellable,
   shopHasNotStarted,
   stillOwedByTheBuyer,
-} from '../../../src/modules/orders/domain/customer-cancellation.js';
+} from '../../../../packages/modules/orders/src/backend/domain/customer-cancellation.js';
 
 /**
  * Feature 085 Phase F (FR-013/FR-014/FR-015, research R13) — when a buyer may

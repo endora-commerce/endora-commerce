@@ -10,10 +10,11 @@ import {
   type PaymentAdapterRegistryPort,
   type StartPaymentResult,
 } from '@endora-commerce/contracts';
+import { paymentsErrorCodes } from '@endora-commerce/mod-payments';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { PaymentRetryService } from '../../../src/modules/payments/services/payment-retry-service.js';
-import type { PaymentService } from '../../../src/modules/payments/services/payment-service.js';
-import type { Payment } from '../../../src/modules/payments/entities/payment.entity.js';
+import { PaymentRetryService } from '../../../../packages/modules/payments/src/backend/services/payment-retry-service.js';
+import type { PaymentService } from '../../../../packages/modules/payments/src/backend/services/payment-service.js';
+import type { Payment } from '../../helpers/package-entities.js';
 
 /**
  * A buyer paying an order of theirs again (issue #264).
@@ -152,11 +153,24 @@ describe('customer payment retry (#264)', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
+  /**
+   * The code, and not merely the 409.
+   *
+   * All three of this service's 409s answered `VALIDATION_FAILED` with a prose
+   * sentence, and a status-only assertion is what let them: that is the one
+   * code `localizeErrorEnvelope` returns *before* translating, so every refused
+   * buyer read the raise site's English whatever language they asked for.
+   * `test/integration/payments/customer-retry-refusal-sentences.test.ts` is the
+   * other half — the sentence as the buyer's client receives it.
+   */
   it('refuses an order that is already paid', async () => {
     const { service } = build({ order: orderRecord({ paymentStatus: 'paid' }) });
     await expect(
       service.retryForCustomer({ orderId: ORDER_ID, customerAccountId: BUYER }),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: paymentsErrorCodes.PAYMENT_NOT_DUE,
+    });
   });
 
   /**
@@ -169,9 +183,14 @@ describe('customer payment retry (#264)', () => {
   it('refuses a payment settled by arrangement or already reversed', async () => {
     for (const paymentStatus of ['deferred', 'refunded'] as const) {
       const { service } = build({ order: orderRecord({ paymentStatus }) });
+      // The same code as `paid` above: one predicate, one `throw`, one sentence
+      // the buyer reads whichever of the three statuses it was.
       await expect(
         service.retryForCustomer({ orderId: ORDER_ID, customerAccountId: BUYER }),
-      ).rejects.toMatchObject({ statusCode: 409 });
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: paymentsErrorCodes.PAYMENT_NOT_DUE,
+      });
     }
   });
 
@@ -208,9 +227,15 @@ describe('customer payment retry (#264)', () => {
       terminal: true,
     });
 
+    // A code of its own, and deliberately not the money term's: this order is
+    // unpaid — the buyer owes it — and the refusal is that the order is over.
+    // One code over both terms would tell this buyer there is nothing to pay.
     await expect(
       service.retryForCustomer({ orderId: ORDER_ID, customerAccountId: BUYER }),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: paymentsErrorCodes.PAYMENT_ORDER_CLOSED,
+    });
     // Refused before anything was opened: no attempt row, no provider session.
     expect(failAttempt).not.toHaveBeenCalled();
   });
@@ -341,9 +366,15 @@ describe('customer payment retry (#264)', () => {
   it('refuses when the order`s adapter is no longer registered', async () => {
     const { service, failAttempt } = build({ adapter: undefined });
 
+    // The third code: the order is open and the money still owed, so neither of
+    // the other two sentences is true here. What is wrong is the shop's own
+    // configuration, and the buyer's move is to say so to somebody.
     await expect(
       service.retryForCustomer({ orderId: ORDER_ID, customerAccountId: BUYER }),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: paymentsErrorCodes.PAYMENT_ADAPTER_UNAVAILABLE,
+    });
     expect(failAttempt).toHaveBeenCalled();
   });
 });

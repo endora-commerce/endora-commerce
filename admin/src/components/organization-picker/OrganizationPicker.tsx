@@ -1,97 +1,18 @@
-import { useMemo, useState } from 'react';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import {
-  useOrganizationsQuery,
-  type UseOrganizationsQueryOptions,
-} from './useOrganizationsQuery';
-import type { OrganizationStatusPickerFilter } from '@/modules/organizations/api/organizations-picker-client';
-import { OrganizationStatusBadge } from './OrganizationStatusBadge';
-
-export interface OrganizationPickerProps {
-  value: string | null;
-  onChange: (organizationId: string | null) => void;
-  /** When provided, the initially-selected item's name is shown in the input even before the first fetch lands. */
-  selectedLabel?: string;
-  statusFilter?: OrganizationStatusPickerFilter[];
-  salesRepAdminUserId?: string;
-  placeholder?: string;
-  emptyMessage?: string;
-  clearable?: boolean;
-  disabled?: boolean;
-  ariaLabel?: string;
-  id?: string;
-  className?: string;
-}
-
 /**
- * Single-select Organization picker — Combobox wrapper with server-side
- * paged search, diacritic-insensitive matching, and a status pill on each
- * result.
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/components` (feature 091, P2).
  *
- * Used wherever the admin app needs to pick one Organization
- * (Sales Rep assignment, single-org filters, etc.). For multi-select
- * audiences (price-list audience, promotion targets) use
- * `<OrganizationPickerMulti>`.
+ * The picker stayed in `admin/src` through Phase 1b because it fetched from
+ * another module's admin API client, which publishing would have put in the kit
+ * (`admin-kit-surface.md` R6). P2 takes the client exit instead — the component
+ * builds its own request from the published `apiClient` and the owner's
+ * contract types — so it holds no module knowledge and is published like the
+ * rest of the design system.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's
+ * own bindings; `admin/test/kit/admin-kit-identity.test.ts` asserts reference
+ * equality across the seam, because a second React context or a second class
+ * passes every structural comparison and still breaks at runtime.
  */
-export function OrganizationPicker(props: OrganizationPickerProps): React.ReactElement {
-  const [query, setQuery] = useState('');
-
-  const queryOptions = useMemo<UseOrganizationsQueryOptions>(
-    () => ({
-      query,
-      ...(props.statusFilter ? { statusFilter: props.statusFilter } : {}),
-      ...(props.salesRepAdminUserId ? { salesRepAdminUserId: props.salesRepAdminUserId } : {}),
-    }),
-    [query, props.statusFilter, props.salesRepAdminUserId],
-  );
-
-  const { items, loading } = useOrganizationsQuery(queryOptions);
-
-  const options = useMemo<ComboboxOption<string>[]>(
-    () =>
-      items.map((it) => ({
-        value: it.id,
-        label: it.name,
-        description: it.legalName ?? undefined,
-      })),
-    [items],
-  );
-
-  const renderOption = (
-    option: ComboboxOption<string>,
-    _state: { selected: boolean; active: boolean },
-  ): React.ReactNode => {
-    const item = items.find((it) => it.id === option.value);
-    return (
-      <div className="flex w-full items-center justify-between gap-3">
-        <div className="flex flex-col min-w-0">
-          <span className="truncate">{option.label}</span>
-          {option.description ? (
-            <span className="text-xs text-muted-foreground truncate">{option.description}</span>
-          ) : null}
-        </div>
-        {item ? <OrganizationStatusBadge status={item.status} compact /> : null}
-      </div>
-    );
-  };
-
-  return (
-    <Combobox<string>
-      options={options}
-      value={props.value}
-      onChange={props.onChange}
-      onSearchChange={setQuery}
-      manualFilter
-      loading={loading}
-      clearable={props.clearable ?? true}
-      disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Search organizations…'}
-      emptyMessage={props.emptyMessage ?? 'No organizations found'}
-      ariaLabel={props.ariaLabel ?? 'Select organization'}
-      id={props.id ?? ''}
-      className={props.className ?? ''}
-      selectedLabel={props.selectedLabel ?? ''}
-      renderOption={renderOption}
-    />
-  );
-}
+export { OrganizationPicker } from '@endora-commerce/admin-kit/components';
+export type { OrganizationPickerProps } from '@endora-commerce/admin-kit/components';

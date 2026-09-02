@@ -32,9 +32,9 @@ import {
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useUnsavedChangesPrompt } from '@/lib/use-unsaved-changes-prompt';
 import { useTranslation } from '@/i18n/useTranslation';
-import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';
-import { toAbsoluteAssetUrl } from '@/modules/assets_library/lib/asset-url';
-import type { AssetSummary, AssetDetail } from '@/modules/assets_library/api/assets-library-client';
+import type { AssetSummary, AssetDetail } from '@endora-commerce/contracts';
+import { AssetPicker } from '@endora-commerce/admin-kit/components';
+import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { StickyFormActions } from '@/components/StickyFormActions';
 import { TouchReorderButtons } from '@/components/TouchReorderButtons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -53,26 +53,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
-// Feature 068 / US4 — the Ergonode overwrite-protection affordance. Both render
-// `null` unless an Ergonode connection is enabled (FR-058), so every use below
-// is unconditional: the condition belongs to the module that owns the concept,
-// not to the catalogue's editor.
-import {
-  ErgonodePriceProtectionPanel,
-  FieldProtectionSummary,
-  FieldProtectionToggle,
-} from '../pim_ergonode/components/FieldProtectionToggle';
-import {
-  UnopimFieldProtectionSummary,
-  UnopimFieldProtectionToggle,
-  UnopimPriceProtectionPanel,
-} from '../pim_unopim/components/FieldProtectionToggle';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from './ProductInventoryTab';
 import { PackagingUnitsEditor } from './components/PackagingUnitsEditor';
 import { ProductAttributesTab } from './ProductAttributesTab';
-import { LinkedPriceListsPanel } from '../price_lists/LinkedPriceListsPanel';
-import { ProductPicker } from './components/ProductPicker';
+import { ProductPicker } from '@endora-commerce/admin-kit/components';
 import {
   ProductScopeEditor,
   type ProductScopeEditorHandle,
@@ -145,6 +130,13 @@ export function ProductEditor(): ReactNode {
   const navigate = useNavigate();
   const isNew = params.id === 'new';
   const id = isNew ? null : params.id ?? null;
+
+  // Feature 091 / P7a, Z15 — the Channels tab's button is a count of its own
+  // body. Declared here rather than beside the tab table because the table is
+  // built below an early return and a hook may not be.
+  const channelContributions = useAdminZone('product.editor.channels', {
+    productId: id ?? '',
+  });
 
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
@@ -443,7 +435,18 @@ export function ProductEditor(): ReactNode {
     { id: 'inventory', label: 'Inventory', icon: <WarehouseIcon size={14} />, show: !isNew },
     { id: 'attachments', label: 'Attachments', icon: <Paperclip size={14} />, show: !isNew },
     { id: 'links', label: 'Related', icon: <LinkIcon size={14} />, show: !isNew },
-    { id: 'channels', label: 'Channels', icon: <StoreIcon size={14} />, show: !isNew },
+    // Feature 091 / P7a, Z15 — the tab body is a zone, so the button is shown
+    // by counting it. `useAdminZone` has already applied both presence axes and
+    // each contributor's permission, so its length is the honest answer to "is
+    // there anything behind this tab" — and a tab that opens on an empty panel
+    // is worse than no tab. The label stays this screen's own word for the
+    // place (Z14); what it stops knowing is which module fills it.
+    {
+      id: 'channels',
+      label: 'Channels',
+      icon: <StoreIcon size={14} />,
+      show: !isNew && channelContributions.length > 0,
+    },
     { id: 'seo', label: 'SEO', icon: <Globe size={14} />, show: !isNew },
   ];
   const visibleTabs = tabs.filter((t) => t.show);
@@ -545,46 +548,29 @@ export function ProductEditor(): ReactNode {
                     existing products: at Channel = Global it writes the
                     per-language baseline on `products`; at a specific
                     channel it writes a `product_value_overrides` row. */}
-                {/* Feature 068 / US4 — which fields the Ergonode import may not
-                    touch (FR-055), plus the integration-managed and last-synced
-                    indicators (FR-068). The name and description controls sit
-                    here because the panel below is their sole editor. */}
-                <FieldProtectionSummary productId={id} />
-                <UnopimFieldProtectionSummary productId={id} />
+                {/* Feature 091 / P4b — the product editor's own zone mounts,
+                    now with contributors. The zone names a **place**; nothing
+                    here refers to a module, and the two PIM connectors each
+                    render one control out of their own packages.
+
+                    One mount per field, not one per field and locale: the
+                    zone's props carry `languageCodes` and the fan-out is the
+                    contributor's decision, which is what the two
+                    `LOCALES.map(...)` loops this replaced were doing on a
+                    foreign module's behalf. */}
+                {id ? (
+                  <AdminZone name="product.editor.details.before" props={{ productId: id }} />
+                ) : null}
                 {id ? (
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    {LOCALES.map((l) => (
-                      <FieldProtectionToggle
-                        key={`protect-name-${l}`}
-                        productId={id}
-                        fieldPath="name"
-                        languageCode={l}
-                      />
-                    ))}
-                    {LOCALES.map((l) => (
-                      <FieldProtectionToggle
-                        key={`protect-description-${l}`}
-                        productId={id}
-                        fieldPath="description"
-                        languageCode={l}
-                      />
-                    ))}
-                    {LOCALES.map((l) => (
-                      <UnopimFieldProtectionToggle
-                        key={`unopim-protect-name-${l}`}
-                        productId={id}
-                        fieldPath="name"
-                        languageCode={l}
-                      />
-                    ))}
-                    {LOCALES.map((l) => (
-                      <UnopimFieldProtectionToggle
-                        key={`unopim-protect-description-${l}`}
-                        productId={id}
-                        fieldPath="description"
-                        languageCode={l}
-                      />
-                    ))}
+                    <AdminZone
+                      name="product.editor.field.after"
+                      props={{ productId: id, fieldPath: 'name', languageCodes: LOCALES }}
+                    />
+                    <AdminZone
+                      name="product.editor.field.after"
+                      props={{ productId: id, fieldPath: 'description', languageCodes: LOCALES }}
+                    />
                   </div>
                 ) : null}
 
@@ -764,7 +750,12 @@ export function ProductEditor(): ReactNode {
                 <div>
                   <div className="b2b-label">
                     {t('productEditor.section.categories')}
-                    <FieldProtectionToggle productId={id} fieldPath="categories" className="ml-3" />
+                    {id ? (
+                      <AdminZone
+                        name="product.editor.field.after"
+                        props={{ productId: id, fieldPath: 'categories', languageCodes: null }}
+                      />
+                    ) : null}
                   </div>
                   <CategoryTreePicker
                     categories={categories}
@@ -789,12 +780,15 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'pricing' && id ? (
             <div className="b2b-col" style={{ gap: 16 }}>
-              {/* Feature 068 / FR-062 — one control per price the Ergonode
-                  import could write here. Renders `null` when no binding covers
-                  this product, which is every product until one is bound. */}
-              <ErgonodePriceProtectionPanel productId={id} />
-              <UnopimPriceProtectionPanel productId={id} />
-              <LinkedPriceListsPanel productId={id} />
+              {/* Feature 091 / P4b — each connected PIM contributes one panel
+                  here, listing the prices its import could write on this
+                  product. A contributor with no binding over the product
+                  renders nothing, which is every product until one is bound. */}
+              <AdminZone name="product.editor.pricing.before" props={{ productId: id }} />
+              {/* Feature 091 / P7a — the end of the Pricing tab. `price_lists`
+                  contributes its linked-lists panel here; this screen used to
+                  import that panel by path. */}
+              <AdminZone name="product.editor.pricing.after" props={{ productId: id }} />
             </div>
           ) : null}
 
@@ -810,7 +804,10 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'media' && id ? (
             <>
-              <FieldProtectionToggle productId={id} fieldPath="gallery" className="mb-2" />
+              <AdminZone
+                name="product.editor.field.after"
+                props={{ productId: id, fieldPath: 'gallery', languageCodes: null }}
+              />
               <GallerySection ref={galleryRef} productId={id} />
             </>
           ) : null}
@@ -826,7 +823,10 @@ export function ProductEditor(): ReactNode {
 
           {activeTab === 'attachments' && id ? (
             <>
-              <FieldProtectionToggle productId={id} fieldPath="attachments" className="mb-2" />
+              <AdminZone
+                name="product.editor.field.after"
+                props={{ productId: id, fieldPath: 'attachments', languageCodes: null }}
+              />
               <AttachmentsSection productId={id} />
             </>
           ) : null}
@@ -834,7 +834,7 @@ export function ProductEditor(): ReactNode {
           {activeTab === 'links' && id ? <ProductLinksSection productId={id} /> : null}
 
           {activeTab === 'channels' && id ? (
-            <EntityChannelMembership entityType="product" entityId={id} />
+            <AdminZone name="product.editor.channels" props={{ productId: id }} />
           ) : null}
 
           {activeTab === 'seo' ? <SeoStub name={name} /> : null}

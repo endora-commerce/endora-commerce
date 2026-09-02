@@ -130,6 +130,97 @@ export const manifest = defineModuleManifest({
   // different question from whether the module is present. Default `true` so
   // that merging this changes no deployment's state (FR-012).
   activation: { settingCode: MFA_SETTING_CODES.ACTIVATION, default: true },
+  /**
+   * The operator-visible error codes this module owns (feature 090, D-182,
+   * `specs/090-module-owned-error-codes/`).
+   *
+   * The first ten entries are answer-preserving, not a judgement (§6.2 and
+   * §6.5), and were not written by hand: they are the verbatim output of the
+   * runbook's step-1 derivation over the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts`, which records
+   * what the prefix chain in `@endora-commerce/mod-i18n` answered at
+   * `49f3c6817`. Re-routing a code to a better owner was
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work, deliberately
+   * not done in Phase 3; the last two entries are that sweep arriving.
+   *
+   * **No shadow reaches this module, and that is a conclusion rather than a
+   * premise.** The chain is an ordered `if` and an earlier rule silently claims
+   * a later one's codes — it cost `inventory` two and gave `catalog` four
+   * (trap T1). Here the whole chain was read: the `MFA_` rule is second from
+   * last, no rule above it names an `MFA_`-prefixed code, and no misc set holds
+   * one, so the source reading and the answer reading coincide. The derivation
+   * was still run from the answer.
+   *
+   * **`TWO_FACTOR_REQUIRED` and `TWO_FACTOR_REQUIRED_BY_ROLE` were the codes a
+   * reader would look for here and not find** (trap T2). Both name this
+   * module's subject and neither carries the prefix, so they fell off the end
+   * of the chain to `core`, which is what the capture records; whether that was
+   * the right owner is the question §6.5 put out of scope. D-129's remaining
+   * sweep answers it — **both are declared below since MR 4** — and the entry
+   * after this list is the argument.
+   *
+   * **All ten of those are raised, and the spelling is why that had to be
+   * measured.**
+   * Nine of them are thrown as a bare string literal in the second argument of
+   * `new HttpError` — `throw new HttpError(409, 'MFA_ALREADY_ENROLLED', …)` —
+   * and only `MFA_SOCIAL_LAST_CREDENTIAL` is thrown as `ERROR_CODES.<CODE>`.
+   * Fourteen raise sites over `routes.public.ts`, `routes.self-service.ts`,
+   * `services/mfa-enrolment-service.ts` and `services/social-link-service.ts`,
+   * every code covered by at least one. A scan keyed on the `ERROR_CODES.`
+   * spelling sees one of the fourteen.
+   *
+   * No `tokens`, and it is derived rather than assumed. `refusalToken`
+   * (`packages/platform/src/http/error-envelope.ts`) reads `details.code` and
+   * nothing else, and **not one of the fourteen sites passes a fourth argument
+   * at all**, so there is nothing for it to read. The runbook's §5 raise-site
+   * scan agrees from the whole tree — it attributes the ten token-carrying
+   * codes to `core`, `invoices` and `carts` and names none of these — and so
+   * does the bundle from the other direction: ten `errors.<CODE>` keys in `en`
+   * and ten in `pl`, exactly these ten, and no `errors.<CODE>.<token>` key.
+   * There is no dead sentence in either direction and none of the ten is an
+   * `UNTRANSLATED_ERROR_CODES` entry.
+   *
+   * **`TWO_FACTOR_REQUIRED` and `TWO_FACTOR_REQUIRED_BY_ROLE` join them in
+   * D-129's remaining sweep, MR 4** (`d129-sweep.md` §5.2, Appendix A; D-186 in
+   * `specs/080-f4-real-scope/rulings.md`). D-121 T1 decides both: the noun is
+   * the second factor, which is this module's whole subject, and `_BY_ROLE`
+   * names `MfaOrganizationPolicy` — the per-role enforcement this module owns
+   * outright. Neither was a judgement about who throws them, because **nothing
+   * in the tree throws either**: they are members of `ERROR_CODES` that no raise
+   * site produces, which is the sweep's class D.
+   *
+   * **That is also why they arrive without a sentence, and why writing one
+   * would have been the wrong call.** Both carried a placeholder in `_i18n`'s
+   * bundle — `"Two Factor Required."` / `"Błąd: two factor required."`, the code
+   * rewritten twice — and D-186 §2 deletes a placeholder rather than moving it,
+   * because in this module's own bundle it would read as this module's answer
+   * and every instrument would count the code as translated for good.
+   * `d129-sweep.md` §5.4 keeps writing real prose available as the better
+   * outcome, and it is available whenever a raise site says what the refusal
+   * means. Here there is no raise site: a sentence would have to be invented
+   * from the code's own name, which is the placeholder again in longer words,
+   * and it would render for nobody. So both are `UNTRANSLATED_ERROR_CODES`
+   * entries under `mfa`, where the debt is findable and attached to the module
+   * that will write it if the refusal is ever implemented.
+   *
+   * They carry no `tokens` for the same reason the ten above do not, arrived at
+   * from the other end: there is no raise site to put a `details.code` on the
+   * wire.
+   */
+  errorCodes: [
+    { code: 'MFA_ALREADY_ENROLLED' },
+    { code: 'MFA_INVALID_CHALLENGE' },
+    { code: 'MFA_INVALID_CODE' },
+    { code: 'MFA_NOT_ENABLED' },
+    { code: 'MFA_NO_ACTIVE_ENROLMENT' },
+    { code: 'MFA_NO_PENDING_ENROLMENT' },
+    { code: 'MFA_REAUTH_REQUIRED' },
+    { code: 'MFA_SOCIAL_LAST_CREDENTIAL' },
+    { code: 'MFA_TOO_MANY_ATTEMPTS' },
+    { code: 'MFA_WRONG_SURFACE' },
+    { code: 'TWO_FACTOR_REQUIRED' },
+    { code: 'TWO_FACTOR_REQUIRED_BY_ROLE' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'mfa:reset', label: "Reset a user's 2FA" },

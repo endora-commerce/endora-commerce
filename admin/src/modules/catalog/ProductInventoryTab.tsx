@@ -1,12 +1,31 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { FulfilmentStrategy, StockLevelRow, Warehouse } from '@endora-commerce/contracts';
+import type {
+  FulfilmentStrategy,
+  SettingDto,
+  StockLevelRow,
+  Warehouse,
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
 import { useTranslation } from '@/i18n/useTranslation';
 import {
   FulfilmentStrategyPicker,
   type FulfilmentStrategyValue,
-} from '@/modules/inventory/components/FulfilmentStrategyPicker';
-import { settingsClient } from '@/modules/settings/api/settings-client';
+} from '@endora-commerce/admin-kit/components';
+
+/**
+ * Read one setting by code (feature 091, P6).
+ *
+ * The request is built here rather than through `settings`' own admin API
+ * client: that client is another module's **code**, which is what the
+ * cross-module ledger recorded, while `/api/v1/admin/settings/:code` and
+ * `SettingDto` are an HTTP path and a `@endora-commerce/contracts` type that
+ * both sides already compile. That is the exit P2 established and
+ * `admin-kit-surface.md` R6 records — one `GET` out of that client's eleven
+ * methods, and no dependency on the owner's code.
+ */
+function readSetting(code: string): Promise<SettingDto> {
+  return apiClient.get<SettingDto>(`/api/v1/admin/settings/${encodeURIComponent(code)}`);
+}
 
 interface RosterResponse {
   items: StockLevelRow[];
@@ -76,7 +95,7 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
         apiClient.get<WarehousesResponse>('/api/v1/admin/warehouses?activeOnly=true&pageSize=200'),
         apiClient.get<RosterResponse>(`/api/v1/admin/inventory/levels?productId=${productId}`),
         apiClient.get<AdminProductResponse>(`/api/v1/admin/catalog/products/${productId}`),
-        settingsClient.getByCode('inventory.allow_negative_stock').catch(() => null),
+        readSetting('inventory.allow_negative_stock').catch(() => null),
       ]);
       setWarehouses(whRes.items);
       const onHandMap = new Map<string, number>();

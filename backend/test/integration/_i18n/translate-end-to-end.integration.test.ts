@@ -3,9 +3,9 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { I18nService } from '../../../src/modules/_i18n/services/i18n-service.js';
-import { MissingKeyLogger } from '../../../src/modules/_i18n/services/missing-key-logger.js';
-import { TranslationBundle } from '../../../src/modules/_i18n/entities/translation-bundle.entity.js';
+import { I18nService } from '@endora-commerce/mod-i18n/backend';
+import { MissingKeyLogger } from '@endora-commerce/mod-i18n/backend';
+import { TranslationBundle } from '../../helpers/package-entities.js';
 
 /**
  * T053/T054 (test-side closure) — `translate()` end-to-end against real

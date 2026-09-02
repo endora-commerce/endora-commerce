@@ -1,0 +1,168 @@
+/**
+ * `check:admin-zones` driven from **source text**, which is where a real run
+ * enters (issue #130).
+ *
+ * The check's own analysis is `checkAdminZones`, whose input is sites and
+ * declared names — and handing those in directly would prove the six
+ * classifiers while leaving every parser above them unproven, which is the
+ * exact hole the `check-entry-scope` proof had: a fixture that enters below the
+ * defect cannot catch it. So this helper does what `main()` does — parses the
+ * declaration source, walks each file for renders, contributions, visibility
+ * gates and translation scopes, then classifies — and every proof written
+ * against it enters at the top.
+ *
+ * Shared by `test/unit/scripts/check-admin-zones.test.ts` and the inventory,
+ * because two similar drivers are two answers waiting to disagree.
+ */
+import {
+  checkAdminZones,
+  ownedModuleIdSites,
+  translationScopeSites,
+  zoneContributionSites,
+  zoneRenderSites,
+  readZoneDeclarations,
+  type AdminZoneFinding,
+  type AdminZoneFindingKind,
+  type AdminZonesResult,
+  type ModuleIdSite,
+} from '../../scripts/check-admin-zones.js';
+import type { ForeignModuleIdLedger } from '../../scripts/ledgers/foreign-module-ids.js';
+
+/** One file the fixture walk opens. */
+export interface AdminZoneFixtureFile {
+  /** Repo-relative, exactly as the check keys a site. */
+  readonly path: string;
+  readonly source: string;
+  /**
+   * Which populations this file belongs to, mirroring `main()`'s four walks.
+   *
+   * `host` — a screen that may render a zone or declare a contribution;
+   * `kit` — a kit source, whose `useTranslation` namespace is population 2;
+   * `admin` — an attributed admin surface file, populations 1 and 3;
+   * `admin-ui` — a source of a package declaring `endora: { type: 'admin-ui' }`
+   *   other than the kit, which is population 3's ownerless half (P5c);
+   * `module` — a module's **own** source, attributed by the layout rather than
+   *   by the route table: a module package's `src/admin/`, an overlay module's,
+   *   or an application-tree module's. Classified exactly as `admin` is,
+   *   because it is the same coupling by a file that has an owner; what differs
+   *   is only where `main()` gets that owner from.
+   */
+  readonly roles?: readonly ('host' | 'kit' | 'admin' | 'admin-ui' | 'module')[];
+  /** The module owning the file, for an `admin` or a `module` role. */
+  readonly owner?: string;
+}
+
+export interface AdminZoneFixture {
+  /** The source of `packages/contracts/src/admin-contributions.ts`. */
+  readonly declarations: string;
+  readonly files: readonly AdminZoneFixtureFile[];
+  /** Module ids the generated manifest index registers. */
+  readonly registered: readonly string[];
+  readonly ledger?: ForeignModuleIdLedger;
+}
+
+/** A minimal but real declaration source — a `z.enum` and the props interface. */
+export function declarationSource(
+  zones: readonly string[],
+  propsKeys: readonly string[] = zones,
+): string {
+  return [
+    "import { z } from 'zod';",
+    'export const AdminZoneNameSchema = z.enum([',
+    ...zones.map((zone) => `  '${zone}',`),
+    ']);',
+    'export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;',
+    'export interface AdminZonePropsMap extends Record<AdminZoneName, object> {',
+    ...propsKeys.map((key) => `  '${key}': { readonly productId: string };`),
+    '}',
+  ].join('\n');
+}
+
+/** The whole chain, from source text to findings. */
+export function runAdminZones(fixture: AdminZoneFixture): AdminZonesResult {
+  const { zoneNames, propsMapKeys } = readZoneDeclarations(fixture.declarations);
+  const registered = new Set(fixture.registered);
+
+  const renders = [];
+  const contributions = [];
+  const moduleIds: ModuleIdSite[] = [];
+
+  for (const file of fixture.files) {
+    const roles = file.roles ?? ['host'];
+    if (
+      roles.includes('host') ||
+      roles.includes('kit') ||
+      roles.includes('admin') ||
+      roles.includes('admin-ui') ||
+      roles.includes('module')
+    ) {
+      renders.push(...zoneRenderSites(file.source, file.path));
+      contributions.push(...zoneContributionSites(file.source, file.path, file.owner ?? null));
+    }
+    if (roles.includes('kit')) {
+      for (const site of translationScopeSites(file.source, file.path)) {
+        if (site.named !== null && !registered.has(site.named)) continue;
+        moduleIds.push({
+          file: file.path,
+          line: site.line,
+          named: site.named,
+          owner: null,
+          population: 'kit-namespace',
+        });
+      }
+    }
+    if (roles.includes('admin-ui')) {
+      // Owned by no module, so a registered id is foreign whichever it is and a
+      // computed namespace is a finding rather than a skip — the kit's rule,
+      // over a package that is not the kit.
+      for (const site of translationScopeSites(file.source, file.path)) {
+        if (site.named !== null && !registered.has(site.named)) continue;
+        moduleIds.push({
+          file: file.path,
+          line: site.line,
+          named: site.named,
+          owner: null,
+          population: 'module-namespace',
+        });
+      }
+    }
+    // The owned half. `admin` and `module` are one classification and therefore
+    // one call into the check's own `ownedModuleIdSites` rather than a copy of
+    // it here — a driver holding its own copy of *"skip the file's own id, skip
+    // an id no module registers"* is a second answer waiting to disagree with
+    // the one CI runs. The roles differ only in where `main()` gets the owner:
+    // the route table and the nav for `admin`, the layout's module attribution
+    // for `module`.
+    if ((roles.includes('admin') || roles.includes('module')) && file.owner !== undefined) {
+      moduleIds.push(
+        ...ownedModuleIdSites({
+          source: file.source,
+          file: file.path,
+          owner: file.owner,
+          registered,
+        }).sites,
+      );
+    }
+  }
+
+  return checkAdminZones(
+    { zoneNames, propsMapKeys, renders, contributions, moduleIds },
+    fixture.ledger ?? {},
+  );
+}
+
+/** Findings of one kind — what a red proof counts. */
+export function adminZoneFindings(
+  fixture: AdminZoneFixture,
+  kind: AdminZoneFindingKind,
+): AdminZoneFinding[] {
+  return runAdminZones(fixture).findings.filter((finding) => finding.kind === kind);
+}
+
+/** How many findings of one kind the fixture produced — the proof's return value. */
+export function adminZoneFindingCount(
+  fixture: AdminZoneFixture,
+  kind: AdminZoneFindingKind,
+): number {
+  return adminZoneFindings(fixture, kind).length;
+}

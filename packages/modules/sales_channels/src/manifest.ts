@@ -78,6 +78,93 @@ export const manifest = defineModuleManifest({
       'Channel scoping is structural: every scoped read resolves the request\'s channel and ' +
       'there is no unscoped path to fall back to.',
   },
+  /**
+   * The twelve error codes this module owns — feature 090 Phase 3
+   * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
+   * §1.1). This is where the sentence for each is looked up from: `errors.<CODE>`
+   * in this module's own `i18n/{en,pl}.json`, which holds all twelve in both
+   * languages and holds no other `errors.*` key. None of them is a
+   * `check-error-translations.ts` `UNTRANSLATED_ERROR_CODES` entry.
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5), and it was
+   * not written by hand: it is the verbatim output of the runbook's step-1
+   * derivation over the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts`, which records
+   * what the prefix chain in `@endora-commerce/mod-i18n` answered at
+   * `49f3c6817`. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * **`UNKNOWN_OPTION` is not here, and it is the one a reader will look for.**
+   * This module's rule in the chain is `UNKNOWN_` ∪ `SALES_CHANNEL_` ∪ a misc
+   * set, so reading the rule's *source* claims `UNKNOWN_OPTION` for
+   * `sales_channels`. The chain is an ordered `if` and `catalog`'s misc set
+   * names that code two branches earlier, so the chain's *answer* is `catalog`
+   * — which is what the capture records and what `catalog` declared in its own
+   * migration. Trap T1: read the answer, never the rule. The other three
+   * `UNKNOWN_` members of `ERROR_CODES` reach this rule and are here.
+   *
+   * **Four codes here look generic or look like another module's, and are
+   * this module's by a decision an earlier feature made** (trap T2).
+   * `CANNOT_MODIFY_SYSTEM_DEFAULT` and `ENTITY_WOULD_HAVE_ZERO_CHANNELS` name
+   * no channel at all and arrive through the chain's misc set;
+   * `UNKNOWN_CURRENCY_CODE` and `UNKNOWN_LANGUAGE_CODE` read like
+   * `dictionaries` codes and arrive through the `UNKNOWN_` prefix. The inverse
+   * holds as well: `CHANNEL_NO_WAREHOUSES`, `CHANNEL_WAREHOUSE_NOT_FOUND` and
+   * `WAREHOUSE_IS_DEFAULT_FOR_CHANNELS` route to `inventory`,
+   * `API_KEY_CHANNEL_MISMATCH` to `core`, `SETTING_OUT_OF_SCOPE_FOR_CHANNEL` to
+   * `settings`, `CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE` to `cms` and
+   * `MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE` to `megamenu`, so none of them is
+   * declared here.
+   *
+   * **Five of the twelve are raised outside this package**, which is D-95.2
+   * working as intended — routing follows the domain noun, never the thrower.
+   * `@endora-commerce/platform`'s channel resolver and membership service raise
+   * `MISSING_SALES_CHANNEL_CONTEXT`, `UNKNOWN_SALES_CHANNEL`,
+   * `INACTIVE_SALES_CHANNEL` and `ENTITY_WOULD_HAVE_ZERO_CHANNELS` (the
+   * `SalesChannel` entity moved to the kernel in feature 072 T019), and
+   * `search`'s public route raises `MISSING_SALES_CHANNEL_CONTEXT` too. The
+   * sentences stay here.
+   *
+   * **Three of the twelve are raised by nothing in the tree** —
+   * `UNKNOWN_LANGUAGE_CODE`, `UNKNOWN_CURRENCY_CODE` and
+   * `SALES_CHANNEL_ATTRIBUTION_IMMUTABLE`. The first two were superseded rather
+   * than never built: feature 017 moved language and currency validation onto
+   * the central dictionary, so an unknown code is refused as
+   * `DICTIONARY_ENTRY_NOT_FOUND` by `dictionaryReferenceHttpError` in this module's own
+   * service, and `test/contract/sales_channels/admin-crud-lifecycle.contract.test.ts`
+   * asserts that answer while calling these two "legacy" in its own comment. The
+   * third is a guard with nothing to guard: no admin route exposes
+   * `salesChannelId` mutation on an order or a quote, so FR-012's immutability
+   * is structural, and `specs/005-sales-channels/tasks.md` T044/T059 record the
+   * guard as vacuous and deferred to the first route that would need it. All
+   * three are declared anyway — ownership follows the capture and not the raise
+   * sites (trap T10); dropping one reds the progress test as `undeclared` and
+   * moves an answer this merge request is not allowed to move.
+   *
+   * No `tokens`: no code here carries a refusal discriminator. Derived from the
+   * raise sites per the runbook's §5 — the envelope's `refusalToken` reads
+   * `details.code` and nothing else, every `new HttpError` raising one of these
+   * twelve passes either no fourth argument or the Zod-style
+   * `Array<{path, issue}>`, which `refusalToken` ignores by construction; the
+   * §5 raise-site scan attributes the tree's token-carrying codes to `core`,
+   * `invoices` and `carts` and names none of these; and the bundles hold no
+   * `errors.<CODE>.<token>` key in the other direction.
+   */
+  errorCodes: [
+    { code: 'CANNOT_MODIFY_SYSTEM_DEFAULT' },
+    { code: 'DUPLICATE_SALES_CHANNEL_CODE' },
+    { code: 'ENTITY_WOULD_HAVE_ZERO_CHANNELS' },
+    { code: 'INACTIVE_SALES_CHANNEL' },
+    { code: 'MISSING_SALES_CHANNEL_CONTEXT' },
+    { code: 'SALES_CHANNEL_ATTRIBUTION_IMMUTABLE' },
+    { code: 'SALES_CHANNEL_CODE_IMMUTABLE' },
+    { code: 'SALES_CHANNEL_HAS_ATTRIBUTIONS' },
+    { code: 'STALE_SALES_CHANNEL_WRITE' },
+    { code: 'UNKNOWN_CURRENCY_CODE' },
+    { code: 'UNKNOWN_LANGUAGE_CODE' },
+    { code: 'UNKNOWN_SALES_CHANNEL' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   permissions: [
     { code: 'sales_channels:read', label: 'View sales channels' },

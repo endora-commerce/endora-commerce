@@ -4,6 +4,7 @@ import type {
   DefaultPreferencePort,
   PreferenceAuditContext,
 } from '@endora-commerce/contracts';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { CustomerAddressService } from './customer-address-service.js';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 
@@ -85,17 +86,32 @@ export class CustomerDefaultsService {
     return this.getForCustomer(customerAccountId);
   }
 
+  /**
+   * The widening is `CustomerAddressService`'s, for the same reason and on the
+   * same terms — see `#forAuthorisedCustomer` there. This method has two
+   * callers and both establish the authority before reaching it: the self route
+   * passes the caller's **own** account id, and the admin detail screen
+   * (`CustomerAdminQueryService.getDetail`) has already resolved the account
+   * through `customer_accounts`' `@OrgScoped` read model and returned `null` if
+   * it was out of scope. The statement pins `customerAccountId`, so widening
+   * the filter widens the authority by nothing. It goes when feature 087 gives
+   * `customer_addresses` an `organization_id` of its own.
+   */
   private async defaultAddressId(
     customerAccountId: string,
     kind: 'delivery' | 'billing',
   ): Promise<string | null> {
     const em = this.emFactory();
-    const row = await em.findOne(CustomerAddress, {
-      customerAccountId,
-      kind,
-      isDefault: true,
-      deletedAt: null,
-    });
+    const row = await withSystemScope(
+      `customers: default ${kind} address of customer account ${customerAccountId}, authorised by its own @OrgScoped account read`,
+      () =>
+        em.findOne(CustomerAddress, {
+          customerAccountId,
+          kind,
+          isDefault: true,
+          deletedAt: null,
+        }),
+    );
     return row?.id ?? null;
   }
 }

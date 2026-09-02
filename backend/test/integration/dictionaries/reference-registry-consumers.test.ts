@@ -9,13 +9,13 @@ import { CurrencyReferenceRegistry } from '../../../../packages/modules/currenci
 import { registerCountryCurrencyReference } from '../../../../packages/modules/dictionaries/src/backend/services/country-currency-reference.js';
 import { registerAddressCountryReferences } from '../../../../packages/modules/addresses/src/backend/services/address-country-reference.js';
 import { registerTaxCountryReferences } from '../../../../packages/modules/taxes/src/backend/services/tax-country-reference.js';
-import { registerOrganizationCountryReferences } from '../../../src/modules/organizations/services/organization-country-reference.js';
-import { registerWarehouseCountryReferences } from '../../../src/modules/inventory/services/warehouse-country-reference.js';
+import { registerOrganizationCountryReferences } from '../../../../packages/modules/organizations/src/backend/services/organization-country-reference.js';
+import { registerWarehouseCountryReferences } from '../../../../packages/modules/inventory/src/backend/services/warehouse-country-reference.js';
 import { registerBlogLanguageReferences } from '../../../../packages/modules/blog/src/backend/services/blog-language-reference.js';
 import { registerCmsLanguageReferences } from '../../../../packages/modules/cms/src/backend/services/cms-language-reference.js';
-import { registerMegamenuLanguageReferences } from '../../../src/modules/megamenu/services/megamenu-language-reference.js';
+import { registerMegamenuLanguageReferences } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-language-reference.js';
 import { registerPromotionCurrencyReferences } from '../../../../packages/modules/promotions/src/backend/services/promotion-currency-reference.js';
-import { registerPriceListCurrencyReferences } from '../../../src/modules/price_lists/services/price-list-currency-reference.js';
+import { registerPriceListCurrencyReferences } from '../../../../packages/modules/price_lists/src/backend/services/price-list-currency-reference.js';
 import { CurrencyService } from '../../../../packages/modules/currencies/src/backend/services/currency-service.js';
 import { LanguageService } from '../../../../packages/modules/languages/src/backend/services/language-service.js';
 

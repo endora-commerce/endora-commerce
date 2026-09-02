@@ -1,24 +1,25 @@
 import { randomUUID } from 'node:crypto';
+import { Organization } from '../../helpers/package-entities.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { SessionService } from '../../../src/modules/auth/services/session-service.js';
+import { SessionService } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
 import { CustomerAuthorityService } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
 import { CustomerDeletionService } from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
-import { PersonalOrganizationService } from '../../../src/modules/organizations/services/personal-organization-service.js';
-import { toOrganizationRecord } from '../../../src/modules/organizations/services/organization-details-port.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { PersonalOrganizationService } from '../../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
+import { toOrganizationRecord } from '../../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import {
   customerAccountLifecycleWriteFor,
   customerAccountPortsFor,
 } from '../../helpers/customer-account-ports.js';
-import { CustomerAccountReadService } from '../../../src/modules/customer_accounts/services/customer-account-ports.js';
+import { CustomerAccountReadService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 
 /**
  * Feature 040, US7 — soft-delete, restore within window, and the permanent
@@ -48,7 +49,7 @@ describe('CustomerDeletionService', () => {
       audit,
     );
     svc = new CustomerDeletionService(
-      new CustomerAccountReadService(() => em),
+      new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer')),
       customerAccountLifecycleWriteFor(() => em, audit),
       {
         ensureForCustomerAccount: async (id) =>

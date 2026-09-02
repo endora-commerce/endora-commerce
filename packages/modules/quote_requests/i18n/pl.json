@@ -7,7 +7,8 @@
   "errors.RFQ_NOT_ACCEPTED": "Błąd: rfq not accepted.",
   "errors.RFQ_NOT_NEW": "Błąd: rfq not new.",
   "errors.RFQ_ALREADY_CLAIMED": "Błąd: rfq already claimed.",
-  "errors.RFQ_EXPIRED": "Błąd: rfq expired.",
+  "errors.RFQ_EXPIRED": "Ta oferta straciła ważność — termin jej ważności upłynął. Poproś opiekuna handlowego o nową ofertę lub złóż zapytanie ponownie.",
   "errors.QUOTE_INCOMPLETE": "Błąd: quote incomplete.",
-  "errors.QUOTE_VALIDITY_ENDED": "Błąd: quote validity ended."
+  "errors.QUOTE_VALIDITY_ENDED": "Zaakceptowana oferta straciła ważność — termin jej ważności upłynął. Przed złożeniem zamówienia poproś opiekuna handlowego o nową ofertę.",
+  "nav.quoteRequests.label": "Zapytania ofertowe"
 }

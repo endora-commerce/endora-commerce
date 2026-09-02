@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AdminUser } from '../../helpers/package-entities.js';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { AdminUser } from '../../../src/modules/admin_users/entities/admin-user.entity.js';
-import { hashPassword } from '../../../src/modules/auth/services/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 
 const SETTINGS_VIEWER_ID = '00000000-0000-4000-8000-0000000000d1';
@@ -179,9 +179,7 @@ describe('role-scoped access (US2)', () => {
 
   it('customers:read allows organization list without customers:manage', async () => {
     const em = h.em();
-    const { AdminRole } = await import(
-      '../../../src/modules/admin_roles/entities/admin-role.entity.js'
-    );
+    const { AdminRole } = await import('../../helpers/package-entities.js');
     const role = await em.findOne(AdminRole, { code: 'settings_viewer' });
     expect(role).toBeTruthy();
     role!.permissions = ['customers:read'];

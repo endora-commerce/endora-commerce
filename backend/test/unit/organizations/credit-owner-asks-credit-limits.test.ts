@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CreditLimitReadPort } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { OrganizationInheritanceService } from '../../../src/modules/organizations/services/organization-inheritance-service.js';
-import type { OrganizationTreeService } from '../../../src/modules/organizations/services/organization-tree-service.js';
+import { OrganizationInheritanceService } from '../../../../packages/modules/organizations/src/backend/services/organization-inheritance-service.js';
+import type { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 
 /**
  * `creditOwner` asks `credit_limits` which organisations hold a limit — it does

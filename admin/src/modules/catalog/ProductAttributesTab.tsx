@@ -7,12 +7,21 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { MultiSelect } from '@/components/ui/multi-select';
-// Feature 068 / US4 — the Ergonode overwrite-protection control. Renders `null`
-// unless an Ergonode connection is enabled (FR-058), so no condition is needed
-// here; it also decides on its own whether the attribute takes one toggle or one
-// per language (FR-052).
-import { ErgonodeAttributeValueProtection } from '../pim_ergonode/components/FieldProtectionToggle';
-import { UnopimAttributeValueProtection } from '../pim_unopim/components/FieldProtectionToggle';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
+
+/**
+ * The locales this screen edits product copy in — the same list
+ * `ProductEditor.tsx` renders its per-language name and description controls
+ * from.
+ *
+ * It is stated here because the zone below carries it: a contributor beside a
+ * language-scoped attribute renders one control per locale, and *which* locales
+ * a field is edited in is the host's fact, not the contributor's. Before
+ * feature 091's P4b the list lived in `pim_ergonode`'s control, restated there
+ * so a catalogue screen needed no language wiring — which put the catalogue's
+ * own vocabulary inside an integration.
+ */
+const LOCALES = ['en-US', 'pl-PL'] as const;
 
 /**
  * Feature: product Attributes tab.
@@ -61,9 +70,8 @@ function pickLabel(label: Record<string, string>, fallback: string): string {
 
 export interface ProductAttributesTabProps {
   /**
-   * Only for the Ergonode protection control (FR-052 asks for it per attribute
-   * value); absent while the product is still being created, which is also when
-   * there is nothing to protect.
+   * Only for the per-value zone mount below; absent while the product is still
+   * being created, which is also when there is nothing to contribute about.
    */
   productId?: string | null | undefined;
   attributeSetId: string;
@@ -278,24 +286,21 @@ function AttributeField({
       break;
   }
 
-  // Feature 068 / US4 — one control per attribute value, because that is the
-  // granularity FR-052 asks for: an operator curates *this* value, not "the
-  // attributes". A language-scoped value is curated one language at a time, and
-  // the control below renders itself accordingly.
-  const protection = (
-    <>
-      <ErgonodeAttributeValueProtection
-        productId={productId}
-        attributeKey={attr.key}
-        languageScoped={attr.languageScoped === true}
-      />
-      <UnopimAttributeValueProtection
-        productId={productId}
-        attributeKey={attr.key}
-        languageScoped={attr.languageScoped === true}
-      />
-    </>
-  );
+  // Feature 091 / P4b — the eighth mount of `product.editor.field.after`, one
+  // per attribute value, because that is the granularity a per-value protection
+  // asks for: an operator curates *this* value, not "the attributes". The host
+  // says which locales the value is edited in and a contributor fans out over
+  // them; the screen names no integration and knows about none.
+  const protection = productId ? (
+    <AdminZone
+      name="product.editor.field.after"
+      props={{
+        productId,
+        fieldPath: `attributeValues.${attr.key}`,
+        languageCodes: attr.languageScoped === true ? LOCALES : null,
+      }}
+    />
+  ) : null;
 
   // The boolean control renders its own inline label.
   if (attr.valueType === 'boolean') {

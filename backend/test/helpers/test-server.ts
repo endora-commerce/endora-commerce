@@ -63,21 +63,21 @@ import { initOrm, closeOrm } from '../../src/db/index.js';
 import { assertServicesAvailable } from '../declared-services.js';
 import { EventBus } from '../../src/events/bus.js';
 import { CommandBus } from '../../src/commands/index.js';
-import type { SessionService } from '../../src/modules/auth/services/session-service.js';
+import type { SessionService } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
-import type { PermissionService } from '../../src/modules/admin_roles/services/permission-service.js';
-import type { PermissionCatalogueService } from '../../src/modules/admin_roles/services/permission-catalogue.service.js';
-import type { AdminRoleService } from '../../src/modules/admin_roles/services/admin-role-service.js';
-import type { AuthCradle } from '../../src/modules/auth/backend.js';
+import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
+import type { PermissionCatalogueService } from '../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
+import type { AdminRoleService } from '../../../packages/modules/admin_roles/src/backend/services/admin-role-service.js';
+import type { AuthCradle } from '@endora-commerce/mod-auth/backend';
 import {
   REGISTERED_MANIFESTS,
   deploymentShippedEntries,
   resolvedManifestEntries,
-} from '../../src/modules/_lifecycle/registered-manifests.js';
+} from '../../src/lifecycle/registered-manifests.js';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
 import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
-import { buildStaticRegistry } from '../../src/modules/_lifecycle/services/static-registry.js';
-import type { LoadedManifestRegistry } from '../../src/modules/_lifecycle/services/manifest-loader.js';
+import { buildStaticRegistry } from '../../src/lifecycle/services/static-registry.js';
+import type { LoadedManifestRegistry } from '../../src/lifecycle/services/manifest-loader.js';
 import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
 // Feature 080 (T052) — the contract types for the seven ports that replaced
 // this root's five entity-class reads, spelled exactly as `composition.ts`
@@ -95,27 +95,41 @@ import type {
 } from '@endora-commerce/contracts';
 import { HttpError } from '../../src/http/error-envelope.js';
 import { randomUUID } from 'node:crypto';
-import type { AdminI18nCradle } from '../../src/modules/_i18n/backend.js';
+import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 // D-54 — injected into the error envelope, exactly as `composition.ts` does it:
 // `src/http` may not name a module (D-52), a composition root may.
-import { ERROR_TRANSLATION_KEYS } from '../../src/modules/_i18n/services/error-translation.js';
+//
+// Feature 090 Phase 2 — and derived from the resolved manifests here too, by the
+// same call in the same place. The harness composes the same modules production
+// does, so a second way of building this map would be a second answer to "which
+// bundle holds this code's sentence" that only one of the two roots ever gives.
+import {
+  buildErrorTranslationTargets,
+  describeErrorCodeCollisions,
+} from '@endora-commerce/mod-i18n/backend';
+// Type-only, and off the package's **source** rather than its `./backend`
+// subpath, because the three service types below come from the same source
+// files: `dist` and `src` are two nominal declarations of one class, so a
+// cradle typed by one and a getter typed by the other is TS2322. It erases,
+// so nothing is loaded twice (D-160.6.1) — `check:singleton-identity` asks
+// about value reaches, and this is not one.
 import type {
   OrganizationsCradle,
   OrganizationTaxProfilePort,
-} from '../../src/modules/organizations/backend.js';
-import type { OrganizationModerationService } from '../../src/modules/organizations/services/organization-moderation-service.js';
-import type { OrganizationContextService } from '../../src/modules/organizations/services/organization-context-service.js';
-import type { OrganizationRestrictionService } from '../../src/modules/organizations/services/organization-restriction-service.js';
+} from '../../../packages/modules/organizations/src/backend/index.js';
+import type { OrganizationModerationService } from '../../../packages/modules/organizations/src/backend/services/organization-moderation-service.js';
+import type { OrganizationContextService } from '../../../packages/modules/organizations/src/backend/services/organization-context-service.js';
+import type { OrganizationRestrictionService } from '../../../packages/modules/organizations/src/backend/services/organization-restriction-service.js';
 import type {
   VatValidator,
   VatValidationResult,
-} from '../../src/modules/organizations/services/vat-validator-port.js';
+} from '../../../packages/modules/organizations/src/backend/services/vat-validator-port.js';
 // Feature 072 (T079) — `email` composes through the kernel here too, from the
 // generated list. The five hand-rolled `new ConsoleMailer()` fallbacks this
 // replaced were the reason a conversion of `composition.ts` alone would have
 // proved nothing: every mail-sending suite runs against this root.
 import type { EmailCradle } from '../../../packages/modules/email/src/backend/index.js';
-import type { AdminUsersCradle } from '../../src/modules/admin_users/backend.js';
+import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend';
 import type { ShoppingListService } from '../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
 import type { ReturnsBridge } from '../../../packages/modules/returns/src/backend/index.js';
 // `dist`, not `src`, and it is the type that matches the object (feature 080,
@@ -135,15 +149,15 @@ import type { CustomFieldValueService } from '../../../packages/modules/custom_f
 import type { CustomFieldDefinitionsCache } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
 import type { ApiKeysCradle } from '../../../packages/modules/api_keys/src/backend/index.js';
 import type { CmsCradle } from '../../../packages/modules/cms/src/backend/index.js';
-import type { MegamenuCradle } from '../../src/modules/megamenu/backend.js';
-import type { TargetValidatorDeps } from '../../src/modules/megamenu/services/target-validator.js';
-import type { StorefrontDeps } from '../../src/modules/megamenu/services/storefront-resolver.js';
+import type { MegamenuCradle } from '@endora-commerce/mod-megamenu/backend';
+import type { TargetValidatorDeps } from '../../../packages/modules/megamenu/src/backend/services/target-validator.js';
+import type { StorefrontDeps } from '../../../packages/modules/megamenu/src/backend/services/storefront-resolver.js';
 // Feature 072 — the harness is a second composition root, so a module left
 // hand-wired here would keep passing against wiring nobody changed. It composes
 // the same generated list production does; only the host values differ.
 import type { BlogCradle } from '../../../packages/modules/blog/src/backend/index.js';
 import type { DictionariesCradle } from '../../../packages/modules/dictionaries/src/backend/index.js';
-import type { CustomerAccountsCradle } from '../../src/modules/customer_accounts/backend.js';
+import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
 import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/index.js';
 import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
@@ -181,15 +195,25 @@ import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { refusingUnopimClient } from './scripted-unopim-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
 import { ScriptedUnopimMediaFetcher } from './scripted-unopim-media-fetcher.js';
+import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
-import type { CatalogQueryService } from '../../src/modules/catalog/services/catalog-query.service.js';
+// `catalog`'s two service types name the package's **`dist`**, unlike the other
+// packaged modules above, and the difference is not cosmetic: the values these
+// annotate come off the composed container, which is `dist`, and integration
+// tests that construct a `CatalogQueryService` themselves must name `dist` too —
+// a source copy would build entity classes the ORM never discovered (D-160.6.1,
+// measured on `bulk-undo.test.ts` when this module was packaged). Typing the
+// harness against `src` while every consumer names `dist` makes the two
+// structurally-identical declarations non-assignable, which is TS2345 rather
+// than a silent divergence, so the spelling has to agree.
+import type { CatalogQueryService } from '../../../packages/modules/catalog/dist/backend/services/catalog-query.service.js';
 import { z } from 'zod';
-import type { CatalogAttributeReadService } from '../../src/modules/catalog/services/catalog-attribute-read.service.js';
-import type { PricingServiceContract } from '../../src/modules/price_lists/services/pricing-service.interface.js';
+import type { CatalogAttributeReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-attribute-read.service.js';
+import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
 import type { CartService } from '../../../packages/modules/carts/src/backend/services/cart-service.js';
@@ -361,6 +385,8 @@ export interface BackendServerHandle {
   pimConnectorRegistry: PimConnectorRegistryPort;
   /** Feature 089 — UnoPim PIM handle (source client seam). */
   pimUnopim: PimUnopimCradle['pimUnopim']['handle'];
+  /** Feature 092 — Pimcore PIM handle (source client seam, inline import). */
+  pimPimcore: PimPimcoreCradle['pimPimcore']['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
   /**
@@ -547,6 +573,18 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 089 — Pimcore PIM. Truncated explicitly because nothing cascades
+  // here from the tables below. Listed children-first.
+  'pimcore_import_issues',
+  'pimcore_field_protections',
+  'pimcore_media_links',
+  'pimcore_source_links',
+  'pimcore_delivered_records',
+  'pimcore_catalogue_deliveries',
+  // Runs and connections reference each other (`current_run_id` /
+  // `connection_id`); truncate … cascade handles the cycle.
+  'pimcore_import_runs',
+  'pimcore_connections',
   // Feature 068 — Ergonode PIM. Truncated explicitly because nothing cascades
   // here: `ergonode_product_links` hangs off products, but the connection, its
   // cursors, mappings, runs and issues have no path from any table below, so
@@ -915,6 +953,20 @@ export async function setupBackendServer(
   // refuses.
   const packageModuleEntries = await loadPackageModuleEntries(overlayEnv);
 
+  // Feature 090 — mirrors `composition.ts`: the error-code routing map,
+  // derived from the manifests this run resolved, with the collisions reported
+  // out of the same call (D-100). A collision is a `warn` and never a refused
+  // boot, here for the same reason as in production — the harness's job is to be
+  // the composition production is.
+  const errorTranslation = buildErrorTranslationTargets(resolvedRegistry);
+  if (errorTranslation.collisions.length > 0) {
+    platformLogger().warn(
+      { collisions: errorTranslation.collisions.length },
+      'error codes are claimed by more than one module and therefore route to none of ' +
+        `them:\n${describeErrorCodeCollisions(errorTranslation.collisions)}`,
+    );
+  }
+
   registryCache.setActivationDeclarations(
     activationDeclarationsFrom(resolvedRegistry.map((e) => e.manifest)),
   );
@@ -932,6 +984,7 @@ export async function setupBackendServer(
     apiInterceptors,
     // The module's `ctx.onBoot` schedule reconcile resolves this (T131).
     pimErgonodeRunWorkers: false,
+    pimPimcoreRunWorkers: false,
     pimUnopimRunWorkers: false,
     productFeedsRunWorkers: false,
     productFeedsPublicBaseUrl: 'http://feeds.test.local',
@@ -1139,7 +1192,7 @@ export async function setupBackendServer(
     | null = null;
   // Feature 039 — late-bound OrderService for the quick_order one-click flow.
   let orderServiceForOneClick:
-    | import('../../src/modules/orders/services/order-service.js').OrderService
+    | import('../../../packages/modules/orders/src/backend/services/order-service.js').OrderService
     | null = null;
   // Feature 040 — late-bound OrderListService for the customers module.
   // Feature 026 US4 / 056 — which organizations a sales-rep admin may see.
@@ -2647,7 +2700,7 @@ export async function setupBackendServer(
     modules,
     apiInterceptors,
     errorEnvelope: {
-      errorTranslationTargets: ERROR_TRANSLATION_KEYS,
+      errorTranslationTargets: errorTranslation.targets,
       // The same call production makes, from the same kernel function (D-137).
       // The `request.testActor` read this replaces was the residual drift
       // between the two roots: `registerTestAuth` mirrors every resolved actor
@@ -2739,6 +2792,7 @@ export async function setupBackendServer(
       container.cradle as unknown as { pimConnectorRegistryPort: PimConnectorRegistryPort }
     ).pimConnectorRegistryPort,
     pimUnopim: (container.cradle as unknown as PimUnopimCradle).pimUnopim.handle,
+    pimPimcore: (container.cradle as unknown as PimPimcoreCradle).pimPimcore.handle,
     pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,

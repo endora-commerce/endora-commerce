@@ -1,4 +1,11 @@
 import type { MigrationObject } from '@mikro-orm/core';
+// The graph walk is the platform's (D-160.11): the lifecycle orchestrator refuses an
+// install whose arrival closes a cycle, and the member list it names an operator has to
+// be the member list reported here. One implementation is what makes that true.
+import {
+  moduleDependencyCycles,
+  stronglyConnectedComponents,
+} from '../lifecycle/services/dep-graph.js';
 
 /**
  * Computes the order in which migrations are handed to the migrator.
@@ -261,71 +268,6 @@ function isBaseline(migration: ParsedMigration, baselineThrough: string): boolea
 }
 
 /**
- * Step 3 — strongly connected components of the ordering graph (Tarjan).
- * Iterative, never recursive: a large graph must not be able to blow the
- * stack. The condensation built from the result is acyclic by construction,
- * which is what makes Step 4 always succeed.
- */
-function stronglyConnectedComponents(
-  nodes: readonly string[],
-  neighboursOf: (id: string) => readonly string[],
-): string[][] {
-  const index = new Map<string, number>();
-  const lowLink = new Map<string, number>();
-  const onStack = new Set<string>();
-  const stack: string[] = [];
-  const components: string[][] = [];
-  let counter = 0;
-
-  const discover = (id: string): void => {
-    index.set(id, counter);
-    lowLink.set(id, counter);
-    counter += 1;
-    stack.push(id);
-    onStack.add(id);
-  };
-
-  for (const root of nodes) {
-    if (index.has(root)) continue;
-    discover(root);
-    // `edge` is how far through the node's neighbour list the walk has got.
-    const work: { id: string; edge: number }[] = [{ id: root, edge: 0 }];
-
-    while (work.length > 0) {
-      const frame = work[work.length - 1]!;
-      const neighbours = neighboursOf(frame.id);
-      if (frame.edge < neighbours.length) {
-        const next = neighbours[frame.edge]!;
-        frame.edge += 1;
-        if (!index.has(next)) {
-          discover(next);
-          work.push({ id: next, edge: 0 });
-        } else if (onStack.has(next)) {
-          lowLink.set(frame.id, Math.min(lowLink.get(frame.id)!, index.get(next)!));
-        }
-        continue;
-      }
-
-      work.pop();
-      if (lowLink.get(frame.id) === index.get(frame.id)) {
-        const component: string[] = [];
-        for (;;) {
-          const member = stack.pop()!;
-          onStack.delete(member);
-          component.push(member);
-          if (member === frame.id) break;
-        }
-        components.push(component.sort());
-      }
-      const parent = work[work.length - 1];
-      if (parent) lowLink.set(parent.id, Math.min(lowLink.get(parent.id)!, lowLink.get(frame.id)!));
-    }
-  }
-
-  return components;
-}
-
-/**
  * Step 4 — a stable topological sort of the condensation. Kahn's algorithm,
  * the ready set drained by the smallest module id in the component — except
  * that the component holding `'core'` is drained first whenever it is ready
@@ -413,19 +355,23 @@ function cycleDiagnostics(components: readonly string[][]): MigrationOrderDiagno
  * `orderMigrations` reports — one strongly connected component of more than
  * one module per diagnostic, members sorted.
  *
- * Exported for the third reader of the diagnostic (081 FR-012): the
- * `_lifecycle` orchestrator refuses an install whose arrival closes a cycle,
- * which is the one moment where refusing costs nothing. The other two readers
- * are `test/unit/db/module-graph.test.ts`, which fails the build on a cycle in
- * the committed manifests, and the ORM configuration, which warns at boot and
- * keeps serving. Three reactions, one graph walk — the split is the point, and
- * a second walk somewhere else would be free to disagree with this one about
- * what a cycle is.
+ * Two of the diagnostic's three readers are here: `test/unit/db/module-graph.test.ts`,
+ * which fails the build on a cycle in the committed manifests, and the ORM
+ * configuration, which warns at boot and keeps serving. The third is the
+ * `_lifecycle` orchestrator, which refuses an install whose arrival closes a
+ * cycle — the one moment where refusing costs nothing (081 FR-012).
+ *
+ * **The walk itself is the platform's** (D-160.11): the orchestrator reads
+ * `moduleDependencyCycles` directly rather than this wrapper, because it lives
+ * in `@endora-commerce/platform` and this file is the host application's. Three
+ * reactions, one graph walk — the split is the point, and what keeps a second
+ * walk from being free to disagree with this one is that there is only one.
+ * What is added here is the *wording*, which is the migration order's own.
  */
 export function findModuleCycles(
   moduleDependencies: ReadonlyMap<string, readonly string[]>,
 ): readonly MigrationOrderDiagnostic[] {
-  return cycleDiagnostics(orderingGraph(moduleDependencies).components);
+  return cycleDiagnostics(moduleDependencyCycles(moduleDependencies));
 }
 
 export function orderMigrations(input: OrderMigrationsInput): MigrationOrderResult {

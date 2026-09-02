@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { Organization } from '../../helpers/package-entities.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { PersonalOrganizationService } from '../../../src/modules/organizations/services/personal-organization-service.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
+import { PersonalOrganizationService } from '../../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 

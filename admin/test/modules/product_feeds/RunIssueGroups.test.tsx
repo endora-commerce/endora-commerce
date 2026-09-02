@@ -5,8 +5,8 @@ import { MemoryRouter } from 'react-router-dom';
 import {
   RunIssueGroups,
   groupIssuesByReason,
-} from '../../../src/modules/product_feeds/components/RunIssueGroups';
-import type { FeedRunIssueDto } from '../../../src/modules/product_feeds/api';
+} from '../../../../packages/modules/product_feeds/src/admin/components/RunIssueGroups';
+import type { FeedRunIssueDto } from '../../../../packages/modules/product_feeds/src/admin/api';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 
 /**

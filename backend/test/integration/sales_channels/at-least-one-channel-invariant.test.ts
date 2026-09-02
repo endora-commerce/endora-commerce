@@ -5,7 +5,7 @@ import { EventBus } from '../../../src/events/bus.js';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { Product, type ProductRow } from '../../helpers/package-entities.js';
 import { HttpError } from '../../../src/http/error-envelope.js';
 
 /**
@@ -57,7 +57,7 @@ describe('membership invariant: at-least-one-channel (T022)', () => {
     return channel;
   }
 
-  async function createProduct(suffix: string): Promise<Product> {
+  async function createProduct(suffix: string): Promise<ProductRow> {
     const em = db.em();
     const product = em.create(Product, {
       sku: `T022-${suffix}`,
@@ -183,6 +183,37 @@ describe('membership invariant: at-least-one-channel (T022)', () => {
         const r3 = await svc.removeFromChannel(stranger.id, 'product', product.id);
         expect(r3.changed).toBe(false);
       }
+    } finally {
+      await db.rollbackTx();
+    }
+  });
+
+  it('atomically replaces memberships without retaining the system default', async () => {
+    try {
+      const def = await ensureDefault();
+      const target = await ensureSecondaryChannel();
+      const product = await createProduct('E');
+      const eventBus = new EventBus();
+      const svc = new SalesChannelMembershipService(() => db.em(), eventBus);
+
+      await svc.addToChannel(def.id, 'product', product.id);
+
+      const result = await svc.replaceChannelsForEntity(
+        'product',
+        product.id,
+        [target.id],
+      );
+
+      expect(result.changed).toBe(true);
+      const channels = await svc.listChannelsForEntity('product', product.id);
+      expect(channels.map((channel) => channel.id)).toEqual([target.id]);
+
+      const repeated = await svc.replaceChannelsForEntity(
+        'product',
+        product.id,
+        [target.id],
+      );
+      expect(repeated.changed).toBe(false);
     } finally {
       await db.rollbackTx();
     }

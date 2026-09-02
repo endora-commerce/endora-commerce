@@ -9,9 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/i18n/useTranslation';
-import { ContentLanguageTabs } from '../../cms/components/ContentLanguageTabs';
+import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { PageBuilderEditor } from '../../cms/components/PageBuilderEditor';
-import { ScopePicker, type CmsScopeValue } from '../../cms/components/ScopePicker';
 import { blogClient } from '../api/blog-client';
 import { PostStatusBadge } from '../components/PostStatusBadge';
 import { RelatedPostsPicker } from '../components/RelatedPostsPicker';
@@ -81,7 +80,7 @@ export function BlogPostEditor(): ReactNode {
   // editor types in either field, at which point that field stops auto-syncing.
   const [slugEdited, setSlugEdited] = useState(false);
   const [metaTitleEdited, setMetaTitleEdited] = useState(false);
-  const [scope, setScope] = useState<CmsScopeValue>({
+  const [scope, setScope] = useState<ScopePickerValue>({
     salesChannelIds: [],
     languages: ['en-US'],
   });

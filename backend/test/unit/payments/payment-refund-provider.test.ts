@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { OrderReadPort, OrderRecord, PaymentMethodReadPort } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { PaymentRefundProvider } from '../../../src/modules/payments/services/payment-refund.js';
-import { gatewayRefundRegistry } from '../../../src/modules/payments/services/registry-singleton.js';
+import { PaymentRefundProvider } from '../../../../packages/modules/payments/dist/backend/services/payment-refund.js';
+// `dist`, not `src`: this file has no composed container to take the registry
+// from, and its own import closure already loads the package's artefact — so a
+// `src` specifier would build a *second*, empty `GatewayRefundRegistry` beside
+// the composed one and assert against whichever it happened to hold. Naming
+// `dist` for both the provider and the registry keeps them one object.
+import { gatewayRefundRegistry } from '../../../../packages/modules/payments/dist/backend/services/registry-singleton.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * What a return settles into when the PSP module that would refund it is

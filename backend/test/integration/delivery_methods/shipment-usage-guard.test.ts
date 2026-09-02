@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { DeliveryMethod, Shipment, type DeliveryMethodRow } from '../../helpers/package-entities.js';
-import { Order } from '../../../src/modules/orders/entities/order.entity.js';
+import { Order } from '../../helpers/package-entities.js';
 
 /**
  * Feature 075, the `delivery_methods` shard — the FR-003 delete guard, through

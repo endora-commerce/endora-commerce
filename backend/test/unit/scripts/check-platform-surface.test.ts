@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkPlatformSurface,
   hostDependentCoverage,
+  isPackageToolingConfig,
   keyOf,
   platformSurfaceRefusal,
   scanPlatformSurface,
@@ -223,6 +224,64 @@ describe('check:platform-surface findings', () => {
     const result = checkPlatformSurface(input({ 'backend/src/apps/example/reduced-deployment.ts': '' }), {});
     expect(kinds(result.violations)).toEqual(['unattributed-source']);
     expect(result.violations[0]?.moduleId).toBeNull();
+  });
+
+  it('leaves a module whose own sources are inside the platform package alone', () => {
+    // D-160.11's second half: `_lifecycle` merged into the host package, so its
+    // files reach `kernel/` and `http/` from *inside* the same package. The
+    // specifier is unchanged and its meaning is not — nothing crosses a package
+    // boundary and no `exports` map is asked about it — which is what the
+    // sixteen `LIFECYCLE_HOST_HALF` entries meant by *"retires with the merge,
+    // not by editing the import"*.
+    const source = "import { SettingsCache } from '../kernel/settings/settings-cache.js';";
+    const files = new Set([
+      ...FIXTURE_FILES,
+      'packages/platform/src/kernel/settings/settings-cache.ts',
+    ]);
+    const inside = checkPlatformSurface(
+      {
+        ...input({ 'packages/platform/src/lifecycle/services/orchestrator.ts': source }),
+        files,
+        moduleIdOf: (key) => (key.includes('/lifecycle/') ? '_lifecycle' : null),
+        platformSourceRoot: 'packages/platform/src',
+      },
+      {},
+    );
+    expect(inside.findings).toEqual([]);
+    expect(scanPlatformSurface({
+      ...input({ 'packages/platform/src/lifecycle/services/orchestrator.ts': source }),
+      files,
+      moduleIdOf: (key) => (key.includes('/lifecycle/') ? '_lifecycle' : null),
+      platformSourceRoot: 'packages/platform/src',
+    }).reaches).toBe(0);
+
+    // The discrimination: the identical reach from a module **outside** the
+    // package is still a finding, so the exemption is about where the reaching
+    // file is and not about the symbol.
+    const outside = checkPlatformSurface(
+      input({
+        'backend/src/modules/blog/backend.ts':
+          "import { SettingsCache } from '../../kernel/settings/settings-cache.js';",
+      }),
+      {},
+    );
+    expect(kinds(outside.violations)).toEqual(['unpublished-symbol']);
+    expect(outside.violations[0]?.symbol).toBe('SettingsCache');
+  });
+
+  it('still reports a file inside the platform that no module owns', () => {
+    // The exemption is applied **after** the attribution, never instead of it:
+    // a file the walk opened and could not attribute is #215 one layer in,
+    // whichever tree it is in.
+    const result = checkPlatformSurface(
+      {
+        ...input({ 'packages/platform/src/lifecycle/services/orphan.ts': '' }),
+        moduleIdOf: () => null,
+        platformSourceRoot: 'packages/platform/src',
+      },
+      {},
+    );
+    expect(kinds(result.violations)).toEqual(['unattributed-source']);
   });
 
   it('leaves a module-to-module reach to check:module-boundary', () => {
@@ -481,6 +540,46 @@ describe('the host-dependent floor (feature 080, T060)', () => {
     // module package is a legal tree — every one of them until !910.
     expect(hostDependentCoverage([{ moduleId: 'blog', dependsOnHost: false }], new Set())).toBeNull();
     expect(hostDependentCoverage([], new Set())).toBeNull();
+  });
+});
+
+/**
+ * A module package's own tooling configuration is not module source
+ * (feature 089, Phase 1).
+ *
+ * `vitest.config.ts` is the first `.ts` file a module package holds that its
+ * build does not compile — and it exists to `mergeConfig` the repository root's
+ * `vitest.config.base.ts`, a file in no module walk root and no source root, so
+ * the walk cannot resolve the reach and reports `unresolvable-reach` (which is
+ * right, and fail-closed, for a *module* reach). The honest answer is that the
+ * file is not one. The end-to-end half of this proof is the spawned run below:
+ * this tree now holds four such configurations and the check exits 0 over them.
+ */
+describe('a package configuration is out of the module source population', () => {
+  it('drops a *.config.ts sitting at a module walk root', () => {
+    expect(
+      isPackageToolingConfig('/repo/packages/modules/blog', '/repo/packages/modules/blog/vitest.config.ts'),
+    ).toBe(true);
+  });
+
+  it('keeps a config file that is module source', () => {
+    // Under `src/` it is compiled, published and importable — module source by
+    // every test the package's own build applies. The rule is about the package
+    // root, not about the word "config".
+    expect(
+      isPackageToolingConfig(
+        '/repo/packages/modules/blog',
+        '/repo/packages/modules/blog/src/backend/feed.config.ts',
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps an ordinary source file at the root of a module directory', () => {
+    // A module still under `backend/src/modules/` keeps its `backend.ts` and
+    // `manifest.ts` at the walk root; only the `.config.ts` suffix leaves.
+    expect(
+      isPackageToolingConfig('/repo/backend/src/modules/blog', '/repo/backend/src/modules/blog/backend.ts'),
+    ).toBe(false);
   });
 });
 

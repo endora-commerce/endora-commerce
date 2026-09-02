@@ -6,8 +6,8 @@ import {
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { manifest as customersManifest } from '../../../../packages/modules/customers/src/manifest.js';
-import { CustomerAccount } from '../../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { CustomerGroup } from '../../../src/modules/customer_accounts/entities/customer-group.entity.js';
+import { CustomerAccount } from '../../helpers/package-entities.js';
+import { CustomerGroup } from '../../helpers/package-entities.js';
 
 /**
  * Feature 040, US6 — admin assigns/clears a customer's direct customer group.

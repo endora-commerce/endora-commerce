@@ -1,0 +1,19 @@
+{
+  "actions.openAnalytics.label": "Analytics",
+  "actions.openAnalytics.description": "Aggregated counts of storefront events",
+  "nav.analytics.label": "Analytics",
+  "page.title": "Analytics",
+  "page.descriptionPrefix": "Aggregated counts of storefront events. Window:",
+  "range.7days": "Last 7 days",
+  "range.30days": "Last 30 days",
+  "range.90days": "Last 90 days",
+  "refresh": "Refresh",
+  "loading": "Loading…",
+  "empty": "No events recorded in this window.",
+  "error.load": "Failed to load summary.",
+  "totals.title": "Totals by event type",
+  "daily.title": "Daily breakdown",
+  "column.eventType": "Event type",
+  "column.count": "Count",
+  "column.day": "Day"
+}

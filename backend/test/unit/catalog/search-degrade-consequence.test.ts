@@ -13,9 +13,9 @@ import {
   buildDeactivationLedger,
   deactivationConsequencesFor,
   type LedgerEntry,
-} from '../../../src/modules/_lifecycle/services/deactivation-ledger.js';
-import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
-import { REGISTERED_MANIFESTS } from '../../../src/modules/_lifecycle/registered-manifests.js';
+} from '../../../src/lifecycle/services/deactivation-ledger.js';
+import { nonBindingPortEdgesFrom } from '../../../src/lifecycle/services/gating-graph.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * Issue #153 — an operator switching `search` off is told that the storefront

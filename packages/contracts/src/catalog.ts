@@ -2785,6 +2785,83 @@ export interface CatalogProductLinkPort {
   removeLink(sourceProductId: string, linkId: string): Promise<void>;
 }
 
+/** One option inside a bundle slot, as the admin CRUD surface returns it. */
+export interface CatalogBundleSlotOptionRow {
+  id: string;
+  slotId: string;
+  optionProductId: string;
+  defaultQuantity: number;
+  position: number;
+}
+
+/** One bundle slot with its options. */
+export interface CatalogBundleSlotRow {
+  id: string;
+  parentProductId: string;
+  name: Record<string, string>;
+  minQuantity: number;
+  maxQuantity: number;
+  position: number;
+  options: CatalogBundleSlotOptionRow[];
+}
+
+/**
+ * Container name: `bundleService`. Owner: `catalog`.
+ *
+ * `pim_pimcore` writes mappable bundle compositions through this seam
+ * (feature 089 / FR-022) — never against catalog's tables.
+ */
+export interface CatalogBundlePort {
+  listSlots(parentProductId: string): Promise<CatalogBundleSlotRow[]>;
+  createSlot(
+    parentProductId: string,
+    input: {
+      name: Record<string, string>;
+      minQuantity?: number | undefined;
+      maxQuantity: number;
+      position?: number | undefined;
+    },
+  ): Promise<CatalogBundleSlotRow>;
+  updateSlot(
+    parentProductId: string,
+    slotId: string,
+    input: {
+      name?: Record<string, string> | undefined;
+      minQuantity?: number | undefined;
+      maxQuantity?: number | undefined;
+      position?: number | undefined;
+    },
+  ): Promise<CatalogBundleSlotRow>;
+  deleteSlot(parentProductId: string, slotId: string): Promise<void>;
+  addOption(
+    parentProductId: string,
+    slotId: string,
+    input: {
+      optionProductId: string;
+      defaultQuantity?: number | undefined;
+      position?: number | undefined;
+    },
+  ): Promise<CatalogBundleSlotOptionRow>;
+  removeOption(parentProductId: string, slotId: string, optionId: string): Promise<void>;
+}
+
+/**
+ * Container name: `packagingUnitService`. Owner: `catalog`.
+ *
+ * `pim_pimcore` writes mappable packaging units through this seam
+ * (feature 089 / FR-026).
+ */
+export interface CatalogPackagingPort {
+  list(productId: string): Promise<PackagingUnitDto[]>;
+  create(productId: string, req: CreatePackagingUnitRequest): Promise<PackagingUnitDto>;
+  update(
+    productId: string,
+    unitId: string,
+    req: UpdatePackagingUnitRequest,
+  ): Promise<PackagingUnitDto>;
+  delete(productId: string, unitId: string): Promise<void>;
+}
+
 /** One attribute with its options, as the promotion rule builder renders it. */
 export interface CatalogAttributeWithOptions {
   id: string;

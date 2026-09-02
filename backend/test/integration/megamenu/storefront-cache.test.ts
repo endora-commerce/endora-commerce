@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { MegamenuCache } from '../../../src/modules/megamenu/services/megamenu-cache.js';
+import { MegamenuCache } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-cache.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 
 /**

@@ -78,6 +78,33 @@ export const manifest = defineModuleManifest({
         'operators are meant to have.',
     },
   ],
+  /**
+   * The module's own authority (2026-08-28).
+   *
+   * All three admin routes used to enforce `catalog:read` / `catalog:write`, so
+   * whoever could edit a product could read the delivery-method configuration,
+   * rewrite it — which methods a checkout offers, their surcharge, and which
+   * order status a shipment outcome moves an order to — and delete a method
+   * outright. Both codes were real, declared and enforced, so the permission
+   * inventory's two directions were clean over the site, and
+   * `check:action-route-permissions` never looked at all: this module declares
+   * no manifest action, so the check has nothing of its own to compare.
+   *
+   * A pair and no third code, spelled `<module id>:<read|write>` like the five
+   * gateway modules, `payment_methods`, `returns` and `invoices`. A prefix that
+   * is not its owner's id is the mistake `PERMISSION_CATALOGUE` comments on
+   * twice (`integrations:manage`, `audit_log:read`), both frozen because they
+   * are persisted in role rows; getting it right on a code that does not exist
+   * yet is free. The codes stay here rather than in `PERMISSION_CATALOGUE`,
+   * which is for codes spanning modules — this module owns these outright.
+   *
+   * No data migration: see
+   * `test/contract/delivery_methods/permission-authority.test.ts`.
+   */
+  permissions: [
+    { code: 'delivery_methods:read', label: 'View delivery methods' },
+    { code: 'delivery_methods:write', label: 'Configure delivery methods' },
+  ],
   settings: {
     moduleCode: 'delivery_methods',
     groups: [{ code: 'delivery_methods', name: 'Delivery methods' }],
@@ -107,5 +134,28 @@ export const manifest = defineModuleManifest({
   // `payment_methods`. The dependents that do declare it — `payments`,
   // `quick_order`, `shipments` — fail closed when it is off, which is the
   // intended meaning of switching a delivery catalog off, not an accident.
+  // Feature 091 (Phase 4, batch 8) — this module ships a bundle now: its
+  // sidebar entry's `labelKey` is module-relative (R8) and resolves in this
+  // module's own namespace. Its screen's copy stays in `_i18n`'s `core`
+  // scope, which is batch 4's shape and not a new one.
+  i18n: { bundlesDir: 'i18n' },
+  // Feature 091 (Phase 4, batch 8) — the palette row `AppShell.tsx` carried by
+  // hand, arriving as the declaration Principle XVI names, for the reason
+  // recorded on `credit_limits`' entry: a `PALETTE_ITEMS` literal is a copy of
+  // an advertisement nothing filtered by the effective enabled-set.
+  // `delivery_methods:read` is what gates `GET /api/v1/admin/delivery-methods`,
+  // so the palette never advertises a 403.
+  actions: [
+    {
+      id: 'open-delivery-methods',
+      labelKey: 'actions.openDeliveryMethods.label',
+      descriptionKey: 'actions.openDeliveryMethods.description',
+      icon: 'Truck',
+      targetRoute: '/delivery-methods',
+      requiredPermission: 'delivery_methods:read',
+      keywords: ['delivery', 'shipping', 'methods', 'courier', 'metody dostawy', 'wysyłka', 'kurier'],
+      weight: 300,
+    },
+  ],
   activation: { settingCode: 'delivery_methods.enabled', default: true },
 });

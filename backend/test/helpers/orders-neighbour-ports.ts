@@ -11,14 +11,15 @@ import type {
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
 import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-commerce/contracts';
-import { CustomerAccountReadService } from '../../src/modules/customer_accounts/services/customer-account-ports.js';
-import { OrganizationDetailsService } from '../../src/modules/organizations/services/organization-details-port.js';
-import { CatalogProductReadService } from '../../src/modules/catalog/services/catalog-product-read.service.js';
+import { CustomerAccountReadService } from '../../../packages/modules/customer_accounts/src/backend/services/customer-account-ports.js';
+import { twoFactorEnrolmentsFor } from './two-factor-enrolments.js';
+import { OrganizationDetailsService } from '../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
+import { CatalogProductReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-product-read.service.js';
 import { AddressReadService } from '../../../packages/modules/addresses/src/backend/services/address-ports.js';
 import { DeliveryMethodReadService } from '../../../packages/modules/delivery_methods/src/backend/services/delivery-method-read-port.js';
 import { PaymentMethodReadService } from '../../../packages/modules/payment_methods/src/backend/services/payment-method-read-port.js';
-import { InventoryStockReadService } from '../../src/modules/inventory/services/inventory-read-port.js';
-import { InventoryReservationApplyService } from '../../src/modules/inventory/services/inventory-reservation-apply-port.js';
+import { InventoryStockReadService } from '../../../packages/modules/inventory/src/backend/services/inventory-read-port.js';
+import { InventoryReservationApplyService } from '../../../packages/modules/inventory/src/backend/services/inventory-reservation-apply-port.js';
 import { CartPlacementApplyService } from '../../../packages/modules/carts/src/backend/services/cart-placement-apply-port.js';
 import { CartReadService } from '../../../packages/modules/carts/src/backend/services/cart-read-port.js';
 // **`dist`, not `src`** (feature 080, T040b, batch four; D-160.6.1). This
@@ -32,7 +33,8 @@ import { CartReadService } from '../../../packages/modules/carts/src/backend/ser
 // instance the composed platform holds, so there is one class and the assertions
 // below are about the entity the ORM knows.
 import { InvoicePlacementApplyService } from '../../../packages/modules/invoices/dist/backend/services/invoice-placement-apply-port.js';
-import type { OrderServiceNeighbourPorts } from '../../src/modules/orders/services/order-service.js';
+import { PaymentPlacementApplyService } from '../../../packages/modules/payments/src/backend/services/payment-placement-apply-port.js';
+import type { OrderServiceNeighbourPorts } from '../../../packages/modules/orders/src/backend/services/order-service.js';
 import type { BackendServerHandle } from './test-server.js';
 
 /**
@@ -52,7 +54,10 @@ export function ordersNeighbourPorts(emFactory: () => EntityManager): {
   catalogProductRead: CatalogProductReadPort;
 } {
   return {
-    customerAccountRead: new CustomerAccountReadService(emFactory),
+    customerAccountRead: new CustomerAccountReadService(
+      emFactory,
+      twoFactorEnrolmentsFor(emFactory, 'customer'),
+    ),
     organizationDetails: new OrganizationDetailsService(emFactory),
     catalogProductRead: new CatalogProductReadService(emFactory),
   };
@@ -105,6 +110,11 @@ export function orderServiceNeighbours(
     // degrade returns `null` from it — the same shape `inventory` has below,
     // and the same reason.
     invoicePlacementApply: () => new InvoicePlacementApplyService(),
+    // A value and not an accessor, because `payments` has no degrade even though
+    // it is switchable (D-179): there is no order without a record of what is
+    // owed. A rig that wants the absent owner hands in a double that throws
+    // `ModuleDisabledError`, which is what the gated registration does.
+    paymentPlacementApply: new PaymentPlacementApplyService(),
     // D-94.4 — the two `inventory` ports the reservation runs on, live. A rig
     // that wants the module *off* returns `null` from this accessor (or flips
     // module state against the shared harness), which is what makes the

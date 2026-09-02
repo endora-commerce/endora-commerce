@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -13,17 +14,13 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import type { FulfilmentStrategy } from '@endora-commerce/contracts';
-import {
-  DEFAULT_WAREHOUSE_ID,
-  Warehouse,
-} from '../../../src/modules/inventory/entities/warehouse.entity.js';
-import { WarehouseChannelAssignment } from '../../../src/modules/inventory/entities/warehouse-channel-assignment.entity.js';
-import { StockLevel } from '../../../src/modules/inventory/entities/stock-level.entity.js';
-import { StockAllocation } from '../../../src/modules/inventory/entities/stock-allocation.entity.js';
-import { OrderItem } from '../../../src/modules/orders/entities/order-item.entity.js';
+import { Warehouse } from '../../helpers/package-entities.js';
+import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
+import { WarehouseChannelAssignment } from '../../helpers/package-entities.js';
+import { StockLevel } from '../../helpers/package-entities.js';
+import { StockAllocation } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Organization } from '../../../src/modules/organizations/entities/organization.entity.js';
-import { Product } from '../../../src/modules/catalog/entities/product.entity.js';
+import { OrderItem, Product } from '../../helpers/package-entities.js';
 
 /**
  * Integration — order placement honors the configurable warehouse-picking

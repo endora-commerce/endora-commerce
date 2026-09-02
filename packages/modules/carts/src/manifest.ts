@@ -126,6 +126,56 @@ export const manifest = defineModuleManifest({
         'ordering claim the foreign key contradicts is dropped.',
     },
   ],
+  /**
+   * The three error codes this module owns — feature 090 Phase 3
+   * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`
+   * §1.1). This is where each sentence is looked up from: `errors.<CODE>` in this
+   * module's own `i18n/{en,pl}.json`, which already holds all three in both
+   * languages.
+   *
+   * The list is answer-preserving, not a judgement (§6.2 and §6.5): it is exactly
+   * what the prefix chain in `@endora-commerce/mod-i18n` routes here today,
+   * copied from the frozen capture at
+   * `backend/test/fixtures/error-code-routing/chain-answers.ts` rather than
+   * re-derived. Re-routing a code to a better owner is
+   * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
+   * deliberately not done here.
+   *
+   * **Two codes a reader will look for here and not find.** `MIN_NOT_MET` reads
+   * like a cart minimum and is `catalog`'s: it is one of three outcomes of bundle
+   * option validation (`bundle.service.ts`), and the chain routes it there.
+   * `PROMOTION_INVALID` reads like the coupon path below it and falls through the
+   * chain to the platform block; nothing in the tree raises it at all.
+   *
+   * **The tokens are the enum, not the bundle.** `CART_COUPON_REJECTED` is the
+   * one code in this module that carries refusal discriminators
+   * (`specs/082-error-code-ownership/contracts/error-code-ownership.md` §1.4):
+   * `routes.ts` puts `result.reason` in `details.code`, which the envelope reads
+   * as the tail of `errors.CART_COUPON_REJECTED.<token>`. That value's type is
+   * `CouponApplyDropped.reason` = `CouponDropReason` = `couponDropReasonSchema` in
+   * `packages/contracts/src/carts.ts`, and the seven members below are that
+   * enum's, in its order. The bundle happens to hold a sentence for each of the
+   * seven today, so reading the bundle instead would give the same answer — but
+   * only by coincidence: the bundle is a lower bound, and a reason added to the
+   * enum before its sentence is written would be missing from it. The enum is the
+   * authority because it is what the raise site can actually produce.
+   */
+  errorCodes: [
+    {
+      code: 'CART_COUPON_REJECTED',
+      tokens: [
+        'invalid_code',
+        'expired',
+        'below_min_spend',
+        'wrong_channel',
+        'wrong_customer_group',
+        'wrong_organization',
+        'coupon_format_invalid',
+      ],
+    },
+    { code: 'CART_EMPTY' },
+    { code: 'CART_LINE_CAP_EXCEEDED' },
+  ],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base. This reverses
   // the reading 073 took. The quote-only deployment that argued for a switch

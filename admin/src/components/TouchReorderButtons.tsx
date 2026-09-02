@@ -1,42 +1,17 @@
-import type { ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useTranslation } from '@/i18n/useTranslation';
-
-export interface TouchReorderButtonsProps {
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  disableUp?: boolean;
-  disableDown?: boolean;
-  disabled?: boolean;
-}
-
 /**
- * Touch-friendly alternative to HTML5 drag-and-drop (feature 029).
+ * Re-export shim — this file's implementation now lives in
+ * `@endora-commerce/admin-kit/components` (feature 091, Phase 1b).
+ *
+ * The design system moved into the package so that a module package's `./admin` layer
+ * can reach it by a bare specifier through an `exports` map (FR-008): `@/` is a Vite and
+ * `tsc` alias that an installed package cannot resolve. Every existing `@/…` specifier in
+ * this application arrives here and is forwarded, so nothing outside had to be rewritten
+ * — the shape feature 080 used for the platform relocation.
+ *
+ * **The forwarding is the identity, not a copy.** These names are the package's own
+ * bindings; `admin/test/kit/admin-kit-shims.test.ts` asserts reference equality across
+ * the seam, because a second React context or a second `z.enum` passes every structural
+ * comparison and still breaks at runtime.
  */
-export function TouchReorderButtons(props: TouchReorderButtonsProps): ReactNode {
-  const { onMoveUp, onMoveDown, disableUp, disableDown, disabled } = props;
-  const t = useTranslation('core');
-
-  return (
-    <div className="b2b-touch-reorder" role="group" aria-label={t('reorder.groupLabel')}>
-      <button
-        type="button"
-        className="b2b-touch-reorder__btn"
-        onClick={onMoveUp}
-        disabled={disabled || disableUp}
-        aria-label={t('reorder.moveUp')}
-      >
-        <ChevronUp size={18} />
-      </button>
-      <button
-        type="button"
-        className="b2b-touch-reorder__btn"
-        onClick={onMoveDown}
-        disabled={disabled || disableDown}
-        aria-label={t('reorder.moveDown')}
-      >
-        <ChevronDown size={18} />
-      </button>
-    </div>
-  );
-}
+export { TouchReorderButtons } from '@endora-commerce/admin-kit/components';
+export type { TouchReorderButtonsProps } from '@endora-commerce/admin-kit/components';

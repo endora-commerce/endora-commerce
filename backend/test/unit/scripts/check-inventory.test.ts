@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   ModuleManifestSchema,
+  SUPPORTED_LANGUAGES,
   defineModuleManifest,
   type ModuleManifest,
 } from '@endora-commerce/contracts';
@@ -50,9 +51,11 @@ import {
 import {
   findUnreachableSentences,
   findUntranslatedErrorCodes,
-  unroutedModules,
+  nonDeclaringModules,
+  reconcileEnumeration,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
+import { buildErrorTranslationTargets } from '@endora-commerce/mod-i18n/backend';
 import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
 import { checkFixtureSubstitution } from '../../../scripts/check-fixture-substitution.js';
 import {
@@ -69,10 +72,65 @@ import {
   isViolation,
   RELATION_DECORATOR_HINT,
 } from '../../../scripts/check-kernel-boundary.js';
+import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
 import {
+  checkAdminRegistrations,
+  vacuousReason as adminRegistrationsVacuousReason,
+  type AdminRegistrationFinding,
+} from '../../../scripts/check-admin-registrations.js';
+import { ADMIN_HOST_OWNER } from '../../../scripts/lib/admin-surfaces.js';
+import { checkEmittedFreshness } from '../../../scripts/lib/emitted-freshness.js';
+import {
+  createEmittingPackageFixture,
+  type EmittingPackageFixtureOptions,
+} from '../../helpers/emitted-freshness-fixture.js';
+import type {
+  AdminNavDeclaration,
+  AdminRouteDeclaration,
+  AdminSurfaceLayout,
+} from '../../../scripts/lib/admin-surfaces.js';
+import type { AdminRegistrationCounts } from '../../../scripts/ledgers/admin-registrations.js';
+import {
+  adminZoneFindingCount,
+  declarationSource as zoneDeclarationSource,
+  runAdminZones,
+  type AdminZoneFixture,
+} from '../../helpers/admin-zones-fixture.js';
+import {
+  checkBundlePairing,
+  type BundlePairingFindingKind,
+} from '../../../scripts/check-bundle-pairing.js';
+import {
+  FIXTURE_FILE,
+  keyFor,
+  proseDiscrimination,
+  proseFindings,
+  proseSites,
+  runDefaultLanguageProse,
+} from '../../helpers/default-language-prose-fixture.js';
+import {
+  createBundlePairingFixture,
+  validBundle,
+  type FixtureModule,
+} from '../../helpers/bundle-pairing-fixture.js';
+import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
+import {
+  checkAdminSurface,
+  reachKey,
+  vacuousReason as adminSurfaceVacuous,
+  type AdminReachSite,
+  type AdminResolution,
+  type AdminSurfaceFindingKind,
+} from '../../../scripts/check-admin-surface.js';
+import {
+  adminHostFilesWalked,
+  adminPopulationLost,
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
   findCrossModuleSql,
+  vacuousReason as moduleBoundaryVacuous,
+  type AdminBoundarySurfaces,
+  type CrossModuleImport,
   type CrossModuleImportKind,
 } from '../../../scripts/check-module-boundary.js';
 import {
@@ -103,8 +161,8 @@ import {
   type PortViolation,
   type RootRegistrationIssue,
 } from '../../../scripts/check-port-dependencies.js';
-import { buildDeactivationLedger } from '../../../src/modules/_lifecycle/services/deactivation-ledger.js';
-import { nonBindingPortEdgesFrom } from '../../../src/modules/_lifecycle/services/gating-graph.js';
+import { buildDeactivationLedger } from '../../../src/lifecycle/services/deactivation-ledger.js';
+import { nonBindingPortEdgesFrom } from '../../../src/lifecycle/services/gating-graph.js';
 import {
   checkPlatformSurface,
   platformSurfaceRefusal,
@@ -303,6 +361,26 @@ interface CheckEntry extends ProvenCheck {
 const PROOFS_ENTERING_BELOW: Readonly<Record<string, string>> = {};
 
 /**
+ * `emitted-freshness` over a real checkout, for the two shapes it refuses.
+ *
+ * The fixture builder is `test/helpers/emitted-freshness-fixture.ts` and the
+ * companion test calls the same one — a proof and a companion that each build
+ * their own would be one population derived twice, which is the shape !1182
+ * found going stale invisibly.
+ */
+function emittedFreshnessFindings(options: EmittingPackageFixtureOptions): number {
+  const fixture = createEmittingPackageFixture(options);
+  try {
+    return checkEmittedFreshness({
+      read: [fixture.recordedLocation],
+      packages: fixture.packages,
+    }).findings.length;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+/**
  * `check-platform-surface` over module source text, barrel source text and a
  * file list — every input a real run has, and none of its answers (feature 080,
  * T042d).
@@ -354,7 +432,7 @@ const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
 /**
  * A whole tree for `check:error-translations`, keyed `<directory>.<language>`.
  *
- * The routing table is fixed and deliberately points `BLOG_POST_NOT_FOUND` at a
+ * The routing map is fixed and deliberately points `BLOG_POST_NOT_FOUND` at a
  * module that is **not** the one the proofs write it in — that gap is the
  * finding. Both members are built from one map, so the proof cannot describe a
  * tree where P1's reader and P2's walk disagree.
@@ -362,6 +440,8 @@ const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
 function errorSentenceTree(bundles: Record<string, Record<string, string>>): TranslationInput {
   return {
     keys: { BLOG_POST_NOT_FOUND: { moduleId: 'cms', key: 'errors.BLOG_POST_NOT_FOUND' } },
+    collisions: [],
+    enumeratedCodes: ['BLOG_POST_NOT_FOUND'],
     readBundle: (moduleId, language) => bundles[`${moduleId}.${language}`] ?? {},
     listBundleKeys: () =>
       Object.entries(bundles).flatMap(([slot, bundle]) => {
@@ -451,7 +531,7 @@ function bundleResidueRefusal(bundleFiles: readonly string[]): number {
   const reason = vacuousModulePopulation({
     registered,
     files: bundleFiles,
-    excluded: unroutedModules(keys, registered),
+    excluded: nonDeclaringModules(keys, registered),
   });
   // Named, not counted: a refusal that listed `catalog` and `orders` would mean
   // the exclusion derived nothing, and would be just as non-zero.
@@ -506,7 +586,6 @@ function staleClaims(source: string, kind: 'stale-lock-claim' | 'stale-switchabl
 }
 
 const MODULE_FILE = join(BACKEND_ROOT, 'src/modules/blog/backend.ts');
-const SEARCH_ENTITY = join(BACKEND_ROOT, 'src/modules/search/entities/search-phrase-record.entity.ts');
 /**
  * The platform's own source root, and a synthetic file inside it. Rule B is
  * scoped by the root it is given since the relocation — a `/src/kernel/`
@@ -515,14 +594,38 @@ const SEARCH_ENTITY = join(BACKEND_ROOT, 'src/modules/search/entities/search-phr
  */
 const PLATFORM_ROOT = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
 const KERNEL_FILE = join(PLATFORM_ROOT, 'kernel/thing.ts');
+/**
+ * Rule A resolves its target as a **file on disk**, so this proof needs an entity
+ * the application tree really holds — derived rather than named, and shared with
+ * `test/unit/kernel/boundary-check.test.ts`, whose four fixtures rest on the same
+ * fact. It spelled `catalog/entities/category.entity.js` until feature 080's T040b
+ * made `catalog` a package and this proof went green (issue #113's shape: a check's
+ * own evidence of redness quietly stops being evidence). See
+ * `test/helpers/in-tree-relation-target.ts`.
+ */
+const RELATION_TARGET = inTreeRelationTarget();
 const CROSS_MODULE_RELATION = [
-  "import { Category } from '../../catalog/entities/category.entity.js';",
+  `import { ${RELATION_TARGET.name} } from '${RELATION_TARGET.specifier}';`,
   '@Entity()',
   'export class SearchPhraseRecord {',
-  '  @ManyToOne(() => Category, { fieldName: "category_id" })',
-  '  category!: Category;',
+  `  @ManyToOne(() => ${RELATION_TARGET.name}, { fieldName: "target_id" })`,
+  `  target!: ${RELATION_TARGET.name};`,
   '}',
 ].join('\n');
+
+/**
+ * The importing file for the proof below — inside the **fixture** tree, because
+ * the specifier above is relative and rule A resolves it against this path.
+ *
+ * It replaces a `SEARCH_ENTITY` constant that spelled
+ * `backend/src/modules/search/entities/…`, a path the application tree stopped
+ * holding when batch two packaged `search`. Nothing noticed, because rule A only
+ * ever resolves the *target*; the importing path is read for its owner and never
+ * opened.
+ */
+const RELATION_TARGET_SOURCE = RELATION_TARGET.sourceFile(
+  'search/entities/search-phrase-record.entity.ts',
+);
 
 /**
  * A published port introduced the way every port in the tree is, naming
@@ -1593,12 +1696,132 @@ const ORDERS_READS_A_PRODUCT_TWICE = [
 ].join('\n');
 const CROSS_MODULE_KEY = `${ORDER_SERVICE_FILE}:catalog/entities/product.entity`;
 
+// --- check-admin-registrations (feature 091, FR-018) -------------------------
+//
+// The fixture is a route table and a nav, as declarations, plus the import map
+// that says which surface directory a component comes from. That is where the
+// attribution happens and therefore where the proof has to enter: a fixture
+// handing in a ready-made owner would exercise the subtraction and leave the
+// two attributions — the one that reads `App.tsx`'s imports and the one that
+// reads `AppShell.tsx`'s `module` field — unrun (issue #130).
+function adminRegistrationFindings(
+  baseline: Readonly<Record<string, AdminRegistrationCounts>>,
+  blog: AdminRegistrationCounts | null,
+): readonly AdminRegistrationFinding[] {
+  const routes: AdminRouteDeclaration[] = [];
+  const nav: AdminNavDeclaration[] = [];
+  if (blog !== null) {
+    for (let at = 0; at < blog.routes; at += 1) {
+      routes.push({ path: `/blog/${at}`, component: 'BlogPage', line: at + 1 });
+    }
+    for (let at = 0; at < blog.nav; at += 1) {
+      nav.push({ to: `/blog/${at}`, module: 'blog', line: at + 1 });
+    }
+  }
+  return checkAdminRegistrations(
+    {
+      routes,
+      nav,
+      componentDirectories: new Map([['BlogPage', 'blog']]),
+      moduleOfDirectory: new Map([['blog', 'blog']]),
+      registered: new Set(['blog']),
+    },
+    baseline,
+  ).findings;
+}
+
+/** 1 when the record refuses the run, 0 when it does not. */
+function adminRegistrationsVacuous(record: {
+  readonly admin?: AdminSurfaceLayout | null;
+  readonly routes: number;
+  readonly nav: number;
+  readonly baselineEntries: number;
+}): number {
+  const admin =
+    record.admin === undefined
+      ? ({ sourceRoot: 'admin/src' } as AdminSurfaceLayout)
+      : record.admin;
+  return adminRegistrationsVacuousReason({ ...record, admin }) === null ? 0 : 1;
+}
+
 function moduleBoundaryTree(source: string): Map<string, string> {
   return new Map([
     ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
     ['modules/catalog/backend.ts', 'export function registerModule(ctx) {}'],
     [ORDER_SERVICE_FILE, source],
   ]);
+}
+
+// --- the admin population (feature 091, FR-017) ------------------------------
+//
+// The fixture is the **layout**, not a resolved attribution: which module owns
+// an admin surface directory is exactly the thing that goes wrong, and a proof
+// handed a ready-made owner would leave the alias expansion and the
+// directory→module join — the two halves the defect lives in — unexercised
+// (issue #130). `warehouses` is `inventory`'s here because `AppShell.tsx`
+// attributes `/warehouses` to `module: 'inventory'` in the real tree, and
+// `_shared` is nobody's for the same reason: no nav entry claims it.
+const ADMIN_SURFACES: AdminBoundarySurfaces = {
+  sourceRoot: 'admin/src',
+  moduleRoot: 'admin/src/modules',
+  aliasPrefix: '@/',
+  moduleOfDirectory: new Map([
+    ['catalog', 'catalog'],
+    ['inventory', 'inventory'],
+    ['warehouses', 'inventory'],
+    ['assets_library', 'assets_library'],
+  ]),
+  // The three registries, named by the layout in the real tree and spelled here
+  // because this is the fixture that stands in for it (feature 091, P1).
+  registryFiles: new Set(['admin/src/App.tsx', 'admin/src/components/AppShell.tsx']),
+  generatedRegistryFile: 'admin/src/modules.generated.ts',
+};
+
+/**
+ * The host reach P1 records, and the tree that carries it.
+ *
+ * `IdleLogout.tsx` is the reach `specs/091-module-owned-admin-surfaces/research.md`
+ * §6.6 found by looking: no module owns the file, so before P1 it was judged by
+ * nobody and was in no ledger at all. The fixture is source text and a path,
+ * with the layout as the only pre-computed input — the attribution that decides
+ * the finding is the thing under test.
+ */
+const HOST_FILE = 'admin/src/components/IdleLogout.tsx';
+const HOST_REACH = "import { assetsClient } from '@/modules/assets_library/api/assets-client';";
+const HOST_KEY = `${HOST_FILE}:assets_library/api/assets-client`;
+
+function hostBoundaryTree(source: string): Map<string, string> {
+  return new Map([
+    ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
+    ['admin/src/modules/assets_library/api/assets-client.ts', 'export const assetsClient = {};'],
+    [HOST_FILE, source],
+  ]);
+}
+
+function adminReaches(source: string, file: string): readonly CrossModuleImport[] {
+  return moduleBoundaryAnalyze(
+    source,
+    file,
+    undefined,
+    undefined,
+    undefined,
+    ADMIN_SURFACES,
+  );
+}
+
+function adminTargets(source: string, file: string, target: string): number {
+  return adminReaches(source, file).filter((finding) => finding.target === target).length;
+}
+
+/**
+ * A reach the analysis must see, carried in every discrimination below so a
+ * proof cannot go green off seeing nothing.
+ */
+const ADMIN_CONTROL = "import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';";
+
+function adminOnlyTheControl(source: string, file: string): number {
+  const found = adminReaches(source, file);
+  return found.length === 1 && found[0]?.target === 'assets_library' ? 1 : 0;
 }
 
 /**
@@ -2281,7 +2504,659 @@ const REACHES_THE_SERVICE =
   "import { DocumentCorrections } from " +
   "'../../../packages/modules/billing/src/backend/services/document-corrections.js';\n";
 
+// --- check-admin-surface (feature 091, FR-009/FR-016) ------------------------
+//
+// The fixture is a reach **site** plus the shim map and the barrels, which is
+// where the two derivations that matter live: is this target a shim, and does
+// that subpath's barrel export this symbol. A fixture handing in a resolved
+// verdict would count the bookkeeping and leave both unrun (issue #130).
+const ADMIN_KIT = '@endora-commerce/admin-kit';
+
+function adminSurfaceSite(overrides: Partial<AdminReachSite> = {}): AdminReachSite {
+  return {
+    file: 'admin/src/modules/orders/OrdersList.tsx',
+    owner: 'orders',
+    specifier: '@/components/ui/button',
+    line: 3,
+    symbols: ['Button'],
+    shape: 'named',
+    packaged: false,
+    ...overrides,
+  };
+}
+
+function adminSurfaceResolve(reach: AdminReachSite): AdminResolution {
+  if (!reach.specifier.startsWith('@/')) return { kind: 'external' };
+  const path = `admin/src/${reach.specifier.slice(2)}`;
+  if (path.startsWith('admin/src/modules/')) return { kind: 'module', path };
+  if (path.endsWith('gone')) return { kind: 'unresolvable' };
+  return { kind: 'admin', path: `${path}.tsx` };
+}
+
+type AdminSurfaceVacuousRecord = Parameters<typeof adminSurfaceVacuous>[0];
+
+/** A refusal counts as one finding, so a proof reads the same as every other. */
+function adminSurfaceRefuses(record: Partial<AdminSurfaceVacuousRecord>): number {
+  return adminSurfaceVacuous({
+    adminResolved: true,
+    kitFound: true,
+    implementationSubpaths: 4,
+    barrelsRead: 4,
+    barrelWithStar: null,
+    walkedFiles: 1,
+    shims: 1,
+    ...record,
+  }) === null
+    ? 0
+    : 1;
+}
+
+function adminSurfaceFindings(
+  sites: readonly AdminReachSite[],
+  kind: AdminSurfaceFindingKind,
+): number {
+  return checkAdminSurface(
+    {
+      sites,
+      shims: new Map([['admin/src/components/ui/button.tsx', new Set(['ui'])]]),
+      barrels: new Map([['ui', new Set(['Button'])]]),
+      kitName: ADMIN_KIT,
+      aliasPrefix: '@/',
+      resolveAdmin: adminSurfaceResolve,
+    },
+    {},
+  ).findings.filter((finding) => finding.kind === kind).length;
+}
+
+/** The fixture every `check:admin-zones` proof varies — source text, at the top. */
+function adminZoneFixture(overrides: Partial<AdminZoneFixture> = {}): AdminZoneFixture {
+  const zone = 'product.editor.details.before';
+  return {
+    declarations: zoneDeclarationSource([zone]),
+    files: [
+      {
+        path: 'admin/src/modules/catalog/ProductEditor.tsx',
+        source: `export const E = () => <AdminZone name="${zone}" props={{ productId: id }} />;`,
+        roles: ['host'],
+      },
+    ],
+    registered: ['catalog', 'inpost', 'assets_library'],
+    ...overrides,
+  };
+}
+
+/**
+ * A module that satisfies `check:bundle-pairing` — every proof's control, and
+ * in three of the five it is load-bearing rather than decorative: the probe
+ * directory names are derived from the `bundlesDir` values the manifests
+ * declare, so a tree in which nobody declares one has no name to probe at all.
+ */
+const BUNDLE_PAIRING_COMPLIANT: FixtureModule = {
+  id: 'catalog',
+  bundles: { 'en.json': validBundle(), 'pl.json': validBundle('actions.open.label', 'Otwórz') },
+};
+
+/**
+ * `check-bundle-pairing` over a real module tree, for findings of exactly one
+ * kind — so no signal goes blind behind another's red.
+ *
+ * The builder is `test/helpers/bundle-pairing-fixture.ts` and the companion test
+ * calls the same one, in the idiom `emitted-freshness-fixture.ts` established:
+ * two builders over one population are two answers waiting to disagree.
+ */
+function bundlePairingFindings(
+  declarations: readonly FixtureModule[],
+  kind: BundlePairingFindingKind,
+): number {
+  const fixture = createBundlePairingFixture(declarations);
+  try {
+    return checkBundlePairing({
+      modules: fixture.modules,
+      languages: [...SUPPORTED_LANGUAGES],
+    }).findings.filter((finding) => finding.kind === kind).length;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+/**
+ * The conditional's discrimination, counted as a refusal rather than a finding.
+ *
+ * A tree in which no module ships a bundle is *vacuously clean* under a
+ * conditional predicate — every module is exempt and `findings=0` is the honest
+ * answer to a question nobody asked. So the proof is that the run is **refused**
+ * by the shared reporter, which is where the real check's exit 2 comes from, and
+ * that the same tree with a shipping module in it is not.
+ */
+function bundlePairingReadRefusals(declarations: readonly FixtureModule[]): number {
+  const fixture = createBundlePairingFixture(declarations);
+  try {
+    const languages = [...SUPPORTED_LANGUAGES];
+    const result = checkBundlePairing({ modules: fixture.modules, languages });
+    const record = {
+      prefix: '[bundle-pairing]',
+      files: result.filesRead.length,
+      sites: result.classified.length,
+      coverage: [
+        {
+          source: 'manifest-index',
+          expected: fixture.modules.length,
+          covered: result.classified.length,
+        },
+        {
+          source: 'shipped-languages',
+          expected: languages.length,
+          covered: result.languagesProbed,
+        },
+      ],
+    };
+    return result.findings.length === 0 && readSizeRefusal(record) !== null ? 1 : 0;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
 const CHECKS: readonly CheckEntry[] = [
+  {
+    // Feature 091's P4a. The zone mechanism's two-way refusal — promised by
+    // `AdminZoneNameSchema`'s own contract from the day it landed and
+    // implemented in neither direction — plus `foreign-module-id`, one
+    // predicate over three populations that nothing else in this estate reads.
+    //
+    // Six findings, six proofs, plus one per population of the sixth, each
+    // entering as **source text**: the check's chain is a declaration parser,
+    // four site walks and six classifiers, and a fixture handing in sites would
+    // prove the classifiers and leave every walk above them unproven.
+    //
+    // The sixth's populations gained a **module-owned** one after P4a: the
+    // foreign-id walk read `admin/src` and the admin-ui family while the render
+    // half read every module walk root, so a screen moving into its module's
+    // package left this predicate behind — one directory per batch, in the
+    // direction that looks like progress. Its proof is the last `red` entry.
+    script: 'backend/scripts/check-admin-zones.ts',
+    npmScript: 'check:admin-zones',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-admin-zones.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its module walk **does** carry issue #215's shared floor — the
+    // `manifest-index` coverage token, refused as `short-walk` — and it still
+    // cannot join `moved-module-tree.test.ts`, for the reason
+    // `check:admin-surface` records one entry down: that fixture is a
+    // *backend* tree with no admin application and no kit, and this check
+    // refuses both of those populations before it reaches the module one. Over
+    // the moved tree and the split tree alike it would exit 2 on the kit, which
+    // is the correct answer and asserts no discrimination at all — the two
+    // trees have to differ for that file's proof to mean anything. So the
+    // classification is honest rather than convenient: the floor is in the
+    // check, and the thing that would exercise it is a fixture with a
+    // frontend, which nothing in this estate has.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'unrendered-zone': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            declarations: zoneDeclarationSource([
+              'product.editor.details.before',
+              'product.editor.pricing.before',
+            ]),
+          }),
+          'unrendered-zone',
+        ),
+      ),
+      'contribution-to-unrendered-zone': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            declarations: zoneDeclarationSource([
+              'product.editor.details.before',
+              'product.editor.pricing.before',
+            ]),
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/modules/price_lists/src/admin/index.ts',
+                source:
+                  "export const contributions = { zones: [zoneComponent('product.editor.pricing.before', () => import('./P.js'))] };",
+                roles: ['host'],
+                owner: 'price_lists',
+              },
+            ],
+          }),
+          'contribution-to-unrendered-zone',
+        ),
+      ),
+      'unpublished-zone': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/modules/blog/src/admin/Screen.tsx',
+                source: '<AdminZone name="blog.made.up" props={{}} />;',
+                roles: ['host'],
+              },
+            ],
+          }),
+          'unpublished-zone',
+        ),
+      ),
+      'computed-zone-name': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'admin/src/modules/orders/OrderDetail.tsx',
+                source: 'const c = useAdminZone(ZONE_NAME, props);',
+                roles: ['host'],
+              },
+            ],
+          }),
+          'computed-zone-name',
+        ),
+      ),
+      'missing-props-type': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            declarations: zoneDeclarationSource(['product.editor.details.before'], []),
+          }),
+          'missing-props-type',
+        ),
+      ),
+      // The sixth finding is one predicate over three populations, so it takes
+      // three proofs plus the unreadable case: a green over any one of them
+      // would be a green that means less than it looks.
+      'foreign-module-id:visibility-gate': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'admin/src/modules/orders/OrderShipmentsTab.tsx',
+                source:
+                  "const isVisible = useSurfaceVisibility();\nconst show = isVisible({ module: 'inpost' });",
+                roles: ['admin'],
+                owner: 'orders',
+              },
+            ],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      'foreign-module-id:kit-namespace': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/admin-kit/src/components/asset-picker/AssetPicker.tsx',
+                source: "const t = useTranslation('assets_library');",
+                roles: ['kit'],
+              },
+            ],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      'foreign-module-id:module-namespace': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'admin/src/modules/orders/OrderShipmentsTab.tsx',
+                source: "const t = useTranslation('inpost');",
+                roles: ['admin'],
+                owner: 'orders',
+              },
+            ],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      'foreign-module-id:unreadable-namespace': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/admin-kit/src/components/Whatever.tsx',
+                source: 'const t = useTranslation(namespace);',
+                roles: ['kit'],
+              },
+            ],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      // The same predicate over a **module's own** sources — the population the
+      // tree moved into and this walk did not follow until it was widened. The
+      // proof is a module package's admin layer, which is where Story 3 puts a
+      // screen and where neither spelling of the coupling was being read.
+      'foreign-module-id:module-owned': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/modules/settings/src/admin/components/ConfigurationReferenceInput.tsx',
+                source:
+                  "const isVisible = useSurfaceVisibility();\nconst show = isVisible({ module: 'credentials' });",
+                roles: ['module'],
+                owner: 'settings',
+              },
+            ],
+            registered: ['catalog', 'settings', 'credentials'],
+          }),
+          'foreign-module-id',
+        ),
+      ),
+      // Both stale directions of the two-way ledger.
+      'stale-entry': top(
+        () =>
+          runAdminZones({
+            ...adminZoneFixture(),
+            ledger: { 'admin/src/modules/gone/Gone.tsx:visibility-gate:inpost': 'gone' },
+          }).findings.length,
+      ),
+      'count-drift': top(() => {
+        const key = 'admin/src/modules/orders/OrderShipmentsTab.tsx:visibility-gate:inpost';
+        return runAdminZones({
+          ...adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'admin/src/modules/orders/OrderShipmentsTab.tsx',
+                source:
+                  "const isVisible = useSurfaceVisibility();\nconst a = isVisible({ module: 'inpost' });\nconst b = isVisible({ module: 'inpost' });",
+                roles: ['admin'],
+                owner: 'orders',
+              },
+            ],
+          }),
+          ledger: { [key]: 'one site recorded, two walked' },
+        }).findings.length;
+      }),
+    },
+  },
+  {
+    // `specs/094-translation-boundary/contracts/bundle-pairing-ratchet.md` —
+    // the owner's ruling of 2026-09-01: a module that ships a bundle in any
+    // language ships one in every language the platform ships. It lands at
+    // **zero violations**, which is what makes this entry carry the whole
+    // weight: nothing in the tree exercises the check, so a narrowing would be
+    // invisible in every pipeline until the day the shape arrived.
+    //
+    // Four findings, four proofs, plus the discrimination § 1 turns on — a
+    // module shipping **neither** bundle is clean, which is what proves the
+    // predicate was implemented as a conditional rather than as "every module
+    // ships `pl.json`". Each enters over a **fixture module tree on disk**
+    // plus the records a generated index produces over it: the analysis is a
+    // directory probe, a per-language stat, a `JSON.parse` and a schema
+    // validation, and a fixture handing in classifications would prove the
+    // reporter and leave all four unproven (issue #130).
+    script: 'backend/scripts/check-bundle-pairing.ts',
+    npmScript: 'check:bundle-pairing',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-bundle-pairing.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // The population is every registered module's own directory, and the floor
+    // is `refuseVacuousModulePopulation` over it — so a moved module tree is
+    // refused rather than reported clean, and `moved-module-tree.test.ts`
+    // spawns it beside the other module walks.
+    residueGuard: 'derived-population',
+    red: {
+      'missing-language-bundle': top(() =>
+        bundlePairingFindings(
+          [BUNDLE_PAIRING_COMPLIANT, { id: 'blog', bundles: { 'en.json': validBundle() } }],
+          'missing-language-bundle',
+        ),
+      ),
+      'empty-bundle': top(() =>
+        bundlePairingFindings(
+          [
+            BUNDLE_PAIRING_COMPLIANT,
+            { id: 'blog', bundles: { 'en.json': '{}\n', 'pl.json': validBundle() } },
+          ],
+          'empty-bundle',
+        ),
+      ),
+      'unparseable-bundle': top(() =>
+        bundlePairingFindings(
+          [
+            BUNDLE_PAIRING_COMPLIANT,
+            {
+              id: 'blog',
+              bundles: {
+                // Nested rather than flat: it parses as JSON and fails the
+                // schema, which is what the boot reconciler logs and skips.
+                'en.json': `${JSON.stringify({ actions: { open: { label: 'Open' } } })}\n`,
+                'pl.json': validBundle(),
+              },
+            },
+          ],
+          'unparseable-bundle',
+        ),
+      ),
+      'undeclared-bundle-dir': top(() =>
+        bundlePairingFindings(
+          [
+            // The compliant module is load-bearing rather than decorative: the
+            // probe directory names are derived from what the *other* manifests
+            // declare, so a tree in which nobody declares one has no name to
+            // probe and this finding cannot fire.
+            BUNDLE_PAIRING_COMPLIANT,
+            {
+              id: 'blog',
+              bundlesDir: null,
+              bundles: { 'en.json': validBundle(), 'pl.json': validBundle() },
+            },
+          ],
+          'undeclared-bundle-dir',
+        ),
+      ),
+      // The conditional, as a red proof of the *discrimination*: a module that
+      // ships nothing is exempt, and the run that contains one is refused for
+      // reading no bundle at all rather than reported clean. Without this the
+      // four above would all pass over a check that had quietly become a
+      // universal, and seven correct modules would each be a finding.
+      'conditional-exempts-a-module-shipping-nothing': top(() =>
+        bundlePairingReadRefusals([{ id: 'catalog' }, { id: 'auth' }]),
+      ),
+    },
+  },
+  {
+    // Feature 091's FR-009/FR-016 — `check:platform-surface`'s frontend twin,
+    // landed **with** the four design-system subpaths it judges and not before
+    // them: its population is symbols of the kit's barrels, and R14 makes a kit
+    // with no implementation subpath exit 2, so landing it earlier would have
+    // landed a check whose only honest answer was a refusal.
+    //
+    // Five findings, five proofs, each entering as a reach *site*. The
+    // `unpublished-symbol` proof names two symbols of which one is published,
+    // because a per-file verdict would report both and send its reader to the
+    // wrong repair.
+    script: 'backend/scripts/check-admin-surface.ts',
+    npmScript: 'check:admin-surface',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-admin-surface.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is the admin's module surface directories plus a module
+    // package's own `src/admin`, neither of which a moved *backend* module tree
+    // touches. Losing the admin layout is exit 2 through its own first vacuous
+    // reason, proven below.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'unpublished-symbol': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ symbols: ['Button', 'ButtonGroup'] })],
+          'unpublished-symbol',
+        ),
+      ),
+      // The target is host-owned and is not a shim, so there is no subpath a
+      // packaged module could name it by — the 87 reaches this feature ledgers.
+      'unpublished-target': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ specifier: '@/components/organization-picker' })],
+          'unpublished-symbol',
+        ),
+      ),
+      'whole-file-reach': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ shape: 'namespace', symbols: [] })],
+          'whole-file-reach',
+        ),
+      ),
+      'aliased-reach': top(() =>
+        adminSurfaceFindings(
+          [
+            adminSurfaceSite({
+              file: 'packages/modules/blog/src/admin/pages/BlogList.tsx',
+              owner: 'blog',
+              packaged: true,
+            }),
+          ],
+          'aliased-reach',
+        ),
+      ),
+      'unpublished-subpath': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ specifier: `${ADMIN_KIT}/forms` })],
+          'unpublished-subpath',
+        ),
+      ),
+      'unresolvable-reach': top(() =>
+        adminSurfaceFindings(
+          [adminSurfaceSite({ specifier: '@/components/gone' })],
+          'unresolvable-reach',
+        ),
+      ),
+      // Both stale directions of the two-way ledger.
+      'stale-entry': top(
+        () =>
+          checkAdminSurface(
+            {
+              sites: [adminSurfaceSite()],
+              shims: new Map([['admin/src/components/ui/button.tsx', new Set(['ui'])]]),
+              barrels: new Map([['ui', new Set(['Button'])]]),
+              kitName: ADMIN_KIT,
+              aliasPrefix: '@/',
+              resolveAdmin: adminSurfaceResolve,
+            },
+            {
+              [reachKey('admin/src/modules/orders/OrdersList.tsx', 'admin/src/lib/gone.ts')]: {
+                symbols: ['gone'],
+                reason: 'stale',
+              },
+            },
+          ).stale.length,
+      ),
+      'stale-symbol': top(
+        () =>
+          checkAdminSurface(
+            {
+              sites: [adminSurfaceSite({ specifier: '@/components/organization-picker' })],
+              shims: new Map([['admin/src/components/ui/button.tsx', new Set(['ui'])]]),
+              barrels: new Map([['ui', new Set(['Button'])]]),
+              kitName: ADMIN_KIT,
+              aliasPrefix: '@/',
+              resolveAdmin: adminSurfaceResolve,
+            },
+            {
+              [reachKey(
+                'admin/src/modules/orders/OrdersList.tsx',
+                'admin/src/components/organization-picker.tsx',
+              )]: { symbols: ['OrganizationPicker', 'Vanished'], reason: 'stale symbol' },
+            },
+          ).staleSymbols.length,
+      ),
+      // The seven vacuous reasons, each entered on the record a real run
+      // builds. Without them a tree whose admin or whose kit had gone would
+      // judge an empty walk against an empty ledger and report a cheerful zero.
+      'no-admin-layout-refuses': top(() => adminSurfaceRefuses({ adminResolved: false })),
+      'no-kit-refuses': top(() => adminSurfaceRefuses({ kitFound: false })),
+      'no-implementation-subpath-refuses': top(() => adminSurfaceRefuses({ implementationSubpaths: 0, barrelsRead: 0 })),
+      'unreadable-barrel-refuses': top(() => adminSurfaceRefuses({ barrelsRead: 3 })),
+      'export-star-barrel-refuses': top(() => adminSurfaceRefuses({ barrelWithStar: 'ui' })),
+      'empty-walk-refuses': top(() => adminSurfaceRefuses({ walkedFiles: 0 })),
+      'no-shim-refuses': top(() => adminSurfaceRefuses({ shims: 0 })),
+    },
+  },
+  {
+    // Feature 091's FR-018. Four findings, and the two count drifts are the
+    // ones the ratchet exists for — a batch that moves a module's admin
+    // directory does not touch either host file, so the number it leaves
+    // behind describes a registration that is now declared twice. Every
+    // fixture enters as route and nav **declarations** plus the import map,
+    // because the attribution — a route by the directory its component comes
+    // from, a nav entry by the `module` field it carries — is where the defect
+    // lives; a proof handed a ready-made owner would count the arithmetic and
+    // nothing above it (issue #130).
+    script: 'backend/scripts/check-admin-registrations.ts',
+    npmScript: 'check:admin-registrations',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-admin-registrations.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is the admin's two host registries, which a moved backend
+    // module tree does not touch. What it *does* follow is the admin module
+    // root, derived from the source alias — and losing that is exit 2 through
+    // its own first vacuous reason, proven below.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'unrecorded-module': top(
+        () =>
+          adminRegistrationFindings({}, { routes: 1, nav: 1 }).filter(
+            (finding) => finding.kind === 'unrecorded-module',
+          ).length,
+      ),
+      'stale-baseline-entry': top(
+        () =>
+          adminRegistrationFindings({ blog: { routes: 3, nav: 1 } }, null).filter(
+            (finding) => finding.kind === 'stale-baseline-entry' && finding.owner === 'blog',
+          ).length,
+      ),
+      // The direction Story 3 produces: the screens moved into the package and
+      // the `<Route>` stayed, so the admin declares it twice.
+      'route-count-drift-above': top(
+        () =>
+          adminRegistrationFindings({ blog: { routes: 3, nav: 1 } }, { routes: 1, nav: 1 }).filter(
+            (finding) => finding.kind === 'route-count-drift',
+          ).length,
+      ),
+      // The other direction: a module grew a hand-written registration, which
+      // after Phase 2 is no longer how an admin screen is added.
+      'route-count-drift-below': top(
+        () =>
+          adminRegistrationFindings({ blog: { routes: 0, nav: 1 } }, { routes: 1, nav: 1 }).filter(
+            (finding) => finding.kind === 'route-count-drift',
+          ).length,
+      ),
+      'nav-count-drift': top(
+        () =>
+          adminRegistrationFindings({ blog: { routes: 1, nav: 4 } }, { routes: 1, nav: 1 }).filter(
+            (finding) => finding.kind === 'nav-count-drift',
+          ).length,
+      ),
+      // The four vacuous reasons, each entered on the record a real run builds.
+      // Without them a tree whose admin had moved would compare an empty walk
+      // against an empty baseline and report a cheerful zero.
+      'no-admin-layout-refuses': top(() =>
+        adminRegistrationsVacuous({ admin: null, routes: 0, nav: 0, baselineEntries: 1 }),
+      ),
+      'no-routes-refuses': top(() =>
+        adminRegistrationsVacuous({ routes: 0, nav: 1, baselineEntries: 1 }),
+      ),
+      'no-nav-refuses': top(() =>
+        adminRegistrationsVacuous({ routes: 1, nav: 0, baselineEntries: 1 }),
+      ),
+      'empty-baseline-refuses': top(() =>
+        adminRegistrationsVacuous({ routes: 1, nav: 1, baselineEntries: 0 }),
+      ),
+    },
+  },
   {
     // Four signals in the header, so four proofs — signal 4 carries both of the
     // positions it was widened to see (D-48), which is the pair signal 3 could
@@ -2626,14 +3501,22 @@ const CHECKS: readonly CheckEntry[] = [
     // rather than as a clean tree" — true, and the wrong half of the question:
     // loud is not the same as right, and those violations say "write nineteen
     // sentences" about sentences that already exist. The floor now reconciles
-    // the walk against the modules the routing table names, so a residue exits
-    // 2. The walk itself deliberately stays a listing of `src/modules` rather
-    // than a resolution of the index — P2 asks whether every sentence written
-    // *anywhere* is reachable, and a bundle left behind by a dropped
+    // the walk against the modules that **declare** an error code, so a residue
+    // exits 2. The walk itself deliberately stays a listing of `src/modules`
+    // rather than a resolution of the index — P2 asks whether every sentence
+    // written *anywhere* is reachable, and a bundle left behind by a dropped
     // registration is exactly that question.
+    //
+    // Feature 090's Phase 4 changed what the floor is derived *from*, not what
+    // it refuses: routing was `ERROR_TRANSLATION_KEYS`, a static table built by
+    // a prefix chain, and is now the modules' own `errorCodes` declarations read
+    // off the generated manifest index. The same eighteen modules, because the
+    // migration was answer-preserving over all 289 codes — and one fewer copy of
+    // the `core` → `_i18n` identity, which the table needed and a declaration
+    // does not.
     readSize: 'reported',
     residueGuard: 'derived-population',
-    // Two predicates, and the second (feature 082, D-127) has **no ledger** —
+    // Four predicates now. The second (feature 082, D-127) has **no ledger** —
     // not an empty one. Every P2 repair is a JSON line moved or deleted plus at
     // most one routing line, so there is nothing a ledger could schedule. Four
     // candidate exceptions were tested and refuted in `rulings.md` § 7: a
@@ -2644,13 +3527,16 @@ const CHECKS: readonly CheckEntry[] = [
     // its code (refused by Principle II, which lands the contract first). If a
     // fifth is found, record it there and add the ledger then. Do not add one
     // here to make a build pass.
+    //
+    // P3 and P4 have no ledger either, and for different reasons than P2's:
+    // every P3 repair is one line in a manifest, and a P4 collision is never
+    // right to stand, so an entry could only license one.
     red: {
       'missing-in-both-languages': top(
         () =>
           findUntranslatedErrorCodes({
             keys: { BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' } },
             readBundle: () => ({}),
-            listBundleKeys: () => [],
           }).length,
       ),
       // "Both shipped languages" is the rule: an English-only sentence is still
@@ -2661,7 +3547,6 @@ const CHECKS: readonly CheckEntry[] = [
             keys: { BLOG_POST_NOT_FOUND: { moduleId: 'blog', key: 'errors.BLOG_POST_NOT_FOUND' } },
             readBundle: (_moduleId, language) =>
               language === 'en' ? { 'errors.BLOG_POST_NOT_FOUND': 'Post not found.' } : {},
-            listBundleKeys: () => [],
           }).length,
       ),
       // P2's three kinds, one proof each, because four of a check's signals can
@@ -2701,6 +3586,62 @@ const CHECKS: readonly CheckEntry[] = [
       // refusal that has to fire *before* P1 turns a residue into nineteen
       // pieces of writing nobody needs to do.
       'bundle-residue': top(() => bundleResidueRefusal(['modules/catalog/i18n/en.json'])),
+      // P3 and P4, landed by feature 090's Phase 4 with the prefix chain's
+      // deletion (FR-031 and the collision rule). Each is a signal the other
+      // four cannot go red for, which is why each has its own proof: P1 and P2
+      // read *bundles*, and both of these read the manifests against the
+      // platform's own enumeration.
+      //
+      // The chain's last line was `return 'core'`, so an enumerated code nobody
+      // declared used to be routed and silently untranslated for ever. There is
+      // no fall-through now, so it is this finding — and it names the code,
+      // because "something is undeclared" over 289 of them sends its reader
+      // nowhere.
+      'enumerated-code-undeclared': top(
+        () =>
+          reconcileEnumeration({
+            keys: { A_CODE: { moduleId: 'blog', key: 'errors.A_CODE' } },
+            collisions: [],
+            enumeratedCodes: ['A_CODE', 'B_CODE'],
+          }).filter((f) => f.kind === 'undeclared-enum-member' && f.code === 'B_CODE').length,
+      ),
+      // The other direction, which no set sweep of the first would catch:
+      // `ERROR_CODES` stays closed and stays the vocabulary of what this
+      // repository's modules declare (FR-043).
+      'declared-code-not-enumerated': top(
+        () =>
+          reconcileEnumeration({
+            keys: {
+              A_CODE: { moduleId: 'blog', key: 'errors.A_CODE' },
+              B_CODE: { moduleId: 'catalog', key: 'errors.B_CODE' },
+            },
+            collisions: [],
+            enumeratedCodes: ['A_CODE'],
+          }).filter((f) => f.kind === 'undeclared-in-enum' && f.moduleId === 'catalog').length,
+      ),
+      // P4, which was `test/unit/_i18n/error-code-declaration-uniqueness.test.ts`
+      // until this phase — that file's own header scheduled the handover, and
+      // shipping both would be two readers of one derivation. The proof enters
+      // at the top: two manifests go in, and the contested code has to be absent
+      // from the routing **and** present in the report, because a tie-break
+      // shows up as the first and a report nobody can act on as the second.
+      'code-declared-twice': top(() => {
+        const { targets, collisions } = buildErrorTranslationTargets([
+          {
+            manifest: { id: 'fixture_alpha', errorCodes: [{ code: 'FIXTURE_SYNC_FAILED' }] },
+            filePath: '/fixture/alpha/manifest.ts',
+          },
+          {
+            manifest: { id: 'fixture_beta', errorCodes: [{ code: 'FIXTURE_SYNC_FAILED' }] },
+            filePath: '/fixture/beta/manifest.ts',
+          },
+        ]);
+        const named = collisions[0]?.claims.map((claim) => claim.moduleId) ?? [];
+        return targets['FIXTURE_SYNC_FAILED'] === undefined &&
+          named.join(',') === 'fixture_alpha,fixture_beta'
+          ? collisions.length
+          : 0;
+      }),
     },
   },
   {
@@ -3011,7 +3952,7 @@ const CHECKS: readonly CheckEntry[] = [
     residueGuard: 'derived-population',
     red: {
       'rule-a-cross-module-relation': top(() =>
-        relationViolations(CROSS_MODULE_RELATION, SEARCH_ENTITY),
+        relationViolations(CROSS_MODULE_RELATION, RELATION_TARGET_SOURCE),
       ),
       'rule-b-platform-import': top(
         () =>
@@ -3465,6 +4406,195 @@ const CHECKS: readonly CheckEntry[] = [
           `${KNEX_BINDING}\n${BUILDER_CONTROL}\n` +
             "if (!effectiveState.isPresent('assets')) return;\nconst label = translate('cms_blocks');",
         ),
+      ),
+
+      // --- the admin population (feature 091, FR-017) ----------------------
+      //
+      // 72 cross-module reaches stand inside `admin/src/modules` and every one
+      // of them was outside every boundary instrument in this repository:
+      // `moduleWalkRoots` does not include `admin/`. The cost is not that they
+      // went unjudged — it is what happens when a directory moves into its
+      // module's package, which is the shape
+      // `specs/084-small-f4-package-layout/contracts/module-package-layout.md`
+      // §0 measured on the backend: the specifier is rewritten, the reach
+      // leaves the walk, and the two-way ledger calls the entry describing it
+      // stale. Seven proofs, four positive and three discriminations, all
+      // entering as source text and a path with the layout as the only
+      // pre-computed input.
+      'admin-alias-reach': top(() =>
+        adminTargets(
+          "import { AssetPicker } from '@/modules/assets_library/components/AssetPicker';",
+          'admin/src/modules/catalog/ProductEditor.tsx',
+          'assets_library',
+        ),
+      ),
+      // 27 of the 94 are written relatively rather than through the alias, and
+      // an alias-only resolver would report them as third-party imports it
+      // cleared.
+      'admin-relative-reach': top(() =>
+        adminTargets(
+          "import { CountryPicker } from '../assets_library/components/CountryPicker.js';",
+          'admin/src/modules/catalog/ProductEditor.tsx',
+          'assets_library',
+        ),
+      ),
+      // The directory name is not the module id. `AppShell.tsx` attributes
+      // `/warehouses` to `module: 'inventory'`, so a `basename` attribution
+      // files this reach under a module that does not exist — an orphan shard,
+      // which reads as a ledger defect rather than as a mis-attribution.
+      'admin-directory-that-is-not-a-module-id': top(() =>
+        adminTargets(
+          ADMIN_CONTROL,
+          'admin/src/modules/warehouses/WarehouseEditor.tsx',
+          'assets_library',
+        ) === 1 &&
+        adminReaches(ADMIN_CONTROL, 'admin/src/modules/warehouses/WarehouseEditor.tsx')[0]
+          ?.moduleId === 'inventory'
+          ? 1
+          : 0,
+      ),
+      // A `.tsx` under the module root whose directory no route attributes is
+      // the admin application's own, and its reaches are not a module's debt.
+      // The control is in the same fixture, one directory over, so the proof
+      // cannot pass by seeing nothing.
+      'admin-host-owned-directory-is-not-a-module': top(() =>
+        adminReaches(ADMIN_CONTROL, 'admin/src/modules/_shared/email-builder/Editor.tsx')
+          .length === 0 &&
+        adminReaches(ADMIN_CONTROL, 'admin/src/modules/catalog/ProductEditor.tsx').length === 1
+          ? 1
+          : 0,
+      ),
+      // The other direction of the same rule: a reach *into* a host-owned
+      // directory is not a cross-module reach either, because there is no
+      // module on the far side to ask for a port.
+      'admin-reach-into-a-host-owned-directory-is-not-a-finding': top(() =>
+        adminOnlyTheControl(
+          `${ADMIN_CONTROL}\nimport { EmailBuilder } from '@/modules/_shared/email-builder';`,
+          'admin/src/modules/catalog/ProductEditor.tsx',
+        ),
+      ),
+      // In the backend the *directory* is the identity, so an overlay `catalog`
+      // reaching the core `catalog` is the cross-tree edge it is. In the admin
+      // one module owns two surface directories, and comparing directories
+      // reports `inventory -> inventory` as a violation nobody can ledger.
+      'admin-two-directories-of-one-module-is-not-a-finding': top(() =>
+        adminOnlyTheControl(
+          `${ADMIN_CONTROL}\nimport { Panel } from '@/modules/warehouses/ChannelMembershipPanel';`,
+          'admin/src/modules/inventory/InventoryPage.tsx',
+        ),
+      ),
+      // Issue #215 one frontend over, and the direction the coverage floor
+      // cannot see: the floor is derived from the admin layout, so a layout
+      // that resolved to nothing turns the floor off while every other number
+      // holds. The ledger is the independent author — a `.tsx` key was written
+      // by the merge request that recorded the reach — so its keys standing
+      // against an absent layout is exit 2 rather than 72 stale entries.
+      'admin-population-lost-refuses': top(() =>
+        adminPopulationLost(
+          null,
+          ['admin/src/modules/catalog/ProductEditor.tsx:assets_library/components/AssetPicker'],
+          () => true,
+        ) === null
+          ? 0
+          : 1,
+      ),
+      // Its discrimination, in the same shape: a backend ledger key must not
+      // trip the refusal, or every fixture tree in `test/helpers` would exit 2
+      // for a reason that has nothing to do with the admin.
+      'admin-population-lost-ignores-a-backend-key': top(() =>
+        adminPopulationLost(null, [CROSS_MODULE_KEY], () => true) === null ? 1 : 0,
+      ),
+      // The second half of the anchor's question, and the one the split-tree
+      // fixture found: it asks whether the *derivation* broke while the tree it
+      // derives from stayed. A checkout with no `admin/` at all has genuinely
+      // stale entries and the two-way ledger says so in its own words — so a
+      // key whose file is gone must not turn that into exit 2, or every
+      // synthetic backend copying the real ledger shards refuses for a reason
+      // that has nothing to do with the module tree.
+      'admin-population-lost-ignores-a-key-whose-file-is-gone': top(() =>
+        adminPopulationLost(
+          null,
+          ['admin/src/modules/catalog/ProductEditor.tsx:assets_library/components/AssetPicker'],
+          () => false,
+        ) === null
+          ? 1
+          : 0,
+      ),
+
+      // --- the admin **host** population (feature 091, P1) -----------------
+      //
+      // FR-017 judges a reach between two modules, so a file the module root
+      // does not hold is judged as nobody's — right for the file, and it leaves
+      // the reach unrecorded. Nine files under `admin/src/components` reach a
+      // module's admin code that way. That is the shape with the *worse*
+      // failure mode: a ledgered reach rewritten as a package specifier goes
+      // stale loudly, while an unrecorded one is rewritten and nothing goes red
+      // anywhere, because there was no entry to strand.
+      //
+      // Two finding kinds, two proofs, both through `checkModuleBoundary` with
+      // the source map *and* the shards — handing the comparison two ready-made
+      // sets would prove the set difference and nothing above it.
+      'host-reach-unledgered-fails': top(
+        () =>
+          checkModuleBoundary(
+            { sources: hostBoundaryTree(HOST_REACH), adminSurfaces: ADMIN_SURFACES },
+            [{ moduleId: 'orders', entries: { [CROSS_MODULE_KEY]: 'another edge' } }],
+          ).violations.filter((finding) => finding.moduleId === ADMIN_HOST_OWNER).length,
+      ),
+      // The direction that fires when a batch rewrites the specifier instead of
+      // repairing the reach — which is precisely what P1 exists to make
+      // possible for these nine files.
+      'host-shard-stale-entry-fails': top(
+        () =>
+          checkModuleBoundary(
+            {
+              sources: hostBoundaryTree('export function IdleLogout(): null { return null; }'),
+              adminSurfaces: ADMIN_SURFACES,
+            },
+            [{ moduleId: ADMIN_HOST_OWNER, entries: { [HOST_KEY]: 'recorded by P1' } }],
+          ).stale.length,
+      ),
+      // Its discrimination, and the one that keeps the population honest in the
+      // other direction: `App.tsx` imports one component per module screen, so
+      // a host walk that judged the registries would record this feature's own
+      // subject as its debt. The control is the same specifier in a file that
+      // is not a registry, so the proof cannot pass by seeing nothing.
+      'host-registry-files-are-not-consumers': top(() =>
+        adminReaches(HOST_REACH, 'admin/src/App.tsx').length === 0 &&
+        adminReaches(HOST_REACH, 'admin/src/modules.generated.ts').length === 0 &&
+        adminReaches(HOST_REACH, HOST_FILE).length === 1
+          ? 1
+          : 0,
+      ),
+      // Issue #113 over the new population: the layout only resolves because it
+      // read `App.tsx` and `AppShell.tsx`, both of which sit in the host walk,
+      // so an empty host walk is a walk that stopped working. `undefined` is the
+      // caller that performs no host walk at all — every fixture — and must not
+      // refuse.
+      'empty-host-walk-refuses': top(() => {
+        const read = {
+          moduleFiles: ['modules/orders/a.ts'],
+          registeredModules: ['orders'],
+          ledgerDirectoryExists: true,
+          entityTables: 220,
+          migrationTables: 241,
+          adminSurfaces: ADMIN_SURFACES,
+        };
+        return moduleBoundaryVacuous({ ...read, adminHostFiles: [] }) !== null &&
+          moduleBoundaryVacuous(read) === null
+          ? 1
+          : 0;
+      }),
+      // Issue #215 over the new population, and its floor's author is the
+      // **ledger** — a key is written by the merge request that recorded the
+      // reach, not by the derivation being checked. A walk that lost the file a
+      // host entry names is short, and `reportReadSize` refuses it.
+      'short-host-walk-refuses': top(() =>
+        adminHostFilesWalked(ADMIN_SURFACES, [HOST_KEY], new Set(), () => true).covered === 0 &&
+        adminHostFilesWalked(ADMIN_SURFACES, [HOST_KEY], new Set([HOST_FILE]), () => true)
+          .covered === 1
+          ? 1
+          : 0,
       ),
     },
   },
@@ -4249,6 +5379,95 @@ const CHECKS: readonly CheckEntry[] = [
         }).unpublishedResolutions;
         return findings.length === 1 && findings[0]?.line === 2 ? 1 : 0;
       }),
+      // D-171.1 — the condition. `payments` registers `orders`' interface with
+      // an explicitly typed `providePort<T>` and names it at no `implements`
+      // clause, so nothing in the language relates the two types: that is
+      // D-77's rejected alternative, and it is what the amendment refuses.
+      // Source text on both sides, so the declaration has to be found in the
+      // module's own `ports/` and the registration in its `backend.ts`.
+      'declared-elsewhere-without-implements': top(
+        () =>
+          checkPortShape({
+            contracts: new Map([['contracts/orders.ts', PORT_DOC('orderReadPort')]]),
+            modules: new Map([
+              [
+                'modules/payments/backend.ts',
+                "ctx.di.providePort<PaymentPlacementApplyPort>('paymentPlacementApplyPort', " +
+                  'ctx.asFunction(f).singleton());',
+              ],
+              [
+                'modules/payments/services/payment-placement-apply-port.ts',
+                [
+                  'export class PaymentPlacementApplyService {',
+                  '  openForOrder(em: EntityManager): Promise<void> {}',
+                  '}',
+                ].join('\n'),
+              ],
+            ]),
+            modulePorts: new Map([
+              [
+                'modules/orders/ports/index.ts',
+                [
+                  '/**',
+                  ' * Container name: `paymentPlacementApplyPort`. Owner: `payments`.',
+                  ' */',
+                  'export interface PaymentPlacementApplyPort {',
+                  '  openForOrder(em: EntityManager): Promise<void>;',
+                  '}',
+                ].join('\n'),
+              ],
+            ]),
+            unregisteredLedger: {},
+            unpublishedResolutionLedger: {},
+          }).declaredElsewhere.filter((f) => f.kind === 'declared-elsewhere-without-implements')
+            .length,
+      ),
+      // The discrimination, counted as a finding so it can go red on its own:
+      // the same declaration and the same registration, with the `implements`
+      // clause present, must be silent. A signal that reported every
+      // cross-module registration would fire here; one that had stopped reading
+      // module ports at all would report 0 above and 0 here, and only this
+      // pair tells the two apart.
+      'declared-elsewhere-discrimination': top(() => {
+        const declaration = new Map([
+          [
+            'modules/orders/ports/index.ts',
+            [
+              '/**',
+              ' * Container name: `paymentPlacementApplyPort`. Owner: `payments`.',
+              ' */',
+              'export interface PaymentPlacementApplyPort {',
+              '  openForOrder(em: EntityManager): Promise<void>;',
+              '}',
+            ].join('\n'),
+          ],
+        ]);
+        const registration =
+          "ctx.di.providePort<PaymentPlacementApplyPort>('paymentPlacementApplyPort', " +
+          'ctx.asFunction(f).singleton());';
+        const implementing = [
+          'export class PaymentPlacementApplyService implements PaymentPlacementApplyPort {',
+          '  openForOrder(em: EntityManager): Promise<void> {}',
+          '}',
+        ].join('\n');
+        const run = (service: string): number =>
+          checkPortShape({
+            contracts: new Map([['contracts/orders.ts', PORT_DOC('orderReadPort')]]),
+            modules: new Map([
+              ['modules/payments/backend.ts', registration],
+              ['modules/payments/services/payment-placement-apply-port.ts', service],
+            ]),
+            modulePorts: declaration,
+            unregisteredLedger: {},
+            unpublishedResolutionLedger: {},
+          }).declaredElsewhere.length;
+        const withoutClause = [
+          'export class PaymentPlacementApplyService {',
+          '  openForOrder(em: EntityManager): Promise<void> {}',
+          '}',
+        ].join('\n');
+        return run(implementing) === 0 && run(withoutClause) === 1 ? 1 : 0;
+      }),
       'stale-unpublished-resolution': top(
         () =>
           checkPortShape({
@@ -4274,14 +5493,26 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
-    // Five shapes, because a wrong permission and an unreadable one fail
-    // differently: the two directions of a bad code (declared none, declared
-    // another module's), and the three ways the target cannot be resolved
-    // (nothing registers it, the candidates disagree, the gate cannot be read).
-    // The last is the one that would turn every `missing` finding into a pass if
-    // it went blind, since an unreadable `preHandler` read as "no gate" agrees
-    // with everything. Each fixture is source text: a proof handed a ready-made
-    // route record would skip the gate reading the comparison rests on.
+    // Five shapes over the comparison, because a wrong permission and an
+    // unreadable one fail differently: the two directions of a bad code
+    // (declared none, declared another module's), and the three ways the target
+    // cannot be resolved (nothing registers it, the candidates disagree, the
+    // gate cannot be read). The last is the one that would turn every `missing`
+    // finding into a pass if it went blind, since an unreadable `preHandler`
+    // read as "no gate" agrees with everything. Each fixture is source text: a
+    // proof handed a ready-made route record would skip the gate reading the
+    // comparison rests on.
+    //
+    // Two more over the **artefact** the comparison reads. The manifest half is
+    // imported, and a packaged module resolves through its own `exports` map at
+    // its build output — so an action edited in `src/manifest.ts` and not
+    // rebuilt was invisible here, measured three consecutive times on
+    // `specs/091-module-owned-admin-surfaces/`'s admin drain. Both fixtures are
+    // a checkout on disk (`test/helpers/emitted-freshness-fixture.ts`, the same
+    // builder the companion test calls, so the two cannot derive it twice): the
+    // workspace file, the `exports` map and the two-file `tsconfig.build.json`
+    // chain are all read by the derivation rather than handed to it, which is
+    // the half a moved layout breaks.
     script: 'backend/scripts/check-action-route-permissions.ts',
     npmScript: 'check:action-route-permissions',
     job: 'quality',
@@ -4361,6 +5592,10 @@ const CHECKS: readonly CheckEntry[] = [
             { sources: new Map([[ACTION_ROUTE_FILE, GATED_ADMIN_ROUTE]]), actions: [] },
             { 'inventory:open-inventory': 'undecided' },
           ).stale.length,
+      ),
+      'stale-package-artefact': top(() => emittedFreshnessFindings({ sourceIsNewer: true })),
+      'unpairable-package-artefact': top(() =>
+        emittedFreshnessFindings({ sourceIsNewer: false, sourceExists: false }),
       ),
     },
   },
@@ -4973,6 +6208,162 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // `specs/094-translation-boundary/contracts/default-language-prose-check.md`
+    // — the owner's ruling of 2026-09-01, clause 1: English is the default. The
+    // **second signal** for that ruling, and a check of its own because neither
+    // instrument that looks like its home can hold it (D-8):
+    // `check:untranslated-delivery` asks about a *delivery call*, and a
+    // `return`, an array push and a field assignment are none; `check:language`
+    // is comments by constitutional design.
+    //
+    // Unlike the ratchet that landed beside it, its population is **not** empty:
+    // 46 sites over 41 keys stand today, and the ledger arrives holding them.
+    // That changes what this entry has to prove. A check landing at zero is
+    // exercised only by its proofs; a check landing at 46 is exercised by the
+    // tree as well — and the risk moves to the **exemptions**, because 50
+    // correct sites (`specs/093-backend-delivered-prose/research.md` § 1.4) are
+    // one predicate mistake away from being ledger entries, and a ledger that is
+    // mostly exceptions is the shape `check:diacritic-folds`' `slug-run` design
+    // already refuses.
+    //
+    // So: three findings, and **nine** more shapes, of which six are
+    // discriminations. Each enters over **source text** — the analysis is a
+    // TypeScript parse, a position filter, a prose gate, a language detector and
+    // a four-way structure analysis, and a fixture handing in a classified
+    // literal would prove the reporter and leave all five unproven (issue #130).
+    // Each discrimination carries a control site that *must* be reported, so it
+    // reads 1 while the narrowing holds and 0 the moment the exemption stops
+    // discriminating — a bare "no finding" is what a blind check also prints.
+    script: 'backend/scripts/check-default-language-prose.ts',
+    npmScript: 'check:default-language-prose',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-default-language-prose.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is every module's own `.ts` sources, and the floor is
+    // `refuseVacuousModulePopulation` over the walk — so a moved module tree is
+    // refused rather than reported clean, and `moved-module-tree.test.ts` spawns
+    // it beside the other module walks.
+    residueGuard: 'derived-population',
+    red: {
+      // Shape A: a Polish sentence returned from a route handler. The centre,
+      // and the shape whose discovery invalidated 093's taxonomy.
+      'non-english-default': top(() =>
+        proseFindings(
+          `export function describeStatus(s: string) {
+             return 'Twoja Organizacja oczekuje na weryfikację.';
+           }`,
+          'non-english-default',
+        ),
+      ),
+      // Shape D, reported apart from the first because *"it has a mechanism"* is
+      // the exact reasoning that waved 18 of these through once already.
+      'polish-default-behind-a-prop': top(() =>
+        proseFindings(
+          `export const d = str(props, 'labelSaleDate', 'Data sprzedaży');`,
+          'polish-default-behind-a-prop',
+        ),
+      ),
+      // A finding and not a skip (issue #113): treating a path the analysis
+      // cannot place as exempt is the direction that agrees with the defect.
+      'unclassifiable-literal': top(() =>
+        proseFindings(
+          `export const M = { [language]: 'Przesyłka wysłana do klienta' };`,
+          'unclassifiable-literal',
+        ),
+      ),
+      // The three discriminations § 3 names, each with a control site.
+      'per-language-map-is-clean': top(() =>
+        proseDiscrimination(
+          `export const D = {
+             languages: {
+               'en-US': tree({ heading: 'Verify your email' }),
+               'pl-PL': tree({ heading: 'Zweryfikuj swój e-mail' }),
+             },
+           };
+           export const stray = 'Rejestracja Twojej Organizacji została odrzucona.';`,
+          'Rejestracja Twojej Organizacji została odrzucona.',
+        ),
+      ),
+      'en-pl-sibling-map-is-clean': top(() =>
+        proseDiscrimination(
+          `export const S = [{ name: { en: 'Shipment Sent', pl: 'Przesyłka wysłana' } }];
+           export const stray = 'Zamówienie zostało anulowane przez operatora.';`,
+          'Zamówienie zostało anulowane przez operatora.',
+        ),
+      ),
+      'english-prose-is-clean': top(() =>
+        proseDiscrimination(
+          `export const a = 'We have reviewed your return request and cannot accept it.';
+           export const stray = 'Faktura nie została jeszcze opłacona.';`,
+          'Faktura nie została jeszcze opłacona.',
+        ),
+      ),
+      // The exemption that keeps `dictionaries`' 14 seed rows out of the ledger,
+      // and the narrowing that keeps it from exempting the row beside them: a
+      // row's `entryCode` is what it is *about*, `languageCode` is what it is
+      // *written in*, and reading "any sibling holding a language code" would
+      // conflate the two.
+      'language-declaring-row-is-clean': top(() =>
+        proseDiscrimination(
+          `export const R = [
+             { entryCode: 'PLN', languageCode: 'pl-PL', label: 'Polski złoty' },
+             { entryType: 'language', entryCode: 'pl-PL', label: 'Polska wersja językowa' },
+           ];`,
+          'Polska wersja językowa',
+        ),
+      ),
+      // § 1.2's third shape, and the filename rule it is deliberately not: the
+      // same source in a file named `translations.pl-PL.ts` is still judged.
+      'single-language-file-is-clean': top(() => {
+        const exemptByExport = proseSites(
+          `export const PL_MESSAGES = ['Zamówienie zostało anulowane.'];`,
+        );
+        const judgedByName = runDefaultLanguageProse({
+          'packages/modules/blog/src/backend/seed/translations.pl-PL.ts':
+            `export const rows = [{ label: 'Zamówienie zostało anulowane.' }];`,
+        }).findings;
+        return exemptByExport.length === 0 && judgedByName.length === 1 ? 1 : 0;
+      }),
+      // The prose gate, which is what keeps 30 Polish numeral words and a unit
+      // abbreviation out of the ledger — and the position that suspends it,
+      // because there the position is the evidence the token count would infer.
+      'one-word-literal-is-not-prose': top(() => {
+        const table = proseSites(`const PL_ONES = ['pięć', 'sześćdziesiąt']; export const u = PL_ONES;`);
+        const inPropDefault = proseFindings(
+          `export const p = str(props, 'labelPaid', 'Zapłacono');`,
+          'polish-default-behind-a-prop',
+        );
+        return table.length === 0 && inPropDefault === 1 ? 1 : 0;
+      }),
+      // The stopword list, which contributes **nothing** on the tree today: it
+      // exists for the Polish that carries no diacritic (§ 1.3), so this proof
+      // is the only thing between it and becoming dead code unnoticed.
+      'stopword-sees-diacritic-free-polish': top(() =>
+        proseFindings('export const m = `Zamowienie nie zostalo oplacone`;', 'non-english-default'),
+      ),
+      // The shared `proper_nouns` list, applied here for the reason
+      // `check:language` applies it: an English sentence names a Polish
+      // institution, and translating the name would make it wrong.
+      'proper-noun-is-not-prose': top(() =>
+        proseDiscrimination(
+          `export const s = 'Source: Ministerstwo Finansów';
+           export const stray = 'Zamówienie zostało anulowane przez operatora.';`,
+          'Zamówienie zostało anulowane przez operatora.',
+        ),
+      ),
+      // The ledger's second direction. Keyed on a digest, so the proof is that
+      // an entry whose sentence no longer exists is reported — never a line,
+      // which would red on any insertion above the site.
+      'ledger-entry-that-describes-nothing': top(
+        () =>
+          runDefaultLanguageProse({ [FIXTURE_FILE]: `export const m = 'Order placed.';` }, [
+            { moduleId: 'blog', entries: { [keyFor('Zamówienie zostało anulowane.')]: 'gone' } },
+          ]).stale.length,
+      ),
+    },
+  },
+  {
     // Issue #240 — the wrong answer that looks like the right one. Four authors
     // wrote `normalize('NFD').replace(/\p{Diacritic}/gu, '')` inside a year and
     // all four shipped the same bug, because `ł` has no canonical
@@ -5235,12 +6626,16 @@ const CHECKS: readonly CheckEntry[] = [
       // green when the check is blind.
       //
       // A one-for-one substitution preserves length and position — identifier
-      // grammar, not slug grammar. `FieldProtectionToggle`'s DOM id.
+      // grammar, not slug grammar. `FieldProtectionToggle`'s DOM id, which
+      // feature 091's P4b moved from `pim_ergonode`'s admin directory into the
+      // kit: the path is the fixture's label and nothing reads it off disk, but
+      // a label naming a file that no longer exists sends the next reader
+      // looking for the live site in the wrong place.
       'one-for-one-substitution-is-not-a-slug': top(() =>
         exactlyFoldPaths(
           [
             foldSource(
-              'admin/src/modules/pim_ergonode/components/FieldProtectionToggle.tsx',
+              'packages/admin-kit/src/field-protection/FieldProtectionToggle.tsx',
               "export const id = (p: string) => `x-${p}`.replace(/[^a-zA-Z0-9_-]/g, '-');",
             ),
             foldSource('admin/src/lib/slug.ts', handRolledSlug('fold', '/[^a-z0-9]+/g')),
@@ -5861,9 +7256,29 @@ describe('every red proof enters at the top of the analysis', () => {
       CHECKS.map((check) => [check.script, Object.keys(check.red).length]),
     );
     expect(shapes).toEqual({
+      // Four findings and the four vacuous reasons, plus both directions of the
+      // route count — the ratchet's whole claim is that it fails either way.
+      'backend/scripts/check-admin-registrations.ts': 9,
+      'backend/scripts/check-admin-surface.ts': 15,
+      // Five zone findings, then five for the sixth: the `foreign-module-id`
+      // predicate has three populations, an unreadable case and — since the walk
+      // widened to a module's own sources — the module-owned spelling of the
+      // coupling, and one proof over the whole finding would let four of the five
+      // go blind behind the first's red. Plus both stale directions of its ledger.
+      'backend/scripts/check-admin-zones.ts': 12,
+      // Four findings and the discrimination the conditional turns on: a module
+      // shipping neither bundle is exempt, and a run of nothing but such
+      // modules is refused rather than reported clean.
+      'backend/scripts/check-bundle-pairing.ts': 5,
+      // Three findings, and nine more shapes of which six are discriminations.
+      // The ratio is the point: this check lands over a population of 46, so
+      // what needs proving is not that it can go red — the tree does that — but
+      // that its exemptions still discriminate. 50 correct sites are one
+      // predicate mistake away from being ledger entries.
+      'backend/scripts/check-default-language-prose.ts': 12,
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
-      'backend/scripts/check-action-route-permissions.ts': 6,
+      'backend/scripts/check-action-route-permissions.ts': 8,
       'backend/scripts/check-channel-resolution.ts': 5,
       // Five, plus D-89's five: `em.create` joining the vocabulary, the two
       // narrowings that keep it from manufacturing findings, the field
@@ -5914,7 +7329,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // cannot be a red proof; it is in the companion test.
       // Plus T010's one: the population floor under the bundle walk, which is
       // a refusal rather than a finding and fires before either predicate runs.
-      'backend/scripts/check-error-translations.ts': 6,
+      // Plus feature 090's Phase 4: P3's two directions and P4's collision. All
+      // three read the **manifests** against the platform's enumeration, which
+      // is a population the other six never open, so none of them could go red
+      // for any of these.
+      'backend/scripts/check-error-translations.ts': 9,
       // Three shapes the read reaches the fallback through, four fabrications
       // the fallback performs; the two axes are independent, so the count is
       // their union rather than their product. Plus issue #275's five: three
@@ -5957,7 +7376,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // emitted module cannot be read is refused rather than exempted — the one
       // direction in which issue #113's silence grants standing instead of
       // withholding it.
-      'backend/scripts/check-module-boundary.ts': 41,
+      // Plus feature 091 P1's five for the admin **host** population: the two
+      // finding kinds (an unledgered host reach and a stale host entry), the
+      // discrimination that keeps the three registries out of it, and the two
+      // floors — an empty host walk and a short one.
+      'backend/scripts/check-module-boundary.ts': 55,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue
@@ -6006,7 +7429,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // findings, so neither would ever be noticed as a defect — an author would
       // read the extra finding as real and widen the barrel to clear it.
       'backend/scripts/check-platform-surface.ts': 9,
-      'backend/scripts/check-port-shape.ts': 8,
+      // Plus D-171.1's two: the condition consumer-side declaration is
+      // licensed against, and the discrimination that keeps it from firing on
+      // the correct case. The second is a proof of its own because a signal
+      // that reported every provider — or none — reads identically green on the
+      // tree, which today declares four module ports and refuses none of them.
+      'backend/scripts/check-port-shape.ts': 10,
       // Eight findings, plus the two refusals that are decisions rather than
       // printing: the short walk (issue #215 over a workspace, where losing the
       // library glob leaves four application manifests answering every

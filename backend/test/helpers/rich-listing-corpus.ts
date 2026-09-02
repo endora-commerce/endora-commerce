@@ -1,17 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { Asset, PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
+import type { AssetRow } from './package-entities.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Asset } from '../../../packages/modules/assets_library/src/backend/entities/asset.entity.js';
-import { Category } from '../../src/modules/catalog/entities/category.entity.js';
-import { GalleryItem } from '../../src/modules/catalog/entities/gallery-item.entity.js';
-import { GalleryItemLabel } from '../../src/modules/catalog/entities/gallery-item-label.entity.js';
-import { Product } from '../../src/modules/catalog/entities/product.entity.js';
-import { PriceList } from '../../src/modules/price_lists/entities/price-list.entity.js';
-import { PriceListPriceBracket } from '../../src/modules/price_lists/entities/price-list-price-bracket.entity.js';
-import { PriceListProduct } from '../../src/modules/price_lists/entities/price-list-product.entity.js';
+import { Category } from './package-entities.js';
+import { GalleryItem } from './package-entities.js';
+import { GalleryItemLabel } from './package-entities.js';
+import { Product } from './package-entities.js';
 import {
   DefaultPriceListMigrator,
   DEFAULT_PRICE_LIST_ID,
-} from '../../src/modules/price_lists/services/default-price-list-migration.js';
+} from '../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { TEST_ORGANIZATION_ID } from './test-actors.js';
 
 /**
@@ -194,7 +192,7 @@ export async function seedRichListingCorpus(
   const labelledGalleryAssetIds = new Set<string>();
   const legacyRows: Array<[string, string]> = [];
   const galleryItems: Array<{ productId: string; assetId: string; position: number }> = [];
-  const asset = (name: string): Asset =>
+  const asset = (name: string): AssetRow =>
     em.create(Asset, {
       kind: 'image',
       filename: `${name}.svg`,

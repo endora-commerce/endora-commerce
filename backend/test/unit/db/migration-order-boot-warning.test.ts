@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const MANIFEST_INDEX = '../../../src/modules/_lifecycle/manifest-index.generated.js';
+const MANIFEST_INDEX = '../../../src/manifest-index.generated.js';
 const ORM_CONFIG = '../../../src/db/mikro-orm.config.js';
 
-type ManifestIndex = typeof import('../../../src/modules/_lifecycle/manifest-index.generated.js');
+type ManifestIndex = typeof import('../../../src/manifest-index.generated.js');
 
 /**
  * The boot-time reader of the `module-cycle` diagnostic — feature 081, the

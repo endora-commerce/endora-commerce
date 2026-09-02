@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
+import type { DictionaryLanguagesPageResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@/lib/api-client';
-import { dictionaryClient } from '@/modules/dictionaries/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,9 +18,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { StatusTransitionGraph } from './StatusTransitionGraph';
+import { StatusTransitionGraph } from '@endora-commerce/admin-kit/components';
 import { ORDER_STATUS_DEFAULT_COLOR, orderStatusBadgeStyle } from './orderStatusColor';
 import { StatusColorPicker } from './StatusColorPicker';
+
+/**
+ * List dictionary entries (feature 091, P6).
+ *
+ * The requests are built here rather than through `dictionaries`' own admin
+ * API client: that client is another module's **code**, which is what the
+ * cross-module ledger recorded, while `/api/v1/admin/dictionary/*` and the
+ * `Dictionary*PageResponse` types are an HTTP path and
+ * `@endora-commerce/contracts` types that both sides already compile. That is
+ * the exit P2 established and `admin-kit-surface.md` R6 records.
+ */
+function listDictionaryLanguages(pageSize: number): Promise<DictionaryLanguagesPageResponse> {
+  return apiClient.get<DictionaryLanguagesPageResponse>(
+    `/api/v1/admin/dictionary/languages?pageSize=${pageSize}`,
+  );
+}
 
 interface StatusDef {
   code: string;
@@ -81,7 +97,7 @@ export function OrderStatusConfigPage(): ReactNode {
     try {
       const [graphRes, langRes] = await Promise.all([
         apiClient.get<{ data: StatusGraph }>('/api/v1/admin/orders/statuses'),
-        dictionaryClient.listLanguages({ pageSize: 100 }).catch(() => ({ data: [] })),
+        listDictionaryLanguages(100).catch(() => ({ data: [] })),
       ]);
       setGraph(graphRes.data);
       setLanguages(
@@ -386,7 +402,6 @@ export function OrderStatusConfigPage(): ReactNode {
             statusLabel={statusLabel}
             onAdd={addTransition}
             onRemove={removeTransition}
-            t={t}
           />
         </CardContent>
       </Card>

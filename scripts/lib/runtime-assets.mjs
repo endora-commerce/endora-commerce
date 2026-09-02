@@ -72,7 +72,13 @@ const toPosix = (path) => (sep === '/' ? path : path.split(sep).join('/'));
  * answered twice is which extension ships, so that is what this exports.
  */
 export function classifyAssetFile(fileName) {
-  if (fileName.endsWith('.ts')) return 'ignored';
+  // `.tsx` is source, exactly as `.ts` is — a module package's admin layer
+  // (feature 091) is React components, and `tsc` emits them from
+  // `tsconfig.ui.json`. It is named here rather than left to the two lists
+  // because it is neither an asset nor a deliberate omission: it is the thing
+  // the compiler compiles, and calling it `unclassified` stopped the manifest
+  // generator on the first module to ship a screen.
+  if (fileName.endsWith('.ts') || fileName.endsWith('.tsx')) return 'ignored';
   const ext = extensionOf(fileName);
   if (RUNTIME_ASSET_EXTENSIONS.includes(ext)) return 'asset';
   return ext in NON_RUNTIME_EXTENSIONS ? 'ignored' : 'unclassified';

@@ -1,16 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { Organization } from './package-entities.js';
 import { Address, Cart, CartItem, DeliveryMethod, Invoice, PaymentMethod } from './package-entities.js';
-import { StockLevel } from '../../src/modules/inventory/entities/stock-level.entity.js';
-import { Order } from '../../src/modules/orders/entities/order.entity.js';
-import { CustomerAccount } from '../../src/modules/customer_accounts/entities/customer-account.entity.js';
-import { Organization } from '../../src/modules/organizations/entities/organization.entity.js';
-import { hashPassword } from '../../src/modules/auth/services/password-hasher.js';
+import { StockLevel } from './package-entities.js';
+import { CustomerAccount } from './package-entities.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import {
   TEST_CUSTOMER_ID,
   TEST_ORGANIZATION_ID,
 } from './test-actors.js';
 import { SEED_PRODUCT_101_ID } from './seed-catalog.js';
 import { STUB_CUSTOMER_PASSWORD } from './seed-organizations.js';
+import { Order } from './package-entities.js';
 
 /**
  * Deterministic fixture IDs referenced by the US2 contract tests.

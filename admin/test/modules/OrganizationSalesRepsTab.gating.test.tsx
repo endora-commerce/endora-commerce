@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
 
 /**
  * D-166 — the sales-rep panel is gated, and it was gated by nothing.
@@ -30,25 +31,11 @@ import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
  * remembered three different things.
  */
 
-const permissions = new Set<string>();
-const presentModules = new Set<string>(['organizations']);
+/** The codes the operator holds, and the modules the projection reports, per case. */
+let permissions: readonly string[] = [];
+let presentModules: readonly string[] = ['organizations'];
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    hasPermission: (code: string): boolean => permissions.has(code) || permissions.has('*'),
-  }),
-}));
 
-vi.mock('@/lib/module-presence', () => ({
-  useModulePresence: () => ({
-    modules: [],
-    isPresent: (id: string): boolean => presentModules.has(id),
-    presenceOf: () => undefined,
-    isLoading: false,
-    error: null,
-    refresh: async (): Promise<void> => {},
-  }),
-}));
 
 const get = vi.fn();
 vi.mock('@/lib/api-client', () => ({
@@ -80,16 +67,18 @@ const bundle = passthroughBundle('core', [
 
 describe('OrganizationSalesRepsTab visibility (D-166)', () => {
   beforeEach(() => {
-    permissions.clear();
-    presentModules.clear();
-    presentModules.add('organizations');
+    permissions = [];
+    presentModules = ['organizations'];
     get.mockReset();
     get.mockResolvedValue({ data: [] });
   });
 
   it('renders nothing, and calls nothing, without organizations:assign-sales-rep', async () => {
     const { container } = renderWithI18n(
-      <OrganizationSalesRepsTab organizationId="org-1" />,
+      withSession(<OrganizationSalesRepsTab organizationId="org-1" />, {
+        session: adminSession({ permissions: [...permissions] }),
+        presence: modulePresence({ present: [...presentModules] }),
+      }),
       bundle,
     );
     expect(container).toBeEmptyDOMElement();
@@ -101,17 +90,26 @@ describe('OrganizationSalesRepsTab visibility (D-166)', () => {
   });
 
   it('renders the panel with the code', async () => {
-    permissions.add('organizations:assign-sales-rep');
-    renderWithI18n(<OrganizationSalesRepsTab organizationId="org-1" />, bundle);
+    permissions = ['organizations:assign-sales-rep'];
+    renderWithI18n(
+      withSession(<OrganizationSalesRepsTab organizationId="org-1" />, {
+        session: adminSession({ permissions: [...permissions] }),
+        presence: modulePresence({ present: [...presentModules] }),
+      }),
+      bundle,
+    );
     await screen.findByText('organizations.salesReps.title');
     expect(get).toHaveBeenCalled();
   });
 
   it('renders nothing when the owning module is absent', async () => {
-    permissions.add('organizations:assign-sales-rep');
-    presentModules.delete('organizations');
+    permissions = ['organizations:assign-sales-rep'];
+    presentModules = [];
     const { container } = renderWithI18n(
-      <OrganizationSalesRepsTab organizationId="org-1" />,
+      withSession(<OrganizationSalesRepsTab organizationId="org-1" />, {
+        session: adminSession({ permissions: [...permissions] }),
+        presence: modulePresence({ present: [...presentModules] }),
+      }),
       bundle,
     );
     expect(container).toBeEmptyDOMElement();

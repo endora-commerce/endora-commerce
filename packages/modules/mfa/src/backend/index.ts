@@ -6,6 +6,7 @@ import type {
   AuthSessionPort,
   CustomerPasswordStatePort,
   MfaEnrolmentCountPort,
+  MfaEnrolmentStatePort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -21,6 +22,7 @@ import {
   type OAuthProviderPort,
 } from './services/oauth-provider-service.js';
 import { MfaEnrolmentCountService } from './services/mfa-enrolment-count.service.js';
+import { MfaEnrolmentStateService } from './services/mfa-enrolment-state.service.js';
 import type { SocialIdentityDeps } from './services/social-identity-service.js';
 import { mfaModule, type MfaModuleHandle } from './plugin.js';
 import { MfaEnrolment } from './entities/mfa-enrolment.entity.js';
@@ -134,6 +136,7 @@ export interface MfaCradle {
   readonly mfa: { handle: () => MfaModuleHandle; plugin: unknown };
   readonly mfaLoginPort: MfaLoginPort;
   readonly mfaEnrolmentCountPort: MfaEnrolmentCountPort;
+  readonly mfaEnrolmentStatePort: MfaEnrolmentStatePort;
 }
 
 /**
@@ -313,6 +316,25 @@ export function registerModule(ctx: ModuleContext): void {
     'mfaEnrolmentCountPort',
     ctx
       .asFunction(({ emFactory }: MfaCradle) => new MfaEnrolmentCountService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * Who holds a second factor, for the two identity modules that publish
+   * `twoFactorEnabled`.
+   *
+   * Gated like every other port, and unlike `mfaEnrolmentCountPort` above it is
+   * read on ordinary request paths rather than in a dialog that precedes the
+   * flip — so both consumers ask `effectiveState.isPresent('mfa')` before they
+   * resolve it and report `false` when this module is absent. That is a
+   * declared degrade, not a caught gate: with `mfa` off nothing asks for a
+   * second factor at sign-in, so no account is protected by one and `false` is
+   * the answer rather than a substitute for one.
+   */
+  ctx.di.providePort<MfaEnrolmentStatePort>(
+    'mfaEnrolmentStatePort',
+    ctx
+      .asFunction(({ emFactory }: MfaCradle) => new MfaEnrolmentStateService(emFactory))
       .singleton(),
   );
 

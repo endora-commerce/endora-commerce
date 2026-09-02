@@ -37,6 +37,42 @@ export const manifest = defineModuleManifest({
     // turn it into an orphan the boot reconciler warns about at every start.
     settings: [],
   },
+  /**
+   * This module's first i18n bundle and its first command-palette action —
+   * feature 091, Phase 4, batch four.
+   *
+   * The bundle exists because the sidebar entry moved into this package with
+   * the screen and a nav declaration's `labelKey` is **module-relative** (R8):
+   * `appShell.nav.auditLog` was one of `_i18n`'s and is `nav.auditLog.label`
+   * here. It is a **flat** `{"a.b.c": "text"}` map at the **package root**, for
+   * the reason `admin_roles`' bundle records: `manifest-locations.ts` resolves
+   * a packaged module's `manifestPath` to its `package.json`, so `dirname` is
+   * the package directory, and a nested object fails
+   * `TranslationBundleEntriesSchema` while the boot reconciler only logs and
+   * skips it.
+   *
+   * The action pays one of the fifteen entries `specs/deferred-defects.md`
+   * still holds under *"Sixteen modules with an admin screen declare no
+   * command-palette action"*. Principle XVI is explicit that a sidebar entry is
+   * not enough, and the drain is what makes the debt payable: Phase 2 item 6's
+   * off-state test asserts the palette entry's absence while the module is off,
+   * and until there was one there was nothing to assert. `audit_log:read` is
+   * the code `GET /api/v1/admin/audit-log` enforces, which is what
+   * `check:action-route-permissions` holds this declaration to.
+   */
+  i18n: { bundlesDir: 'i18n' },
+  actions: [
+    {
+      id: 'open-audit-log',
+      labelKey: 'actions.openAuditLog.label',
+      descriptionKey: 'actions.openAuditLog.description',
+      icon: 'ListChecks',
+      targetRoute: '/audit-log',
+      requiredPermission: 'audit_log:read',
+      keywords: ['audit', 'audyt', 'dziennik', 'log', 'history', 'historia', 'trail'],
+      weight: 600,
+    },
+  ],
   // Feature 074 (Constitution XVII), test C3 — platform primitive, and one of
   // the escalation answers. D-32 moved the *writing* of the trail into the
   // kernel, so what this module owns is the viewer — and sight of who did what

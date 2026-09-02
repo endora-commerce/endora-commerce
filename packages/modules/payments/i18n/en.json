@@ -1,0 +1,5 @@
+{
+  "errors.PAYMENT_NOT_DUE": "This order is not awaiting payment.",
+  "errors.PAYMENT_ORDER_CLOSED": "This order is closed and can no longer be paid.",
+  "errors.PAYMENT_ADAPTER_UNAVAILABLE": "The payment method this order was placed with is no longer available."
+}
