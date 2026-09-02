@@ -15,7 +15,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@endora-commerce/api-client": "workspace:*",
     "@endora-commerce/cms-components": "workspace:^",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:^",

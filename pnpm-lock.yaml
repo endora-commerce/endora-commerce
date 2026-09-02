@@ -4076,9 +4076,6 @@ importers:
 
   storefront:
     dependencies:
-      '@endora-commerce/api-client':
-        specifier: workspace:*
-        version: link:../packages/api-client
       '@endora-commerce/cms-components':
         specifier: workspace:^
         version: link:../packages/cms-components
