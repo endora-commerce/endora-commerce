@@ -134,6 +134,9 @@ importers:
       '@endora-commerce/mod-newsletter':
         specifier: workspace:*
         version: link:../packages/modules/newsletter
+      '@endora-commerce/mod-orders':
+        specifier: workspace:*
+        version: link:../packages/modules/orders
       '@endora-commerce/mod-payment-methods':
         specifier: workspace:*
         version: link:../packages/modules/payment_methods
@@ -2572,6 +2575,9 @@ importers:
 
   packages/modules/orders:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -2608,12 +2614,18 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

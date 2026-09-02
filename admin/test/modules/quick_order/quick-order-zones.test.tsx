@@ -128,15 +128,22 @@ describe('quick_order contributes the organization and customer detail zones', (
     });
   });
 
-  it('declares exactly the two members P7b adds, with no match on either', () => {
-    // `match` narrows the *mounts of one place* (Z13). Each of these members has
-    // one host and one mount, so a `match` here could only ever be an
-    // enumeration of another module's vocabulary — asserted absent so a later
+  it('declares P7b\'s two members and P4d\'s tab, with no match on any', () => {
+    // `match` narrows the *mounts of one place* (Z13). The two detail members
+    // have one host and one mount each; `order.entry.tabs` has two mounts and
+    // no props at all — so on all three a `match` could only ever be an
+    // enumeration of another module's vocabulary. Asserted absent so a later
     // author cannot add one quietly.
+    //
+    // The whole list, not a filter: this is the two-way statement about what
+    // this module contributes, so a fourth contribution has to be declared here
+    // as well as there. `order.entry.tabs` arrived in P4d and is asserted in
+    // full by `admin/test/modules/orders/order-entry-tabs-zone.test.tsx`.
     const zones = quickOrder.contributions.zones ?? [];
     expect(zones.map((zone) => zone.zone)).toEqual([
       'organization.detail.after',
       'customer.detail.after',
+      'order.entry.tabs',
     ]);
     for (const zone of zones) {
       expect(zone.match, zone.zone).toBeUndefined();

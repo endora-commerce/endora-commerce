@@ -42,5 +42,6 @@
   "onBehalf.reason.malformed_row": "Malformed row",
   "onBehalf.reason.variant_not_resolved": "Variant not resolved",
   "onBehalf.reason.variant_ambiguous": "Ambiguous variant",
-  "onBehalf.reason.row_limit_exceeded": "Row limit exceeded"
+  "onBehalf.reason.row_limit_exceeded": "Row limit exceeded",
+  "orderEntry.tab.quick": "Quick order"
 }

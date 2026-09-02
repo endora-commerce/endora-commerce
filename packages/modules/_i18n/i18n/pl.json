@@ -1031,8 +1031,6 @@
   "orderDetail.vatStatus.reverse_charge": "Odwrotne obciążenie",
   "orderDetail.vatStatus.vat_exempt": "Zwolniony z VAT",
   "orderDetail.vatStatus.vat_payer": "Płatnik VAT",
-  "orderEntry.tab.quick": "Szybkie zamówienie",
-  "orderEntry.tab.standard": "Zamówienie standardowe",
   "orderStatusConfig.addStatus": "Dodaj status",
   "orderStatusConfig.addTransition": "Dodaj przejście",
   "orderStatusConfig.col.code": "Kod",
