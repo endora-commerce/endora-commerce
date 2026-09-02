@@ -45,7 +45,17 @@ export type PimFieldPath = z.infer<typeof pimFieldPathSchema>;
 
 export const PIM_CONNECTOR_REGISTRY_PORT = 'pimConnectorRegistryPort' as const;
 
-/** Mutual-exclusion registry — see specs/089-unopim-pim-sync/contracts/pim-connector-shared.md */
+/**
+ * Container name: `pimConnectorRegistryPort`. Owner: `pim_connector`.
+ *
+ * Mutual-exclusion registry — see
+ * `specs/089-unopim-pim-sync/contracts/pim-connector-shared.md`. The name is
+ * the whole of the promise this port makes (D-98.2): `lazyPort<T>` asserts `T`
+ * and compares it to nothing that is registered, so a consumer copying the
+ * owner's class registration instead of this name would compile and receive the
+ * service ungated. `PIM_CONNECTOR_REGISTRY_PORT` above is the same literal, for
+ * the owner's `providePort` call.
+ */
 export interface PimConnectorRegistryPort {
   /** Refuses when another PIM connector's activation Setting is true. */
   assertCanActivate(moduleId: string): Promise<void>;
