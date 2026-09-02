@@ -18,7 +18,7 @@ import {
   type TaxServicePort,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
-import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { rethrowIfModuleDisabled, SalesChannel } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import {
   ArtefactStore,
@@ -185,6 +185,87 @@ export type FeedCategoryExpander = (
 /** Narrow reader over the Settings module. */
 export interface ProductFeedsSettingsReader {
   get<T>(code: string, salesChannelId: string | null, schema: z.ZodType<T>): Promise<T>;
+}
+
+/** The four typed reads this module makes of its own settings. */
+export interface ProductFeedsSettingsAccess {
+  getNumber(code: string, fallback: number): Promise<number>;
+  getStringForChannel(code: string, salesChannelId: string, fallback: string): Promise<string>;
+  getBoolean(code: string, fallback: boolean): Promise<boolean>;
+  getString(code: string, fallback: string): Promise<string>;
+}
+
+/**
+ * The module's own settings reads, each defaulting to the manifest value.
+ *
+ * Three of the four are **platform-wide** (`null`): a run's page size, its
+ * concurrency and its artefact retention are properties of the job runner, not
+ * of a storefront. Only `getStringForChannel` names a channel, and it is the
+ * one that genuinely varies per feed.
+ *
+ * The three used to pass the nil UUID — a well-formed id that addresses no row,
+ * so resolution landed on `global_value ?? default_value` by accident rather
+ * than by saying so (feature 072, D-41).
+ *
+ * **The tolerance is narrow, and the presence answer is not part of it**
+ * (composition checklist item 7). `settings.get` is `settingsReadPort`, so
+ * these reads can raise `ModuleDisabledError`, and answering the manifest
+ * default for one would let this module go on running from defaults while the
+ * platform refuses every other read of the same store. What the `catch` is
+ * genuinely for is a setting the boot reconciler has not written yet, and a
+ * stored value the schema refuses; neither is a statement about `settings`
+ * being there. `settings` declares `activation.nonDeactivatable` today, so the
+ * re-throw is unreachable — which is why it is written now rather than left for
+ * whoever withdraws that lock to discover.
+ *
+ * A named factory rather than an object literal inside `productFeedsModule`, so
+ * that the four `catch` blocks can be driven from a test.
+ */
+export function productFeedsSettingsAccess(
+  settings: ProductFeedsSettingsReader,
+): ProductFeedsSettingsAccess {
+  return {
+    async getNumber(code: string, fallback: number): Promise<number> {
+      try {
+        return await settings.get(code, null, z.number());
+      } catch (error) {
+        rethrowIfModuleDisabled(error);
+        // Not registered yet (first boot, before the manifest reconciler ran)
+        // or unreadable — the manifest default is the answer.
+        return fallback;
+      }
+    },
+    async getStringForChannel(
+      code: string,
+      salesChannelId: string,
+      fallback: string,
+    ): Promise<string> {
+      try {
+        const value = await settings.get(code, salesChannelId, z.string());
+        return value.trim() !== '' ? value.trim() : fallback;
+      } catch (error) {
+        rethrowIfModuleDisabled(error);
+        return fallback;
+      }
+    },
+    async getBoolean(code: string, fallback: boolean): Promise<boolean> {
+      try {
+        return await settings.get(code, null, z.boolean());
+      } catch (error) {
+        rethrowIfModuleDisabled(error);
+        return fallback;
+      }
+    },
+    async getString(code: string, fallback: string): Promise<string> {
+      try {
+        const value = await settings.get(code, null, z.string());
+        return value.trim() !== '' ? value.trim() : fallback;
+      } catch (error) {
+        rethrowIfModuleDisabled(error);
+        return fallback;
+      }
+    },
+  };
 }
 
 /** The `EventBus` surface this module uses. */
@@ -419,54 +500,7 @@ export function productFeedsModule(
     ? new RedisFeedTokenCache(options.redis)
     : new NoopFeedTokenCache();
 
-  /**
-   * Three of these four are **platform-wide** (`null`): a run's page size, its
-   * concurrency and its artefact retention are properties of the job runner,
-   * not of a storefront. Only `getStringForChannel` names a channel, and it is
-   * the one that genuinely varies per feed.
-   *
-   * The three used to pass the nil UUID — a well-formed id that addresses no
-   * row, so resolution landed on `global_value ?? default_value` by accident
-   * rather than by saying so (feature 072, D-41).
-   */
-  const settings = {
-    async getNumber(code: string, fallback: number): Promise<number> {
-      try {
-        return await options.settings.get(code, null, z.number());
-      } catch {
-        // Not registered yet (first boot, before the manifest reconciler ran)
-        // or unreadable — the manifest default is the answer.
-        return fallback;
-      }
-    },
-    async getStringForChannel(
-      code: string,
-      salesChannelId: string,
-      fallback: string,
-    ): Promise<string> {
-      try {
-        const value = await options.settings.get(code, salesChannelId, z.string());
-        return value.trim() !== '' ? value.trim() : fallback;
-      } catch {
-        return fallback;
-      }
-    },
-    async getBoolean(code: string, fallback: boolean): Promise<boolean> {
-      try {
-        return await options.settings.get(code, null, z.boolean());
-      } catch {
-        return fallback;
-      }
-    },
-    async getString(code: string, fallback: string): Promise<string> {
-      try {
-        const value = await options.settings.get(code, null, z.string());
-        return value.trim() !== '' ? value.trim() : fallback;
-      } catch {
-        return fallback;
-      }
-    },
-  };
+  const settings = productFeedsSettingsAccess(options.settings);
 
   const runs = new FeedRunService(options.emFactory);
 
@@ -652,9 +686,12 @@ export function productFeedsModule(
     // generation job (Principle X) and its retries away from the published run
     // (FR-103). **Without Redis it delivers inline**, because the alternative is
     // a deployment where an operator configures a target, sees no error, and is
-    // never delivered to. That path is safe by construction: `deliver()` never
-    // throws, and the caller swallows anyway — the run is finished and
-    // published before either branch runs.
+    // never delivered to. That path is safe by construction: the run is finished
+    // and published before either branch runs, and the caller absorbs whatever
+    // comes back. `deliver()` throws for one thing — `credentials` being
+    // switched off — and the caller absorbs that too, deliberately: the artefact
+    // is published and the run is over, so refusing here would report a failure
+    // for work that succeeded. See the note at that call site.
     ...(deliveryService
       ? {
           deliverArtefact: async ({ feedId, runId, artefactId }) => {
