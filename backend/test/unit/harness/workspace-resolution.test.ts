@@ -639,12 +639,46 @@ function invokesVitest(script: string): boolean {
  *   * **`unmerged-configuration`** — a configuration that exists and does not
  *     name the base. Worse than the first, because the file is there:
  *     `page-builder-core` shipped one for as long as it had tests.
+ *   * **`cjs-loaded-configuration`** — a configuration that names the base and
+ *     that vite must load as CommonJS. Worse than both, because the file is
+ *     there **and** it names the base, so the two findings above read it as
+ *     guarded while the run does not start at all. The base's import chain
+ *     reaches `@endora-commerce/cli`, which is `"type": "module"` and publishes
+ *     no CJS entry point, so a `require` of it is
+ *     `ESM file cannot be loaded by \`require\``: a **startup** error, before
+ *     the first test file and before any guard line. `storefront` was this from
+ *     2026-08-30, when `backend/scripts/lib/workspace-packages.ts` became a
+ *     re-export of that package, until it was found on 2026-09-02 — three days
+ *     in which its 80 files and 514 tests did not run and `test:frontend`
+ *     reported the failure as the whole job's rather than as one suite going
+ *     dark. It is the one workspace member with no `"type": "module"`, which is
+ *     the entire reason it was the only one affected.
+ *
+ * The third predicate is **derived from how vite loads a config**, not from a
+ * list of members: `.mts`/`.mjs` is ESM whatever the manifest says, `.cts`/`.cjs`
+ * is CJS whatever the manifest says, and a bare `.ts`/`.js` takes the member's
+ * own `type` field. So a member that adds `"type": "module"` stops being a
+ * finding in the same run, and a sixth package arriving without one becomes a
+ * finding by existing.
  *
  * The predicate is the **import**, not `mergeConfig`. The refusal is a
  * module-level call in `vitest.config.base.ts`, so importing it is what
  * evaluates it; a configuration that imported the base and merged nothing would
  * still be guarded, and one that merges a base it does not import cannot exist.
  */
+/**
+ * Will vite load this configuration file as an ES module?
+ *
+ * The extension wins where it is explicit — `.mts`/`.mjs` and `.cts`/`.cjs` each
+ * declare the answer outright — and a bare `.ts`/`.js` takes the member's own
+ * `type` field, which is Node's rule and the one vite follows.
+ */
+function loadsAsEsm(file: string, manifest: Readonly<Record<string, unknown>>): boolean {
+  if (/\.m[jt]s$/.test(file)) return true;
+  if (/\.c[jt]s$/.test(file)) return false;
+  return manifest['type'] === 'module';
+}
+
 export function runsOutsideTheGuard(
   members: readonly WorkspaceMember[],
   read: VitestConfigReader,
@@ -656,6 +690,11 @@ export function runsOutsideTheGuard(
     for (const [file, source] of configs) {
       if (!source.includes('vitest.config.base')) {
         findings.push(`unmerged-configuration ${member.name} ${file}`);
+        continue;
+      }
+      // It names the base; whether it can *load* it is the separate question.
+      if (!loadsAsEsm(file, member.manifest)) {
+        findings.push(`cjs-loaded-configuration ${member.name} ${file}`);
       }
     }
     if (configs.size > 0) continue;
@@ -669,10 +708,14 @@ export function runsOutsideTheGuard(
 
 describe('which runs consult the guard', () => {
   /** A member list with the manifest fields this predicate reads, and nothing else. */
-  const member = (name: string, scripts: Readonly<Record<string, string>>): WorkspaceMember => ({
+  const member = (
+    name: string,
+    scripts: Readonly<Record<string, string>>,
+    type?: 'module',
+  ): WorkspaceMember => ({
     dir: `/repo/${name}`,
     name,
-    manifest: { name, scripts },
+    manifest: type === undefined ? { name, scripts } : { name, scripts, type },
   });
 
   it('reports a member that runs vitest with no configuration at all', () => {
@@ -703,13 +746,69 @@ describe('which runs consult the guard', () => {
     ]);
   });
 
+  it('reports a configuration that names the base and that vite must load as CJS', () => {
+    // `storefront` from 2026-08-30 to 2026-09-02. The file is there and it names
+    // the base, so both findings above read it as guarded; what it cannot do is
+    // `require` the base's ESM-only import chain, and the run dies at startup
+    // with no guard line and no test file. The fixture enters at the reader and
+    // at the manifest — the two facts the finding is derived from — rather than
+    // at a verdict.
+    const findings = runsOutsideTheGuard(
+      [member('storefront', { test: 'vitest run' })],
+      () =>
+        new Map([
+          ['vitest.config.ts', "import baseConfig from '../vitest.config.base.js';"],
+        ]),
+    );
+
+    expect(findings).toEqual(['cjs-loaded-configuration storefront vitest.config.ts']);
+  });
+
+  it('accepts the same configuration under either spelling that makes it ESM', () => {
+    // Both remedies, so the predicate cannot be satisfied by one of them alone:
+    // the `.mts` extension, which is what `storefront` took, and a member that
+    // declares `"type": "module"`, which is what the other four already had.
+    const base = "import baseConfig from '../vitest.config.base.js';";
+
+    expect(
+      runsOutsideTheGuard(
+        [member('storefront', { test: 'vitest run' })],
+        () => new Map([['vitest.config.mts', base]]),
+      ),
+    ).toEqual([]);
+
+    expect(
+      runsOutsideTheGuard(
+        [member('admin', { test: 'vitest run' }, 'module')],
+        () => new Map([['vitest.config.ts', base]]),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses an explicit `.cts` even in a member that declares `"type": "module"`', () => {
+    // The extension is the stronger declaration in Node's own rule, so a member
+    // whose manifest says ESM does not launder a file that says CJS. Without
+    // this the predicate would read the manifest alone and miss the one spelling
+    // that is CJS by its own name.
+    const findings = runsOutsideTheGuard(
+      [member('admin', { test: 'vitest run' }, 'module')],
+      () =>
+        new Map([['vitest.config.cts', "import baseConfig from '../vitest.config.base.js';"]]),
+    );
+
+    expect(findings).toEqual(['cjs-loaded-configuration admin vitest.config.cts']);
+  });
+
   it('accepts a configuration that imports the base, and is silent about a member that runs no vitest', () => {
     // Both directions in one, so a predicate that simply reported everything
     // would fail here: `docs` runs an `echo` naming no runner and is not a
     // finding, and a merged configuration is not one either.
     const findings = runsOutsideTheGuard(
       [
-        member('@endora-commerce/contracts', { test: 'vitest run' }),
+        // `"type": "module"`, as the real package is — the configuration below
+        // names the base, so an under-specified manifest here would make this
+        // case assert the opposite of what it says.
+        member('@endora-commerce/contracts', { test: 'vitest run' }, 'module'),
         member('docs', { test: "echo 'docs site has no tests'" }),
       ],
       (dir) =>
