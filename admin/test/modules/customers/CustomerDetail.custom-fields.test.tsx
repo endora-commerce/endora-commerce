@@ -48,12 +48,23 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 
 // The screen's sibling panels each pull their own data chain; none is under
 // test here.
-vi.mock('@/modules/customers/panels/HistoryPanels', () => ({
+//
+// **Both spellings are the package's own source, and that is feature 091's
+// batch 14 re-keying them rather than tidying them.** They read
+// `@/modules/customers/panels/…` until that batch, and the screen now imports
+// `../panels/HistoryPanels.js` from inside
+// `@endora-commerce/mod-customers`, where the `@/` alias resolves to nothing —
+// so the old spelling would have named a file that is gone, and vitest answers
+// a mock over a deleted path by making it **inert** rather than by failing.
+// Both panels would have mounted for real and reached the stubbed `apiClient`
+// with requests this file makes no assertion about. `tsc` is what found it,
+// by the dynamic import below.
+vi.mock('../../../../packages/modules/customers/src/admin/panels/HistoryPanels', () => ({
   OrdersPanel: () => null,
   QuoteRequestsPanel: () => null,
   CartsPanel: () => null,
 }));
-vi.mock('@/modules/customers/panels/ManagementPanels', () => ({
+vi.mock('../../../../packages/modules/customers/src/admin/panels/ManagementPanels', () => ({
   OrganizationAssignmentPanel: () => null,
   CustomerGroupPanel: () => null,
   AddressesPanel: () => null,
@@ -66,7 +77,9 @@ vi.mock('@/modules/customers/panels/ManagementPanels', () => ({
 // registry below: the zone enumerates nothing here, because this file's subject
 // is the custom-field panel and not the zone.
 
-const { CustomerDetail } = await import('../../../src/modules/customers/CustomerDetail');
+const { CustomerDetail } = await import(
+  '../../../../packages/modules/customers/src/admin/pages/CustomerDetail',
+);
 
 const CORE_EN = JSON.parse(
   readFileSync(resolve(process.cwd(), '../packages/modules/_i18n/i18n/en.json'), 'utf8'),

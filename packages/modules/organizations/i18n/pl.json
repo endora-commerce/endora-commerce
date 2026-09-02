@@ -1,4 +1,8 @@
 {
+  "nav.organizations.label": "Organizacje",
+  "actions.openOrganizations.label": "Organizacje",
+  "actions.openOrganizations.description": "Konta klientów",
+
   "errors.CANNOT_REVOKE_LAST_ADMIN_INVITE": "To ostatnie oczekujące zaproszenie dla administratora, a organizacja nie ma aktywnego administratora, więc nie można go anulować. Najpierw wyślij kolejne zaproszenie dla administratora.",
   "errors.EMAIL_ALREADY_IN_ORGANIZATION": "Ten adres e-mail już należy do Twojej organizacji — jako członek albo jako oczekujące zaproszenie.",
   "errors.EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION": "Ten adres e-mail należy do członka innej organizacji, więc nie można go tutaj zaprosić.",

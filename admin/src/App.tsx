@@ -40,21 +40,10 @@ import { AttributeSetsPage } from './modules/catalog/AttributeSetsPage.js';
 import { AttachmentTypesPage } from './modules/catalog/AttachmentTypesPage.js';
 import { BulkOperationsPage } from './modules/catalog/BulkOperationsPage.js';
 import { BulkOperationDetailPage } from './modules/catalog/BulkOperationDetailPage.js';
-import { OrganizationsList } from './modules/organizations/OrganizationsList.js';
-import { OrganizationDetail } from './modules/organizations/OrganizationDetail.js';
-import { CustomersList } from './modules/customers/CustomersList.js';
-import { CustomerDetail } from './modules/customers/CustomerDetail.js';
-import { OnlineCustomers } from './modules/customers/OnlineCustomers.js';
 import { OrdersList } from './modules/orders/OrdersList.js';
 import { OrderDetail } from './modules/orders/OrderDetail.js';
 import { OrderStatusConfigPage } from './modules/orders/OrderStatusConfigPage.js';
 import { OrderCreatePage } from './modules/orders/OrderCreatePage.js';
-import { QuickOrderOnBehalfPage } from './modules/quick_order/QuickOrderOnBehalfPage.js';
-import { ErgonodeConnectionPage } from './modules/pim_ergonode/ErgonodeConnectionPage.js';
-import { ErgonodeAttributeMappingPage } from './modules/pim_ergonode/ErgonodeAttributeMappingPage.js';
-import { ErgonodeCategoryMappingPage } from './modules/pim_ergonode/ErgonodeCategoryMappingPage.js';
-import { ErgonodeRunsPage } from './modules/pim_ergonode/ErgonodeRunsPage.js';
-import { ErgonodeRunDetailPage } from './modules/pim_ergonode/ErgonodeRunDetailPage.js';
 import { UnopimConnectionPage } from './modules/pim_unopim/UnopimConnectionPage.js';
 import { UnopimRunsPage } from './modules/pim_unopim/UnopimRunsPage.js';
 import { UnopimRunDetailPage } from './modules/pim_unopim/UnopimRunDetailPage.js';
@@ -62,19 +51,8 @@ import { UnopimAttributeMappingsPage } from './modules/pim_unopim/UnopimAttribut
 import { UnopimChannelLocaleMappingsPage } from './modules/pim_unopim/UnopimChannelLocaleMappingsPage.js';
 import { UnopimCategoryMappingsPage } from './modules/pim_unopim/UnopimCategoryMappingsPage.js';
 import { UnopimAssociationMappingsPage } from './modules/pim_unopim/UnopimAssociationMappingsPage.js';
-import { PriceListsPage } from './modules/price_lists/PriceListsPage.js';
-import { PriceListDetailPage } from './modules/price_lists/PriceListDetailPage.js';
-import { DisplayModeOverridesPage } from './modules/price_lists/DisplayModeOverridesPage.js';
 import { HomePage } from './modules/home/HomePage.js';
-import { InventoryPage } from './modules/inventory/InventoryPage.js';
-import { LowStockPage } from './modules/inventory/LowStockPage.js';
-import { AvailabilityNotificationsPage } from './modules/inventory/AvailabilityNotificationsPage.js';
-import { StockImportWizard } from './modules/inventory/StockImportWizard.js';
-import { WarehousesList } from './modules/warehouses/WarehousesList.js';
-import { WarehouseEditor } from './modules/warehouses/WarehouseEditor.js';
 import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
-import { SalesChannelsListPage } from './modules/sales_channels/pages/SalesChannelsListPage.js';
-import { SalesChannelEditPage } from './modules/sales_channels/pages/SalesChannelEditPage.js';
 import { ProfilePage } from './modules/profile/ProfilePage.js';
 
 function NotFoundPage(): ReactNode {
@@ -222,14 +200,16 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/catalog/attachment-types" element={<AttachmentTypesPage />} />
         <Route path="/catalog/bulk-operations" element={<BulkOperationsPage />} />
         <Route path="/catalog/bulk-operations/:id" element={<BulkOperationDetailPage />} />
-        <Route path="/organizations" element={<OrganizationsList />} />
-        <Route path="/organizations/:id" element={<OrganizationDetail />} />
-        <Route path="/customers" element={<CustomersList />} />
-        <Route path="/customers/online" element={<OnlineCustomers />} />
-        <Route path="/customers/:id" element={<CustomerDetail />} />
+        {/* The three `/customers*` and two `/organizations*` routes were
+            declared here until feature 091's Phase 4 batch 14. Both modules are
+            zone **hosts** — `CustomerDetail` renders `customer.detail.after`
+            and `OrganizationDetail` renders `organization.detail.after`, the
+            two members P7b published — and a host moves on the same terms a
+            contributor does, because a zone is neither a route nor a nav entry.
+            Their declarations are in
+            `packages/modules/{customers,organizations}/src/admin/index.ts`. */}
         <Route path="/orders" element={<OrdersList />} />
         <Route path="/orders/new" element={<OrderCreatePage />} />
-        <Route path="/orders/quick-order" element={<QuickOrderOnBehalfPage />} />
         <Route path="/orders/statuses" element={<OrderStatusConfigPage />} />
         <Route path="/orders/:id" element={<OrderDetail />} />
         {/* `/transactional-emails*` and `/newsletter/*` were declared here —
@@ -246,20 +226,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
             detail publishes the `invoice.detail.after` zone that replaced its
             import of `ksef`'s panel, which is what retires the one key in
             `backend/scripts/ledgers/cross-module-imports/invoices.ts`. */}
-        {/* Feature 068 — Ergonode PIM. Literal segments first, the parametric
-            run route last, so a future `/pim-ergonode/:something` cannot swallow
-            its siblings the way the feed routes once did. */}
-        <Route path="/pim-ergonode" element={<ErgonodeConnectionPage />} />
-        <Route
-          path="/pim-ergonode/attribute-mappings"
-          element={<ErgonodeAttributeMappingPage />}
-        />
-        <Route
-          path="/pim-ergonode/category-mappings"
-          element={<ErgonodeCategoryMappingPage />}
-        />
-        <Route path="/pim-ergonode/runs" element={<ErgonodeRunsPage />} />
-        <Route path="/pim-ergonode/runs/:runId" element={<ErgonodeRunDetailPage />} />
         {/* Feature 089 — UnoPim PIM. Host-registered until the package grows an ./admin layer. */}
         <Route path="/pim-unopim" element={<UnopimConnectionPage />} />
         <Route path="/pim-unopim/channel-locale-mappings" element={<UnopimChannelLocaleMappingsPage />} />
@@ -268,9 +234,6 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
         <Route path="/pim-unopim/association-mappings" element={<UnopimAssociationMappingsPage />} />
         <Route path="/pim-unopim/runs" element={<UnopimRunsPage />} />
         <Route path="/pim-unopim/runs/:runId" element={<UnopimRunDetailPage />} />
-        <Route path="/price-lists" element={<PriceListsPage />} />
-        <Route path="/price-lists/display-modes" element={<DisplayModeOverridesPage />} />
-        <Route path="/price-lists/:id" element={<PriceListDetailPage />} />
         {/*
           A redirect for the deep links that predate the screen's move to
           `/delivery-methods/dhl-parcel`, and the admin application's own:
@@ -281,16 +244,20 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
           meets the admin's not-found treatment there rather than here.
         */}
         <Route path="/settings/dhl-parcel" element={<Navigate to="/delivery-methods/dhl-parcel" replace />} />
-        <Route path="/inventory" element={<InventoryPage />} />
-        <Route path="/inventory/low-stock" element={<LowStockPage />} />
-        <Route path="/inventory/notifications" element={<AvailabilityNotificationsPage />} />
-        <Route path="/inventory/import" element={<StockImportWizard />} />
-        <Route path="/warehouses" element={<WarehousesList />} />
-        <Route path="/warehouses/new" element={<WarehouseEditor />} />
-        <Route path="/warehouses/:id" element={<WarehouseEditor />} />
         {/* `/quote-requests*` — three routes — were declared here until feature
             091's Phase 4 batch 12; `quote_requests` owns them now, in
             `packages/modules/quote_requests/src/admin/index.ts`. */}
+        {/* Sixteen more routes stood here until feature 091's Phase 4 batch 13
+            — `/orders/quick-order`, the five `/pim-ergonode*`, the three
+            `/price-lists*`, the four `/inventory*` and the three
+            `/warehouses*`. Their four modules own them now, in
+            `packages/modules/{quick_order,pim_ergonode,price_lists,inventory}/src/admin/index.ts`.
+            The warehouse screens go to `inventory` because that is the module
+            the sidebar attributes `/warehouses` to; a directory name is not a
+            module id, and `inventory` had two surface directories. Ordering
+            notes the declarations kept: `/price-lists/display-modes` before
+            `/price-lists/:id`, `/warehouses/new` before `/warehouses/:id`, and
+            Ergonode's literal segments before its parametric run route. */}
         {/*
           `/comparisons`, `/comparisons/:id`, `/api-keys` and `/webhooks` are
           declared by the modules that own them since feature 091's Phase 4 (the
@@ -335,9 +302,12 @@ export function App({ modulePresence }: AppProps = {}): ReactNode {
           declarations are in
           `packages/modules/{settings,pwa}/src/admin/index.ts`.
         */}
-        <Route path="/sales-channels" element={<SalesChannelsListPage />} />
-        <Route path="/sales-channels/new" element={<SalesChannelEditPage />} />
-        <Route path="/sales-channels/:code" element={<SalesChannelEditPage />} />
+        {/* The three `/sales-channels*` routes were declared here until feature
+            091's Phase 4 batch 14. `SalesChannelEditPage` renders
+            `sales_channel.editor.after`, the member P7c published, so this
+            module is a zone host as well as the contributor P7a and P7b made
+            it. Its declaration is in
+            `packages/modules/sales_channels/src/admin/index.ts`. */}
         <Route path="/profile" element={<ProfilePage />} />
         {/* Every module-owned screen, from the generated registry. `App.tsx`
             declares the host's own routes and nothing else; a module adds one

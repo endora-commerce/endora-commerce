@@ -22,5 +22,11 @@
   "activity.verb.warehouse.create": "utworzył(a) magazyn",
   "activity.verb.warehouse.deactivate": "dezaktywował(a) magazyn",
   "activity.verb.warehouse.reactivate": "ponownie aktywował(a) magazyn",
-  "activity.verb.warehouse.update": "zaktualizował(a) magazyn"
+  "activity.verb.warehouse.update": "zaktualizował(a) magazyn",
+
+  "nav.stockOverview.label": "Stany magazynowe",
+  "nav.warehouses.label": "Magazyny",
+  "nav.lowStock.label": "Niskie stany",
+  "nav.notifyWhenAvailable.label": "Powiadom o dostępności",
+  "nav.importStock.label": "Import stanów"
 }

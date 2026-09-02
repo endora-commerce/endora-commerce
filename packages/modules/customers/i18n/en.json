@@ -1,4 +1,7 @@
 {
+  "nav.customers.label": "Customers",
+  "nav.customersOnline.label": "Online customers",
+
   "actions.openCustomers.label": "Customers",
   "actions.openCustomers.description": "Browse and manage customer accounts",
   "actions.onlineCustomers.label": "Online customers",

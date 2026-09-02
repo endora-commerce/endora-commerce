@@ -160,8 +160,14 @@ describe('sales_channels contributes the organization detail zone', () => {
     // copy, so the copy is gone.
     const { readFileSync, existsSync } = await import('node:fs');
     const { resolve } = await import('node:path');
+    // Re-keyed by feature 091's Phase 4 batch 14, not tidied: the host screen
+    // moved into its own package, and a `readFileSync` of the old path throws
+    // rather than reporting a missing mount.
     const host = readFileSync(
-      resolve(process.cwd(), 'src/modules/organizations/OrganizationDetail.tsx'),
+      resolve(
+        process.cwd(),
+        '../packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx',
+      ),
       'utf8',
     );
     expect(host).not.toContain('EntityChannelMembership');
@@ -172,14 +178,21 @@ describe('sales_channels contributes the organization detail zone', () => {
         resolve(process.cwd(), 'src/modules/sales_channels/components/EntityChannelMembership.tsx'),
       ),
     ).toBe(false);
-    // `DefaultChannelBadge` beside it is **not** gone, and that is a decision
-    // rather than an oversight: this module's own two screens still import it
-    // from `admin/src`, and it retires when they move in batch 14.
+    // **`DefaultChannelBadge` is gone too, and this assertion is what said when
+    // it would be.** It stood here reading `true` with a reason that named its
+    // own retiring condition — *"this module's own two screens still import it
+    // from `admin/src`, and it retires when they move in batch 14"*. That is
+    // this batch: both screens are `@endora-commerce/mod-sales-channels`' now
+    // and import the package's copy, so nothing named the `admin/src` one and
+    // it was deleted. The assertion is inverted rather than removed, because
+    // "no second copy of this component exists under `admin/src`" is the claim
+    // the duplication P7a opened made worth checking, and it outlives the
+    // duplication.
     expect(
       existsSync(
         resolve(process.cwd(), 'src/modules/sales_channels/components/DefaultChannelBadge.tsx'),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('has no off state to drive, and says so from its own manifest', () => {

@@ -1,9 +1,11 @@
 import {
   Activity,
   Archive,
+  Bell,
   BookOpen,
   Box,
   Boxes,
+  Building2,
   CircleDollarSign,
   ClipboardList,
   CloudUpload,
@@ -27,6 +29,7 @@ import {
   Menu,
   Newspaper,
   Package,
+  PackageOpen,
   PanelLeft,
   PercentDiamond,
   PlugZap,
@@ -42,12 +45,15 @@ import {
   ShoppingCart,
   Smartphone,
   Sparkles,
+  Store,
   Tag,
+  TrendingDown,
   Truck,
   Upload,
   UserPlus,
   Users,
   Video,
+  Warehouse,
   Webhook,
   type LucideIcon,
 } from 'lucide-react';
@@ -139,6 +145,19 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // already above.
   Languages,
   Eraser,
+  // Feature 091 (Phase 4, batch 13) — the same, for four of `inventory`'s five
+  // sidebar entries. The batch's other rows needed no entry: `Box`,
+  // `CircleDollarSign` and `PlugZap` are already above.
+  Warehouse,
+  TrendingDown,
+  Bell,
+  PackageOpen,
+  // Feature 091 (Phase 4, batch 14) — the same, for `organizations`' and
+  // `sales_channels`' sidebar entries and the two palette actions that replace
+  // their hand-written *Navigate* rows. `customers`' two rows needed no entry:
+  // `Users` is already above.
+  Building2,
+  Store,
 };
 
 export function resolveIcon(name: string): LucideIcon {

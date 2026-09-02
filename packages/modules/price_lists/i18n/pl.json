@@ -6,5 +6,9 @@
   "activity.verb.price_list.duplicate": "zduplikował(a) cennik",
   "activity.verb.price_list.expire": "zakończył(a) cennik",
   "activity.verb.price_list.products_replace": "zaktualizował(a) produkty na cenniku",
-  "activity.verb.price_list.update": "zaktualizował(a) cennik"
+  "activity.verb.price_list.update": "zaktualizował(a) cennik",
+
+  "nav.priceLists.label": "Cenniki",
+  "actions.openPriceLists.label": "Cenniki",
+  "actions.openPriceLists.description": "Reguły cenowe + przypisania"
 }

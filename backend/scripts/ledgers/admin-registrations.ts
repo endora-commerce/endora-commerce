@@ -314,6 +314,92 @@
  * `routes=83 nav=57 module-owned (routes=79 nav=54) over 16 modules`, from
  * 92/67 (88/64 over 19) — the nine routes and ten nav entries exactly.
  *
+ * **Batch 13 removes four entries and 25 registrations** — `price_lists`
+ * (3/2), `quick_order` (1/0), `inventory` (7/6) and `pim_ergonode` (5/1) — and
+ * it is the batch whose **drain is zero**, for a reason the previous zero-drain
+ * batch did not have. Batch four's rung was zero because none of its five
+ * carried a cross-module admin reach in either direction. These four carried
+ * plenty, all of it **incoming**: `catalog`'s product editor and category tree
+ * reached `price_lists` twice and `pim_ergonode` twice, `organizations`'
+ * detail reached `price_lists` and `quick_order`, `customers`' detail reached
+ * `quick_order`, and `sales_channels`' editor reached `inventory`. Every one
+ * of them was repaired by the publication that rendered the host mount — P4b,
+ * P7a, P7b, P7c and P4d, each in a module this batch does not move — and
+ * *that* is the property that lets a contributor be scheduled after its host:
+ * `check:admin-registrations` counts routes and nav entries, and a zone is
+ * neither, so those five merge requests moved no registration and this one
+ * repairs no reach.
+ *
+ * Re-derived on this branch before anything moved:
+ * `backend/scripts/ledgers/admin-surface.ts` is empty, `foreign-module-ids.ts`
+ * names none of the four, and the only shard among them is `inventory`'s,
+ * whose single surviving entry is a **backend** SQL join into `catalog`'s
+ * `products` that is feature 077's and not this batch's.
+ *
+ * **`inventory` moves two surface directories**, which is the case this file's
+ * own attribution note is about one level up: the nav attributes `/warehouses`
+ * to `module: 'inventory'`, so `admin/src/modules/warehouses/` was that
+ * module's second surface directory and its three screens and its client are in
+ * `@endora-commerce/mod-inventory/admin` beside the four stock ones. A
+ * directory name is not a module id, and this is the batch where that stops
+ * being a note and becomes a move.
+ *
+ * The run after them reads
+ * `routes=42 nav=29 module-owned (routes=38 nav=26) over 7 modules`, from
+ * `routes=58 nav=38 module-owned (routes=54 nav=35) over 11 modules` — the
+ * sixteen routes and nine nav entries exactly, and the recorded `sites` band
+ * moves 96 -> 71. (The paragraph above records batch 10's 83/57; batches 11 and
+ * 12 took it to 58/38 without rewriting that sentence, which is history rather
+ * than drift — each entry states the run *after itself*.)
+ *
+ * **Batch 14 removes three entries and 14 registrations** — `customers` (3/2),
+ * `organizations` (2/2) and `sales_channels` (3/2) — and it is the batch that
+ * takes the **hosts** of the zones batch 13's contributors were scheduled
+ * against. `CustomerDetail.tsx` renders `customer.detail.after`,
+ * `OrganizationDetail.tsx` renders `organization.detail.after` and
+ * `SalesChannelEditPage.tsx` renders `sales_channel.editor.after` — the three
+ * members P7b and P7c published — with six contributions between them from four
+ * modules that this batch does not move. That is the previous entry's property
+ * read from the other end: a zone is neither a route nor a nav entry, so a host
+ * is schedulable independently of its contributors exactly as a contributor is
+ * of its host, and coupling the two would have put six directories in one merge
+ * request for no measured reason.
+ *
+ * **The drain is zero, and it is zero for batch 13's reason rather than batch
+ * four's.** Re-derived on this branch before anything moved:
+ * `backend/scripts/ledgers/admin-surface.ts` is empty, `foreign-module-ids.ts`
+ * names none of the three, and none of them owns or is named by a
+ * `cross-module-imports` shard — the four that stand are `blog`'s, `catalog`'s,
+ * `inventory`'s and `settings`', and only `catalog`'s two SQL keys and
+ * `settings`' one admin key touch a module at all. What paid these three
+ * modules' debt was the publications: P7a, P7b and P7c retired
+ * `cross-module-imports/customers.ts` and `organizations.ts` outright.
+ * `check:module-boundary` reads `cross-module reaches=7 (imports=3 sql=4)
+ * ledger-size=7 shards=4` on both sides of the move, and that agreement is the
+ * measurement rather than a silence.
+ *
+ * **`sales_channels` was already in `modules.generated.ts` and `customers` and
+ * `organizations` were not**, which is what an `./admin` layer added by a
+ * publication looks like from this file: P7a and P7b gave the contributor its
+ * layer three merge requests early, and the two hosts had none until now
+ * because a host mounts `<AdminZone>` in its own screen and contributes
+ * nothing.
+ *
+ * **`DefaultChannelBadge` retires with this batch, and the assertion that says
+ * so is `organization-channels-zone.test.tsx`'s.** P7a copied the component
+ * into the package and left the `admin/src` original alive because
+ * `SalesChannelEditPage` and `SalesChannelsListPage` still imported it; that
+ * test recorded the duplication with its own retiring condition — *"it retires
+ * when they move in batch 14"* — and both screens are this batch's, so the
+ * `admin/src` copy is deleted and the assertion is inverted rather than
+ * removed.
+ *
+ * The run after them reads
+ * `routes=34 nav=23 module-owned (routes=30 nav=20) over 4 modules`, from
+ * `routes=42 nav=29 module-owned (routes=38 nav=26) over 7 modules` — the eight
+ * routes and six nav entries exactly, and the recorded `sites` band moves
+ * 71 -> 57.
+ *
  * `host` is the admin application's own: the four routes and three nav entries
  * that belong to no module. `platform` renders `/platform/modules`, which D-36
  * says belongs to no module and must stay host-owned.
@@ -344,20 +430,11 @@ export const ADMIN_REGISTRATIONS_BASELINE: Readonly<Record<string, AdminRegistra
   blog: { routes: 7, nav: 3 },
   catalog: { routes: 8, nav: 9 },
   cms: { routes: 11, nav: 4 },
-  customers: { routes: 3, nav: 2 },
-  inventory: { routes: 7, nav: 6 },
   orders: { routes: 4, nav: 4 },
-  organizations: { routes: 2, nav: 2 },
-  pim_ergonode: { routes: 5, nav: 1 },
-  // Feature 089 — UnoPim screens sit in `admin/src/modules/pim_unopim/` the
-  // same way Ergonode's still do. The package owns field-protection *zones*
-  // (`src/admin/`); the seven mapping/connection/run routes stay host-registered
-  // until those pages can name every host symbol they reach (category tree
-  // picker, sales-channel client, shared PIM issue list) from a published kit
-  // subpath. Recording the count here is the check's own escape hatch for that
+  // Feature 089 — UnoPim screens sit in `admin/src/modules/pim_unopim/`, the
+  // shape `pim_ergonode`'s had until batch 13. The package owns field-protection
+  // *zones* (`src/admin/`); the seven mapping/connection/run routes are still the
+  // host's. Recording the count here is the check's own escape hatch for that
   // shape — not a number to raise later.
   pim_unopim: { routes: 7, nav: 1 },
-  price_lists: { routes: 3, nav: 2 },
-  quick_order: { routes: 1, nav: 0 },
-  sales_channels: { routes: 3, nav: 2 },
 };

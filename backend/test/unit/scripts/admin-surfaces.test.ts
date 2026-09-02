@@ -215,10 +215,31 @@ describe('this repository', () => {
     expect(admin.componentDirectories.size).toBeGreaterThan(0);
   });
 
-  it('attributes `warehouses` to `inventory`, which is the case a name cannot answer', async () => {
+  it('holds no surface directory whose name is not its module id — the case a name cannot answer', async () => {
+    // **Re-keyed by feature 091's Phase 4 batch 13, not deleted.** This case
+    // read `moduleOfDirectory.get('warehouses') === 'inventory'` and was the
+    // repository's own instance of the rule: `AppShell.tsx` attributes
+    // `/warehouses` to `module: 'inventory'`, so that directory belonged to a
+    // module it was not named after, and attributing by `basename` would have
+    // filed its reaches under a name no module answers to. Batch 13 moved both
+    // of `inventory`'s surface directories into
+    // `@endora-commerce/mod-inventory/admin`, so the instance is gone.
+    //
+    // What replaces it is the same claim read the other way, and it fails in
+    // both directions: a directory whose name is not its module id fails here
+    // if the derivation stopped following the route table and the nav, and a
+    // *new* one appearing fails here too, which is the moment somebody has to
+    // decide whether `basename` would have been good enough. The
+    // discrimination itself — that the derivation reads the registries rather
+    // than the name — is the fixture case above (`WarehouseEditor` imported
+    // from a directory whose name is not its module id), which enters at the
+    // top of the analysis and does not depend on this tree holding an example.
     const layout = await requireModuleLayout('[admin-surfaces-test]');
     const admin = await layout.adminSurfaces();
-    expect(admin?.moduleOfDirectory.get('warehouses')).toBe('inventory');
+    const attributed = [...(admin?.moduleOfDirectory ?? [])];
+    // The floor: an empty map would satisfy the claim below vacuously.
+    expect(attributed.length).toBeGreaterThan(0);
+    expect(attributed.filter(([directory, owner]) => directory !== owner)).toEqual([]);
   });
 
   it('leaves the admin application\'s own directories unattributed', async () => {
