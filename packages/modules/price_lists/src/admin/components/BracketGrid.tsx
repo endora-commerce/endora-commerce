@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Copy, Plus, Save, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 export interface Bracket {
   minQuantity: number;
   maxQuantity: number | null;

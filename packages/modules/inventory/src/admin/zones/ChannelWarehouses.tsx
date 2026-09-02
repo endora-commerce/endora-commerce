@@ -36,10 +36,17 @@ interface WarehouseListResponse {
  * contribution.
  *
  * Its warehouse read used `admin/src/modules/warehouses/api/warehouses-client`,
- * which is still the admin application's file, so moving this one alone would
- * have made a package reach back into `admin/src`. Both of its reads are HTTP
- * paths whose types are already `@endora-commerce/contracts`', so they are
+ * which was then still the admin application's file, so moving this one alone
+ * would have made a package reach back into `admin/src`. Both of its reads are
+ * HTTP paths whose types are already `@endora-commerce/contracts`', so they are
  * rebuilt from the published `apiClient` — P2's exit, and no new reach.
+ *
+ * That client is this package's own since feature 091's Phase 4 batch 13, which
+ * moved both of this module's surface directories into `src/admin/`. The rebuild
+ * stays: it is two `GET`s built from the published client and the contract's
+ * own types, which is what a zone contribution should be, and importing the
+ * screens' client instead would put every warehouse call this module makes into
+ * the chunk `sales_channels`' editor downloads.
  *
  * ## The read gate went; the write gate stayed
  *

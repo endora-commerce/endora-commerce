@@ -150,6 +150,20 @@ export const KnownIconNameSchema = z.enum([
   // modules that render them.
   'Languages',
   'Eraser',
+  // Feature 091 (Phase 4, batch 13) — four of `inventory`'s five sidebar
+  // entries. `AppShell.tsx` imported all four from `lucide-react` by hand
+  // (`Warehouse as WarehouseIcon`, `TrendingDown`, `Bell as BellOutline`,
+  // `PackageOpen`), and a module declaration has to *name* its icon rather than
+  // import it, so the names join the allowlist here instead of four rows
+  // silently degrading to names that happen to be on it already — which for
+  // this batch would have been four operator-visible glyph changes bought for
+  // nothing. The batch's other rows need nothing: `Box` covers the stock
+  // roster, `CircleDollarSign` `/price-lists`, and `PlugZap` `/pim-ergonode` —
+  // `pim_pimcore` added that last one for the row directly below it.
+  'Warehouse',
+  'TrendingDown',
+  'Bell',
+  'PackageOpen',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

@@ -288,9 +288,13 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(hrefs).not.toContain('/inventory/low-stock');
     expect(hrefs).not.toContain('/inventory/notifications');
     expect(hrefs).not.toContain('/inventory/import');
-    expect(
-      (await openPaletteItems()).some((t) => t.includes('appShell.nav.stockOverview')),
-    ).toBe(false);
+    // The palette half of this claim left the admin in feature 091's Phase 4
+    // batch 13: `inventory`'s hand-written `PALETTE_ITEMS` row was a second
+    // copy of the `open-inventory` action its manifest already declared, so it
+    // is gone and the surviving advertisement is the server's, resolved from
+    // the manifest against the effective enabled-set. It is driven in
+    // `backend/test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
+    // What stays here is the sidebar, which is this file's subject.
   });
 
   it('hides every inventory entry from a catalogue editor', () => {
@@ -301,7 +305,7 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(hrefs).not.toContain('/inventory/import');
   });
 
-  it('shows the inventory reads to a role holding inventory:read, and not the importer', async () => {
+  it('shows the inventory reads to a role holding inventory:read, and not the importer', () => {
     renderShell(['inventory:read']);
     const hrefs = sidebarHrefs();
     expect(hrefs).toContain('/inventory');
@@ -310,9 +314,6 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(hrefs).toContain('/inventory/notifications');
     // The import screen is a write and says so.
     expect(hrefs).not.toContain('/inventory/import');
-    expect(
-      (await openPaletteItems()).some((t) => t.includes('appShell.nav.stockOverview')),
-    ).toBe(true);
   });
 
   it('shows the importer to a role holding inventory:write', () => {
@@ -342,6 +343,13 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(hrefs).toContain('/orders');
     expect(hrefs).toContain('/comparisons');
     expect(hrefs).toContain('/organizations');
-    expect((await openPaletteItems()).some((t) => t.includes('appShell.nav.priceLists'))).toBe(true);
+    expect(hrefs).toContain('/price-lists');
+    // `/price-lists`' palette row went the other of batch 13's two ways:
+    // `price_lists` declared no action at all, so `open-price-lists` arrives in
+    // its manifest carrying this row's destination, code and keywords, and the
+    // advertisement is the server's. The sidebar entry above is the half this
+    // file can see; the other is
+    // `backend/test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
+    expect((await openPaletteItems()).some((t) => t.includes('appShell.nav.home'))).toBe(true);
   });
 });

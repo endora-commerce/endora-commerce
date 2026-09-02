@@ -2,10 +2,9 @@ import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } fr
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Upload } from 'lucide-react';
 import type { Warehouse } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useSurfaceVisibility } from '@/lib/surface-visibility';
-import { warehousesClient } from '../warehouses/api/warehouses-client';
+import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { warehousesClient } from '../api/warehouses-client.js';
 
 interface ImportError {
   row: number;
@@ -278,3 +277,10 @@ function ResultBlock({
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default StockImportWizard;

@@ -1,5 +1,4 @@
-import { apiClient } from '@/lib/api-client';
-
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 /**
  * Admin quick-order bindings (feature 039). Wraps the `/api/v1/admin/quick-order`
  * endpoints; the operator acts on behalf of a customer + organization.

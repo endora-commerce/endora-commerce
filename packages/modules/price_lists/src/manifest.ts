@@ -90,6 +90,38 @@ export const manifest = defineModuleManifest({
     { code: PRICE_LIST_PERMISSIONS.READ, label: 'View price lists and pricing rules' },
     { code: PRICE_LIST_PERMISSIONS.WRITE, label: 'Edit price lists, brackets and display modes' },
   ],
+  /**
+   * The palette advertisement for this module's landing screen (Principle
+   * XVI), arriving with feature 091's Phase 4 batch 13.
+   *
+   * It replaces a hand-written `PALETTE_ITEMS` row in
+   * `admin/src/components/AppShell.tsx` and carries that row's destination, its
+   * code and its keywords, so an operator's ⌘K answer for *cennik* is what it
+   * was. What changes is who answers: the shell's array was a copy the server
+   * was never asked about, while this declaration is resolved from the manifest
+   * against the effective enabled-set — which for a module that declares
+   * `activation.nonDeactivatable` is inert today and stops being inert the day
+   * the lock is lifted. Unlike batch 12's `quote_requests` row there was
+   * nothing here for it to duplicate: this module declared no action at all.
+   *
+   * The label and the description are this module's own bundle's, the two
+   * strings the deleted row rendered out of `_i18n`'s.
+   */
+  actions: [
+    {
+      id: 'open-price-lists',
+      labelKey: 'actions.openPriceLists.label',
+      descriptionKey: 'actions.openPriceLists.description',
+      icon: 'CircleDollarSign',
+      targetRoute: '/price-lists',
+      // The code the landing `GET` enforces and the code this module's own
+      // `./admin` route declaration carries — read off the route rather than
+      // chosen, so the palette never advertises a 403 (issue #232).
+      requiredPermission: PRICE_LIST_PERMISSIONS.READ,
+      keywords: ['pricing', 'prices', 'price list', 'cennik', 'cenniki'],
+      weight: 240,
+    },
+  ],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base, and one of the
   // escalation answers. B2B *is* contract pricing. The deciding fact is the

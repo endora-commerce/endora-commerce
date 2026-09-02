@@ -1,31 +1,16 @@
 import { useState, type ReactNode } from 'react';
-import { ApiError } from '@/lib/api-client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { CustomerPicker } from '@/components/customer-picker/CustomerPicker';
-import { OrganizationPicker } from '@/components/organization-picker/OrganizationPicker';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { PageHeader } from '@/components/ui/page-header';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label, Textarea, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { CustomerPicker, OrganizationPicker, FileDropzone } from '@endora-commerce/admin-kit/components';
 import { RouteTabsZone } from '@endora-commerce/admin-kit/zones';
-import { useTranslation } from '@/i18n/useTranslation';
-import { FileDropzone } from '@/components/FileDropzone';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   adminQuickOrderBuild,
   adminQuickOrderImport,
   type QuickOrderBuildResponse,
   type QuickOrderImportResponse,
   type QuickOrderTarget,
-} from './api/quick-order-client';
+} from '../api/quick-order-client.js';
 
 /**
  * QuickOrderOnBehalfPage — feature 039 (US1 / FR-008).
@@ -249,3 +234,10 @@ export function QuickOrderOnBehalfPage(): ReactNode {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default QuickOrderOnBehalfPage;

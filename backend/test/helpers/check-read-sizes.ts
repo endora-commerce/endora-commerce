@@ -338,7 +338,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     prefix: '[action-route-permissions]',
     run: { kind: 'tsx', path: 'scripts/check-action-route-permissions.ts', args: [] },
     files: 1808,
-    sites: 73,
+    // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
+    // That module declared no palette action at all, so its hand-written
+    // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
+    // second copy of an action already declared and is simply deleted.
+    sites: 74,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -348,14 +352,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-channel-resolution.ts': {
     prefix: '[channel-resolution]',
     run: { kind: 'tsx', path: 'scripts/check-channel-resolution.ts', args: ['--enforce'] },
-    files: 1906,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1910,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-command-coverage.ts': {
     prefix: '[command-coverage]',
     run: { kind: 'tsx', path: 'scripts/check-command-coverage.ts', args: ['--strict'] },
-    files: 1460,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1464,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -364,21 +376,33 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-container-imports.ts': {
     prefix: '[container-imports]',
     run: { kind: 'tsx', path: 'scripts/check-container-imports.ts', args: [] },
-    files: 1707,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1711,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-diacritic-folds.ts': {
     prefix: '[diacritic-folds]',
     run: { kind: 'tsx', path: 'scripts/check-diacritic-folds.ts', args: [] },
-    files: 4954,
+    // **Batch 13 (feature 091, Phase 4): +1.** Whole-tree arithmetic: twenty-four
+    // files move into the module packages, twenty-four leave `admin/src`, the
+    // `FulfilmentStrategyPicker` shim there is deleted with its last reader, and
+    // the batch adds two off-state test files.
+    files: 4955,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
     // judges every `.replace()` whose pattern it can read, cleared ones
     // included, so there is now a population here that does not move with the
     // findings.
-    sites: 434,
+    // **Batch 13 (feature 091, Phase 4): +3.** Not the moved screens, which fold
+    // nothing and build no slug: the three `.replace()` call sites this walk
+    // can read are in the batch's own admin off-state test, whose `codeOf`
+    // helper strips comments before matching the two registries as text.
+    sites: 437,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -391,21 +415,33 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-entity-tenant-classification.ts': {
     prefix: '[tenant-classification]',
     run: { kind: 'tsx', path: 'scripts/check-entity-tenant-classification.ts', args: [] },
-    files: 1906,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1910,
     sites: 236,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
     prefix: '[entry-presence]',
     run: { kind: 'tsx', path: 'scripts/check-entry-presence.ts', args: [] },
-    files: 1906,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1910,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-scope.ts': {
     prefix: '[entry-scope]',
     run: { kind: 'tsx', path: 'scripts/check-entry-scope.ts', args: [] },
-    files: 1906,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1910,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -487,21 +523,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tree growing since 2026-08-19, which `files` shows at 1237 → 1302. Both
     // numbers were inside the band; this is the MR that changed the population,
     // so this is where they get re-recorded.
-    files: 1650,
-    sites: 530,
+    // **Batch 13 (feature 091, Phase 4): +1.** The batch's backend off-state
+    // proof, `test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
+    files: 1651,
+    // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
+    // backend off-state test.
+    sites: 531,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
     prefix: '[harness-teardown]',
     run: { kind: 'tsx', path: 'scripts/check-harness-teardown.ts', args: [] },
-    files: 1650,
+    // **Batch 13 (feature 091, Phase 4): +1.** The batch's backend off-state
+    // proof, `test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
+    files: 1651,
     sites: null,
     sources: [],
   },
   'backend/scripts/check-kernel-boundary.ts': {
     prefix: '[kernel-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-kernel-boundary.ts', args: [] },
-    files: 1906,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1910,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -560,7 +606,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quote_requests`' own `open-rfq-inbox` action and is deleted rather than
     // replaced. Measured on the merge commit rather than on the branch.
     files: 2,
-    sites: 96,
+    // **Batch 13 (feature 091, Phase 4): 96 -> 71.** The sixteen routes and nine
+    // nav entries `price_lists`, `quick_order`, `inventory` and `pim_ergonode`
+    // take out of the two host registries — exactly the twenty-five this
+    // check's own ledger drops in the same merge request, which is the two
+    // derivations agreeing rather than one being adjusted to the other. `files`
+    // stays 2: this check's subject is those two files and nothing else.
+    sites: 71,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],
@@ -648,7 +700,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **No zone member is added** — `zone-enum` stays 5/5 — because all three
     // places were already declared and already rendered by P4a, which is what
     // `unrendered-zone` having no ledger requires.
-    files: 2250,
+    // **Batch 13 (feature 091, Phase 4): -1**, the deleted
+    // `FulfilmentStrategyPicker` shim. Neither `sites` nor `zone-enum` moves:
+    // the batch moves registrations and declares no zone member, no render and
+    // no contribution — which is the row's own claim that its four modules were
+    // contributors before a screen moved.
+    files: 2249,
     sites: 50,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -725,13 +782,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pim_pimcore`'s descriptor. The three `.tsx` zone components in each
     // package are outside this walk, which reads `.ts`; nothing the kit gains
     // is in it either, the population being a **module's** own directory.
-    files: 1471,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1475,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
     // larger than `files`, which is what makes it the number that moves first
     // when a position filter or the parser narrows.
-    sites: 29339,
+    // **Batch 13 (feature 091, Phase 4): +129.** Prose sites inside the four `.ts`
+    // files the batch moves under the module walk roots — `pim_ergonode`'s
+    // admin client carries most of them, its doc blocks being the longest of
+    // the four.
+    sites: 29468,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -909,8 +974,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `./field-protection` — which is the second derivation doing its job: a
     // subpath declared and not built, or built and not declared, is what makes
     // a reach unjudgeable, and this one is both.
-    files: 389,
-    sites: 2361,
+    // **Batch 13: -1**, the `FulfilmentStrategyPicker` shim, whose last reader
+    // (`admin/test/kit/admin-kit-identity.test.ts`) went with `inventory`'s
+    // directory.
+    files: 388,
+    // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
+    // spelling rather than its size.** A published-symbol reach is counted per
+    // import statement, and the twenty-four moved screens rewrote thirty `@/…`
+    // paths as four consolidated kit subpaths each — same symbols, fewer
+    // statements. Four more go with the deleted `FulfilmentStrategyPicker`
+    // shim.
+    sites: 2305,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not
@@ -962,7 +1036,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `@endora-commerce/admin-kit` is an `admin-ui` package that is neither.
     // The two `cross-module-imports` keys this batch retires are the whole
     // point and move `files` by nothing — they are `ledger-size 17 -> 15`.
-    files: 3973,
+    // **Batch 13 (feature 091, Phase 4): +3.** Its module half gains all
+    // twenty-four moved files and its admin half loses twenty-five (the
+    // twenty-four plus the `FulfilmentStrategyPicker` shim); the rest of the
+    // walk gains the four `.ts` files. `module files` reads 1882 -> 1906 and
+    // `admin files` 136 -> 111 on the same run, and `cross-module reaches`
+    // stays 7 — the batch's drain is zero, every reach its four modules
+    // carried having been incoming and repaired by P4b, P7a, P7b, P7c and P4d.
+    files: 3976,
     sites: null,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
@@ -996,7 +1077,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // because the two generated trees that made them differ, `.docusaurus` and
     // `backend/var/assets`, are declared exclusions. Re-recorded here on this
     // branch, which is the tree the exclusions were measured on.
-    files: 6986,
+    // **Batch 13 (feature 091, Phase 4): +2.** Whole-tree arithmetic: twenty-four
+    // files move into the module packages, twenty-four leave `admin/src`, the
+    // `FulfilmentStrategyPicker` shim there is deleted with its last reader, the
+    // batch adds two off-state test files, and it adds its changeset — which
+    // this walk opens like any other file, and which is the one number a batch
+    // is apt to record before writing it.
+    files: 6988,
     sites: null,
     sources: [],
   },
@@ -1046,14 +1133,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-port-catches.ts': {
     prefix: '[port-catches]',
     run: { kind: 'tsx', path: 'scripts/check-port-catches.ts', args: [] },
-    files: 1906,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1910,
     sites: 162,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
     prefix: '[port-deps]',
     run: { kind: 'tsx', path: 'scripts/check-port-dependencies.ts', args: [] },
-    files: 1692,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1696,
     sites: 1427,
     sources: ['manifest-index'],
   },
@@ -1070,7 +1165,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-platform-surface.ts': {
     prefix: '[platform-surface]',
     run: { kind: 'tsx', path: 'scripts/check-platform-surface.ts', args: [] },
-    files: 1863,
+    // **Batch 13 (feature 091, Phase 4): +24.** Every one of the batch's moved
+    // screens, this walk's population being module sources of both extensions.
+    files: 1887,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -1125,7 +1222,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-port-shape.ts': {
     prefix: '[port-shape]',
     run: { kind: 'tsx', path: 'scripts/check-port-shape.ts', args: [] },
-    files: 1786,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1790,
     sites: 664,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -1189,21 +1290,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-shared-table-wipes.ts': {
     prefix: '[shared-table-wipes]',
     run: { kind: 'tsx', path: 'scripts/check-shared-table-wipes.ts', args: [] },
-    files: 1650,
+    // **Batch 13 (feature 091, Phase 4): +1.** The batch's backend off-state
+    // proof, `test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
+    files: 1651,
     sites: 154,
     sources: [],
   },
   'backend/scripts/check-subscribe-seam.ts': {
     prefix: '[subscribe-seam]',
     run: { kind: 'tsx', path: 'scripts/check-subscribe-seam.ts', args: [] },
-    files: 1906,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1910,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-transaction-context.ts': {
     prefix: '[transaction-context]',
     run: { kind: 'tsx', path: 'scripts/check-transaction-context.ts', args: [] },
-    files: 1906,
+    // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
+    // moves under the module walk roots — `inventory`'s and `quick_order`'s
+    // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
+    // twenty files it moves are `.tsx` and this walk does not open them.
+    files: 1910,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1215,7 +1326,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources and every module package's. The test tree is in it because that is
     // where 176 of the 181 files holding a reach live, and leaving it out would
     // have made the check blind to both defects it exists for.
-    files: 3833,
+    // **Batch 13 (feature 091, Phase 4): +25.** The twenty-four moved screens,
+    // plus the batch's backend off-state test.
+    files: 3858,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -1280,7 +1393,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // set, so it is 7 down; `@endora-commerce/page-builder-admin/src` arrives
     // carrying all fourteen, so the walk is 7 up. The package's eleven `.ts`
     // files move no number here and are outside this walk by construction.
-    files: 422,
+    // **Batch 13 (feature 091, Phase 4): -1.** Twenty-four admin screens move into
+    // four module packages, which this walk already covered on both sides, and
+    // the `FulfilmentStrategyPicker` shim is deleted.
+    files: 421,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -1294,14 +1410,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'scripts/check-naming.sh': {
     prefix: '[naming]',
     run: { kind: 'bash', path: 'scripts/check-naming.sh', args: [] },
-    files: 7046,
+    // **Batch 13 (feature 091, Phase 4): +2.** Whole-tree arithmetic: twenty-four
+    // files move into the module packages, twenty-four leave `admin/src`, the
+    // `FulfilmentStrategyPicker` shim there is deleted with its last reader, the
+    // batch adds two off-state test files, and it adds its changeset — which
+    // this walk opens like any other file, and which is the one number a batch
+    // is apt to record before writing it.
+    files: 7048,
     sites: null,
     sources: ['manifest-index'],
   },
   'scripts/check-language.sh': {
     prefix: '[language]',
     run: { kind: 'bash', path: 'scripts/check-language.sh', args: [] },
-    files: 5262,
+    // **Batch 13 (feature 091, Phase 4): +1.** Whole-tree arithmetic: twenty-four
+    // files move into the module packages, twenty-four leave `admin/src`, the
+    // `FulfilmentStrategyPicker` shim there is deleted with its last reader, and
+    // the batch adds two off-state test files.
+    files: 5263,
     sites: null,
     sources: ['manifest-index'],
   },

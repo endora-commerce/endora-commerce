@@ -16,10 +16,8 @@ import type {
   RuleCriterionType,
   RuleGroupNode,
 } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { useTranslation } from '@/i18n/useTranslation';
-import { normalize } from '@/lib/text-normalization';
-
+import { ApiError, apiClient, normalize } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 const DEPTH_CAP = 5;
 
 const CRITERION_TYPES: RuleCriterionType[] = ['salesChannel', 'customerGroup', 'organization', 'category', 'currency'];

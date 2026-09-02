@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Bell, Search } from 'lucide-react';
 import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@/lib/api-client';
-import { ScopeNotice } from '@/components/scope-notice/ScopeNotice';
-import { formatDateTime } from '@/lib/format';
-import { cn } from '@/lib/utils';
-import { useTranslation } from '@/i18n/useTranslation';
-import { useSurfaceVisibility } from '@/lib/surface-visibility';
-import { normalize } from '@/lib/text-normalization';
-
+import { ApiError, apiClient, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
+import { ScopeNotice } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 interface NotificationRow {
   id: string;
   productId: string;
@@ -270,3 +265,10 @@ export function AvailabilityNotificationsPage(): ReactNode {
     </div>
   );
 }
+
+/**
+ * The registry loads a route component through a dynamic-import factory and
+ * reads its default export (feature 091, FR-013). The named export stays: it is
+ * the spelling this module's own code and its tests use.
+ */
+export default AvailabilityNotificationsPage;
