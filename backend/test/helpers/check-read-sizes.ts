@@ -346,7 +346,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the batch declares — `organizations`' `open-organizations` and
     // `sales_channels`' `open-sales-channels` — each replacing a hand-written
     // `PALETTE_ITEMS` row the server was never asked about.
-    sites: 76,
+    // **Batch 15 (feature 091, Phase 4): 76 -> 79.** `catalog`'s three new
+    // palette actions — `open-products`, `open-categories`, `open-attributes` —
+    // which are the three hand-written `PALETTE_ITEMS` rows that batch deletes,
+    // arriving as declarations the effective enabled-set filters.
+    sites: 79,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -366,7 +370,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1913,
+    // **Batch 15 (feature 091, Phase 4): 1913 -> 1916.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1916,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -383,7 +393,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1467,
+    // **Batch 15 (feature 091, Phase 4): 1467 -> 1470.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1470,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -402,7 +418,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1714,
+    // **Batch 15 (feature 091, Phase 4): 1714 -> 1717.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1717,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -413,7 +435,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files move into the module packages, twenty-four leave `admin/src`, the
     // `FulfilmentStrategyPicker` shim there is deleted with its last reader, and
     // the batch adds two off-state test files.
-    files: 4954,
+    // **Batch 15: 4954 -> 4953.** The whole-tree walk: four re-export shims
+    // deleted, and three files added (`catalog/src/admin/index.ts` and the
+    // batch's two new test files).
+    files: 4953,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -433,7 +458,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `replacePatternSource` reads a pattern and not a call. Batch 13 chased
     // the identical `+3` and found the identical cause, which is the standard
     // this row is recorded to.
-    sites: 440,
+    // **Batch 15 (feature 091, Phase 4): 440 -> 444.** Four, and every one of
+    // them is this batch's own admin off-state test: `codeOf`'s comment strip,
+    // `concreteUrl`'s parameter substitution and two `labelKey`/`member` dot
+    // escapes are `.replace()` calls whose pattern the slug predicate can read,
+    // so they enter the population whether or not they fold anything. Batches
+    // 13 and 14 each chased the same `+3` and each found the same answer, in
+    // their own new test file — which is worth recording as a habit rather than
+    // as a coincidence: this number moves with the *instruments* a batch adds,
+    // not with the surface it moves.
+    sites: 444,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -456,7 +490,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1913,
+    // **Batch 15 (feature 091, Phase 4): 1913 -> 1916.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1916,
     sites: 236,
     sources: ['manifest-index'],
   },
@@ -473,7 +513,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1913,
+    // **Batch 15 (feature 091, Phase 4): 1913 -> 1916.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1916,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -490,7 +536,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1913,
+    // **Batch 15 (feature 091, Phase 4): 1913 -> 1916.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1916,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -574,7 +626,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // so this is where they get re-recorded.
     // **Batch 13 (feature 091, Phase 4): +1.** The batch's backend off-state
     // proof, `test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
-    files: 1652,
+    // **Batch 15 (feature 091, Phase 4): 1652 -> 1653.** One: the batch's own
+    // `test/integration/_admin_surfaces/batch-fifteen-palette-off-state.test.ts`.
+    files: 1653,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -582,7 +636,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/integration/_admin_surfaces/batch-fourteen-palette-off-state.test.ts`,
     // which boots the server and therefore reads the database — so it joins
     // both the walk and the finer population in the same merge request.
-    sites: 532,
+    // **Batch 15: 532 -> 533.** One read site in the batch's own backend
+    // integration test.
+    sites: 533,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -593,7 +649,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Batch 14 (feature 091, Phase 4): +1 file.** The backend test tree gains
     // `test/integration/_admin_surfaces/batch-fourteen-palette-off-state.test.ts`,
     // the server half of the batch's off-state proof.
-    files: 1652,
+    // **Batch 15 (feature 091, Phase 4): 1652 -> 1653.** One: the batch's own
+    // `test/integration/_admin_surfaces/batch-fifteen-palette-off-state.test.ts`.
+    files: 1653,
     sites: null,
     sources: [],
   },
@@ -610,7 +668,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1913,
+    // **Batch 15 (feature 091, Phase 4): 1913 -> 1916.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1916,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -683,6 +747,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entries for the `PALETTE_ITEMS` reason once more: four sidebar rows and
     // two hand-written Navigate rows, both of which named destinations no
     // manifest action covered and are declarations now.
+    // **Batch 15 (feature 091, Phase 4): 57 -> 32.** The twelve routes and
+    // thirteen nav entries `catalog` and `orders` take out of the two host
+    // registries — exactly the twenty-five this check's own ledger drops in the
+    // same merge request, which is the two derivations agreeing rather than one
+    // being adjusted to the other. Thirteen rather than nine nav entries for
+    // the `PALETTE_ITEMS` reason once more: nine sidebar rows and four
+    // hand-written Navigate rows, of which three named destinations no manifest
+    // action covered and are `catalog` declarations now, the fourth being a
+    // second copy of `orders`' own `open-orders`.
     //
     // **Feature 089 (`pim_unopim`): 57 -> 65 -> 57, and the number is
     // deliberately left where it is.** That branch was written against the
@@ -692,7 +765,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worth a sentence rather than silence: what would be wrong is re-recording
     // 65 on the way past, which would raise this band's floor for a state no
     // merge commit ever held.
-    sites: 57,
+    // Feature 089 merges into batch 15 and the count is **32**, measured on the
+    // merged tree rather than carried from either side: this branch's eight
+    // registrations were added and taken back out inside it, so what it
+    // contributes to batch 15's number is nothing.
+    sites: 32,
     // `AppShell.tsx` writes the `module` strings and the generated index is
     // rendered from the manifests, so the reconciliation has two authors.
     sources: ['manifest-index'],
@@ -791,7 +868,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and two `tsconfig.ui.json`s arrive. `renders` and `contributions` are
     // unchanged at 25 and 24, which is the batch's own claim: the three hosts
     // still mount their zones from inside their packages.
-    files: 2246,
+    // **Batch 15: 2246 -> 2243.** The same net three as the sibling entries —
+    // four deleted shims, one new `admin/index.ts`. `sites` does not move:
+    // `renders=25 contributions=24 foreign-ids=1` on both sides of the move,
+    // which is the batch's zone assertion read from this check's side.
+    files: 2243,
     sites: 50,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -872,7 +953,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
     // twenty files it moves are `.tsx` and this walk does not open them.
-    files: 1478,
+    // **Batch 15 (feature 091, Phase 4): 1478 -> 1481.** The three `.ts` files
+    // `catalog`' and `orders`' admin layers add to the module walk — this check
+    // reads module sources and shipped bundles, and the twenty-four `.tsx`
+    // screens are outside its extension set.
+    files: 1481,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -887,7 +972,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walk with the Polish keyword lists the two new manifest actions carry
     // (`organizacja`, `klient`, `kanał`, `sprzedaży`) and the six i18n keys the
     // batch moves out of `_i18n` into the modules' own bundles.
-    sites: 29549,
+    // **Batch 15: 29549 -> 29646.** The prose sites those three files carry
+    // plus the fifteen bundle entries `catalog` and `orders` gain in both
+    // shipped languages — the nav labels and `catalog`'s three palette actions,
+    // moved out of `_i18n` and therefore counted in each module's bundle now.
+    sites: 29646,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -1068,7 +1157,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Batch 13: -1**, the `FulfilmentStrategyPicker` shim, whose last reader
     // (`admin/test/kit/admin-kit-identity.test.ts`) went with `inventory`'s
     // directory.
-    files: 385,
+    // **Batch 15: 385 -> 382.** Net of the move: twenty-seven files leave
+    // `admin/src` and arrive under two module packages, which this walk counts
+    // either way; what changes the total is the four deleted shims and the one
+    // new `catalog/src/admin/index.ts`.
+    files: 382,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -1082,7 +1175,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `@/components/ui/*` lines become one `@endora-commerce/admin-kit/ui`
     // line in `OrganizationDetail` alone. `sites` counts published reaches, so
     // it falls with the merge and not with the move.
-    sites: 2228,
+    // **Batch 15 (feature 091, Phase 4): 2228 -> 2121.** `catalog`' and
+    // `orders`' twenty-seven admin files moved into their packages and their
+    // `@/`-alias imports became kit-subpath ones, which this check counts as
+    // published symbol reaches — fewer of them, because the move consolidated
+    // fourteen single-symbol `@/components/ui/*` lines per screen into one
+    // `@endora-commerce/admin-kit/ui` import each, and because four re-export
+    // shims were deleted with the directories (`catalog`'s `ProductPicker`,
+    // `orders`' `Section`, `StatusTransitionGraph` and `orderStatusColor`),
+    // each of which was two or three re-export sites of its own.
+    sites: 2121,
     // Two derivations, neither the walk counting itself: the generated manifest
     // index for the modules a surface directory is attributed to, and the kit's
     // own `exports` map against the barrels on disk — a subpath declared and not
@@ -1186,7 +1288,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset, and loses the five residue files
     // `admin/src/modules/sales_channels/` held — four `export {}` barrels and
     // the `DefaultChannelBadge` copy P7a could not delete. Net two.
-    files: 6990,
+    // **Batch 15 (feature 091, Phase 4): 6990 -> 6991.** One, and it is this
+    // batch's changeset: the whole-tree walk counts `.md`, and the four deleted
+    // shims, the four new source files and the twenty-seven moves net to zero
+    // here because a moved file is walked at either address.
+    files: 6991,
     sites: null,
     sources: [],
   },
@@ -1235,7 +1341,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `@endora-commerce/mod-organizations/admin`; `sales_channels` was
     // already in that registry, P7a having given it an `./admin` layer three
     // merge requests early.
-    sites: 510,
+    // **Batch 15: 510 -> 511.** One: `admin/src/modules.generated.ts` gains the
+    // `@endora-commerce/mod-catalog/admin` entry. `orders` was already in that
+    // registry, its `order.entry.tabs` contribution having arrived in P4d.
+    sites: 511,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -1251,7 +1360,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1913,
+    // **Batch 15 (feature 091, Phase 4): 1913 -> 1916.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1916,
     sites: 162,
     sources: ['manifest-index'],
   },
@@ -1268,7 +1383,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1699,
+    // **Batch 15 (feature 091, Phase 4): 1699 -> 1702.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1702,
     sites: 1427,
     sources: ['manifest-index'],
   },
@@ -1292,7 +1413,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and enter the module walk, where the admin application's own directories
     // were not. One `.tsx` under the moved set was already this walk's, being
     // `sales_channels`' P7a contribution.
-    files: 1907,
+    // **Batch 15 (feature 091, Phase 4): 1907 -> 1931.** Twenty-seven admin
+    // files became module-package sources, four shims were deleted and one
+    // `admin/index.ts` was added: twenty-four net. They reach no platform
+    // symbol, so `ledger-size` does not move — this is the population growing,
+    // which is exactly what this number is recorded to notice.
+    files: 1931,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -1357,7 +1483,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1793,
+    // **Batch 15 (feature 091, Phase 4): 1793 -> 1796.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1796,
     sites: 664,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -1426,7 +1558,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Batch 14 (feature 091, Phase 4): +1 file.** The backend test tree gains
     // `test/integration/_admin_surfaces/batch-fourteen-palette-off-state.test.ts`,
     // the server half of the batch's off-state proof.
-    files: 1652,
+    // **Batch 15 (feature 091, Phase 4): 1652 -> 1653.** One: the batch's own
+    // `test/integration/_admin_surfaces/batch-fifteen-palette-off-state.test.ts`.
+    files: 1653,
     sites: 154,
     sources: [],
   },
@@ -1443,7 +1577,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1913,
+    // **Batch 15 (feature 091, Phase 4): 1913 -> 1916.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1916,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1460,7 +1600,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channels`' admin API client. The other eighteen files it moves are
     // `.tsx` and this walk reads `.ts` only, which is why a batch that moved
     // twenty-one files moves this number by three.
-    files: 1913,
+    // **Batch 15 (feature 091, Phase 4): 1913 -> 1916.** Three, and the three are
+    // the whole of what this walk sees of a twenty-seven-file move: it reads
+    // `.ts` and not `.tsx`, and `catalog`' and `orders`' admin layers landed in
+    // their packages as twenty-four `.tsx` screens plus
+    // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
+    // and `orders/src/admin/lib/paymentStatus.ts`.
+    files: 1916,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1478,7 +1624,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // eighteen screens, two contribution entries and one admin API client —
     // arriving under `packages/modules/*/src/admin/`, which is this walk's
     // population and was not the admin application's.
-    files: 3879,
+    // **Batch 15: 3879 -> 3904.** The twenty-four net module-package sources
+    // above, plus the batch's own backend integration test.
+    files: 3904,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -1549,7 +1697,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Batch 14 (feature 091, Phase 4): -1 file.** Twenty-three admin files
     // leave `admin/src` (eighteen moved, five deleted) and twenty-one arrive
     // under `packages/modules/*/src/admin/`, plus the batch's own admin test.
-    files: 420,
+    // **Batch 15 (feature 091, Phase 4): 420 -> 417.** The same net three as
+    // every other walk over the admin surface — four re-export shims deleted,
+    // one `catalog/src/admin/index.ts` added. That it is **three** and not
+    // twenty-seven is the load-bearing half: this scanner follows a module's
+    // admin sources into its package, so the batch did not take twenty-seven
+    // screens out of the hard-coded-string population by moving them.
+    files: 417,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -1574,7 +1728,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset, and loses the five residue files
     // `admin/src/modules/sales_channels/` held — four `export {}` barrels and
     // the `DefaultChannelBadge` copy P7a could not delete. Net two.
-    files: 7050,
+    // **Batch 15: 7050 -> 7051.** The same one file, over the same whole-tree
+    // population — see the sibling entry above.
+    files: 7051,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1592,7 +1748,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `admin/src/modules/sales_channels/` held — four `export {}` barrels and
     // the `DefaultChannelBadge` copy P7a could not delete — against the four
     // files the batch adds to a module package's `src/`.
-    files: 5262,
+    // **Batch 15: 5262 -> 5261.** The same net one as the fold check above,
+    // over the same whole-tree population.
+    files: 5261,
     sites: null,
     sources: ['manifest-index'],
   },

@@ -138,8 +138,12 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
   //
   // One thing about that removal is worth saying rather than leaving to be
   // inferred, because the ledger's own header asks a removal to say which of
-  // the two happened: both files are still `admin/src/modules/orders/`'s and
-  // are still in the walk. Nothing left sight of them — the couplings went.
+  // the two happened: both files were still in the walk when P7d removed the
+  // entries. Nothing left sight of them — the couplings went. (Feature 091's
+  // Phase 4 batch 15 then moved both into
+  // `packages/modules/orders/src/admin/`, where this check walks them under
+  // their new address; the entries had already gone, so there was nothing to
+  // re-key.)
   // The third entry is the one the widened walk found, and it is a **correct**
   // gate rather than a defect — which is why it is recorded here rather than
   // repaired. Z12 added it in batch 10, in the same merge request that moved

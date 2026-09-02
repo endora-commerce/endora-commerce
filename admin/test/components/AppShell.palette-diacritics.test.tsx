@@ -101,8 +101,11 @@ const coreBundle = {
       'appShell.palette.group.actions',
     ]).core,
     // Verbatim from `packages/modules/_i18n/i18n/pl.json`.
-    'appShell.nav.orders': 'Zamówienia',
-    'appShell.palette.sub.openOrders': 'Otwarte i ostatnie zamówienia',
+    //
+    // The two `appShell.*orders*` keys stood here until feature 091's Phase 4
+    // batch 15 retired them with the `/orders` Navigate row they labelled. The
+    // dashboard pair is what is left, and it is what the Navigate half of every
+    // case below now reads — see the note on the first one.
     'appShell.nav.home': 'Strona główna',
     'appShell.palette.sub.dashboard': 'Pulpit',
   },
@@ -140,12 +143,29 @@ function renderShell(): void {
  * palette matched nothing — which is the defect under test.
  */
 async function paletteRowsFor(query: string): Promise<string[]> {
+  return (await paletteRowsForEach([query]))[0] as string[];
+}
+
+/**
+ * The same, for **several** queries against one dialog.
+ *
+ * Feature 091's Phase 4 batch 15 left the Navigate group with one row — the
+ * dashboard, the admin application's own — and no shipped action shares a
+ * foldable token with it, so a case that exercises both indexes now needs two
+ * queries. Typing them into the same input keeps the property this file is
+ * built on and which a second `renderShell()` would have lost: **one render of
+ * one dialog**, so a fold applied to one index and not the other fails here
+ * rather than in production.
+ */
+async function paletteRowsForEach(queries: readonly string[]): Promise<string[][]> {
   renderShell();
   await userEvent.click(screen.getByPlaceholderText('appShell.search.placeholder'));
   const dialog = await screen.findByRole('dialog');
   const input = dialog.querySelector('.b2b-palette__input input') as HTMLInputElement;
-  fireEvent.change(input, { target: { value: query } });
-  return [...dialog.querySelectorAll('.b2b-palette__item')].map((el) => el.textContent ?? '');
+  return queries.map((query) => {
+    fireEvent.change(input, { target: { value: query } });
+    return [...dialog.querySelectorAll('.b2b-palette__item')].map((el) => el.textContent ?? '');
+  });
 }
 
 describe('AppShell palette — one matching rule for every group (issue #233)', () => {
@@ -155,20 +175,36 @@ describe('AppShell palette — one matching rule for every group (issue #233)', 
   });
 
   it('matches both the Navigate and the Actions row for an unaccented query', async () => {
-    const rows = await paletteRowsFor('zamowienia');
+    // **The two halves take two queries since feature 091's Phase 4 batch 15**,
+    // and the reason is worth stating because the one-query shape is what this
+    // file was written around. That batch moved the `/orders` Navigate row into
+    // `orders`' manifest, leaving `PALETTE_ITEMS` with exactly one row — the
+    // dashboard, `module: null`, the admin application's own, which no batch can
+    // drain and which the stroked-`ł` case below already re-based onto for the
+    // same reason. Measured over every shipped `actions.*` Polish string: none
+    // shares a foldable token with `Strona główna` or `Pulpit`, so no single
+    // query can reach both groups any more.
+    //
+    // What the case still proves is the property it exists for — a fold applied
+    // to one index and not the other fails here — because each assertion names
+    // the group whose index it exercises, and both queries are typed into the
+    // **same** input of the **same** dialog. `paletteRowsForEach` is what keeps
+    // that: a second `renderShell()` would have been a second dialog, which is
+    // precisely the arrangement this file was written to avoid.
+    const [actions, navigate] = await paletteRowsForEach(['zamowienia', 'glowna']);
     // Actions — has folded since feature 020.
-    expect(rows.some((text) => text.includes('Otwórz zamówienia'))).toBe(true);
+    expect(actions?.some((text) => text.includes('Otwórz zamówienia'))).toBe(true);
     // Navigate — the half that did not.
-    expect(rows.some((text) => text.includes('Zamówienia'))).toBe(true);
+    expect(navigate?.some((text) => text.includes('Strona główna'))).toBe(true);
   });
 
   it('matches both rows for the fully accented spelling as well', async () => {
     // Guards the other half of "normalise both sides": folding only the
     // haystack would drop this one, because the stored keyword folds to
     // `zamowienia` while the query still carries its diacritics.
-    const rows = await paletteRowsFor('zamówienia');
-    expect(rows.some((text) => text.includes('Otwórz zamówienia'))).toBe(true);
-    expect(rows.some((text) => text.includes('Zamówienia'))).toBe(true);
+    const [actions, navigate] = await paletteRowsForEach(['zamówienia', 'główna']);
+    expect(actions?.some((text) => text.includes('Otwórz zamówienia'))).toBe(true);
+    expect(navigate?.some((text) => text.includes('Strona główna'))).toBe(true);
   });
 
   it('folds the stroked ł, which NFD decomposition leaves standing', async () => {
@@ -203,15 +239,19 @@ describe('AppShell palette — one matching rule for every group (issue #233)', 
     // leading space — a stray keystroke, or the space left behind by pasting
     // a copied label — emptied the palette with no explanation, on the one
     // surface whose entire job is to be forgiving (Postel's Law).
-    const rows = await paletteRowsFor(' zamowienia ');
-    expect(rows.some((text) => text.includes('Otwórz zamówienia'))).toBe(true);
-    expect(rows.some((text) => text.includes('Zamówienia'))).toBe(true);
+    const [actions, navigate] = await paletteRowsForEach([' zamowienia ', ' glowna ']);
+    expect(actions?.some((text) => text.includes('Otwórz zamówienia'))).toBe(true);
+    expect(navigate?.some((text) => text.includes('Strona główna'))).toBe(true);
   });
 
   it('lists every row for a whitespace-only query, as it does for an empty one', async () => {
+    // **The one case that still reaches both groups from one render**, which is
+    // the property the first case's note says it gives up: an empty query
+    // filters nothing, so the Navigate row and the Actions row are both in the
+    // list this render produced.
     const rows = await paletteRowsFor('   ');
     expect(rows.some((text) => text.includes('Otwórz zamówienia'))).toBe(true);
-    expect(rows.some((text) => text.includes('Zamówienia'))).toBe(true);
+    expect(rows.some((text) => text.includes('Strona główna'))).toBe(true);
   });
 
   it('still filters — an unrelated query matches no row in any group', async () => {

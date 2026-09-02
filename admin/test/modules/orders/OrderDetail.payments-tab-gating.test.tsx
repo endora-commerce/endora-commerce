@@ -53,9 +53,17 @@ let presentModules: readonly string[] = ['orders', 'payments'];
 
 const getSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual =
-    await vi.importActual<typeof import('../../../src/lib/api-client')>('@/lib/api-client');
+// **Re-keyed by feature 091's Phase 4 batch 15, and this is the trap batch 14
+// found by sweeping rather than by running.** The mock named `@/lib/api-client`
+// while the subject was under `admin/src`; the subject is inside a module
+// package now and resolves `@endora-commerce/admin-kit/lib`, of which
+// `@/lib/api-client` is only a re-export shim — so the old spelling intercepts
+// nothing and vitest reports that by making the mock **inert** rather than by
+// failing. `tsc` cannot see it: both specifiers compile.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
   return {
     ...actual,
     apiClient: {
@@ -68,7 +76,7 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
-const { OrderDetail } = await import('../../../src/modules/orders/OrderDetail');
+const { OrderDetail } = await import('../../../../packages/modules/orders/src/admin/pages/OrderDetail');
 const payments = await import('@endora-commerce/mod-payments/admin');
 
 /** The registry the admin would have built from `modules.generated.ts`. */
@@ -191,7 +199,14 @@ describe('OrderDetail — the payments tab is gated on payments:read', () => {
   it('leaves the host naming no module of its own', async () => {
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
-    const host = readFileSync(resolve(process.cwd(), 'src/modules/orders/OrderDetail.tsx'), 'utf8');
+    // Re-keyed by feature 091's Phase 4 batch 15: `orders` took its admin
+    // surface into its own package and this screen went with it. A
+    // `readFileSync` of the old path throws rather than reporting the module
+    // knowledge this case measures.
+    const host = readFileSync(
+      resolve(process.cwd(), '../packages/modules/orders/src/admin/pages/OrderDetail.tsx'),
+      'utf8',
+    );
     expect(host).not.toContain("module: 'payments'");
     expect(host).not.toContain('OrderPaymentsTab');
     expect(host).toContain('name="order.detail.payment"');

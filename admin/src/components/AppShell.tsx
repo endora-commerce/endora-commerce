@@ -6,20 +6,15 @@ import {
   Boxes,
   ChevronDown,
   ChevronRight,
-  ClipboardCheck,
-  FileText,
   HelpCircle,
   Home as HomeIcon,
   Menu,
   LayoutDashboard,
-  ListChecks,
   LogOut,
   Newspaper,
-  Package,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
-  Tag,
   Sparkles,
   Webhook,
   type LucideIcon,
@@ -115,21 +110,24 @@ const NAV: NavSection[] = [
     key: 'sales',
     labelKey: 'appShell.section.sales',
     items: [
-      { to: '/orders', labelKey: 'appShell.nav.orders', icon: ClipboardCheck, requiredPermission: 'orders:read', module: 'orders' },
-      // Quick order is not a second destination — it is the other way of
-      // getting lines into the same order, so it lives behind a tab on the
-      // order-entry page rather than on its own sidebar row.
-      { to: '/orders/new', labelKey: 'appShell.nav.newOrder', icon: ClipboardCheck, requiredPermission: 'orders:write', module: 'orders' },
-      { to: '/orders/statuses', labelKey: 'appShell.nav.orderStatuses', icon: ClipboardCheck, requiredPermission: 'orders:read', module: 'orders' },
+      // All three `/orders*` rows stood here until feature 091's Phase 4 batch
+      // 15; `orders` declares them now, at weights 100, 200 and 300 — the order
+      // they stood in — in `packages/modules/orders/src/admin/index.ts`. That
+      // *quick order is not a second destination but the other way of getting
+      // lines into the same order, so it lives behind a tab on the order-entry
+      // page* is still true and is recorded where the routes are.
+      //
       // `/quote-requests`, `/invoices` and `/ksef` were declared here until
-      // feature 091's Phase 4 batch 12. The three modules declare them now and
-      // they arrive through `composeNav` from `modules.generated.ts`, at
-      // weights 400, 500 and 600 — the order they stood in here. The three
-      // `orders` rows above are still the host's, so the registry entries
-      // append after them, which is where these three already sat. That
-      // *templates are reached through the tab strip on the invoices page and
-      // not from here* is still true and is now recorded where the routes are,
-      // in `packages/modules/invoices/src/admin/index.ts`.
+      // feature 091's Phase 4 batch 12, at weights 400, 500 and 600 — the order
+      // they stood in here, and still the order they render in now that the
+      // three rows above them are contributions too.
+      //
+      // The section now holds **no host-declared row**, which has one
+      // operator-visible consequence recorded rather than glossed: the
+      // breadcrumb `registryCrumbs` derives for every screen in it renders
+      // *Sales* unlinked, because there is no host entry left for it to point
+      // at. That is batch 13's *Inventory* and *Pricing* arriving again, and it
+      // reaches the four contributed rows' trails as well as this module's own.
       //
       // `/ksef`'s glyph changes from `ReceiptText` to `Receipt`:
       // `KnownIconNameSchema` does not carry the first, and `Receipt` is what
@@ -140,11 +138,20 @@ const NAV: NavSection[] = [
     key: 'catalog',
     labelKey: 'appShell.section.catalog',
     items: [
-      { to: '/catalog/products', labelKey: 'appShell.nav.products', icon: Package, requiredPermission: 'catalog:read', module: 'catalog' },
-      { to: '/catalog/categories', labelKey: 'appShell.nav.categories', icon: Boxes, requiredPermission: 'catalog:read', module: 'catalog' },
-      { to: '/catalog/attributes', labelKey: 'appShell.nav.attributes', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
-      { to: '/catalog/attribute-sets', labelKey: 'appShell.nav.attributeSets', icon: Tag, requiredPermission: 'catalog:read', module: 'catalog' },
-      { to: '/catalog/attachment-types', labelKey: 'appShell.nav.attachmentTypes', icon: FileText, requiredPermission: 'catalog:read', module: 'catalog' },
+      // All five `/catalog*` rows stood here until feature 091's Phase 4 batch
+      // 15; `catalog` declares them now, in
+      // `packages/modules/catalog/src/admin/index.ts`, at weights 10 to 50 —
+      // ten times the position rather than the usual hundred, because this
+      // section already holds three contributed rows and every one of them
+      // belongs *below* these five. `assets_library` declares 200, so
+      // `/catalog/categories` at 200 would tie with it and lose the tie-break
+      // on module id.
+      //
+      // The section now holds **no host-declared row**, so the derived
+      // breadcrumb renders *Catalog* unlinked — including on `pim_ergonode`'s
+      // five trails, whose own note recorded that crumb keeping its
+      // `/catalog/products` href while these rows were the host's.
+      //
       // `/pim-ergonode` stood here until feature 091's Phase 4 batch 13.
       // `pim_ergonode` declares it now, at weight 250 — between
       // `assets_library`' 200 and `pim_pimcore`' 300, which is where both of
@@ -324,16 +331,16 @@ const NAV: NavSection[] = [
       // Unlike *Analytics & Ads*, this section still holds host entries, so a
       // registry entry appends after every one of them whatever its weight says
       // — the operator-visible consequence the batch records.
-      // Bulk operations may span many domains (not just products), so the
-      // entry lives under System. The URL stays `/catalog/bulk-operations`
-      // to keep existing deep-links (e.g. the bulk-edit "queued" ack) valid.
-      {
-        to: '/catalog/bulk-operations',
-        labelKey: 'appShell.nav.bulkOperations',
-        icon: ListChecks,
-        requiredPermission: 'catalog:read',
-        module: 'catalog',
-      },
+      // `/catalog/bulk-operations` stood here until feature 091's Phase 4 batch
+      // 15; `catalog` declares it now, at weight 400 — its position in this
+      // table's original thirteen rows, which is behind `/admin-roles`' 300 and
+      // ahead of `/custom-fields`' 500. One operator-visible change follows and
+      // is recorded rather than glossed: the row rendered *second* while it was
+      // the host's, `composeNav` putting every host row above every contributed
+      // one, and it renders fourth now — back where the table that wrote it put
+      // it. That *bulk operations may span many domains, so the entry lives
+      // under System while the URL stays `/catalog/bulk-operations` to keep
+      // existing deep links valid* is recorded where the route is.
       // `/api-keys` and `/webhooks` are declared by the modules that own them
       // since feature 091's Phase 4 (the plan's batch 6), and arrive through
       // `composeNav` from `modules.generated.ts`. Their declarations are in
@@ -439,31 +446,21 @@ type Crumb =
 
 const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] }> = [
   { test: /^\/$/, build: () => [{ labelKey: 'appShell.nav.home', href: null }] },
-  { test: /^\/catalog\/products\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.products', href: null },
-  ] },
-  { test: /^\/catalog\/products\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.products', href: '/catalog/products' },
-    { labelKey: 'appShell.crumb.editor', href: null },
-  ] },
-  { test: /^\/catalog\/categories\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.categories', href: null },
-  ] },
-  { test: /^\/catalog\/attributes\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.attributes', href: null },
-  ] },
-  { test: /^\/catalog\/attribute-sets\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.attributeSets', href: null },
-  ] },
-  { test: /^\/catalog\/attachment-types\/?$/, build: () => [
-    { labelKey: 'appShell.section.catalog', href: '/catalog/products' },
-    { labelKey: 'appShell.nav.attachmentTypes', href: null },
-  ] },
+  // Six hand-written `/catalog*` trails stood here until feature 091's Phase 4
+  // batch 15, and the two `/catalog/bulk-operations*` screens never had one at
+  // all — both fell to the humanised-segment fallback. `registryCrumbs` derives
+  // all eight now, from the sidebar entries `catalog` declares. Three
+  // operator-visible changes, stated rather than glossed:
+  //
+  //  - *Catalog* loses its link, this section holding no host-declared entry
+  //    any more for `registryCrumbs` to point at (batch 13's *Inventory* and
+  //    *Pricing*, arriving again).
+  //  - `/catalog/products/:id` loses its *Editor* leaf and reads
+  //    *Catalog → Products*, which is the shape every converted module's
+  //    sub-screen already gets.
+  //  - the two bulk-operation screens gain the label their sidebar row carries,
+  //    under *System* rather than under *Catalog*, which is the section that row
+  //    has declared since it was written.
   // Seventeen hand-written trails stood here until feature 091's Phase 4 batch
   // 13 — the five `/pim-ergonode*`, the four `/inventory*`, the three
   // `/warehouses*`, the two `/price-lists*` — plus `/orders/quick-order`, which
@@ -533,26 +530,25 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   // `/organizations/:id` loses its *Detail* leaf — the shape every converted
   // module's sub-screen already gets. The three `/customers*` screens gain the
   // labels their sidebar rows already carry, where they had none.
-  { test: /^\/orders\/?$/, build: () => [{ labelKey: 'appShell.nav.orders', href: null }] },
-  // These three must precede the generic /orders/:id rule below — buildCrumbs
-  // returns on first match, so without them the named sub-pages were labelled
-  // "Orders / Detail" as if their path segment were an order id.
-  { test: /^\/orders\/new\/?$/, build: () => [
-    { labelKey: 'appShell.nav.orders', href: '/orders' },
-    { labelKey: 'appShell.nav.newOrder', href: null },
-  ] },
-  { test: /^\/orders\/quick-order\/?$/, build: () => [
-    { labelKey: 'appShell.nav.orders', href: '/orders' },
-    { labelKey: 'appShell.nav.quickOrder', href: null },
-  ] },
-  { test: /^\/orders\/statuses\/?$/, build: () => [
-    { labelKey: 'appShell.nav.orders', href: '/orders' },
-    { labelKey: 'appShell.nav.orderStatuses', href: null },
-  ] },
-  { test: /^\/orders\/[^/]+\/?$/, build: () => [
-    { labelKey: 'appShell.nav.orders', href: '/orders' },
-    { labelKey: 'appShell.crumb.detail', href: null },
-  ] },
+  // Five hand-written `/orders*` trails stood here until feature 091's Phase 4
+  // batch 15 — the roster, `/orders/new`, `/orders/quick-order`,
+  // `/orders/statuses` and the generic `/orders/:id`. `registryCrumbs` derives
+  // them from the three sidebar entries `orders` declares, and it gets the
+  // ordering property those five had by construction: it takes the **longest**
+  // matching entry, where this table took the first, which is why the three
+  // named sub-pages had to precede the generic rule here. Three
+  // operator-visible changes, stated rather than glossed:
+  //
+  //  - *Orders* becomes *Sales*, unlinked, on every one of these trails: the
+  //    derived trail names the section the module declares, and the section
+  //    holds no host entry left to link to.
+  //  - `/orders/:id` loses its *Detail* leaf and reads *Sales → Orders*, which
+  //    is the shape every converted module's sub-screen already gets. The
+  //    `appShell.crumb.detail` key nothing else rendered retires with it.
+  //  - `/orders/quick-order` loses its *Quick order* leaf for the same reason
+  //    and reads *Sales → Orders* too. `quick_order` declares a route and no
+  //    sidebar entry (batch 13), so there is no contributed row to derive a
+  //    leaf from; `appShell.nav.quickOrder` retires with the rule.
   // The four `/invoices*` and `/quote-requests*` trails stood here until
   // feature 091's Phase 4 batch 12. `registryCrumbs` derives all four now, out
   // of the sidebar entries the two modules declare, and `/ksef` — which never
@@ -859,7 +855,16 @@ function matchesQuery(needle: string, ...haystacks: string[]): boolean {
  */
 const PALETTE_ITEMS: PaletteItem[] = [
   { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.home', sub: 'appShell.palette.sub.dashboard', icon: HomeIcon, to: '/', keywords: 'home dashboard strona główna pulpit' , module: null },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.products', sub: 'appShell.palette.sub.catalogRows', icon: Package, to: '/catalog/products', keywords: 'products catalog items produkty katalog', requiredPermission: 'catalog:read' , module: 'catalog' },
+  // The `/catalog/products`, `/catalog/categories` and `/catalog/attributes`
+  // rows left here in feature 091's Phase 4 batch 15, and they left by batch
+  // 10's route: `catalog` declared `new-product` and nothing that *opened* any
+  // of the three, so `open-products`, `open-categories` and `open-attributes`
+  // arrive with these rows' destinations, codes and keywords, and their labels
+  // and descriptions are the six strings the rows rendered, moved into that
+  // module's own bundle. The `/orders` row left in the same batch and was
+  // batch 12's case instead: `orders`' manifest already declared `open-orders`
+  // with the same destination and the same code, so the row was a second copy
+  // the server was never asked about and nothing replaces it.
   // The `/inventory` and `/price-lists` rows left here in feature 091's Phase 4
   // batch 13, and they left by the two routes batches 10 and 12 already
   // established. `inventory` was batch 12's case: its manifest already declared
@@ -887,7 +892,6 @@ const PALETTE_ITEMS: PaletteItem[] = [
   // schema would touch the palette resolver, the permission inventory and
   // `check:action-route-permissions`, which is a change of its own and not a
   // batch's.
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.orders', sub: 'appShell.palette.sub.openOrders', icon: ClipboardCheck, to: '/orders', keywords: 'orders sales zamówienia sprzedaż', requiredPermission: 'orders:read' , module: 'orders' },
   // The `/quote-requests` row left here in feature 091's Phase 4 batch 12, and
   // nothing replaced it: `quote_requests`' manifest already declares
   // `open-rfq-inbox` with the same destination, the same code and the same
@@ -895,8 +899,6 @@ const PALETTE_ITEMS: PaletteItem[] = [
   // serving all along — and a copy the server was never asked about, which for
   // a module an operator can withdraw means a palette that goes on advertising
   // the screen after the withdrawal.
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.categories', sub: 'appShell.palette.sub.categoryTree', icon: Boxes, to: '/catalog/categories', keywords: 'category categories tree kategorie', requiredPermission: 'catalog:read' , module: 'catalog' },
-  { group: 'Navigate', labelMode: 'key', label: 'appShell.nav.attributes', sub: 'appShell.palette.sub.attributeDefinitions', icon: Tag, to: '/catalog/attributes', keywords: 'attribute attributes atrybuty', requiredPermission: 'catalog:read' , module: 'catalog' },
   // The `/sales-channels` row left here in the same batch and by the same
   // route. `sales_channels` declared `new-sales-channel` and nothing that
   // *opened* the roster, so `open-sales-channels` arrives with this row's

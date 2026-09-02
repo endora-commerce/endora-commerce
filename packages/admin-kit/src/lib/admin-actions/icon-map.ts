@@ -7,6 +7,7 @@ import {
   Boxes,
   Building2,
   CircleDollarSign,
+  ClipboardCheck,
   ClipboardList,
   CloudUpload,
   CreditCard,
@@ -158,6 +159,10 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // `Users` is already above.
   Building2,
   Store,
+  // Feature 091 (Phase 4, batch 15) — the same, for `orders`' three sidebar
+  // entries. The batch's other seven rows needed no entry: `Package`, `Boxes`,
+  // `Tag`, `FileText` and `ListChecks` are already above.
+  ClipboardCheck,
 };
 
 export function resolveIcon(name: string): LucideIcon {

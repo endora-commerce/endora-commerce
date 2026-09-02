@@ -181,7 +181,10 @@ describe('order.entry.tabs — both hosts mount the place', () => {
     // rather than reporting a mount that is missing, which is the failure this
     // case exists to make legible.
     for (const file of [
-      'src/modules/orders/OrderCreatePage.tsx',
+      // Re-keyed by feature 091's Phase 4 batch 15, which is the event this
+      // case's own comment above predicted: `orders` took its admin surface
+      // into its own package and the host screen went with it.
+      '../packages/modules/orders/src/admin/pages/OrderCreatePage.tsx',
       '../packages/modules/quick_order/src/admin/pages/QuickOrderOnBehalfPage.tsx',
     ]) {
       const host = readFileSync(resolve(process.cwd(), file), 'utf8');

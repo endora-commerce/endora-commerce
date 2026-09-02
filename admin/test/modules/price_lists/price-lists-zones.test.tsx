@@ -261,7 +261,14 @@ describe('price_lists contributes the category, pricing and organization zones',
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const tree = readFileSync(
-      resolve(process.cwd(), 'src/modules/catalog/CategoriesTree.tsx'),
+      resolve(
+        process.cwd(),
+        // Re-keyed by feature 091's Phase 4 batch 15: `catalog` took its admin
+        // surface into its own package and this host screen went with it. A
+        // `readFileSync` of the old path throws rather than reporting a mount
+        // that is missing.
+        '../packages/modules/catalog/src/admin/pages/CategoriesTree.tsx',
+      ),
       'utf8',
     );
     expect(tree).not.toContain('DisplayModeOverrideRow');

@@ -29,6 +29,7 @@
     "@endora-commerce/mod-audit-logs": "workspace:*",
     "@endora-commerce/mod-autopay": "workspace:*",
     "@endora-commerce/mod-carts": "workspace:*",
+    "@endora-commerce/mod-catalog": "workspace:*",
     "@endora-commerce/mod-comparisons": "workspace:*",
     "@endora-commerce/mod-credentials": "workspace:*",
     "@endora-commerce/mod-credit-limits": "workspace:*",
