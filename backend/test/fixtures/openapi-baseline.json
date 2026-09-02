@@ -3803,6 +3803,13 @@
       }
     },
     "/api/v1/admin/organizations/{id}/cart-approval-policy": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "patch": {
         "responses": {
           "200": {

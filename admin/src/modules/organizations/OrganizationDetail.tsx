@@ -13,7 +13,7 @@ import { HierarchyPanel } from './panels/HierarchyPanel';
 import { VatValidationPanel } from './panels/VatValidationPanel';
 import { RestrictionsPanel } from './panels/RestrictionsPanel';
 import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
-import { DefaultPreferencesPanel } from '../quick_order/DefaultPreferencesPanel';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,8 +30,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTranslation } from '@/i18n/useTranslation';
-import { EntityChannelMembership } from '../sales_channels/components/EntityChannelMembership';
-import { DisplayModeOverrideRow } from '../price_lists/DisplayModeOverrideRow';
 
 interface OrgMember {
   id: string;
@@ -642,23 +640,24 @@ export function OrganizationDetail(): ReactNode {
         </CardContent>
       </Card>
 
-      <EntityChannelMembership entityType="organization" entityId={id || null} />
+      {/* Feature 091 / P7b — the place at the end of this screen, where a module
+          that has something to say about an organization says it. **One mount,
+          and that is a rule rather than a layout choice**: this member carries
+          no prop that could tell two mounts apart, so a second one would render
+          every contribution twice.
 
-      {id ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('organizations.detail.pricingCard')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <DisplayModeOverrideRow
-              scope="organization"
-              targetId={id}
-              label={t('organizations.detail.pricingLabel')}
-              inheritHint={t('organizations.detail.pricingHint')}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
+          Four contributions arrive here, ordered by their declared weight:
+          `sales_channels`' channel membership (100), `price_lists`' display-mode
+          override (200), `quick_order`'s ordering defaults (300) and `carts`'
+          approval policy (400). The first three were three separate imports
+          scattered through this file at three different depths; the weights are
+          the order the operator already saw, and the panels are contiguous now
+          because a zone is one place.
+
+          No chrome around it, unlike `catalog`'s category editor: every
+          contribution here renders its own card, so a wrapper would nest one
+          card inside another and an empty zone renders nothing at all. */}
+      <AdminZone name="organization.detail.after" props={{ organizationId: org.id }} />
 
       {/* Feature 056 US1 — organization hierarchy (parent picker + subtree view). */}
       <HierarchyPanel
@@ -675,9 +674,6 @@ export function OrganizationDetail(): ReactNode {
           onChanged={refresh}
         />
       </div>
-
-      {/* Feature 039 — default ordering preferences (org scope). */}
-      <DefaultPreferencesPanel scope="organization" scopeId={org.id} />
 
       {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. */}
       <div className="mt-4">

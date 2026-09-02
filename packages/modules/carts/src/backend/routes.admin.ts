@@ -17,6 +17,8 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
  *   - GET    /api/v1/admin/carts/:id              carts:read
  *   - GET    /api/v1/admin/carts/:id/audit        carts:read
  *   - POST   /api/v1/admin/carts/:id/reject       carts:reject
+ *   - GET    /api/v1/admin/organizations/:id/cart-approval-policy   customers:manage
+ *   - PATCH  /api/v1/admin/organizations/:id/cart-approval-policy   customers:manage
  */
 
 export interface CartsAdminRoutesDeps {
@@ -105,6 +107,37 @@ export async function registerCartsAdminRoutes(
    * row's actor_type is `platform_admin`).
    */
   if (deps.cartApprovalService) {
+    /**
+     * The read half, added by feature 091's P7b
+     * (`contracts/admin-component-contribution.md` §10.5).
+     *
+     * This module owned the `PATCH` and no `GET`, so the panel that rendered
+     * the toggle took its initial value as a prop from `organizations`' detail
+     * payload. As an `organization.detail.after` contribution it has no such
+     * prop — the other three contributors want neither it nor the request — so
+     * it reads its own state here.
+     *
+     * **`customers:manage`, the same code as the `PATCH`**, so read and write
+     * agree on one code: an operator who can see the toggle can use it, which
+     * is what a contribution's `requiredPermission` exists to guarantee. The
+     * response is the `PATCH`'s own `cartApprovalPolicyResponseSchema` shape,
+     * for the same reason one code is better than two.
+     */
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/organizations/:id/cart-approval-policy',
+      { preHandler: requireAdmin('customers:manage') },
+      async (request) => {
+        const org = await deps.cartApprovalService!.getPolicyByAdmin(request.params.id);
+        return {
+          data: {
+            organizationId: org.id,
+            requiresCartApproval: org.requiresCartApproval,
+            updatedAt: org.updatedAt.toISOString(),
+          },
+        };
+      },
+    );
+
     app.patch<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/cart-approval-policy',
       {

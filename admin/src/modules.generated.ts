@@ -68,16 +68,17 @@ import { contributions as contributions32 } from '@endora-commerce/mod-price-lis
 import { contributions as contributions33 } from '@endora-commerce/mod-product-feeds/admin';
 import { contributions as contributions34 } from '@endora-commerce/mod-promotions/admin';
 import { contributions as contributions35 } from '@endora-commerce/mod-pwa/admin';
-import { contributions as contributions36 } from '@endora-commerce/mod-quote-requests/admin';
-import { contributions as contributions37 } from '@endora-commerce/mod-returns/admin';
-import { contributions as contributions38 } from '@endora-commerce/mod-sales-channels/admin';
-import { contributions as contributions39 } from '@endora-commerce/mod-seo/admin';
-import { contributions as contributions40 } from '@endora-commerce/mod-settings/admin';
-import { contributions as contributions41 } from '@endora-commerce/mod-stripe/admin';
-import { contributions as contributions42 } from '@endora-commerce/mod-taxes/admin';
-import { contributions as contributions43 } from '@endora-commerce/mod-tpay/admin';
-import { contributions as contributions44 } from '@endora-commerce/mod-transactional-emails/admin';
-import { contributions as contributions45 } from '@endora-commerce/mod-webhooks/admin';
+import { contributions as contributions36 } from '@endora-commerce/mod-quick-order/admin';
+import { contributions as contributions37 } from '@endora-commerce/mod-quote-requests/admin';
+import { contributions as contributions38 } from '@endora-commerce/mod-returns/admin';
+import { contributions as contributions39 } from '@endora-commerce/mod-sales-channels/admin';
+import { contributions as contributions40 } from '@endora-commerce/mod-seo/admin';
+import { contributions as contributions41 } from '@endora-commerce/mod-settings/admin';
+import { contributions as contributions42 } from '@endora-commerce/mod-stripe/admin';
+import { contributions as contributions43 } from '@endora-commerce/mod-taxes/admin';
+import { contributions as contributions44 } from '@endora-commerce/mod-tpay/admin';
+import { contributions as contributions45 } from '@endora-commerce/mod-transactional-emails/admin';
+import { contributions as contributions46 } from '@endora-commerce/mod-webhooks/admin';
 
 /** One module's contribution set, keyed by the module id that shipped it. */
 export interface AdminRegistryEntry {
@@ -122,14 +123,15 @@ export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
   { moduleId: 'product_feeds', contributions: contributions33 },
   { moduleId: 'promotions', contributions: contributions34 },
   { moduleId: 'pwa', contributions: contributions35 },
-  { moduleId: 'quote_requests', contributions: contributions36 },
-  { moduleId: 'returns', contributions: contributions37 },
-  { moduleId: 'sales_channels', contributions: contributions38 },
-  { moduleId: 'seo', contributions: contributions39 },
-  { moduleId: 'settings', contributions: contributions40 },
-  { moduleId: 'stripe', contributions: contributions41 },
-  { moduleId: 'taxes', contributions: contributions42 },
-  { moduleId: 'tpay', contributions: contributions43 },
-  { moduleId: 'transactional_emails', contributions: contributions44 },
-  { moduleId: 'webhooks', contributions: contributions45 },
+  { moduleId: 'quick_order', contributions: contributions36 },
+  { moduleId: 'quote_requests', contributions: contributions37 },
+  { moduleId: 'returns', contributions: contributions38 },
+  { moduleId: 'sales_channels', contributions: contributions39 },
+  { moduleId: 'seo', contributions: contributions40 },
+  { moduleId: 'settings', contributions: contributions41 },
+  { moduleId: 'stripe', contributions: contributions42 },
+  { moduleId: 'taxes', contributions: contributions43 },
+  { moduleId: 'tpay', contributions: contributions44 },
+  { moduleId: 'transactional_emails', contributions: contributions45 },
+  { moduleId: 'webhooks', contributions: contributions46 },
 ];

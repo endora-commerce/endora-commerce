@@ -32,12 +32,15 @@ type Scope = 'organization' | 'category' | 'product';
  * own. That is the larger population
  * `contracts/admin-component-contribution.md` §9.2 measured and deliberately
  * did **not** rule on — 62 files under the admin's module root render out of
- * `core` — and P7a is not the merge request that answers it.
+ * `core` — and neither P7a nor P7b is the merge request that answers it.
  *
- * A second copy of this file is still at `admin/src/modules/price_lists/`,
- * serving `organizations`' detail screen until P7b converts that reach; it
- * keeps the two props because its one remaining caller still passes them.
- * Delete it with that conversion.
+ * **P7b deleted the second copy.** One stood at
+ * `admin/src/modules/price_lists/DisplayModeOverrideRow.tsx` for the length of
+ * P7a, keeping the two props because `organizations`' detail screen still
+ * passed them; that screen is a zone mount now, nothing imported the file, and
+ * it is gone. Nothing in this estate compares two copies of one component, so
+ * the shorter that state lasts the better — which is why the retiring condition
+ * was written into this block rather than left to be remembered.
  */
 export function DisplayModeOverrideRow(props: {
   scope: Scope;

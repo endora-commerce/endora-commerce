@@ -259,6 +259,43 @@ export const AdminZoneNameSchema = z.enum([
    * four routes take `inventory:read` / `inventory:write`.
    */
   'sales_channel.editor.after',
+  /**
+   * The stack of panels an organization's detail screen ends with.
+   *
+   * Mounted **once** per organization, and the "once" is a rule rather than a
+   * layout choice (§10.1): two mounts of this member on one screen, with no
+   * prop to tell them apart, render **every** contribution twice and nothing in
+   * the renderer can distinguish them. Props:
+   * {@link OrganizationDetailZoneProps}.
+   *
+   * The first member with four contributors, and the first whose conversion
+   * makes scattered panels contiguous: `sales_channels`' channel membership,
+   * `price_lists`' display-mode override and `quick_order`'s ordering defaults
+   * sat at three different depths of
+   * `admin/src/modules/organizations/OrganizationDetail.tsx`, each imported by
+   * path — the three keys of
+   * `backend/scripts/ledgers/cross-module-imports/organizations.ts`, whose
+   * shard this member deletes. `carts` joins them with the cart-approval
+   * policy, whose panel this host owned and nothing rendered (§10.5).
+   *
+   * **Per-host and not a shared `entity.detail.after`** (§10 Z13): the
+   * `unrendered-zone` refusal is computed per member, so one host's mount would
+   * cover another host's absence. `customer.detail.after` is the twin, and the
+   * cost of keeping them apart is one four-line wrapper in `quick_order`.
+   */
+  'organization.detail.after',
+  /**
+   * The stack of panels a customer's detail screen ends with.
+   *
+   * Mounted **once** per customer, on `organization.detail.after`'s terms and
+   * for its reasons. Props: {@link CustomerDetailZoneProps}.
+   *
+   * One contributor: `quick_order`'s ordering defaults, which
+   * `admin/src/modules/customers/CustomerDetail.tsx` imported by path — the
+   * single key of `backend/scripts/ledgers/cross-module-imports/customers.ts`,
+   * whose shard this member deletes.
+   */
+  'customer.detail.after',
 ]);
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
@@ -324,6 +361,32 @@ export interface SalesChannelEditorZoneProps {
   readonly channelId: string;
 }
 
+/**
+ * A zone mounted once at the end of an organization's detail screen.
+ *
+ * The organization's own id and nothing else, which is the union of what the
+ * four contributions read: three of them take an entity id and their own
+ * constant scope, and the fourth — `carts`' approval policy — reads its own
+ * initial state from a route of its own rather than taking the boolean the
+ * host used to pass (§10.5). A prop only one contributor wants is a prop the
+ * other three would have to be given a reason for (Z3).
+ */
+export interface OrganizationDetailZoneProps {
+  readonly organizationId: string;
+}
+
+/**
+ * A zone mounted once at the end of a customer's detail screen.
+ *
+ * The customer's own id, on the same terms as its organization twin. Not
+ * aliased to {@link OrganizationDetailZoneProps} and not merged with it: the
+ * prop is named for the entity the mount carries, and the two members are two
+ * places (Z13).
+ */
+export interface CustomerDetailZoneProps {
+  readonly customerId: string;
+}
+
 /** A zone mounted beside one field of the product editor. */
 export interface ProductEditorFieldZoneProps {
   readonly productId: string;
@@ -377,6 +440,8 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'product.editor.pricing.after': ProductEditorZoneProps;
   'product.editor.channels': ProductEditorZoneProps;
   'sales_channel.editor.after': SalesChannelEditorZoneProps;
+  'organization.detail.after': OrganizationDetailZoneProps;
+  'customer.detail.after': CustomerDetailZoneProps;
 }
 
 /** The props of one zone, by name. */

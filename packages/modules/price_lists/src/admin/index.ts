@@ -1,6 +1,6 @@
 /**
- * `price_lists`' admin surface — two zone contributions and nothing else
- * (feature 091, P7a;
+ * `price_lists`' admin surface — three zone contributions and nothing else
+ * (feature 091, P7a and P7b;
  * `specs/091-module-owned-admin-surfaces/contracts/admin-component-contribution.md`
  * §10).
  *
@@ -13,9 +13,11 @@
  * **What it drains**: two of the three admin keys in
  * `backend/scripts/ledgers/cross-module-imports/catalog.ts` —
  * `CategoriesTree.tsx` importing `DisplayModeOverrideRow` and
- * `ProductEditor.tsx` importing `LinkedPriceListsPanel`. Each entry's recorded
- * retiring condition is *"the owner declaring an admin contribution zone"*, and
- * this is that declaration.
+ * `ProductEditor.tsx` importing `LinkedPriceListsPanel` — and, with P7b, the
+ * `DisplayModeOverrideRow` key of
+ * `backend/scripts/ledgers/cross-module-imports/organizations.ts`. Each entry's
+ * recorded retiring condition is *"the owner declaring an admin contribution
+ * zone"*, and this is that declaration.
  *
  * **Zone and not a published component**, decided from the two signatures read
  * off the files in this merge request (§9.3): `(scope, targetId, …)` and
@@ -55,6 +57,16 @@ export const contributions: AdminContributions = {
     zoneComponent(
       'product.editor.pricing.after',
       () => import('./zones/ProductLinkedPriceLists.js'),
+      { weight: 200, requiredPermission: READ_PERMISSION },
+    ),
+    // Weight 200 of four contributors to the organization detail's zone
+    // (feature 091, P7b): `sales_channels`' membership at 100, this row, then
+    // `quick_order` at 300 and `carts` at 400. The order is the one the
+    // operator saw when the three panels were scattered through
+    // `OrganizationDetail.tsx`, preserved rather than re-chosen.
+    zoneComponent(
+      'organization.detail.after',
+      () => import('./zones/OrganizationDisplayMode.js'),
       { weight: 200, requiredPermission: READ_PERMISSION },
     ),
   ],
