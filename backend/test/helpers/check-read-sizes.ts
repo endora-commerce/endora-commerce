@@ -804,7 +804,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // therefore not comparable to 2243 as a like-for-like** — 2243 was a walk
     // that included `admin/src` and 2325 is the same walk on a tree that has
     // since gained a module package.
-    files: 2325,
+    //
+    // **D-168 repair: 2325 -> 2324.** One file, and it is the whole of this
+    // branch: `pim_connector`'s `services/field-path.ts` is deleted. It was a
+    // four-line re-export of two `@endora-commerce/contracts` functions that
+    // nothing imported, and its only reader was the module's own `./backend`
+    // barrel, which republished them — the bare specifier the D-168 analysis
+    // reports as `unresolvable-reexport`. `sites` does not move: the file
+    // rendered no zone, contributed to none and named no module id.
+    files: 2324,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -1204,7 +1212,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // unconditional *"the layout resolved and the host walk opened nothing"*
     // refusal is reachable once more. `admin files` is now **0**, which is
     // SC-007 and is a measurement rather than a shortfall.
-    files: 4147,
+    //
+    // **D-168 repair: 4147 -> 4145.** Two files for one deletion, and the
+    // arithmetic is worth stating: `pim_connector`'s `services/field-path.ts`
+    // goes, and so does the emitted `dist/backend/services/field-path.js` this
+    // walk reads for D-171's contract-surface designation. Every other
+    // recorded entry in this file drifted upwards on the same run against a
+    // baseline that was already stale before this branch; these two matched
+    // the tree exactly with the file restored, measured, which is why they are
+    // the only two re-recorded here.
+    files: 4145,
     sites: null,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
