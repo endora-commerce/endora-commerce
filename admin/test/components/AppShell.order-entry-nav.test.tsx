@@ -33,13 +33,26 @@ vi.mock('@/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-const bundle = passthroughBundle('core', [
-  'appShell.brand.text',
-  'appShell.section.sales',
-  'appShell.nav.newOrder',
-  'appShell.nav.quickOrder',
-  'appShell.nav.orders',
-]);
+/**
+ * The section heading is the shell's, in `core`; the three `/orders*` labels are
+ * `orders`' own since feature 091's Phase 4 batch 15, resolved in that module's
+ * namespace out of `packages/modules/orders/i18n/`.
+ *
+ * `appShell.nav.quickOrder` is gone from both: it was the leaf of a breadcrumb
+ * rule that batch retired, `quick_order` declaring a route and no sidebar entry.
+ * This case never rendered it — its assertion is that the row is **absent** —
+ * so seeding it was already only a way of proving the absence was not a missing
+ * translation. `/orders/quick-order` is still the string asserted against, which
+ * is what makes that proof unchanged.
+ */
+const bundle = {
+  ...passthroughBundle('core', ['appShell.brand.text', 'appShell.section.sales']),
+  ...passthroughBundle('orders', [
+    'nav.orders.label',
+    'nav.newOrder.label',
+    'nav.orderStatuses.label',
+  ]),
+};
 
 /**
  * Both ids, named rather than seeded wholesale: a projection that omitted one

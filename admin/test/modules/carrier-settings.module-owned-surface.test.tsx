@@ -29,7 +29,7 @@ function sourceOf(relativePath: string): string {
  * reaches and said so in the `inpost` entry: *"both carriers are one shipment
  * tab reaching two adapters, so the Phase 4 batch that moves this consumer
  * takes both or neither; a repair naming one is a repair that has not
- * understood the shape"*. `admin/src/modules/orders/OrderShipmentsTab.tsx`
+ * understood the shape"*. `orders`' `OrderShipmentsTab.tsx`
  * imported `dhlParcelAdminClient` for the label, the handover protocol and the
  * courier booking, and `inpostAdminClient` for the label path; it now builds
  * all four from the published `apiClient` in its own
@@ -403,7 +403,15 @@ describe('the shell no longer names either carrier by hand', () => {
     // in `backend/scripts/ledgers/cross-module-imports/orders.ts` are deleted
     // rather than re-keyed. Deleting the entries without this assertion would
     // leave nothing in the tree saying the coupling is gone.
-    const tab = sourceOf('src/modules/orders/OrderShipmentsTab.tsx');
+    // Re-keyed by feature 091's Phase 4 batch 15, not re-scoped: `orders` took
+    // its admin surface into its own package and this file went with it. A
+    // batch that moved the file and left the old address here would have
+    // thrown `ENOENT` rather than reporting a coupling — this ledger is one
+    // *about* the file rather than one of them, so the merge request that
+    // moves it is structurally the one that cannot see it go stale.
+    const tab = sourceOf(
+      '../packages/modules/orders/src/admin/components/OrderShipmentsTab.tsx',
+    );
     expect(tab).not.toContain('modules/dhl_parcel');
     expect(tab).not.toContain('modules/inpost');
     expect(tab).not.toContain('@endora-commerce/mod-dhl-parcel');
@@ -420,7 +428,12 @@ describe('the shell no longer names either carrier by hand', () => {
     expect(tab).not.toContain("from './api/carrier-documents-client'");
     expect(tab).not.toContain('carrierDocumentsClient');
     expect(
-      existsSync(resolve(process.cwd(), 'src/modules/orders/api/carrier-documents-client.ts')),
+      existsSync(
+        resolve(
+          process.cwd(),
+          '../packages/modules/orders/src/admin/api/carrier-documents-client.ts',
+        ),
+      ),
     ).toBe(false);
     expect(tab).toContain('name="order.shipment.row.actions"');
     expect(tab).toContain('name="order.shipments.tab.actions"');

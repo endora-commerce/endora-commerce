@@ -71,7 +71,10 @@ interface ClientExit {
 
 const EXITS: readonly ClientExit[] = [
   {
-    caller: 'src/modules/catalog/ProductInventoryTab.tsx',
+    // Feature 091, Phase 4 batch 15 — re-keyed, not dropped: `catalog` took its
+    // admin surface into its package and this caller went with it. The exit is
+    // unchanged; only its address moved.
+    caller: '../packages/modules/catalog/src/admin/components/ProductInventoryTab.tsx',
     owner: 'settings',
     binding: 'settingsClient',
     clientPath: 'modules/settings/api/settings-client',
@@ -118,7 +121,10 @@ const EXITS: readonly ClientExit[] = [
     endpoints: ['/api/v1/admin/sales-channels?activeOnly=true'],
   },
   {
-    caller: 'src/modules/orders/OrderStatusConfigPage.tsx',
+    // Feature 091, Phase 4 batch 15 — re-keyed, not dropped: `orders` took its
+    // admin surface into its package and this caller went with it. The exit is
+    // unchanged; only its address moved.
+    caller: '../packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx',
     owner: 'dictionaries',
     binding: 'dictionaryClient',
     clientPath: 'modules/dictionaries/client',

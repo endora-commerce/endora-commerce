@@ -38,9 +38,16 @@ vi.mock('echarts', () => {
   return { init: () => chart, default: { init: () => chart } };
 });
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(
-    '@/lib/api-client',
+// **Re-keyed by feature 091's Phase 4 batch 15, and this is the trap batch 14
+// found by sweeping rather than by running.** The mock named `@/lib/api-client`
+// while the subject was under `admin/src`; the subject is inside a module
+// package now and resolves `@endora-commerce/admin-kit/lib`, of which
+// `@/lib/api-client` is only a re-export shim — so the old spelling intercepts
+// nothing and vitest reports that by making the mock **inert** rather than by
+// failing. `tsc` cannot see it: both specifiers compile.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
   );
   return {
     ...actual,
@@ -54,7 +61,7 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
-const { OrderStatusConfigPage } = await import('../../../src/modules/orders/OrderStatusConfigPage');
+const { OrderStatusConfigPage } = await import('../../../../packages/modules/orders/src/admin/pages/OrderStatusConfigPage');
 
 const GRAPH = {
   statuses: [
