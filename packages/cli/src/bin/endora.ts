@@ -26,11 +26,14 @@ import { estateIds, runCheck } from '../check/index.js';
 import { NotAModulePackageError } from '../check/layout.js';
 import { runNewModule } from '../new-module/index.js';
 import { ScaffoldHostError, ScaffoldInputError } from '../new-module/spec.js';
+import { runNewStorefront } from '../new-storefront/index.js';
+import { StorefrontHostError, StorefrontInputError } from '../new-storefront/reference.js';
 
 const USAGE = `endora — scaffolding and conformance tooling for Endora Commerce modules.
 
 Usage:
   endora new module <id> --name <text> --description <text> [options]
+  endora new storefront <dir> [--dry-run]
   endora --help
 
 \`endora new module\` writes a module package that is composed by the platform,
@@ -60,6 +63,21 @@ Options for \`new module\`:
                                 (default: <id>.enabled)
   --non-deactivatable <reason>  declare that the platform cannot run without this module
   --dry-run                     report what would be written; write nothing
+
+\`endora new storefront\` copies the reference storefront out of this repository
+into a directory you then own outright, and rewrites every declaration in it that
+names something above the storefront's own directory: each \`workspace:\` range
+into published semver, each configuration file the storefront extends into a
+vendored standalone copy, and each glob naming the workspace's package tree into
+the place a standalone application finds those packages. It keeps no channel back
+to what it wrote — a scaffold that did would be a kit wearing a different name
+(D-195). An outward declaration it cannot make standalone is a refusal, never a
+file copied out unchanged.
+
+Options for \`new storefront\`:
+  <dir>                         where to write. Required; there is no default
+  --dry-run                     report the copy, every rewrite and every omission;
+                                write nothing
 
 \`endora check\` evaluates the platform's whole static-check estate against one
 module package. Every rule in that estate gets exactly one verdict on every run —
@@ -196,6 +214,75 @@ function runCheckCommand(parsed: Parsed, positionals: readonly string[], cwd: st
   }
 }
 
+
+/**
+ * `endora new storefront` — the argv half.
+ *
+ * It decides nothing. The target comes off one positional, the population and
+ * every rewrite come from the reference storefront in this checkout, and the
+ * exit code is the refusal's class: an author-fixable refusal is 1, a checkout
+ * this command cannot read a reference storefront out of is 2.
+ */
+async function runNewStorefrontCommand(
+  parsed: Parsed,
+  rest: readonly string[],
+  cwd: string,
+): Promise<number> {
+  if (rest.length > 1) {
+    process.stderr.write(
+      `endora: \`new storefront\` takes one directory; got ${String(rest.length)} ` +
+        `(${rest.join(', ')}).\n`,
+    );
+    return 1;
+  }
+  try {
+    const result = await runNewStorefront({
+      ...(rest[0] === undefined ? {} : { dir: rest[0] }),
+      dryRun: asFlag(parsed.values['dry-run']),
+      cwd,
+    });
+    const { plan } = result;
+    process.stdout.write(
+      `endora new storefront ${result.targetDir}${result.dryRun ? ' — dry run, nothing written' : ''}\n`,
+    );
+    process.stdout.write(
+      `  ${result.dryRun ? 'would write' : 'wrote'} ${String(plan.files.length)} files, from ` +
+        `${result.reference.dir}\n`,
+    );
+    for (const range of plan.ranges) {
+      process.stdout.write(
+        `  ${range.field}.${range.name}: ${range.from} -> ${range.to}\n`,
+      );
+    }
+    for (const rewrite of plan.rewrites) {
+      process.stdout.write(`  ${rewrite.file}: ${rewrite.specifier} -> ${rewrite.to}\n`);
+    }
+    for (const file of plan.files) {
+      if (file.source === null && file.path !== 'package.json') {
+        process.stdout.write(`  ${file.path} — ${file.note ?? ''}\n`);
+      }
+    }
+    for (const omission of plan.omitted) {
+      process.stdout.write(`  omitted ${omission.path} — ${omission.reason}\n`);
+    }
+    process.stdout.write(`\nNext steps:\n`);
+    result.nextSteps.forEach((step, index) => {
+      process.stdout.write(`  ${String(index + 1)}. ${step}\n`);
+    });
+    return 0;
+  } catch (error: unknown) {
+    if (error instanceof StorefrontInputError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    if (error instanceof StorefrontHostError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 2;
+    }
+    throw error;
+  }
+}
+
 export async function main(argv: readonly string[], cwd: string): Promise<number> {
   let parsed: Parsed;
   try {
@@ -222,11 +309,14 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
     );
     return 1;
   }
+  if (subject === 'storefront') {
+    return runNewStorefrontCommand(parsed, rest, cwd);
+  }
   if (subject !== 'module') {
     process.stderr.write(
       `endora: unknown subject "${subject ?? '<none>'}" for \`new\`. This build provides ` +
-        `\`new module\`; the other generators named in the scaffolding contract are not ` +
-        `delivered.\n`,
+        `\`new module\` and \`new storefront\`; the other generators named in the ` +
+        `scaffolding contract are not delivered.\n`,
     );
     return 1;
   }

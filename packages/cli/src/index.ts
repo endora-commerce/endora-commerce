@@ -53,3 +53,30 @@ export {
   workspaceScopeOf,
   type ScaffoldHost,
 } from './new-module/host.js';
+export {
+  runNewStorefront,
+  type NewStorefrontOptions,
+  type NewStorefrontResult,
+} from './new-storefront/index.js';
+export {
+  outwardReferences,
+  resolveReference,
+  StorefrontHostError,
+  StorefrontInputError,
+  trackedFiles,
+  workspaceRanges,
+  type OutwardReference,
+  type StorefrontReference,
+  type WorkspaceRange,
+} from './new-storefront/reference.js';
+export {
+  cutForeignImports,
+  cutForeignJsonPaths,
+  planStorefront,
+  publishedRange,
+  retargetPackageGlob,
+  UnclassifiedReferenceError,
+  type PlannedFile,
+  type RangeRewrite,
+  type StorefrontPlan,
+} from './new-storefront/rewrite.js';
