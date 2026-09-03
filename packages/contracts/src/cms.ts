@@ -368,8 +368,17 @@ export type BlockDefinition = z.infer<typeof BlockDefinitionSchema>;
  * Categories are declared rather than hard-coded so that a module contributing
  * a block into a category never has to edit a shared `categories` map in a
  * package it does not own — the shape feature 091 removed from the admin. Two
- * modules declaring the same key for the same context is therefore expected and
- * is not a collision; the palette merges them.
+ * modules declaring the same `(key, context)` is therefore expected and is not
+ * a collision; the palette merges them.
+ *
+ * **`contracts/block-definition.md` §1.1 is normative for that merge** — what
+ * unions, what resolves, the total order that decides which declaration's
+ * `titleKey`, `weight` and `visible` are served as one record, and the two CI
+ * signals that hold this repository's modules to agreeing. It is cited rather
+ * than summarised here: a second statement of a merge rule is a second answer
+ * waiting to disagree. `defineModuleManifest` refuses one *manifest* declaring
+ * one `(key, context)` twice (§1 rule 4), which is the only case with a single
+ * author and therefore the only one decidable where it is written.
  *
  * A category exists **per context**: `layout` in the CMS palette and `layout`
  * in the e-mail palette are two declarations.
