@@ -1,0 +1,41 @@
+{
+  "$comment": [
+    "The recorded state of the `endora new storefront` acceptance criterion",
+    "(specs/071-modular-packaging/roadmap.md § F7). `acceptance:storefront-scaffold:ci`",
+    "compares a run to this file and fails on drift in EITHER direction: a newly-red",
+    "assertion fails, and so does a newly-green one nobody recorded. An unrecorded pass",
+    "is a criterion whose meaning moved without anybody reading it.",
+    "",
+    "It landed all-green, which is unusual for an acceptance file in this repository and",
+    "is the finding rather than a formality: `acceptance:package-schema` landed red on",
+    "seven of nine because the capability it measures did not exist yet, and this one",
+    "measures a capability that turned out to be one manifest line short of working.",
+    "The roadmap named this criterion as the half that `could not be sized without",
+    "trying it` — whether a scaffolded storefront builds from packed tarballs depends on",
+    "how much of the packages' `exports` maps and `use client` boundaries survive an",
+    "install that is not a workspace link. Measured: all of it. The one thing that did",
+    "not survive was the reference storefront's own manifest, which declared none of the",
+    "eight `@tiptap/*` packages its build resolves from the workspace root.",
+    "",
+    "A6 is `pass` because the job boots a backend for it. A run with no",
+    "PUBLIC_API_BASE_URL records `unmeasured` instead — never a pass — because a boot",
+    "with no backend measures the storefront's error page rather than the storefront.",
+    "If this job ever stops booting one, A6 drifts to `unmeasured` and fails, which is",
+    "the direction that keeps the headline claim honest."
+  ],
+  "assertions": {
+    "A1": "pass",
+    "A2": "pass",
+    "A3": "pass",
+    "A4": "pass",
+    "A5": "pass",
+    "A6": "pass"
+  },
+  "history": [
+    {
+      "on": "2026-09-03",
+      "what": "the criterion landed with the command (F7 scaffold half), all six green",
+      "detail": "A1 the copy names nothing above its own directory; A2 no `workspace:` range survives; A3 `pnpm install` outside the checkout from three packed tarballs, pinned through `pnpm.overrides` because page-builder-core's own dependency on contracts is equally unpublished; A4 every @endora-commerce/* package resolves outside the checkout; A5 `next build`; A6 `next start` answered / with 200 against a running backend."
+    }
+  ]
+}

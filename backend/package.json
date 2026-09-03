@@ -3,13 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "B2B platform backend \u2014 Fastify API server. Owns every business module, migrations, and tests.",
+  "description": "B2B platform backend — Fastify API server. Owns every business module, migrations, and tests.",
   "engines": {
     "node": ">=22.0.0"
   },
   "scripts": {
     "acceptance:package-schema": "tsx scripts/acceptance/package-schema.ts",
     "acceptance:package-schema:ci": "tsx scripts/acceptance/package-schema.ts --against-expectation",
+    "acceptance:storefront-scaffold": "tsx scripts/acceptance/storefront-scaffold.ts",
+    "acceptance:storefront-scaffold:ci": "tsx scripts/acceptance/storefront-scaffold.ts --against-expectation",
     "admin:create": "tsx --env-file-if-exists=.env src/cli.ts admin_users create",
     "audit:read": "tsx --env-file-if-exists=.env src/cli.ts audit_logs read",
     "build": "tsc -p tsconfig.build.json && tsx scripts/copy-runtime-assets.ts",
