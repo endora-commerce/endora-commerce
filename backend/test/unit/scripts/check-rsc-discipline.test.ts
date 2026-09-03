@@ -86,6 +86,9 @@ export function ProductGrid({ limit }: { limit: number }) {
   if (isLoading) {
     return <ProductGridSkeleton count={limit} />;
   }
+  if (products.length === 0) {
+    return <p className="cmsc-pb-product-grid__empty">No products found</p>;
+  }
   return <ul>{products.map((p) => <li key={p.slug}>{p.name}</li>)}</ul>;
 }
 `;
