@@ -91,45 +91,23 @@ export function GallerySwitcher(rawProps: {
   }, []);
   const slideTransition = reduceMotion ? 'none' : SLIDE_EASING;
 
-  if (props.gallery.length === 0) {
-    return <div className="aspect-square rounded-md bg-surface-alt" aria-hidden="true" />;
-  }
-
   const count = props.gallery.length;
-  const safeIndex = Math.min(index, count - 1);
-  const active = props.gallery[safeIndex]!;
-  const activeIsVideo = active.asset.kind === 'video';
-
-  const goTo = (next: number): void => {
-    if (next < 0 || next >= count) return;
-    setIndex(next);
-  };
 
   // Touch swipe — a mostly-horizontal drag flips to the neighbouring slide.
   // Vertical drags are ignored here (and the viewport sets `touch-action: pan-y`)
-  // so the page still scrolls normally under a finger on the image.
+  // so the page still scrolls normally under a finger on the image. The ref sits
+  // above the empty-gallery guard below because a hook may not follow an early
+  // return: a render in which the gallery empties would then run one hook fewer
+  // than the render before it. Its handlers stay below, with the slide state.
   const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const onTouchStart = (e: ReactTouchEvent): void => {
-    const t = e.touches[0];
-    if (t) touchStart.current = { x: t.clientX, y: t.clientY };
-  };
-  const onTouchEnd = (e: ReactTouchEvent): void => {
-    const start = touchStart.current;
-    touchStart.current = null;
-    if (!start) return;
-    const t = e.changedTouches[0];
-    if (!t) return;
-    const dx = t.clientX - start.x;
-    const dy = t.clientY - start.y;
-    if (Math.abs(dx) > 44 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      goTo(dx < 0 ? safeIndex + 1 : safeIndex - 1);
-    }
-  };
 
   // While the lightbox is open, lock body scroll, close on Escape, and let the
-  // left/right arrow keys page through the gallery images.
+  // left/right arrow keys page through the gallery images. It sits above the
+  // guard for the same reason as the ref; `count === 0` keeps it inert in the
+  // state the guard covers, where there is no lightbox and nothing to page
+  // through, so the effect does exactly what it did when the guard skipped it.
   useEffect(() => {
-    if (!zoomed) return;
+    if (!zoomed || count === 0) return;
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         setZoomed(false);
@@ -149,6 +127,37 @@ export function GallerySwitcher(rawProps: {
       document.body.style.overflow = prevOverflow;
     };
   }, [zoomed, count]);
+
+  if (count === 0) {
+    return <div className="aspect-square rounded-md bg-surface-alt" aria-hidden="true" />;
+  }
+
+  const safeIndex = Math.min(index, count - 1);
+  const active = props.gallery[safeIndex]!;
+  const activeIsVideo = active.asset.kind === 'video';
+
+  const goTo = (next: number): void => {
+    if (next < 0 || next >= count) return;
+    setIndex(next);
+  };
+
+  const onTouchStart = (e: ReactTouchEvent): void => {
+    const t = e.touches[0];
+    if (t) touchStart.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: ReactTouchEvent): void => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) > 44 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      goTo(dx < 0 ? safeIndex + 1 : safeIndex - 1);
+    }
+  };
+
 
   return (
     <div className="flex flex-col gap-3">

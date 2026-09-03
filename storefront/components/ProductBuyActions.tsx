@@ -84,7 +84,6 @@ export function ProductBuyActions({
   // `CartSubmitButton` renders its own pending spinner via `useFormStatus`, so
   // the action's `isPending` flag isn't needed here.
   const [cartState, cartFormAction] = useActionState(addToCartAction, ADD_TO_CART_IDLE);
-  if (!showCart && !showQuote) return null;
 
   const selectedUnit = units.find((u) => u.id === unitId) ?? null;
   const resultingPieces = selectedUnit ? selectedUnit.baseQuantity * qty : null;
@@ -111,6 +110,15 @@ export function ProductBuyActions({
     // gaItem reads current qty/unit; intentionally keyed on cartState only.
 
   }, [cartState]);
+
+  // Nothing to render when neither action is offered. The guard sits below the
+  // hooks above — not above them — because a hook may not follow an early
+  // return: `showCart` and `showQuote` come off props, so a render in which
+  // both go false would run two hooks fewer than the render before it. Both
+  // hooks are inert here anyway: with no cart form there is no server action
+  // to move `cartState` off its idle value, and the effect fires only on a
+  // success token it has not already seen.
+  if (!showCart && !showQuote) return null;
 
   const addToQuote = (): void => {
     trackAddToQuoteRequest(gaItem());
