@@ -1707,8 +1707,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `docs/docs/modules/` in the same state on both trees: this is the one check
     // whose population is the whole repository rather than tracked source, and a tree
     // that has run the docs build carries ~77 more.
-    // **Feature 096, Phase 6: +3.** Three test files, one per surface.
-    files: 7395,
+    // **Feature 096, Phase 6: +3.** Three test files, one per surface. Measured
+    // **on the rebased tree**: 7392 -> 7395 is this branch's own three, and the
+    // fourth is one file the base gained while this branch was open, which this
+    // walk sees and `check-language.sh`'s and `check-diacritic-folds`' do not.
+    files: 7396,
     sites: null,
     sources: [],
   },
@@ -2361,9 +2364,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+51** from earlier merges (this branch's base,
     // 36174efa1, observed 7461).
-    // **Feature 096, Phase 6: +3.** The same three test files; this walk and
-    // `check-language.sh` see the identical set.
-    files: 7455,
+    // **Feature 096, Phase 6: +3.** The same three test files. Measured on the
+    // rebased tree, so the recorded value carries the same +1 as
+    // `check-nul-bytes` — the file the base gained while this branch was open.
+    // `check-language.sh` does not see it, which is why the two walks that used
+    // to move together no longer do.
+    files: 7456,
     sites: null,
     sources: ['manifest-index'],
   },
