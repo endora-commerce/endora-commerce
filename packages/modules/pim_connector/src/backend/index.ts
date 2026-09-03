@@ -4,11 +4,6 @@ import type { PimConnectorRegistryPort } from '@endora-commerce/contracts';
 import { PimConnectorActivationLock } from './entities/pim-connector-activation-lock.entity.js';
 import { PimConnectorRegistryService } from './services/pim-connector-registry.service.js';
 
-export {
-  canonicalisePimFieldPath,
-  isValidPimFieldPath,
-} from './services/field-path.js';
-
 interface PimConnectorCradle {
   emFactory: () => import('@mikro-orm/postgresql').EntityManager;
 }
