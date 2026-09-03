@@ -34,6 +34,7 @@ export {
 } from './types/editor-chrome.js';
 
 export {
+  contextAdmits,
   definePageBuilderComponent,
   filterConfigByContext,
   getComponentContexts,
