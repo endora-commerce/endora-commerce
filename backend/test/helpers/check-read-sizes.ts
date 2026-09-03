@@ -486,6 +486,31 @@ export interface RecordedReadSize {
  * run counts a path it did not open. Measured against the detached baseline
  * instead, this branch adds +26 files to `check:naming` and +23 to
  * `check:language`, both entirely inside the +21 each was already drifting by.
+ *
+ * ## F7 — `endora new storefront` (2026-09-03)
+ *
+ * **Eight entries re-recorded, and three deliberately left drifting.** The
+ * separation was measured on two trees rather than reasoned about: the same test
+ * was run in a **detached worktree of `origin/master`** at `83c66ecbb` and on the
+ * branch, and the two drift reports were differenced. `master` itself drifts on
+ * `check-doc-snippets` (sites 11 -> 12, files 1102 -> 1115), `check-lock-claims`
+ * (sites 14 -> 15, files 226 -> 241) and `check-diacritic-folds`' **sites**
+ * (489 -> 492). This branch touches nothing under `docs/`, `specs/` or the
+ * ledgers, so the first two are not its to absorb — taking them would put a
+ * number in this file that describes neither tree and would remove the signal
+ * from whoever owns it.
+ *
+ * The third overlaps, and is recorded at the branch's own reading (497) with the
+ * overlap named in place. `recorded + my delta` would have written 494, a number
+ * no tree reads, and would have carried `master`'s three sites forward
+ * indefinitely.
+ *
+ * **Parking was invalid for two of these and the reason is now twice measured.**
+ * `check:naming` and `check:language` take their population from
+ * `git ls-files --cached --others`; `--cached` answers from the index, so a file
+ * that has been committed stays in the list whatever happens to it on disk, and a
+ * delta taken by moving files aside on the branch reads zero. Both are measured
+ * against the detached baseline instead.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -639,8 +664,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // absorbs **+23** from earlier merges (base 36174efa1 observed 5192). The `sites`
     // field is left at 489 deliberately: this branch moves no fold site, and its +3 is
     // somebody else's to record.
-    // **Feature 096, Phase 6: +3.** Three test files, one per surface.
-    files: 5180,
+    // **F7: +4.** The whole-tree walk gains `packages/cli/src/new-storefront/`'s
+    // three sources and the command's test file. `backend/scripts` is outside this
+    // check's population, so the acceptance criterion adds nothing.
+    files: 5183,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -690,13 +717,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // wrote none, and `packages/cli/test` joins the exclusion for the same
     // reason `backend/test/unit/scripts` carries — not as a precaution: this
     // merge request's own red proof spells a fold and this check reported it.
-    // **Feature 096, Phase 6: 492 -> 493.** One `.replace()`, in the storefront
-    // degradation test, stripping Puck’s empty wrapper before asserting that an
-    // absent block rendered nothing. Its pattern is readable, so it enters the
-    // population and is cleared. Recording the observed value absorbs the **+3**
-    // the note above left here deliberately: that branch moved no fold site and
-    // said so, and this one does, so the field is this branch’s to record.
-    sites: 494,
+    // **F7 (`endora new storefront`): 492 -> 497.** Five slug/fold sites in the
+    // command's own sources — `reference.ts`' glob-prefix and specifier readers and
+    // `rewrite.ts`' extension swap. Measured against a detached worktree of
+    // `origin/master`, which reads 492 rather than the 489 recorded: three sites
+    // arrived on `master` and are absorbed here, because a record must describe the
+    // tree it is committed with and `recorded + my delta` is the arithmetic that
+    // carries somebody else's staleness forward for ever.
+    sites: 497,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -891,9 +919,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    // **Feature 100 Phase 3: 1749 -> 1750.** One: the companion test this branch
-    // adds under `backend/test/`, which is this walk's population.
-    files: 1751,
+    // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
+    files: 1750,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -927,9 +954,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    // **Feature 100 Phase 3: 1749 -> 1750.** One: the companion test this branch
-    // adds under `backend/test/`, which is this walk's population.
-    files: 1751,
+    // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
+    files: 1750,
     sites: null,
     sources: [],
   },
@@ -1729,11 +1755,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `docs/docs/modules/` in the same state on both trees: this is the one check
     // whose population is the whole repository rather than tracked source, and a tree
     // that has run the docs build carries ~77 more.
-    // **Feature 100 Phase 3: 7392 -> 7541.** This walk is the whole repository minus
-    // its declared exclusions, so it sees every file a branch adds: 72 of the 149
-    // are this branch's (71 reference pages and one test file) and the rest is
-    // `origin/master`'s growth, inside the band and named rather than absorbed.
-    files: 7539,
+    // **F7: +8.** The whole-repository walk gains the command's three sources and
+    // its test, the acceptance criterion's two sources and its test, and the
+    // recorded expectation.
+    files: 7400,
     sites: null,
     sources: [],
   },
@@ -2147,9 +2172,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    // **Feature 100 Phase 3: 1749 -> 1750.** One: the companion test this branch
-    // adds under `backend/test/`, which is this walk's population.
-    files: 1751,
+    // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
+    files: 1750,
     sites: 163,
     sources: [],
   },
@@ -2256,8 +2280,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+32** from earlier merges (this branch's base,
     // 36174efa1, observed 4184).
-    // **Feature 100 Phase 3: 4175 -> 4176.** One: the companion test this branch adds.
-    files: 4177,
+    // **F7: +3.** `backend/` plus each package: `packages/cli/src/new-storefront/`'s
+    // three sources. The two acceptance scripts are under `backend/scripts`, which
+    // this walk does not read.
+    files: 4178,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2400,10 +2426,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+51** from earlier merges (this branch's base,
     // 36174efa1, observed 7461).
-    // **Feature 100 Phase 3: 7452 -> 7524.** The 72 are this branch's: 71 generated
-    // reference pages and one test file, all of them tracked or untracked-and-not-
-    // ignored, which is what this listing counts.
-    files: 7522,
+    // **F7: +8.** The whole-repository walk gains the command's three sources and
+    // its test, the acceptance criterion's two sources and its test, and the
+    // recorded expectation. Measured against a detached baseline, for the reason
+    // `check:language`'s entry gives.
+    files: 7460,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2444,10 +2471,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+44** from earlier merges (this branch's base,
     // 36174efa1, observed 5575).
-    // **Feature 100 Phase 3: 5566 -> 5638.** The 72 are this branch's 71 generated
-    // reference pages — every one of them a `/docs/` page and therefore in the
-    // Principle VIII population — plus one source file.
-    files: 5639,
+    // **F7: +7.** `git ls-files`' population gains eight files; the recorded
+    // expectation is JSON and outside this walk. Measured against a detached
+    // worktree of `origin/master` rather than parked: `--cached` answers from the
+    // index, so a delta taken on the branch alone would have read zero.
+    files: 5573,
     sites: null,
     sources: ['manifest-index'],
   },
