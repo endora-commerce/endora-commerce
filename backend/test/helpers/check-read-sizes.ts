@@ -846,7 +846,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moved aside and each check re-run, so the figure below is this merge
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
-    files: 1750,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +1 file.**
+    // the one new backend test file,
+    // `test/unit/scripts/check-rsc-discipline.test.ts`; `sites` is unmoved,
+    // because it holds no read with a fabricating fallback.
+    // Measured by parking this branch's added files and re-running, so the
+    // figure is this merge request's own contribution and nobody else's; the
+    // entries this branch moved *jointly* with `master` are left for their
+    // owners.
+    files: 1751,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -875,7 +883,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moved aside and each check re-run, so the figure below is this merge
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
-    files: 1750,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +1 file.**
+    // the one new backend test file, which releases no harness resource of its
+    // own.
+    // Measured by parking this branch's added files and re-running, so the
+    // figure is this merge request's own contribution and nobody else's; the
+    // entries this branch moved *jointly* with `master` are left for their
+    // owners.
+    files: 1751,
     sites: null,
     sources: [],
   },
@@ -918,7 +933,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moved aside and each check re-run, so the figure below is this merge
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
-    files: 223,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +3 files.**
+    // `scripts/check-rsc-discipline.ts` and its two ledger shards under
+    // `scripts/ledgers/client-fetches-on-first-paint/`. `sites` is unmoved: none
+    // of the three makes a claim about a module's switchability.
+    // Measured by parking this branch's added files and re-running, so the
+    // figure is this merge request's own contribution and nobody else's; the
+    // entries this branch moved *jointly* with `master` are left for their
+    // owners.
+    files: 226,
     sites: 14,
     sources: ['manifest-index', 'contracts-barrel'],
   },
@@ -1633,7 +1656,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // counts 15 added files, and parking this branch's own files puts the base
     // at 7335 against this branch's 7350. Recording the observed value absorbs
     // **+35** from merge requests that have already landed.
-    files: 7350,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +4 files.**
+    // the check, its two ledger shards and its companion test.
+    // Measured by parking this branch's added files and re-running, so the
+    // figure is this merge request's own contribution and nobody else's; the
+    // entries this branch moved *jointly* with `master` are left for their
+    // owners.
+    files: 7354,
     sites: null,
     sources: [],
   },
@@ -1970,6 +1999,30 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: 93,
     sources: ['workspace-globs'],
   },
+  'backend/scripts/check-rsc-discipline.ts': {
+    prefix: '[rsc-discipline]',
+    run: { kind: 'tsx', path: 'scripts/check-rsc-discipline.ts', args: [] },
+    // Every `.tsx` file the walk **opens**, across the storefront application
+    // and the two workspace packages it composes — not the 120 that declare
+    // `'use client'`, and deliberately not the 36 candidates. A number that
+    // moves with the findings cannot answer "did you read the tree".
+    files: 332,
+    // The `useEffect` callbacks classified inside those client components, and
+    // this is the number that matters. #237's shape for this check is a syntax
+    // walk that stops recognising an effect while the file count stands still:
+    // `files=332` prints exactly the same beside `findings=0` over a tree the
+    // predicate can no longer see. `vacuousReason`'s `nothing-classified` is
+    // the floor at zero; this band is what catches the partial case.
+    sites: 86,
+    // `storefront-deps` is `storefront/package.json`'s own dependency list —
+    // the `@endora-commerce/*` workspace members declaring `react` — against
+    // how many of them contributed a file to the walk. It is #215's predicate
+    // for this population: `cms-components` holds 43 of the 120 client
+    // components and all five known instances of the defect, so a walk that
+    // stopped reaching it would leave `files` at 289 and every finding
+    // unreported.
+    sources: ['storefront-deps'],
+  },
   'backend/scripts/check-shared-table-wipes.ts': {
     prefix: '[shared-table-wipes]',
     run: { kind: 'tsx', path: 'scripts/check-shared-table-wipes.ts', args: [] },
@@ -1987,7 +2040,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moved aside and each check re-run, so the figure below is this merge
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
-    files: 1750,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: 1750 -> 1761.**
+    // This branch adds one backend test file; feature 096's Phase 7 added eight
+    // more, and `master` was itself two files ahead of the recorded value before
+    // either branch existed. The figure below is **what the tree reads**, measured
+    // on the merged result — not the recorded value plus a delta.
+    //
+    // That distinction is the whole reason this entry conflicted. Both branches
+    // computed `recorded + own delta` and both were internally consistent and
+    // wrong against their own tree by exactly `master`'s pre-existing drift of 2:
+    // 096 recorded 1750 for a tree reading 1760, and this branch recorded 1751 for
+    // a tree reading 1753. The band is -10%/+50%, so neither failed; each simply
+    // carried the old drift forward, which is what makes the arithmetic method
+    // wrong rather than merely imprecise. Identify the entries you moved by
+    // parking and differencing; write down what your tree actually prints.
+    files: 1761,
     sites: 163,
     sources: [],
   },
@@ -2081,7 +2148,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moved aside and each check re-run, so the figure below is this merge
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
-    files: 4152,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +4 files.**
+    // the check, its two ledger shards and its companion test; `sites` is
+    // unmoved, because none of them reaches a module package's source.
+    // Measured by parking this branch's added files and re-running, so the
+    // figure is this merge request's own contribution and nobody else's; the
+    // entries this branch moved *jointly* with `master` are left for their
+    // owners.
+    files: 4156,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2219,7 +2293,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // failing. Measured instead against a detached worktree of `origin/master`,
     // which reads 7395 to this branch's 7410. Recording the observed value
     // absorbs **+35** from merge requests that have already landed.
-    files: 7410,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +4 files.**
+    // the check, its two ledger shards and its companion test. Measured against a
+    // detached worktree of the base rather than by parking: this script's
+    // population comes from `git ls-files --cached --others`, which keeps a
+    // moved-away file in `--cached` and would report a delta of zero.
+    // Measured by parking this branch's added files and re-running, so the
+    // figure is this merge request's own contribution and nobody else's; the
+    // entries this branch moved *jointly* with `master` are left for their
+    // owners.
+    files: 7414,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2255,7 +2338,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check:naming` states: it reads 5517 to this branch's 5531. Recording the
     // observed value absorbs **+26** from merge requests that have already
     // landed.
-    files: 5531,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +4 files.**
+    // the check, its two ledger shards and its companion test — same git-derived
+    // population as `check-naming.sh`, and measured the same way.
+    // Measured by parking this branch's added files and re-running, so the
+    // figure is this merge request's own contribution and nobody else's; the
+    // entries this branch moved *jointly* with `master` are left for their
+    // owners.
+    files: 5535,
     sites: null,
     sources: ['manifest-index'],
   },

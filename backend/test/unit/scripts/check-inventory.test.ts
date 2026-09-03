@@ -141,6 +141,15 @@ import {
   type RouteFile as StorefrontRouteFile,
   type StorefrontIndexabilityFindingKind,
 } from '../../../scripts/check-storefront-indexability.js';
+import {
+  checkRscDiscipline,
+  ledgerKey as rscLedgerKey,
+  vacuousReason as rscDisciplineVacuous,
+  type ClientFetchLedger,
+  type ClientSourceFile,
+  type ComposedPackage,
+  type RscDisciplineFindingKind,
+} from '../../../scripts/check-rsc-discipline.js';
 import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
 import { ESTATE, PACKAGE_HOSTS, pendingEntries } from '@endora-commerce/cli/checks';
 import * as hostNulBytes from '../../../scripts/check-nul-bytes.js';
@@ -3279,6 +3288,93 @@ function storefrontIndexabilityRefusals(
     sitemapText,
   });
   return storefrontIndexabilityVacuous(result) === null ? 0 : 1;
+}
+
+/**
+ * `check-rsc-discipline` over component **source text** — the one input a real
+ * run reads (feature `specs/098-storefront-ssr-seo-a11y-suite/`, Phase 3).
+ *
+ * The predicate is a three-clause conjunction decided by a TypeScript AST walk:
+ * the `'use client'` marker, a render that branches on a state variable, and a
+ * `useEffect` that writes that state while calling something the file imported.
+ * A fixture handing in a classified component would prove the reporter and
+ * leave all three clauses unproven, which is the whole analysis — and this
+ * check has already been measured going blind to two clause *spellings* it did
+ * not implement, so a proof that cannot see the walk is worth nothing here.
+ */
+const RSC_PACKAGES: readonly ComposedPackage[] = [
+  { name: 'storefront', shard: 'storefront', root: 'storefront', composed: false },
+  {
+    name: '@endora-commerce/cms-components',
+    shard: 'cms-components',
+    root: 'packages/cms-components/src',
+    composed: true,
+  },
+];
+
+const RSC_GRID_PATH = 'packages/cms-components/src/components/ProductGrid.tsx';
+
+/** Contract §3's worked example, reduced to its three clauses. */
+const RSC_FETCHING_COMPONENT = `'use client';
+import { useEffect, useState } from 'react';
+import { fetchProductsList } from '../utils/catalog-fetch.js';
+
+export function ProductGrid({ limit }: { limit: number }) {
+  const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+    void (async () => { await fetchProductsList({ limit }); setIsLoading(false); })();
+  }, [limit]);
+  if (isLoading) return <Skeleton />;
+  return <ul />;
+}
+`;
+
+/** The same shape behind an openness gate the analysis cannot decide. */
+const RSC_UNDECIDABLE_COMPONENT = `'use client';
+import { useEffect, useState } from 'react';
+import { fetchCart } from '../lib/cart.js';
+import { initialDrawerState } from '../lib/drawer.js';
+
+export function CartDrawer() {
+  const [isOpen] = useState(initialDrawerState());
+  const [lines, setLines] = useState([]);
+  useEffect(() => { void (async () => setLines(await fetchCart()))(); }, []);
+  if (!isOpen) return null;
+  if (lines.length === 0) return <p>Empty</p>;
+  return <ul />;
+}
+`;
+
+/**
+ * Contract §3's discrimination, asserted as a control beside every red: a
+ * `'use client'` file in the same package that takes its content as a prop. A
+ * predicate keyed on the marker or the directory reports it, and would look
+ * exactly as green on a repaired tree.
+ */
+const RSC_PROP_DRIVEN_COMPONENT = `'use client';
+export function ProductCard({ product }: { product: CmsProductSummary }) {
+  if (!product.price) return null;
+  return <span>{product.name}</span>;
+}
+`;
+
+function rscDisciplineFindings(
+  files: readonly ClientSourceFile[],
+  kind: RscDisciplineFindingKind,
+  ledger: ClientFetchLedger = {},
+): number {
+  return checkRscDiscipline({ files, composedPackages: RSC_PACKAGES, ledger }).findings.filter(
+    (finding) => finding.kind === kind,
+  ).length;
+}
+
+/** The three refusals `vacuousReason` answers, over the record a run produces. */
+function rscDisciplineRefusals(files: readonly ClientSourceFile[]): number {
+  return rscDisciplineVacuous(
+    checkRscDiscipline({ files, composedPackages: RSC_PACKAGES, ledger: {} }),
+  ) === null
+    ? 0
+    : 1;
 }
 
 const CHECKS: readonly CheckEntry[] = [
@@ -6899,6 +6995,139 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3 — a client component
+    // does not fetch its own first-paint content (FR-020…FR-022).
+    //
+    // **Its population is the thing to get right, and the roadmap had it
+    // wrong.** That row read *"`grep -rl "'use client'" storefront/components`
+    // classifies 54 files"*, and all five known instances of the defect live in
+    // `packages/cms-components/` — a check scoped to the application would have
+    // reported zero and been wrong on the day it landed. So the walk is derived
+    // from `storefront/package.json`'s own dependencies, and that same
+    // derivation is the run's second author.
+    //
+    // Two clause *spellings* were measured missing from the first draft, which
+    // is why the proofs below all enter as source text: a render gate written
+    // as a conditional expression inside the returned JSX, and a fetch reached
+    // through a dynamic `import()` inside the effect. With neither, the sweep
+    // found 2 of the 5; with both, all 5 and 31 more. A proof entering over a
+    // classified record would have been green for both drafts.
+    //
+    // The discrimination is asserted beside the reds and carries as much
+    // weight: `ProductCard`'s shape — a `'use client'` file, in the same
+    // package, taking its content as a prop — must stay clean, because a
+    // predicate that reports everything looks exactly as green as a correct one.
+    script: 'backend/scripts/check-rsc-discipline.ts',
+    npmScript: 'check:rsc-discipline',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-rsc-discipline.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is one application's composed client tree, which a moved
+    // *backend* module tree does not touch. #215's equivalent for it is the
+    // `storefront-deps:<covered>/<expected>` token: a composed package that
+    // contributed no file is `readSizeRefusal`'s `short-walk`, proven in the
+    // companion test.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'client-fetch-on-first-paint': top(() =>
+        rscDisciplineFindings(
+          [
+            { path: RSC_GRID_PATH, text: RSC_FETCHING_COMPONENT },
+            {
+              path: 'packages/cms-components/src/components/ProductCard.tsx',
+              text: RSC_PROP_DRIVEN_COMPONENT,
+            },
+          ],
+          'client-fetch-on-first-paint',
+        ),
+      ),
+      // A finding and never a skip (issue #113): "deferred" as the default
+      // answer for the undecidable case excuses every component in the tree.
+      'unclassifiable-render-gate': top(() =>
+        rscDisciplineFindings(
+          [{ path: 'storefront/components/CartDrawer.tsx', text: RSC_UNDECIDABLE_COMPONENT }],
+          'unclassifiable-render-gate',
+        ),
+      ),
+      'stale-ledger-entry': top(() =>
+        rscDisciplineFindings(
+          [
+            {
+              path: 'packages/cms-components/src/components/ProductCard.tsx',
+              text: RSC_PROP_DRIVEN_COMPONENT,
+            },
+          ],
+          'stale-ledger-entry',
+          {
+            'cms-components': {
+              [rscLedgerKey(RSC_GRID_PATH, 'isLoading')]: {
+                firstPaint: true,
+                reason: 'the grid renders a skeleton to a crawler',
+                retiredBy: 'specs/096-page-builder-block-ownership/',
+              },
+            },
+          },
+        ),
+      ),
+      'ledger-entry-without-a-reason': top(() =>
+        rscDisciplineFindings(
+          [{ path: RSC_GRID_PATH, text: RSC_FETCHING_COMPONENT }],
+          'ledger-entry-without-a-reason',
+          {
+            'cms-components': {
+              [rscLedgerKey(RSC_GRID_PATH, 'isLoading')]: {
+                firstPaint: true,
+                reason: '   ',
+                retiredBy: 'specs/096-page-builder-block-ownership/',
+              },
+            },
+          },
+        ),
+      ),
+      // A debt with no retiring condition is a permanent exemption written as a
+      // temporary one.
+      'ledger-entry-without-a-retiring-condition': top(() =>
+        rscDisciplineFindings(
+          [{ path: RSC_GRID_PATH, text: RSC_FETCHING_COMPONENT }],
+          'ledger-entry-without-a-retiring-condition',
+          {
+            'cms-components': {
+              [rscLedgerKey(RSC_GRID_PATH, 'isLoading')]: {
+                firstPaint: true,
+                reason: 'the grid renders a skeleton to a crawler',
+                retiredBy: '',
+              },
+            },
+          },
+        ),
+      ),
+      'moved-tree-is-refused': top(() => rscDisciplineRefusals([])),
+      // The marker's spelling, or the walk, having stopped working. The first
+      // clause of the predicate is the marker, so this state reports every
+      // component clean.
+      'no-client-component-is-refused': top(() =>
+        rscDisciplineRefusals([
+          {
+            path: 'storefront/app/page.tsx',
+            text: 'export default async function Page() { return null; }\n',
+          },
+        ]),
+      ),
+      // #237's shape, and the one that matters most: the file count stands
+      // still while the syntax walk goes blind, so a healthy `files=` prints
+      // beside a cheerful `findings=0` over a tree nothing is reading.
+      'nothing-classified-is-refused': top(() =>
+        rscDisciplineRefusals([
+          {
+            path: 'packages/cms-components/src/components/ProductCard.tsx',
+            text: RSC_PROP_DRIVEN_COMPONENT,
+          },
+        ]),
+      ),
+    },
+  },
+  {
     // Five signals over one rule — a module's background consumers reach the
     // module's seam — and the fixture for each names only its own.
     //
@@ -9032,6 +9261,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // as one proof because either half alone is satisfied by a check that
       // answers both the same way.
       'backend/scripts/check-release-intent.ts': 14,
+      // Two findings — the centre and the undecidable gate — plus the ledger's
+      // three directions and the three refusals `vacuousReason` answers. The
+      // fourth refusal is `readSizeRefusal`'s `short-walk` over the
+      // `storefront-deps` token, proven in the companion test where the record
+      // it reads is built.
+      'backend/scripts/check-rsc-discipline.ts': 8,
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,

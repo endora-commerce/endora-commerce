@@ -681,6 +681,31 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'C',
   },
   {
+    id: 'check:rsc-discipline',
+    script: 'backend/scripts/check-rsc-discipline.ts',
+    // `repository-only`, and the reason is the *subject* rather than the root:
+    // its population is one application's composed client tree, derived from
+    // `storefront/package.json`'s own dependencies. A module package is not a
+    // member of that population and cannot become one by being checked — the
+    // storefront composes two React packages, neither of them a module — so
+    // this is not the module walk a `repository-only` claim is refused over.
+    // Under D-195 a client's storefront is generated from this scaffold and
+    // owned outright rather than composed from packages, so the gate on the
+    // template is the only place any of it is enforceable once.
+    scope: 'repository-only',
+    reason:
+      'its population is the `storefront` application plus the workspace packages that ' +
+      'application composes, and its second author is `storefront/package.json`’s own ' +
+      'dependency list. A module package is neither: it ships no `page.tsx`, and the ' +
+      'question — "does a crawler receive this component’s content" — is asked of a ' +
+      'server-rendered site, not of a package.',
+    subjectDeclaration: null,
+    readsArtefact: false,
+    // C, not A: the inputs are a specific application's manifest and its
+    // composed package tree, neither of which a lone package can supply.
+    tier: 'C',
+  },
+  {
     id: 'check:shared-table-wipes',
     script: 'backend/scripts/check-shared-table-wipes.ts',
     scope: 'repository-only',
