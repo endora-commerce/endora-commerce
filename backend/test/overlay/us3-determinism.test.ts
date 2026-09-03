@@ -4,23 +4,17 @@ import {
   buildOverrideManifest,
   serializeManifestModule,
 } from '../../src/overlay/override-manifest.js';
-import { coreSampleRoot, overlayRoot } from './_fixtures.js';
+import { FIXTURES, overlayRoot } from './_fixtures.js';
 
 // US3 (FR-006 / SC-003): identical inputs ⇒ byte-identical emitted module.
 describe('US3 — override-manifest determinism (T034)', () => {
   function emit(): string {
-    const overlayPath = overlayRoot('overlay-good');
-    const resolution = resolveOverlay({
-      coreRoot: coreSampleRoot,
-      overlayRoot: overlayPath,
-      deployment: 'acme',
-    });
+    const overlayPath = overlayRoot('overlay-entries');
     const manifest = buildOverrideManifest({
       deployment: 'acme',
-      coreRoot: coreSampleRoot,
       overlayRoot: overlayPath,
-      resolution,
-      base: coreSampleRoot,
+      resolution: resolveOverlay({ overlayRoot: overlayPath, deployment: 'acme' }),
+      base: FIXTURES,
     });
     return serializeManifestModule(manifest, './types.js');
   }

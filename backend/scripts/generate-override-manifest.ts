@@ -2,17 +2,20 @@
 // Emits the committed override-manifest artifact for the active deployment.
 //
 // Reuses the codegen pattern of `generate-composer.ts` (feature 018).
-// The manifest is the deterministic audit record of a deployment's divergence
-// from core (US3, FR-005/FR-006). Resolution fails the build on a conflict, an
-// unknown/stale target or a schema override (the resolver throws — see
-// src/overlay/resolve-overlay.ts).
+// The manifest is the deterministic audit record of what a deployment adds to
+// core (US3, FR-005/FR-006): which deployment this is, which overlay root was
+// read, and which modules it adds.
 //
-// Service overrides are NOT in this manifest since feature 072 (T067): they are
-// decorations of container registrations, not shadowed files, so there is no
-// path to record and nothing for a resolver to classify. A deployment writes
-// one from its own overlay module — `ctx.di.decorate('<name>', …)` (D-103) —
-// and the composer's own override report (`ComposedModules.decorations`, T065)
-// is where a build's decorations are enumerated.
+// **It records no overrides, because nothing overrides a core file** (feature
+// 103, D-201). Service overrides left this artefact in feature 072 (T067) —
+// they are decorations of container registrations, not shadowed files, so there
+// is no path to record and nothing for a resolver to classify, and the
+// composer's own override report (`ComposedModules.decorations`, T065) is where
+// a build's decorations are enumerated. `route` and `config` shadowing left it
+// in feature 103, for a blunter reason: no loader for either was ever written,
+// so the array they populated could only be empty, and an always-empty field in
+// an artefact a determinism check byte-compares is a field that makes the check
+// agree with itself.
 //
 // This header used to add "`tsc` remains the contract gate — a decoration is
 // written against the core interface and stops being assignable when that
@@ -31,10 +34,9 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   activeOverlayModulesRoot,
-  coreModulesRoot,
   overlayModulesRootFor,
   selectedDeployment,
 } from '../src/overlay/overlay-roots.js';
@@ -45,6 +47,17 @@ import {
 } from '../src/overlay/override-manifest.js';
 
 /**
+ * `backend/src` — this file lives at `backend/scripts/`, so it derives the
+ * source root from its own location, exactly as `overlay-roots.ts` derives
+ * `BACKEND_SRC` from its.
+ *
+ * It used to write `join(coreModulesRoot(), '..', 'overlay', …)`, which reached
+ * `backend/src/overlay/` through a modules root that has held no module since
+ * F4 — a path nobody would grep for when deleting that function (feature 103).
+ */
+const BACKEND_SRC = join(dirname(dirname(fileURLToPath(import.meta.url))), 'src');
+
+/**
  * Where a deployment's committed override manifest lives — `null` for bare core.
  *
  * Path only, so the determinism gate can enumerate the artefacts it covers
@@ -52,7 +65,7 @@ import {
  */
 export function overrideManifestOutputPath(deployment: string | null): string {
   return deployment === null
-    ? join(coreModulesRoot(), '..', 'overlay', 'override-manifest.core.generated.ts')
+    ? join(BACKEND_SRC, 'overlay', 'override-manifest.core.generated.ts')
     : join(overlayModulesRootFor(deployment), '..', 'override-manifest.generated.ts');
 }
 
@@ -61,23 +74,19 @@ export function overrideManifestOutputPath(deployment: string | null): string {
 export function renderOverrideManifest(env: NodeJS.ProcessEnv = process.env): {
   outputPath: string;
   content: string;
-  overrides: number;
   newModules: number;
   deployment: string;
 } {
   const deployment = selectedDeployment(env);
-  const coreRoot = coreModulesRoot();
   const overlayRoot = activeOverlayModulesRoot(env);
 
-  // resolveOverlay throws (fails the build) on conflict / unknown target /
-  // schema override / missing contract — no silent divergence.
-  const resolution = resolveOverlay({ coreRoot, overlayRoot, deployment });
-  const manifest = buildOverrideManifest({ deployment, coreRoot, overlayRoot, resolution });
+  const resolution = resolveOverlay({ overlayRoot, deployment });
+  const manifest = buildOverrideManifest({ deployment, overlayRoot, resolution });
 
   const outputPath = overrideManifestOutputPath(deployment);
 
   // Module-resolvable path from the emitted file to src/overlay/types.js.
-  const typesFile = join(coreModulesRoot(), '..', 'overlay', 'types.ts');
+  const typesFile = join(BACKEND_SRC, 'overlay', 'types.ts');
   let typesSpec = relative(dirname(outputPath), typesFile).replace(/\.ts$/, '.js');
   if (sep !== '/') typesSpec = typesSpec.split(sep).join('/');
   if (!typesSpec.startsWith('.')) typesSpec = `./${typesSpec}`;
@@ -85,19 +94,17 @@ export function renderOverrideManifest(env: NodeJS.ProcessEnv = process.env): {
   return {
     outputPath,
     content,
-    overrides: manifest.overrides.length,
     newModules: manifest.newModules.length,
     deployment: manifest.deployment,
   };
 }
 
 function main(): void {
-  const { outputPath, content, overrides, newModules, deployment } = renderOverrideManifest();
+  const { outputPath, content, newModules, deployment } = renderOverrideManifest();
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, content, 'utf8');
   process.stdout.write(
-    `[override-manifest] deployment=${deployment} overrides=${overrides} ` +
-      `newModules=${newModules} → ${outputPath}\n`,
+    `[override-manifest] deployment=${deployment} newModules=${newModules} → ${outputPath}\n`,
   );
 }
 

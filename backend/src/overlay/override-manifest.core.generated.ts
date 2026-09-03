@@ -7,9 +7,7 @@ import type { OverrideManifest } from './types.js';
 export const OVERRIDE_MANIFEST: OverrideManifest = {
   "deployment": "core",
   "generatedFrom": {
-    "coreRoot": "backend/src/modules",
     "overlayRoot": null
   },
-  "overrides": [],
   "newModules": []
 };

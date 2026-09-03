@@ -1,12 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   overlayModuleEntriesUnder,
   overlayModuleManifestsUnder,
 } from '../../../src/overlay/overlay-runtime.js';
-import { classifyKind, indexCore, scanOverlay } from '../../../src/overlay/resolve-overlay.js';
 import { discoverManifests } from '../../../src/lifecycle/services/manifest-loader.js';
 import { FIXTURES } from '../../overlay/_fixtures.js';
 
@@ -29,28 +26,19 @@ import { FIXTURES } from '../../overlay/_fixtures.js';
  * The fixtures are committed JavaScript rather than a tree the test emits,
  * because the thing under test is the file name the loader looks for: a `.ts`
  * fixture cannot reach it (issue #130).
+ *
+ * **Narrowed, not deleted, by feature 103.** This file also covered the two
+ * readers that classified an overlay *file* — `classifyKind` and `scanOverlay`
+ * — and D-201 retired the mechanism those served. What it is about survives
+ * whole in `resolveOverlayUnit`, which is the third of the three readers and
+ * the only one whose failure was silent: it is what decides between `.js` and
+ * `.ts` for a `manifest` and a `backend`, and it is the one that skipped every
+ * overlay module in a compiled deployment with no error and no warning.
  */
 
 const COMPILED_ROOT = join(FIXTURES, 'overlay-entries-compiled');
 const NO_MANIFEST_ROOT = join(FIXTURES, 'overlay-entries-no-manifest');
 const SOURCE_ROOT = join(FIXTURES, 'overlay-entries');
-
-const temporaryRoots: string[] = [];
-
-function temporaryRoot(prefix: string): string {
-  const root = mkdtempSync(join(tmpdir(), prefix));
-  temporaryRoots.push(root);
-  return root;
-}
-
-function writeFile(path: string, content: string): void {
-  mkdirSync(join(path, '..'), { recursive: true });
-  writeFileSync(path, content);
-}
-
-afterAll(() => {
-  for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
-});
 
 describe('overlay module loading, over a compiled tree', () => {
   it('composes a module whose entry point is backend.js', async () => {
@@ -93,62 +81,6 @@ describe('an absent file is refused where the module is registered', () => {
     // absent one.
     const entries = await overlayModuleEntriesUnder(SOURCE_ROOT);
     expect(entries.map((entry) => entry.id)).not.toContain('fixture_manifest_only');
-  });
-});
-
-describe('classifyKind — a unit keeps its kind when the tree is compiled', () => {
-  it('classifies the compiled spelling exactly as the authored one', () => {
-    for (const [authored, compiled] of [
-      ['routes.admin.ts', 'routes.admin.js'],
-      ['routes/admin.ts', 'routes/admin.js'],
-      ['plugin.ts', 'plugin.js'],
-      ['config.ts', 'config.js'],
-      ['manifest.ts', 'manifest.js'],
-      ['entities/product.ts', 'entities/product.js'],
-      ['migrations/20260101T000000_x_y.ts', 'migrations/20260101T000000_x_y.js'],
-      ['services/pricing-service.ts', 'services/pricing-service.js'],
-      ['services/pricing-service.interface.ts', 'services/pricing-service.interface.js'],
-    ] as const) {
-      expect([compiled, classifyKind(compiled)]).toEqual([compiled, classifyKind(authored)]);
-    }
-    // …and the classification itself is the one the source tree gets.
-    expect(classifyKind('routes.admin.js')).toBe('route');
-    expect(classifyKind('manifest.js')).toBe('config');
-    expect(classifyKind('entities/product.js')).toBe('schema');
-    expect(classifyKind('services/pricing-service.js')).toBe('other');
-  });
-});
-
-describe('scanOverlay — a compiled override resolves against a compiled core', () => {
-  it('accepts the override and ignores the emit sidecars beside it', () => {
-    const core = temporaryRoot('overlay-core-compiled-');
-    writeFile(join(core, 'price_lists', 'routes.admin.js'), 'export {};');
-    writeFile(join(core, 'price_lists', 'routes.admin.d.ts'), 'export {};');
-    writeFile(join(core, 'price_lists', 'routes.admin.js.map'), '{}');
-
-    const overlay = temporaryRoot('overlay-deployment-compiled-');
-    writeFile(join(overlay, 'price_lists', 'routes.admin.js'), 'export {};');
-    // `tsc` emits these beside every unit. They are build artefacts, not units
-    // a deployment overrides, and classifying them threw
-    // `UnknownOverrideTargetError` for a file nobody wrote.
-    writeFile(join(overlay, 'price_lists', 'routes.admin.d.ts'), 'export {};');
-    writeFile(join(overlay, 'price_lists', 'routes.admin.d.ts.map'), '{}');
-    writeFile(join(overlay, 'price_lists', 'routes.admin.js.map'), '{}');
-
-    const { contributions, newModules } = scanOverlay(overlay, indexCore(core));
-    expect(newModules).toEqual([]);
-    expect(contributions.map((contribution) => contribution.relPath)).toEqual([
-      'routes.admin.js',
-    ]);
-  });
-
-  it('still refuses a compiled schema override', () => {
-    const core = temporaryRoot('overlay-core-schema-');
-    writeFile(join(core, 'price_lists', 'entities/product.js'), 'export {};');
-    const overlay = temporaryRoot('overlay-deployment-schema-');
-    writeFile(join(overlay, 'price_lists', 'entities/product.js'), 'export {};');
-
-    expect(() => scanOverlay(overlay, indexCore(core))).toThrow(/entities\/product\.js/);
   });
 });
 
