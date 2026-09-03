@@ -95,6 +95,15 @@
  *     is in the right direction.
  *   * The `admin` SPA, out of scope by design: a client application behind a
  *     login, with no crawler.
+ *   * An openness gate spelled `if (open) …` rather than `if (!open) return`,
+ *     or reached through an object (`!props.isOpen`, where the binding in scope
+ *     is `props`). Both read as *not deferred* — a candidate is reported and
+ *     its author answers with a ledger entry, which is the direction a blind
+ *     spot in an exemption has to fail in.
+ *   * A render branch written `{isLoading && <Skeleton />}`. It renders the
+ *     skeleton *beside* the content rather than instead of it, so it is not the
+ *     early return this predicate is about; a component that also hides its
+ *     content that way is invisible here.
  *
  * Usage: `tsx scripts/check-rsc-discipline.ts [--list]`
  * Exit 0 = every composed client component keeps its first-paint content on the
