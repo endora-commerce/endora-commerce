@@ -114,3 +114,15 @@ export {
 } from './types/background.js';
 
 export { withHideOn } from './visibility/with-hide-on.js';
+
+// Feature 096 — the one implementation of the block-name readers. Also
+// reachable as `@endora-commerce/page-builder-core/block-name` through this
+// package's wildcard subpath, which is what a migration should import: it
+// carries no React.
+export {
+  formatBlockName,
+  isNamespaced,
+  ownerOf,
+  parseBlockName,
+  type ParsedBlockName,
+} from './block-name.js';

@@ -287,6 +287,123 @@ export const putCmsColorPaletteRequestSchema = z.object({
 });
 export type PutCmsColorPaletteRequest = z.infer<typeof putCmsColorPaletteRequestSchema>;
 
+// ────────────────────────────────────────────────────────────────────
+// Page Builder block ownership — feature 096
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * The grammar of a **persisted** Page Builder block name:
+ * `<ownerModuleId>.<LocalName>`, one separator exactly
+ * (`specs/096-page-builder-block-ownership/data-model.md` §3).
+ *
+ * The owner segment is the declaring module's `id` and is matched by the same
+ * shape as `moduleIdRe`, minus the underscore prefix `moduleIdRe` reserves for
+ * platform-internal modules — none of which owns a block. The local segment is
+ * PascalCase, which all 74 pre-existing names already are.
+ *
+ * **This is the one place the grammar is written.**
+ * `@endora-commerce/page-builder-core`'s `block-name.ts` imports it for
+ * `parseBlockName` / `ownerOf` / `isNamespaced` / `formatBlockName`, and every
+ * other reader goes through those — the discipline `text-normalization.ts`
+ * keeps for diacritic folding and slugs, for the same reason: a second copy of
+ * a grammar is a second answer waiting to disagree, and this one is written
+ * into `jsonb` and never rewritten.
+ */
+export const blockNameRe = /^[a-z][a-z0-9_]*\.[A-Z][A-Za-z0-9]*$/;
+
+/**
+ * The grammar of a declared palette category's key (`data-model.md` §2).
+ * snake_case, like a module id and unlike a block's local name — a category is
+ * a section of a palette, not a persisted identifier.
+ */
+export const blockCategoryKeyRe = /^[a-z][a-z0-9_]*$/;
+
+/**
+ * A module's declaration of one Page Builder block
+ * (`specs/096-page-builder-block-ownership/contracts/block-definition.md` §1).
+ *
+ * Declared on the module manifest as `blocks`, beside `permissions`, `actions`
+ * and `errorCodes`, and read by nothing at runtime until the registry is
+ * populated from it.
+ *
+ * **There is no `ownerModule` field, and its absence is the design.** The owner
+ * is the segment before the `.` in `name`, so ownership is stated once rather
+ * than twice; the registry keeps computing it for the descriptor it serves.
+ * `defineModuleManifest` refuses a `name` whose owner segment is not the
+ * declaring module's own `id`.
+ *
+ * `labelKey` and `descriptionKey` are **relative to the declaring module's own
+ * i18n namespace** — `blocks.productGrid.label`, never `catalog.blocks.…` —
+ * which is the rule manifest `actions` already follow, and which this layer
+ * cannot enforce for the reason it cannot enforce it there either: relativity
+ * is a fact about a bundle, and this schema sees a string.
+ */
+export const BlockDefinitionSchema = z.object({
+  /** The persisted identifier. Permanent: written into `jsonb` and never rewritten. */
+  name: z.string().regex(blockNameRe),
+  /** Module-relative i18n key for the palette entry's label. */
+  labelKey: z.string().min(1).max(255),
+  /** Module-relative i18n key for the palette entry's description. */
+  descriptionKey: z.string().min(1).max(255).optional(),
+  /** The key of a declared {@link BlockCategorySchema} — not free text. */
+  category: z.string().regex(blockCategoryKeyRe),
+  /** The surfaces this block is offered on. A block offered nowhere has no reader. */
+  contexts: z.array(pageBuilderContextSchema).min(1),
+  /** The block's editable fields, in the shape the descriptor already serves. */
+  fields: z.record(z.string(), cmsFieldDescriptorSchema),
+  /** Props a freshly inserted node carries. Opaque at this boundary. */
+  defaultProps: z.record(z.string(), z.unknown()).optional(),
+  /** Which of `fields` accept a per-breakpoint override. */
+  responsiveFields: z.array(z.string().min(1)).optional(),
+  /** Palette thumbnail hint, passed through verbatim as it is today. */
+  previewIcon: z.string().min(1).optional(),
+  /** Sort order within the category. Absent sorts after everything that declares one. */
+  weight: z.number().int().min(0).max(9999).optional(),
+});
+export type BlockDefinition = z.infer<typeof BlockDefinitionSchema>;
+
+/**
+ * A declared palette section (`data-model.md` §2).
+ *
+ * Categories are declared rather than hard-coded so that a module contributing
+ * a block into a category never has to edit a shared `categories` map in a
+ * package it does not own — the shape feature 091 removed from the admin. Two
+ * modules declaring the same key for the same context is therefore expected and
+ * is not a collision; the palette merges them.
+ *
+ * A category exists **per context**: `layout` in the CMS palette and `layout`
+ * in the e-mail palette are two declarations.
+ *
+ * `visible` is absent-means-visible rather than a Zod `.default(true)`,
+ * deliberately: `ModuleManifest` is the schema's *output* type, so a default
+ * would oblige every author to write `visible: true` on every category — which
+ * is what `actions`' `keywords` and `weight` already do, and is not a precedent
+ * worth extending. It replaces the CMS palette's `_internal` hidden drawer.
+ */
+export const BlockCategorySchema = z.object({
+  key: z.string().regex(blockCategoryKeyRe),
+  /** Module-relative i18n key for the section title. */
+  titleKey: z.string().min(1).max(255),
+  /** The palettes this section appears in. */
+  contexts: z.array(pageBuilderContextSchema).min(1),
+  /** Palette order. */
+  weight: z.number().int().min(0).max(9999).optional(),
+  /** Absent means visible. `false` hides the section from the palette. */
+  visible: z.boolean().optional(),
+});
+export type BlockCategory = z.infer<typeof BlockCategorySchema>;
+
+/**
+ * `GET /api/v1/admin/cms/page-builder/config`.
+ *
+ * Feature 096 extends this **additively**: every per-component field it gains
+ * is optional and the category list is optional, so a consumer reading only the
+ * five fields that were here before keeps working, and Phase 1 changes nothing
+ * a client can observe. `name` deliberately does **not** take `blockNameRe` —
+ * the registry serves the pre-migration bare names until the renderer maps are
+ * re-keyed, and a grammar here would make the vocabulary phase a breaking
+ * change.
+ */
 export const cmsPageBuilderDescriptorSchema = z.object({
   schemaVersion: z.number().int(),
   breakpoints: pageBuilderBreakpointsSchema.optional(),
@@ -298,8 +415,20 @@ export const cmsPageBuilderDescriptorSchema = z.object({
       fields: z.record(z.string(), cmsFieldDescriptorSchema),
       previewIcon: z.string().optional(),
       contexts: z.array(pageBuilderContextSchema).min(1).optional(),
+      // Feature 096 — the six a declaration carries that a registration did
+      // not. Optional at this layer and required of a declaration by
+      // `BlockDefinitionSchema`; what makes them present in a response is a
+      // module having declared the block.
+      labelKey: z.string().min(1).max(255).optional(),
+      descriptionKey: z.string().min(1).max(255).optional(),
+      category: z.string().regex(blockCategoryKeyRe).optional(),
+      defaultProps: z.record(z.string(), z.unknown()).optional(),
+      responsiveFields: z.array(z.string().min(1)).optional(),
+      weight: z.number().int().min(0).max(9999).optional(),
     }),
   ),
+  /** The declared palette sections, merged across every present module. */
+  categories: z.array(BlockCategorySchema).optional(),
 });
 export type CmsPageBuilderDescriptor = z.infer<typeof cmsPageBuilderDescriptorSchema>;
 
