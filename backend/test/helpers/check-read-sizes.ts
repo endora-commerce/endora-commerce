@@ -583,9 +583,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // included, which were being scanned — and `sql-tables.ts`, `ui-layer.ts`
     // and `port-registrations.ts` arrive under `packages/cli/src/lib/`, which
     // is scanned, and `packages/cli/test`'s nine files leave with the second
-    // exclusion. -15 + 13 - 9 + 1 (the red proofs) = -10. Measured by parking:
-    // this branch's base reads 5179.
-    files: 5150,
+    // exclusion. -15 + 13 - 9 + 1 (the red proofs) = -10, measured by parking
+    // this branch's own files: the base reads 5179 and this branch 5169.
+    // **The four fields feature 101 Phase 2 re-recorded carry the value the
+    // check *reads*, not the old record plus this branch's delta.** The first
+    // draft did the latter and it produced a number describing no tree at all:
+    // 5160 - 10 = 5150 against a walk that reads 5169, a +19 residue left for
+    // branches that had already merged and would never come back for it — and
+    // 0.37% of a +50% ceiling, so the band cannot see it and it merges green.
+    // That is precisely the staleness class feature 095's drift report exists
+    // to name. Where recording the observed value absorbs drift another branch
+    // left behind, the amount is stated below rather than left implicit.
+    // Here that absorbs **+19** from the merge requests this branch rebased
+    // onto, and the absorption is right rather than merely convenient: this
+    // change moves the check's own *population predicate*, so 5160 describes a
+    // walk that no longer exists and carrying it forward by a delta would
+    // preserve a baseline whose predicate is gone.
+    files: 5169,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1546,11 +1560,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sql-tables.ts` and `ui-layer.ts` move there too — each leaving a
     // re-export shim at its old path, which is the +2. Measured by parking this
     // branch's own files and re-running: this branch's base reads 7329, so 29
-    // of the drift the report names belongs to the merge requests it rebased
-    // onto and is left for them to record. **+2 more**: the red proofs
-    // (`packages/cli/test/check-tier-a-hosts.test.ts`) and this merge request's
-    // own changeset, which this walk reads and `check:language` does not.
-    files: 7315,
+    // **Feature 101, Phase 2: +15**, which is every file the commit adds —
+    // ten relocated analyses, `port-registrations.ts`, the two re-export shims
+    // left at the old `backend/scripts/lib/` paths, the red proofs and the
+    // changeset. Cross-checked two ways: `git diff --name-status origin/master`
+    // counts 15 added files, and parking this branch's own files puts the base
+    // at 7335 against this branch's 7350. Recording the observed value absorbs
+    // **+35** from merge requests that have already landed.
+    files: 7350,
     sites: null,
     sources: [],
   },
@@ -2128,12 +2145,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+4 more** from the ten merge requests this branch rebased onto.
     // **Feature 101, Phase 2: +11.** The same thirteen files as
     // `check:nul-bytes` above, less the two shims — this walk is `git`'s and an
-    // untracked file counts, but `check:naming`'s population is the module tree
-    // plus the source roots it lists, which `backend/scripts/lib` is not.
-    // **+2 more**: the red proofs and this merge request's own changeset, which
-    // this walk reads and `check:language` does not. Measured by parking: this
-    // branch's base reads 7391.
-    files: 7373,
+    // **Feature 101, Phase 2: +15**, the same fifteen files `check:nul-bytes`
+    // counts above. **Not measured by parking**: this walk is `git ls-files
+    // --cached --others`, so once the files are committed, moving them on disk
+    // leaves them in `--cached` and the parked run reads the same number — a
+    // trap worth naming, because it reports a delta of zero rather than
+    // failing. Measured instead against a detached worktree of `origin/master`,
+    // which reads 7395 to this branch's 7410. Recording the observed value
+    // absorbs **+35** from merge requests that have already landed.
+    files: 7410,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2160,11 +2180,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-inventory.test.ts`'s `script` field must resolve to a file in this
     // tree — so the whole-tree walks gained the package's copy and lost nothing.
     // **+1 more** from the merge requests this branch rebased onto.
-    // **Feature 101, Phase 2: +11.** Ten relocated analyses plus
-    // `port-registrations.ts`, plus the red proofs; the two re-export shims and
-    // the changeset are outside this walk's population, which is comments and
-    // `docs/`. Measured by parking: this branch's base reads 5519.
-    files: 5503,
+    // **Feature 101, Phase 2: +14** — the fifteen files `check:nul-bytes`
+    // counts, less the changeset, which this walk does not read. That the
+    // arithmetic differs from `check:nul-bytes`' and `check:naming`'s by
+    // exactly the one file the comment above already says is excluded is the
+    // cross-check. Measured against a detached worktree of `origin/master`
+    // rather than by parking, for the `git ls-files --cached` reason
+    // `check:naming` states: it reads 5517 to this branch's 5531. Recording the
+    // observed value absorbs **+26** from merge requests that have already
+    // landed.
+    files: 5531,
     sites: null,
     sources: ['manifest-index'],
   },
