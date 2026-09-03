@@ -17,32 +17,32 @@ describe('renderEmailHtml', () => {
   });
 
   it('renders a heading with inline styles and escapes text', () => {
-    const html = renderEmailHtml(tree([{ type: 'EmailHeading', props: { level: 'h1', text: 'Hi <b>', align: 'center' } }]));
+    const html = renderEmailHtml(tree([{ type: 'transactional_emails.EmailHeading', props: { level: 'h1', text: 'Hi <b>', align: 'center' } }]));
     expect(html).toContain('<h1');
     expect(html).toContain('text-align:center');
     expect(html).toContain('Hi &lt;b&gt;');
   });
 
   it('preserves directive markers for later substitution', () => {
-    const html = renderEmailHtml(tree([{ type: 'EmailText', props: { text: 'Order {{var order.id}}', align: 'left' } }]));
+    const html = renderEmailHtml(tree([{ type: 'transactional_emails.EmailText', props: { text: 'Order {{var order.id}}', align: 'left' } }]));
     expect(html).toContain('{{var order.id}}');
   });
 
   it('converts newlines to <br /> in text', () => {
-    const html = renderEmailHtml(tree([{ type: 'EmailText', props: { text: 'a\nb', align: 'left' } }]));
+    const html = renderEmailHtml(tree([{ type: 'transactional_emails.EmailText', props: { text: 'a\nb', align: 'left' } }]));
     expect(html).toContain('a<br />b');
   });
 
   it('resolves block embeds from the embeds map and respects depth cap', () => {
     const html = renderEmailHtml(
-      tree([{ type: 'EmailInsertBlock', props: { code: 'footer' } }]),
-      { embeds: { blocks: { footer: tree([{ type: 'EmailText', props: { text: 'FOOT', align: 'left' } }]) }, templates: {} } },
+      tree([{ type: 'transactional_emails.EmailInsertBlock', props: { code: 'footer' } }]),
+      { embeds: { blocks: { footer: tree([{ type: 'transactional_emails.EmailText', props: { text: 'FOOT', align: 'left' } }]) }, templates: {} } },
     );
     expect(html).toContain('FOOT');
   });
 
   it('renders a button anchor with href and label', () => {
-    const html = renderEmailHtml(tree([{ type: 'EmailButton', props: { label: 'Pay', href: 'https://x/y', align: 'left' } }]));
+    const html = renderEmailHtml(tree([{ type: 'transactional_emails.EmailButton', props: { label: 'Pay', href: 'https://x/y', align: 'left' } }]));
     expect(html).toContain('href="https://x/y"');
     expect(html).toContain('Pay');
   });
@@ -51,7 +51,7 @@ describe('renderEmailHtml', () => {
     const html = renderEmailHtml(
       tree([
         {
-          type: 'EmailImage',
+          type: 'transactional_emails.EmailImage',
           props: { src: 'https://x/a.png', alt: 'A', width: 200, align: 'right' },
         },
       ]),
@@ -65,7 +65,7 @@ describe('renderEmailHtml', () => {
     const html = renderEmailHtml(
       tree([
         {
-          type: 'EmailLogo',
+          type: 'transactional_emails.EmailLogo',
           props: {
             src: 'https://x/l.png',
             alt: 'Logo',
@@ -84,7 +84,7 @@ describe('renderEmailHtml', () => {
     const html = renderEmailHtml(
       tree([
         {
-          type: 'EmailFooterLegal',
+          type: 'transactional_emails.EmailFooterLegal',
           props: {
             text: 'You received this email because you are subscribed.\nUnsubscribe: {{var unsubscribeUrl}}',
             align: 'center',
@@ -101,7 +101,7 @@ describe('renderEmailHtml', () => {
     const html = renderEmailHtml(
       tree([
         {
-          type: 'EmailTable',
+          type: 'transactional_emails.EmailTable',
           props: {
             columns: [{ label: 'SKU' }, { label: 'Qty' }],
             tableRows: [{ cells: [{ value: 'A' }, { value: '1' }] }],
@@ -126,12 +126,12 @@ describe('renderEmailHtml', () => {
         root: { props: {} },
         content: [
           {
-            type: 'EmailSection',
+            type: 'transactional_emails.EmailSection',
             props: { id: 's1', backgroundColor: '#fff', paddingY: 8, paddingX: 8 },
           },
         ],
         zones: {
-          's1:content': [{ type: 'EmailText', props: { text: 'Nested', align: 'left' } }],
+          's1:content': [{ type: 'transactional_emails.EmailText', props: { text: 'Nested', align: 'left' } }],
         },
       },
       { document: false },
@@ -144,7 +144,7 @@ describe('renderEmailHtml', () => {
     const html = renderEmailHtml(
       tree([
         {
-          type: 'EmailRichText',
+          type: 'transactional_emails.EmailRichText',
           props: {
             html: '<p>Hi {{var name}}</p><script>x()</script>',
             align: 'left',
@@ -162,7 +162,7 @@ describe('renderEmailHtml', () => {
     const html = renderEmailHtml(
       tree([
         {
-          type: 'EmailRichText',
+          type: 'transactional_emails.EmailRichText',
           props: {
             html: '<p><img src="https://cdn.example/photo.png" alt="Photo" /></p>',
             align: 'left',
@@ -180,16 +180,16 @@ describe('renderEmailHtml', () => {
     const html = renderEmailHtml(
       tree([
         {
-          type: 'EmailProductCard',
+          type: 'catalog.EmailProductCard',
           props: { title: 'T', price: '1', href: 'https://x', ctaLabel: 'Go', imageSrc: '' },
         },
-        { type: 'EmailSocial', props: { links: [{ network: 'x', href: 'https://x.com' }], align: 'center' } },
+        { type: 'transactional_emails.EmailSocial', props: { links: [{ network: 'x', href: 'https://x.com' }], align: 'center' } },
         {
-          type: 'EmailCallout',
+          type: 'transactional_emails.EmailCallout',
           props: { text: 'Call', backgroundColor: '#eee', borderColor: '#ddd', align: 'left' },
         },
-        { type: 'EmailFooterLegal', props: { text: 'Legal', align: 'center' } },
-        { type: 'EmailLogo', props: { src: 'https://x/l.png', alt: 'L', width: 80, align: 'center' } },
+        { type: 'transactional_emails.EmailFooterLegal', props: { text: 'Legal', align: 'center' } },
+        { type: 'transactional_emails.EmailLogo', props: { src: 'https://x/l.png', alt: 'L', width: 80, align: 'center' } },
       ]),
       { document: false },
     );
@@ -204,13 +204,13 @@ describe('renderEmailHtml', () => {
   it('renders order detail labeled blocks with directive vars', () => {
     const html = renderEmailHtml(
       tree([
-        { type: 'EmailOrderId', props: { title: 'Order' } },
-        { type: 'EmailDeliveryMethod', props: { title: 'Delivery' } },
-        { type: 'EmailPaymentMethod', props: { title: 'Payment' } },
-        { type: 'EmailAppliedDiscounts', props: { title: 'Discounts' } },
-        { type: 'EmailOrderTotals', props: { title: 'Summary' } },
-        { type: 'EmailShippingAddress', props: { title: 'Ship' } },
-        { type: 'EmailBillingAddress', props: { title: 'Bill' } },
+        { type: 'orders.EmailOrderId', props: { title: 'Order' } },
+        { type: 'orders.EmailDeliveryMethod', props: { title: 'Delivery' } },
+        { type: 'orders.EmailPaymentMethod', props: { title: 'Payment' } },
+        { type: 'orders.EmailAppliedDiscounts', props: { title: 'Discounts' } },
+        { type: 'orders.EmailOrderTotals', props: { title: 'Summary' } },
+        { type: 'orders.EmailShippingAddress', props: { title: 'Ship' } },
+        { type: 'orders.EmailBillingAddress', props: { title: 'Bill' } },
       ]),
       { document: false },
     );
@@ -228,7 +228,7 @@ describe('renderEmailHtml', () => {
     const html = renderEmailHtml(
       tree([
         {
-          type: 'EmailProductGrid',
+          type: 'catalog.EmailProductGrid',
           props: {
             columns: 2,
             showImage: true,
@@ -258,7 +258,7 @@ describe('renderEmailHtml', () => {
           },
         },
         {
-          type: 'EmailCategoryGrid',
+          type: 'catalog.EmailCategoryGrid',
           props: {
             columns: 2,
             showImage: true,
@@ -287,11 +287,11 @@ describe('renderEmailHtml', () => {
     const html = renderEmailHtml(
       tree([
         {
-          type: 'EmailOrderId',
+          type: 'orders.EmailOrderId',
           props: { title: 'Order', marginTop: 4, marginBottom: 20 },
         },
         {
-          type: 'EmailOrderSummary',
+          type: 'orders.EmailOrderSummary',
           props: {
             title: 'Items',
             showName: true,
@@ -316,19 +316,19 @@ describe('renderEmailHtml', () => {
         root: { props: {} },
         content: [
           {
-            type: 'EmailRow',
+            type: 'transactional_emails.EmailRow',
             props: { id: 'row1', gap: 16, verticalAlign: 'top' },
           },
         ],
         zones: {
           'row1:content': [
-            { type: 'EmailColumn', props: { id: 'c1', span: 4 } },
-            { type: 'EmailColumn', props: { id: 'c2', span: 4 } },
-            { type: 'EmailColumn', props: { id: 'c3', span: 4 } },
+            { type: 'transactional_emails.EmailColumn', props: { id: 'c1', span: 4 } },
+            { type: 'transactional_emails.EmailColumn', props: { id: 'c2', span: 4 } },
+            { type: 'transactional_emails.EmailColumn', props: { id: 'c3', span: 4 } },
           ],
-          'c1:content': [{ type: 'EmailText', props: { text: 'Left', align: 'left' } }],
-          'c2:content': [{ type: 'EmailText', props: { text: 'Mid', align: 'left' } }],
-          'c3:content': [{ type: 'EmailText', props: { text: 'Right', align: 'left' } }],
+          'c1:content': [{ type: 'transactional_emails.EmailText', props: { text: 'Left', align: 'left' } }],
+          'c2:content': [{ type: 'transactional_emails.EmailText', props: { text: 'Mid', align: 'left' } }],
+          'c3:content': [{ type: 'transactional_emails.EmailText', props: { text: 'Right', align: 'left' } }],
         },
       },
       { document: false },

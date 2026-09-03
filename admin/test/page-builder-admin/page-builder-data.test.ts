@@ -11,7 +11,7 @@ describe('page-builder-data', () => {
     expect(
       isEmptyPageBuilderData({
         root: { props: {} },
-        content: [{ type: 'Heading', props: { id: '1', text: 'Hi' } }],
+        content: [{ type: 'cms.Heading', props: { id: '1', text: 'Hi' } }],
       }),
     ).toBe(false);
   });

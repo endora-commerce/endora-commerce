@@ -11,7 +11,7 @@ const BASE = '/api/v1/admin/transactional-emails';
 
 const tree = (text: string) => ({
   root: { props: {} },
-  content: [{ type: 'EmailText', props: { id: 't1', text, align: 'left' } }],
+  content: [{ type: 'transactional_emails.EmailText', props: { id: 't1', text, align: 'left' } }],
   zones: {},
 });
 

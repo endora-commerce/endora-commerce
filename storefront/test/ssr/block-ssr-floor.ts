@@ -21,10 +21,31 @@ export type PaletteBlock = {
   defaultProps?: Record<string, unknown> | undefined;
 };
 
-/** The composed palette, in the shape `@measured/puck`'s `Config` presents. */
+/**
+ * The composed palette, in the shape `@measured/puck`'s `Config` presents, plus
+ * the names a **second author** claims are blocks.
+ *
+ * **The second author changed with feature 096 and the reason is the design.**
+ * It was the `categories[*].components` drawer taxonomy — a hand-written map in
+ * `@endora-commerce/cms-components` — and that map is gone: a palette section is
+ * declared by the module whose blocks occupy it and is served, merged across the
+ * present modules, by `GET /api/v1/admin/cms/page-builder/config` (FR-009). A
+ * storefront SSR test reaches no server and depends on no module package, so it
+ * cannot read the declarations, and continuing to read `categories` would have
+ * left the reconciliation comparing the components map to an empty set — every
+ * block a disagreement, and the run refused.
+ *
+ * The author that replaced it is available and is genuinely a second program's
+ * answer: **the React components the package exports**. The `components` map is
+ * written by hand in `index.ts`; the barrel's `export * from './components/X.js'`
+ * lines are written by hand beside them, for a different purpose. A key with no
+ * component and a component in no key are exactly the two disagreements the
+ * drawer taxonomy used to catch.
+ */
 export type Palette = {
   components?: Record<string, PaletteBlock> | undefined;
-  categories?: Record<string, { components?: readonly string[] | undefined }> | undefined;
+  /** Block names the second author claims. See the type's own note. */
+  secondAuthor?: readonly string[] | undefined;
 };
 
 /**
@@ -152,14 +173,14 @@ export type PopulationDisagreement = {
 
 export type Population = {
   readonly blocks: readonly string[];
-  readonly taxonomy: readonly string[];
+  /** What the second author claims. */
+  readonly secondAuthor: readonly string[];
   readonly disagreements: readonly PopulationDisagreement[];
 };
 
 /**
  * Reconciles the two authors of the block population: the `components` map the storefront
- * composes, and the `categories[*].components` drawer taxonomy an editor inserts from. Two
- * lists, written separately, about one set.
+ * composes, and the names a second author claims. Two lists, written separately, about one set.
  */
 export function reconcilePopulation(palette: Palette | null | undefined): Population {
   if (palette === null || palette === undefined || typeof palette !== 'object') {
@@ -177,20 +198,17 @@ export function reconcilePopulation(palette: Palette | null | undefined): Popula
     );
   }
 
-  const taxonomy = new Set<string>();
-  for (const category of Object.values(palette.categories ?? {})) {
-    for (const name of category?.components ?? []) taxonomy.add(name);
-  }
+  const secondAuthor = new Set(palette.secondAuthor ?? []);
 
   const disagreements: PopulationDisagreement[] = [];
   for (const block of blocks) {
-    if (!taxonomy.has(block)) disagreements.push({ block, kind: 'uncategorised-block' });
+    if (!secondAuthor.has(block)) disagreements.push({ block, kind: 'uncategorised-block' });
   }
-  for (const name of taxonomy) {
+  for (const name of secondAuthor) {
     if (!blocks.includes(name)) disagreements.push({ block: name, kind: 'unregistered-block' });
   }
 
-  return { blocks, taxonomy: [...taxonomy], disagreements };
+  return { blocks, secondAuthor: [...secondAuthor], disagreements };
 }
 
 // ---------------------------------------------------------------------------
@@ -312,22 +330,23 @@ export function runBlockSsrFloor(input: FloorInput): FloorResult {
       blocks: population.blocks.length,
       rendered,
       ledgered: Object.keys(input.ledger).length,
-      taxonomy: population.taxonomy.length,
+      secondAuthor: population.secondAuthor.length,
     }),
   };
 }
 
 /**
- * The estate's `read:` grammar. `sources` is the second author — the drawer taxonomy — and the
- * shortfall in it is where a reader is meant to look.
+ * The estate's `read:` grammar. `sources` is the second author — since feature
+ * 096, the React components the package exports — and the shortfall in it is
+ * where a reader is meant to look.
  */
 export function formatReadLine(counts: {
   blocks: number;
   rendered: number;
   ledgered: number;
-  taxonomy: number;
+  secondAuthor: number;
 }): string {
-  return `[block-ssr-floor] read: blocks=${counts.blocks} rendered=${counts.rendered} ledgered=${counts.ledgered} sources=drawer-taxonomy:${counts.taxonomy}/${counts.blocks}`;
+  return `[block-ssr-floor] read: blocks=${counts.blocks} rendered=${counts.rendered} ledgered=${counts.ledgered} sources=exported-components:${counts.secondAuthor}/${counts.blocks}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -346,25 +365,25 @@ export function formatReadLine(counts: {
  * outgrown its population — narrow it, never add the entry.
  */
 export const BLOCKS_RENDERING_A_LOADING_STATE: Readonly<Record<string, LedgerEntry>> = {
-  ProductGrid: {
+  'catalog.ProductGrid': {
     state: 'ProductGridSkeleton',
     reason:
       'isLoading initialises true and is cleared from a useEffect that server rendering never runs.',
     repairedBy: 'specs/096-page-builder-block-ownership/ — D-31 block `load` seam',
   },
-  ProductSlider: {
+  'catalog.ProductSlider': {
     state: 'ProductSliderSkeleton',
     reason:
       'isLoading initialises true and is cleared from a useEffect that server rendering never runs.',
     repairedBy: 'specs/096-page-builder-block-ownership/ — D-31 block `load` seam',
   },
-  CategoryList: {
+  'catalog.CategoryList': {
     state: 'CategoryListSkeleton',
     reason:
       'isLoading initialises true and is cleared from a useEffect that server rendering never runs.',
     repairedBy: 'specs/096-page-builder-block-ownership/ — D-31 block `load` seam',
   },
-  CategoryGrid: {
+  'catalog.CategoryGrid': {
     state: 'CategoryGridSkeleton',
     reason:
       'isLoading initialises true and is cleared from a useEffect that server rendering never runs.',
@@ -380,10 +399,15 @@ export const BLOCKS_RENDERING_A_LOADING_STATE: Readonly<Record<string, LedgerEnt
  * palette that silently lost half its entries must not report a clean floor.
  */
 export const POPULATION_DISAGREEMENTS: Readonly<Record<string, DisagreementLedgerEntry>> = {
-  InsertTemplate: {
-    kind: 'uncategorised-block',
+  // `InsertTemplate`'s entry is gone, and its going is the staleness signal this
+  // ledger's own note predicted: it was registered in the components map and
+  // named by no drawer category, so an editor could not insert it, and
+  // `specs/096-page-builder-block-ownership/` filed it as its D-b and repaired
+  // it — `cms` declares `cms.InsertTemplate` in the `embeds` section.
+  MissingComponentPlaceholder: {
+    kind: 'unregistered-block',
     reason:
-      'Registered in the components map and named by no drawer category, so an editor cannot insert it. Found blind by this feature and independently by specs/096-page-builder-block-ownership/, which filed it as its D-b.',
-    repairedBy: 'specs/096-page-builder-block-ownership/ — D-b',
+      'The degradation placeholder itself, and never a block: `data-model.md` §8 names it as one of the things that is not one. It is `ComponentConfig`-shaped, so the second author claims it, and it is deliberately in no palette — `makeMissingComponentConfig` builds it per unknown name at the point of failure.',
+    repairedBy: 'never — it is not a block, and an entry saying so is the record',
   },
 };

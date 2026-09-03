@@ -24,7 +24,7 @@ const LANGUAGES = ['en-US', 'pl-PL'];
 function tree(html: string): Record<string, unknown> {
   return {
     root: { props: {} },
-    content: [{ type: 'Text', props: { id: 'consent', tiptapContent: null, html } }],
+    content: [{ type: 'cms.Text', props: { id: 'consent', tiptapContent: null, html } }],
     zones: {},
   };
 }

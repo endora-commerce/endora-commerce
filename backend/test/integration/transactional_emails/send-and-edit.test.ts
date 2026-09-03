@@ -33,7 +33,7 @@ const fakeSettings = {
 
 const simpleContent = (text: string) => ({
   root: { props: {} },
-  content: [{ type: 'EmailText', props: { id: 't1', text, align: 'left' } }],
+  content: [{ type: 'transactional_emails.EmailText', props: { id: 't1', text, align: 'left' } }],
   zones: {},
 });
 

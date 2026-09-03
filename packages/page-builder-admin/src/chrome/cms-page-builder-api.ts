@@ -34,6 +34,23 @@ export async function getPageBuilderColorPalette(): Promise<CmsColorPaletteEntry
   return out.data.colorPalette ?? [];
 }
 
+/**
+ * The whole descriptor — every block and every palette section the composed,
+ * effectively present modules declare (feature 096, T210).
+ *
+ * The e-mail builder needs it for the same reason the CMS builder does: the
+ * sections it renders are no longer a `categories` map inside
+ * `@endora-commerce/email-components` but declarations made by
+ * `transactional_emails`, `orders` and `catalog`, merged per `(key, context)`
+ * and filtered to the modules an operator has switched on. Switching `orders`
+ * off is what takes the *Order* section out of the palette, and no constant in
+ * a package can answer that.
+ */
+export async function getPageBuilderDescriptor(): Promise<CmsPageBuilderDescriptor> {
+  const out = await apiClient.get<{ data: CmsPageBuilderDescriptor }>(CONFIG_PATH);
+  return out.data;
+}
+
 /** Replace the palette wholesale; the server answers with what it stored. */
 export async function putPageBuilderColorPalette(
   body: PutCmsColorPaletteRequest,

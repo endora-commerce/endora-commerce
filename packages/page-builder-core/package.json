@@ -39,6 +39,10 @@
       "types": "./dist/types/responsive.d.ts",
       "default": "./dist/types/responsive.js"
     },
+    "./migration": {
+      "types": "./dist/migration/index.d.ts",
+      "default": "./dist/migration/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "default": "./dist/*.js"

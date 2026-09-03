@@ -15,8 +15,8 @@ const DRAG_MIME = 'application/x-pb-outline-item';
 let activeOutlineDrag: OutlineDropPayload | null = null;
 
 function outlineTypeIcon(type: string): string {
-  if (type === 'Row') return '▦';
-  if (type === 'Column' || type === 'EmailColumn') return '▥';
+  if (type === 'cms.Row') return '▦';
+  if (type === 'cms.Column' || type === 'transactional_emails.EmailColumn') return '▥';
   return '▪';
 }
 
@@ -42,7 +42,7 @@ function OutlineItem({ item, depth }: { item: PuckItem; depth: number }): ReactE
   const isSelected = selectedId === itemId;
   const nested = collectChildItems(item.props);
   const columnSpan =
-    item.type === 'Column' || item.type === 'EmailColumn'
+    item.type === 'cms.Column' || item.type === 'transactional_emails.EmailColumn'
       ? typeof item.props.span === 'number'
         ? ` · ${item.props.span}/12`
         : ''
@@ -122,7 +122,7 @@ function OutlineItem({ item, depth }: { item: PuckItem; depth: number }): ReactE
 
   return (
     <li
-      className={`pb-outline-item ${item.type === 'Column' || item.type === 'EmailColumn' ? 'pb-outline-item--column' : ''} ${isSelected ? 'pb-outline-item--selected' : ''} ${isDragging ? 'pb-outline-item--dragging' : ''} ${dropBefore ? 'pb-outline-item--drop-before' : ''}`}
+      className={`pb-outline-item ${item.type === 'cms.Column' || item.type === 'transactional_emails.EmailColumn' ? 'pb-outline-item--column' : ''} ${isSelected ? 'pb-outline-item--selected' : ''} ${isDragging ? 'pb-outline-item--dragging' : ''} ${dropBefore ? 'pb-outline-item--drop-before' : ''}`}
       style={{ '--pb-outline-depth': depth } as React.CSSProperties}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}

@@ -33,7 +33,7 @@ describe('row-layout-presets', () => {
     for (const preset of ROW_LAYOUT_PRESETS) {
       const next = applyRowLayoutPreset(baseRow, preset.id);
       const columns = (next.content as Array<{ type: string; props: { span: number | { tablet?: number } } }>).filter(
-        (item) => item.type === 'Column',
+        (item) => item.type === 'cms.Column',
       );
       expect(columns).toHaveLength(preset.spans.length);
       const spanSum = columns.reduce((sum, col) => sum + columnTabletSpan(col.props.span), 0);
@@ -45,8 +45,8 @@ describe('row-layout-presets', () => {
     const row: RowProps = {
       ...baseRow,
       content: [
-        { type: 'Column', props: { id: 'a', span: 6, content: [{ type: 'Text', props: { id: 't1', text: 'A' } }] } },
-        { type: 'Column', props: { id: 'b', span: 6, content: [{ type: 'Text', props: { id: 't2', text: 'B' } }] } },
+        { type: 'cms.Column', props: { id: 'a', span: 6, content: [{ type: 'cms.Text', props: { id: 't1', text: 'A' } }] } },
+        { type: 'cms.Column', props: { id: 'b', span: 6, content: [{ type: 'cms.Text', props: { id: 't2', text: 'B' } }] } },
       ] as RowProps['content'],
     };
     const next = applyRowLayoutPreset(row, '2');
@@ -59,7 +59,7 @@ describe('row-layout-presets', () => {
     const row = applyRowLayoutPreset(baseRow, '2');
     const next = addColumnFitRow(row);
     const columns = (next.content as { type: string; props: { span: number | { tablet?: number } } }[]).filter(
-      (item) => item.type === 'Column',
+      (item) => item.type === 'cms.Column',
     );
     expect(columns).toHaveLength(3);
     const spanSum = columns.reduce((sum, col) => sum + columnTabletSpan(col.props.span), 0);
@@ -70,7 +70,7 @@ describe('row-layout-presets', () => {
     const row = applyRowLayoutPreset(baseRow, '2');
     const next = addColumnFullWidth(row);
     const columns = (next.content as { type: string; props: { span: number } }[]).filter(
-      (item) => item.type === 'Column',
+      (item) => item.type === 'cms.Column',
     );
     expect(columns).toHaveLength(3);
     expect(columnTabletSpan(columns[2]?.props.span ?? 0)).toBe(12);
@@ -79,11 +79,11 @@ describe('row-layout-presets', () => {
 
 describe('findRowById / wrapRowInContentSliderSlide', () => {
   it('finds a Row stored in a Puck zone (e.g. inside a Slide)', () => {
-    const row = { type: 'Row', props: { id: 'r1', content: [] } };
+    const row = { type: 'cms.Row', props: { id: 'r1', content: [] } };
     const data = {
-      content: [{ type: 'ContentSlider', props: { id: 'cs1' } }],
+      content: [{ type: 'cms.ContentSlider', props: { id: 'cs1' } }],
       zones: {
-        'cs1:slides': [{ type: 'Slide', props: { id: 's1' } }],
+        'cs1:slides': [{ type: 'cms.Slide', props: { id: 's1' } }],
         's1:content': [row],
       },
     };
@@ -95,7 +95,7 @@ describe('findRowById / wrapRowInContentSliderSlide', () => {
     };
     const wrapped = wrapRowInContentSliderSlide(withRowOnSlides, 'cs1:slides', 0, row);
     const slides = wrapped.zones?.['cs1:slides'] as Array<{ type: string; props: { id: string } }>;
-    expect(slides[0]?.type).toBe('Slide');
+    expect(slides[0]?.type).toBe('cms.Slide');
     const slideId = slides[0]?.props.id;
     expect(slideId).toBeTruthy();
     expect(wrapped.zones?.[`${slideId}:content`]).toEqual([row]);

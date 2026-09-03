@@ -36,9 +36,9 @@ export const EMAIL_ROW_LAYOUT_PRESETS: EmailRowLayoutPreset[] = [
 export function createDefaultEmailColumnItem(
   id: string,
   span = 6,
-): { type: 'EmailColumn'; props: EmailColumnProps & { id: string } } {
+): { type: 'transactional_emails.EmailColumn'; props: EmailColumnProps & { id: string } } {
   return {
-    type: 'EmailColumn',
+    type: 'transactional_emails.EmailColumn',
     props: {
       id,
       span,
@@ -49,7 +49,7 @@ export function createDefaultEmailColumnItem(
 
 function existingColumnContents(content: unknown): PuckItem[][] {
   return toPuckItemArray(content)
-    .filter((item) => item.type === 'EmailColumn')
+    .filter((item) => item.type === 'transactional_emails.EmailColumn')
     .map((col) => toPuckItemArray(col.props.content));
 }
 
@@ -83,7 +83,7 @@ export function applyEmailRowLayoutPreset(
 
 /** Add one column and redistribute equal-ish spans (max 6). */
 export function addEmailColumnFitRow(rowProps: EmailRowProps): EmailRowProps {
-  const columns = toPuckItemArray(rowProps.content).filter((item) => item.type === 'EmailColumn');
+  const columns = toPuckItemArray(rowProps.content).filter((item) => item.type === 'transactional_emails.EmailColumn');
   if (columns.length >= 6) return rowProps;
   const preserved = columns.map((col) => toPuckItemArray(col.props.content));
   const nextCount = columns.length + 1;
@@ -102,7 +102,7 @@ export function findEmailRowById(
 ): PuckItem | null {
   const visit = (items: PuckItem[]): PuckItem | null => {
     for (const item of items) {
-      if (item.type === 'EmailRow' && item.props.id === rowId) return item;
+      if (item.type === 'transactional_emails.EmailRow' && item.props.id === rowId) return item;
       for (const value of Object.values(item.props)) {
         const nested = toPuckItemArray(value);
         if (nested.length > 0) {
@@ -130,7 +130,7 @@ export function replaceEmailRowInData<T extends { content?: unknown; zones?: Rec
 ): T {
   const mapItems = (items: PuckItem[]): PuckItem[] =>
     items.map((item) => {
-      if (item.type === 'EmailRow' && item.props.id === rowId) {
+      if (item.type === 'transactional_emails.EmailRow' && item.props.id === rowId) {
         return nextRow;
       }
       const nextProps: Record<string, unknown> = { ...item.props };
@@ -154,11 +154,11 @@ export function replaceEmailRowInData<T extends { content?: unknown; zones?: Rec
   const columns = toPuckItemArray(nextRow.props.content);
   const nextColumnIds = new Set(
     columns
-      .filter((col) => col.type === 'EmailColumn' && typeof col.props.id === 'string')
+      .filter((col) => col.type === 'transactional_emails.EmailColumn' && typeof col.props.id === 'string')
       .map((col) => col.props.id as string),
   );
   for (const col of previousColumns) {
-    if (col.type !== 'EmailColumn' || typeof col.props.id !== 'string') continue;
+    if (col.type !== 'transactional_emails.EmailColumn' || typeof col.props.id !== 'string') continue;
     if (!nextColumnIds.has(col.props.id)) {
       delete nextZones[`${col.props.id}:content`];
     }
@@ -166,7 +166,7 @@ export function replaceEmailRowInData<T extends { content?: unknown; zones?: Rec
 
   nextZones[`${rowId}:content`] = columns;
   for (const col of columns) {
-    if (col.type !== 'EmailColumn' || typeof col.props.id !== 'string') continue;
+    if (col.type !== 'transactional_emails.EmailColumn' || typeof col.props.id !== 'string') continue;
     nextZones[`${col.props.id}:content`] = toPuckItemArray(col.props.content);
   }
 

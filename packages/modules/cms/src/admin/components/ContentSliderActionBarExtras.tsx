@@ -43,7 +43,7 @@ export function ContentSliderActionBarExtras({ sliderId }: { sliderId: string })
 
   const zone = contentSliderSlidesZone(sliderId);
   const slider = safeGetPuckItem(getItemById, sliderId);
-  const isActive = isPuckItemType(slider, 'ContentSlider');
+  const isActive = isPuckItemType(slider, 'cms.ContentSlider');
   const slideCount = isActive && data ? getSlotZoneItemCount(data, zone) : 0;
   const slidesPerView = isActive
     ? slidesPerViewFromProps(slider.props.slidesPerView, tier)
@@ -122,7 +122,7 @@ export function ContentSliderActionBarExtras({ sliderId }: { sliderId: string })
     const count = getSlotZoneItemCount(freshData, zone);
     dispatch({
       type: 'insert',
-      componentType: 'Slide',
+      componentType: 'cms.Slide',
       destinationZone: zone,
       destinationIndex: count,
     });

@@ -58,7 +58,7 @@ describe('CMS storefront language fallback (T062)', () => {
       payload: JSON.stringify({
         data: {
           root: { props: {} },
-          content: [{ type: 'Heading', props: { level: 'h1', text: 'Polski fallback' } }],
+          content: [{ type: 'cms.Heading', props: { level: 'h1', text: 'Polski fallback' } }],
         },
         version: page.version,
       }),

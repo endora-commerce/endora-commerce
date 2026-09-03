@@ -141,7 +141,7 @@ const columnConfig: ComponentConfig<{ props: ColumnProps }> = {
       visit(appState.data.content ?? [], 'root');
     }
 
-    const inRow = parentType === 'Row';
+    const inRow = parentType === 'cms.Row';
     return {
       ...permissions,
       insert: inRow,
@@ -159,7 +159,7 @@ const columnConfig: ComponentConfig<{ props: ColumnProps }> = {
     },
     content: {
       type: 'slot',
-      disallow: ['Column'],
+      disallow: ['cms.Column'],
     },
     margin: BOX_MARGIN_FIELD,
     padding: BOX_PADDING_FIELD,
@@ -180,9 +180,9 @@ const columnConfig: ComponentConfig<{ props: ColumnProps }> = {
 /** Column must not use withHideOn — the outer grid cell is .cmsc-pb-row-col itself. */
 export const Column = columnConfig;
 
-export function createDefaultColumnItem(id: string): { type: 'Column'; props: ColumnProps & { id: string } } {
+export function createDefaultColumnItem(id: string): { type: 'cms.Column'; props: ColumnProps & { id: string } } {
   return {
-    type: 'Column',
+    type: 'cms.Column',
     props: {
       id,
       span: 12,

@@ -24,7 +24,7 @@ function genericTree() {
     root: { props: {} },
     content: [
       {
-        type: 'InvoiceLogo',
+        type: 'invoices.InvoiceLogo',
         props: {
           id: 'inv-logo',
           imageSource: 'url',
@@ -37,7 +37,7 @@ function genericTree() {
         },
       },
       {
-        type: 'InvoiceHeader',
+        type: 'invoices.InvoiceHeader',
         props: {
           id: 'inv-header',
           titleSize: 14,
@@ -57,11 +57,11 @@ function genericTree() {
         },
       },
       {
-        type: 'InvoiceSpacer',
+        type: 'invoices.InvoiceSpacer',
         props: { id: 'inv-spacer-1', height: 8, backgroundColor: '' },
       },
       {
-        type: 'InvoiceParties',
+        type: 'invoices.InvoiceParties',
         props: {
           id: 'inv-parties',
           sellerLabel: 'Seller',
@@ -78,7 +78,7 @@ function genericTree() {
         },
       },
       {
-        type: 'InvoiceLineItems',
+        type: 'invoices.InvoiceLineItems',
         props: {
           id: 'inv-lines',
           fontSize: 8,
@@ -98,7 +98,7 @@ function genericTree() {
         },
       },
       {
-        type: 'InvoiceVatSummary',
+        type: 'invoices.InvoiceVatSummary',
         props: {
           id: 'inv-vat',
           fontSize: 8,
@@ -113,7 +113,7 @@ function genericTree() {
         },
       },
       {
-        type: 'InvoiceTotals',
+        type: 'invoices.InvoiceTotals',
         props: {
           id: 'inv-totals',
           align: 'right',
@@ -135,7 +135,7 @@ function genericTree() {
         },
       },
       {
-        type: 'InvoiceKsef',
+        type: 'ksef.InvoiceSection',
         props: {
           id: 'inv-ksef',
           fontSize: 8,
@@ -149,7 +149,7 @@ function genericTree() {
         },
       },
       {
-        type: 'InvoiceFooter',
+        type: 'invoices.InvoiceFooter',
         props: {
           id: 'inv-footer',
           text: DEFAULT_FOOTER_TEXT,

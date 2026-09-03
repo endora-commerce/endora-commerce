@@ -105,13 +105,13 @@ function EmailRowActionBarExtras({ rowId }: { rowId: string }): ReactElement {
    */
   const applyRow = (mutate: (props: EmailRowProps) => EmailRowProps): void => {
     const item = getItemById(rowId);
-    if (!item || item.type !== 'EmailRow') return;
+    if (!item || item.type !== 'transactional_emails.EmailRow') return;
     const nextProps = mutate(item.props as EmailRowProps);
     dispatch({
       type: 'setData',
       data: (previous) =>
         replaceEmailRowInData(previous, rowId, {
-          type: 'EmailRow',
+          type: 'transactional_emails.EmailRow',
           props: { ...nextProps, id: rowId },
         }),
       recordHistory: true,
@@ -165,11 +165,11 @@ export function EmailBuilderActionBar({
   const target = useActionBarTarget();
   const selectedItem = usePageBuilderPuck((s) => s.selectedItem);
   const selectedRowId =
-    selectedItem?.type === 'EmailRow' && typeof selectedItem.props.id === 'string'
+    selectedItem?.type === 'transactional_emails.EmailRow' && typeof selectedItem.props.id === 'string'
       ? selectedItem.props.id
       : null;
   const rowId =
-    label === 'Row' ? (target?.type === 'EmailRow' ? target.id : selectedRowId) : null;
+    label === 'Row' ? (target?.type === 'transactional_emails.EmailRow' ? target.id : selectedRowId) : null;
 
   return (
     <ActionBar>

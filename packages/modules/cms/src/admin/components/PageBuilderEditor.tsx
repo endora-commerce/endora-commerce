@@ -11,13 +11,18 @@ import {
   withCmsPageRoot,
   type CmsRenderEmbeds,
 } from '@endora-commerce/cms-components';
-import { filterConfigByContext, type PageBuilderContext } from '@endora-commerce/page-builder-core';
+import {
+  buildPaletteCategories,
+  contextAdmits,
+  filterConfigByContext,
+  type PageBuilderContext,
+} from '@endora-commerce/page-builder-core';
 import { createPageBuilderEditorPlugin } from '@endora-commerce/page-builder-core/editor';
 import { AdminCmsAssetProvider } from './AdminCmsAssetProvider.js';
 import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@endora-commerce/admin-kit/ui';
 import { cn } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { cmsClient } from '../api/cms-client.js';
 import {
   PageBuilderColorPaletteProvider,
@@ -77,7 +82,7 @@ function collectRowIds(data: Data): Set<string> {
   const ids = new Set<string>();
   const visit = (items: ReturnType<typeof toPuckItemArray>): void => {
     for (const item of items) {
-      if (item.type === 'Row' && typeof item.props.id === 'string') {
+      if (item.type === 'cms.Row' && typeof item.props.id === 'string') {
         ids.add(item.props.id);
       }
       for (const value of Object.values(item.props)) {
@@ -148,6 +153,8 @@ function mergeConfig(
   descriptor: CmsPageBuilderDescriptor | null,
   extensionTitle: string,
   blockOptions: BlockOption[],
+  context: PageBuilderContext,
+  sectionTitle: (ownerModule: string, titleKey: string, fallback: string) => string,
 ): Config {
   const base = defaultPageBuilderConfig;
 
@@ -158,9 +165,9 @@ function mergeConfig(
   // Replace InsertBlock's free-text "Block code" field with a dropdown of the
   // available CMS blocks, so authors pick from a list instead of having to know
   // and type a code by hand.
-  const insertBlock = components['InsertBlock'];
+  const insertBlock = components['cms.InsertBlock'];
   if (insertBlock) {
-    components['InsertBlock'] = {
+    components['cms.InsertBlock'] = {
       ...insertBlock,
       fields: {
         ...insertBlock.fields,
@@ -173,9 +180,9 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const button = components['Button'];
+  const button = components['cms.Button'];
   if (button) {
-    components['Button'] = {
+    components['cms.Button'] = {
       ...button,
       fields: {
         ...button.fields,
@@ -184,9 +191,9 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const hero = components['Hero'];
+  const hero = components['cms.Hero'];
   if (hero) {
-    components['Hero'] = {
+    components['cms.Hero'] = {
       ...hero,
       fields: {
         ...hero.fields,
@@ -198,15 +205,15 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const productCard = components['ProductCard'];
+  const productCard = components['catalog.ProductCard'];
   if (productCard) {
-    components['ProductCard'] = {
+    components['catalog.ProductCard'] = {
       ...productCard,
       fields: { ...productCard.fields, productSlug: createProductSlugField() },
     } as ComponentConfig;
   }
 
-  for (const name of ['ProductGrid', 'ProductSlider'] as const) {
+  for (const name of ['catalog.ProductGrid', 'catalog.ProductSlider'] as const) {
     const cfg = components[name];
     if (cfg) {
       components[name] = {
@@ -220,7 +227,7 @@ function mergeConfig(
     }
   }
 
-  for (const name of ['CategoryList', 'CategoryGrid'] as const) {
+  for (const name of ['catalog.CategoryList', 'catalog.CategoryGrid'] as const) {
     const cfg = components[name];
     if (cfg) {
       components[name] = {
@@ -234,9 +241,9 @@ function mergeConfig(
     }
   }
 
-  const image = components['Image'];
+  const image = components['cms.Image'];
   if (image) {
-    components['Image'] = {
+    components['cms.Image'] = {
       ...image,
       fields: {
         ...image.fields,
@@ -247,10 +254,10 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const imageSlider = components['ImageSlider'];
+  const imageSlider = components['cms.ImageSlider'];
   if (imageSlider) {
     const itemsField = imageSlider.fields?.items;
-    components['ImageSlider'] = {
+    components['cms.ImageSlider'] = {
       ...imageSlider,
       fields: {
         ...imageSlider.fields,
@@ -300,7 +307,7 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  for (const name of ['Row', 'Column', 'Hero', 'Testimonial', 'NewsletterSignup'] as const) {
+  for (const name of ['cms.Row', 'cms.Column', 'cms.Hero', 'cms.Testimonial', 'cms.NewsletterSignup'] as const) {
     const cfg = components[name];
     if (cfg) {
       components[name] = {
@@ -313,9 +320,9 @@ function mergeConfig(
     }
   }
 
-  const testimonial = components['Testimonial'];
+  const testimonial = components['cms.Testimonial'];
   if (testimonial) {
-    components['Testimonial'] = {
+    components['cms.Testimonial'] = {
       ...testimonial,
       fields: {
         ...testimonial.fields,
@@ -326,10 +333,10 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const logoStrip = components['LogoStrip'];
+  const logoStrip = components['cms.LogoStrip'];
   if (logoStrip) {
     const itemsField = logoStrip.fields?.items;
-    components['LogoStrip'] = {
+    components['cms.LogoStrip'] = {
       ...logoStrip,
       fields: {
         ...logoStrip.fields,
@@ -351,30 +358,42 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  if (descriptor) {
-    for (const entry of descriptor.components) {
-      if (components[entry.name]) continue;
-      components[entry.name] = makeMissingComponentConfig(entry.name, entry.ownerModule);
-    }
+  // Feature 096, T306 — **the descriptor is filtered by context here.**
+  // Until Phase 3 it carried only the 35 CMS names, so every entry belonged in
+  // this palette by construction; it now carries all 74 a platform composes,
+  // and an unfiltered sweep would put 39 e-mail and invoice blocks into this
+  // editor as missing-renderer placeholders.
+  const declared = (descriptor?.components ?? []).filter((entry) =>
+    contextAdmits(entry.contexts ?? ['cms'], context),
+  );
+  for (const entry of declared) {
+    if (components[entry.name]) continue;
+    components[entry.name] = makeMissingComponentConfig(entry.name, entry.ownerModule);
   }
 
-  const baseCategories = base.categories ?? {};
-  const localNames = new Set(Object.keys(base.components ?? {}));
-  const extensionNames = (descriptor?.components ?? [])
-    .filter((entry) => !localNames.has(entry.name))
-    .map((entry) => entry.name);
+  // The sections come from the modules that declared them, resolved and merged
+  // by the registry (`contracts/block-definition.md` §1.1 and §4.1.1). The
+  // hand-written `categories` map this replaced lived in `cms-components` and
+  // listed five of `catalog`'s blocks.
+  const categories = buildPaletteCategories(declared, descriptor?.categories ?? [], context, {
+    title: (section) => sectionTitle(section.ownerModule ?? 'cms', section.titleKey, section.key),
+    renderable: new Set(Object.keys(components)),
+  });
 
-  const categories = extensionNames.length > 0
-    ? {
-        ...baseCategories,
-        extensions: {
-          title: extensionTitle,
-          components: extensionNames,
-        },
-      }
-    : baseCategories;
+  // Anything the descriptor declares for this context but no declared section
+  // holds still has to be reachable, or it is a block an operator can never
+  // insert. That is the *Extensions* drawer's job and it stays.
+  const sectioned = new Set(Object.values(categories).flatMap((c) => c.components ?? []));
+  const unsectioned = declared.map((entry) => entry.name).filter((name) => !sectioned.has(name));
 
-  return { ...base, components, categories } as Config;
+  return {
+    ...base,
+    components,
+    categories:
+      unsectioned.length > 0
+        ? { ...categories, extensions: { title: extensionTitle, components: unsectioned } }
+        : categories,
+  } as Config;
 }
 
 export function PageBuilderEditor({
@@ -422,12 +441,44 @@ export function PageBuilderEditor({
   onResolveTemplateLayout?: (templateId: string) => Data | Promise<Data>;
 }): ReactNode {
   const t = useTranslation('cms');
+  // A section's `titleKey` is **module-relative** and belongs to the module
+  // whose declaration won the merge, so it is resolved in that module's scope
+  // and not in `cms`' (`contracts/block-definition.md` §2). The key itself is
+  // the fallback the resolver already renders for a key it cannot find; the
+  // section key is a last resort so a drawer is never headed with nothing.
+  const { t: translateInScope } = useTranslationContext();
+  const sectionTitle = useCallback(
+    (ownerModule: string, titleKey: string, fallback: string): string => {
+      const resolved = translateInScope(ownerModule, titleKey);
+      return resolved === `${ownerModule}.${titleKey}` ? fallback : resolved;
+    },
+    [translateInScope],
+  );
   // The shared page-builder chrome (`PageBuilderHeaderShell`,
   // `PageBuilderTemplateActions`, `PageBuilderHeaderActions`) owns no module
   // knowledge and reads `core`; this screen's own strings stay `cms`' (feature
   // 091 P5a, R-1).
   const tChrome = useTranslation('core');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
+  /**
+   * A block's palette label, from the declaring module's own bundle.
+   *
+   * Same rule as the section title and for the same reason: `labelKey` is
+   * module-relative, and after Phase 3 five of the CMS palette's entries are
+   * `catalog`'s. Falls through to `applyPageBuilderTranslations`' legacy
+   * `pageBuilder.components.<name>` key when the descriptor has not been
+   * fetched yet, which is the first render.
+   */
+  const blockLabel = useCallback(
+    (name: string): string | undefined => {
+      const entry = descriptor?.components.find((component) => component.name === name);
+      if (!entry?.labelKey) return undefined;
+      const resolved = translateInScope(entry.ownerModule, entry.labelKey);
+      return resolved === `${entry.ownerModule}.${entry.labelKey}` ? undefined : resolved;
+    },
+    [descriptor, translateInScope],
+  );
+
   const [blockOptions, setBlockOptions] = useState<BlockOption[]>([]);
   const [embeds, setEmbeds] = useState<CmsRenderEmbeds>({ blocks: {}, templates: {} });
   const [error, setError] = useState<string | null>(null);
@@ -511,11 +562,17 @@ export function PageBuilderEditor({
   }, []);
 
   const config = useMemo(() => {
-    const merged = mergeConfig(descriptor, t('pageBuilder.extensions'), blockOptions);
+    const merged = mergeConfig(
+      descriptor,
+      t('pageBuilder.extensions'),
+      blockOptions,
+      context,
+      sectionTitle,
+    );
     const filtered = filterConfigByContext(merged, context);
     const rooted = pageContainer ? withCmsPageRoot(filtered) : filtered;
-    return applyPageBuilderTranslations(rooted, t);
-  }, [descriptor, t, blockOptions, pageContainer, context]);
+    return applyPageBuilderTranslations(rooted, t, blockLabel);
+  }, [descriptor, t, sectionTitle, blockLabel, blockOptions, pageContainer, context]);
   const viewports = useMemo(() => buildViewports(descriptor), [descriptor]);
   const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
   /** Holds canvas data across remount until parent `data` catches up (clear / copy-from). */
@@ -639,7 +696,7 @@ export function PageBuilderEditor({
         const row = findRowById(previous, rowId);
         if (!row) return previous;
         const nextProps = applyRowLayoutPreset(row.props as never, presetId);
-        return replaceRowInData(previous, rowId, { type: 'Row', props: { ...nextProps, id: rowId } });
+        return replaceRowInData(previous, rowId, { type: 'cms.Row', props: { ...nextProps, id: rowId } });
       },
     });
   }, []);
@@ -647,7 +704,7 @@ export function PageBuilderEditor({
   const handlePuckAction = useMemo(
     () =>
       createPuckActionHandler(dispatchRef, (action, appState) => {
-        if (action.type !== 'insert' || action.componentType !== 'Row') return;
+        if (action.type !== 'insert' || action.componentType !== 'cms.Row') return;
 
         const rowId = resolveInsertedRowId(action, appState.data);
         if (!rowId) return;
@@ -657,7 +714,7 @@ export function PageBuilderEditor({
         const inserted =
           insertedItem(action, appState.data) ??
           findRowById(appState.data, rowId) ?? {
-            type: 'Row',
+            type: 'cms.Row',
             props: { id: rowId, content: [] },
           };
         dispatchRef.current?.({
@@ -698,7 +755,7 @@ export function PageBuilderEditor({
       }: {
         name: string;
         children: ReactNode;
-      }): ReactElement => (name === 'Column' || name === 'Slide' ? <></> : <>{children}</>),
+      }): ReactElement => (name === 'cms.Column' || name === 'cms.Slide' ? <></> : <>{children}</>),
       drawer: ({ children }: { children: ReactNode }): ReactElement => {
         const state = headerActionsStateRef.current;
         return (

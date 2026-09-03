@@ -10,9 +10,9 @@ describe('invoice template tree mapper (US6)', () => {
   it('maps known invoice components to pdfmake content', () => {
     const tree = {
       content: [
-        { type: 'InvoiceHeader', props: {} },
-        { type: 'InvoiceLineItems', props: {} },
-        { type: 'InvoiceTotals', props: {} },
+        { type: 'invoices.InvoiceHeader', props: {} },
+        { type: 'invoices.InvoiceLineItems', props: {} },
+        { type: 'invoices.InvoiceTotals', props: {} },
       ],
     };
     const content = treeToContent(tree, inv, 'pl');
@@ -31,7 +31,7 @@ describe('invoice template tree mapper (US6)', () => {
   });
 
   it('renders InvoiceNotes with {{var}} interpolation', () => {
-    const tree = { content: [{ type: 'InvoiceNotes', props: { text: 'Nr {{var invoice.number}}' } }] };
+    const tree = { content: [{ type: 'invoices.InvoiceNotes', props: { text: 'Nr {{var invoice.number}}' } }] };
     const content = treeToContent(tree, inv, 'pl') as Array<{ stack?: Array<{ text: string }> }>;
     const text = content[0]?.stack?.find((n) => typeof n.text === 'string')?.text;
     expect(text).toBe('Nr INV-2026-0042');
@@ -54,9 +54,9 @@ describe('invoice template tree mapper (US6)', () => {
   it('maps layout components (spacer, divider, footer)', () => {
     const tree = {
       content: [
-        { type: 'InvoiceSpacer', props: { height: 24 } },
-        { type: 'InvoiceDivider', props: { thickness: 2, style: 'dashed' } },
-        { type: 'InvoiceFooter', props: { text: 'Bye {{var seller.legalName}}' } },
+        { type: 'invoices.InvoiceSpacer', props: { height: 24 } },
+        { type: 'invoices.InvoiceDivider', props: { thickness: 2, style: 'dashed' } },
+        { type: 'invoices.InvoiceFooter', props: { text: 'Bye {{var seller.legalName}}' } },
       ],
     };
     const content = treeToContent(tree, inv, 'pl');

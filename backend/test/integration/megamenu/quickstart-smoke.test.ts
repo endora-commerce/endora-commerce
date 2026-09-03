@@ -57,7 +57,7 @@ describe('Megamenu quickstart smoke (T087)', () => {
       headers: { 'content-type': 'application/json' },
       cookies: adminCookie,
       payload: JSON.stringify({
-        data: { root: { props: {} }, content: [{ type: 'Heading', props: { level: 'h2', text: 'Smoke' } }] },
+        data: { root: { props: {} }, content: [{ type: 'cms.Heading', props: { level: 'h2', text: 'Smoke' } }] },
         version: block.version,
       }),
     });

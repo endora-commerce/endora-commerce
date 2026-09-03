@@ -50,7 +50,7 @@ import { manifest as manifest12 } from '@endora-commerce/mod-autopay';
 import { manifest as manifest13 } from '@endora-commerce/mod-blog';
 import { manifest as manifest14, cliCommands as cliCommands14 } from '@endora-commerce/mod-carts';
 import { manifest as manifest15, recentActivity as recentActivity15 } from '@endora-commerce/mod-catalog';
-import { manifest as manifest16 } from '@endora-commerce/mod-cms';
+import { manifest as manifest16, cliCommands as cliCommands16 } from '@endora-commerce/mod-cms';
 import { manifest as manifest17 } from '@endora-commerce/mod-comparisons';
 import { manifest as manifest18 } from '@endora-commerce/mod-credentials';
 import { manifest as manifest19 } from '@endora-commerce/mod-credit-limits';
@@ -139,7 +139,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'blog', manifest: manifest13, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-blog') },
   { id: 'carts', manifest: manifest14, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-carts'), cliCommands: cliCommands14 },
   { id: 'catalog', manifest: manifest15, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-catalog'), recentActivity: recentActivity15 },
-  { id: 'cms', manifest: manifest16, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-cms') },
+  { id: 'cms', manifest: manifest16, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-cms'), cliCommands: cliCommands16 },
   { id: 'comparisons', manifest: manifest17, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-comparisons') },
   { id: 'credentials', manifest: manifest18, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-credentials') },
   { id: 'credit_limits', manifest: manifest19, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-credit-limits') },

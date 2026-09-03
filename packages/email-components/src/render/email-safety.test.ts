@@ -7,16 +7,16 @@ import type { PuckDataTree } from '../schema/envelope.js';
 const fullTree: PuckDataTree = {
   root: { props: {} },
   content: [
-    { type: 'EmailHeading', props: { level: 'h1', text: 'Title', align: 'center' } },
-    { type: 'EmailText', props: { text: 'Body line', align: 'left' } },
-    { type: 'EmailRichText', props: { content: null, html: '<p>Rich <strong>{{var order.id}}</strong></p>', align: 'left' } },
-    { type: 'EmailButton', props: { label: 'Pay', href: 'https://x/y', align: 'center' } },
-    { type: 'EmailImage', props: { src: 'https://x/logo.png', alt: 'Logo', width: 120, align: 'center' } },
-    { type: 'EmailLogo', props: { src: '{{var branding.logoUrl}}', alt: 'Logo', width: 160, align: 'center' } },
-    { type: 'EmailDivider', props: { thickness: 1, color: '#e5e7eb' } },
-    { type: 'EmailSpacer', props: { height: 24 } },
+    { type: 'transactional_emails.EmailHeading', props: { level: 'h1', text: 'Title', align: 'center' } },
+    { type: 'transactional_emails.EmailText', props: { text: 'Body line', align: 'left' } },
+    { type: 'transactional_emails.EmailRichText', props: { content: null, html: '<p>Rich <strong>{{var order.id}}</strong></p>', align: 'left' } },
+    { type: 'transactional_emails.EmailButton', props: { label: 'Pay', href: 'https://x/y', align: 'center' } },
+    { type: 'transactional_emails.EmailImage', props: { src: 'https://x/logo.png', alt: 'Logo', width: 120, align: 'center' } },
+    { type: 'transactional_emails.EmailLogo', props: { src: '{{var branding.logoUrl}}', alt: 'Logo', width: 160, align: 'center' } },
+    { type: 'transactional_emails.EmailDivider', props: { thickness: 1, color: '#e5e7eb' } },
+    { type: 'transactional_emails.EmailSpacer', props: { height: 24 } },
     {
-      type: 'EmailTable',
+      type: 'transactional_emails.EmailTable',
       props: {
         columns: [{ label: 'A' }, { label: 'B' }],
         tableRows: [{ cells: [{ value: '1' }, { value: '2' }] }],
@@ -24,7 +24,7 @@ const fullTree: PuckDataTree = {
       },
     },
     {
-      type: 'EmailSection',
+      type: 'transactional_emails.EmailSection',
       props: {
         id: 'sec1',
         backgroundColor: '#f9fafb',
@@ -33,7 +33,7 @@ const fullTree: PuckDataTree = {
       },
     },
     {
-      type: 'EmailProductCard',
+      type: 'catalog.EmailProductCard',
       props: {
         imageSrc: 'https://x/p.png',
         title: 'Widget',
@@ -43,35 +43,35 @@ const fullTree: PuckDataTree = {
       },
     },
     {
-      type: 'EmailOrderSummary',
+      type: 'orders.EmailOrderSummary',
       props: {
         title: 'Items',
         body: '{{for item in order.items}}{{var item.name}}\n{{/for}}',
       },
     },
     {
-      type: 'EmailOrderId',
+      type: 'orders.EmailOrderId',
       props: { title: 'Order' },
     },
     {
-      type: 'EmailBillingAddress',
+      type: 'orders.EmailBillingAddress',
       props: { title: 'Billing address' },
     },
     {
-      type: 'EmailSocial',
+      type: 'transactional_emails.EmailSocial',
       props: { links: [{ network: 'facebook', href: 'https://facebook.com/x' }], align: 'center' },
     },
     {
-      type: 'EmailCallout',
+      type: 'transactional_emails.EmailCallout',
       props: { text: 'Notice', backgroundColor: '#eee', borderColor: '#ccc', align: 'left' },
     },
     {
-      type: 'EmailFooterLegal',
+      type: 'transactional_emails.EmailFooterLegal',
       props: { text: 'Unsub {{var unsubscribeUrl}}', align: 'center' },
     },
   ],
   zones: {
-    'sec1:content': [{ type: 'EmailText', props: { text: 'Inside section', align: 'left' } }],
+    'sec1:content': [{ type: 'transactional_emails.EmailText', props: { text: 'Inside section', align: 'left' } }],
   },
 };
 

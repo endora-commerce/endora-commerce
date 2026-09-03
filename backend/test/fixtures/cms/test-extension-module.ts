@@ -1,25 +1,36 @@
-// Test fixture exercising the Page Builder component-extension SPI
-// (feature 014 / T087). Real modules wire equivalent registrations from
-// their plugin's composition step; this fixture lets the integration test
-// in T086 verify the SPI end-to-end without depending on a production
-// extension shipping yet.
+// Test fixture exercising the Page Builder block-declaration SPI
+// (feature 014 / T087, rebuilt on manifest declarations by feature 096 T209).
+//
+// Real modules declare `blocks` and `blockCategories` on their own
+// `manifest.ts` and the registry takes them at composition; this fixture is a
+// synthetic manifest, so the integration test exercises the same entry point a
+// module package does rather than a call shape nothing else uses.
 
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import type { PageBuilderRegistry } from '../../../../packages/modules/cms/src/backend/services/page-builder-registry.js';
 
-export const TEST_EXTENSION_MODULE_CODE = 'test-ext';
-export const TEST_EXTENSION_COMPONENT_NAME = 'TestCallout';
+/** A module id, so it is a legal owner segment (`moduleIdRe`, snake_case). */
+export const TEST_EXTENSION_MODULE_CODE = 'test_ext';
+export const TEST_EXTENSION_COMPONENT_NAME = 'test_ext.TestCallout';
 
 /**
- * Registers a single `TestCallout` component owned by a fictional
- * `test-ext` module. The component declares a `title` (text) field and a
- * `tone` (select: info | warning) field; both are echoed unchanged through
- * the storefront resolver because Puck data trees are opaque to the
- * backend.
+ * Declares a single `test_ext.TestCallout` block owned by a fictional module.
+ * Its `title` (text) and `tone` (select) props are echoed unchanged through the
+ * storefront resolver, because Puck data trees are opaque to the backend.
  */
 export function registerTestExtension(registry: PageBuilderRegistry): void {
-  registry.register(TEST_EXTENSION_MODULE_CODE, {
-    components: {
-      [TEST_EXTENSION_COMPONENT_NAME]: {
+  registry.registerManifest({
+    id: TEST_EXTENSION_MODULE_CODE,
+    name: 'Test extension',
+    version: '1.0.0',
+    dependencies: [],
+    description: 'Page Builder extension SPI fixture.',
+    blocks: [
+      {
+        name: TEST_EXTENSION_COMPONENT_NAME,
+        labelKey: 'blocks.testCallout.label',
+        category: 'testing',
+        contexts: ['cms'],
         fields: {
           title: { type: 'text', label: 'Callout title', required: true },
           tone: {
@@ -32,8 +43,10 @@ export function registerTestExtension(registry: PageBuilderRegistry): void {
           },
         },
         previewIcon: 'callout',
-        contexts: ['cms'],
       },
-    },
-  });
+    ],
+    blockCategories: [
+      { key: 'testing', titleKey: 'blocks.category.testing', contexts: ['cms'] },
+    ],
+  } as ModuleManifest);
 }

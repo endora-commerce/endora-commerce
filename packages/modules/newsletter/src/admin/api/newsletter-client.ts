@@ -143,7 +143,7 @@ export const newsletterClient = {
 export function textContentTree(text: string): Record<string, unknown> {
   return {
     root: { props: {} },
-    content: [{ type: 'EmailText', props: { id: 'body', text } }],
+    content: [{ type: 'transactional_emails.EmailText', props: { id: 'body', text } }],
     zones: {},
   };
 }

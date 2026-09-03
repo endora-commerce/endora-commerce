@@ -26,25 +26,25 @@ export function simpleEmailBodyTree(opts: SimpleEmailBodyOptions): PuckDataTree 
   const footerCode = opts.footerCode ?? DEFAULT_FOOTER_BLOCK_CODE;
 
   const content: Array<{ type: string; props: Record<string, unknown> }> = [
-    { type: 'EmailInsertBlock', props: { id: `${prefix}-header`, code: headerCode } },
-    { type: 'EmailSpacer', props: { id: `${prefix}-spacer-top`, height: 16 } },
+    { type: 'transactional_emails.EmailInsertBlock', props: { id: `${prefix}-header`, code: headerCode } },
+    { type: 'transactional_emails.EmailSpacer', props: { id: `${prefix}-spacer-top`, height: 16 } },
   ];
 
   if (opts.heading) {
     content.push({
-      type: 'EmailHeading',
+      type: 'transactional_emails.EmailHeading',
       props: { id: `${prefix}-heading`, level: 'h2', text: opts.heading, align: 'left' },
     });
   }
 
   content.push({
-    type: 'EmailText',
+    type: 'transactional_emails.EmailText',
     props: { id: `${prefix}-body`, text: opts.text, align: 'left' },
   });
 
   if (opts.ctaLabel && opts.ctaHref) {
     content.push({
-      type: 'EmailButton',
+      type: 'transactional_emails.EmailButton',
       props: {
         id: `${prefix}-cta`,
         label: opts.ctaLabel,
@@ -57,8 +57,8 @@ export function simpleEmailBodyTree(opts: SimpleEmailBodyOptions): PuckDataTree 
   }
 
   content.push(
-    { type: 'EmailSpacer', props: { id: `${prefix}-spacer-bottom`, height: 16 } },
-    { type: 'EmailInsertBlock', props: { id: `${prefix}-footer`, code: footerCode } },
+    { type: 'transactional_emails.EmailSpacer', props: { id: `${prefix}-spacer-bottom`, height: 16 } },
+    { type: 'transactional_emails.EmailInsertBlock', props: { id: `${prefix}-footer`, code: footerCode } },
   );
 
   return { root: { props: {} }, content, zones: {} };

@@ -17,34 +17,34 @@ import {
 
 /** Invoice template component names (the bounded WYSIWYG palette). */
 export const INVOICE_COMPONENT_NAMES = [
-  'InvoiceHeader',
-  'InvoiceParties',
-  'InvoiceLineItems',
-  'InvoiceVatSummary',
-  'InvoiceTotals',
-  'InvoiceNotes',
-  'InvoiceKsef',
-  'InvoiceSpacer',
-  'InvoiceDivider',
-  'InvoiceLogo',
-  'InvoiceFooter',
+  'invoices.InvoiceHeader',
+  'invoices.InvoiceParties',
+  'invoices.InvoiceLineItems',
+  'invoices.InvoiceVatSummary',
+  'invoices.InvoiceTotals',
+  'invoices.InvoiceNotes',
+  'ksef.InvoiceSection',
+  'invoices.InvoiceSpacer',
+  'invoices.InvoiceDivider',
+  'invoices.InvoiceLogo',
+  'invoices.InvoiceFooter',
 ] as const;
 export type InvoiceComponentName = (typeof INVOICE_COMPONENT_NAMES)[number];
 
 type Mapper = (props: Record<string, unknown>, inv: InvoiceDetail, locale: AmountToWordsLocale) => Content;
 
 const COMPONENT_MAP: Record<InvoiceComponentName, Mapper> = {
-  InvoiceHeader: (p, inv) => headerSection(inv, p),
-  InvoiceParties: (p, inv) => partiesSection(inv, p),
-  InvoiceLineItems: (p, inv) => lineItemsSection(inv, p),
-  InvoiceVatSummary: (p, inv) => vatSummarySection(inv, p),
-  InvoiceTotals: (p, inv, locale) => totalsSection(inv, locale, p),
-  InvoiceNotes: (p, inv) => notesSection(p, inv),
-  InvoiceKsef: (p, inv) => ksefSection(inv, p),
-  InvoiceSpacer: (p) => spacerSection(p),
-  InvoiceDivider: (p) => dividerSection(p),
-  InvoiceLogo: (p) => logoSection(p),
-  InvoiceFooter: (p, inv) => footerSection(p, inv),
+  'invoices.InvoiceHeader': (p, inv) => headerSection(inv, p),
+  'invoices.InvoiceParties': (p, inv) => partiesSection(inv, p),
+  'invoices.InvoiceLineItems': (p, inv) => lineItemsSection(inv, p),
+  'invoices.InvoiceVatSummary': (p, inv) => vatSummarySection(inv, p),
+  'invoices.InvoiceTotals': (p, inv, locale) => totalsSection(inv, locale, p),
+  'invoices.InvoiceNotes': (p, inv) => notesSection(p, inv),
+  'ksef.InvoiceSection': (p, inv) => ksefSection(inv, p),
+  'invoices.InvoiceSpacer': (p) => spacerSection(p),
+  'invoices.InvoiceDivider': (p) => dividerSection(p),
+  'invoices.InvoiceLogo': (p) => logoSection(p),
+  'invoices.InvoiceFooter': (p, inv) => footerSection(p, inv),
 };
 
 interface PuckNode {

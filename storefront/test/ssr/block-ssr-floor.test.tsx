@@ -36,11 +36,21 @@ const markers: LoadingStateMarkers = deriveLoadingStateMarkers([
 const noLedger: Record<string, LedgerEntry> = {};
 const noDisagreements: Record<string, DisagreementLedgerEntry> = {};
 
-function palette(components: Record<string, { defaultProps?: Record<string, unknown> }>,
-  categories?: Palette['categories']): Palette {
+/**
+ * The second author defaults to agreeing with the components map, so a proof
+ * that is not *about* the population reconciliation supplies nothing and gets no
+ * disagreement. Feature 096 changed which program plays that part — the drawer
+ * taxonomy became the package's exported components — and changed nothing about
+ * the reconciliation, which is why every proof below is unchanged but for the
+ * argument's name.
+ */
+function palette(
+  components: Record<string, { defaultProps?: Record<string, unknown> }>,
+  secondAuthor?: readonly string[],
+): Palette {
   return {
     components,
-    categories: categories ?? { all: { components: Object.keys(components) } },
+    secondAuthor: secondAuthor ?? Object.keys(components),
   };
 }
 
@@ -103,7 +113,7 @@ describe('the five refusals (contract §5)', () => {
 
   it('refuses a palette that holds zero blocks', () => {
     try {
-      reconcilePopulation({ components: {}, categories: {} });
+      reconcilePopulation({ components: {}, secondAuthor: [] });
       expect.unreachable('an empty palette must refuse');
     } catch (error) {
       expect((error as BlockSsrFloorRefusal).kind).toBe('empty-palette');
@@ -146,9 +156,7 @@ describe('the five refusals (contract §5)', () => {
   it('refuses a population whose two authors disagree beyond the ledger', () => {
     try {
       runBlockSsrFloor({
-        palette: palette({ Alpha: { defaultProps: {} }, Orphan: { defaultProps: {} } }, {
-          all: { components: ['Alpha', 'Ghost'] },
-        }),
+        palette: palette({ Alpha: { defaultProps: {} }, Orphan: { defaultProps: {} } }, ['Alpha', 'Ghost']),
         renderBlock: renderingAll(REAL_HTML),
         markers,
         ledger: noLedger,
@@ -166,9 +174,7 @@ describe('the five refusals (contract §5)', () => {
 
   it('does not refuse a disagreement the ledger records, and reports it', () => {
     const result = runBlockSsrFloor({
-      palette: palette({ Alpha: { defaultProps: {} }, Orphan: { defaultProps: {} } }, {
-        all: { components: ['Alpha'] },
-      }),
+      palette: palette({ Alpha: { defaultProps: {} }, Orphan: { defaultProps: {} } }, ['Alpha']),
       renderBlock: renderingAll(REAL_HTML),
       markers,
       ledger: noLedger,
@@ -255,9 +261,7 @@ describe('the ledger is two-way (contract §6)', () => {
 describe('the read: line (contract §5)', () => {
   it('prints the block count, the render count, the ledger size and the second author', () => {
     const result = runBlockSsrFloor({
-      palette: palette({ Alpha: { defaultProps: {} }, Orphan: { defaultProps: {} } }, {
-        all: { components: ['Alpha'] },
-      }),
+      palette: palette({ Alpha: { defaultProps: {} }, Orphan: { defaultProps: {} } }, ['Alpha']),
       renderBlock: renderingAll(REAL_HTML),
       markers,
       ledger: noLedger,
@@ -267,7 +271,7 @@ describe('the read: line (contract §5)', () => {
     });
 
     expect(result.readLine).toBe(
-      '[block-ssr-floor] read: blocks=2 rendered=2 ledgered=0 sources=drawer-taxonomy:1/2',
+      '[block-ssr-floor] read: blocks=2 rendered=2 ledgered=0 sources=exported-components:1/2',
     );
   });
 });

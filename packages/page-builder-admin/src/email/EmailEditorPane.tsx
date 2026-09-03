@@ -24,12 +24,17 @@ import {
   type EmailRowProps,
   type PuckDataTree,
 } from '@endora-commerce/email-components';
-import { filterConfigByContext, type PageBuilderContext } from '@endora-commerce/page-builder-core';
+import {
+  buildPaletteCategories,
+  filterConfigByContext,
+  type PageBuilderContext,
+} from '@endora-commerce/page-builder-core';
 import {
   hasInvalidColumnPlacement,
   shouldRevertPuckAction,
   toPuckItemArray,
 } from '@endora-commerce/page-builder-core/editor';
+import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import { apiClient, cn } from '@endora-commerce/admin-kit/lib';
 import {
@@ -49,11 +54,14 @@ import {
   PageBuilderTemplateActions,
 } from '../chrome/PageBuilderHeaderActions.js';
 import { PageBuilderOverlayBridge } from '../chrome/PageBuilderOverlayBridge.js';
-import { getPageBuilderColorPalette } from '../chrome/cms-page-builder-api.js';
+import {
+  getPageBuilderColorPalette,
+  getPageBuilderDescriptor,
+} from '../chrome/cms-page-builder-api.js';
 import { getEmailBranding } from './email-templates-api.js';
 import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { emailRichTextContentField, emailHtmlFromRichContent } from './EmailRichTextField.js';
 import { emailTextareaWithVariablesField } from './EmailVariableFields.js';
 import { createEmailBuilderEditorPlugin } from './email-builder-plugin.js';
@@ -71,7 +79,7 @@ function collectEmailRowIds(data: Data): Set<string> {
   const ids = new Set<string>();
   const visit = (items: ReturnType<typeof toPuckItemArray>): void => {
     for (const item of items) {
-      if (item.type === 'EmailRow' && typeof item.props.id === 'string') {
+      if (item.type === 'transactional_emails.EmailRow' && typeof item.props.id === 'string') {
         ids.add(item.props.id);
       }
       for (const value of Object.values(item.props)) {
@@ -285,14 +293,14 @@ function withEditorFields(base: Config): Config {
     } as ComponentConfig;
   };
 
-  patchTextarea('EmailText', 'text');
-  patchTextarea('EmailHeading', 'text');
-  patchTextarea('EmailCallout', 'text');
-  patchTextarea('EmailFooterLegal', 'text');
+  patchTextarea('transactional_emails.EmailText', 'text');
+  patchTextarea('transactional_emails.EmailHeading', 'text');
+  patchTextarea('transactional_emails.EmailCallout', 'text');
+  patchTextarea('transactional_emails.EmailFooterLegal', 'text');
 
-  const rich = components['EmailRichText'];
+  const rich = components['transactional_emails.EmailRichText'];
   if (rich) {
-    components['EmailRichText'] = {
+    components['transactional_emails.EmailRichText'] = {
       ...rich,
       fields: {
         ...rich.fields,
@@ -313,9 +321,9 @@ function withEditorFields(base: Config): Config {
     } as ComponentConfig;
   }
 
-  const image = components['EmailImage'];
+  const image = components['transactional_emails.EmailImage'];
   if (image) {
-    components['EmailImage'] = {
+    components['transactional_emails.EmailImage'] = {
       ...image,
       fields: {
         ...image.fields,
@@ -343,9 +351,9 @@ function withEditorFields(base: Config): Config {
     } as ComponentConfig;
   }
 
-  const productCard = components['EmailProductCard'];
+  const productCard = components['catalog.EmailProductCard'];
   if (productCard) {
-    components['EmailProductCard'] = {
+    components['catalog.EmailProductCard'] = {
       ...productCard,
       fields: {
         ...productCard.fields,
@@ -391,9 +399,9 @@ function withEditorFields(base: Config): Config {
     } as ComponentConfig;
   }
 
-  const productGrid = components['EmailProductGrid'];
+  const productGrid = components['catalog.EmailProductGrid'];
   if (productGrid) {
-    components['EmailProductGrid'] = {
+    components['catalog.EmailProductGrid'] = {
       ...productGrid,
       fields: {
         ...productGrid.fields,
@@ -430,9 +438,9 @@ function withEditorFields(base: Config): Config {
     } as ComponentConfig;
   }
 
-  const categoryGrid = components['EmailCategoryGrid'];
+  const categoryGrid = components['catalog.EmailCategoryGrid'];
   if (categoryGrid) {
-    components['EmailCategoryGrid'] = {
+    components['catalog.EmailCategoryGrid'] = {
       ...categoryGrid,
       fields: {
         ...categoryGrid.fields,
@@ -466,9 +474,9 @@ function withEditorFields(base: Config): Config {
 
 function mergeEmbedSelects(base: Config, blockOptions: EmailEmbedCodeOption[]): Config {
   const components: Record<string, ComponentConfig> = { ...(base.components ?? {}) };
-  const insertBlock = components['EmailInsertBlock'];
+  const insertBlock = components['transactional_emails.EmailInsertBlock'];
   if (insertBlock) {
-    components['EmailInsertBlock'] = {
+    components['transactional_emails.EmailInsertBlock'] = {
       ...insertBlock,
       fields: {
         ...insertBlock.fields,
@@ -622,6 +630,8 @@ export function EmailEditorPane({
   const [canvasEpoch, setCanvasEpoch] = useState(0);
   const [rowLayoutPickerForId, setRowLayoutPickerForId] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState('');
+  const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
+  const { t: translateInScope } = useTranslationContext();
   const [paletteEntries, setPaletteEntries] = useState<
     Awaited<ReturnType<typeof getPageBuilderColorPalette>>
   >([]);
@@ -679,7 +689,7 @@ export function EmailEditorPane({
       }
       const nextProps = applyEmailRowLayoutPreset(row.props as unknown as EmailRowProps, presetId);
       const next = replaceEmailRowInData(lastValidDataRef.current, rowId, {
-        type: 'EmailRow',
+        type: 'transactional_emails.EmailRow',
         props: { ...nextProps, id: rowId },
       });
       lastValidDataRef.current = next;
@@ -731,6 +741,30 @@ export function EmailEditorPane({
     };
   }, []);
 
+  /**
+   * The declared palette (feature 096, T305).
+   *
+   * A failure leaves `descriptor` null, which renders every block in Puck's
+   * *Other* drawer rather than in its section — degraded and still usable,
+   * which is the same answer the colour-palette fetch above gives. It is not a
+   * `catch` hiding a capability's absence: the endpoint is `cms`', and an
+   * operator who has switched `cms` off has not thereby switched off the e-mail
+   * builder.
+   */
+  useEffect(() => {
+    let live = true;
+    void getPageBuilderDescriptor()
+      .then((served) => {
+        if (live) setDescriptor(served);
+      })
+      .catch(() => {
+        if (live) setDescriptor(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (!fullscreen) return undefined;
     const onKey = (e: KeyboardEvent): void => {
@@ -744,11 +778,36 @@ export function EmailEditorPane({
     const withFields = withEditorFields(defaultEmailBuilderConfig);
     const withEmbeds = mergeEmbedSelects(withFields, blockOptions);
     const byContext = filterConfigByContext(withEmbeds, builderContext);
+    // Feature 096, T302/T305 — the sections come from the modules that declared
+    // them, merged and presence-filtered by the server, and are resolved for
+    // `builderContext` through `contextAdmits`. That last part is what keeps the
+    // **newsletter** palette sectioned: no block declares `newsletter`, the
+    // newsletter palette *is* the e-mail palette, and the admission is the one
+    // thing that says so (`contracts/block-definition.md` §4.1.1). The
+    // `categories` map that used to sit in `@endora-commerce/email-components`
+    // named `orders`' eight blocks and `catalog`'s three from a package neither
+    // module owns.
+    const sectioned: Config = {
+      ...byContext,
+      categories: buildPaletteCategories(
+        descriptor?.components ?? [],
+        descriptor?.categories ?? [],
+        builderContext,
+        {
+          title: (section) => {
+            const owner = section.ownerModule ?? 'transactional_emails';
+            const resolved = translateInScope(owner, section.titleKey);
+            return resolved === `${owner}.${section.titleKey}` ? section.key : resolved;
+          },
+          renderable: new Set(Object.keys(byContext.components ?? {})),
+        },
+      ),
+    };
     return filterEmailPaletteByVariables(
-      byContext,
+      sectioned,
       variables.map((v) => v.key),
     );
-  }, [blockOptions, builderContext, variables]);
+  }, [blockOptions, builderContext, descriptor, translateInScope, variables]);
 
   const previewHtml = useMemo(
     () =>
@@ -792,7 +851,7 @@ export function EmailEditorPane({
                     }: {
                       name: string;
                       children: ReactNode;
-                    }) => (name === 'EmailColumn' ? <></> : <>{children}</>),
+                    }) => (name === 'transactional_emails.EmailColumn' ? <></> : <>{children}</>),
                     actionBar: (props: {
                       label?: string;
                       children: ReactNode;

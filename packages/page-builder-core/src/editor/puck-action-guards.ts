@@ -50,18 +50,18 @@ export function getZoneParentComponentType(zone: string, data: Data): string {
 /** True when the zone is a Row's `content` slot (valid Column parent). */
 export function isRowContentZone(zone: string, data: Data): boolean {
   const parent = getZoneParentComponentType(zone, data);
-  return (parent === 'Row' || parent === 'EmailRow') && zoneSlotName(zone) === 'content';
+  return (parent === 'cms.Row' || parent === 'transactional_emails.EmailRow') && zoneSlotName(zone) === 'content';
 }
 
 /** True when the zone is a Column's `content` slot. */
 export function isColumnContentZone(zone: string, data: Data): boolean {
   const parent = getZoneParentComponentType(zone, data);
-  return (parent === 'Column' || parent === 'EmailColumn') && zoneSlotName(zone) === 'content';
+  return (parent === 'cms.Column' || parent === 'transactional_emails.EmailColumn') && zoneSlotName(zone) === 'content';
 }
 
 /** True when the zone is a Content slider's `slides` slot. */
 export function isContentSliderSlidesZone(zone: string, data: Data): boolean {
-  return getZoneParentComponentType(zone, data) === 'ContentSlider' && zoneSlotName(zone) === 'slides';
+  return getZoneParentComponentType(zone, data) === 'cms.ContentSlider' && zoneSlotName(zone) === 'slides';
 }
 
 export type PuckItemSelector = { zone?: string; index: number };
@@ -78,18 +78,18 @@ export function resolveContentSliderIdForItem(
   if (selector.zone.endsWith(':slides')) {
     const sliderId = zoneParentId(selector.zone);
     const slider = getItemById(sliderId);
-    return slider?.type === 'ContentSlider' ? sliderId : null;
+    return slider?.type === 'cms.ContentSlider' ? sliderId : null;
   }
 
   if (selector.zone.endsWith(':content')) {
     const parentId = zoneParentId(selector.zone);
     const parent = getItemById(parentId);
-    if (parent?.type !== 'Slide') return null;
+    if (parent?.type !== 'cms.Slide') return null;
     const slideSelector = getSelectorForId(parentId);
     if (!slideSelector?.zone?.endsWith(':slides')) return null;
     const sliderId = zoneParentId(slideSelector.zone);
     const slider = getItemById(sliderId);
-    return slider?.type === 'ContentSlider' ? sliderId : null;
+    return slider?.type === 'cms.ContentSlider' ? sliderId : null;
   }
 
   return null;
@@ -113,7 +113,7 @@ export function resolveContentSliderSlideIndex(
   if (selector.zone.endsWith(':content')) {
     const parentId = zoneParentId(selector.zone);
     const parent = getItemById(parentId);
-    if (parent?.type !== 'Slide') return null;
+    if (parent?.type !== 'cms.Slide') return null;
     const slideSelector = getSelectorForId(parentId);
     if (slideSelector?.zone !== slidesZone) return null;
     return slideSelector.index;
@@ -178,16 +178,16 @@ export function shouldRevertPuckAction(
 
   if (action.type === 'insert') {
     if (
-      (action.componentType === 'Column' || action.componentType === 'EmailColumn') &&
+      (action.componentType === 'cms.Column' || action.componentType === 'transactional_emails.EmailColumn') &&
       !isRowContentZone(action.destinationZone, data)
     ) {
       return true;
     }
     if (
       isContentSliderSlidesZone(action.destinationZone, data) &&
-      action.componentType !== 'Slide' &&
+      action.componentType !== 'cms.Slide' &&
       // Row is wrapped into a Slide in the page-builder onAction handler.
-      action.componentType !== 'Row'
+      action.componentType !== 'cms.Row'
     ) {
       return true;
     }
@@ -197,14 +197,14 @@ export function shouldRevertPuckAction(
   if (action.type === 'move') {
     const type = getItemTypeAtZoneIndex(sourceData, action.sourceZone, action.sourceIndex);
     if (
-      (type === 'Column' || type === 'EmailColumn') &&
+      (type === 'cms.Column' || type === 'transactional_emails.EmailColumn') &&
       !isRowContentZone(action.destinationZone, data)
     ) {
       return true;
     }
     if (
       isContentSliderSlidesZone(action.destinationZone, data) &&
-      type !== 'Slide'
+      type !== 'cms.Slide'
     ) {
       return true;
     }
@@ -214,14 +214,14 @@ export function shouldRevertPuckAction(
   if (action.type === 'reorder') {
     const type = getItemTypeAtZoneIndex(sourceData, action.destinationZone, action.sourceIndex);
     if (
-      (type === 'Column' || type === 'EmailColumn') &&
+      (type === 'cms.Column' || type === 'transactional_emails.EmailColumn') &&
       !isRowContentZone(action.destinationZone, data)
     ) {
       return true;
     }
     if (
       isContentSliderSlidesZone(action.destinationZone, data) &&
-      type !== 'Slide'
+      type !== 'cms.Slide'
     ) {
       return true;
     }
@@ -234,9 +234,9 @@ export function shouldRevertPuckAction(
 function visitItemsForColumnPlacement(items: unknown, parentType: string | null): boolean {
   for (const item of toPuckItemArray(items)) {
     if (
-      (item.type === 'Column' || item.type === 'EmailColumn') &&
-      parentType !== 'Row' &&
-      parentType !== 'EmailRow'
+      (item.type === 'cms.Column' || item.type === 'transactional_emails.EmailColumn') &&
+      parentType !== 'cms.Row' &&
+      parentType !== 'transactional_emails.EmailRow'
     ) {
       return true;
     }
@@ -244,9 +244,9 @@ function visitItemsForColumnPlacement(items: unknown, parentType: string | null)
     for (const [key, value] of Object.entries(item.props)) {
       if (!Array.isArray(value)) continue;
       const childParent =
-        (item.type === 'Row' || item.type === 'EmailRow') && key === 'content'
+        (item.type === 'cms.Row' || item.type === 'transactional_emails.EmailRow') && key === 'content'
           ? item.type
-          : (item.type === 'Column' || item.type === 'EmailColumn') && key === 'content'
+          : (item.type === 'cms.Column' || item.type === 'transactional_emails.EmailColumn') && key === 'content'
             ? item.type
             : item.type;
       if (visitItemsForColumnPlacement(value, childParent)) {
@@ -268,7 +268,7 @@ export function hasInvalidColumnPlacement(data: Data): boolean {
   for (const [zone, zoneItems] of Object.entries(zones)) {
     const parentType = getZoneParentComponentType(zone, data);
     const slotParent =
-      (parentType === 'Row' || parentType === 'EmailRow') && zoneSlotName(zone) === 'content'
+      (parentType === 'cms.Row' || parentType === 'transactional_emails.EmailRow') && zoneSlotName(zone) === 'content'
         ? parentType
         : parentType;
     if (visitItemsForColumnPlacement(zoneItems, slotParent === 'root' ? 'root' : slotParent)) {
@@ -280,5 +280,5 @@ export function hasInvalidColumnPlacement(data: Data): boolean {
 }
 
 export function isColumnItem(value: unknown): value is PuckItem {
-  return isPuckItem(value) && value.type === 'Column';
+  return isPuckItem(value) && value.type === 'cms.Column';
 }

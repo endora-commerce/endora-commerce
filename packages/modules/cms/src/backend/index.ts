@@ -7,6 +7,7 @@ import {
   type CmsBlockSeedPort,
   type CmsColorPalette,
   type DictionaryReferenceRegistryPort,
+  type ModuleManifest,
 } from '@endora-commerce/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES } from '../manifest.js';
 import type { CmsPageReadPort } from '@endora-commerce/contracts';
@@ -105,6 +106,17 @@ export interface CmsCradle {
    * descriptor and never touches anything else the class has.
    */
   readonly assetReferenceRegistry: AssetReferenceRegistryPort;
+  /**
+   * Core manifests + this deployment's overlay modules (feature 057), from
+   * which the Page Builder registry takes every block and category declaration
+   * (feature 096, T209).
+   *
+   * Typed by what this module reads rather than by `_lifecycle`'s
+   * `RegisteredManifestEntry`, in the idiom `admin_roles` established for the
+   * permission catalogue: the entries a root contributes carry a `filePath` and
+   * the install hooks too, and none of that is this module's business.
+   */
+  readonly resolvedModuleRegistry: ReadonlyArray<{ manifest: ModuleManifest }>;
   readonly cms: CmsResult;
   readonly cmsReferenceRegistry: CmsResult['handle']['referenceRegistry'];
 }
@@ -121,10 +133,16 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
 
     cms: ctx
-      .asFunction(({ emFactory, redis }: CmsCradle) => {
+      .asFunction(({ emFactory, redis, resolvedModuleRegistry }: CmsCradle) => {
         const result = cmsModule({
           emFactory,
           redis,
+          // Feature 096, T209/T210. The declarations are fixed at composition;
+          // presence is read per `describe()` call, so an operator switching a
+          // block owner off changes the next response with no restart and no
+          // re-composition (`contracts/block-definition.md` §4.1).
+          manifests: [...resolvedModuleRegistry],
+          isModulePresent: (moduleId) => effectiveState.isPresent(moduleId),
           // Resolved per check rather than captured: Awilix's strict mode
           // refuses a singleton holding the transient `requireAdmin` port, and
           // a captured guard would keep admitting requests after `auth` goes.

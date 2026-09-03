@@ -201,7 +201,7 @@ describe('admin CMS Pages contract (T036)', () => {
     const page = (created.json() as { data: { id: string; version: number } }).data;
     const data = {
       root: { props: {} },
-      content: [{ type: 'Heading', props: { level: 'h1', text: 'Saved content' } }],
+      content: [{ type: 'cms.Heading', props: { level: 'h1', text: 'Saved content' } }],
     };
 
     const put = await h.app.inject({

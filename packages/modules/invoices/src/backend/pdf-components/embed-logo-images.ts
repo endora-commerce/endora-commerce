@@ -110,7 +110,7 @@ export async function embedInvoiceLogoImages(
 
   const content = await Promise.all(
     root.content.map(async (node) => {
-      if (node?.type !== 'InvoiceLogo' || !node.props) return node;
+      if (node?.type !== 'invoices.InvoiceLogo' || !node.props) return node;
       const src = await resolveLogoSrc(node.props, loadAssetImage);
       return { ...node, props: { ...node.props, src } };
     }),

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { Render } from '@measured/puck';
+import { parseBlockName } from '@endora-commerce/page-builder-core';
+import * as CmsComponents from '@endora-commerce/cms-components';
 import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
 import * as CatalogSkeletons from '@endora-commerce/cms-components/components/catalog/CatalogSkeletons';
 import {
@@ -73,6 +75,45 @@ function renderBlock(name: string, block: PaletteBlock): string {
   );
 }
 
+/**
+ * The population's second author, since feature 096: the React components this
+ * package exports.
+ *
+ * The drawer taxonomy that used to play this part is gone — a palette section is
+ * declared by the module whose blocks occupy it and served merged by the backend
+ * (FR-009), and a storefront SSR test can reach neither. The barrel's
+ * `export * from './components/X.js'` lines are written by hand for a different
+ * purpose from the `components` map, which is what makes them a second answer to
+ * "which of these are blocks".
+ *
+ * Derived from the module namespace by shape — a `ComponentConfig` has `render`
+ * and `fields` — so a component added beside the others is covered with no edit
+ * here, exactly as `renderSkeletonModule` derives the skeletons.
+ */
+const EXPORTED_BLOCK_COMPONENTS: readonly string[] = Object.entries(
+  CmsComponents as unknown as Record<string, unknown>,
+)
+  .filter(
+    ([, value]) =>
+      typeof value === 'object' && value !== null && 'render' in value && 'fields' in value,
+  )
+  .map(([name]) => name);
+
+/**
+ * The palette as the floor sees it: the composed renderer map plus the second
+ * author's claim, reconciled through the block name's own local segment
+ * (`parseBlockName`, the one reader of that shape).
+ */
+const PALETTE = {
+  ...defaultPageBuilderConfig,
+  secondAuthor: EXPORTED_BLOCK_COMPONENTS.map((local) => {
+    const key = Object.keys(defaultPageBuilderConfig.components ?? {}).find(
+      (name) => parseBlockName(name)?.local === local,
+    );
+    return key ?? local;
+  }),
+};
+
 const markers = deriveLoadingStateMarkers(
   renderSkeletonModule(CatalogSkeletons as unknown as Record<string, unknown>, (component) =>
     renderToString(createElement(component as never)),
@@ -81,7 +122,7 @@ const markers = deriveLoadingStateMarkers(
 
 function run(ledger: typeof BLOCKS_RENDERING_A_LOADING_STATE) {
   return runBlockSsrFloor({
-    palette: defaultPageBuilderConfig as never,
+    palette: PALETTE as never,
     renderBlock,
     markers,
     ledger,
@@ -106,13 +147,13 @@ describe('the block SSR floor', () => {
     const result = run({});
 
     expect(result.findings.map((finding) => finding.block).sort()).toEqual([
-      'CategoryGrid',
-      'CategoryList',
-      'ProductGrid',
-      'ProductSlider',
+      'catalog.CategoryGrid',
+      'catalog.CategoryList',
+      'catalog.ProductGrid',
+      'catalog.ProductSlider',
     ]);
     expect(result.findings.every((finding) => finding.kind === 'loading-state')).toBe(true);
-    expect(result.loadingStates).not.toContain('ProductCard');
+    expect(result.loadingStates).not.toContain('catalog.ProductCard');
   });
 
   it('derives its loading-state recogniser from the skeleton components themselves', () => {
@@ -126,14 +167,15 @@ describe('the block SSR floor', () => {
 
     expect(result.population.blocks.length).toBeGreaterThan(0);
     expect(result.rendered).toBe(result.population.blocks.length);
-    // The `components` map and the `categories[*].components` drawer taxonomy are two lists,
-    // written separately, about one set. They already disagree, and the disagreement is
-    // surfaced rather than papered over.
+    // The `components` map and the package's exported components are two lists,
+    // written separately, about one set. They already disagree — over the
+    // degradation placeholder, which is `ComponentConfig`-shaped and is never a
+    // block — and the disagreement is surfaced rather than papered over.
     expect(result.population.disagreements.map((d) => `${d.block}:${d.kind}`)).toEqual(
       Object.entries(POPULATION_DISAGREEMENTS).map(([block, entry]) => `${block}:${entry.kind}`),
     );
     expect(result.readLine).toContain(
-      `sources=drawer-taxonomy:${result.population.taxonomy.length}/${result.population.blocks.length}`,
+      `sources=exported-components:${result.population.secondAuthor.length}/${result.population.blocks.length}`,
     );
   });
 });

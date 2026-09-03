@@ -55,7 +55,7 @@ describe('CMS storefront cache (T096)', () => {
 
     const data = {
       root: { props: {} },
-      content: [{ type: 'Heading', props: { level: 'h1', text: 'V1' } }],
+      content: [{ type: 'cms.Heading', props: { level: 'h1', text: 'V1' } }],
     };
     const put = await h.app.inject({
       method: 'PUT',
@@ -154,7 +154,7 @@ describe('CMS storefront cache (T096)', () => {
       headers: { 'content-type': 'application/json' },
       cookies: adminCookie,
       payload: JSON.stringify({
-        data: { root: { props: {} }, content: [{ type: 'Heading', props: { level: 'h2', text: 'Hello' } }] },
+        data: { root: { props: {} }, content: [{ type: 'cms.Heading', props: { level: 'h2', text: 'Hello' } }] },
         version: block.version,
       }),
     });
@@ -206,7 +206,7 @@ describe('CMS storefront cache (T096)', () => {
       headers: { 'content-type': 'application/json' },
       cookies: adminCookie,
       payload: JSON.stringify({
-        data: { root: { props: {} }, content: [{ type: 'Heading', props: { level: 'h3', text: 'Hooked' } }] },
+        data: { root: { props: {} }, content: [{ type: 'cms.Heading', props: { level: 'h3', text: 'Hooked' } }] },
         version: blockData.version,
       }),
     });

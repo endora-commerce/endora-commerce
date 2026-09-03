@@ -89,7 +89,7 @@ describe('admin CMS Templates contract (T077)', () => {
     const updated = (patched.json() as { data: { version: number } }).data;
     const data = {
       root: { props: {} },
-      content: [{ type: 'Heading', props: { level: 'h2', text: 'Reusable template' } }],
+      content: [{ type: 'cms.Heading', props: { level: 'h2', text: 'Reusable template' } }],
     };
     const put = await h.app.inject({
       method: 'PUT',
@@ -169,7 +169,7 @@ describe('admin CMS Templates contract (T077)', () => {
       languages: {
         'en-US': {
           root: { props: {} },
-          content: [{ type: 'InsertTemplate', props: { code } }],
+          content: [{ type: 'cms.InsertTemplate', props: { code } }],
         },
       },
     };
@@ -237,7 +237,7 @@ describe('admin CMS Templates contract (T077)', () => {
 
     const data = {
       root: { props: {} },
-      content: [{ type: 'InsertTemplate', props: { code } }],
+      content: [{ type: 'cms.InsertTemplate', props: { code } }],
     };
     const put = await h.app.inject({
       method: 'PUT',

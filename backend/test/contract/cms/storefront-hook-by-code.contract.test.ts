@@ -60,7 +60,7 @@ describe('CMS storefront hook by code contract (T068)', () => {
     const block = (created.json() as { data: { id: string; version: number } }).data;
     const data = {
       root: { props: {} },
-      content: [{ type: 'Heading', props: { level: 'h2', text: input.text } }],
+      content: [{ type: 'cms.Heading', props: { level: 'h2', text: input.text } }],
     };
     const put = await h.app.inject({
       method: 'PUT',

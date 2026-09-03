@@ -95,75 +95,27 @@ export * from './schema/component-types.js';
 export * from './schema/catalog-types.js';
 export * from './utils/walk-asset-ids.js';
 
+/**
+ * The CMS renderer map — **the React half only**, keyed by namespaced block name
+ * (feature 096, T301; `contracts/block-definition.md` §4.3).
+ *
+ * **The `categories` block is gone and nothing in this package replaces it.**
+ * A section is declared by the module whose blocks occupy it and is served,
+ * merged across the present modules, by
+ * `GET /api/v1/admin/cms/page-builder/config` — so a module contributing a
+ * block into a section no longer has to edit a map in a package it does not
+ * own, which is FR-009 and the shape feature 091 removed from the admin. The
+ * eight CMS sections it listed are `cms`' `blockCategories`, and the five
+ * Catalog entries are `catalog`'s.
+ *
+ * `defaultExpanded` went with it and no schema field replaces it (D-11).
+ * Measured on Puck `0.20.2`: `ComponentList` reads `{ expanded = true }`, so
+ * `defaultExpanded: true` — which is what all four sections wrote — is
+ * indistinguishable from omitting the field. Deleting it is behaviour-preserving.
+ */
 export const defaultPageBuilderConfig: Config = {
-  categories: {
-    layout: {
-      title: 'Layout',
-      components: ['Row', 'Spacer'],
-      defaultExpanded: true,
-    },
-    content: {
-      title: 'Content',
-      components: [
-        'Heading',
-        'Text',
-        'RichContent',
-        'Button',
-        'Image',
-        'Icons',
-        'Social',
-        'FeatureList',
-        'Hero',
-        'LogoStrip',
-        'Testimonial',
-        'Stats',
-        'AnnouncementBar',
-        'SimpleTable',
-      ],
-      defaultExpanded: true,
-    },
-    media: {
-      title: 'Media',
-      components: ['Video', 'Map'],
-    },
-    catalog: {
-      title: 'Catalog',
-      components: ['ProductCard', 'ProductGrid', 'ProductSlider', 'CategoryList', 'CategoryGrid'],
-    },
-    interactive: {
-      title: 'Interactive',
-      components: ['ContentSlider', 'ImageSlider', 'Tabs', 'Accordion'],
-    },
-    /**
-     * Hidden drawer category — keeps internal slot-only components out of
-     * "Other". Keyed `internal` and not `_internal` since feature 096: a
-     * declared category's key is `^[a-z][a-z0-9_]*$`
-     * (`blockCategoryKeyRe`), which forbids a leading underscore, and the
-     * declaration this map becomes is `cms`' `internal` section. Same word,
-     * same title, same behaviour; the i18n key
-     * (`pageBuilder.categories.internal`, derived from this key by
-     * `page-builder-i18n.ts`) moved with it.
-     */
-    internal: {
-      title: 'Internal',
-      components: ['Column', 'Slide'],
-      visible: false,
-    },
-    forms: {
-      title: 'Forms',
-      components: ['NewsletterSignup', 'ContactFormEmbed'],
-    },
-    advanced: {
-      title: 'Advanced',
-      components: ['RawHtml', 'RawJs'],
-    },
-    embeds: {
-      title: 'Embeds',
-      components: ['InsertBlock'],
-    },
-  },
   components: {
-    Row: definePageBuilderComponent({
+    'cms.Row': definePageBuilderComponent({
       ...(Row as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: [
@@ -179,170 +131,170 @@ export const defaultPageBuilderConfig: Config = {
         'border',
       ],
     }),
-    Column: definePageBuilderComponent({
+    'cms.Column': definePageBuilderComponent({
       ...(Column as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['span', 'margin', 'padding', 'border'],
     }),
-    Text: definePageBuilderComponent({
+    'cms.Text': definePageBuilderComponent({
       ...(Text as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['fontSize', 'fontWeight', 'textAlign', 'lineHeight', 'margin', 'padding', 'border'],
     }),
-    RichContent: definePageBuilderComponent({
+    'cms.RichContent': definePageBuilderComponent({
       ...(withHideOn(RichContent as unknown as ComponentConfig) as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Heading: definePageBuilderComponent({
+    'cms.Heading': definePageBuilderComponent({
       ...(Heading as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['fontSize', 'fontWeight', 'textAlign', 'lineHeight', 'margin', 'padding', 'border'],
     }),
-    Button: definePageBuilderComponent({
+    'cms.Button': definePageBuilderComponent({
       ...(Button as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['variant', 'margin', 'padding', 'border'],
     }),
-    Image: definePageBuilderComponent({
+    'cms.Image': definePageBuilderComponent({
       ...(Image as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['widthMode', 'widthPx', 'align', 'margin', 'padding', 'border'],
     }),
-    Icons: definePageBuilderComponent({
+    'cms.Icons': definePageBuilderComponent({
       ...(Icons as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['align', 'margin', 'padding', 'border'],
     }),
-    Social: definePageBuilderComponent({
+    'cms.Social': definePageBuilderComponent({
       ...(Social as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['align', 'margin', 'padding', 'border'],
     }),
-    Spacer: definePageBuilderComponent({
+    'cms.Spacer': definePageBuilderComponent({
       ...(Spacer as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['heightPx'],
     }),
-    FeatureList: definePageBuilderComponent({
+    'cms.FeatureList': definePageBuilderComponent({
       ...(FeatureList as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['columns', 'gap', 'margin', 'padding', 'border'],
     }),
-    Hero: definePageBuilderComponent({
+    'cms.Hero': definePageBuilderComponent({
       ...(Hero as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['minHeightPx', 'margin', 'padding', 'border'],
     }),
-    LogoStrip: definePageBuilderComponent({
+    'cms.LogoStrip': definePageBuilderComponent({
       ...(LogoStrip as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Testimonial: definePageBuilderComponent({
+    'cms.Testimonial': definePageBuilderComponent({
       ...(Testimonial as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Stats: definePageBuilderComponent({
+    'cms.Stats': definePageBuilderComponent({
       ...(Stats as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['columns', 'margin', 'padding', 'border'],
     }),
-    AnnouncementBar: definePageBuilderComponent({
+    'cms.AnnouncementBar': definePageBuilderComponent({
       ...(AnnouncementBar as unknown as ComponentConfig),
       contexts: ['cms'],
     }),
-    SimpleTable: definePageBuilderComponent({
+    'cms.SimpleTable': definePageBuilderComponent({
       ...(SimpleTable as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    NewsletterSignup: definePageBuilderComponent({
+    'cms.NewsletterSignup': definePageBuilderComponent({
       ...(NewsletterSignup as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    ContactFormEmbed: definePageBuilderComponent({
+    'cms.ContactFormEmbed': definePageBuilderComponent({
       ...(ContactFormEmbed as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Video: definePageBuilderComponent({
+    'cms.Video': definePageBuilderComponent({
       ...(Video as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['maxWidth', 'align', 'margin', 'padding', 'border'],
     }),
-    Map: definePageBuilderComponent({
+    'cms.Map': definePageBuilderComponent({
       ...(Map as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['height', 'margin', 'padding', 'border'],
     }),
-    ProductCard: definePageBuilderComponent({
+    'catalog.ProductCard': definePageBuilderComponent({
       ...(ProductCard as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['maxWidthPx', 'imageHeightPx', 'margin', 'padding', 'border'],
     }),
-    ProductGrid: definePageBuilderComponent({
+    'catalog.ProductGrid': definePageBuilderComponent({
       ...(ProductGrid as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['columns', 'gap', 'view', 'margin', 'padding', 'border'],
     }),
-    ProductSlider: definePageBuilderComponent({
+    'catalog.ProductSlider': definePageBuilderComponent({
       ...(ProductSlider as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
     }),
-    CategoryList: definePageBuilderComponent({
+    'catalog.CategoryList': definePageBuilderComponent({
       ...(CategoryList as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    CategoryGrid: definePageBuilderComponent({
+    'catalog.CategoryGrid': definePageBuilderComponent({
       ...(CategoryGrid as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['columns', 'gap', 'margin', 'padding', 'border'],
     }),
-    ContentSlider: definePageBuilderComponent({
+    'cms.ContentSlider': definePageBuilderComponent({
       ...(ContentSlider as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
     }),
-    Slide: definePageBuilderComponent({
+    'cms.Slide': definePageBuilderComponent({
       ...(Slide as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    ImageSlider: definePageBuilderComponent({
+    'cms.ImageSlider': definePageBuilderComponent({
       ...(ImageSlider as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
     }),
-    Tabs: definePageBuilderComponent({
+    'cms.Tabs': definePageBuilderComponent({
       ...(Tabs as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Accordion: definePageBuilderComponent({
+    'cms.Accordion': definePageBuilderComponent({
       ...(Accordion as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    RawHtml: definePageBuilderComponent({
+    'cms.RawHtml': definePageBuilderComponent({
       ...(RawHtml as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    RawJs: definePageBuilderComponent({
+    'cms.RawJs': definePageBuilderComponent({
       ...(RawJs as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    InsertBlock: definePageBuilderComponent({
+    'cms.InsertBlock': definePageBuilderComponent({
       ...(withHideOn(InsertBlock as unknown as ComponentConfig) as ComponentConfig),
       contexts: ['cms'],
     }),
-    InsertTemplate: definePageBuilderComponent({
+    'cms.InsertTemplate': definePageBuilderComponent({
       ...(withHideOn(InsertTemplate as unknown as ComponentConfig) as ComponentConfig),
       contexts: ['cms'],
     }),

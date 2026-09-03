@@ -607,15 +607,15 @@ function renderEmbed(kind: 'blocks' | 'templates', code: string, ctx: RenderCtx)
 function renderNode(node: PuckNode, ctx: RenderCtx): string {
   const p = node.props ?? {};
   switch (node.type) {
-    case 'EmailHeading':
+    case 'transactional_emails.EmailHeading':
       return renderHeading({
         level: (p['level'] as EmailHeadingProps['level']) ?? 'h2',
         text: str(p, 'text'),
         align: align(p),
       });
-    case 'EmailText':
+    case 'transactional_emails.EmailText':
       return renderText({ text: str(p, 'text'), align: align(p) });
-    case 'EmailButton':
+    case 'transactional_emails.EmailButton':
       return renderButton(
         {
           label: str(p, 'label', 'Button'),
@@ -626,7 +626,7 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         },
         ctx.accent,
       );
-    case 'EmailImage':
+    case 'transactional_emails.EmailImage':
       return renderImage({
         src: str(p, 'src'),
         alt: str(p, 'alt'),
@@ -638,7 +638,7 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
           : {}),
         ...(typeof p['assetId'] === 'string' ? { assetId: p['assetId'] } : {}),
       });
-    case 'EmailLogo':
+    case 'transactional_emails.EmailLogo':
       return renderLogo({
         src: str(p, 'src', '{{var branding.logoUrl}}'),
         alt: str(p, 'alt', 'Logo'),
@@ -646,14 +646,14 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         width: num(p, 'width', 160),
         align: align(p, 'center'),
       });
-    case 'EmailDivider':
+    case 'transactional_emails.EmailDivider':
       return renderDivider({
         thickness: num(p, 'thickness', 1),
         color: str(p, 'color', '#e5e7eb'),
       });
-    case 'EmailSpacer':
+    case 'transactional_emails.EmailSpacer':
       return renderSpacer({ height: num(p, 'height', 16) });
-    case 'EmailTable':
+    case 'transactional_emails.EmailTable':
       return renderTable({
         columns: Array.isArray(p['columns']) ? (p['columns'] as EmailTableProps['columns']) : [],
         tableRows: Array.isArray(p['tableRows'])
@@ -661,7 +661,7 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
           : [],
         striped: bool(p, 'striped', true),
       });
-    case 'EmailSection': {
+    case 'transactional_emails.EmailSection': {
       const children = slotChildren(node, ctx, 'content');
       const inner = renderNodes(children, ctx);
       return renderSection(
@@ -673,8 +673,8 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         inner,
       );
     }
-    case 'EmailRow': {
-      const columnNodes = slotChildren(node, ctx, 'content').filter((n) => n.type === 'EmailColumn');
+    case 'transactional_emails.EmailRow': {
+      const columnNodes = slotChildren(node, ctx, 'content').filter((n) => n.type === 'transactional_emails.EmailColumn');
       const equalFallback = columnNodes.length > 0 ? Math.floor(12 / columnNodes.length) : 6;
       const columns = columnNodes.map((col) => ({
         innerRows: withCellPadding('4px 0', () =>
@@ -693,17 +693,17 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         columns,
       );
     }
-    case 'EmailColumn': {
+    case 'transactional_emails.EmailColumn': {
       // Standalone column (should only live inside EmailRow) — stack children full-width.
       return renderNodes(slotChildren(node, ctx, 'content'), ctx);
     }
-    case 'EmailRichText':
+    case 'transactional_emails.EmailRichText':
       return renderRichText({
         content: p['content'],
         html: str(p, 'html'),
         align: align(p),
       });
-    case 'EmailProductCard':
+    case 'catalog.EmailProductCard':
       return renderProductCard(
         {
           productSlug: str(p, 'productSlug'),
@@ -721,7 +721,7 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         },
         ctx.accent,
       );
-    case 'EmailProductGrid':
+    case 'catalog.EmailProductGrid':
       return renderProductGrid(
         {
           productSlugs: Array.isArray(p['productSlugs']) ? (p['productSlugs'] as string[]) : [],
@@ -735,7 +735,7 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         },
         ctx.accent,
       );
-    case 'EmailCategoryGrid':
+    case 'catalog.EmailCategoryGrid':
       return renderCategoryGrid({
         categorySlugs: Array.isArray(p['categorySlugs']) ? (p['categorySlugs'] as string[]) : [],
         columns: num(p, 'columns', 2),
@@ -743,7 +743,7 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         showImage: bool(p, 'showImage', true),
         items: Array.isArray(p['items']) ? (p['items'] as EmailCategoryGridProps['items']) : [],
       });
-    case 'EmailOrderSummary': {
+    case 'orders.EmailOrderSummary': {
       const rawBody = typeof p['body'] === 'string' ? p['body'] : '';
       const hasNewFlags =
         'showName' in p ||
@@ -768,13 +768,13 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         ctx.language,
       );
     }
-    case 'EmailOrderId':
-    case 'EmailBillingAddress':
-    case 'EmailShippingAddress':
-    case 'EmailOrderTotals':
-    case 'EmailAppliedDiscounts':
-    case 'EmailDeliveryMethod':
-    case 'EmailPaymentMethod': {
+    case 'orders.EmailOrderId':
+    case 'orders.EmailBillingAddress':
+    case 'orders.EmailShippingAddress':
+    case 'orders.EmailOrderTotals':
+    case 'orders.EmailAppliedDiscounts':
+    case 'orders.EmailDeliveryMethod':
+    case 'orders.EmailPaymentMethod': {
       const meta = EMAIL_ORDER_LABELED_FIELDS[node.type];
       return renderOrderLabeledVar(
         {
@@ -785,7 +785,7 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         meta.varKey,
       );
     }
-    case 'EmailSocial':
+    case 'transactional_emails.EmailSocial':
       return renderSocial({
         links: Array.isArray(p['links']) ? (p['links'] as EmailSocialProps['links']) : [],
         align: align(p, 'center'),
@@ -795,7 +795,7 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         useBrandColors: bool(p, 'useBrandColors', true),
         color: str(p, 'color', '#1f2937'),
       });
-    case 'EmailCallout':
+    case 'transactional_emails.EmailCallout':
       return renderCallout({
         text: str(p, 'text'),
         backgroundColor: str(p, 'backgroundColor', '#f3f4f6'),
@@ -803,7 +803,7 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         textColor: str(p, 'textColor', '#1f2937'),
         align: align(p),
       });
-    case 'EmailFooterLegal':
+    case 'transactional_emails.EmailFooterLegal':
       return renderFooterLegal({
         text: str(
           p,
@@ -812,9 +812,9 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
         ),
         align: align(p, 'center'),
       });
-    case 'EmailInsertBlock':
+    case 'transactional_emails.EmailInsertBlock':
       return renderEmbed('blocks', str(p, 'code'), ctx);
-    case 'EmailInsertTemplate':
+    case 'transactional_emails.EmailInsertTemplate':
       return renderEmbed('templates', str(p, 'code'), ctx);
     default:
       return '';

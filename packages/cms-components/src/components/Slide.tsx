@@ -40,7 +40,7 @@ const slideConfig: ComponentConfig<SlideProps> = {
       type: 'slot',
       label: 'Content',
       // Row is the layout primitive inside a slide; Column only via Row.
-      disallow: ['Column', 'ContentSlider', 'Slide'],
+      disallow: ['cms.Column', 'cms.ContentSlider', 'cms.Slide'],
     },
     margin: BOX_MARGIN_FIELD,
     padding: BOX_PADDING_FIELD,

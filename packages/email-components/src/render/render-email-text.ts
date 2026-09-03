@@ -58,27 +58,27 @@ function slotChildren(node: PuckNode, ctx: Ctx, slotName = 'content'): PuckNode[
 function renderNode(node: PuckNode, ctx: Ctx): string {
   const p = node.props ?? {};
   switch (node.type) {
-    case 'EmailHeading':
-    case 'EmailText':
-    case 'EmailCallout':
-    case 'EmailFooterLegal':
+    case 'transactional_emails.EmailHeading':
+    case 'transactional_emails.EmailText':
+    case 'transactional_emails.EmailCallout':
+    case 'transactional_emails.EmailFooterLegal':
       return `${str(p, 'text')}\n`;
-    case 'EmailRichText':
+    case 'transactional_emails.EmailRichText':
       return `${emailHtmlToPlainText(str(p, 'html'))}\n`;
-    case 'EmailButton': {
+    case 'transactional_emails.EmailButton': {
       const href = str(p, 'href');
       return `${str(p, 'label', 'Button')}${href ? `: ${href}` : ''}\n`;
     }
-    case 'EmailImage':
-    case 'EmailLogo': {
+    case 'transactional_emails.EmailImage':
+    case 'transactional_emails.EmailLogo': {
       const alt = str(p, 'alt');
       return alt ? `[${alt}]\n` : '';
     }
-    case 'EmailDivider':
+    case 'transactional_emails.EmailDivider':
       return `----------------------------------------\n`;
-    case 'EmailSpacer':
+    case 'transactional_emails.EmailSpacer':
       return `\n`;
-    case 'EmailTable': {
+    case 'transactional_emails.EmailTable': {
       const headers = Array.isArray(p['columns'])
         ? (p['columns'] as Array<{ label?: string }>).map((c) => c?.label ?? '').join('\t')
         : '';
@@ -89,12 +89,12 @@ function renderNode(node: PuckNode, ctx: Ctx): string {
         : '';
       return `${[headers, rows].filter(Boolean).join('\n')}\n`;
     }
-    case 'EmailSection':
+    case 'transactional_emails.EmailSection':
       return slotChildren(node, ctx)
         .map((n) => renderNode(n, ctx))
         .join('');
-    case 'EmailRow': {
-      const cols = slotChildren(node, ctx, 'content').filter((n) => n.type === 'EmailColumn');
+    case 'transactional_emails.EmailRow': {
+      const cols = slotChildren(node, ctx, 'content').filter((n) => n.type === 'transactional_emails.EmailColumn');
       return (
         cols
           .map((col) =>
@@ -106,13 +106,13 @@ function renderNode(node: PuckNode, ctx: Ctx): string {
           .join('\n') + (cols.length ? '\n' : '')
       );
     }
-    case 'EmailColumn':
+    case 'transactional_emails.EmailColumn':
       return slotChildren(node, ctx, 'content')
         .map((n) => renderNode(n, ctx))
         .join('');
-    case 'EmailProductCard':
+    case 'catalog.EmailProductCard':
       return [str(p, 'title'), str(p, 'sku'), str(p, 'price'), str(p, 'href')].filter(Boolean).join(' — ') + '\n';
-    case 'EmailProductGrid': {
+    case 'catalog.EmailProductGrid': {
       const items = Array.isArray(p['items'])
         ? (p['items'] as Array<{ title?: string; sku?: string; price?: string; href?: string }>)
         : [];
@@ -123,7 +123,7 @@ function renderNode(node: PuckNode, ctx: Ctx): string {
           .join('\n') + (items.length ? '\n' : '')
       );
     }
-    case 'EmailCategoryGrid': {
+    case 'catalog.EmailCategoryGrid': {
       const items = Array.isArray(p['items'])
         ? (p['items'] as Array<{ title?: string; href?: string }>)
         : [];
@@ -134,7 +134,7 @@ function renderNode(node: PuckNode, ctx: Ctx): string {
           .join('\n') + (items.length ? '\n' : '')
       );
     }
-    case 'EmailOrderSummary': {
+    case 'orders.EmailOrderSummary': {
       if (typeof p['body'] === 'string' && !('showName' in p)) {
         return `${str(p, 'title', 'Order summary')}\n${str(p, 'body')}\n`;
       }
@@ -150,24 +150,24 @@ function renderNode(node: PuckNode, ctx: Ctx): string {
       if (p['showTotals'] === true) lines.push('{{var order.summaryText}}');
       return `${lines.join('\n')}\n`;
     }
-    case 'EmailOrderId':
-    case 'EmailBillingAddress':
-    case 'EmailShippingAddress':
-    case 'EmailOrderTotals':
-    case 'EmailAppliedDiscounts':
-    case 'EmailDeliveryMethod':
-    case 'EmailPaymentMethod': {
+    case 'orders.EmailOrderId':
+    case 'orders.EmailBillingAddress':
+    case 'orders.EmailShippingAddress':
+    case 'orders.EmailOrderTotals':
+    case 'orders.EmailAppliedDiscounts':
+    case 'orders.EmailDeliveryMethod':
+    case 'orders.EmailPaymentMethod': {
       const meta = EMAIL_ORDER_LABELED_FIELDS[node.type];
       const title = str(p, 'title', meta.defaultTitle);
       return `${title ? `${title}\n` : ''}{{var ${meta.varKey}}}\n`;
     }
-    case 'EmailSocial': {
+    case 'transactional_emails.EmailSocial': {
       const links = Array.isArray(p['links']) ? (p['links'] as EmailSocialProps['links']) : [];
       return `${links.map((l) => l?.href ?? '').filter(Boolean).join(' ')}\n`;
     }
-    case 'EmailInsertBlock':
+    case 'transactional_emails.EmailInsertBlock':
       return renderEmbed('blocks', str(p, 'code'), ctx);
-    case 'EmailInsertTemplate':
+    case 'transactional_emails.EmailInsertTemplate':
       return renderEmbed('templates', str(p, 'code'), ctx);
     default:
       return '';
