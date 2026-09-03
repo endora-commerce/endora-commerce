@@ -20,6 +20,12 @@ import {
   walkPermissionLabels,
   type PermissionLabelInput,
 } from '../../helpers/permission-labels.js';
+import {
+  findPermissionDependencyDefects,
+  permissionDependencyReadSize,
+  permissionDependencyRefusal,
+  type PermissionDependencyInput,
+} from '../../helpers/permission-dependencies.js';
 import { readSizeLine, readSizeRefusal } from '../../../scripts/lib/read-size.js';
 
 /**
@@ -189,5 +195,81 @@ describe('permission labels (feature 091, Phase 3)', () => {
       `labels moved out of the shared bundle and LEGACY_PERMISSION_LABELS still claims them — ` +
         `lower the number, or delete the entry when the owner has drained`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * What a permission code needs beside itself — D-175, feature 080 T057.
+ *
+ * `ModulePermissionDeclaration.requires` is advisory: it names the codes a role
+ * holding this one needs before the surface it opens is whole, the role editor
+ * renders the shortfall with a one-click add, and nothing refuses a grant. The
+ * machine owns exactly one half of it — that a requirement names a code the
+ * platform's **vocabulary** holds — and this is where that half is answered.
+ *
+ * It lives in this file rather than in a `check-*` script of its own for the
+ * reason the label sweep above does: the inventory is already the instrument
+ * that reads every manifest code and every gate, and two derivations of one
+ * population are two answers waiting to disagree. The rule and its red proofs
+ * are `test/helpers/permission-dependencies.ts` and
+ * `test/unit/admin_roles/permission-dependencies.test.ts`.
+ *
+ * **It is deliberately not wired into D-173's `foreign-gate` sweep**, which
+ * D-175 proposed. That sweep derives its edges from the gates and the manifests
+ * and needs nothing declared; its `declared-owner` verdict is ledgerable debt
+ * and never a pass, because a declaration does not un-strand a screen. Letting
+ * a `requires` entry answer it would license exactly the defect !956 closed.
+ */
+describe('permission dependencies (D-175)', () => {
+  const service = new PermissionCatalogueService({ registryEntries: RESOLVED_MANIFESTS });
+  const input: PermissionDependencyInput = {
+    requirements: service.listRequirementsByCode(),
+    known: new Set(service.listKnownCodes()),
+    owners: service.listOwnersByCode(),
+  };
+  const declaring = RESOLVED_MANIFESTS.filter(
+    (entry) => (entry.manifest.permissions?.length ?? 0) > 0,
+  );
+  const merged = new Set<string>();
+  for (const owners of input.owners.values()) for (const owner of owners) merged.add(owner);
+
+  it('discloses what it read, and refuses a merge that came back short', () => {
+    const refusal = permissionDependencyRefusal(input);
+    expect(refusal, 'the requirement sweep read nothing it could judge').toBeNull();
+    const record = permissionDependencyReadSize({
+      declaringManifests: declaring.length,
+      mergedManifests: declaring.filter((entry) => merged.has(entry.manifest.id)).length,
+      requirements: [...input.requirements.values()].reduce((n, list) => n + list.length, 0),
+    });
+    const short = readSizeRefusal(record);
+    expect(
+      short === null ? null : `${short.kind}: ${short.message}`,
+      'the requirement sweep may not report on a population it did not read',
+    ).toBeNull();
+    // eslint-disable-next-line no-console -- the disclosure is the point (issue #244).
+    console.log(readSizeLine(record));
+  });
+
+  it('every declared requirement names a code the platform knows', () => {
+    const defects = findPermissionDependencyDefects(input)
+      .filter((finding) => finding.kind === 'unknown-requirement')
+      .map(
+        (finding) =>
+          `'${finding.code}' (${finding.owners.join('/')}) requires '${finding.requirement}', ` +
+          'which no manifest and no catalogue row declares',
+      );
+    expect(
+      defects,
+      'a `requires` entry naming a code nothing declares advises an operator to ' +
+        'grant something that does not exist — the vocabulary is `listKnownCodes()`, ' +
+        'so a code whose owner is merely switched off is not this finding',
+    ).toEqual([]);
+  });
+
+  it('no code requires itself', () => {
+    const defects = findPermissionDependencyDefects(input)
+      .filter((finding) => finding.kind === 'self-requirement')
+      .map((finding) => `'${finding.code}' (${finding.owners.join('/')})`);
+    expect(defects, 'holding the code satisfies it, so the entry advises nothing').toEqual([]);
   });
 });

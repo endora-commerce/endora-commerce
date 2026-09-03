@@ -128,16 +128,100 @@ export const modulePermissionDeclarationSchema = z.object({
   module: z.string().min(1).max(64).optional(),
   label: z.string().min(1).max(160),
   description: z.string().max(500).optional(),
+  /**
+   * Other codes a role holding this one needs before the surface it opens is
+   * whole — D-175, feature 080 T057.
+   *
+   * **It is advisory and costs nothing at runtime.** No guard reads it, no
+   * upsert is refused for a missing requirement, and it does not put the named
+   * code's owner in this module's `dependencies`: a lifecycle edge would make
+   * the orchestrator refuse to switch that owner off, which is D-173's inverted
+   * Principle XVII and the repair to reach for last. What it does is put the
+   * sentence an operator needs where the operator can read it — the role editor
+   * says *"this role grants `rfqs:handle`, which also needs `price_lists:read`"*
+   * with a one-click add.
+   *
+   * **Do not write a fact the platform already derives here.** The edge this
+   * field carries is *"a role holding A but not B gets an incomplete screen"*,
+   * and nothing in this repository can decide it: the coupling runs from an
+   * admin screen's own fetches to another module's route, and whether the
+   * degradation is a defect or an accepted fallback is a judgement. A module
+   * enforcing a code another module owns is a **different** fact, it *is*
+   * derived — `test/helpers/foreign-gates.ts`, D-173 — and declaring that one
+   * here would be two answers to one question waiting to disagree.
+   *
+   * A code more than one module declares takes the **union** of its declarers'
+   * requirements: a shared code opens more than one surface, each with its own
+   * needs, and advising more is the direction that cannot strand anybody.
+   */
+  requires: z.array(z.string().min(1).max(120)).optional(),
 });
 export type ModulePermissionDeclaration = z.infer<typeof modulePermissionDeclarationSchema>;
 
-/** Row shape returned by `GET /admin/permissions`. */
+/**
+ * Row shape returned by `GET /admin/permissions`.
+ *
+ * `module` and `owners` are **not the same string**, and the whole of D-175's
+ * "make the ownership model visible" is that only the first used to be on the
+ * wire. `module` is a display grouping — `_lifecycle` files its codes under
+ * `module: 'module_lifecycle'`, which is no module id at all — while `owners`
+ * is the presence question: the modules whose effective state decides whether
+ * this row is offered. They differ whenever a code is shared, and a reader who
+ * takes `module` for the owner gets it wrong in exactly the way D-173 did.
+ */
 export const permissionCatalogueEntrySchema = z.object({
   code: z.string().min(1).max(120),
   module: z.string().min(1).max(64),
   label: z.string().min(1).max(160),
+  /**
+   * The modules whose presence keeps this code grantable — a set, because a
+   * shared code survives while **any** of its owners is present.
+   */
+  owners: z.array(z.string().min(1).max(64)).min(1),
+  /** {@link modulePermissionDeclarationSchema}'s `requires`, merged. */
+  requires: z.array(z.string().min(1).max(120)).optional(),
 });
 export type PermissionCatalogueEntry = z.infer<typeof permissionCatalogueEntrySchema>;
+
+/**
+ * The codes a role holding `granted` is advised to add — D-175, feature 080
+ * T057.
+ *
+ * **Advisory, and it lives here so that there is one of it.** The role editor
+ * renders the shortfall and the permission inventory sweeps the declarations
+ * that produce it; D-175's second caution is precisely that the benchmark's
+ * per-module tests hand-assemble their own cross-module catalogue, so the answer
+ * is computed over the rows the platform already merged and nowhere else.
+ *
+ * Two narrowings, both of them the fail-safe direction:
+ *
+ * - a requirement naming a code **not among `catalogue`** is skipped. For the
+ *   role editor that is a code with no checkbox — offering one an operator
+ *   cannot tick is the single thing the panel must not do — and a requirement
+ *   naming a code the *platform* does not know is a defect reported to its
+ *   author by the inventory, not to the operator.
+ * - a `'*'` role holds everything, so it is advised nothing.
+ *
+ * Nothing here refuses anything: the caller renders a suggestion, and a role
+ * saved without it is saved.
+ */
+export function missingPermissionRequirements(
+  granted: Iterable<string>,
+  catalogue: readonly PermissionCatalogueEntry[],
+): string[] {
+  const held = new Set(granted);
+  if (held.has('*')) return [];
+  const offered = new Set(catalogue.map((row) => row.code));
+  const missing = new Set<string>();
+  for (const row of catalogue) {
+    if (!held.has(row.code)) continue;
+    for (const requirement of row.requires ?? []) {
+      if (held.has(requirement) || !offered.has(requirement)) continue;
+      missing.add(requirement);
+    }
+  }
+  return [...missing].sort();
+}
 
 /**
  * Canonical permission catalogue exposed by `GET /admin/permissions`.
