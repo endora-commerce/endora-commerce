@@ -168,6 +168,7 @@ export const manifest = defineModuleManifest({
   ],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: PWA_PERMISSIONS.READ, label: 'View PWA settings' },
     { code: PWA_PERMISSIONS.WRITE, label: 'Configure PWA' },

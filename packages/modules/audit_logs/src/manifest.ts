@@ -61,6 +61,7 @@ export const manifest = defineModuleManifest({
    * `check:action-route-permissions` holds this declaration to.
    */
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   actions: [
     {
       id: 'open-audit-log',

@@ -107,6 +107,7 @@ export const manifest = defineModuleManifest({
   dependencies: ['audit_logs', 'cms', 'sales_channels', 'settings', 'auth'],
   settings: googleAnalyticsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: 'google_analytics:read', label: 'View Google Analytics configuration' },
     { code: 'google_analytics:write', label: 'Manage Google Analytics configuration and custom events' },

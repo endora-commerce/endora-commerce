@@ -35,6 +35,7 @@ export const shipmentsSettingsManifest = defineModuleSettingsManifest({
  */
 export const manifest = defineModuleManifest({
   id: 'shipments',
+  docs: { dir: 'docs' },
   name: 'Shipments',
   description: 'Shipment record and the order_created / shipment_created / receive_shipment lifecycle.',
   version: '1.0.0',

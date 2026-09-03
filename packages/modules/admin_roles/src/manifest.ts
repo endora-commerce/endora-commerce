@@ -68,6 +68,7 @@ export const manifest = defineModuleManifest({
    * and skips it — silently.
    */
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   /**
    * This module's first command-palette action — feature 091, Phase 4, batch
    * four — and it points at a route **`admin_users` declares**.

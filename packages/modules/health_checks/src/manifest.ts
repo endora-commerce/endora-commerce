@@ -10,6 +10,7 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  */
 export const manifest = defineModuleManifest({
   id: 'health_checks',
+  docs: { dir: 'docs' },
   name: 'Health Checks',
   description:
     'Liveness/readiness HTTP endpoints consumed by orchestrators.',

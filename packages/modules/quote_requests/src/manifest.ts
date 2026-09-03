@@ -273,6 +273,7 @@ export const manifest = defineModuleManifest({
     { code: 'rfqs:handle', label: 'Handle quote requests', requires: ['price_lists:read'] },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   actions: [
     {
       id: 'open-rfq-inbox',

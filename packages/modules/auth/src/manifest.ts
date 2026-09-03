@@ -10,6 +10,7 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  */
 export const manifest = defineModuleManifest({
   id: 'auth',
+  docs: { dir: 'docs' },
   name: 'Auth',
   description:
     'Authentication primitives — session cookies, bearer-token resolution, and request actor binding.',

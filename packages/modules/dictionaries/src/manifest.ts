@@ -40,6 +40,7 @@ export const manifest = defineModuleManifest({
   // decided whether the admin surface existed at all.
   dependencies: ['currencies', 'languages', 'auth'],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [{ code: DICTIONARY_PERMISSIONS.WRITE, label: 'Manage dictionary registry' }],
 
   /**

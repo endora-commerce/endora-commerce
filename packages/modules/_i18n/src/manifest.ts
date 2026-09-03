@@ -34,6 +34,7 @@ export const manifest = defineModuleManifest({
   // Neither depends back on this module, so the graph stays acyclic.
   dependencies: ['_lifecycle', 'auth', 'admin_users'],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Feature 074 (Constitution XVII), test C1 — reachability. Two grounds hold
   // and they are stated in that order because only the first is about this
   // module's merits: every user-facing string on every surface resolves here,

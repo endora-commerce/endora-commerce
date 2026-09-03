@@ -24,6 +24,7 @@ export const manifest = defineModuleManifest({
   // shared bundle's `appShell.nav.analytics`, and the dashboard's own copy
   // moved here verbatim out of `_i18n`'s `analytics.*` block.
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Principle XVI. The module has had an admin screen and a sidebar entry since
   // feature 018 and has never been reachable under ⌘K — sidebar-only, which the
   // principle says is not enough. The gap is repaired in the merge request that

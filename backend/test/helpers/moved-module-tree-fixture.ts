@@ -880,10 +880,39 @@ export function createSplitModuleTreeFixture(
     DISCOVERED_MANIFESTS.some((entry) => entry.id === pkg.moduleId),
   );
   for (const pkg of alreadyPackaged) {
-    cpSync(pkg.dir, join(root, packagedModulePath(pkg.moduleId)), {
+    const staged = join(root, packagedModulePath(pkg.moduleId));
+    cpSync(pkg.dir, staged, {
       recursive: true,
       filter: (source) => !source.endsWith(`${sep}node_modules`),
     });
+    // The module's `docs/` layer, staged a **second** time where this fixture's
+    // own layout puts it (feature 100 Phase 2).
+    //
+    // A package-root asset is located by joining the manifest's declaration to
+    // `dirname(manifestPath)`, and in this fixture that anchor is the package's
+    // `src/`, not its root: `splitManifestIndex` emits a **relative** specifier
+    // at `<pkg>/src/manifest.js` for the reason it states in place — the fixture
+    // borrows this repository's `node_modules`, so no `@endora-commerce/mod-<id>`
+    // link exists in it and the bare specifier the real generator emits would
+    // resolve to nothing. So the anchor is a property of the fixture, and the
+    // asset is staged where the fixture's own index says to look, exactly as the
+    // kept module's i18n bundle is written to the address this fixture's layout
+    // gives it.
+    //
+    // It is a copy and not a rename: the package root's `docs/` travels too, so
+    // a walk rooted at the package (`module-roots.ts` places one by its
+    // `package.json`) still finds it where the real tree has it.
+    //
+    // **`i18n/` is deliberately not staged the same way**, and the consequence
+    // is measured rather than assumed: with the anchor at `src/`,
+    // `check-bundle-pairing` sees 1 module shipping bundles and 70 shipping
+    // none over this tree, which its conditional predicate reports as clean. It
+    // is a blind spot of this fixture and not of that check, it predates this
+    // change, and repairing it belongs with whoever gives the fixture bare
+    // specifiers — doing it here would silently widen a proof nobody asked to
+    // move.
+    const docs = join(pkg.dir, 'docs');
+    if (existsSync(docs)) cpSync(docs, join(staged, 'src', 'docs'), { recursive: true });
   }
 
   // `options.packaged` is a **pool**, not a roster: a candidate this repository

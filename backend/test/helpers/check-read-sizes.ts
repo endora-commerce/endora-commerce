@@ -1073,11 +1073,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // was a page nobody's list mentioned.
     files: 78,
     // The finer population, and it answers a different question: the navigation
-    // entries the committed sidebar names plus the rows the committed map
-    // carries. A page added and not regenerated moves `files` and leaves `sites`
-    // where it was, which is exactly the drift the check refuses; 78 entries (65
-    // module entries, the map's own, and 12 sub-pages) and 71 rows.
-    sites: 149,
+    // entries the committed sidebar names, the rows the committed map carries,
+    // and the relative links a module-owned page writes (R3.7). A page added and
+    // not regenerated moves `files` and leaves the first two where they were,
+    // which is exactly the drift the check refuses; 78 entries (65 module
+    // entries, the map's own, and 12 sub-pages), 71 rows and 45 links.
+    //
+    // **149 -> 194, and the file count did not move at all** — which is the
+    // #235/#237 shape and the reason both numbers are recorded. Phase 2 moved 76
+    // of the 78 pages out of the site's tree and into the packages that own
+    // them; the same pages are read, out of 64 roots instead of one, and the
+    // widening is a *third* population classified for the first time. A run that
+    // moved neither number would have said the move changed nothing, and a run
+    // that moved only `files` would have said pages were written.
+    sites: 194,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**

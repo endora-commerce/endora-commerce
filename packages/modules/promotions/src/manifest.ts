@@ -110,6 +110,7 @@ export const manifest = defineModuleManifest({
    */
   errorCodes: [{ code: 'PROMOTION_INVALID' }],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: PROMOTION_PERMISSIONS.READ, label: 'View promotions' },
     { code: PROMOTION_PERMISSIONS.WRITE, label: 'Create + edit promotions and rules' },

@@ -173,6 +173,7 @@ export const manifest = defineModuleManifest({
   // it has no admin screen of its own — so the directory and this declaration
   // arrive together.
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Feature 047 — admin-editable transactional email owned by this module.
   transactionalEmails: [
     {

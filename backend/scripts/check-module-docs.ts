@@ -53,12 +53,31 @@
  *   * **`unpaired-index-row`** — a module map row naming no registered module, or
  *     a registered module with no row. Both directions, **no ledger**: each is
  *     one regeneration from compliance.
- *   * **`stale-page-alias`** — the two-way half of `PAGES_ATTRIBUTED_BY_ALIAS`
- *     (`lib/module-docs.ts`), which is what lets the four Q2 slugs be attributed
- *     at all. An entry describing no page on disk fails, and so does one whose
- *     slug now names its module directly — the state Q2's rename produces, so the
- *     merge request that renames a page is the one that retires its entry rather
- *     than the merge request after it.
+ *   * **`misowned-page`** — a page a module ships under a **different**
+ *     registered module's slug. Shipper and subject are two questions and this
+ *     is the state where they disagree: a module publishing at an address a
+ *     sibling owns is Constitution I applied to prose, and the same shape
+ *     `check:admin-zones` refuses as `foreign-module-id`. **No ledger**: the two
+ *     remedies — rename the page, or move it to the module that owns the subject
+ *     — are both available in the same merge request, so an entry could only
+ *     license the squat.
+ *   * **`unroutable-page`** — a page with an underscore-prefixed path segment.
+ *     **Docusaurus excludes one from routing by design**: it becomes a
+ *     *partial* for import into another page, generates no route, and cannot be
+ *     found from `sidebars.js` at all. D-200 is the ruling that keeps an
+ *     infrastructure module's leading underscore out of its slug (`_i18n` is
+ *     documented at `i18n`); this is what makes the rule hold for a page nobody
+ *     ran that derivation over. A slug the site will not route is a page this
+ *     check must not report as reachable — `orphan-page` would call it reached,
+ *     because the artefact does name it and only the *build* knows it is a
+ *     partial.
+ *   * **`foreign-module-link`** — a module page linking a **sibling module's**
+ *     page with a relative link (FR-020). A sibling may not be installed in the
+ *     reader's instance, so the link is a page that is not there and
+ *     `onBrokenLinks: 'throw'` is what a client's own docs build would say about
+ *     it. `FOREIGN_MODULE_LINKS` is sharded per consumer module in
+ *     `check:module-boundary`'s shape, two-way, and carries a `sites` count
+ *     where one page reaches one target more than once.
  *
  * ## What it cannot see, stated here rather than discovered later
  *
@@ -80,9 +99,9 @@
  * row, or a manifest artefact its own source has outrun.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   checkEmittedFreshness,
@@ -92,15 +111,17 @@ import {
 import {
   attributeDocs,
   collectDocPages,
+  DeclaredDocsDirectoryMissingError,
   DOCS_SIDEBAR_ARTEFACT,
+  duplicateDocIds,
   MODULE_MAP_ARTEFACT,
   MODULES_CATEGORY,
-  PAGES_ATTRIBUTED_BY_ALIAS,
-  resolveDocsLayout,
+  moduleOfSlug,
+  relativeLinksIn,
+  resolveModuleDocs,
   DocsLayoutUnresolvableError,
   type DocPage,
   type DocsAttribution,
-  type DocsLayout,
 } from './lib/module-docs.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
 import { requireModuleLayout } from './lib/module-roots.js';
@@ -113,7 +134,9 @@ export type ModuleDocsFindingKind =
   | 'orphan-page'
   | 'unlocated-page'
   | 'unpaired-index-row'
-  | 'stale-page-alias';
+  | 'misowned-page'
+  | 'unroutable-page'
+  | 'foreign-module-link';
 
 /**
  * Registered modules that ship no documentation page, each with the reason.
@@ -163,11 +186,107 @@ export const MODULES_WITHOUT_DOCUMENTATION: Readonly<Record<string, string>> = {
  */
 export const PAGES_OUTSIDE_THE_NAVIGATION: Readonly<Record<string, string>> = {};
 
+/**
+ * One relative link a page writes, with both ends resolved.
+ *
+ * `fromModule` is the page's **shipper** — the module whose `docs/` layer the
+ * page came out of — and `toModule` is the module that owns the page the link
+ * names, which is `null` when the target leaves the modules category (a link
+ * into `../operations/runbooks/…` is a link to the site, not to a sibling).
+ */
+export interface PageLink {
+  readonly fromModule: string;
+  readonly fromDocId: string;
+  readonly toModule: string | null;
+  readonly toDocId: string | null;
+  /** The target exactly as the page spells it, for the message. */
+  readonly target: string;
+}
+
+/**
+ * One entry in the foreign-link ledger: a reason, or a reason and a count.
+ *
+ * The plain string means **one** site, and it is omittable for that reason —
+ * `check:module-boundary`'s shape, where 60 of 68 keys covered exactly one
+ * reach. Both stale directions fail: a count below the walk is the link nobody
+ * was asked about, a count above it is the stale entry one granularity down.
+ */
+export type ForeignLinkEntry = string | { readonly sites: number; readonly reason: string };
+
+/** Per consumer module, then per target module. */
+export type ForeignLinkLedger = Readonly<Record<string, Readonly<Record<string, ForeignLinkEntry>>>>;
+
+/** How many sites an entry accounts for. */
+export function sitesOf(entry: ForeignLinkEntry): number {
+  return typeof entry === 'string' ? 1 : entry.sites;
+}
+
+/**
+ * Where the per-consumer foreign-link shards live.
+ *
+ * A directory of shards rather than one record in this file, in
+ * `check:module-boundary`'s shape and for its reason: Phase 2's drain is per
+ * module, so a cut that removes a module's last cross-module link touches that
+ * module's file and nobody else's.
+ */
+const FOREIGN_LINK_LEDGER_ROOT = join(
+  fileURLToPath(new URL('.', import.meta.url)),
+  'ledgers',
+  'foreign-module-links',
+);
+
+/**
+ * Every shard, keyed by consumer module.
+ *
+ * Imported rather than parsed, in `check:module-boundary`'s
+ * {@link loadLedgerShards} shape: the shard is TypeScript, `tsc` holds its
+ * declared entry type, and a second reader that read the file as text would be
+ * a second answer to what the file says. Three refusals, all of them "read
+ * nothing" rather than "found nothing": a directory that is not there, a shard
+ * exporting no `entries`, and an **empty** shard — a done signal that says
+ * nothing is not one, and the file should be deleted instead.
+ */
+export async function loadForeignLinkLedger(
+  directory: string = FOREIGN_LINK_LEDGER_ROOT,
+): Promise<ForeignLinkLedger> {
+  if (!existsSync(directory)) {
+    throw new Error(
+      `the foreign-link ledger directory is not at ${directory} — a two-way ledger whose ` +
+        'shards cannot be read reports every recorded link as retired and every real one as ' +
+        'unledgered; refusing to report on either',
+    );
+  }
+  const ledger: Record<string, Readonly<Record<string, ForeignLinkEntry>>> = {};
+  for (const name of readdirSync(directory).sort()) {
+    if (!name.endsWith('.ts')) continue;
+    const consumer = name.slice(0, -'.ts'.length);
+    const loaded = (await import(pathToFileURL(join(directory, name)).href)) as {
+      entries?: unknown;
+    };
+    const entries = loaded.entries;
+    if (typeof entries !== 'object' || entries === null) {
+      throw new Error(`ledger shard '${consumer}' exports no 'entries' record`);
+    }
+    if (Object.keys(entries).length === 0) {
+      throw new Error(
+        `ledger shard '${consumer}' is empty — delete the file instead. An empty shard is a ` +
+          'done signal that says nothing.',
+      );
+    }
+    ledger[consumer] = entries as Readonly<Record<string, ForeignLinkEntry>>;
+  }
+  return ledger;
+}
+
 /** One module, as the generated index and its manifest describe it. */
 export interface ModuleUnderCheck {
   readonly moduleId: string;
   /** The module's own directory — `dirname(manifestPath)`, absolute. */
   readonly directory: string;
+  /** The module's entry in the generated manifest index. */
+  readonly manifestPath: string;
+  /** What the manifest declares for `docs` — `{ dir }`, `false`, or absent. */
+  readonly declaration: { dir: string } | false | undefined;
   /** `true` when the manifest declares `docs: false`; `false` when it declares nothing. */
   readonly declaresNoDocs: boolean;
 }
@@ -180,6 +299,15 @@ export interface ModuleDocsInput {
   /** Module ids the **committed** module map has a row for. */
   readonly mapRows: readonly string[];
   /**
+   * Every relative link a module-owned page writes, already resolved to the doc
+   * id it names.
+   *
+   * Handed in rather than read here, so a red proof enters at the top of the
+   * analysis (issue #130): the classification below is "does that doc id belong
+   * to a **different** module", which is the predicate the proof has to reach.
+   */
+  readonly links?: readonly PageLink[];
+  /**
    * The two ledgers, injected.
    *
    * They default to this file's own and are parameters so a red proof can enter
@@ -191,6 +319,8 @@ export interface ModuleDocsInput {
   readonly ledgers?: {
     readonly undocumented?: Readonly<Record<string, string>>;
     readonly orphans?: Readonly<Record<string, string>>;
+    /** Per consumer module, then per target module — see {@link ForeignLinkLedger}. */
+    readonly foreignLinks?: ForeignLinkLedger;
   };
 }
 
@@ -328,24 +458,71 @@ export function checkModuleDocs(input: ModuleDocsInput): ModuleDocsResult {
     });
   }
 
-  // — `stale-page-alias`, the two-way half of the attribution declaration.
-  for (const slug of input.attribution.staleAliases) {
+  // — `misowned-page`. No ledger: both remedies (rename the page, or move it to
+  //   the module that owns the subject) are available in the same merge request,
+  //   so an entry could only license the squat.
+  for (const entry of input.attribution.misowned) {
     findings.push({
-      kind: 'stale-page-alias',
-      moduleId: PAGES_ATTRIBUTED_BY_ALIAS[slug]?.moduleId ?? null,
-      key: slug,
-      detail: 'the alias attributes a page that is not on disk',
+      kind: 'misowned-page',
+      moduleId: entry.page.origin.moduleId,
+      key: entry.page.docId,
+      detail:
+        `\`${entry.page.origin.moduleId ?? '?'}\` ships this page and the slug ` +
+        `\`${entry.page.slug}\` names \`${entry.namesModule}\`, so it publishes at an ` +
+        'address a sibling owns',
     });
   }
-  for (const slug of input.attribution.redundantAliases) {
+
+  // — `unroutable-page`. Docusaurus makes an underscore-prefixed file a partial:
+  //   no route, and unfindable from the sidebar. `orphan-page` would call it
+  //   reached, because the artefact does name it and only the build knows.
+  for (const page of input.attribution.unroutable) {
     findings.push({
-      kind: 'stale-page-alias',
-      moduleId: PAGES_ATTRIBUTED_BY_ALIAS[slug]?.moduleId ?? null,
-      key: slug,
+      kind: 'unroutable-page',
+      moduleId: page.origin.moduleId,
+      key: page.docId,
       detail:
-        'the slug now names its module directly, so the alias attributes nothing the fold ' +
-        'would not — delete the entry from PAGES_ATTRIBUTED_BY_ALIAS',
+        'a path segment begins with `_`, which Docusaurus excludes from routing by design — ' +
+        'the page becomes a partial, generates no route, and cannot be found from the sidebar',
     });
+  }
+
+  // — `foreign-module-link`, both directions of its per-consumer ledger.
+  const foreignLedger = input.ledgers?.foreignLinks ?? {};
+  const walked = new Map<string, number>();
+  for (const link of input.links ?? []) {
+    if (link.toModule === null || link.toModule === link.fromModule) continue;
+    const key = `${link.fromModule}:${link.toModule}`;
+    walked.set(key, (walked.get(key) ?? 0) + 1);
+  }
+  for (const [key, sites] of [...walked].sort()) {
+    const [consumer, target] = key.split(':') as [string, string];
+    const entry = foreignLedger[consumer]?.[target];
+    if (entry !== undefined && sitesOf(entry) === sites) continue;
+    findings.push({
+      kind: 'foreign-module-link',
+      moduleId: consumer,
+      key,
+      detail:
+        entry === undefined
+          ? `${sites} relative link(s) into \`${target}\`'s pages — a sibling that may not be ` +
+            "installed in the reader's instance, where the link names a page that is not there"
+          : `the ledger records ${sitesOf(entry)} link(s) into \`${target}\` and the walk ` +
+            `found ${sites}`,
+    });
+  }
+  for (const consumer of Object.keys(foreignLedger).sort()) {
+    for (const target of Object.keys(foreignLedger[consumer] ?? {}).sort()) {
+      if (walked.has(`${consumer}:${target}`)) continue;
+      findings.push({
+        kind: 'foreign-module-link',
+        moduleId: consumer,
+        key: `${consumer}:${target}`,
+        detail:
+          `no page of \`${consumer}\` links \`${target}\` any more — delete the entry from ` +
+          `scripts/ledgers/foreign-module-links/${consumer}.ts`,
+      });
+    }
   }
 
   return { findings, documented, declaringNoDocs };
@@ -365,16 +542,29 @@ const REMEDIES: Readonly<Record<ModuleDocsFindingKind, string>> = {
   'unlocated-page':
     'Attribute the page: name it after the module it documents (a hyphenated slug folds to a ' +
     'snake_case id), move it under that module\'s directory, or move it out of the modules ' +
-    'category entirely if it is not about a module. Where the slug cannot change yet because ' +
-    'its URL is cited, declare the attribution in PAGES_ATTRIBUTED_BY_ALIAS with the reason ' +
-    'and the condition that retires it.',
+    'category entirely if it is not about a module. A page a module **ships** is attributed to ' +
+    'that module whatever its slug says, so this finding is only ever about a page sitting in ' +
+    "the site's own tree with no owner.",
   'unpaired-index-row':
     'The module map is generated from the manifest index. Run ' +
     '`pnpm --filter backend run composer:generate` and commit the artefact.',
-  'stale-page-alias':
-    'PAGES_ATTRIBUTED_BY_ALIAS (`scripts/lib/module-docs.ts`) is two-way: it holds exactly the ' +
-    'pages whose slug does not name their module. Delete the entry the rename retired, or ' +
-    'correct the one whose page moved.',
+  'misowned-page':
+    "Rename the page so its slug names the module that ships it (D-200: the module id, with a " +
+    'leading underscore stripped), or move the page into the module whose subject it is. Both ' +
+    'are available in the same merge request, which is why there is no ledger.',
+  'unroutable-page':
+    'Rename the page so no path segment begins with `_`. Docusaurus reads such a file as a ' +
+    'partial for import into another page: it generates no route and a sidebar entry naming ' +
+    'it cannot be resolved. D-200 is the rule for an infrastructure module — `_i18n` is ' +
+    'documented at `i18n`, `_lifecycle` at `lifecycle`.',
+  'foreign-module-link':
+    "Refer to the sibling by name, or link the module map — a sibling module may not be " +
+    "installed in the reader's instance, and a relative link to a page that is not there fails " +
+    'the build under `onBrokenLinks: \'throw\'`. Where the reference is genuinely load-bearing, ' +
+    'the module declares the dependency in its manifest and the generated reference page carries ' +
+    'the link. The ledger is per consumer module in ' +
+    'scripts/ledgers/foreign-module-links/<module>.ts, two-way, with a `sites` count where one ' +
+    'consumer reaches one target more than once.',
 };
 
 interface LoadedModules {
@@ -388,7 +578,7 @@ async function loadModules(indexPath: string): Promise<LoadedModules> {
     DISCOVERED_MANIFESTS?: ReadonlyArray<{
       id: string;
       manifestPath?: string;
-      manifest?: { docs?: { dir?: string } | false };
+      manifest?: { docs?: { dir: string } | false };
     }>;
   };
   const modules: ModuleUnderCheck[] = [];
@@ -399,6 +589,8 @@ async function loadModules(indexPath: string): Promise<LoadedModules> {
     modules.push({
       moduleId: entry.id,
       directory: entry.manifestPath.replace(/[/\\][^/\\]*$/, ''),
+      manifestPath: entry.manifestPath,
+      declaration: entry.manifest?.docs,
       declaresNoDocs: entry.manifest?.docs === false,
     });
   }
@@ -437,12 +629,8 @@ export function mapRowsIn(source: string, registered: readonly string[]): string
     // the same way the walk folds it, then through the alias declaration, so
     // this reader and the attribution cannot disagree about one row.
     const slug = (href ?? '').replace(/\.mdx?$/, '').replace(/\/index$/, '').split('/')[0] ?? '';
-    const folded = slug.split('-').join('_');
-    if (ids.has(folded)) found.push(folded);
-    else {
-      const alias = PAGES_ATTRIBUTED_BY_ALIAS[slug];
-      if (alias !== undefined) found.push(alias.moduleId);
-    }
+    const named = moduleOfSlug(slug, ids);
+    if (named !== null) found.push(named);
   }
   return [...new Set(found)].sort();
 }
@@ -503,16 +691,71 @@ async function main(): Promise<void> {
   // a moved module tree with "no workspace member holds a Docusaurus
   // configuration", which is true of the fixture and says nothing about the
   // defect.
-  let docs: DocsLayout;
+  // The site's own tree **and** every module's own `docs/` layer, on identical
+  // terms — a module's directory is its fragment of this category, laid out the
+  // way the category lays it out, so one walk reads both and produces the same
+  // doc id for the same page. A **mixed** tree is the supported state, which is
+  // what lets Phase 2 land one batch at a time; `_lifecycle` is the standing
+  // resident of the site half, its manifest resolving inside the platform
+  // package's build output where documentation is not a compiled asset.
+  let resolved: Awaited<ReturnType<typeof resolveModuleDocs>>;
   try {
-    docs = resolveDocsLayout(layout.repoRoot);
+    resolved = await resolveModuleDocs(layout.repoRoot, layout.manifestIndexPath);
   } catch (error: unknown) {
+    // FR-017 — a declared directory that is not on disk is a **refusal**, naming
+    // the module, and never "this module ships no documentation". It is exit 2
+    // rather than 1 because the run cannot see that module's pages at all:
+    // reporting on the rest is #215's short walk, one population over.
     if (error instanceof DocsLayoutUnresolvableError) refuse(error.message);
+    if (error instanceof DeclaredDocsDirectoryMissingError) refuse(error.message);
     throw error;
   }
-
-  const pages = collectDocPages(docs.modulesRoot);
+  const docs = resolved.docs;
+  // The module layers' **copy targets** are what the site walk has to leave
+  // alone: the copies are not committed, but a developer who has run the docs
+  // build has them on disk, and counting them would report every module's page
+  // as claimed by two sources.
+  const pages = [
+    ...collectDocPages(docs.modulesRoot, resolved.copies),
+    ...resolved.modulePages,
+  ].sort((a, b) => a.docId.localeCompare(b.docId));
+  const duplicates = duplicateDocIds(pages);
+  if (duplicates.length > 0) {
+    refuse(
+      `${duplicates.length} documentation page(s) are claimed by two sources:\n` +
+        duplicates
+          .map((entry) => `  - ${entry.docId}\n      ${entry.paths.join('\n      ')}`)
+          .join('\n') +
+        '\nThe copy would write one over the other and whichever ran second would win, so ' +
+        'the page a reader gets would depend on a directory read order.',
+    );
+  }
   const attribution = attributeDocs(pages, loaded.modules.map((module) => module.moduleId));
+
+  // Every relative link a **module-owned** page writes, resolved to the module
+  // that owns the page it names. A page in the site's own tree has no shipper,
+  // so there is no consumer to attribute a link to and no shard to file it in.
+  const ownerOfDocId = new Map<string, string>();
+  for (const module of attribution.documented) {
+    for (const page of [module.entry, ...module.children]) {
+      ownerOfDocId.set(page.docId, module.moduleId);
+    }
+  }
+  const links: PageLink[] = [];
+  for (const module of attribution.documented) {
+    for (const page of [module.entry, ...module.children]) {
+      if (page.origin.kind !== 'module' || page.origin.moduleId === null) continue;
+      for (const link of relativeLinksIn(page, readFileSync(page.path, 'utf8'))) {
+        links.push({
+          fromModule: page.origin.moduleId,
+          fromDocId: page.docId,
+          toModule: link.docId === null ? null : ownerOfDocId.get(link.docId) ?? null,
+          toDocId: link.docId,
+          target: link.target,
+        });
+      }
+    }
+  }
 
   // § 4.4 — the committed sidebar artefact. `orphan-page` compares pages to
   // entries, so zero entries reports every page as an orphan: a finding about
@@ -565,11 +808,20 @@ async function main(): Promise<void> {
     );
   }
 
+  let foreignLinks: ForeignLinkLedger;
+  try {
+    foreignLinks = await loadForeignLinkLedger();
+  } catch (error: unknown) {
+    refuse(String(error instanceof Error ? error.message : error));
+  }
+
   const result = checkModuleDocs({
     modules: loaded.modules,
     attribution,
     navigationEntries,
     mapRows,
+    links,
+    ledgers: { foreignLinks },
   });
 
   if (listMode) {
@@ -585,9 +837,12 @@ async function main(): Promise<void> {
   }
 
   // `files` is the markdown this run opened — every page plus the module map —
-  // and `sites` the finer population it judged: navigation entries plus map rows.
-  // Both, because a widening that moves no file count has to be visible as
-  // having moved something (issues #235/#237).
+  // and `sites` the finer population it judged: navigation entries, map rows and
+  // the relative links a module page writes (R3.7). Both, because a widening
+  // that moves no file count has to be visible as having moved something
+  // (issues #235/#237), and Phase 2 is exactly that widening: the same 78 files,
+  // read out of 64 packages instead of one tree, with a third population — the
+  // links — classified for the first time.
   //
   // `sidebar-entries` is the second author. `manifest-index` is satisfied by a
   // module contributing any file at all and cannot see the artefact going short:
@@ -611,7 +866,7 @@ async function main(): Promise<void> {
   reportReadSize({
     prefix: PREFIX,
     files: pages.length + 1,
-    sites: navigationEntries.length + mapRows.length,
+    sites: navigationEntries.length + mapRows.length + links.length,
     coverage: [
       coverage,
       {

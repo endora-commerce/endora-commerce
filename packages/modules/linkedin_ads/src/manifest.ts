@@ -93,6 +93,7 @@ export const manifest = defineModuleManifest({
   dependencies: ['audit_logs', 'sales_channels', 'settings', 'auth'],
   settings: linkedInAdsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: LINKEDIN_ADS_READ_PERMISSION, label: 'View LinkedIn Ads configuration' },
     {

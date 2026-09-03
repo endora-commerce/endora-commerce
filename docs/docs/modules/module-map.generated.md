@@ -17,8 +17,8 @@ of the platform, not of what happens to be written.
 
 | Module | Capability | Ships from |
 | --- | --- | --- |
-| [Admin UI Languages](./admin-i18n.md) | Admin UI per-user language preference + module-scoped translation bundles | @endora-commerce/mod-i18n |
-| [Module Lifecycle](./module-lifecycle.md) | CLI-driven install / uninstall / enable / disable / status for every backend module + dependency validation + first-boot reconciliation | core |
+| [Admin UI Languages](./i18n.md) | Admin UI per-user language preference + module-scoped translation bundles | @endora-commerce/mod-i18n |
+| [Module Lifecycle](./lifecycle.md) | CLI-driven install / uninstall / enable / disable / status for every backend module + dependency validation + first-boot reconciliation | core |
 | [addresses](./addresses.md) | Customer postal addresses with default-per-kind invariant | @endora-commerce/mod-addresses |
 | [Admin Command Palette Actions](./admin-actions.md) | Module-contributed action registry surfaced in the Admin Command Palette (⌘K Actions group) | @endora-commerce/mod-admin-actions |
 | `admin_notifications` | _no page yet_ | @endora-commerce/mod-admin-notifications |
@@ -43,7 +43,7 @@ of the platform, not of what happens to be written.
 | [customers](./customers.md) | Customer lifecycle over `customer_accounts` — company and personal Organizations, sales-rep assignment and the admin customer surface | @endora-commerce/mod-customers |
 | [delivery_methods](./delivery_methods.md) | Configured delivery options | @endora-commerce/mod-delivery-methods |
 | [DHL Parcel](./dhl_parcel.md) | DHL eCommerce Poland (DHL24) shipping — door-courier and pickup-point adapters, labels and tracking | @endora-commerce/mod-dhl-parcel |
-| [Dictionary](./dictionary/index.md) | Seeded reference data — Countries, Currencies, Languages — with admin reordering | @endora-commerce/mod-dictionaries |
+| [Dictionary](./dictionaries/index.md) | Seeded reference data — Countries, Currencies, Languages — with admin reordering | @endora-commerce/mod-dictionaries |
 | `email` | _no page yet_ | @endora-commerce/mod-email |
 | [Google Analytics](./google-analytics.md) | Google Analytics 4 for the storefront — per-channel Measurement ID, Enhanced Ecommerce, a custom-events builder and optional server-side tagging | @endora-commerce/mod-google-analytics |
 | [Google Tag Manager](./google-tag-manager.md) | Google Tag Manager containers per sales channel, with a documented commerce dataLayer and an optional server-side relay | @endora-commerce/mod-google-tag-manager |

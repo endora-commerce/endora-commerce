@@ -95,6 +95,7 @@ export const manifest = defineModuleManifest({
   dependencies: ['sales_channels', 'settings'],
   settings: googleTagManagerSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   actions: [
     {
       id: 'open-google-tag-manager',

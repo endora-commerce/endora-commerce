@@ -410,6 +410,26 @@ docs_globs=(
   'docs/docs/**/*.mdx'
 )
 
+# The pages **follow the modules** (feature 100 Phase 2, FR-018). 76 of the 78
+# module pages now live in the `docs/` layer of the package that owns them, and
+# a population still spelled `docs/docs/**` would have read the two that stayed
+# and reported a clean tick over the rest — issue #215's shape, arriving through
+# a move nobody would connect to this file.
+#
+# The roots are the module directories the index resolved, never a path written
+# down: a module that becomes a package is followed, and the directory name it
+# keeps its pages under is the manifest's to choose.
+#
+# **The copies exclude themselves.** `git ls-files --others --exclude-standard`
+# is the listing, and the copies under `docs/docs/modules/` are git-ignored, so
+# a developer who has run the site build has them on disk and this scan does not
+# see them. A finding therefore lands on the page an author can edit, never on
+# an artefact — which is the whole of FR-018's second clause, and it costs no
+# exclusion rule that could go stale.
+for module_dir in "${module_dirs[@]}"; do
+  docs_globs+=("$module_dir/**/*.md" "$module_dir/**/*.mdx")
+done
+
 if [[ "$listing" == "diff" ]]; then
   mapfile -t docs_files < <(
     git diff --name-only --diff-filter=ACMR "$base_ref"...HEAD -- "${docs_globs[@]}" 2>/dev/null \

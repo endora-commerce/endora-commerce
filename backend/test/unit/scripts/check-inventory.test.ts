@@ -116,9 +116,11 @@ import {
   checkModuleDocs,
   mapRowsIn,
   navigationEntriesIn,
+  type ForeignLinkLedger,
   type ModuleDocsFindingKind,
+  type PageLink,
 } from '../../../scripts/check-module-docs.js';
-import { attributeDocs } from '../../../scripts/lib/module-docs.js';
+import { attributeDocs, relativeLinksIn } from '../../../scripts/lib/module-docs.js';
 import {
   createModuleDocsFixture,
   mapArtefactNaming,
@@ -2950,6 +2952,61 @@ const MODULE_DOCS_COMPLIANT: {
 };
 
 /**
+ * A tree in which one module's page links a sibling module's page (FR-020).
+ *
+ * Both pages are **module-owned**, because that is what makes the link a
+ * cross-package reach: a sibling that may not be installed in the reader's
+ * instance, where the link names a page that is not there.
+ */
+const MODULE_DOCS_SIBLING_LINK = {
+  modules: [
+    {
+      id: 'catalog',
+      docs: [
+        {
+          path: 'catalog.md',
+          frontMatter: { title: 'Catalog' },
+          body: 'See [blog](./blog/index.md).',
+        },
+      ],
+    },
+    { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+  ],
+  pages: [],
+  rows: [
+    { moduleId: 'catalog', slug: 'catalog' },
+    { moduleId: 'blog', slug: 'blog' },
+  ],
+} as const;
+
+/**
+ * The links a fixture's module-owned pages write, resolved as a real run
+ * resolves them — the reader under test producing the proof's population.
+ */
+function moduleDocsLinks(fixture: ReturnType<typeof createModuleDocsFixture>): PageLink[] {
+  const owner = new Map<string, string>();
+  for (const page of fixture.pages) {
+    if (page.origin.kind === 'module' && page.origin.moduleId !== null) {
+      owner.set(page.docId, page.origin.moduleId);
+    }
+  }
+  const links: PageLink[] = [];
+  for (const page of fixture.pages) {
+    if (page.origin.kind !== 'module' || page.origin.moduleId === null) continue;
+    for (const link of relativeLinksIn(page, readFileSync(page.path, 'utf8'))) {
+      links.push({
+        fromModule: page.origin.moduleId,
+        fromDocId: page.docId,
+        toModule: link.docId === null ? null : owner.get(link.docId) ?? null,
+        toDocId: link.docId,
+        target: link.target,
+      });
+    }
+  }
+  return links;
+}
+
+/**
  * `check-module-docs` over a real documentation tree, for findings of exactly
  * one kind — so no signal goes blind behind another's red.
  *
@@ -2969,10 +3026,11 @@ function moduleDocsFindings(
     pages?: readonly FixturePage[];
     navigation?: readonly string[];
     rows?: readonly { moduleId: string; slug?: string | undefined }[];
-    aliases?: Readonly<Record<string, { moduleId: string; reason: string }>>;
+    links?: readonly PageLink[];
     ledgers?: {
       undocumented?: Readonly<Record<string, string>>;
       orphans?: Readonly<Record<string, string>>;
+      foreignLinks?: ForeignLinkLedger;
     };
   },
   kind: ModuleDocsFindingKind,
@@ -2984,7 +3042,6 @@ function moduleDocsFindings(
     const attribution = attributeDocs(
       fixture.pages,
       modules.map((module) => module.id),
-      options.aliases ?? {},
     );
     const navigation =
       options.navigation ??
@@ -3005,7 +3062,8 @@ function moduleDocsFindings(
         mapArtefactNaming(rows),
         modules.map((module) => module.id),
       ),
-      ledgers: { undocumented: {}, orphans: {}, ...options.ledgers },
+      links: options.links ?? moduleDocsLinks(fixture),
+      ledgers: { undocumented: {}, orphans: {}, foreignLinks: {}, ...options.ledgers },
     }).findings.filter((finding) => finding.kind === kind).length;
   } finally {
     fixture.cleanup();
@@ -3420,13 +3478,20 @@ const CHECKS: readonly CheckEntry[] = [
     // itself perfectly while eight written pages are reachable from no
     // navigation. That was the tree on 2026-09-03.
     //
-    // Six proofs — one per finding kind, both stale directions of the two
-    // ledgers, and the discrimination the whole `undocumented-module` predicate
-    // turns on. Each enters over a **documentation tree on disk** plus the two
-    // committed artefacts as **text**: the analysis is a directory walk, a
-    // front-matter parse, a slug fold, an alias lookup and two literal-node
-    // artefact readers, and a fixture handing in attributions would prove the
-    // reporter and leave every one of them unproven (issue #130).
+    // One proof per finding kind, both stale directions of every ledger that
+    // carries one, and the discrimination the whole `undocumented-module`
+    // predicate turns on. Each enters over a **documentation tree on disk** plus
+    // the two committed artefacts as **text**: the analysis is a directory walk,
+    // a front-matter parse, a slug fold, a shipper attribution, a link resolver
+    // and two literal-node artefact readers, and a fixture handing in
+    // attributions would prove the reporter and leave every one of them
+    // unproven (issue #130).
+    //
+    // **Phase 2 moved the pages into the modules that own them**, so the
+    // fixture now writes a module's `docs/` layer as well as the site's tree —
+    // which is what lets a proof reach the three findings that only exist for a
+    // module-owned page: publishing under a sibling's slug, a slug the site
+    // will not route, and a relative link into a sibling's pages.
     script: 'backend/scripts/check-module-docs.ts',
     npmScript: 'check:module-docs',
     job: 'quality',
@@ -3488,13 +3553,59 @@ const CHECKS: readonly CheckEntry[] = [
           'unpaired-index-row',
         ),
       ),
-      // The attribution declaration's own two-way half. An alias is what lets
-      // the four slugs that name no module be attributed at all, so a stale one
-      // silently attributes a page that is not there.
-      'stale-page-alias': top(() =>
+      // Shipper and subject disagree — `catalog` publishing at `blog`'s
+      // address. Attribution stays the shipper's, so the finding is the only
+      // thing that makes the squat visible.
+      'misowned-page': top(() =>
         moduleDocsFindings(
-          { aliases: { gone: { moduleId: 'catalog', reason: 'the page has moved.' } } },
-          'stale-page-alias',
+          {
+            modules: [
+              { id: 'catalog', docs: [{ path: 'blog.md', frontMatter: { title: 'Catalog' } }] },
+              { id: 'blog', docs: [{ path: 'blog-2.md', frontMatter: { title: 'Blog' } }] },
+            ],
+            pages: [],
+            rows: [
+              { moduleId: 'catalog', slug: 'blog' },
+              { moduleId: 'blog', slug: 'blog-2' },
+            ],
+          },
+          'misowned-page',
+        ),
+      ),
+      // A page Docusaurus makes a **partial**: no route, unfindable from the
+      // sidebar. `orphan-page` calls it reached, because the artefact names it
+      // and only the build knows it generates nothing (D-200).
+      'unroutable-page': top(() =>
+        moduleDocsFindings(
+          {
+            modules: [
+              { id: 'catalog', docs: [{ path: '_catalog.md', frontMatter: { title: 'C' } }] },
+            ],
+            pages: [],
+            rows: [{ moduleId: 'catalog', slug: '_catalog' }],
+          },
+          'unroutable-page',
+        ),
+      ),
+      // FR-020 — a relative link into a sibling module's page, which is a page
+      // that is not there in an instance that did not install the sibling.
+      // Both directions of the per-consumer ledger, because a recorded link the
+      // walk no longer finds is the entry the draining batch cannot see.
+      'foreign-module-link:unledgered': top(() =>
+        moduleDocsFindings(MODULE_DOCS_SIBLING_LINK, 'foreign-module-link'),
+      ),
+      'foreign-module-link:stale': top(() =>
+        moduleDocsFindings(
+          {
+            ...MODULE_DOCS_SIBLING_LINK,
+            ledgers: {
+              foreignLinks: {
+                catalog: { blog: 'FR-020.' },
+                blog: { catalog: 'FR-020 — a link nobody writes any more.' },
+              },
+            },
+          },
+          'foreign-module-link',
         ),
       ),
       'declaration-discriminates-false-from-absent': top(() =>
@@ -8610,12 +8721,21 @@ describe('every red proof enters at the top of the analysis', () => {
       // read: if it goes green on an R1-only implementation, R2 was folded into
       // R1 and the clause R1 cannot state was lost.
       'backend/scripts/check-module-boundary.ts': 74,
-      // Five findings, both stale directions of the two ledgers that carry a
-      // stale direction, and the discrimination `undocumented-module` turns on:
-      // `docs: false` is a decision and an absent declaration is not, one field
-      // apart, and collapsing them makes either every infrastructure module a
-      // finding or every undocumented one exempt.
-      'backend/scripts/check-module-docs.ts': 8,
+      // Seven findings, both stale directions of the ledgers that carry one, and
+      // the discrimination `undocumented-module` turns on: `docs: false` is a
+      // decision and an absent declaration is not, one field apart, and
+      // collapsing them makes either every infrastructure module a finding or
+      // every undocumented one exempt.
+      //
+      // **8 -> 11 with Phase 2**, and the arithmetic is worth reading because
+      // one proof left. `stale-page-alias` went with the alias table D-200
+      // retired — the rule is now a derivation, so there is no entry to go
+      // stale — and four arrived: `misowned-page`, `unroutable-page` (D-200's
+      // own refusal: a slug Docusaurus will not route is a page no check may
+      // call reachable), and **both** directions of `foreign-module-link`'s
+      // per-consumer ledger, because the direction a draining batch cannot see
+      // is the recorded link the walk no longer finds.
+      'backend/scripts/check-module-docs.ts': 11,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue

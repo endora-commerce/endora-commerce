@@ -134,6 +134,7 @@ export const manifest = defineModuleManifest({
     { code: 'CMS_TEMPLATE_NOT_FOUND' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   settings,
   permissions: [
     { code: 'cms.read', label: 'View CMS content' },

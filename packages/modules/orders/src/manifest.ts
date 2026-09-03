@@ -611,6 +611,7 @@ export const manifest = defineModuleManifest({
     reason: 'The order is the transaction this platform exists to record.',
   },
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Feature 047 — transactional emails owned by this module. Default subject +
   // content are registered at runtime via the EmailDefaultsRegistry.
   transactionalEmails: [

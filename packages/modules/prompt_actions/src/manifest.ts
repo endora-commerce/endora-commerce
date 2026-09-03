@@ -133,6 +133,7 @@ export const manifest = defineModuleManifest({
   // starts talking to an LLM because of this.
   activation: { settingCode: PROMPT_ACTIONS_SETTING_CODES.ACTIVATION, default: true },
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   /**
    * The `ASSISTANT_*` and `PROMPT_*` codes — D-129's remaining sweep, Tier A
    * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;

@@ -377,11 +377,25 @@ export function classifyDocEntry(
   entry: string,
   contentRoot: string,
   roots: PermittedRoots,
+  // Feature 100 Phase 2 — where the page a site path names actually **lives**.
+  //
+  // A module-owned page is copied into the site's tree at build time and the
+  // copy is not committed, so on a fresh checkout the file this entry names is
+  // not there and the entry would read `foreign` — a verdict about the copy
+  // step, said of an artefact that is exactly right. The map answers the
+  // question containment is actually asking: **whose file is this**. That is
+  // also why `docs-registry.md` R2.3 says "this repository's docs tree **or
+  // under a workspace package**" — a module's page is contained where the
+  // module is, and an installed package's page is `foreign` for the same reason
+  // an installed package's module is.
+  sources: ReadonlyMap<string, string> = new Map(),
 ): ContainmentSite {
   const candidates = entry.startsWith('.')
     ? [resolve(dirname(artifact), entry)]
     : docIdCandidates(contentRoot, entry);
-  const found = candidates.find((candidate) => existsSync(candidate));
+  const found =
+    candidates.map((candidate) => sources.get(candidate)).find((source) => source !== undefined) ??
+    candidates.find((candidate) => existsSync(candidate));
   if (found === undefined) {
     return {
       artifact,
@@ -455,7 +469,7 @@ export function containmentSites(
 ): ContainmentSite[] {
   if (entries.kind === 'doc-id') {
     return docEntries(content).map((entry) =>
-      classifyDocEntry(outputPath, entry, entries.root, roots),
+      classifyDocEntry(outputPath, entry, entries.root, roots, entries.sources),
     );
   }
   return content
@@ -468,15 +482,21 @@ export function containmentSites(
 /** How one artefact names its entries, and what a bare one resolves against. */
 export type ArtifactEntrySource =
   | { readonly kind: 'specifier' }
-  | { readonly kind: 'doc-id'; readonly root: string };
+  | {
+      readonly kind: 'doc-id';
+      readonly root: string;
+      /** Copy target -> the module source it is copied from. See {@link classifyDocEntry}. */
+      readonly sources?: ReadonlyMap<string, string>;
+    };
 
 /** The entry source an artefact declares, defaulting to the pre-feature-100 one. */
 export function entrySourceOf(artefact: {
   entryKind?: 'specifier' | 'doc-id';
   entryRoot?: string;
+  entrySources?: ReadonlyMap<string, string>;
 }): ArtifactEntrySource {
   if (artefact.entryKind === 'doc-id' && artefact.entryRoot !== undefined) {
-    return { kind: 'doc-id', root: artefact.entryRoot };
+    return { kind: 'doc-id', root: artefact.entryRoot, sources: artefact.entrySources ?? new Map() };
   }
   return { kind: 'specifier' };
 }

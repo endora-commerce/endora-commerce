@@ -2,7 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { collectDocPages } from '../../scripts/lib/module-docs.js';
+import {
+  collectDocPages,
+  collectModuleDocPages,
+  type DocPage,
+  type ModuleDocsSource,
+} from '../../scripts/lib/module-docs.js';
 import type { ModuleUnderCheck } from '../../scripts/check-module-docs.js';
 
 /**
@@ -43,6 +48,22 @@ export interface FixtureModuleDocs {
   readonly id: string;
   /** `true` writes `docs: false` into the record — the deliberate-none state. */
   readonly declaresNoDocs?: boolean;
+  /**
+   * Pages the module ships in its **own** `docs/` layer, laid out as its
+   * fragment of the modules category.
+   *
+   * A module with this declares `docs: { dir: 'docs' }`; one without declares
+   * nothing, which is the site-tree state. The two together are the mixed tree
+   * the check is written to accept, and writing both to disk is what keeps a
+   * red proof entering at the top of the analysis: the walk, the fold and the
+   * shipper attribution all run over real files.
+   */
+  readonly docs?: readonly FixturePage[];
+  /**
+   * A declared directory this fixture deliberately does **not** create —
+   * FR-017's "declared and absent", which must not read as "ships none".
+   */
+  readonly declaresMissingDocs?: boolean;
 }
 
 export interface ModuleDocsFixture {
@@ -52,8 +73,10 @@ export interface ModuleDocsFixture {
   readonly modulesRoot: string;
   /** What the generated index would hand the check over this tree. */
   readonly modules: readonly ModuleUnderCheck[];
-  /** The pages the real walk produces over the tree just written. */
-  readonly pages: ReturnType<typeof collectDocPages>;
+  /** The pages the real walk produces over the tree just written — both roots. */
+  readonly pages: readonly DocPage[];
+  /** The module-owned layers the walk was pointed at. */
+  readonly sources: readonly ModuleDocsSource[];
   cleanup: () => void;
 }
 
@@ -82,15 +105,39 @@ export function createModuleDocsFixture(
     );
   }
 
+  const sources: ModuleDocsSource[] = [];
   const records: ModuleUnderCheck[] = modules.map((module) => {
     // A module directory with a manifest, because the record below claims one
     // is there and every consumer takes `dirname` of it.
     const directory = join(root, 'modules', module.id);
     mkdirSync(directory, { recursive: true });
-    writeFileSync(join(directory, 'manifest.ts'), 'export const manifest = {};\n', 'utf8');
+    const manifestPath = join(directory, 'manifest.ts');
+    writeFileSync(manifestPath, 'export const manifest = {};\n', 'utf8');
+    const declaration =
+      module.declaresNoDocs === true
+        ? (false as const)
+        : module.docs !== undefined || module.declaresMissingDocs === true
+          ? { dir: 'docs' }
+          : undefined;
+    if (module.docs !== undefined) {
+      const docsRoot = join(directory, 'docs');
+      mkdirSync(docsRoot, { recursive: true });
+      for (const page of module.docs) {
+        const target = join(docsRoot, page.path);
+        mkdirSync(join(target, '..'), { recursive: true });
+        writeFileSync(
+          target,
+          `${frontMatterBlock(page.frontMatter ?? {})}# ${page.path}\n\n${page.body ?? 'Prose.'}\n`,
+          'utf8',
+        );
+      }
+      sources.push({ moduleId: module.id, root: docsRoot });
+    }
     return {
       moduleId: module.id,
       directory,
+      manifestPath,
+      declaration,
       declaresNoDocs: module.declaresNoDocs === true,
     };
   });
@@ -99,7 +146,10 @@ export function createModuleDocsFixture(
     contentRoot,
     modulesRoot,
     modules: records,
-    pages: collectDocPages(modulesRoot),
+    pages: [...collectDocPages(modulesRoot), ...collectModuleDocPages(sources)].sort((a, b) =>
+      a.docId.localeCompare(b.docId),
+    ),
+    sources,
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 }

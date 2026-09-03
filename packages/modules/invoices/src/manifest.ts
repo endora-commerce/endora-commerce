@@ -154,6 +154,7 @@ export const manifest = defineModuleManifest({
   ],
   settings: invoicesSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Feature 047 — admin-editable transactional email owned by this module.
   transactionalEmails: [
     {

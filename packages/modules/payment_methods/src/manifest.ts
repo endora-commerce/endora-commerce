@@ -102,6 +102,7 @@ export const manifest = defineModuleManifest({
   // which is the intended meaning of switching a payment catalog off.
   activation: { settingCode: 'payment_methods.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Feature 076 (D-83 item 8) — a standing Principle XVI gap, closed here
   // because this change is what starts sending operators to `/payment-methods`
   // from four gateway screens. The module owned a real admin route and declared
