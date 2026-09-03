@@ -1,5 +1,6 @@
 ---
 title: search
+description: Meilisearch indexer + query bridge
 ---
 
 # `search`

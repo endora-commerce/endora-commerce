@@ -1,5 +1,6 @@
 ---
 title: languages
+description: Pool of supported BCP-47 language tags + translation-fallback helper
 ---
 
 # `languages`

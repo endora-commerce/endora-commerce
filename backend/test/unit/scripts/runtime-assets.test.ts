@@ -7,6 +7,7 @@ import {
   auditBuiltBundles,
   bundleModulesUnder,
   builtBundlesPathOf,
+  classifyAssetFile,
   collectRuntimeAssets,
   copyRuntimeAssets,
   describeBundleFinding,
@@ -125,6 +126,26 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
     for (const reason of Object.values(NON_RUNTIME_EXTENSIONS)) {
       expect(reason.length).toBeGreaterThan(20);
     }
+  });
+
+  it("says why `.md` stays out now that something does open one (feature 100)", () => {
+    // The classification is unchanged and its **reason** was re-ruled, which is
+    // the whole of feature 100's FR-021. It used to read "no code opens one";
+    // a module can now ship its own documentation and the site generator opens
+    // exactly that. `.md` stays `ignored` because documentation is a
+    // package-root layer located by the platform — `i18n/`'s mechanism, whose
+    // files this walk has never seen either — and not because nobody reads it.
+    //
+    // Asserted rather than left to a reviewer because the exit-1 case below is
+    // "an asset kind nobody has ruled on": the reason string *is* the ruling,
+    // and a ruling that has quietly gone false is one nobody can check. This is
+    // the assertion that would have gone red on the day the old sentence
+    // stopped being true.
+    expect(classifyAssetFile('index.md')).toBe('ignored');
+    expect(classifyAssetFile('index.mdx')).toBe('unclassified');
+    const reason = NON_RUNTIME_EXTENSIONS['.md'];
+    expect(reason).toContain('package root');
+    expect(reason).not.toContain('no code opens one');
   });
 
   it('reports an extension it has no ruling for instead of dropping it', () => {

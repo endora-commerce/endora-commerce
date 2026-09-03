@@ -1,5 +1,6 @@
 ---
 title: invoices
+description: PDF invoice / proforma generation + asset linkage
 ---
 
 # `invoices`

@@ -65,6 +65,43 @@ export const ModuleI18nManifestSchema = z.object({
 export type ModuleI18nManifest = z.infer<typeof ModuleI18nManifestSchema>;
 
 /**
+ * Per-module documentation declaration (feature 100 / roadmap F12).
+ *
+ * The same shape as {@link ModuleI18nManifestSchema} and for the same reason: a
+ * directory at the **package root**, in the package's `files` list, with no
+ * `exports` subpath, located by joining `dir` to `dirname(manifestPath)`. The
+ * anchor is the platform's, so nothing in the module names a package, a
+ * repository root or a build directory in order to find its own pages
+ * (`specs/100-module-owned-documentation/contracts/module-documentation-layer.md`
+ * R2.1–R2.3).
+ *
+ * A declared directory that is not on disk is a **refusal**, naming the module —
+ * never "this module ships no documentation". That distinction is the whole of
+ * the repair `backend/src/manifest-locations.ts` was written for: the `_i18n`
+ * boot reconciler logs and skips an absent bundles directory, so a packaged
+ * module rendered every palette entry as a raw key with no error anywhere.
+ */
+export const ModuleDocsManifestSchema = z.object({
+  /** The directory, relative to the module's own root. */
+  dir: z.string().min(1).default('docs'),
+});
+export type ModuleDocsManifest = z.infer<typeof ModuleDocsManifestSchema>;
+
+/**
+ * `docs: false` — this module ships no documentation, deliberately.
+ *
+ * **Absent and `false` are not the same state**, and the documentation check
+ * distinguishes them: absent is a module nobody has decided about, `false` is a
+ * decision. The argument is `check:bundle-pairing`'s, one population over — a
+ * universal obligation over a population where some members legitimately owe
+ * nothing is repaired by empty files whose only effect is to make a check pass.
+ * Some modules are infrastructure other modules consume and may honestly
+ * document nothing.
+ */
+export const ModuleDocsDeclarationSchema = z.union([ModuleDocsManifestSchema, z.literal(false)]);
+export type ModuleDocsDeclaration = z.infer<typeof ModuleDocsDeclarationSchema>;
+
+/**
  * Operator-activation declaration — feature 073, Constitution XVII.
  *
  * The second of the two orthogonal presence axes. Platform availability lives
@@ -325,6 +362,16 @@ export const ModuleManifestSchema = z.object({
    * from `<bundlesDir>` into the platform's `translation_bundles` store.
    */
   i18n: ModuleI18nManifestSchema.optional(),
+  /**
+   * Per-module documentation declaration (feature 100 / roadmap F12).
+   *
+   * `{ dir }` — the module ships its pages at that directory under its own
+   * root; `false` — it ships none, deliberately; **absent** — nobody has
+   * decided, which is where every module stands in Phase 1 while the pages are
+   * still in the site's own tree. See {@link ModuleDocsDeclarationSchema} for
+   * why the last two are not one state.
+   */
+  docs: ModuleDocsDeclarationSchema.optional(),
   /**
    * Per-module Admin Command Palette action declarations (feature 020).
    * Each entry becomes a row in `module_actions` at install time and is

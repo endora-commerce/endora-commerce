@@ -1,5 +1,6 @@
 ---
 title: newsletter
+description: Own-infrastructure newsletter — subscriber list, tags, segments, one-off campaigns and multi-step automations with per-channel opt-in
 ---
 
 # `newsletter`

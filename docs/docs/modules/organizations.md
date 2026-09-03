@@ -1,5 +1,6 @@
 ---
 title: organizations
+description: Customer Organizations, registration, invitations
 ---
 
 # `organizations`

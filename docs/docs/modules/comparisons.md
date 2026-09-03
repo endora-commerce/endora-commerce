@@ -1,5 +1,6 @@
 ---
 title: Compare Products
+description: 'Compare Products: customer-curated set with display modes, share link, and PDF export'
 ---
 
 # Compare Products

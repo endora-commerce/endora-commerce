@@ -1,5 +1,6 @@
 ---
 title: credit_limits
+description: Credit-limit grant + atomic reservation
 ---
 
 # `credit_limits`

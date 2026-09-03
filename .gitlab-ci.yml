@@ -396,6 +396,18 @@ quality:
     # scheduled for mass production — six were found across three batches before
     # this check existed.
     - pnpm --filter backend run check:doc-snippets
+    # `specs/100-module-owned-documentation/` — the documentation navigation
+    # describes the modules the platform composes. `overlay:check` asks whether
+    # each artefact is what the generator would emit; this asks whether the
+    # generator is looking at everything it should, which is a different
+    # question and the one that was wrong: a generator emitting a correct
+    # sidebar for the 62 modules it could see agreed with itself perfectly while
+    # eight written pages were reachable from no navigation, 23 registered
+    # modules had no map row and four page slugs named no module. Nothing in the
+    # repository could see any of it, because the one instrument that could —
+    # Docusaurus's own `checkSidebarsDocIds` — ran in a build that existed in no
+    # CI job. `build:docs` below is that half.
+    - pnpm --filter backend run check:module-docs
     # Principle VIII — an error code the operator can see has a sentence, in both
     # shipped languages. The envelope replaces the message wholesale with the
     # bundle string, so a missing key renders the raw code and nothing reports it:
@@ -1343,6 +1355,66 @@ boot-gate:
         - scripts/boot-gate.sh
         - scripts/lib/boot-gate-assert.sh
         - deploy/compose.prod.yml
+        - .gitlab-ci.yml
+
+# ---------------------------------------------------------------------------
+# Docs — build the Docusaurus site
+# ---------------------------------------------------------------------------
+#
+# `specs/100-module-owned-documentation/` FR-014, and it is in Phase 1 rather
+# than a follow-up because a generated sidebar that nothing builds is a
+# generated file nobody validates.
+#
+# It is the acceptance instrument for two things no other job in this pipeline
+# can see:
+#
+#   * Docusaurus's own `checkSidebarsDocIds` — a sidebar entry naming no page,
+#     which throws *"These sidebar document ids do not exist"*
+#     (`@docusaurus/plugin-content-docs/lib/sidebars/utils.js`);
+#   * `onBrokenLinks: 'throw'` — a relative link to a page that moved. Phase 2
+#     moves 78 pages and renames four slugs whose URLs are cited by other pages
+#     and by specs, so this is what makes a rename reviewable.
+#
+# Measured before it existed: `.gitlab-ci.yml` declared `build:backend`,
+# `build:storefront` and `build:admin` and no docs job, `.backend-test-rules`
+# rung 2 skips the backend suite for a documentation-only diff (deliberately and
+# correctly), and `pnpm -r run typecheck` does not read `sidebars.js` — its
+# `// @ts-check` header is inert, because `@docusaurus/tsconfig` sets no
+# `allowJs` and the file is in no program. So the one direction Docusaurus does
+# enforce was enforced by a build that ran on a developer's machine and nowhere
+# else.
+#
+# It is **not** a `check-*` script and must not become one:
+# `test/unit/scripts/check-read-size.test.ts` spawns every one of those, and a
+# Docusaurus build inside a unit run is not a test.
+#
+# `stage: test` rather than `build`, because `build` runs only on the default
+# branch and this has to fail on the merge request that breaks a link. The
+# `changes:` list is what the site is made of: its own tree, the generated
+# sidebar fragment, and the generator that writes it.
+build:docs:
+  stage: test
+  image: node:22.17-slim
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    # The site imports no `@endora-commerce/*` package today, and this stays
+    # anyway: it is the uniform rule for every job that runs a workspace script,
+    # and Phase 2 makes the site's own tree depend on the module packages'
+    # `docs/` layers. A job that is the exception until the day it silently is
+    # not is the shape this repository keeps paying for.
+    - pnpm run build:packages
+  script:
+    - pnpm --filter docs run build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - docs/**/*
+        - packages/modules/*/docs/**/*
+        - backend/scripts/generate-composer.ts
+        - packages/cli/src/lib/module-docs.ts
+        - pnpm-lock.yaml
         - .gitlab-ci.yml
 
 # ---------------------------------------------------------------------------

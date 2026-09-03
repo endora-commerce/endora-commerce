@@ -1,5 +1,6 @@
 ---
 title: auth
+description: Customer + admin sessions, password hashing, TOTP
 ---
 
 # `auth`

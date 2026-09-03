@@ -1,6 +1,7 @@
 ---
 title: Dictionary
 sidebar_position: 1
+description: Seeded reference data — Countries, Currencies, Languages — with admin reordering
 ---
 
 # Dictionary

@@ -1,5 +1,6 @@
 ---
 title: carts
+description: Customer shopping cart with anonymous→logged-in merge
 ---
 
 # `carts`

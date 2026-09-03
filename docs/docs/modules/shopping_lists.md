@@ -1,5 +1,6 @@
 ---
 title: shopping_lists
+description: Per-customer named bundles convertible to Cart or RFQ
 ---
 
 # `shopping_lists`

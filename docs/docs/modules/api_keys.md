@@ -1,5 +1,6 @@
 ---
 title: api_keys
+description: Bearer-token integration credentials
 ---
 
 # `api_keys`

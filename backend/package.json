@@ -33,6 +33,7 @@
     "check:kernel-boundary": "tsx scripts/check-kernel-boundary.ts",
     "check:lock-claims": "tsx scripts/check-lock-claims.ts",
     "check:module-boundary": "tsx scripts/check-module-boundary.ts",
+    "check:module-docs": "tsx scripts/check-module-docs.ts",
     "check:nul-bytes": "tsx scripts/check-nul-bytes.ts",
     "check:off-state-coverage": "tsx scripts/check-off-state-coverage.ts",
     "check:platform-surface": "tsx scripts/check-platform-surface.ts",

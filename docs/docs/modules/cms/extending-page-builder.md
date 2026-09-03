@@ -1,4 +1,5 @@
 ---
+title: Extending the Page Builder
 sidebar_position: 2
 ---
 

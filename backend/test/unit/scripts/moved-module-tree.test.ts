@@ -71,6 +71,14 @@ const CHECKS: readonly MovedTreeCheck[] = [
   // fixture keeps, read its bundles, and report a clean tree with 68 modules
   // unjudged. The floor is per module and refuses instead.
   { script: 'check-bundle-pairing.ts', args: [], prefix: '[bundle-pairing]' },
+  // `specs/100-module-owned-documentation/`. Its module walk is
+  // `check:bundle-pairing`'s — each registered module's own directory — so the
+  // residue shape is the same: over a moved tree the index still registers 71
+  // modules, none of their directories is there, and the documentation tree is
+  // untouched, so a check asking "did I read any page?" would read all 77, find
+  // every one of them attributed and reachable, and print a clean line over a
+  // platform whose modules it could not see.
+  { script: 'check-module-docs.ts', args: [], prefix: '[module-docs]' },
   // `specs/094-translation-boundary/`. An ordinary module file walk, and it is
   // the shape #215 was written about: `backend/src` without the module tree is
   // a few per cent of the literals, all of them the platform's own and every one

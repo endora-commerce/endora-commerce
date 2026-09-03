@@ -1,5 +1,6 @@
 ---
 title: customer_accounts
+description: Customer login, password reset, 2FA, role assignment
 ---
 
 # `customer_accounts`

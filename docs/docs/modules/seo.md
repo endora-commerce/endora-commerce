@@ -1,5 +1,6 @@
 ---
 title: seo
+description: Meta-tag resolver + cached XML sitemap
 ---
 
 # `seo`

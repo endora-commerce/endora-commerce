@@ -1,5 +1,6 @@
 ---
 title: transactional_emails
+description: Admin-editable transactional emails — subject, content and look, globally and per sales channel
 ---
 
 # `transactional_emails`

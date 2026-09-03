@@ -1,5 +1,7 @@
 ---
 title: catalog
+sidebar_label: Catalog
+description: Products, variants, categories, attributes, sales channels
 ---
 
 # `catalog`

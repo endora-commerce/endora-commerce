@@ -1,5 +1,7 @@
 ---
+title: Blog
 sidebar_position: 16
+description: Editorial Posts with Page Builder bodies, taxonomy (Categories + Tags), and storefront feeds
 ---
 
 # Blog

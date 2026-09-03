@@ -1,5 +1,6 @@
 ---
 title: Admin Command Palette Actions
+description: Module-contributed action registry surfaced in the Admin Command Palette (⌘K Actions group)
 ---
 
 # Admin Command Palette Actions

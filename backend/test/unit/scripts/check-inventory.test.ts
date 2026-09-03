@@ -112,6 +112,20 @@ import {
   type VacuousInput as OffStateVacuousInput,
   type VacuousReasonKind as OffStateVacuousReasonKind,
 } from '../../../scripts/check-off-state-coverage.js';
+import {
+  checkModuleDocs,
+  mapRowsIn,
+  navigationEntriesIn,
+  type ModuleDocsFindingKind,
+} from '../../../scripts/check-module-docs.js';
+import { attributeDocs } from '../../../scripts/lib/module-docs.js';
+import {
+  createModuleDocsFixture,
+  mapArtefactNaming,
+  sidebarArtefactNaming,
+  type FixtureModuleDocs,
+  type FixturePage,
+} from '../../helpers/module-docs-fixture.js';
 import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
 import {
   checkAdminSurface,
@@ -142,6 +156,7 @@ import {
 import {
   compareArtifact,
   containmentSites,
+  docEntries,
   examineArtifact,
   permittedRoots,
   vacuousContainmentPopulation,
@@ -2147,6 +2162,97 @@ function foreignSpecifiers(content: string): string[] {
 }
 
 /**
+ * The doc-id half of the containment verdict (feature 100,
+ * `contracts/docs-registry.md` R2.3).
+ *
+ * A sidebar entry is a **doc id** and a map row is a relative page link, so
+ * neither reaches the import-specifier reader at all — a run that classified none
+ * of them would report the two documentation artefacts contained by having read
+ * nothing in them, which is the `empty` verdict's own argument one artefact over.
+ * The fixture is therefore artefact **text** plus a real content root, which is
+ * exactly what a real run hands `classifyDocEntry`.
+ */
+function docContainmentVerdicts(entry: string, contentRoot: string): string[] {
+  const artefact = join(contentRoot, 'modules', 'module-map.generated.md');
+  return containmentSites(artefact, `| [x](${entry}) |\n`, CONTAINMENT_ROOTS, {
+    kind: 'doc-id',
+    root: contentRoot,
+  }).map((site) => site.verdict);
+}
+
+/**
+ * A doc id naming a page under an installed package: `foreign`, by real path.
+ *
+ * The fixture is a **checkout** rather than a bare directory, and it has to be:
+ * containment is decided against the workspace members
+ * `pnpm-workspace.yaml` globs, so a page written anywhere else on the filesystem
+ * is foreign for being nowhere rather than for being installed — which would
+ * prove the verdict while proving nothing about the discrimination.
+ */
+function foreignDocEntryFindings(): number {
+  const root = mkdtempSync(join(tmpdir(), 'doc-containment-'));
+  try {
+    const site = join(root, 'docs');
+    const inTree = join(site, 'docs', 'modules');
+    const installed = join(root, 'node_modules', '.pnpm', 'mod-blog@1.0.0', 'docs');
+    mkdirSync(inTree, { recursive: true });
+    mkdirSync(installed, { recursive: true });
+    writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - docs\n', 'utf8');
+    writeFileSync(
+      join(site, 'package.json'),
+      `${JSON.stringify({ name: 'docs', private: true })}\n`,
+      'utf8',
+    );
+    writeFileSync(join(inTree, 'blog.md'), '# Blog\n', 'utf8');
+    writeFileSync(join(installed, 'index.md'), '# Blog\n', 'utf8');
+    const sites = containmentSites(
+      join(inTree, 'module-map.generated.md'),
+      '| [Blog](./blog.md) |\n| [Blog](../../../node_modules/.pnpm/mod-blog@1.0.0/docs/index.md) |\n',
+      permittedRoots(root),
+      { kind: 'doc-id', root: join(site, 'docs') },
+    );
+    // The discrimination, in one fixture so the proof cannot pass by seeing
+    // nothing: the page inside the workspace member is `workspace-package` and
+    // the one under an installed package is `foreign`. Neither is decided by a
+    // `node_modules` segment — pnpm links a workspace member into `node_modules`
+    // too — but by the real path each one lands on.
+    return sites.length === 2 &&
+      sites[0]?.verdict === 'workspace-package' &&
+      sites[1]?.verdict === 'foreign'
+      ? 1
+      : 0;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+/** A committed navigation entry naming no page at all is contained by nothing. */
+function unresolvableDocEntryFindings(): number {
+  const contentRoot = join(REPO_ROOT, 'docs', 'docs');
+  const gone = docContainmentVerdicts('./no-such-page.md', contentRoot);
+  const real = docContainmentVerdicts('./README.md', contentRoot);
+  return gone.length === 1 && gone[0] === 'foreign' && real[0] !== 'foreign' ? 1 : 0;
+}
+
+/**
+ * The reader itself, which is the stage the two proofs above stand on.
+ *
+ * `docEntries` is what turns artefact text into a population, and a reader that
+ * matched nothing would make every doc-id artefact report zero entries — which
+ * `vacuousContainmentPopulation` refuses, but only after this stage has already
+ * decided there is nothing to contain.
+ */
+function docEntryReaderSites(): number {
+  const found = docEntries(
+    "const modules = [\n  { type: 'doc', id: 'modules/catalog', label: 'Catalog' },\n" +
+      "  { type: 'category', link: { type: 'doc', id: 'modules/cms/index' },\n" +
+      "    items: [\n      'modules/cms/extending-page-builder',\n    ] },\n];\n",
+  );
+  const links = docEntries('| [Blog](./blog.md) | A capability. | core |\n');
+  return found.length === 3 && links.length === 1 ? 1 : 0;
+}
+
+/**
  * The leak, through the real generator and with the artefact byte-identical to
  * disk — i.e. deterministic, which is the state in which nothing else looks.
  */
@@ -2781,6 +2887,116 @@ function offStateRefusals(
 }
 
 /**
+ * A documentation tree that satisfies `check:module-docs` — every proof's
+ * control, and load-bearing rather than decorative in three of the six: the
+ * artefact readers are compared against the walk, so a tree with nothing in it
+ * makes `orphan-page` and both directions of `unpaired-index-row` unreachable.
+ */
+const MODULE_DOCS_COMPLIANT: {
+  modules: readonly FixtureModuleDocs[];
+  pages: readonly FixturePage[];
+} = {
+  modules: [{ id: 'catalog' }, { id: 'blog' }],
+  pages: [
+    { path: 'catalog.md', frontMatter: { title: 'Catalog', description: 'Products.' } },
+    { path: 'blog/index.md', frontMatter: { title: 'Blog', description: 'Posts.' } },
+  ],
+};
+
+/**
+ * `check-module-docs` over a real documentation tree, for findings of exactly
+ * one kind — so no signal goes blind behind another's red.
+ *
+ * The builder is `test/helpers/module-docs-fixture.ts` and the companion test
+ * calls the same one, in the idiom `bundle-pairing-fixture.ts` established.
+ *
+ * Every input enters at the top: the pages come off a **tree the fixture wrote**
+ * and are parsed by the real walk, and the two artefacts are handed in as
+ * **text**, read by the check's own literal-node scanners. A proof supplying a
+ * parsed entry list would leave those two readers unproven — and they are the
+ * readers that decide whether every page is an orphan and whether every module
+ * is unpaired.
+ */
+function moduleDocsFindings(
+  options: {
+    modules?: readonly FixtureModuleDocs[];
+    pages?: readonly FixturePage[];
+    navigation?: readonly string[];
+    rows?: readonly { moduleId: string; slug?: string | undefined }[];
+    aliases?: Readonly<Record<string, { moduleId: string; reason: string }>>;
+    ledgers?: {
+      undocumented?: Readonly<Record<string, string>>;
+      orphans?: Readonly<Record<string, string>>;
+    };
+  },
+  kind: ModuleDocsFindingKind,
+): number {
+  const modules = options.modules ?? MODULE_DOCS_COMPLIANT.modules;
+  const pages = options.pages ?? MODULE_DOCS_COMPLIANT.pages;
+  const fixture = createModuleDocsFixture(modules, pages);
+  try {
+    const attribution = attributeDocs(
+      fixture.pages,
+      modules.map((module) => module.id),
+      options.aliases ?? {},
+    );
+    const navigation =
+      options.navigation ??
+      attribution.documented.flatMap((entry) =>
+        [entry.entry, ...entry.children].map((page) => page.docId),
+      );
+    const rows =
+      options.rows ??
+      modules.map((module) => ({
+        moduleId: module.id,
+        slug: attribution.documented.find((entry) => entry.moduleId === module.id)?.slug,
+      }));
+    return checkModuleDocs({
+      modules: fixture.modules,
+      attribution,
+      navigationEntries: navigationEntriesIn(sidebarArtefactNaming(navigation)),
+      mapRows: mapRowsIn(
+        mapArtefactNaming(rows),
+        modules.map((module) => module.id),
+      ),
+      ledgers: { undocumented: {}, orphans: {}, ...options.ledgers },
+    }).findings.filter((finding) => finding.kind === kind).length;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+/**
+ * The discrimination the `undocumented-module` predicate turns on, counted as
+ * *cleanliness* rather than as a finding.
+ *
+ * A module that declares `docs: false` owes nothing and a module that declares
+ * nothing owes a page, and the two are one field apart. Without this proof the
+ * five above would all pass over a check that had quietly collapsed them, at
+ * which point either every infrastructure module is a finding or every
+ * undocumented one is exempt — and both readings print a plausible number.
+ */
+function moduleDocsDeclarationDiscrimination(): number {
+  const undeclared = moduleDocsFindings(
+    {
+      modules: [{ id: 'catalog' }, { id: 'mfa' }],
+      pages: [{ path: 'catalog.md', frontMatter: { title: 'Catalog' } }],
+      rows: [{ moduleId: 'catalog', slug: 'catalog' }, { moduleId: 'mfa' }],
+    },
+    'undocumented-module',
+  );
+  const declared = moduleDocsFindings(
+    {
+      modules: [{ id: 'catalog' }, { id: 'mfa', declaresNoDocs: true }],
+      pages: [{ path: 'catalog.md', frontMatter: { title: 'Catalog' } }],
+      rows: [{ moduleId: 'catalog', slug: 'catalog' }, { moduleId: 'mfa' }],
+    },
+    'undocumented-module',
+  );
+  return undeclared === 1 && declared === 0 ? 1 : 0;
+}
+
+/**
  * A module that satisfies `check:bundle-pairing` — every proof's control, and
  * in three of the five it is load-bearing rather than decorative: the probe
  * directory names are derived from the `bundlesDir` values the manifests
@@ -3072,6 +3288,99 @@ const CHECKS: readonly CheckEntry[] = [
           ledger: { [key]: 'one site recorded, two walked' },
         }).findings.length;
       }),
+    },
+  },
+  {
+    // `specs/100-module-owned-documentation/contracts/docs-registry.md` §3 —
+    // the documentation navigation describes the modules the platform composes.
+    //
+    // It is a check of its own rather than an arm of `overlay:check`, and the
+    // difference is measurable rather than aesthetic: `overlay:check` asks
+    // whether each artefact is what the generator would emit, and a generator
+    // that correctly emits a sidebar for the 62 modules it can see agrees with
+    // itself perfectly while eight written pages are reachable from no
+    // navigation. That was the tree on 2026-09-03.
+    //
+    // Six proofs — one per finding kind, both stale directions of the two
+    // ledgers, and the discrimination the whole `undocumented-module` predicate
+    // turns on. Each enters over a **documentation tree on disk** plus the two
+    // committed artefacts as **text**: the analysis is a directory walk, a
+    // front-matter parse, a slug fold, an alias lookup and two literal-node
+    // artefact readers, and a fixture handing in attributions would prove the
+    // reporter and leave every one of them unproven (issue #130).
+    script: 'backend/scripts/check-module-docs.ts',
+    npmScript: 'check:module-docs',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-module-docs.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // The population is every registered module's own directory, and the floor
+    // is `refuseVacuousModulePopulation` over it — so a moved module tree is
+    // refused rather than reported clean, and `moved-module-tree.test.ts`
+    // spawns it beside the other module walks.
+    residueGuard: 'derived-population',
+    red: {
+      'undocumented-module': top(() =>
+        moduleDocsFindings(
+          {
+            modules: [{ id: 'catalog' }, { id: 'mfa' }],
+            pages: [{ path: 'catalog.md', frontMatter: { title: 'Catalog' } }],
+            rows: [{ moduleId: 'catalog', slug: 'catalog' }, { moduleId: 'mfa' }],
+          },
+          'undocumented-module',
+        ),
+      ),
+      // The other direction of the same ledger: an entry whose module now has a
+      // page, so it retires in the merge request that wrote the page.
+      'undocumented-module:stale-entry': top(() =>
+        moduleDocsFindings(
+          { ledgers: { undocumented: { blog: 'documented in a later merge request' } } },
+          'undocumented-module',
+        ),
+      ),
+      'orphan-page': top(() =>
+        moduleDocsFindings({ navigation: ['modules/catalog'] }, 'orphan-page'),
+      ),
+      'unlocated-page': top(() =>
+        moduleDocsFindings(
+          {
+            pages: [
+              ...MODULE_DOCS_COMPLIANT.pages,
+              { path: 'something-else.md', frontMatter: { title: 'Something else' } },
+            ],
+          },
+          'unlocated-page',
+        ),
+      ),
+      // Both directions of the map, because a census is wrong in two ways: a
+      // registered module with no row, and a row for a module that has gone.
+      'unpaired-index-row:missing': top(() =>
+        moduleDocsFindings({ rows: [{ moduleId: 'catalog', slug: 'catalog' }] }, 'unpaired-index-row'),
+      ),
+      'unpaired-index-row:extra': top(() =>
+        moduleDocsFindings(
+          {
+            rows: [
+              { moduleId: 'catalog', slug: 'catalog' },
+              { moduleId: 'blog', slug: 'blog' },
+              { moduleId: 'gone' },
+            ],
+          },
+          'unpaired-index-row',
+        ),
+      ),
+      // The attribution declaration's own two-way half. An alias is what lets
+      // the four slugs that name no module be attributed at all, so a stale one
+      // silently attributes a page that is not there.
+      'stale-page-alias': top(() =>
+        moduleDocsFindings(
+          { aliases: { gone: { moduleId: 'catalog', reason: 'the page has moved.' } } },
+          'stale-page-alias',
+        ),
+      ),
+      'declaration-discriminates-false-from-absent': top(() =>
+        moduleDocsDeclarationDiscrimination(),
+      ),
     },
   },
   {
@@ -4992,6 +5301,15 @@ const CHECKS: readonly CheckEntry[] = [
       // record: an artefact that contributed no entry, over roots the
       // derivation itself produced.
       'vacuous-containment-population': top(() => containmentFloorRefusals()),
+      // The doc-id half (feature 100). `foreign` is re-derived for the two
+      // documentation artefacts — a sidebar entry is a doc id and a map row is a
+      // relative page link, neither of which reaches the specifier reader — so
+      // the predicate is proven again over the reader it actually uses. Without
+      // these three, adding two artefacts to this check would have added two
+      // artefacts nothing contains.
+      'foreign-doc-entry': top(() => foreignDocEntryFindings()),
+      'unresolvable-doc-entry': top(() => unresolvableDocEntryFindings()),
+      'doc-entry-reader': top(() => docEntryReaderSites()),
     },
   },
   {
@@ -8015,6 +8333,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // read: if it goes green on an R1-only implementation, R2 was folded into
       // R1 and the clause R1 cannot state was lost.
       'backend/scripts/check-module-boundary.ts': 74,
+      // Five findings, both stale directions of the two ledgers that carry a
+      // stale direction, and the discrimination `undocumented-module` turns on:
+      // `docs: false` is a decision and an absent declaration is not, one field
+      // apart, and collapsing them makes either every infrastructure module a
+      // finding or every undocumented one exempt.
+      'backend/scripts/check-module-docs.ts': 8,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue
@@ -8033,7 +8357,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // (feature 080, T030a): the leak, the two discriminations it must not get
       // backwards — a workspace member is not a foreign package, a core-tree
       // entry is not either — and the containment floor.
-      'backend/scripts/check-overlay-determinism.ts': 7,
+      'backend/scripts/check-overlay-determinism.ts': 10,
       // Five, plus D-88's four: two shapes the backward hop now refuses and two
       // it must not follow. The last two are the limit — a free function in
       // another file, and a class method shadowing a module-scoped alias — and

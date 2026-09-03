@@ -1,5 +1,6 @@
 ---
 title: addresses
+description: Customer postal addresses with default-per-kind invariant
 ---
 
 # `addresses`

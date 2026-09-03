@@ -1,5 +1,6 @@
 ---
 title: shipments
+description: The retryable Shipment record and its lifecycle — the delivery-side twin of payments
 ---
 
 # `shipments`
