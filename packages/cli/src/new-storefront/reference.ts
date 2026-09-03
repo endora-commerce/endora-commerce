@@ -276,11 +276,11 @@ export function outwardReferences(reference: StorefrontReference): readonly Outw
     const absolute = join(reference.dir, file);
     if (!existsSync(absolute)) continue;
     const text = readFileSync(absolute, 'utf8');
-    for (const found_ of referencesIn(text)) {
-      if (!found_.specifier.startsWith('.')) continue;
-      const target = resolve(dirname(absolute), globPrefix(found_.specifier));
+    for (const raw of referencesIn(text)) {
+      if (!raw.specifier.startsWith('.')) continue;
+      const target = resolve(dirname(absolute), globPrefix(raw.specifier));
       if (target === reference.dir || target.startsWith(reference.dir + sep)) continue;
-      found.push({ file, kind: found_.kind, specifier: found_.specifier, target });
+      found.push({ file, kind: raw.kind, specifier: raw.specifier, target });
     }
   }
   return found.sort((a, b) => a.file.localeCompare(b.file) || a.specifier.localeCompare(b.specifier));

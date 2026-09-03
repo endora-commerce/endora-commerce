@@ -75,6 +75,7 @@ export {
   planStorefront,
   publishedRange,
   retargetPackageGlob,
+  testRoots,
   UnclassifiedReferenceError,
   type PlannedFile,
   type RangeRewrite,

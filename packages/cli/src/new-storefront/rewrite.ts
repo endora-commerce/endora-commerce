@@ -431,21 +431,33 @@ export function retargetPackageGlob(
   return `${relativePath.startsWith('.') ? relativePath : `./${relativePath}`}${tail}`;
 }
 
-/** The application's own source roots, from its tsconfig `include`. */
-export function sourceRoots(reference: StorefrontReference): readonly string[] {
-  const configPath = join(reference.dir, 'tsconfig.json');
-  if (!existsSync(configPath)) return [];
-  let include: unknown;
-  try {
-    include = (JSON.parse(readFileSync(configPath, 'utf8')) as { include?: unknown }).include;
-  } catch {
-    return [];
+/**
+ * The directories the application's **test** configuration collects from.
+ *
+ * This is the population rule 4 may omit a file from, and it is derived from the
+ * test runner's own `include` globs rather than from a path convention —
+ * `test/` is this storefront's name for it and the next one's may not be.
+ *
+ * **It fails closed on purpose.** An application with no readable test
+ * configuration has no test population, so every outward reference rule 4 reaches
+ * is a refusal. The other way round — treating "I could not tell" as "not
+ * application code" — is how a file that genuinely reaches into the platform
+ * repository gets dropped out of a client's storefront in silence, which is the
+ * defect this command exists to refuse one layer up.
+ */
+export function testRoots(reference: StorefrontReference): readonly string[] {
+  const roots = new Set<string>();
+  for (const file of reference.files) {
+    if (file.includes('/') || !/^vitest\.config\.[cm]?[jt]s$/.test(file)) continue;
+    const text = readFileSync(join(reference.dir, file), 'utf8');
+    const include = /include\s*:\s*\[([^\]]*)\]/.exec(text);
+    if (include === null) continue;
+    for (const match of include[1]!.matchAll(/['"]([^'"]+)['"]/g)) {
+      const prefix = globPrefix(match[1]!).replace(/\/$/, '');
+      if (prefix.length > 0 && !prefix.startsWith('.')) roots.add(prefix);
+    }
   }
-  if (!Array.isArray(include)) return [];
-  return include
-    .filter((entry): entry is string => typeof entry === 'string')
-    .map((entry) => globPrefix(entry))
-    .filter((entry) => entry.length > 0 && !entry.startsWith('.'));
+  return [...roots].sort();
 }
 
 /**
@@ -469,7 +481,7 @@ export function planStorefront(
   const rewrites: (OutwardReference & { to: string })[] = [];
   const rewrittenText = new Map<string, string>();
   const omitted: OmittedFile[] = [];
-  const roots = sourceRoots(reference);
+  const roots = testRoots(reference);
 
   for (const [file, entries] of [...byFile].sort(([a], [b]) => a.localeCompare(b))) {
     let text = readFileSync(join(reference.dir, file), 'utf8');
@@ -498,11 +510,10 @@ export function planStorefront(
         continue;
       }
       // Rule 4 — a file that reaches into the repository and is not a
-      // configuration the scaffold can vendor.
-      if (roots.some((root) => file === root || file.startsWith(`${root}/`))) {
-        if (!file.startsWith('test/')) {
-          throw new UnclassifiedReferenceError(refusal(entry));
-        }
+      // configuration the scaffold can vendor. Only a file the application's own
+      // test configuration collects may be omitted; anything else is a refusal.
+      if (!roots.some((root) => file === root || file.startsWith(`${root}/`))) {
+        throw new UnclassifiedReferenceError(refusal(entry));
       }
       omit =
         `it imports "${entry.specifier}", a script of the platform repository whose own ` +
