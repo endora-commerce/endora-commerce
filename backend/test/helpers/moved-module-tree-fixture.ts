@@ -778,6 +778,32 @@ function copyDocumentationSite(root: string): void {
   cpSync(join(source, 'docs'), join(destination, 'docs'), { recursive: true });
 }
 
+/**
+ * The page-builder packages, as `check-block-names` reads them (feature 096).
+ *
+ * They are members for `copyAdminApplication`'s reason, one feature over: the
+ * check's renderer-map population is the workspace members that declare one, and
+ * without these four the fixture answers *"this repository renders eleven of its
+ * 74 declared blocks"* — 63 `declared-without-renderer` findings, an exit 1, and
+ * a red that has nothing to do with where the **modules** are, which is what
+ * this file exists to measure.
+ *
+ * Copied whole rather than stubbed, for the same reason as the other two: a
+ * synthetic renderer map would prove that the check can read a synthetic
+ * renderer map. 1.4 MB across the four, less than the admin application this
+ * fixture already carries. `packages/*` already globs them, so the workspace
+ * needs no new entry.
+ */
+function copyPageBuilderPackages(root: string): void {
+  for (const name of ['cms-components', 'email-components', 'page-builder-core', 'page-builder-admin']) {
+    const source = join(REPO_ROOT, 'packages', name);
+    const destination = join(root, 'packages', name);
+    mkdirSync(destination, { recursive: true });
+    cpSync(join(source, 'package.json'), join(destination, 'package.json'));
+    cpSync(join(source, 'src'), join(destination, 'src'), { recursive: true });
+  }
+}
+
 function copyAdminApplication(root: string): void {
   const source = join(REPO_ROOT, 'admin');
   const destination = join(root, 'admin');
@@ -831,6 +857,7 @@ export function createSplitModuleTreeFixture(
   copyPlatformPackage(root);
   copyAdminApplication(root);
   copyDocumentationSite(root);
+  copyPageBuilderPackages(root);
 
   const relocate = (id: string, declared: boolean): void => {
     const from = join(backend, 'src', 'modules', id);

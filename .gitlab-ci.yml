@@ -429,6 +429,17 @@ quality:
     # No ledger, deliberately: an entry could only license a single-language
     # module, which is the thing the ruling forbids.
     - pnpm --filter backend run check:bundle-pairing
+    # Feature 096 —
+    # `specs/096-page-builder-block-ownership/contracts/block-name-check.md`.
+    # A Puck block name is written into `jsonb` and never rewritten, and no
+    # existing check's population contains one: `check:module-boundary` reads
+    # import specifiers and SQL tables, `check:admin-zones` reads zone names and
+    # `useTranslation` scopes, `i18n:hardcoded` reads JSX. Eight findings over
+    # two site kinds — a `{ type, props }` node literal in a module's own
+    # sources, and a `components` key or a `switch (node.type)` case in a
+    # renderer — reconciled against what the manifests declare, in both
+    # directions. One ledger, `BLOCKS_WITHOUT_A_RENDERER`, and it lands empty.
+    - pnpm --filter backend run check:block-names
     # Feature 073 (Constitution XVII item 6) —
     # `specs/073-lifecycle-gating-completion/contracts/off-state-coverage-ratchet.md`.
     # Which modules actually carry an off-state proof was re-derived by hand

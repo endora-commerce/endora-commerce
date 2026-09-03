@@ -240,6 +240,40 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'B',
   },
   {
+    id: 'check:block-names',
+    script: 'backend/scripts/check-block-names.ts',
+    scope: 'package',
+    host: pending('Phase 4'),
+    partial: [
+      {
+        signal: 'duplicate-block-name',
+        reason:
+          'two modules declaring one name is a fact about a **pair** of manifests, and a lone ' +
+          'package supplies one; its own manifest declaring a name twice is refused by ' +
+          '`defineModuleManifest` before this rule sees it',
+      },
+      {
+        signal: 'category-presentation-disagreement',
+        reason:
+          "the same shape one level up — a disagreement needs a peer's `blockCategories`, and " +
+          'one manifest declaring a `(key, context)` twice is `defineModuleManifest`’s rule 4',
+      },
+      {
+        signal: 'renderer-without-declaration',
+        reason:
+          "the renderer maps are the page-builder family's, which is this repository's four " +
+          'packages plus the applications; a module package holds only its own, so a name ' +
+          'another package renders and nobody declares is outside the run',
+      },
+    ],
+    subjectDeclaration: {
+      kind: 'manifest-block',
+      declaration: '`blocks` in the module manifest',
+    },
+    readsArtefact: true,
+    tier: 'B',
+  },
+  {
     id: 'check:bundle-pairing',
     script: 'backend/scripts/check-bundle-pairing.ts',
     scope: 'package',
