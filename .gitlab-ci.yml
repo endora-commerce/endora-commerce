@@ -1397,6 +1397,119 @@ boot-gate:
         - .gitlab-ci.yml
 
 # ---------------------------------------------------------------------------
+# The acceptance criterion for `endora new storefront`
+# (specs/071-modular-packaging/roadmap.md § F7 — Storefront scaffold).
+#
+# It scaffolds a storefront OUTSIDE this checkout, installs it from packed
+# tarballs with no symlink back, `next build`s it, and boots the result against
+# a backend this job starts. Every step exists to leave the monorepo, for
+# `acceptance:package-schema`'s reason one surface over: a copy that stays
+# inside is still inside relative-specifier range, still reached by the
+# workspace globs, and pnpm links a workspace member into `node_modules` — so a
+# rehearsal that stays inside passes and proves nothing.
+#
+# **Why it does not wait for publication.** Nothing under `packages/` is
+# published, so the semver ranges the scaffold writes name versions no registry
+# serves. `pnpm pack` rewrites a packed manifest's `workspace:` range to a
+# version, and a `pnpm.overrides` block pins each tarball — which reaches the
+# transitive edge too, `page-builder-core` depending on `contracts@0.0.0` being
+# exactly as unpublished. Publication removes the overrides block and changes
+# nothing else.
+#
+# **It boots a backend, and that is the point of A6 rather than an extravagance.**
+# A `next start` with no backend serves the storefront's error page, and a
+# criterion that called that a pass would be green over a storefront that renders
+# nothing. The criterion records `unmeasured` — never a pass — when
+# PUBLIC_API_BASE_URL names nothing, and the expectation file records A6 as
+# `pass`, so a job that stopped booting one drifts and fails.
+#
+# It is not a `check-*` script and must not become one:
+# `test/unit/scripts/check-read-size.test.ts` spawns every one of those, and an
+# install plus a `next build` inside a unit run is not a test. Its judgement is
+# `scripts/acceptance/storefront-scaffold-assertions.ts`, which touches no
+# process and is unit tested over fixture text.
+#
+# `stage: test`, so it fails the merge request that breaks the scaffold rather
+# than the default branch afterwards. The `changes:` list is the set of inputs
+# that can change the answer: the command, the reference storefront, the
+# packages a scaffolded storefront installs, the criterion itself, and the two
+# files that decide how anything resolves.
+# ---------------------------------------------------------------------------
+acceptance:storefront-scaffold:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    # The runner migrates this database from scratch on every run, so its name
+    # satisfies the disposable-name convention `(^|_)test(_|$)` — the judgement
+    # `test/global-setup.ts` and the dev-seed guard make, and what keeps a
+    # mistyped DSN from being a data-loss incident.
+    DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_storefront_acceptance_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    JWT_SECRET: storefront-acceptance-secret-not-a-real-one-000000
+    NODE_ENV: development
+    LOG_LEVEL: warn
+    PUBLIC_API_BASE_URL: http://127.0.0.1:3001
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - apt-get update -qq && apt-get install -y -qq postgresql-client curl >/dev/null
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+  script:
+    - PGPASSWORD=b2b psql -h postgres -U b2b -d postgres -c "create database b2b_storefront_acceptance_test"
+    - pnpm --filter backend exec tsx src/db/migrate.ts up
+    # A6's subject. Backgrounded here rather than inside the criterion so that a
+    # backend that will not boot is this job's failure, named as one, instead of
+    # an assertion reporting that the storefront answered 500.
+    - pnpm --filter backend exec tsx src/index.ts > /tmp/backend.log 2>&1 &
+    - for i in $(seq 1 60); do curl -sf -o /dev/null "$PUBLIC_API_BASE_URL/api/v1/storefront/module-presence" && break || sleep 2; done
+    - curl -s -o /dev/null -w '%{http_code}\n' "$PUBLIC_API_BASE_URL/api/v1/storefront/module-presence" || (tail -50 /tmp/backend.log && exit 1)
+    - pnpm --filter backend run acceptance:storefront-scaffold:ci
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        # The command, and the derivation it runs.
+        - packages/cli/src/new-storefront/**/*
+        - packages/cli/src/bin/endora.ts
+        # The subject: a declaration added to the reference storefront that
+        # names something above its own directory is what this job refuses.
+        - storefront/**/*
+        # The packages a scaffolded storefront installs. Their `exports` maps
+        # and `"use client"` boundaries are what an install that is not a
+        # workspace link has to survive.
+        - packages/contracts/**/*
+        - packages/cms-components/**/*
+        - packages/page-builder-core/**/*
+        # The criterion itself, and its recorded expectation.
+        - backend/scripts/acceptance/storefront-scaffold*.ts
+        - backend/acceptance/storefront-scaffold-expected-state.json
+        # How anything resolves at all.
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - .gitlab-ci.yml
+
+# ---------------------------------------------------------------------------
 # Docs — build the Docusaurus site
 # ---------------------------------------------------------------------------
 #
