@@ -1669,16 +1669,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // twenty-seven is the load-bearing half: this scanner follows a module's
     // admin sources into its package, so the batch did not take twenty-seven
     // screens out of the hard-coded-string population by moving them.
-    files: 417,
+    // **Batch 16 onwards (feature 091, Phase 4): 417 -> 422.** Not re-recorded by
+    // the batches that moved it — every one of them stayed inside the -10%/+50%
+    // band, which is what the band is for and also what it cannot say. Recorded
+    // here by the merge request that added the `module-admin` token below,
+    // because that is the run whose `[read-size drift]` block named it.
+    files: 422,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
     // actually opened a file in (feature 091, P5c). It replaced a by-name
     // refusal — "no member is `@endora-commerce/admin-kit`" — with a floor that
     // covers the second such package too, which is what P5b creates. It reads
-    // `1/1` on this tree, and adding the token moved `files` by nothing: the
+    // `2/2` on this tree, and adding the token moved `files` by nothing: the
     // kit was already a root, under its name.
-    sources: ['admin-ui'],
+    //
+    // `module-admin` is the third family's floor, and it is the one this walk
+    // had none of: 55 module packages' `src/admin` layers are 357 of the 422
+    // files, they enter the population as a directory listing, and a count
+    // derived from that same listing corroborates nothing. It is the generated
+    // admin contribution registry's answer — `check:admin-zones`' and
+    // `check:admin-surface`' too, through the one shared derivation in
+    // `scripts/lib/module-admin-layers.ts`. Adding it moved `files` by nothing
+    // and `sources` by one token; measured red by taking one layer off disk,
+    // where it reads `module-admin:54/55` and exits 2.
+    sources: ['admin-ui', 'module-admin'],
   },
   'scripts/check-naming.sh': {
     prefix: '[naming]',

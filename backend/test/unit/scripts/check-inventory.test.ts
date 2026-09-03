@@ -189,7 +189,11 @@ import {
 } from '../../../scripts/check-entry-presence.js';
 import { checkLockClaims } from '../../../scripts/check-lock-claims.js';
 import type { ManifestActivationInput } from '../../../scripts/lib/switchable-modules.js';
-import { analyzeSource as hardcodedAnalyze } from '../../../scripts/i18n-hardcoded-strings.js';
+import {
+  analyzeSource as hardcodedAnalyze,
+  coveredModuleAdminLayers as hardcodedCoveredLayers,
+  moduleAdminFloorRefusal as hardcodedFloorRefusal,
+} from '../../../scripts/i18n-hardcoded-strings.js';
 import {
   lowEntryDrift,
   type ProofEntry,
@@ -6644,6 +6648,25 @@ const CHECKS: readonly CheckEntry[] = [
             '/repo/admin/src/a.tsx',
           ).filter((f) => f.kind === 'jsx-attr').length,
       ),
+      // The `module-admin` floor, counted as a refusal rather than a finding —
+      // `bundlePairingReadRefusals`' shape. It refuses two ways and both are
+      // driven here from a fixture that enters above the analysis: a registry
+      // that is on disk and names nobody (the floor with no author), and a walk
+      // that opened fewer of the named layers than the registry declares (the
+      // short walk, which is the regression feature 091's drain produces one
+      // merge request at a time). The discrimination is inside the proof, so a
+      // predicate that refused everything — or nothing — reads as 0 here.
+      'module-admin-floor': top(() => {
+        const layers = [
+          { directory: '/repo/packages/modules/orders/src/admin' },
+          { directory: '/repo/packages/modules/catalog/src/admin' },
+        ];
+        const authorless = hardcodedFloorRefusal([]) !== null && hardcodedFloorRefusal(null) === null;
+        const shortWalk =
+          hardcodedCoveredLayers(layers, ['/repo/packages/modules/orders/src/admin']) === 1 &&
+          hardcodedCoveredLayers(layers, layers.map((l) => l.directory)) === 2;
+        return authorless && shortWalk ? 1 : 0;
+      }),
     },
   },
   {
@@ -7357,7 +7380,10 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-subscribe-seam.ts': 5,
       // Two shapes, two scopes, and the ledger's stale direction.
       'backend/scripts/check-transaction-context.ts': 5,
-      'backend/scripts/i18n-hardcoded-strings.ts': 2,
+      // Two finding kinds, plus the `module-admin` floor's refusal — the third
+      // root family's only independent author, added when feature 091's drain
+      // made 357 of this walk's 422 files corroborated by nothing.
+      'backend/scripts/i18n-hardcoded-strings.ts': 3,
       // Four rules, the fifth (migration class scope) that reads the
       // filesystem, and issue #244's short listing — the shape every one of
       // this script's other floors is green on. Plus feature 080's three for
