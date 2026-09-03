@@ -256,29 +256,56 @@ generator that walks the whole workspace at all. `pnpm --filter backend run over
 is what fails the build when a committed artefact is stale with respect to the tree — the
 one drift that is still possible now that the array is the walk.
 
-### 5. Wire the routes through the gating wrapper
+### 5. Register routes, workers and subscribers through the module's own seams
 
-Inside `coupons/plugin.ts`:
-
-```typescript
-import { defineModuleRoutes } from '../../kernel/lifecycle/plugin-helpers.js';
-
-const adminPlugin = defineModuleRoutes('coupons', async (scoped) => {
-  await registerCouponsAdminRoutes(scoped, deps);
-});
-await adminPlugin(app);
-```
-
-This makes every coupon route return `503 MODULE_DISABLED + Retry-After: 60` when the module is disabled.
-
-For BullMQ workers and event subscribers, use the matching helpers:
+Everything the module contributes to the running process is registered from its
+`registerModule`, through the `ModuleContext` the kernel container hands it:
 
 ```typescript
-import { defineModuleWorker, subscribeForModule } from '../../kernel/lifecycle/plugin-helpers.js';
+// packages/modules/coupons/src/backend/index.ts
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
-const worker = defineModuleWorker('coupons', new Worker(...));
-subscribeForModule('coupons', eventBus, 'orders.placed', handler);
+export function registerModule(ctx: ModuleContext): void {
+  ctx.routes(async (app) => {
+    await registerCouponsAdminRoutes(app, ctx.cradle<CouponsCradle>());
+  });
+
+  ctx.worker(new Worker('coupons.expiry', processor, { connection: redis }));
+
+  ctx.subscribe('orders.placed', async (payload) => {
+    await handleOrderPlaced(payload);
+  });
+}
 ```
+
+**The gating wrappers are applied by those three seams, not by you.** `ctx.routes`
+wraps the registration in `defineModuleRoutes(module.id, …)`, so every coupon route
+returns `503 MODULE_DISABLED` with `Retry-After: 60` while the module is off — and
+so does a route somebody adds to that registration a year from now, which is the
+point of gating at the registration seam rather than per handler. `ctx.worker` and
+`ctx.subscribe` do the same for `defineModuleWorker` and `subscribeForModule`.
+`ctx.worker` takes a **constructed** `Worker`, not a factory.
+
+**You cannot call the wrappers yourself, and that is deliberate rather than
+discouraged.** `@endora-commerce/platform` publishes five subpaths and no deep
+paths, so the relative specifier this step used to show
+(`'../../kernel/lifecycle/plugin-helpers.js'`) resolves to nothing from a module
+package — and the bare spelling does not rescue it, because
+`defineModuleRoutes`, `defineModuleWorker`, `subscribeForModule`,
+`pauseWorkersFor` and `resumeWorkersFor` are **not** exported from the
+`./kernel` barrel. That is a decision recorded in the barrel itself and in
+`specs/080-f4-real-scope/contracts/host-package.md` §1.4c, which classifies the
+worker and subscription wrappers as application-only: publishing them would
+re-open by bare specifier the seam `check:subscribe-seam` closed by relative
+path. An import naming one fails `tsc` and is reported by
+`pnpm --filter backend run check:platform-surface` as `unpublished-symbol`.
+
+The one wrapper the barrel does publish is `requireModuleEnabled`, for an entry
+point that has **no port and no request**. It is not the escape hatch for a
+module: its single call site in the tree is `backend/src/cli/module-commands.ts`,
+where the **host** asks about the module that declared the operator command it is
+about to run, once, before it builds a context. A `cliCommands` handler receives
+an ordinary `ModuleContext` and uses the same seams as everything above.
 
 ### 6. Install locally
 
