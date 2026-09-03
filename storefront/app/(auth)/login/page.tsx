@@ -15,6 +15,14 @@ import { Hook } from '../../../components/Hook';
 import { SocialLoginButtons } from '../../../components/SocialLoginButtons';
 import { getServerContext } from '../../../lib/server-context';
 import { getFederatedSignInProviders } from '../../../lib/api/federated-sign-in';
+import type { Metadata } from 'next';
+
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
+ * authenticated or transactional surface, of no use to a crawler and not a
+ * page a search result should ever land a buyer on.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Storefront login page (T151 / FR-040). Submits via a server action,

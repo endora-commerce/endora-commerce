@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { Breadcrumbs } from '../../../../components/Breadcrumbs';
@@ -7,6 +8,10 @@ import { Pagination } from '../../../../components/Pagination';
 import { CatalogToolbar } from '../../../../components/CatalogToolbar';
 import { MobileFilterSheet } from '../../../../components/mobile/MobileFilterSheet';
 import { Hook } from '../../../../components/Hook';
+import { JsonLd } from '../../../../lib/seo/JsonLd';
+import { absoluteUrl } from '../../../../lib/seo/site-url';
+import { canonicalPath } from '../../../../lib/seo/route-seo';
+import { seo } from './seo';
 import {
   getCategoryTree,
   getFilters,
@@ -25,6 +30,27 @@ import {
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+/**
+ * Indexable (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010/FR-012). The
+ * canonical is the category's bare path: filters, sort and the cursor are
+ * facets of one listing, and a crawler that indexed each combination would
+ * index the same products dozens of times.
+ *
+ * A category that does not resolve is `noindex` rather than canonical —
+ * `page.tsx` answers it with `notFound()`, and a canonical on a 404 would be a
+ * statement about a page nobody may fetch.
+ */
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const { ctx } = await getServerContext();
+  const node = findCategory(await getCategoryTree(ctx), slug);
+  if (!node) return { title: 'Not found', robots: { index: false, follow: false } };
+  return {
+    title: node.name,
+    alternates: { canonical: canonicalPath(seo.route, { slug: node.slug }) },
+  };
 }
 
 /**
@@ -76,6 +102,25 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
 
   return (
     <div className="mx-auto max-w-[1360px] px-[24px]">
+      {/*
+        `ItemList` over the products this page actually listed, in the order it
+        listed them — the second type `seo.ts` declares. The trail beside it is
+        `Breadcrumbs`' own `BreadcrumbList`.
+      */}
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'ItemList',
+          name: node.name,
+          numberOfItems: products.data.length,
+          itemListElement: products.data.map((product, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            url: absoluteUrl(`/p/${product.slug}`),
+            name: product.name,
+          })),
+        }}
+      />
       <Breadcrumbs
         crumbs={[
           { href: '/', label: t('nav.home') },

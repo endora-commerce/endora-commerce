@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 /**
@@ -10,8 +11,14 @@ import type { ReactNode } from 'react';
  */
 export const dynamic = 'force-static';
 
-export const metadata = {
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): a PWA
+ * fallback that exists to be served *instead of* a page, so a crawler that
+ * indexed it would rank the shop for its own failure state.
+ */
+export const metadata: Metadata = {
   title: 'Offline',
+  robots: { index: false, follow: false },
 };
 
 export default function OfflinePage(): ReactNode {

@@ -1,0 +1,867 @@
+/**
+ * CI check — **every storefront route says whether a crawler may index it, and
+ * the sitemap and the route table agree in both directions**
+ * (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010…FR-014;
+ * `contracts/seo-declarations.md` §2–§5).
+ *
+ * ## Why this exists
+ *
+ * Before Phase 2 the reference storefront told crawlers nothing at all: no
+ * `sitemap.ts`, no `robots.ts`, and not one route declaring a canonical URL.
+ * Under D-195 the reference storefront is what every client instance is copied
+ * from, so whatever is true of it on the day a client scaffolds is copied into
+ * that client's tree and diverges there with nothing downstream to catch it. A
+ * gate on the template is the only place any of this is enforceable once.
+ *
+ * ## The population is the pages, and "67 route files" is the wrong number
+ *
+ * `storefront/app` holds 67 files matching `page.tsx`/`route.ts`/`layout.tsx`.
+ * Five are API handlers that emit no document and five are layouts that are not
+ * pages. The population is the **57 `page.tsx` files**, and of those 48 are
+ * account, auth, checkout, comparison and newsletter surfaces that must **not**
+ * be indexed. Emitting a canonical on `/account/password` would be a defect,
+ * not a repair — which is why the check asks every page for a *classification*
+ * and asks only the indexable ones for SEO.
+ *
+ * ## Indexability is declared, never inferred
+ *
+ * A route-group name is a convention and conventions drift; a new top-level
+ * page inherits nothing and would default to whichever answer this file's
+ * author assumed. So **silence is a finding**. Every `page.tsx` carries either
+ * `robots: { index: false, … }` or `alternates: { canonical: … }`, in
+ * `export const metadata` or in a `generateMetadata` return.
+ *
+ * **`contradictory-indexability` is per metadata *object*, not per file**, and
+ * that is load-bearing rather than a nicety: `if (!page) return { title: 'Not
+ * found', robots: { index: false } }; return { alternates: { canonical } };` is
+ * *correct*, and four of the nine indexable routes in this tree ship exactly
+ * it. A per-file contradiction test would report every one of them.
+ *
+ * ## The second author is the sitemap, and it is a deliverable in its own right
+ *
+ * An SEO gate's population *is* the pages the site tells crawlers about; that
+ * is a sitemap's whole job. Deriving the population from the route files and
+ * then checking the route files against it would be one author twice. So
+ * `storefront/app/sitemap.ts` declares, by hand, `SITEMAP_STATIC_ROUTES` (URLs
+ * it emits with no database read) and `SITEMAP_DYNAMIC_ROUTES` (the route
+ * patterns whose URLs it enumerates from the backend), and the two sets are
+ * reconciled against the route files in both directions.
+ *
+ * The *URLs* of the dynamic half stay outside the reconciliation — a product
+ * slug is a row, not a route, and this check runs with no services. The
+ * *patterns* do not: four of the nine indexable route types have no static URL
+ * at all, and a reconciliation blind to them would report every one of them as
+ * unadvertised. That is a correction to `contracts/seo-declarations.md` §4,
+ * which speaks only of the static set.
+ *
+ * ## Findings
+ *
+ *   * **`undeclared-indexability`** — a route declaring neither, that the
+ *     sitemap does not advertise. The centre.
+ *   * **`contradictory-indexability`** — one metadata object declaring both. A
+ *     canonical on a `noindex` page is a statement about a page nobody may
+ *     fetch.
+ *   * **`unresolvable-indexability`** — a declaration the analysis cannot read:
+ *     a computed `robots`, a spread of an identifier, a `generateMetadata`
+ *     returning something that is not an object literal. A **finding, not a
+ *     skip** (issue #113) — read as "indexable" it agrees with everything, read
+ *     as "non-indexable" it excuses everything.
+ *   * **`missing-canonical`** — the sitemap advertises this route and the route
+ *     declares no canonical. Two shapes under one kind, and the sentence says
+ *     which: a route that declared nothing (the sitemap classified it, so it
+ *     owes a canonical rather than a classification), and a route that declared
+ *     itself `noindex` (the two authors disagree, and one of them is wrong).
+ *   * **`sitemap-orphan-route`** — an indexable route no sitemap entry covers.
+ *   * **`orphan-sitemap-entry`** — a sitemap entry no route file serves.
+ *   * **`undeclared-structured-data`** — an indexable route with no readable
+ *     `seo.ts` beside it. That declaration is what Phase 4 asserts the served
+ *     HTML against, so a route without one is a route whose JSON-LD nothing can
+ *     check; and it is a *declaration* rather than a table in this file,
+ *     because a table here would be the second derivation of one judgement.
+ *
+ * **No ledger, deliberately.** Every finding is one line away from compliance
+ * in the merge request that produces it, and the two ledgers
+ * `contracts/seo-declarations.md` §6 designed — `ROUTES_WITHOUT_A_CANONICAL`
+ * and `INDEXABLE_ROUTES_WITHOUT_STRUCTURED_DATA` — exist there only to let the
+ * check and the canonicals land in one merge request without a red intermediate
+ * commit. They landed in one merge request, so both would arrive empty, and an
+ * empty ledger with no entry to strand is a mechanism that can only ever
+ * license the defect back in.
+ *
+ * ## What it does not cover, stated rather than discovered later
+ *
+ *   * **Whether the canonical is the *right* URL.** It reads the declaration's
+ *     presence; the served HTML is `conformance:storefront`'s subject (Phase 4).
+ *   * **Whether a route emits the JSON-LD it declares.** Same answer, same job.
+ *   * **`route.ts` and `layout.tsx`.** Neither produces a document.
+ *   * **A route whose metadata is assembled by a helper in another file.** It
+ *     is `unresolvable-indexability` here — named, not silently cleared.
+ *
+ * Usage: `tsx scripts/check-storefront-indexability.ts [--list]`
+ * Exit 0 = every route is classified and the two authors agree; exit 1 = at
+ * least one finding; exit 2 = the run could not see the population it judges —
+ * no page file, an unreadable sitemap, nothing classified either way, or a walk
+ * short of what the sitemap implies.
+ */
+/* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import ts from 'typescript';
+
+import { reportReadSize } from './lib/read-size.js';
+
+const PREFIX = '[storefront-indexability]';
+
+/** Repo-relative, and the one place either path is spelled. */
+const APP_ROOT = 'storefront/app';
+const SITEMAP_FILE = 'storefront/app/sitemap.ts';
+
+export type StorefrontIndexabilityFindingKind =
+  | 'undeclared-indexability'
+  | 'contradictory-indexability'
+  | 'unresolvable-indexability'
+  | 'missing-canonical'
+  | 'sitemap-orphan-route'
+  | 'orphan-sitemap-entry'
+  | 'undeclared-structured-data';
+
+/** One `page.tsx` and the `seo.ts` beside it, as source text. */
+export interface RouteFile {
+  /** Repo-relative path of the page file. */
+  readonly path: string;
+  readonly text: string;
+  /** The co-located `seo.ts`, or `null` where there is none. */
+  readonly seoText: string | null;
+}
+
+export interface StorefrontIndexabilityInput {
+  /** Repo-relative root the route patterns are derived against. */
+  readonly appRoot: string;
+  readonly routes: readonly RouteFile[];
+  /** `storefront/app/sitemap.ts`'s source, or `null` when it is absent. */
+  readonly sitemapText: string | null;
+}
+
+export interface SitemapDeclaration {
+  readonly staticRoutes: readonly string[];
+  readonly dynamicRoutes: readonly string[];
+}
+
+export interface StorefrontIndexabilityFinding {
+  readonly kind: StorefrontIndexabilityFindingKind;
+  /** The route pattern or sitemap entry the finding is about. */
+  readonly subject: string;
+  /** The file to open, repo-relative, or `null` for a sitemap entry. */
+  readonly path: string | null;
+  readonly detail: string;
+}
+
+export interface StorefrontIndexabilityResult {
+  readonly findings: readonly StorefrontIndexabilityFinding[];
+  /** Route patterns that declared a canonical. */
+  readonly indexable: readonly string[];
+  /** Route patterns that declared `robots.index: false` and no canonical. */
+  readonly nonIndexable: readonly string[];
+  /** Every route classified either way — the read line's `sites`. */
+  readonly classified: readonly string[];
+  /** Every file opened — the read line's `files`. */
+  readonly filesRead: readonly string[];
+  /** The `page.tsx` files alone: the population, before any classification. */
+  readonly pagesRead: readonly string[];
+  readonly sitemap: SitemapDeclaration | null;
+  /** Sitemap entries that matched a route file. */
+  readonly sitemapCovered: number;
+  /** Sitemap entries declared. */
+  readonly sitemapExpected: number;
+}
+
+// ---------------------------------------------------------------------------
+// Route patterns
+// ---------------------------------------------------------------------------
+
+/**
+ * The route pattern a page file serves, in the vocabulary the sitemap speaks.
+ *
+ * Route groups `(marketing)`, private folders `_components` and parallel slots
+ * `@modal` contribute no URL segment; everything else does, dynamic segments
+ * included and spelled as the file tree spells them.
+ */
+export function routePatternOf(path: string, appRoot: string): string {
+  const withoutRoot = path.startsWith(`${appRoot}/`) ? path.slice(appRoot.length + 1) : path;
+  const segments = withoutRoot
+    .split('/')
+    .slice(0, -1)
+    .filter(
+      (segment) =>
+        segment.length > 0 &&
+        !(segment.startsWith('(') && segment.endsWith(')')) &&
+        !segment.startsWith('_') &&
+        !segment.startsWith('@'),
+    );
+  return `/${segments.join('/')}`;
+}
+
+interface PatternSegment {
+  readonly literal: string | null;
+  readonly catchAll: boolean;
+  readonly optional: boolean;
+}
+
+function parsePattern(pattern: string): readonly PatternSegment[] {
+  return pattern
+    .split('/')
+    .filter((segment) => segment.length > 0)
+    .map((segment) => {
+      if (segment.startsWith('[[') && segment.endsWith(']]')) {
+        return { literal: null, catchAll: true, optional: true };
+      }
+      if (segment.startsWith('[...') && segment.endsWith(']')) {
+        return { literal: null, catchAll: true, optional: false };
+      }
+      if (segment.startsWith('[') && segment.endsWith(']')) {
+        return { literal: null, catchAll: false, optional: false };
+      }
+      return { literal: segment, catchAll: false, optional: false };
+    });
+}
+
+/**
+ * How specifically `pattern` serves the URL `path`, or `null` for no match.
+ *
+ * The score is the number of **literal** segments matched, so `/catalog` is
+ * served by `/catalog` (score 1) rather than by the CMS catch-all `/[...slug]`
+ * (score 0). Without the ranking a reconciliation would agree with the wrong
+ * file and report the right one as unadvertised.
+ */
+export function matchScore(path: string, pattern: string): number | null {
+  const url = path.split('/').filter((segment) => segment.length > 0);
+  const segments = parsePattern(pattern);
+  let literals = 0;
+  let index = 0;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i] as PatternSegment;
+    if (segment.catchAll) {
+      const remaining = url.length - index;
+      if (remaining === 0 && !segment.optional) return null;
+      // A catch-all is terminal in Next's file tree.
+      return i === segments.length - 1 ? literals : null;
+    }
+    if (index >= url.length) return null;
+    if (segment.literal !== null) {
+      if (url[index] !== segment.literal) return null;
+      literals += 1;
+    }
+    index += 1;
+  }
+  return index === url.length ? literals : null;
+}
+
+// ---------------------------------------------------------------------------
+// The sitemap — the independent second author
+// ---------------------------------------------------------------------------
+
+const STATIC_ARRAY = 'SITEMAP_STATIC_ROUTES';
+const DYNAMIC_ARRAY = 'SITEMAP_DYNAMIC_ROUTES';
+
+/**
+ * The two declared arrays, or `null` when the set could not be read in full.
+ *
+ * An element the analysis cannot resolve makes the whole declaration unreadable
+ * rather than shorter: a second author that answers about part of itself is not
+ * a second author, and a short expectation is the floor switching itself off.
+ */
+export function readSitemapDeclaration(text: string | null): SitemapDeclaration | null {
+  if (text === null) return null;
+  const source = ts.createSourceFile('sitemap.ts', text, ts.ScriptTarget.Latest, true);
+  const arrays = new Map<string, readonly string[] | null>();
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name)) continue;
+      const name = declaration.name.text;
+      if (name !== STATIC_ARRAY && name !== DYNAMIC_ARRAY) continue;
+      arrays.set(name, readStringArray(declaration.initializer));
+    }
+  }
+  const statics = arrays.get(STATIC_ARRAY);
+  const dynamics = arrays.get(DYNAMIC_ARRAY);
+  if (statics === undefined || statics === null) return null;
+  if (dynamics === undefined || dynamics === null) return null;
+  return { staticRoutes: statics, dynamicRoutes: dynamics };
+}
+
+function readStringArray(expression: ts.Expression | undefined): readonly string[] | null {
+  const unwrapped = unwrap(expression);
+  if (unwrapped === null || !ts.isArrayLiteralExpression(unwrapped)) return null;
+  const values: string[] = [];
+  for (const element of unwrapped.elements) {
+    if (!ts.isStringLiteral(element) && !ts.isNoSubstitutionTemplateLiteral(element)) return null;
+    values.push(element.text);
+  }
+  return values;
+}
+
+function unwrap(expression: ts.Expression | undefined): ts.Expression | null {
+  let current: ts.Expression | undefined = expression;
+  while (current !== undefined) {
+    if (ts.isParenthesizedExpression(current) || ts.isAsExpression(current)) {
+      current = current.expression;
+      continue;
+    }
+    if (ts.isSatisfiesExpression(current)) {
+      current = current.expression;
+      continue;
+    }
+    return current;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// The route's own declaration
+// ---------------------------------------------------------------------------
+
+/** One `metadata` value the route declares — a `const`, or one `return`. */
+interface MetadataObject {
+  readonly noindex: boolean;
+  readonly canonical: boolean;
+  /** Why this object could not be read in full, or `null`. */
+  readonly unreadable: string | null;
+}
+
+function readMetadataObjects(text: string, path: string): readonly MetadataObject[] {
+  const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const objects: MetadataObject[] = [];
+
+  const readValue = (expression: ts.Expression | undefined): void => {
+    const unwrapped = unwrap(expression);
+    if (unwrapped === null) return;
+    objects.push(readMetadataObject(unwrapped));
+  };
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableStatement(node) && isExported(node)) {
+      for (const declaration of node.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.name.text === 'metadata') {
+          readValue(declaration.initializer);
+        }
+      }
+    }
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name !== undefined &&
+      node.name.text === 'generateMetadata' &&
+      node.body !== undefined
+    ) {
+      const collectReturns = (inner: ts.Node): void => {
+        // A nested function's `return` is not this function's metadata.
+        if (inner !== node && (ts.isFunctionDeclaration(inner) || ts.isFunctionExpression(inner))) {
+          return;
+        }
+        if (ts.isArrowFunction(inner)) return;
+        if (ts.isReturnStatement(inner)) readValue(inner.expression);
+        ts.forEachChild(inner, collectReturns);
+      };
+      ts.forEachChild(node.body, collectReturns);
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(source, visit);
+  return objects;
+}
+
+function isExported(node: ts.VariableStatement): boolean {
+  return (
+    node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) === true
+  );
+}
+
+function readMetadataObject(expression: ts.Expression): MetadataObject {
+  if (!ts.isObjectLiteralExpression(expression)) {
+    return {
+      noindex: false,
+      canonical: false,
+      unreadable: `the metadata value is a \`${ts.SyntaxKind[expression.kind]}\`, not an object literal`,
+    };
+  }
+  let noindex = false;
+  let canonical = false;
+  let unreadable: string | null = null;
+
+  for (const property of expression.properties) {
+    if (ts.isSpreadAssignment(property)) {
+      unreadable ??= 'the object spreads a value this analysis cannot resolve';
+      continue;
+    }
+    if (!ts.isPropertyAssignment(property)) continue;
+    const name = propertyName(property.name);
+    if (name === 'robots') {
+      const verdict = readRobots(property.initializer);
+      if (verdict === 'unreadable') {
+        unreadable ??= 'the `robots` value is computed, so its answer cannot be read here';
+      } else if (verdict === 'noindex') {
+        noindex = true;
+      }
+      continue;
+    }
+    if (name === 'alternates') {
+      const inner = unwrap(property.initializer);
+      if (inner === null || !ts.isObjectLiteralExpression(inner)) {
+        unreadable ??= 'the `alternates` value is computed, so its canonical cannot be read here';
+        continue;
+      }
+      for (const alternate of inner.properties) {
+        if (ts.isPropertyAssignment(alternate) && propertyName(alternate.name) === 'canonical') {
+          canonical = true;
+        }
+        if (ts.isShorthandPropertyAssignment(alternate) && alternate.name.text === 'canonical') {
+          canonical = true;
+        }
+      }
+    }
+  }
+  return { noindex, canonical, unreadable };
+}
+
+type RobotsVerdict = 'noindex' | 'index' | 'unreadable';
+
+function readRobots(expression: ts.Expression): RobotsVerdict {
+  const inner = unwrap(expression);
+  if (inner === null) return 'unreadable';
+  // Next accepts the string form too — `robots: 'noindex, nofollow'`.
+  if (ts.isStringLiteral(inner) || ts.isNoSubstitutionTemplateLiteral(inner)) {
+    return inner.text.includes('noindex') ? 'noindex' : 'index';
+  }
+  if (!ts.isObjectLiteralExpression(inner)) return 'unreadable';
+  for (const property of inner.properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    if (propertyName(property.name) !== 'index') continue;
+    const value = unwrap(property.initializer);
+    if (value === null) return 'unreadable';
+    if (value.kind === ts.SyntaxKind.FalseKeyword) return 'noindex';
+    if (value.kind === ts.SyntaxKind.TrueKeyword) return 'index';
+    return 'unreadable';
+  }
+  return 'unreadable';
+}
+
+function propertyName(name: ts.PropertyName): string | null {
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name)) return name.text;
+  return null;
+}
+
+/**
+ * The JSON-LD types the route declares beside itself, or `null` when it makes
+ * no readable declaration. An **empty array is a declaration** — `/search` owes
+ * none, and saying so is what distinguishes it from a route nobody considered.
+ */
+export function readSeoDeclaration(text: string | null): readonly string[] | null {
+  if (text === null) return null;
+  const source = ts.createSourceFile('seo.ts', text, ts.ScriptTarget.Latest, true);
+  let declared: readonly string[] | null = null;
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== 'seo') continue;
+      const value = unwrap(declaration.initializer);
+      if (value === null || !ts.isObjectLiteralExpression(value)) continue;
+      for (const property of value.properties) {
+        if (!ts.isPropertyAssignment(property)) continue;
+        if (propertyName(property.name) !== 'jsonLd') continue;
+        declared = readStringArray(property.initializer);
+      }
+    }
+  }
+  return declared;
+}
+
+// ---------------------------------------------------------------------------
+// The analysis
+// ---------------------------------------------------------------------------
+
+/**
+ * The findings, over route source text and the sitemap's source text.
+ *
+ * Pure, and over the text a real run reads — the top of the analysis (issue
+ * #130). A fixture handing in classifications would prove the reporter and
+ * leave the AST walk, which is where all seven findings are decided, unproven.
+ */
+export function checkStorefrontIndexability(
+  input: StorefrontIndexabilityInput,
+): StorefrontIndexabilityResult {
+  const sitemap = readSitemapDeclaration(input.sitemapText);
+  const findings: StorefrontIndexabilityFinding[] = [];
+  const filesRead: string[] = [];
+  const classified: string[] = [];
+  const indexable: string[] = [];
+  const nonIndexable: string[] = [];
+
+  if (input.sitemapText !== null) filesRead.push(SITEMAP_FILE);
+
+  const pagesRead: string[] = [];
+  const patterns = new Map<string, RouteFile>();
+  for (const route of input.routes) {
+    filesRead.push(route.path);
+    pagesRead.push(route.path);
+    if (route.seoText !== null) filesRead.push(route.path.replace(/page\.tsx$/u, 'seo.ts'));
+    patterns.set(routePatternOf(route.path, input.appRoot), route);
+  }
+
+  /** Which route pattern serves this sitemap entry — the most specific one. */
+  const serves = (entry: string): string | null => {
+    let best: { pattern: string; score: number } | null = null;
+    for (const pattern of patterns.keys()) {
+      // A dynamic entry names a pattern; a static entry names a URL.
+      const score = entry === pattern ? Number.MAX_SAFE_INTEGER : matchScore(entry, pattern);
+      if (score === null) continue;
+      if (best === null || score > best.score) best = { pattern, score };
+    }
+    return best === null ? null : best.pattern;
+  };
+
+  const advertised = new Set<string>();
+  let sitemapCovered = 0;
+  const entries = sitemap === null ? [] : [...sitemap.staticRoutes, ...sitemap.dynamicRoutes];
+  for (const entry of entries) {
+    const pattern = serves(entry);
+    if (pattern === null) {
+      findings.push({
+        kind: 'orphan-sitemap-entry',
+        subject: entry,
+        path: SITEMAP_FILE,
+        detail:
+          'the sitemap advertises this URL and no route file serves it — a crawler is being ' +
+          'sent to a 404',
+      });
+      continue;
+    }
+    sitemapCovered += 1;
+    advertised.add(pattern);
+  }
+
+  for (const [pattern, route] of patterns) {
+    const objects = readMetadataObjects(route.text, route.path);
+    const contradiction = objects.find((object) => object.noindex && object.canonical);
+    if (contradiction !== undefined) {
+      findings.push({
+        kind: 'contradictory-indexability',
+        subject: pattern,
+        path: route.path,
+        detail:
+          'one metadata object declares `robots.index: false` **and** a canonical — a canonical ' +
+          'on a page nobody may fetch is a statement about nothing',
+      });
+      continue;
+    }
+
+    const declaresCanonical = objects.some((object) => object.canonical);
+    const declaresNoindex = objects.some((object) => object.noindex);
+    const unreadable = objects.find((object) => object.unreadable !== null)?.unreadable ?? null;
+
+    if (declaresCanonical) {
+      indexable.push(pattern);
+      classified.push(pattern);
+      if (!advertised.has(pattern)) {
+        findings.push({
+          kind: 'sitemap-orphan-route',
+          subject: pattern,
+          path: SITEMAP_FILE,
+          detail:
+            'the route declares itself indexable and the sitemap advertises nothing that ' +
+            'reaches it, so a crawler is never told the page is there',
+        });
+      }
+      if (readSeoDeclaration(route.seoText) === null) {
+        findings.push({
+          kind: 'undeclared-structured-data',
+          subject: pattern,
+          path: route.path.replace(/page\.tsx$/u, 'seo.ts'),
+          detail:
+            'an indexable route with no readable `seo.ts` beside it — nothing says which ' +
+            'schema.org types this page emits, so nothing can assert that it emits them',
+        });
+      }
+      continue;
+    }
+
+    if (declaresNoindex) {
+      nonIndexable.push(pattern);
+      classified.push(pattern);
+      if (advertised.has(pattern)) {
+        findings.push({
+          kind: 'missing-canonical',
+          subject: pattern,
+          path: route.path,
+          detail:
+            'the sitemap advertises this route while the route declares `robots.index: false` — ' +
+            'the two authors disagree and one of them is wrong',
+        });
+      }
+      continue;
+    }
+
+    if (unreadable !== null) {
+      findings.push({
+        kind: 'unresolvable-indexability',
+        subject: pattern,
+        path: route.path,
+        detail: `${unreadable}; read as indexable it agrees with everything and read as ` +
+          'non-indexable it excuses everything, so it is neither',
+      });
+      continue;
+    }
+
+    if (advertised.has(pattern)) {
+      findings.push({
+        kind: 'missing-canonical',
+        subject: pattern,
+        path: route.path,
+        detail:
+          'the sitemap advertises this route, so it is indexable, and it declares no ' +
+          '`alternates.canonical`',
+      });
+      continue;
+    }
+
+    findings.push({
+      kind: 'undeclared-indexability',
+      subject: pattern,
+      path: route.path,
+      detail:
+        'the route declares neither `robots.index: false` nor `alternates.canonical` — silence ' +
+        'is not a classification, and a new page inherits nothing from the group it sits in',
+    });
+  }
+
+  return {
+    findings,
+    indexable,
+    nonIndexable,
+    classified,
+    filesRead,
+    pagesRead,
+    sitemap,
+    sitemapCovered,
+    sitemapExpected: entries.length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Refusals
+// ---------------------------------------------------------------------------
+
+export type VacuousReasonKind = 'no-page-file' | 'unreadable-sitemap' | 'nothing-classified';
+
+export interface VacuousReason {
+  readonly kind: VacuousReasonKind;
+  readonly message: string;
+}
+
+/**
+ * Why this run may not report on what it read, or `null`.
+ *
+ * The fourth refusal of `contracts/seo-declarations.md` §5 — a walk short of
+ * what the sitemap implies — is `readSizeRefusal`'s `short-walk` over the
+ * `sitemap:<covered>/<expected>` coverage token, so #215's predicate is stated
+ * once for the whole estate rather than reimplemented here.
+ */
+export function vacuousReason(result: StorefrontIndexabilityResult): VacuousReason | null {
+  // First, and before the sitemap question: a moved `storefront/app` takes the
+  // sitemap with it, and "the second author is gone" is a true but useless
+  // sentence to hand someone whose whole route tree has moved.
+  if (result.pagesRead.length === 0) {
+    return {
+      kind: 'no-page-file',
+      message:
+        `the walk of ${APP_ROOT} opened no \`page.tsx\` at all — there is no population to ` +
+        'classify, and every reconciliation below is vacuously satisfied',
+    };
+  }
+  if (result.sitemap === null) {
+    return {
+      kind: 'unreadable-sitemap',
+      message:
+        `${SITEMAP_FILE} is absent, or its \`${STATIC_ARRAY}\` / \`${DYNAMIC_ARRAY}\` could not ` +
+        'be read as string arrays. It is the independent second author, and a check with one ' +
+        'author is a check that agrees with itself',
+    };
+  }
+  if (result.sitemap.staticRoutes.length + result.sitemap.dynamicRoutes.length === 0) {
+    return {
+      kind: 'unreadable-sitemap',
+      message:
+        'the sitemap advertises no route at all, so every reconciliation below it is ' +
+        'vacuously satisfied',
+    };
+  }
+  if (result.classified.length === 0) {
+    return {
+      kind: 'nothing-classified',
+      message:
+        'no route was classified either way. The predicate is declaration-based, so "nobody ' +
+        'declared anything" prints `findings=0` honestly and means the opposite',
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// The CLI half
+// ---------------------------------------------------------------------------
+
+const REMEDIES: Readonly<Record<StorefrontIndexabilityFindingKind, string>> = {
+  'undeclared-indexability':
+    'Add one line. A page a crawler must not index declares ' +
+    '`export const metadata: Metadata = { robots: { index: false, follow: false } };`; an ' +
+    'indexable one declares `alternates: { canonical: seo.route }` and ships a `seo.ts` beside ' +
+    'itself. 48 of the 57 pages in this tree take the first, and that is the usual answer for ' +
+    'anything behind a login or inside checkout.',
+  'contradictory-indexability':
+    'Decide. If the page is not indexable, drop the canonical; if it is, drop the `robots` ' +
+    'block. A `noindex` page with a canonical tells a crawler to consolidate ranking signals ' +
+    'onto a URL it has just been told to ignore.',
+  'unresolvable-indexability':
+    'Write the declaration where it can be read: a literal `robots` object or a literal ' +
+    '`alternates.canonical` in `export const metadata`, or in the `generateMetadata` return. ' +
+    'A value assembled elsewhere is a classification only its author can see.',
+  'missing-canonical':
+    'Either give the route `alternates: { canonical: … }` (and a `seo.ts` beside it), or take ' +
+    'it out of `storefront/app/sitemap.ts`. The sitemap and the route are the two authors of ' +
+    'one fact and they are disagreeing.',
+  'sitemap-orphan-route':
+    'Add the route to `SITEMAP_STATIC_ROUTES` (a URL it serves with no database read) or to ' +
+    '`SITEMAP_DYNAMIC_ROUTES` (the pattern whose URLs the sitemap enumerates). An indexable ' +
+    'page nobody is told about is a page nobody finds.',
+  'orphan-sitemap-entry':
+    'Remove the entry, or add the route file it names. A sitemap URL that 404s costs crawl ' +
+    'budget and is a quality signal in its own right.',
+  'undeclared-structured-data':
+    "Ship a `seo.ts` beside the `page.tsx` exporting `seo: RouteSeo` with the route pattern " +
+    'and the schema.org types the page emits. `jsonLd: []` is a valid declaration for a route ' +
+    'that owes none — say so rather than leaving the question open.',
+};
+
+interface WalkedRoutes {
+  readonly routes: readonly RouteFile[];
+  readonly sitemapText: string | null;
+}
+
+function walkRoutes(repoRoot: string): WalkedRoutes {
+  const appDirectory = join(repoRoot, APP_ROOT);
+  const routes: RouteFile[] = [];
+
+  const walk = (directory: string): void => {
+    let entries: import('node:fs').Dirent[];
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch {
+      // A directory that is not there contributes nothing; the *whole tree*
+      // being gone is what `vacuousReason`'s `no-page-file` refuses, and it is
+      // the record that answers it rather than this walk.
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (entry.name !== 'page.tsx') continue;
+      const seoPath = join(directory, 'seo.ts');
+      routes.push({
+        path: relative(repoRoot, full).split(sep).join('/'),
+        text: readFileSync(full, 'utf8'),
+        seoText: exists(seoPath) ? readFileSync(seoPath, 'utf8') : null,
+      });
+    }
+  };
+  walk(appDirectory);
+  routes.sort((a, b) => a.path.localeCompare(b.path));
+
+  const sitemapPath = join(repoRoot, SITEMAP_FILE);
+  return {
+    routes,
+    sitemapText: exists(sitemapPath) ? readFileSync(sitemapPath, 'utf8') : null,
+  };
+}
+
+function exists(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function main(): void {
+  const listMode = process.argv.includes('--list');
+  const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+  const walked = walkRoutes(repoRoot);
+
+  const result = checkStorefrontIndexability({
+    appRoot: APP_ROOT,
+    routes: walked.routes,
+    sitemapText: walked.sitemapText,
+  });
+
+  // §5's refusals, all three of them over the record rather than over the walk,
+  // so a red proof enters where a real run enters (issue #130). The first is
+  // the moved tree: `no-page-file` comes before the sitemap question because a
+  // moved `storefront/app` takes `sitemap.ts` with it.
+  const refusal = vacuousReason(result);
+  if (refusal !== null) {
+    console.error(`${PREFIX} ${refusal.message}; refusing to report a vacuous pass`);
+    process.exit(2);
+  }
+
+  if (listMode) {
+    for (const route of walked.routes) {
+      const pattern = routePatternOf(route.path, APP_ROOT);
+      const state = result.indexable.includes(pattern)
+        ? 'INDEX  '
+        : result.nonIndexable.includes(pattern)
+          ? 'NOINDEX'
+          : '???????';
+      console.log(`${state} ${pattern.padEnd(24)} ${route.path}`);
+    }
+    console.log('');
+  }
+
+  // §5's second refusal, through the shared reporter: the walk covering fewer
+  // sitemap entries than the sitemap declares is #215's predicate — not "the
+  // walk came back empty" but "the walk disagreed with an independent second
+  // author about how much there was to read".
+  reportReadSize({
+    prefix: PREFIX,
+    files: result.filesRead.length,
+    sites: result.classified.length,
+    coverage: [
+      { source: 'sitemap', expected: result.sitemapExpected, covered: result.sitemapCovered },
+    ],
+  });
+  console.log(
+    `${PREFIX} pages=${walked.routes.length} indexable=${result.indexable.length} ` +
+      `noindex=${result.nonIndexable.length} findings=${result.findings.length}`,
+  );
+
+  if (result.findings.length === 0) process.exit(0);
+
+  const kinds = [...new Set(result.findings.map((finding) => finding.kind))].sort();
+  for (const kind of kinds) {
+    console.error(`\n[${kind}]\n${REMEDIES[kind]}\n`);
+    for (const finding of result.findings.filter((candidate) => candidate.kind === kind)) {
+      console.error(
+        `  - ${finding.subject}${finding.path === null ? '' : ` (${finding.path})`}\n` +
+          `      ${finding.detail}`,
+      );
+    }
+  }
+  process.exit(1);
+}
+
+// CLI only — importing this module (the companion test does) must not scan.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

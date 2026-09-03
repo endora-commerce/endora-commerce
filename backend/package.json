@@ -43,6 +43,7 @@
     "check:release-intent": "tsx scripts/check-release-intent.ts",
     "check:shared-table-wipes": "tsx scripts/check-shared-table-wipes.ts",
     "check:singleton-identity": "tsx scripts/check-singleton-identity.ts",
+    "check:storefront-indexability": "tsx scripts/check-storefront-indexability.ts",
     "check:subscribe-seam": "tsx scripts/check-subscribe-seam.ts",
     "check:transaction-context": "tsx scripts/check-transaction-context.ts",
     "cli": "tsx --env-file-if-exists=.env src/cli.ts",

@@ -13,6 +13,14 @@ import { getServerContext } from '../../../lib/server-context';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { FileDropzone } from '../../../components/FileDropzone';
 import { summarizeQuickOrderPreview } from '../../../lib/quick-order-preview';
+import type { Metadata } from 'next';
+
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
+ * authenticated or transactional surface, of no use to a crawler and not a
+ * page a search result should ever land a buyer on.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Quick order (feature 039 / US1). Two-step flow:

@@ -51,6 +51,8 @@ import {
   placeOneClickOrder,
 } from '../../../../lib/api/quick-order';
 import { getServerContext } from '../../../../lib/server-context';
+import { canonicalPath } from '../../../../lib/seo/route-seo';
+import { seo } from './seo';
 import { tForLocale } from '../../../../lib/i18n/messages';
 import { StorefrontApiError, withoutViewer } from '../../../../lib/api/client';
 
@@ -95,6 +97,11 @@ export async function generateMetadata({
     return {
       title: `${product.seo.metaTitle}${titleSuffix}`,
       description: product.seo.metaDescription,
+      // Indexable (FR-010/FR-012), and the canonical is the product's own path
+      // **without** `?variant=`: every variant URL is the same product page
+      // with a different preselection, so one of them is the page a crawler
+      // should hold and the rest point at it.
+      alternates: { canonical: canonicalPath(seo.route, { slug }) },
       openGraph: {
         title: `${product.seo.openGraph.title}${titleSuffix}`,
         description: product.seo.openGraph.description,
@@ -102,7 +109,7 @@ export async function generateMetadata({
       },
     };
   } catch {
-    return { title: 'Product not found' };
+    return { title: 'Product not found', robots: { index: false, follow: false } };
   }
 }
 

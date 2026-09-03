@@ -6,6 +6,8 @@ import { CmsPageRenderer } from '../../../components/CmsPageRenderer';
 import { getCmsPageBySlug, normalizeCmsUrlPath } from '../../../lib/api/cms';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { getServerContext } from '../../../lib/server-context';
+import { canonicalPath } from '../../../lib/seo/route-seo';
+import { seo } from './seo';
 
 interface PageProps {
   params: Promise<{ slug: string[] }>;
@@ -16,11 +18,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const path = normalizeCmsUrlPath(slug.join('/'));
   const { ctx } = await getServerContext();
   const page = await getCmsPageBySlug(path, ctx);
-  if (!page) return { title: 'Not found' };
+  if (!page) return { title: 'Not found', robots: { index: false, follow: false } };
   return {
     title: page.meta.title ?? page.name,
     description: page.meta.description ?? undefined,
     keywords: page.meta.keywords ?? undefined,
+    // Indexable (FR-010/FR-012).
+    alternates: { canonical: canonicalPath(seo.route, { slug }) },
   };
 }
 

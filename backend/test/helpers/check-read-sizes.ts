@@ -593,7 +593,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their own new test file — which is worth recording as a habit rather than
     // as a coincidence: this number moves with the *instruments* a batch adds,
     // not with the surface it moves.
-    sites: 478,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2: +2 sites.**
+    // the two `.replace()` calls in the new storefront SEO helpers —
+    // `site-url.ts`'s origin trim and `JsonLd.tsx`'s `<` escape. Neither is a
+    // fold or a slug run, so both are classified and neither is a finding. The
+    // `files` figure moved for this branch *and* for `master` and is left for
+    // its owner.
+    // Measured rather than reasoned about: this branch's added files were
+    // moved aside and each check re-run, so the figure below is this merge
+    // request's own contribution and nobody else's. The entries this branch
+    // moved *jointly* with `master` are left for their owners.
+    sites: 480,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -754,7 +764,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // proof, `test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
     // **Batch 15 (feature 091, Phase 4): 1652 -> 1653.** One: the batch's own
     // `test/integration/_admin_surfaces/batch-fifteen-palette-off-state.test.ts`.
-    files: 1749,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2: +1 file.**
+    // the one new backend test file,
+    // `test/unit/scripts/check-storefront-indexability.test.ts`; `sites` is
+    // unmoved, because it holds no read with a fabricating fallback.
+    // Measured rather than reasoned about: this branch's added files were
+    // moved aside and each check re-run, so the figure below is this merge
+    // request's own contribution and nobody else's. The entries this branch
+    // moved *jointly* with `master` are left for their owners.
+    files: 1750,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -777,7 +795,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the server half of the batch's off-state proof.
     // **Batch 15 (feature 091, Phase 4): 1652 -> 1653.** One: the batch's own
     // `test/integration/_admin_surfaces/batch-fifteen-palette-off-state.test.ts`.
-    files: 1749,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2: +1 file.**
+    // the one new backend test file this phase adds.
+    // Measured rather than reasoned about: this branch's added files were
+    // moved aside and each check re-run, so the figure below is this merge
+    // request's own contribution and nobody else's. The entries this branch
+    // moved *jointly* with `master` are left for their owners.
+    files: 1750,
     sites: null,
     sources: [],
   },
@@ -812,7 +836,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the widening landed against. The second source is the contracts barrel,
     // `index.ts`, which is what the package says it publishes — the same
     // derived floor the manifest index provides for the module half.
-    files: 222,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2: +1 file.**
+    // the new check script, which carries reason strings and so joins this
+    // walk. Its `sites` figure moved on `master` alone and is left for its
+    // owner.
+    // Measured rather than reasoned about: this branch's added files were
+    // moved aside and each check re-run, so the figure below is this merge
+    // request's own contribution and nobody else's. The entries this branch
+    // moved *jointly* with `master` are left for their owners.
+    files: 223,
     sites: 14,
     sources: ['manifest-index', 'contracts-barrel'],
   },
@@ -1812,9 +1844,38 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the server half of the batch's off-state proof.
     // **Batch 15 (feature 091, Phase 4): 1652 -> 1653.** One: the batch's own
     // `test/integration/_admin_surfaces/batch-fifteen-palette-off-state.test.ts`.
-    files: 1749,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2: +1 file.**
+    // the one new backend test file; `sites` is unmoved, because it empties no
+    // table.
+    // Measured rather than reasoned about: this branch's added files were
+    // moved aside and each check re-run, so the figure below is this merge
+    // request's own contribution and nobody else's. The entries this branch
+    // moved *jointly* with `master` are left for their owners.
+    files: 1750,
     sites: 162,
     sources: [],
+  },
+  'backend/scripts/check-storefront-indexability.ts': {
+    prefix: '[storefront-indexability]',
+    run: { kind: 'tsx', path: 'scripts/check-storefront-indexability.ts', args: [] },
+    // Every file the check **opens**: the 57 `page.tsx` files under
+    // `storefront/app`, the nine `seo.ts` declarations beside the indexable
+    // ones, and `storefront/app/sitemap.ts` itself. It is deliberately not the
+    // 57 — a route losing its structured-data declaration moves this number and
+    // leaves `sites` where it was, which is one of the findings.
+    files: 67,
+    // Routes classified either way: 9 indexable + 48 `noindex`. It moves only
+    // when a page is added or removed, so a run whose `sites` fell while `files`
+    // held is a route file that left the tree rather than a declaration that
+    // left a route.
+    sites: 57,
+    // `sitemap` is `storefront/app/sitemap.ts`'s own declared route set — the
+    // five static URLs plus the four dynamic patterns — against how many of them
+    // the route walk could match to a page file. It is #215's predicate for this
+    // population: a *partially* moved `storefront/app` leaves the rest readable
+    // and clean, and this is the only number that notices. Measured with
+    // everything but `(catalog)` moved aside: `files=9`, `sitemap:4/9`, exit 2.
+    sources: ['sitemap'],
   },
   'backend/scripts/check-subscribe-seam.ts': {
     prefix: '[subscribe-seam]',
@@ -1878,7 +1939,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population and was not the admin application's.
     // **Batch 15: 3879 -> 3904.** The twenty-four net module-package sources
     // above, plus the batch's own backend integration test.
-    files: 4150,
+    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2: +2 files.**
+    // the new check script and its companion test, both under `backend/`.
+    // Measured rather than reasoned about: this branch's added files were
+    // moved aside and each check re-run, so the figure below is this merge
+    // request's own contribution and nobody else's. The entries this branch
+    // moved *jointly* with `master` are left for their owners.
+    files: 4152,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.

@@ -451,6 +451,22 @@ quality:
     # per-module ledger under `scripts/ledgers/non-english-defaults/`, two-way
     # and expected to empty. What it refuses is the 42nd.
     - pnpm --filter backend run check:default-language-prose
+    # `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2 (FR-010…FR-014) — every
+    # storefront route says whether a crawler may index it, and the sitemap and
+    # the route table agree in both directions. Before it, the reference
+    # storefront told crawlers nothing at all: no `sitemap.ts`, no `robots.ts`,
+    # and not one canonical. Under D-195 that template is what every client
+    # instance is copied from, so this is the only place the property is
+    # enforceable once.
+    # The population is the 57 `page.tsx` files, not the 67 route files — five
+    # are API handlers, five are layouts, and 48 of the pages are account, auth
+    # and checkout surfaces that must **not** be indexed; a canonical on
+    # `/account/password` would be a defect.
+    # Its second author is `storefront/app/sitemap.ts`'s own declared route set,
+    # which is a Constitution VII deliverable in its own right rather than a
+    # fixture built to satisfy a check. No ledger, deliberately: every finding
+    # is one line away from compliance in the merge request that produces it.
+    - pnpm --filter backend run check:storefront-indexability
     # Feature 021 / Principle VIII (issue #116) — a user-visible string in the
     # admin SPA is a translation key, not a literal. `AGENTS.md` has cited this
     # script as the gate since 021 and it ran in no job at all: first because its

@@ -126,6 +126,12 @@ import {
   type FixtureModuleDocs,
   type FixturePage,
 } from '../../helpers/module-docs-fixture.js';
+import {
+  checkStorefrontIndexability,
+  vacuousReason as storefrontIndexabilityVacuous,
+  type RouteFile as StorefrontRouteFile,
+  type StorefrontIndexabilityFindingKind,
+} from '../../../scripts/check-storefront-indexability.js';
 import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
 import {
   checkAdminSurface,
@@ -3065,6 +3071,79 @@ function bundlePairingReadRefusals(declarations: readonly FixtureModule[]): numb
   } finally {
     fixture.cleanup();
   }
+}
+
+/**
+ * `check-storefront-indexability` over route **source text** and the sitemap's
+ * own source text — the two inputs a real run reads (feature
+ * `specs/098-storefront-ssr-seo-a11y-suite/`, Phase 2).
+ *
+ * Both are written out rather than handed in as classifications, so each proof
+ * drives the TypeScript walk that decides every one of the seven findings: an
+ * `export const metadata` initializer and every `return` of `generateMetadata`,
+ * down to the `robots.index` literal and the `alternates.canonical` key. A
+ * fixture entering below that would prove the reporter and leave the classifier
+ * — which is all of the analysis — unproven (issue #130).
+ */
+const STOREFRONT_APP_ROOT = 'storefront/app';
+
+function storefrontSitemap(
+  staticRoutes: readonly string[],
+  dynamicRoutes: readonly string[] = [],
+): string {
+  return [
+    'export const SITEMAP_STATIC_ROUTES: readonly string[] = [',
+    ...staticRoutes.map((route) => `  '${route}',`),
+    '];',
+    'export const SITEMAP_DYNAMIC_ROUTES: readonly string[] = [',
+    ...dynamicRoutes.map((route) => `  '${route}',`),
+    '];',
+  ].join('\n');
+}
+
+const STOREFRONT_SEO_DECLARATION =
+  "export const seo: RouteSeo = { route: '/catalog', jsonLd: ['BreadcrumbList'] };";
+
+const STOREFRONT_INDEXABLE_PAGE =
+  "import { seo } from './seo';\n" +
+  'export const metadata = { alternates: { canonical: seo.route } };\n' +
+  'export default function Page() { return null; }\n';
+
+/**
+ * The control every proof runs beside: an indexable route the sitemap
+ * advertises. Load-bearing rather than decorative — a run holding only the
+ * violation classifies nothing and is *refused*, so the proof would assert the
+ * refusal instead of the finding.
+ */
+const STOREFRONT_CLEAN_ROUTE: StorefrontRouteFile = {
+  path: `${STOREFRONT_APP_ROOT}/(catalog)/catalog/page.tsx`,
+  text: STOREFRONT_INDEXABLE_PAGE,
+  seoText: STOREFRONT_SEO_DECLARATION,
+};
+
+function storefrontIndexabilityFindings(
+  routes: readonly StorefrontRouteFile[],
+  sitemap: { static: readonly string[]; dynamic?: readonly string[] },
+  kind: StorefrontIndexabilityFindingKind,
+): number {
+  return checkStorefrontIndexability({
+    appRoot: STOREFRONT_APP_ROOT,
+    routes,
+    sitemapText: storefrontSitemap(sitemap.static, sitemap.dynamic ?? []),
+  }).findings.filter((finding) => finding.kind === kind).length;
+}
+
+/** The three refusals `vacuousReason` answers, over the record a run produces. */
+function storefrontIndexabilityRefusals(
+  routes: readonly StorefrontRouteFile[],
+  sitemapText: string | null,
+): number {
+  const result = checkStorefrontIndexability({
+    appRoot: STOREFRONT_APP_ROOT,
+    routes,
+    sitemapText,
+  });
+  return storefrontIndexabilityVacuous(result) === null ? 0 : 1;
 }
 
 const CHECKS: readonly CheckEntry[] = [
@@ -6296,6 +6375,163 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2 — every storefront
+    // route says whether a crawler may index it, and the sitemap and the route
+    // table agree in both directions. It lands **at zero findings with the
+    // production change in the same merge request**: before it there was no
+    // `sitemap.ts`, no `robots.ts` and not one canonical in the tree, so the
+    // check and the 57 classifications it judges arrived together.
+    //
+    // That is what makes this entry carry the weight. Nothing in the tree
+    // exercises the check, so a narrowing that stopped it seeing a shape would
+    // be invisible in every pipeline until the day someone added a route.
+    //
+    // Seven findings, seven proofs, each entering as **source text** — the page
+    // file's and the sitemap's — because the classifier is a TypeScript walk
+    // and a fixture handing in a classification would leave it unproven.
+    // `contradictory-indexability` is per metadata *object* rather than per
+    // file, so its proof puts both signals in one object: the per-file reading
+    // would report the four dynamic routes in this tree that correctly answer
+    // `noindex` for an unresolved slug and a canonical otherwise.
+    script: 'backend/scripts/check-storefront-indexability.ts',
+    npmScript: 'check:storefront-indexability',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-storefront-indexability.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is `storefront/app`, which a moved *backend* module tree
+    // does not touch. The equivalent refusal is its own `no-page-file`, proven
+    // below, and the partial-move case is `readSizeRefusal`'s `short-walk` over
+    // the `sitemap:<covered>/<expected>` token.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'undeclared-indexability': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text: 'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          { static: ['/catalog'] },
+          'undeclared-indexability',
+        ),
+      ),
+      'contradictory-indexability': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text:
+                'export const metadata = { robots: { index: false }, ' +
+                "alternates: { canonical: '/wholesale' } };\n" +
+                'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          { static: ['/catalog'] },
+          'contradictory-indexability',
+        ),
+      ),
+      // A finding and never a skip (issue #113): read as indexable it agrees
+      // with everything, read as non-indexable it excuses everything.
+      'unresolvable-indexability': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text:
+                "import { CRAWLER_POLICY } from '../../lib/policy';\n" +
+                'export const metadata = { robots: CRAWLER_POLICY };\n' +
+                'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          { static: ['/catalog'] },
+          'unresolvable-indexability',
+        ),
+      ),
+      // The sitemap classified it, so the route owes a canonical rather than a
+      // classification — and this is what makes the second author load-bearing
+      // rather than decorative.
+      'missing-canonical': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text: 'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          { static: ['/catalog', '/wholesale'] },
+          'missing-canonical',
+        ),
+      ),
+      'sitemap-orphan-route': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text: STOREFRONT_INDEXABLE_PAGE,
+              seoText: STOREFRONT_SEO_DECLARATION,
+            },
+          ],
+          { static: ['/catalog'] },
+          'sitemap-orphan-route',
+        ),
+      ),
+      'orphan-sitemap-entry': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE],
+          { static: ['/catalog', '/wholesale'] },
+          'orphan-sitemap-entry',
+        ),
+      ),
+      // The declaration Phase 4 asserts the served HTML against. Without it the
+      // route's JSON-LD is a thing nothing can check, which is the state the
+      // whole feature is about.
+      'undeclared-structured-data': top(() =>
+        storefrontIndexabilityFindings(
+          [{ ...STOREFRONT_CLEAN_ROUTE, seoText: null }],
+          { static: ['/catalog'] },
+          'undeclared-structured-data',
+        ),
+      ),
+      // The moved tree (issue #215), as a proof of the *refusal* rather than of
+      // a finding: with `storefront/app` gone the walk opens nothing and the
+      // reconciliation below it is vacuously satisfied.
+      'moved-app-tree-is-refused': top(() =>
+        storefrontIndexabilityRefusals([], storefrontSitemap(['/catalog'])),
+      ),
+      // The second author gone. A check with one author is a check that agrees
+      // with itself, so an absent or unreadable sitemap is exit 2 and not a
+      // report over the route files alone.
+      'unreadable-sitemap-is-refused': top(() =>
+        storefrontIndexabilityRefusals([STOREFRONT_CLEAN_ROUTE], null),
+      ),
+      // With a declaration-based predicate, "nobody declared anything" prints
+      // `findings=0` honestly and means the opposite.
+      'nothing-classified-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [
+            {
+              path: `${STOREFRONT_APP_ROOT}/a/page.tsx`,
+              text: 'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          storefrontSitemap(['/a']),
+        ),
+      ),
+    },
+  },
+  {
     // Five signals over one rule — a module's background consumers reach the
     // module's seam — and the fixture for each names only its own.
     //
@@ -8430,6 +8666,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // handful it refuses, and a proof set that only showed the refusal would
       // not show it is the right check.
       'backend/scripts/check-singleton-identity.ts': 10,
+      // Seven findings and all three vacuous reasons. The seventh finding —
+      // `undeclared-structured-data` — is not in `contracts/seo-declarations.md`
+      // §7's list of six: that contract puts the JSON-LD types in a ledger
+      // instead, on the assumption that the emitters would arrive after the
+      // check. They arrived in the same merge request, so the ledger would have
+      // landed empty with nothing to strand, and a finding over the *declaration*
+      // is what gives the per-route `seo.ts` a reader.
+      'backend/scripts/check-storefront-indexability.ts': 10,
       // Three spellings of a bare subscription, plus the two queue-consumer
       // shapes: a factory call whose value goes nowhere, and a `new Worker` the
       // module keeps to itself.

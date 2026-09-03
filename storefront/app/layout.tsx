@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Viewport } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { MobileTabBar } from '../components/mobile/MobileTabBar';
@@ -15,6 +15,7 @@ import { CheckoutHeader } from '../components/checkout/CheckoutHeader';
 import { HeaderSwitch } from '../components/HeaderSwitch';
 import { getActiveMegamenu } from '../lib/api/megamenu';
 import { getServerContext } from '../lib/server-context';
+import { siteUrl } from '../lib/seo/site-url';
 import { StorefrontDocument } from '../lib/theme/StorefrontDocument';
 import { fetchDictionary } from '../lib/dictionary/client';
 import { DictionaryProvider } from '../lib/dictionary/DictionaryProvider';
@@ -36,7 +37,14 @@ import { CookieConsentMessage } from '../components/analytics/CookieConsentMessa
 import { getAnonCartCookie, getSessionCookie } from '../lib/session';
 import './globals.css';
 
-export const metadata = {
+/**
+ * `metadataBase` is what makes every route's `alternates.canonical` a **path**
+ * (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-012). The deployment's origin
+ * is declared once, here; a route that spelled its own absolute URL would go on
+ * naming the old origin after a move, with nothing to notice.
+ */
+export const metadata: Metadata = {
+  metadataBase: siteUrl(),
   title: 'B2B Platform',
   description:
     'A B2B commerce platform supporting Quote Requests and direct purchase for business customers.',

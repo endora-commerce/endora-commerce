@@ -17,6 +17,14 @@ import { formatMoney } from '../../../../lib/i18n/money';
 import { rfqValidity, rfqValidityGate } from '../../../../lib/quote-requests/validity';
 import { RfqValidityMeta } from '../../../../components/rfq/RfqValidityMeta';
 import { RfqDetailActions } from '../../../../components/rfq/RfqDetailActions';
+import type { Metadata } from 'next';
+
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
+ * authenticated or transactional surface, of no use to a crawler and not a
+ * page a search result should ever land a buyer on.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Customer Quote Request detail (feature 008 / T034). Mode-driven UI:

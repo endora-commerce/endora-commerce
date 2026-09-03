@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
 import { getCmsPage, normalizeCmsUrlPath } from '../../../lib/api/cms';
 import { getServerContext } from '../../../lib/server-context';
+import { canonicalPath } from '../../../lib/seo/route-seo';
+import { seo } from './seo';
 import { pickLocalizedString } from '../../../lib/i18n/locale';
 import { tForLocale } from '../../../lib/i18n/messages';
 
@@ -23,9 +25,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const path = normalizeCmsUrlPath(slug.join('/'));
   const { ctx, locale } = await getServerContext();
   const page = await getCmsPage(path, ctx);
-  if (!page) return { title: 'Not found' };
+  if (!page) return { title: 'Not found', robots: { index: false, follow: false } };
   const title = pickLocalizedString(page.title, locale);
-  return { title };
+  // Indexable (FR-010/FR-012).
+  return { title, alternates: { canonical: canonicalPath(seo.route, { slug }) } };
 }
 
 export default async function CmsContentPage({ params }: PageProps): Promise<ReactNode> {
