@@ -674,11 +674,69 @@ release:changeset:
 # A diff the matcher does not recognise runs the tests; that is rung 3, and it
 # is what stops a future refactor of rung 1 from turning "the matcher broke"
 # into "nothing needed testing".
+.backend-unit-test-rules:
+  # The service-free unit suite, and it **keeps its merge-request rung** while
+  # the migration narrows the two heavy jobs above to the default branch
+  # (D-198). It shared `.backend-test-rules` until 2026-09-03, so narrowing that
+  # anchor silently took this job with it — caught before the change shipped,
+  # and the reason it now has an anchor of its own rather than a comment asking
+  # the next editor to remember.
+  #
+  # It earns the merge-request run on three properties the sharded suite lacks:
+  # it declares `BACKEND_TEST_SERVICES=none` and provisions no container, it
+  # finishes in minutes, and it names the failing test. That last one is the
+  # whole point of keeping *something* on a branch — with fifteen merge requests
+  # landing in a batch, a red default branch has fifteen candidates.
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
+        - .changeset/config.json
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - docs/**/*
+        - specs/**/*
+        - '**/*.md'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
 .backend-test-rules:
+  # ---------------------------------------------------------------------------
+  # **Default branch only, for the duration of the packaging migration** (owner
+  # ruling D-198, 2026-09-03). Restore the `|| $CI_PIPELINE_SOURCE ==
+  # "merge_request_event"` clause on rungs 1 and 2 when the migration closes —
+  # the ruling names the condition, and this comment is the reminder that it is
+  # a suspension and not a design.
+  #
+  # **Why.** This suite is five shards that *serialise* (`resource_group:
+  # backend-suite`, issue #199) on a runner shared with another project, so a
+  # merge-request run costs hours. At the migration's merge cadence — fifteen
+  # merge requests landed on 2026-09-03 alone — that signal arrives after the
+  # branch it describes is already merged.
+  #
+  # **What is kept, and why those.** `quality`, `quality:static` and
+  # `test:backend:unit` still run on every merge request: minutes, no service
+  # containers, and each names the file and the rule it refuses. That is the
+  # property master-only cannot reproduce — with fifteen merges in a batch, a
+  # red `master` has fifteen candidates, and establishing whose a number was
+  # cost a full day of work on 2026-09-03 (`RECORDED_READ_SIZES`, 31 entries,
+  # attributed by standing a second worktree at a month-old commit).
+  #
+  # **What is given up, stated rather than discovered.** An integration or
+  # contract regression is now found on `master`, after the merge, by whoever
+  # runs next. AGENTS.md already records that shape three times over — a
+  # contract test red across 29 merges, an integration test red across 50. This
+  # ruling accepts it for the migration window in exchange for the runner, and
+  # the `master` pipeline is what bounds it.
+  # ---------------------------------------------------------------------------
   rules:
     # 1 — something that can affect the backend changed. On the default branch
-    #     this is what gets deployed; on an MR it is the merge gate.
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+    #     this is what gets deployed.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - backend/**/*
         - packages/**/*
@@ -700,7 +758,7 @@ release:changeset:
     #     because they were classified, not because no pattern happened to hit.
     #     A `*.md` under a code path (e.g. `backend/src/modules/*/README.md`)
     #     never reaches this rung — rung 1 already matched it.
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - docs/**/*
         - specs/**/*
@@ -782,8 +840,13 @@ test:backend:deployment:
     paths:
       - .pnpm-store
   rules:
+    # **Default branch only for the duration of the packaging migration**
+    # (D-198, 2026-09-03) — restore the merge-request rung when it closes. This
+    # job composes each deployment's overlay modules and boots them, which is
+    # the composition that bare core cannot break; nothing about that judgement
+    # changed, only when it runs. See `.backend-test-rules` above for the full
+    # reasoning and for what is given up.
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - backend/**/*
         - packages/**/*
@@ -980,7 +1043,7 @@ test:backend:unit:
         - pnpm-lock.yaml
     paths:
       - .pnpm-store
-  rules: !reference [.backend-test-rules, rules]
+  rules: !reference [.backend-unit-test-rules, rules]
 
 # ---------------------------------------------------------------------------
 # The acceptance criterion for "a package can ship schema" (feature 080, D-110).
