@@ -437,6 +437,44 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'A',
   },
   {
+    id: 'check:module-docs',
+    script: 'backend/scripts/check-module-docs.ts',
+    // **`package`, not `repository-only`, and the estate refused the first
+    // classification I wrote.** Its population is the registered modules, so a
+    // repository-only claim over a module walk is exactly what this file's own
+    // guard exists to reject — and the guard was right: the reasoning behind
+    // that claim was about the *pairing* (a lone package has no navigation),
+    // not about the *subject*, which is a module's own documentation layer.
+    //
+    // Feature 100's Phase 2 gives a module a package-root `docs/` directory on
+    // `i18n/`'s terms. Until it lands there is no package-scope host, and there
+    // is no input an author can supply to make one — which is what `pending`
+    // means here and why it is not `unreadable`.
+    scope: 'package',
+    host: pending('specs/100-module-owned-documentation/ Phase 2'),
+    subjectDeclaration: null,
+    readsArtefact: true,
+    // A, not C: in package scope the inputs are the package's own `docs/` layer
+    // and its manifest. C is defined as *this repository, always
+    // `repository-only`*, so it cannot carry a `package` scope — the second
+    // thing this file's guards refused about this entry, and correctly.
+    tier: 'A',
+  },
+  {
+    id: 'check:storefront-indexability',
+    script: 'backend/scripts/check-storefront-indexability.ts',
+    scope: 'repository-only',
+    reason:
+      'its population is `storefront/app`’s route tree and its second author is that ' +
+      'application’s own `sitemap.ts`. A module package has neither, and under D-195 a ' +
+      'client’s storefront is generated from a scaffold and owned outright rather than ' +
+      'composed from packages — so there is no package-scope subject here and there will ' +
+      'not be one.',
+    subjectDeclaration: null,
+    readsArtefact: false,
+    tier: 'C',
+  },
+  {
     id: 'check:off-state-coverage',
     script: 'backend/scripts/check-off-state-coverage.ts',
     scope: 'repository-only',

@@ -603,7 +603,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their own new test file — which is worth recording as a habit rather than
     // as a coincidence: this number moves with the *instruments* a batch adds,
     // not with the surface it moves.
-    sites: MEASURE,
+    // **Measured on the merge result, not on either branch** — 488.
+    //
+    // Two branches recorded this field independently and **neither number was
+    // right for the tree they were about to make**: feature 098's Phase 2 wrote
+    // 480 (its own +2, measured by parking its files and re-running) and this
+    // branch wrote 484. Both were correct about their own branch. The combined
+    // tree reads 488, and it was measured here rather than chosen between,
+    // after the rebase, with the packages rebuilt.
+    //
+    // This is the fourth instance of a record swept on a branch describing that
+    // branch's tree — the entry in `specs/deferred-defects.md` carries the other
+    // three. It is the first one caught **before** it merged, and only because
+    // the merge result was built locally: no pipeline in this repository does
+    // that, and both branches were individually green.
+    sites: 488,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
