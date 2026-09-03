@@ -355,11 +355,115 @@ export interface RecordedReadSize {
  * them here would file another merge request's growth under this one's name. Two
  * agents have already refused the same re-record, and this is the third.
  */
+/**
+ * **Re-recorded on 2026-09-03, thirty-one entries, and none of the movement is
+ * this merge request's own.** That is the whole reason it exists: the entries
+ * below drifted across sixteen merges by four different features, the drift
+ * report named them on every run, and four merge requests in a row correctly
+ * declined to re-record growth that was not theirs — the note above this one is
+ * the last of those refusals. A ratchet whose repair belongs to nobody is a
+ * ratchet nobody repairs, so this is the merge request that owes it, and it
+ * changes nothing but the numbers and this comment.
+ *
+ * **The baseline is measured, not assumed.** Every entry that had drifted was
+ * blamed to `543151a4a` (feature 091's batch 15) or to `2abdb00ce` (the 095
+ * sweep), so the whole estate was run in a worktree at `ff2637487` — batch 15's
+ * merge into `master`. All thirty-one read back their recorded value **exactly**.
+ * The drift therefore belongs entirely to the merges after it, and no recorded
+ * number was already wrong when it was written. Four checkpoints were taken:
+ * `ff2637487`, `1fffd1a83` (the merge after `089-unopim-pim-sync`), `4b7273cc0`
+ * (the merge after batch 16) and `627c6abe5` (this branch point), which is what
+ * lets each number below be apportioned rather than reasoned about.
+ *
+ * **Three merges account for nearly all of it, and one of them cancels part of
+ * another** — the case this file's own rule says must be stated rather than
+ * netted:
+ *
+ *   - `089-unopim-pim-sync` (`14384dbac`) adds two module packages,
+ *     `pim_unopim` and `pim_connector`: **+76** `.ts` under the module walk
+ *     roots, +67 under `backend/test`, +193 repo-wide.
+ *   - `feat/091-batch16-admin-drain` (`4326b2cda`) moves `cms`' and `blog`'
+ *     screens into their packages: **+11** module `.ts`, and **-3** repo-wide,
+ *     because the admin application loses more files than the packages gain.
+ *   - `fix/pim-package-entity-surface` (`a04ec6254`) deletes
+ *     `pim_connector/src/backend/services/field-path.ts`: **-1** module `.ts`.
+ *
+ * So the twelve-check module-walk family is 1916 -> 2002 as **+76, +11, -1**,
+ * and recording the net +86 without saying so would leave a row that is
+ * internally consistent and wrong about its own cause.
+ *
+ * The rest, per population:
+ *
+ *   - **`backend/test`** (`check-fixture-substitution`, `check-harness-teardown`,
+ *     `check-shared-table-wipes`) 1653 -> 1749: 089-unopim +67,
+ *     `fix/product-feeds-port-catches` +2, `feat/096-block-vocabulary` +1,
+ *     `feat/080-permission-dependencies` +2, `fix/port-catches-promise-form` +4,
+ *     `feat/073-off-state-residue` batch one +8 and batch two +11, and
+ *     `feat/073-off-state-coverage-ratchet` +1.
+ *   - **whole repository** (`check-nul-bytes` 6991 -> 7278, `check-naming.sh`
+ *     7051 -> 7338) is the same sixteen merges summing to +287, of which
+ *     089-unopim is +193 and batch 16 is -3.
+ *   - **`check-language.sh`** 5261 -> 5473 and **`check-diacritic-folds`**
+ *     4953 -> 5142 are that walk minus the roots each excludes;
+ *     `feat/097-migration-sql-boundary`'s fifteen new ledger shards are in the
+ *     first (`backend/scripts` is in scope) and in neither the second nor
+ *     `check-diacritic-folds`, which is why those two numbers move differently.
+ *   - **`check-doc-snippets`** 1048 -> 1102 is nine documentation merges, the
+ *     largest being 089-unopim (+15); its `sites` 9 -> 11 is
+ *     `design/f12-documentation-generation` alone, the only merge in the window
+ *     that changed a `verbatim-from` marker (21 -> 25 markers).
+ *   - **`check-lock-claims`** 202 -> 222 moves for **three** reasons, two of
+ *     which cancel: 089-unopim +6 manifests, batch 16 **-2** ledger shards,
+ *     `feat/097-migration-sql-boundary` +15 shards, and
+ *     `feat/073-off-state-coverage-ratchet` +1 check script.
+ *   - **`check-singleton-identity`** 3904 -> 4150 walks all of `backend/`, so it
+ *     takes both the module growth and every test merge above.
+ *
+ * **Five `sites` numbers are pinned to a single merge and are the ones to read
+ * if this record is doubted**, each measured per file rather than reasoned
+ * about:
+ *
+ *   - `check-admin-surface` 2158 -> 2159 and `check-module-boundary`
+ *     11125 -> 11129: `feat/080-permission-dependencies` adds one import to
+ *     `admin_users`' `src/admin/pages/AdminRolesPage.tsx` (+1 to both), and
+ *     `fix/port-catches-promise-form` adds three more module imports (+3 to the
+ *     second). Both records were written on branches that `master` had already
+ *     moved past — the shape this file's P4b note describes — so neither is
+ *     growth those branches could have seen.
+ *   - `check-default-language-prose` 29646 -> 31619: +1796 from 089-unopim,
+ *     +174 from batch 16, and **+3** from `feat/080-permission-dependencies`,
+ *     the last measured with `analyzeSource` over each changed file and landing
+ *     entirely in `quote_requests/src/manifest.ts` (84 -> 87 classified
+ *     literals).
+ *   - `check-platform-surface` 1670 -> 1742: +64 from 089-unopim, then exactly
+ *     +8 from the two `check:port-catches` repair merges — four platform symbol
+ *     reaches each, all of them `rethrowIfModuleDisabled`.
+ *   - `check-fixture-substitution` 533 -> 567: +32 from 089-unopim, +1 from
+ *     batch 16, and +1 from `fix/product-feeds-port-catches`, whose
+ *     `credentials-off-delivery.test.ts` is the file that started reading the
+ *     database.
+ *
+ * **`check-port-catches` 168 -> 196 is the one number that cannot be decomposed
+ * exactly, and it is recorded as explained rather than as measured.** The +28 is
+ * `089-unopim-pim-sync`'s, and `5253b3ea2` said so in this file when it declined
+ * to re-record: it kept 168 = 162 + 6 so that the inherited drift would stay
+ * visible to whoever owned it. Measured with the analyzer of the day, that merge
+ * moved the site count 162 -> 193; the remaining three sites are the interaction
+ * between that growth and the promise-form widening's own renames, which were
+ * measured against a different base. The cause is not in doubt; the split
+ * between two changes that overlap in the same files is not recoverable from
+ * either measurement, and inventing one would be worse than saying so.
+ *
+ * Everything else is one of the three merges named at the top, seen through a
+ * narrower filter. Every `sources=` token reconciles in full on every entry, on
+ * all four checkpoints, which is the evidence that this is growth and not a walk
+ * that stopped looking. No band was widened and no assertion moved.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
     run: { kind: 'tsx', path: 'scripts/check-action-route-permissions.ts', args: [] },
-    files: 1808,
+    files: 1878,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -372,7 +476,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // palette actions — `open-products`, `open-categories`, `open-attributes` —
     // which are the three hand-written `PALETTE_ITEMS` rows that batch deletes,
     // arriving as declarations the effective enabled-set filters.
-    sites: 79,
+    sites: 86,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -398,7 +502,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1916,
+    files: 2002,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -421,7 +525,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1470,
+    files: 1552,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -446,7 +550,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1717,
+    files: 1803,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -460,7 +564,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Batch 15: 4954 -> 4953.** The whole-tree walk: four re-export shims
     // deleted, and three files added (`catalog/src/admin/index.ts` and the
     // batch's two new test files).
-    files: 4953,
+    files: 5142,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -489,14 +593,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their own new test file — which is worth recording as a habit rather than
     // as a coincidence: this number moves with the *instruments* a batch adds,
     // not with the surface it moves.
-    sites: 444,
+    sites: 478,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
     prefix: '[doc-snippets]',
     run: { kind: 'tsx', path: 'scripts/check-doc-snippets.ts', args: [] },
-    files: 1048,
-    sites: 9,
+    files: 1102,
+    sites: 11,
     sources: [],
   },
   'backend/scripts/check-entity-tenant-classification.ts': {
@@ -518,8 +622,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1916,
-    sites: 236,
+    files: 2002,
+    sites: 251,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
@@ -541,7 +645,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1916,
+    files: 2002,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -564,7 +668,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1916,
+    files: 2002,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -598,7 +702,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // A downward move is the direction this band exists to refuse, so each
     // number is moved in the merge request that shrank the population and
     // nowhere else.
-    sites: 40,
+    sites: 43,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-error-translations.ts': {
@@ -612,8 +716,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // read 289 routed codes before and reads 289 declared codes after, because
     // the migration was answer-preserving over the whole enumeration — so the
     // band that was recorded against the chain is the band the derivation meets.
-    files: 124,
-    sites: 825,
+    files: 128,
+    sites: 864,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -650,7 +754,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // proof, `test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
     // **Batch 15 (feature 091, Phase 4): 1652 -> 1653.** One: the batch's own
     // `test/integration/_admin_surfaces/batch-fifteen-palette-off-state.test.ts`.
-    files: 1653,
+    files: 1749,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -660,7 +764,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both the walk and the finer population in the same merge request.
     // **Batch 15: 532 -> 533.** One read site in the batch's own backend
     // integration test.
-    sites: 533,
+    sites: 567,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -673,7 +777,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the server half of the batch's off-state proof.
     // **Batch 15 (feature 091, Phase 4): 1652 -> 1653.** One: the batch's own
     // `test/integration/_admin_surfaces/batch-fifteen-palette-off-state.test.ts`.
-    files: 1653,
+    files: 1749,
     sites: null,
     sources: [],
   },
@@ -696,7 +800,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1916,
+    files: 2002,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -708,7 +812,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the widening landed against. The second source is the contracts barrel,
     // `index.ts`, which is what the package says it publishes — the same
     // derived floor the manifest index provides for the module half.
-    files: 202,
+    files: 222,
     sites: 14,
     sources: ['manifest-index', 'contracts-barrel'],
   },
@@ -866,11 +970,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sites`, and the two answer different questions here: a module dropping
     // one bundle moves `files` and leaves `sites` where it was, which is exactly
     // the defect this check refuses.
-    files: 124,
+    files: 128,
     // Every registered module, shipping or not. It moves only with the module
     // set, so a run whose `sites` fell while `files` held is a module that left
     // the index rather than a translation that left a package.
-    sites: 69,
+    sites: 71,
     // `manifest-index` is issue #215's shared floor over the module walk, whose
     // unit here is the module's **own directory** — `dirname(manifestPath)`, the
     // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
@@ -919,7 +1023,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `catalog`' and `orders`' admin layers add to the module walk — this check
     // reads module sources and shipped bundles, and the twenty-four `.tsx`
     // screens are outside its extension set.
-    files: 1481,
+    files: 1563,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -938,7 +1042,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // plus the fifteen bundle entries `catalog` and `orders` gain in both
     // shipped languages — the nav labels and `catalog`'s three palette actions,
     // moved out of `_i18n` and therefore counted in each module's bundle now.
-    sites: 29646,
+    sites: 31619,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -1157,7 +1261,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch moves `cms`' and `blog`' screens out of `admin/src` and into their
     // packages, where this walk reads `.tsx` as well as `.ts` and so counts
     // every screen it used to count under the other root.
-    sites: 2158,
+    sites: 2159,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -1267,7 +1371,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tree; the deletion above takes two specifiers with it, so the combined
     // tree reads 11125. Composing the two recorded numbers would have written
     // 11127 beside `files: 4145` — internally consistent, and wrong by two.
-    sites: 11125,
+    sites: 11129,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -1333,7 +1437,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // batch's changeset: the whole-tree walk counts `.md`, and the four deleted
     // shims, the four new source files and the twenty-seven moves net to zero
     // here because a moved file is walked at either address.
-    files: 6991,
+    files: 7278,
     sites: null,
     sources: [],
   },
@@ -1420,7 +1524,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Batch 15: 510 -> 511.** One: `admin/src/modules.generated.ts` gains the
     // `@endora-commerce/mod-catalog/admin` entry. `orders` was already in that
     // registry, its `order.entry.tabs` contribution having arrived in P4d.
-    sites: 511,
+    sites: 524,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -1465,8 +1569,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-recording either would file `master`'s growth under this change, so
     // 168 keeps the +28 sites and +87 files of drift visible to whoever owns
     // it.
-    files: 1916,
-    sites: 168,
+    files: 2002,
+    sites: 196,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -1488,8 +1592,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1702,
-    sites: 1427,
+    files: 1788,
+    sites: 1468,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -1517,7 +1621,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `admin/index.ts` was added: twenty-four net. They reach no platform
     // symbol, so `ledger-size` does not move — this is the population growing,
     // which is exactly what this number is recorded to notice.
-    files: 1931,
+    files: 2063,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -1550,7 +1654,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population either — `host-dependents` below is, per package and derived on
     // every run, so a walk that stopped reading those specifiers is exit 2
     // rather than a band nobody re-recorded.
-    sites: 1670,
+    sites: 1742,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -1588,8 +1692,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1796,
-    sites: 664,
+    files: 1885,
+    sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -1645,8 +1749,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // run rather than the ceiling being raised: the previous batch's decision to
     // let `sites` ride is what put it 22 % outside on the next one, so it is
     // tracked per batch from here.
-    files: 83,
-    sites: 91,
+    files: 85,
+    sites: 93,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-shared-table-wipes.ts': {
@@ -1659,8 +1763,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the server half of the batch's off-state proof.
     // **Batch 15 (feature 091, Phase 4): 1652 -> 1653.** One: the batch's own
     // `test/integration/_admin_surfaces/batch-fifteen-palette-off-state.test.ts`.
-    files: 1653,
-    sites: 154,
+    files: 1749,
+    sites: 162,
     sources: [],
   },
   'backend/scripts/check-subscribe-seam.ts': {
@@ -1682,7 +1786,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1916,
+    files: 2002,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1705,7 +1809,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1916,
+    files: 2002,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1725,7 +1829,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population and was not the admin application's.
     // **Batch 15: 3879 -> 3904.** The twenty-four net module-package sources
     // above, plus the batch's own backend integration test.
-    files: 3904,
+    files: 4150,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -1769,7 +1873,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // all, and packaging them turned every test import of either into one. 637
     // -> 963. Re-record it, never widen the band — the floor is what would catch
     // the walk losing the package tree.
-    sites: 1068,
+    sites: 1101,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {
@@ -1844,7 +1948,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the `DefaultChannelBadge` copy P7a could not delete. Net two.
     // **Batch 15: 7050 -> 7051.** The same one file, over the same whole-tree
     // population — see the sibling entry above.
-    files: 7051,
+    files: 7338,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1864,7 +1968,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files the batch adds to a module package's `src/`.
     // **Batch 15: 5262 -> 5261.** The same net one as the fold check above,
     // over the same whole-tree population.
-    files: 5261,
+    files: 5473,
     sites: null,
     sources: ['manifest-index'],
   },
