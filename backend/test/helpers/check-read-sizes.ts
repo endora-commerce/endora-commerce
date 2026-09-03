@@ -564,7 +564,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Batch 15: 4954 -> 4953.** The whole-tree walk: four re-export shims
     // deleted, and three files added (`catalog/src/admin/index.ts` and the
     // batch's two new test files).
-    files: 5142,
+    // **Feature 101, Phase 1: +17.** `endora check`'s frame and the five
+    // relocated analyses: seven files under `packages/cli/src/check/`, five
+    // under `src/rules/`, `src/checks.ts`, and four under `packages/cli/test/`.
+    // The five `backend/scripts/check-*.ts` hosts stayed where they are —
+    // `check-inventory.test.ts`'s `script` field must resolve to a file in this
+    // tree — so the whole-tree walks gained the package's copy and lost nothing.
+    // `sites` moves with it: the frame writes six `.replace()` calls whose
+    // pattern the slug predicate can read — path and specifier normalisation,
+    // every one of them cleared.
+    files: 5159,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -593,17 +602,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their own new test file — which is worth recording as a habit rather than
     // as a coincidence: this number moves with the *instruments* a batch adds,
     // not with the surface it moves.
-    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2: +2 sites.**
-    // the two `.replace()` calls in the new storefront SEO helpers —
-    // `site-url.ts`'s origin trim and `JsonLd.tsx`'s `<` escape. Neither is a
-    // fold or a slug run, so both are classified and neither is a finding. The
-    // `files` figure moved for this branch *and* for `master` and is left for
-    // its owner.
-    // Measured rather than reasoned about: this branch's added files were
-    // moved aside and each check re-run, so the figure below is this merge
-    // request's own contribution and nobody else's. The entries this branch
-    // moved *jointly* with `master` are left for their owners.
-    sites: 480,
+    sites: MEASURE,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -1497,7 +1496,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // batch's changeset: the whole-tree walk counts `.md`, and the four deleted
     // shims, the four new source files and the twenty-seven moves net to zero
     // here because a moved file is walked at either address.
-    files: 7278,
+    // **Feature 101, Phase 1: +17.** `endora check`'s frame and the five
+    // relocated analyses: seven files under `packages/cli/src/check/`, five
+    // under `src/rules/`, `src/checks.ts`, and four under `packages/cli/test/`.
+    // The five `backend/scripts/check-*.ts` hosts stayed where they are —
+    // `check-inventory.test.ts`'s `script` field must resolve to a file in this
+    // tree — so the whole-tree walks gained the package's copy and lost nothing.
+    // **+1 more** for the merge request's own changeset file: `check:naming` and
+    // this check walk `.changeset/`, `check:language` does not.
+    files: 7296,
     sites: null,
     sources: [],
   },
@@ -2064,7 +2071,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the `DefaultChannelBadge` copy P7a could not delete. Net two.
     // **Batch 15: 7050 -> 7051.** The same one file, over the same whole-tree
     // population — see the sibling entry above.
-    files: 7338,
+    // **Feature 101, Phase 1: +17.** `endora check`'s frame and the five
+    // relocated analyses: seven files under `packages/cli/src/check/`, five
+    // under `src/rules/`, `src/checks.ts`, and four under `packages/cli/test/`.
+    // The five `backend/scripts/check-*.ts` hosts stayed where they are —
+    // `check-inventory.test.ts`'s `script` field must resolve to a file in this
+    // tree — so the whole-tree walks gained the package's copy and lost nothing.
+    // **+1 more** for the merge request's own changeset file: this check and
+    // `check:nul-bytes` walk `.changeset/`, `check:language` does not.
+    files: 7356,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2084,7 +2099,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files the batch adds to a module package's `src/`.
     // **Batch 15: 5262 -> 5261.** The same net one as the fold check above,
     // over the same whole-tree population.
-    files: 5473,
+    // **Feature 101, Phase 1: +17.** `endora check`'s frame and the five
+    // relocated analyses: seven files under `packages/cli/src/check/`, five
+    // under `src/rules/`, `src/checks.ts`, and four under `packages/cli/test/`.
+    // The five `backend/scripts/check-*.ts` hosts stayed where they are —
+    // `check-inventory.test.ts`'s `script` field must resolve to a file in this
+    // tree — so the whole-tree walks gained the package's copy and lost nothing.
+    files: 5490,
     sites: null,
     sources: ['manifest-index'],
   },

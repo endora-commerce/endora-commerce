@@ -133,6 +133,17 @@ import {
   type StorefrontIndexabilityFindingKind,
 } from '../../../scripts/check-storefront-indexability.js';
 import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
+import { ESTATE, PACKAGE_HOSTS, pendingEntries } from '@endora-commerce/cli/checks';
+import * as hostNulBytes from '../../../scripts/check-nul-bytes.js';
+import * as hostBundlePairing from '../../../scripts/check-bundle-pairing.js';
+import * as hostContainerImports from '../../../scripts/check-container-imports.js';
+import * as hostSubscribeSeam from '../../../scripts/check-subscribe-seam.js';
+import * as hostCommandCoverage from '../../../scripts/check-command-coverage.js';
+import * as ruleNulBytes from '@endora-commerce/cli/rules/nul-bytes.js';
+import * as ruleBundlePairing from '@endora-commerce/cli/rules/bundle-pairing.js';
+import * as ruleContainerImports from '@endora-commerce/cli/rules/container-imports.js';
+import * as ruleSubscribeSeam from '@endora-commerce/cli/rules/subscribe-seam.js';
+import * as ruleCommandCoverage from '@endora-commerce/cli/rules/command-coverage.js';
 import {
   checkAdminSurface,
   reachKey,
@@ -316,6 +327,15 @@ import {
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const BACKEND_ROOT = join(REPO_ROOT, 'backend');
 const read = (repoRelative: string): string => readFileSync(join(REPO_ROOT, repoRelative), 'utf8');
+
+/**
+ * A check's estate id where it has no npm script: the script's own stem.
+ *
+ * One derivation, used by both sides of the reconciliation below, so the two
+ * cannot come to disagree about what a rule with no npm script is called.
+ */
+const stemOf = (script: string): string =>
+  script.slice(script.lastIndexOf('/') + 1).replace(/\.(ts|sh)$/, '');
 
 /** How a check refuses to report a pass over an input it never read. */
 type VacuousGuard =
@@ -8904,6 +8924,218 @@ describe('the inventory agrees with the CI jobs', () => {
     it(`${check.script} runs in ${check.job}`, () => {
       expect(mentions(qualityBlock, check), 'quality job').toBe(check.job === 'quality');
       expect(mentions(staticBlock, check), 'quality:static job').toBe(check.job === 'quality:static');
+    });
+  }
+});
+
+/**
+ * `endora check`'s estate manifest, reconciled against this inventory in both
+ * directions (`specs/101-endora-check/` FR-021, `data-model.md` §1).
+ *
+ * ## Why the reconciliation is here rather than in the package
+ *
+ * The manifest lives in `@endora-commerce/cli` because **a stranger's run cannot
+ * read a `vitest` file**. But it is not a second author for *which rules exist* —
+ * this file is, and it is the one that enumerates the scripts on disk and fails
+ * on one it does not name. So the manifest authors only the per-rule
+ * classification, and the population is held to this file's.
+ *
+ * Story 2's whole subject is that an aggregate command whose set of members is
+ * maintained by memory is the exact defect this estate is built against,
+ * arriving one level up. Thirty of these rules exist because "somebody will
+ * remember" was measured false; a thirty-sixth rule joining the inventory and
+ * not the manifest would make `endora check` a curated subset, silently.
+ *
+ * **Nothing here writes the estate's size down.** Both sides are derived, and
+ * the count moved by one between `research.md`'s measurement and this block
+ * being written (D-100).
+ */
+describe('the endora check estate holds every rule this inventory names', () => {
+  const inventoried = new Set(CHECKS.map((check) => check.npmScript ?? stemOf(check.script)));
+  const estate = new Map(ESTATE.map((entry) => [entry.id, entry]));
+
+  it('has an entry for every inventoried check', () => {
+    expect([...inventoried].filter((id) => !estate.has(id)).sort()).toEqual([]);
+  });
+
+  it('names no rule this inventory does not hold', () => {
+    expect(ESTATE.map((entry) => entry.id).filter((id) => !inventoried.has(id)).sort()).toEqual([]);
+  });
+
+  it('is exactly as large as the inventory, derived on both sides', () => {
+    expect(ESTATE).toHaveLength(CHECKS.length);
+  });
+
+  it('names a script that resolves to a file in this tree', () => {
+    const missing = ESTATE.filter((entry) => !existsSync(join(REPO_ROOT, entry.script)));
+    expect(missing.map((entry) => entry.script)).toEqual([]);
+  });
+
+  it('agrees with the inventory about which file each rule is', () => {
+    const byId = new Map(CHECKS.map((check) => [check.npmScript ?? stemOf(check.script), check]));
+    const disagreements = ESTATE.filter(
+      (entry) => byId.get(entry.id)?.script !== entry.script,
+    ).map((entry) => `${entry.id}: ${entry.script} vs ${byId.get(entry.id)?.script ?? '<none>'}`);
+    expect(disagreements).toEqual([]);
+  });
+
+  // Invariant 2 — Story 2's condition 3.
+  it('refuses a repository-only entry with no reason', () => {
+    const reasonless = ESTATE.filter(
+      (entry) =>
+        entry.scope === 'repository-only' && (entry.reason ?? '').trim().length < 40,
+    );
+    expect(reasonless.map((entry) => entry.id)).toEqual([]);
+  });
+
+  it('refuses a reason on a package-scope entry', () => {
+    // A reason field on a rule that *does* travel is a sentence nothing reads,
+    // which is how the classification comes to disagree with itself.
+    expect(
+      ESTATE.filter((entry) => entry.scope === 'package' && entry.reason !== undefined).map(
+        (entry) => entry.id,
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * Invariant 3 — Story 2's condition 4, and the sharpest of the six.
+   *
+   * A rule this repository records as walking the **module tree** has a
+   * population every module contributes to, and a module package is one of
+   * those modules. Claiming it is repository-only therefore contradicts the
+   * population, and the contradiction is derived from the inventory's own
+   * `residueGuard` field rather than from a reader's judgement.
+   */
+  it('refuses a repository-only claim over a module walk', () => {
+    const byId = new Map(CHECKS.map((check) => [check.npmScript ?? stemOf(check.script), check]));
+    const contradictions = ESTATE.filter(
+      (entry) =>
+        entry.scope === 'repository-only' &&
+        byId.get(entry.id)?.residueGuard === 'derived-population',
+    );
+    expect(contradictions.map((entry) => entry.id)).toEqual([]);
+  });
+
+  // Invariant 4.
+  it('registers a package-scope host for every entry that declares one is built', () => {
+    const built = ESTATE.filter((entry) => entry.host === 'built').map((entry) => entry.id);
+    expect(built.filter((id) => !PACKAGE_HOSTS.has(id))).toEqual([]);
+  });
+
+  it('declares `host: built` for every host it registers', () => {
+    expect(
+      [...PACKAGE_HOSTS.keys()].filter((id) => estate.get(id)?.host !== 'built'),
+    ).toEqual([]);
+  });
+
+  it('gives every package-scope entry a host or a phase', () => {
+    const undeclared = ESTATE.filter(
+      (entry) => entry.scope === 'package' && entry.host === undefined,
+    );
+    expect(undeclared.map((entry) => entry.id)).toEqual([]);
+  });
+
+  // Invariant 5.
+  it('records tier C exactly for the repository-only rules', () => {
+    const wrong = ESTATE.filter(
+      (entry) => (entry.tier === 'C') !== (entry.scope === 'repository-only'),
+    );
+    expect(wrong.map((entry) => `${entry.id} (${entry.tier}/${entry.scope})`)).toEqual([]);
+  });
+
+  it('names a phase on every pending entry', () => {
+    const nameless = pendingEntries().filter(([, phase]) => phase.trim().length === 0);
+    expect(nameless).toEqual([]);
+  });
+
+  /**
+   * Invariant 6 — `contracts/exit-reduction.md` §5.1 and red proof 9.
+   *
+   * The state that would make the incompleteness matter is the state the
+   * tooling refuses, rather than a requirement written down and hoped for.
+   * **The instrument is `check:release-intent`'s existing `publishable-package`
+   * finding**, not a new one: that finding refuses `private: false` on *every*
+   * versionable member (D-160.5), which is strictly stronger than "refuse it
+   * while a rule is pending", and a second finding over a subset of one
+   * population is two derivations of one refusal.
+   *
+   * So what this repository has to hold is that the coupling is *reachable*:
+   * the package is private, and it is in that check's population rather than in
+   * the `ignore` list that would silence the gate for it.
+   */
+  it('keeps @endora-commerce/cli private while any rule is pending', () => {
+    const manifest = JSON.parse(read('packages/cli/package.json')) as {
+      name: string;
+      private?: boolean;
+    };
+    if (pendingEntries().length > 0) expect(manifest.private).toBe(true);
+
+    // The gate that enforces it, and the one configuration that could switch it
+    // off silently — `ignore` is glob-matched against package *names*.
+    expect(read('backend/scripts/check-release-intent.ts')).toContain('publishable-package');
+    const changesets = JSON.parse(read('.changeset/config.json')) as { ignore?: string[] };
+    for (const pattern of changesets.ignore ?? []) {
+      const matcher = new RegExp(
+        `^${pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`,
+      );
+      expect(matcher.test(manifest.name), `\`${pattern}\` ignores ${manifest.name}`).toBe(false);
+    }
+  });
+
+  /**
+   * FR-010: a partial rule counts **once**, as `ran`, and names each signal it
+   * did not evaluate. An un-evaluated signal must never become a second estate
+   * entry — the population is this file's, and inventing a row there would be a
+   * second author for it.
+   */
+  it('gives every partial signal a name and a reason', () => {
+    const thin = ESTATE.flatMap((entry) =>
+      (entry.partial ?? [])
+        .filter((signal) => signal.signal.length === 0 || signal.reason.trim().length < 40)
+        .map((signal) => `${entry.id}: ${signal.signal}`),
+    );
+    expect(thin).toEqual([]);
+  });
+
+  it('names a declaration on every subject declaration', () => {
+    const empty = ESTATE.filter(
+      (entry) =>
+        entry.subjectDeclaration !== null &&
+        entry.subjectDeclaration.declaration.trim().length === 0,
+    );
+    expect(empty.map((entry) => entry.id)).toEqual([]);
+  });
+});
+
+/**
+ * FR-022 — a rule's analysis has **exactly one implementation**, hosted twice.
+ *
+ * The two hosts are `backend/scripts/check-<name>.ts` (this repository) and
+ * `endora check` (one module package). "Delegate or re-implement" is a false
+ * choice and the spec says so: the analysis is *relocated*, and this is the
+ * assertion that it stayed relocated. A copy taken back into `backend/scripts/`
+ * would leave these identities false while every other test in this file stayed
+ * green, because a copy of a correct analysis is correct.
+ */
+describe('a relocated analysis has one implementation and two hosts', () => {
+  const RELOCATED: ReadonlyArray<readonly [string, Record<string, unknown>, Record<string, unknown>]> =
+    [
+      ['check:nul-bytes', hostNulBytes as unknown as Record<string, unknown>, ruleNulBytes as unknown as Record<string, unknown>],
+      ['check:bundle-pairing', hostBundlePairing as unknown as Record<string, unknown>, ruleBundlePairing as unknown as Record<string, unknown>],
+      ['check:container-imports', hostContainerImports as unknown as Record<string, unknown>, ruleContainerImports as unknown as Record<string, unknown>],
+      ['check:subscribe-seam', hostSubscribeSeam as unknown as Record<string, unknown>, ruleSubscribeSeam as unknown as Record<string, unknown>],
+      ['check:command-coverage', hostCommandCoverage as unknown as Record<string, unknown>, ruleCommandCoverage as unknown as Record<string, unknown>],
+    ];
+
+  for (const [id, host, rule] of RELOCATED) {
+    it(`${id}: every analysis the repository host exports is the package's own object`, () => {
+      const shared = Object.keys(rule).filter((name) => name in host);
+      // A host that re-exported nothing would pass a per-key comparison
+      // vacuously; the analyses are the reason the host exists.
+      expect(shared.length).toBeGreaterThan(3);
+      const divergent = shared.filter((name) => host[name] !== rule[name]);
+      expect(divergent).toEqual([]);
     });
   }
 });

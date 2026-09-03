@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ESTATE } from '../src/check/index.js';
 import { main } from '../src/bin/endora.js';
 import { runNewModule } from '../src/new-module/index.js';
 import { ScaffoldHostError } from '../src/new-module/spec.js';
@@ -92,11 +93,33 @@ describe('the program', () => {
     expect(unknown.stderr).toContain('system');
   });
 
-  it('says why `check` is not in this build rather than pretending it ran', async () => {
-    const result = await run(['check']);
+  it('refuses `check` over a directory that is not a module package, naming what it looked for', async () => {
+    // Feature 101, Phase 1: `check` is in this build. What replaced the old
+    // refusal is not a weaker one — the incompleteness is now *printed* per
+    // rule and the run exits 2 while any rule is `pending` — so this is the
+    // refusal that is left: a subject the command cannot identify. It names the
+    // declaration, because a clean verdict over nothing is the failure the
+    // paragraph this replaced was written against.
+    const result = await run(['check'], tmpdir());
 
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain('not in this build');
+    expect(result.stderr).toContain('endora: { "type": "module"');
+  });
+
+  it('lists the whole estate, so nothing it does not run is invisible', async () => {
+    const result = await run(['check', '--list-rules']);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('check:nul-bytes');
+    expect(result.stdout).toContain('check:doc-snippets');
+    expect(result.stdout.trim().split('\n')).toHaveLength(ESTATE.length);
+  });
+
+  it('refuses a --rule the estate does not hold', async () => {
+    const result = await run(['check', '--rule', 'check:invented']);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('--list-rules');
   });
 
   it('refuses a subject `new` does not generate', async () => {

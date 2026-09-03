@@ -18,9 +18,12 @@
  * It reads no configuration file. There is no `.endorarc` and no environment
  * variable that changes a verdict.
  */
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
+import { estateIds, runCheck } from '../check/index.js';
+import { NotAModulePackageError } from '../check/layout.js';
 import { runNewModule } from '../new-module/index.js';
 import { ScaffoldHostError, ScaffoldInputError } from '../new-module/spec.js';
 
@@ -58,10 +61,34 @@ Options for \`new module\`:
   --non-deactivatable <reason>  declare that the platform cannot run without this module
   --dry-run                     report what would be written; write nothing
 
-\`endora check\` is not in this build. The rules it runs are the platform's own
-static-check estate, and until every one of them is either evaluated for a single
-package or accounted for with a written reason, a partial \`check\` would be the
-silent skip the whole design refuses.
+\`endora check\` evaluates the platform's whole static-check estate against one
+module package. Every rule in that estate gets exactly one verdict on every run —
+it ran (clean, or with findings), it is \`not-applicable\` because the package
+declares no subject for it or because its subject is the platform repository, it
+is \`unreadable\` because an input the author can supply is absent, or it is
+\`pending\` because this build has no package-scope host for it yet. A rule that
+is neither run nor explained is the silent skip the whole design refuses, which
+is why the incompleteness is **printed** rather than waived: while any rule is
+\`pending\` the run exits 2 and names the phase that lands it.
+
+Options for \`check\`:
+  [path]                        the module package to check (default: the working
+                                directory, or the nearest ancestor declaring
+                                \`endora: { "type": "module", "id": … }\`)
+  --rule <id>                   evaluate only this rule (repeatable). It can only
+                                remove; there is no flag that adds a rule, changes
+                                a verdict or relaxes a refusal
+  --as-platform                 read every acknowledged finding as a finding. The
+                                package's own ledger answers the author's question
+                                (is my module in the state I decided it should be
+                                in?) and never the platform's (does this module
+                                satisfy the rules we admit modules on?)
+  --list-rules                  print the estate and each rule's classification
+
+Exit codes: 0 the estate was completely evaluated and found nothing; 1 it was
+completely evaluated and there are findings; 2 the picture is incomplete — some
+rule could not be read, or has no host in this build. \`findings=<n>\` is on the
+arithmetic line whatever the code is.
 `;
 
 interface Parsed {
@@ -76,6 +103,9 @@ function parse(argv: readonly string[]): Parsed {
     strict: true,
     options: {
       help: { type: 'boolean', short: 'h' },
+      rule: { type: 'string', multiple: true },
+      'as-platform': { type: 'boolean' },
+      'list-rules': { type: 'boolean' },
       name: { type: 'string' },
       description: { type: 'string' },
       dir: { type: 'string' },
@@ -111,6 +141,61 @@ function asFlag(value: string | boolean | string[] | undefined): boolean {
   return value === true;
 }
 
+/**
+ * `endora check` — the argv half.
+ *
+ * It resolves nothing and decides nothing: the package comes off the working
+ * directory (or one positional), the verdicts come from the estate, and the exit
+ * code is `runCheck`'s. A flag that could change a verdict is the configuration
+ * this program does not have.
+ */
+function runCheckCommand(parsed: Parsed, positionals: readonly string[], cwd: string): number {
+  if (asFlag(parsed.values['list-rules'])) {
+    for (const id of estateIds()) process.stdout.write(`${id}\n`);
+    return 0;
+  }
+  if (positionals.length > 1) {
+    process.stderr.write(
+      `endora: \`check\` takes one package path; got ${positionals.length} ` +
+        `(${positionals.join(', ')}).\n`,
+    );
+    return 1;
+  }
+
+  const rules = asList(parsed.values['rule']);
+  const known = new Set(estateIds());
+  const unknown = rules.filter((rule) => !known.has(rule));
+  if (unknown.length > 0) {
+    process.stderr.write(
+      `endora: \`--rule\` names ${unknown.join(', ')}, which the estate does not hold. ` +
+        `Run \`endora check --list-rules\` for the ids.\n`,
+    );
+    return 1;
+  }
+
+  try {
+    const run = runCheck({
+      cwd: positionals[0] === undefined ? cwd : resolve(cwd, positionals[0]),
+      rules,
+      asPlatform: asFlag(parsed.values['as-platform']),
+    });
+    for (const line of run.lines) process.stdout.write(`${line}\n`);
+    return run.report.exitCode;
+  } catch (error: unknown) {
+    if (error instanceof NotAModulePackageError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    // Anything else is an input this run could not read, and a run that could
+    // not read its input has said nothing about the tree.
+    process.stderr.write(
+      `endora: check could not read its input: ` +
+        `${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return 2;
+  }
+}
+
 export async function main(argv: readonly string[], cwd: string): Promise<number> {
   let parsed: Parsed;
   try {
@@ -128,14 +213,7 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
   }
 
   if (command === 'check') {
-    process.stderr.write(
-      `endora: \`check\` is not in this build. Its rules are the platform's own static-check ` +
-        `estate over a single module package, and it ships when every rule in that estate is ` +
-        `either evaluated or accounted for with a written reason — a partial estate would need ` +
-        `a fourth verdict class, which is the silent skip the design refuses. Inside the ` +
-        `platform repository, run the checks themselves: pnpm --filter backend run check:*.\n`,
-    );
-    return 1;
+    return runCheckCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
 
   if (command !== 'new') {
