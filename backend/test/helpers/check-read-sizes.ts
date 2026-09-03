@@ -572,8 +572,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tree — so the whole-tree walks gained the package's copy and lost nothing.
     // `sites` moves with it: the frame writes six `.replace()` calls whose
     // pattern the slug predicate can read — path and specifier normalisation,
-    // every one of them cleared.
-    files: 5159,
+    // every one of them cleared. **+1 more** from the merge requests this
+    // branch rebased onto.
+    files: 5160,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1504,7 +1505,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tree — so the whole-tree walks gained the package's copy and lost nothing.
     // **+1 more** for the merge request's own changeset file: `check:naming` and
     // this check walk `.changeset/`, `check:language` does not.
-    files: 7296,
+    // **+4 more** from the ten merge requests this branch rebased onto; the
+    // arithmetic checks out — master's record 7278, its tree 7282, plus this
+    // branch's 18.
+    files: 7300,
     sites: null,
     sources: [],
   },
@@ -2079,7 +2083,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tree — so the whole-tree walks gained the package's copy and lost nothing.
     // **+1 more** for the merge request's own changeset file: this check and
     // `check:nul-bytes` walk `.changeset/`, `check:language` does not.
-    files: 7356,
+    // **+4 more** from the ten merge requests this branch rebased onto.
+    files: 7360,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2105,7 +2110,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The five `backend/scripts/check-*.ts` hosts stayed where they are —
     // `check-inventory.test.ts`'s `script` field must resolve to a file in this
     // tree — so the whole-tree walks gained the package's copy and lost nothing.
-    files: 5490,
+    // **+1 more** from the merge requests this branch rebased onto.
+    files: 5491,
     sites: null,
     sources: ['manifest-index'],
   },
