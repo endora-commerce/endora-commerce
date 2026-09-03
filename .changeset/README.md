@@ -44,7 +44,7 @@ deciding whether to upgrade, so:
   a field carries two files, so the changelog carries two lines.
 - **The bump is a judgement, and it is yours.** D-107 chose this tool precisely because
   "is this breaking?" cannot be recovered from a commit prefix: a change to
-  `@endora-commerce/contracts` can be breaking for `@endora-commerce/api-client` and inert for
+  `@endora-commerce/contracts` can be breaking for `@endora-commerce/admin-kit` and inert for
   `@endora-commerce/cms-components`. Decide it deliberately.
 
 ## What the bumps do here
@@ -81,14 +81,16 @@ shared number was the mechanism, never the requirement. Every row is asserted by
 `backend/test/unit/release/changeset-flow.test.ts`, against these manifests and this config,
 so nobody meets the third one for the first time in a release merge request.
 
-`@endora-commerce/contracts` and `@endora-commerce/api-client` version independently. Changesets patch-bumps a
+`@endora-commerce/contracts` and its dependents version independently. Changesets patch-bumps a
 dependent automatically (`updateInternalDependencies: "patch"`), so a `contracts` release
-carries `api-client` with it without either sharing the other's number. They are deliberately
-*not* linked: `api-client` names exactly one erased type from `contracts`, the version the pair
-really has to agree with is the **server's** — the supported-set question D-108 defers — and a
-shared number would churn `api-client` on every contracts change without saying anything true.
+carries `@endora-commerce/admin-kit` and `@endora-commerce/page-builder-core` with it without
+either sharing its number. They are deliberately *not* linked: what a consumer of those
+packages really has to agree with is the **server's** version — the supported-set question
+D-108 defers — and a shared number would churn every dependent on each contracts change
+without saying anything true. `@endora-commerce/api-client` was this paragraph's worked
+example until D-202 deleted the package.
 
-Nothing is published yet — all five packages are still `"private": true`. `privatePackages`
+Nothing is published yet — every package under `packages/` is still `"private": true`. `privatePackages`
 is set to `{ "version": true, "tag": false }`, which is what makes the tooling see them at
 all: with the `@changesets/config@4` default (`false`), every command here would report a
 cheerful nothing.
