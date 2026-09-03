@@ -144,6 +144,26 @@ import * as ruleBundlePairing from '@endora-commerce/cli/rules/bundle-pairing.js
 import * as ruleContainerImports from '@endora-commerce/cli/rules/container-imports.js';
 import * as ruleSubscribeSeam from '@endora-commerce/cli/rules/subscribe-seam.js';
 import * as ruleCommandCoverage from '@endora-commerce/cli/rules/command-coverage.js';
+import * as hostActionRoute from '../../../scripts/check-action-route-permissions.js';
+import * as hostChannelResolution from '../../../scripts/check-channel-resolution.js';
+import * as hostDefaultLanguageProse from '../../../scripts/check-default-language-prose.js';
+import * as hostDiacriticFolds from '../../../scripts/check-diacritic-folds.js';
+import * as hostEntryScope from '../../../scripts/check-entry-scope.js';
+import * as hostKernelBoundary from '../../../scripts/check-kernel-boundary.js';
+import * as hostPlatformSurface from '../../../scripts/check-platform-surface.js';
+import * as hostPortShape from '../../../scripts/check-port-shape.js';
+import * as hostSingletonIdentity from '../../../scripts/check-singleton-identity.js';
+import * as hostTransactionContext from '../../../scripts/check-transaction-context.js';
+import * as ruleActionRoute from '@endora-commerce/cli/rules/action-route-permissions.js';
+import * as ruleChannelResolution from '@endora-commerce/cli/rules/channel-resolution.js';
+import * as ruleDefaultLanguageProse from '@endora-commerce/cli/rules/default-language-prose.js';
+import * as ruleDiacriticFolds from '@endora-commerce/cli/rules/diacritic-folds.js';
+import * as ruleEntryScope from '@endora-commerce/cli/rules/entry-scope.js';
+import * as ruleKernelBoundary from '@endora-commerce/cli/rules/kernel-boundary.js';
+import * as rulePlatformSurface from '@endora-commerce/cli/rules/platform-surface.js';
+import * as rulePortShape from '@endora-commerce/cli/rules/port-shape.js';
+import * as ruleSingletonIdentity from '@endora-commerce/cli/rules/singleton-identity.js';
+import * as ruleTransactionContext from '@endora-commerce/cli/rules/transaction-context.js';
 import {
   checkAdminSurface,
   reachKey,
@@ -1578,7 +1598,7 @@ function unscopedEntrySites(
   kind: EntryKind,
   declared: ReadonlySet<string> = new Set(),
 ): number {
-  return violationsOf(findEntrySites(file, source, declared)).filter((e) => e.kind === kind).length;
+  return violationsOf(findEntrySites(file, source, declared), NO_SCOPE_NEEDED).filter((e) => e.kind === kind).length;
 }
 
 /**
@@ -1627,7 +1647,7 @@ const TWO_SITES_ONE_RIGHT = `
 function unscopedSiteBesideAScopedOne(): number {
   const sites = findEntrySites('/repo/backend/src/kernel/lifecycle/registry-cache.ts', TWO_SITES_ONE_RIGHT);
   if (sites.filter((site) => site.kind === 'interval' && site.scoped).length !== 1) return 0;
-  return violationsOf(sites).filter((site) => site.kind === 'message').length;
+  return violationsOf(sites, NO_SCOPE_NEEDED).filter((site) => site.kind === 'message').length;
 }
 
 /**
@@ -1644,7 +1664,7 @@ function unscopedProgramBesideAScopedWorker(): number {
     declared,
   );
   if (sites.filter((site) => site.kind === 'worker' && site.scoped).length !== 1) return 0;
-  return violationsOf(sites).filter((site) => site.kind === 'program').length;
+  return violationsOf(sites, NO_SCOPE_NEEDED).filter((site) => site.kind === 'program').length;
 }
 
 /**
@@ -1677,7 +1697,7 @@ function staleLedgerEntry(): number {
   // The site must be recognised **and** scoped, or the stale verdict below
   // would be true for the uninteresting reason that no site was found at all.
   if (sites.filter((site) => site.scoped).length !== 1) return 0;
-  return staleAllowances(sites).filter((stale) => stale === key).length;
+  return staleAllowances(sites, NO_SCOPE_NEEDED).filter((stale) => stale === key).length;
 }
 
 /**
@@ -7745,6 +7765,7 @@ const CHECKS: readonly CheckEntry[] = [
                 retiredBy: 'issue #239',
               },
             },
+            {},
           ).stale.length,
       ),
       // The vacuous-pass guard, which is the exemption itself: a helper that no
@@ -9126,15 +9147,40 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       ['check:container-imports', hostContainerImports as unknown as Record<string, unknown>, ruleContainerImports as unknown as Record<string, unknown>],
       ['check:subscribe-seam', hostSubscribeSeam as unknown as Record<string, unknown>, ruleSubscribeSeam as unknown as Record<string, unknown>],
       ['check:command-coverage', hostCommandCoverage as unknown as Record<string, unknown>, ruleCommandCoverage as unknown as Record<string, unknown>],
+      // Phase 2. Two of these — `check:action-route-permissions` and
+      // `check:singleton-identity` — have **no package host in this build** and
+      // are here anyway, deliberately: the analysis relocated, the estate is
+      // what decides whether a host exists, and this assertion is about the
+      // relocation rather than about the host. A copy taken back into
+      // `backend/scripts/` while the entry sits at `pending` would otherwise be
+      // invisible until Phase 3 came to build over it.
+      ['check:action-route-permissions', hostActionRoute as unknown as Record<string, unknown>, ruleActionRoute as unknown as Record<string, unknown>],
+      ['channel:resolution', hostChannelResolution as unknown as Record<string, unknown>, ruleChannelResolution as unknown as Record<string, unknown>],
+      ['check:default-language-prose', hostDefaultLanguageProse as unknown as Record<string, unknown>, ruleDefaultLanguageProse as unknown as Record<string, unknown>],
+      ['check:diacritic-folds', hostDiacriticFolds as unknown as Record<string, unknown>, ruleDiacriticFolds as unknown as Record<string, unknown>],
+      ['check:entry-scope', hostEntryScope as unknown as Record<string, unknown>, ruleEntryScope as unknown as Record<string, unknown>],
+      ['check:kernel-boundary', hostKernelBoundary as unknown as Record<string, unknown>, ruleKernelBoundary as unknown as Record<string, unknown>],
+      ['check:platform-surface', hostPlatformSurface as unknown as Record<string, unknown>, rulePlatformSurface as unknown as Record<string, unknown>],
+      ['check:port-shape', hostPortShape as unknown as Record<string, unknown>, rulePortShape as unknown as Record<string, unknown>],
+      ['check:singleton-identity', hostSingletonIdentity as unknown as Record<string, unknown>, ruleSingletonIdentity as unknown as Record<string, unknown>],
+      ['check:transaction-context', hostTransactionContext as unknown as Record<string, unknown>, ruleTransactionContext as unknown as Record<string, unknown>],
     ];
 
   for (const [id, host, rule] of RELOCATED) {
     it(`${id}: every analysis the repository host exports is the package's own object`, () => {
-      const shared = Object.keys(rule).filter((name) => name in host);
-      // A host that re-exported nothing would pass a per-key comparison
-      // vacuously; the analyses are the reason the host exists.
-      expect(shared.length).toBeGreaterThan(3);
-      const divergent = shared.filter((name) => host[name] !== rule[name]);
+      const exported = Object.keys(rule);
+      // A rule that exports nothing at runtime is a relocation that moved no
+      // analysis, and a per-key comparison over it would pass vacuously.
+      expect(exported.length).toBeGreaterThan(0);
+      // **Every** runtime export, not a threshold. This assertion read
+      // `shared.length > 3` until Phase 2 and that is a count of a derived fact
+      // written down (D-100): it went red the moment a rule whose whole surface
+      // is two functions relocated, and it had been silently *weaker* than this
+      // for the five before that — a host that re-exported four of a rule's
+      // eleven analyses satisfied it. The floor is now the rule's own surface,
+      // which is what "one implementation, two hosts" actually claims.
+      expect(exported.filter((name) => !(name in host))).toEqual([]);
+      const divergent = exported.filter((name) => host[name] !== rule[name]);
       expect(divergent).toEqual([]);
     });
   }

@@ -157,7 +157,7 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'channel:resolution',
     script: 'backend/scripts/check-channel-resolution.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    host: 'built',
     subjectDeclaration: null,
     readsArtefact: false,
     tier: 'A',
@@ -178,13 +178,34 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:action-route-permissions',
     script: 'backend/scripts/check-action-route-permissions.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    // Tier **B**, corrected in Phase 2 against `plan.md`'s Phase 2 list, and on
+    // a measurement. The analysis is relocated and its package host is a dozen
+    // lines; what is missing is one **input**. Half this estate writes a
+    // permission code as a module-level constant (`requireAdmin(SC_READ)`), and
+    // the reader that follows one is `admin_roles`' `ConstantResolver` —
+    // published only on `@endora-commerce/mod-admin-roles/backend`, which no
+    // module package depends on and whose import evaluates the platform.
+    //
+    // Measured over all 70 module packages with the resolver absent: **27
+    // gates in 11 packages** read as `unreadable`, which the analysis correctly
+    // reports as an `unresolvable` finding (an unreadable gate taken for
+    // "ungated" agrees with everything). Every one of them is a gate this
+    // repository's own run resolves, so shipping the host would hand an author
+    // 27 findings about correct code — exactly the state
+    // `contracts/package-scope-layout.md` §5.1 refuses, where a finding an
+    // author cannot reproduce is one they learn to ignore.
+    //
+    // The unblocking step is one relocation, not a re-implementation:
+    // `ConstantResolver` is a pure source-text reader and belongs in
+    // `@endora-commerce/cli/lib/`, with `scanEnforcedPermissionGates` taking it
+    // as an argument so no module package depends on the CLI.
+    host: pending('Phase 3'),
     subjectDeclaration: {
       kind: 'manifest-block',
       declaration: 'a non-empty `actions` array in the module manifest',
     },
     readsArtefact: true,
-    tier: 'A',
+    tier: 'B',
   },
   {
     id: 'check:admin-surface',
@@ -267,7 +288,7 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:default-language-prose',
     script: 'backend/scripts/check-default-language-prose.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    host: 'built',
     subjectDeclaration: null,
     readsArtefact: false,
     tier: 'A',
@@ -276,7 +297,7 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:diacritic-folds',
     script: 'backend/scripts/check-diacritic-folds.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    host: 'built',
     subjectDeclaration: null,
     readsArtefact: false,
     tier: 'A',
@@ -309,7 +330,7 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:entry-scope',
     script: 'backend/scripts/check-entry-scope.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    host: 'built',
     subjectDeclaration: {
       kind: 'package-script',
       declaration: '`package.json` script running a source path, no worker and no timer',
@@ -367,7 +388,25 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:kernel-boundary',
     script: 'backend/scripts/check-kernel-boundary.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    host: 'built',
+    partial: [
+      {
+        signal: 'platform-root-imports',
+        reason:
+          'rule B walks the specifiers a **platform root** names, and a module package holds ' +
+          'none — the kernel and its three peers are the application’s. Declared unevaluated ' +
+          'rather than counted zero: a signal that reports nothing because it had no subject ' +
+          'and one that reports nothing because the tree is clean are the two states this ' +
+          'estate exists to keep apart',
+      },
+      {
+        signal: 'kernel-import-closure',
+        reason:
+          'rule C walks the kernel’s transitive relative-import closure, which starts at the ' +
+          'platform’s own sources. A package is never one of those roots, so the closure has ' +
+          'no starting point here and is declared vacuous rather than reported empty',
+      },
+    ],
     subjectDeclaration: {
       kind: 'exports-subpath',
       declaration: '`exports` subpath publishing entity classes',
@@ -491,7 +530,7 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:platform-surface',
     script: 'backend/scripts/check-platform-surface.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    host: 'built',
     partial: [
       {
         signal: 'relative-specifier-reach',
@@ -544,8 +583,18 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:port-shape',
     script: 'backend/scripts/check-port-shape.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    host: 'built',
     partial: [
+      {
+        signal: 'documented-container-name',
+        reason:
+          'the second signal compares a doc block’s container name to the name the port is ' +
+          '**registered** under, and a published port’s provider is routinely another module ' +
+          '— `orders` publishes `PaymentPlacementApplyPort` and `payments` registers it — so ' +
+          'over one package every such port reads `container-name-unregistered`. A port ' +
+          'whose owner is not installed is `unreadable` for that edge and never unowned ' +
+          '(`contracts/package-scope-layout.md` §5): the wiring may be right and the map short',
+      },
       {
         signal: 'cross-module-resolution',
         reason:
@@ -601,13 +650,27 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:singleton-identity',
     script: 'backend/scripts/check-singleton-identity.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    // Tier **B**, corrected in Phase 2 against `plan.md`'s Phase 2 list, and on
+    // a measurement rather than on taste. The rule's subject is a reach into a
+    // module package's **source** from a process that also loads that package's
+    // published artefact — and `specifierGraph` skips a reach whose target is
+    // the reaching file's *own* package (`own.root === pkg.root`), correctly:
+    // a package's internal relative imports are one copy, not two. So one
+    // package in isolation has no second package for a reach to land in, and a
+    // host that ran it anyway would print `violations=0` on every package
+    // forever, which is the vacuous green this estate exists against.
+    //
+    // What it needs is the **peers' sources**, which exist only where a peer is
+    // a workspace member rather than an installed package (an installed one
+    // ships `dist`). That is peers over the installed set — Tier B's own
+    // additional input — so it lands with Phase 3 rather than here.
+    host: pending('Phase 3'),
     subjectDeclaration: {
       kind: 'exports-subpath',
-      declaration: '`exports` subpath publishing backend sources',
+      declaration: '`exports` subpath publishing backend sources, beside a peer package',
     },
     readsArtefact: true,
-    tier: 'A',
+    tier: 'B',
   },
   {
     id: 'check:subscribe-seam',
@@ -634,7 +697,7 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:transaction-context',
     script: 'backend/scripts/check-transaction-context.ts',
     scope: 'package',
-    host: pending('Phase 2'),
+    host: 'built',
     subjectDeclaration: {
       kind: 'exports-subpath',
       declaration: '`exports` subpath publishing backend sources',

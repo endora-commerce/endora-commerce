@@ -574,7 +574,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pattern the slug predicate can read — path and specifier normalisation,
     // every one of them cleared. **+1 more** from the merge requests this
     // branch rebased onto.
-    files: 5160,
+    // **Feature 101, Phase 2: -2.** The direction is the point. Ten more rule
+    // files arrive under `packages/cli/src/rules/`, and that directory joins
+    // `EXCLUDED_SUBTREES` in the same merge request for `backend/scripts`'s own
+    // reason: a relocated analysis *is* the check, and this one spells `NFD`,
+    // `NFKD` and the combining-mark range because refusing them is its job. So
+    // the exclusion takes all fifteen rule files out — the five Phase 1 wrote
+    // included, which were being scanned — and `sql-tables.ts`, `ui-layer.ts`
+    // and `port-registrations.ts` arrive under `packages/cli/src/lib/`, which
+    // is scanned, and `packages/cli/test`'s nine files leave with the second
+    // exclusion. -15 + 13 - 9 + 1 (the red proofs) = -10. Measured by parking:
+    // this branch's base reads 5179.
+    files: 5150,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -617,7 +628,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // three. It is the first one caught **before** it merged, and only because
     // the merge result was built locally: no pipeline in this repository does
     // that, and both branches were individually green.
-    sites: 488,
+    // **Feature 101, Phase 2: +6.** `sql-tables.ts` moves out of
+    // `backend/scripts/lib` — excluded — into `packages/cli/src/lib`, which is
+    // scanned, and it writes six `.replace()` calls the slug predicate can read.
+    // Every one is cleared. The fifteen rule files the same change excludes
+    // wrote none, and `packages/cli/test` joins the exclusion for the same
+    // reason `backend/test/unit/scripts` carries — not as a precaution: this
+    // merge request's own red proof spells a fold and this check reported it.
+    sites: 489,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -1522,7 +1540,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+4 more** from the ten merge requests this branch rebased onto; the
     // arithmetic checks out — master's record 7278, its tree 7282, plus this
     // branch's 18.
-    files: 7300,
+    // **Feature 101, Phase 2: +13.** Ten more analyses relocate into
+    // `packages/cli/src/rules/`, `port-registrations.ts` is extracted from
+    // `check-port-dependencies.ts` into `packages/cli/src/lib/`, and
+    // `sql-tables.ts` and `ui-layer.ts` move there too — each leaving a
+    // re-export shim at its old path, which is the +2. Measured by parking this
+    // branch's own files and re-running: this branch's base reads 7329, so 29
+    // of the drift the report names belongs to the merge requests it rebased
+    // onto and is left for them to record. **+2 more**: the red proofs
+    // (`packages/cli/test/check-tier-a-hosts.test.ts`) and this merge request's
+    // own changeset, which this walk reads and `check:language` does not.
+    files: 7315,
     sites: null,
     sources: [],
   },
@@ -2098,7 +2126,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1 more** for the merge request's own changeset file: this check and
     // `check:nul-bytes` walk `.changeset/`, `check:language` does not.
     // **+4 more** from the ten merge requests this branch rebased onto.
-    files: 7360,
+    // **Feature 101, Phase 2: +11.** The same thirteen files as
+    // `check:nul-bytes` above, less the two shims — this walk is `git`'s and an
+    // untracked file counts, but `check:naming`'s population is the module tree
+    // plus the source roots it lists, which `backend/scripts/lib` is not.
+    // **+2 more**: the red proofs and this merge request's own changeset, which
+    // this walk reads and `check:language` does not. Measured by parking: this
+    // branch's base reads 7391.
+    files: 7373,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2125,7 +2160,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-inventory.test.ts`'s `script` field must resolve to a file in this
     // tree — so the whole-tree walks gained the package's copy and lost nothing.
     // **+1 more** from the merge requests this branch rebased onto.
-    files: 5491,
+    // **Feature 101, Phase 2: +11.** Ten relocated analyses plus
+    // `port-registrations.ts`, plus the red proofs; the two re-export shims and
+    // the changeset are outside this walk's population, which is comments and
+    // `docs/`. Measured by parking: this branch's base reads 5519.
+    files: 5503,
     sites: null,
     sources: ['manifest-index'],
   },
