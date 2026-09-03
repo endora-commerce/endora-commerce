@@ -52,7 +52,7 @@ in the `PaymentAdapterRegistry`. The platform recognises a module as a
 payment-method provider **iff it registers an adapter** — there is no other
 condition. The bundled `bank_transfer`, `pickup`, `credit_limit`, and
 `gateway` adapters are the reference implementations
-(`backend/src/modules/payments/adapters/built-in-adapters.ts`).
+(`packages/modules/payments/src/backend/adapters/built-in-adapters.ts`).
 
 ### The contract
 
@@ -92,8 +92,8 @@ module's configurable registry later with no change here.
 
 ### Build your own payment-method module
 
-1. Create a backend module (`backend/src/modules/<your_module>/`) with a
-   `manifest.ts` declaring `dependencies: ['payment_methods']`, then run
+1. Create a module package (`packages/modules/<your_module>/`) with a
+   `src/manifest.ts` declaring `dependencies: ['payment_methods']`, then run
    `pnpm --filter backend run composer:generate` so the generated manifest
    registry picks it up.
 2. Implement `PaymentAdapter`: set `adapterKey`, `type`, the three

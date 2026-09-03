@@ -1158,7 +1158,7 @@ principle, short of composing all 65 modules in order to install one.
 A module that needs install-time work exports it from its `manifest.ts`:
 
 ```ts
-// backend/src/modules/custom_fields/manifest.ts
+// packages/modules/custom_fields/src/manifest.ts
 export const uninstallHook: ModuleUninstallHook = async (ctx) => {
   if (!ctx.hard) return;                 // soft uninstall drops nothing
   const em = ctx.em as EntityManager;
@@ -1167,7 +1167,7 @@ export const uninstallHook: ModuleUninstallHook = async (ctx) => {
 ```
 
 `backend/scripts/generate-composer.ts` detects the export and emits it into
-`_lifecycle/manifest-index.generated.ts`, the one generated manifest registry;
+`backend/src/manifest-index.generated.ts`, the one generated manifest registry;
 you never edit a registry. The same generator emits the composer,
 `db/entities-registry.generated.ts` and `db/migrations-registry.generated.ts`
 from the same tree walk — one command, so two artefacts refreshed by two
@@ -1217,7 +1217,7 @@ the host invokes it. It is never a script that bootstraps the platform for
 itself.
 
 ```ts
-// backend/src/modules/search/manifest.ts
+// packages/modules/search/src/manifest.ts
 export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
   {
     name: 'reindex',
@@ -1245,7 +1245,7 @@ dependencies injected.
 
 Five things about it that are decisions rather than detail:
 
-**1. The body lives in `backend/src/modules/<id>/cli/<name>.ts`, and the
+**1. The body lives in `packages/modules/<id>/src/backend/cli/<name>.ts`, and the
 declaration `await import()`s it.** The generated manifest index is imported by
 every static check script and by `src/db/configured-migrations.ts`; a static
 import of a Meilisearch client or an ORM-dependent service graph would pull it

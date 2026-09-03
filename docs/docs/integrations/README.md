@@ -7,7 +7,7 @@ title: Integrations
 
 This page is for developers connecting an external system to the B2B Platform.
 The platform exposes three integration mechanisms, each owned by an independent
-backend module under `backend/src/modules/`:
+backend module under `packages/modules/`:
 
 - **API keys** — bearer-token authentication for outbound machine-to-machine
   calls into the platform's HTTP API. All key-authenticated capability is

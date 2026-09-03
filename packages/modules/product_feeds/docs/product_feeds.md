@@ -345,7 +345,7 @@ cannot write to is the failure a connect-only test would miss. It is rate-limite
 ### Shape
 
 ```
-backend/src/modules/product_feeds/
+packages/modules/product_feeds/src/backend/
 ├── entities/          9 tables, all @GlobalEntity (no tenant column anywhere)
 ├── services/          selection, resolution, serializers, runs, tokens, taxonomies
 ├── commands/          feed / template / taxonomy-mapping Commands
@@ -491,7 +491,7 @@ installed, and `g:google_product_category` resolves as unmapped, which omits the
 emits the item.
 
 The provenance, measured sizes and the **open licensing question** for the bundled vendor files are
-recorded in `backend/src/modules/product_feeds/data/taxonomies/PROVENANCE.md`. Removing a provider's
+recorded in `packages/modules/product_feeds/src/backend/data/taxonomies/PROVENANCE.md`. Removing a provider's
 revision directory is the whole back-out; no code changes.
 
 ### Queues

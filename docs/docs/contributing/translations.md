@@ -120,7 +120,7 @@ unblocks once the glossary lands.
 
 Workflow for any developer adding a new string to the Admin UI:
 
-1. **Find the owning module**: usually `backend/src/modules/<module>/i18n/`.
+1. **Find the owning module**: usually `packages/modules/<module>/i18n/`.
    Chrome strings (AppShell, top bar, command palette, profile, login,
    language picker) live in `packages/modules/_i18n/i18n/` under the
    `core` scope — the `_i18n` module ships as the package

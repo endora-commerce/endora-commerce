@@ -190,7 +190,7 @@ create yourself. `select count(*) from products` returns what the client's own i
 ### C3. Confirm what the platform seeded for itself
 
 **Why.** Some reference data arrives without anybody asking: the country/currency/language
-reconciler runs as a boot hook (`backend/src/modules/dictionaries/backend.ts:155`), and the
+reconciler runs as a boot hook (`packages/modules/dictionaries/src/backend/index.ts:201`), and the
 system-default sales channel is reconciled at boot rather than by a migration. If a boot hook
 fails, the process exits — so a running backend is already evidence they ran. What is *not*
 evidence is that the seeded values are the right ones for this client.
@@ -231,7 +231,7 @@ do its job end to end.
 D-79) and gained permission codes of its own. Before the move it was gated by `catalog:write`,
 which was plainly wrong — a customer group is customer segmentation, not catalog data. The two
 new codes are `customer_groups:read` and `customer_groups:write`
-(`backend/src/modules/customer_accounts/manifest.ts:84-85`).
+(`packages/modules/customer_accounts/src/manifest.ts:188-189`).
 
 **Nothing grants them automatically.** A compatibility gate that would have accepted the old
 `catalog:write` alongside the new codes was offered and deliberately refused: it would have kept
@@ -272,7 +272,7 @@ its admin routes were gated by `catalog:write`. A role granted `catalog:write` s
 edit product descriptions could also create, edit and delete price lists — that is, change what
 customers pay. Nobody chose that boundary; it was the side effect of a missing declaration. The
 module now owns `price_lists:read` and `price_lists:write`
-(`backend/src/modules/price_lists/manifest.ts`), split by what each route does rather than
+(`packages/modules/price_lists/src/manifest.ts`), split by what each route does rather than
 mapped wholesale: reading a list, its product roster, its brackets, the display-mode overrides
 and the rule-target pickers is `:read`; anything that persists is `:write`.
 
@@ -390,7 +390,7 @@ in writing to the provider.
 
 **Why.** The Invoices module is active by default and its seller identity is empty:
 `invoices.seller.tax_id` defaults to `''` and `invoices.seller.company_data` to `{}`
-(`backend/src/modules/invoices/manifest.ts:40-55`). The numbering patterns default to
+(`packages/modules/invoices/src/manifest.ts:40-55`). The numbering patterns default to
 `FV {seq}/{channel}/{YYYY}`, `PRO …`, `KOR …` — a reasonable shape, and still a choice the
 client's accountant has to confirm, because it is not comfortably changed once documents exist
 under it. A valid tax id is also a precondition for KSeF serialization if the client uses it.
@@ -405,7 +405,7 @@ client's real legal identity and the number matches the agreed pattern.
 
 **Why.** `orders.business_id.prefix` and `orders.business_id.suffix` default to `''`,
 `orders.min_order_value` to `0`, and `orders.confirmation_recipients` to `[]`
-(`backend/src/modules/orders/manifest.ts`). The last one is the quiet one: with an empty list,
+(`packages/modules/orders/src/manifest.ts`). The last one is the quiet one: with an empty list,
 nobody at the client is notified when an order is placed.
 
 **Do (operator).** Set the order-number affixes before the first order, the minimum order value
@@ -430,7 +430,7 @@ options the client expects, and totals to the number the client's own system wou
 ### F4. Switch each payment gateway from sandbox to production
 
 **Why.** Every gateway module defaults its environment setting to `sandbox`
-(`backend/src/modules/tpay/manifest.ts:28`, `backend/src/modules/payu/manifest.ts:28`, and the
+(`packages/modules/tpay/src/manifest.ts:28`, `packages/modules/payu/src/manifest.ts:28`, and the
 same shape in `autopay` and `stripe`), and holds separate credentials per environment. A
 deployment that goes live in sandbox takes no money; one that forgets to register the production
 callback URL takes money and never confirms the order.
@@ -447,7 +447,7 @@ reaches the paid state from the provider's callback — not from a manual status
 ### F5. KSeF, if the client invoices in Poland
 
 **Why.** The `ksef` module defaults `ksef.integration.enabled` to `false` and its environment to
-`test` (`backend/src/modules/ksef/manifest.ts`), which is the right default — a misconfigured
+`test` (`packages/modules/ksef/src/manifest.ts`), which is the right default — a misconfigured
 production submission is legally binding. Going live is therefore a deliberate act.
 
 **Do (operator).** Install and configure the module on `/ksef`: upload or generate the

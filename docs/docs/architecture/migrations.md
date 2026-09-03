@@ -79,7 +79,7 @@ Segment normalization has exactly two special cases:
 
 | Owning directory | `<SEGMENT>` | Registry `moduleId` |
 |------------------|-------------|---------------------|
-| `backend/src/modules/orders/migrations/` | `orders` | `'orders'` |
+| `packages/modules/orders/src/migrations/` | `orders` | `'orders'` |
 | `packages/modules/_i18n/src/migrations/` | `i18n` | `'_i18n'` |
 | `packages/platform/src/lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
 | `backend/src/db/migrations/` | `core` | `'core'` |
@@ -168,7 +168,7 @@ into a single configured path and cannot know the owning module.
 :::note Helper files
 A non-migration `.ts` helper may live inside a `migrations/` directory, but it must be
 on the guard's explicit allow-list — today exactly one entry,
-`backend/src/modules/quote_requests/migrations/status-mapping.ts`. The allow-list
+`packages/modules/quote_requests/src/migrations/status-mapping.ts`. The allow-list
 exists so a typo'd migration filename fails loudly instead of silently disappearing
 from the migrator.
 :::
@@ -473,7 +473,7 @@ direction to keep:
 
 **Every dropped edge must be commented in the manifest that would have declared it**,
 naming the foreign keys it covers, the rule that drops it, and the cycle it would
-create where it creates one. See `backend/src/modules/organizations/manifest.ts` for
+create where it creates one. See `packages/modules/organizations/src/manifest.ts` for
 the worked example.
 
 A cycle in the graph is a **red build** — `module-graph.test.ts` fails on any

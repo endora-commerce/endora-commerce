@@ -129,10 +129,10 @@ Five new fields live on `products` and ride through `PATCH /api/v1/admin/catalog
 ## Display-band resolution
 
 `(product, category[], global)` triple lookup runs per-key (high / medium / low) so a product can override only `low` while inheriting `high` and `medium` from the global default. The resolver lives at
-`backend/src/modules/inventory/services/threshold-resolver.ts` and is a pure function with full unit-test coverage.
+`packages/modules/inventory/src/backend/services/threshold-resolver.ts` and is a pure function with full unit-test coverage.
 
 The display-band resolver in
-`backend/src/modules/inventory/services/display-band-resolver.ts` then maps cumulative on-hand to one of `high | medium | low | out_of_stock | available` (`available` is the special bucket for `manageStock = false`).
+`packages/modules/inventory/src/backend/services/display-band-resolver.ts` then maps cumulative on-hand to one of `high | medium | low | out_of_stock | available` (`available` is the special bucket for `manageStock = false`).
 
 ## Fulfilment strategies
 
@@ -175,4 +175,4 @@ The customer subscribes via either the storefront `/notify-when-available` endpo
 - `DEFAULT_WAREHOUSE_ID` = `00000000-0000-4000-8000-00000000d017`
 - `DEFAULT_WAREHOUSE_CODE` = `default`
 
-Both are exported from `backend/src/modules/inventory/entities/warehouse.entity.ts`.
+Both are exported from `packages/modules/inventory/src/backend/entities/warehouse.entity.ts`.
