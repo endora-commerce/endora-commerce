@@ -1,6 +1,7 @@
 ---
 title: Settings
 sidebar_position: 1
+description: Manifest-driven, per-sales-channel platform configuration with cached read API
 ---
 
 # Settings

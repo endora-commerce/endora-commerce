@@ -1,5 +1,6 @@
 ---
 title: analytics
+description: Storefront event ingest + admin aggregation + optional GA4 forwarder
 ---
 
 # `analytics`

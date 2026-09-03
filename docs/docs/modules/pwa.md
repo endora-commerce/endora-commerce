@@ -1,3 +1,8 @@
+---
+title: PWA (Progressive Web App)
+description: Progressive-Web-App capabilities for the storefront and admin — installability, opt-in asset caching, a controlled update path and opt-in push
+---
+
 # PWA (Progressive Web App)
 
 The `pwa` module (feature 046) adds Progressive-Web-App capabilities to the

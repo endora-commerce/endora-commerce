@@ -1,5 +1,6 @@
 ---
 title: webhooks
+description: Outbound HMAC-signed event subscriptions
 ---
 
 # `webhooks`

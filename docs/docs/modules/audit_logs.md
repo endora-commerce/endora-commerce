@@ -1,5 +1,6 @@
 ---
 title: audit_logs
+description: Sensitive-action audit trail
 ---
 
 # `audit_logs`

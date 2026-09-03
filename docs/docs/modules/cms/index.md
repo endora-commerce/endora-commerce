@@ -1,5 +1,7 @@
 ---
+title: CMS
 sidebar_position: 1
+description: Page Builder authoring surface — Pages, Blocks, Templates, Hooks — per channel + language
 ---
 
 # CMS

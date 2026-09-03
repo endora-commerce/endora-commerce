@@ -1,5 +1,6 @@
 ---
 title: quick_order
+description: CSV-import + type-ahead helpers for buyers ordering by SKU
 ---
 
 # `quick_order`

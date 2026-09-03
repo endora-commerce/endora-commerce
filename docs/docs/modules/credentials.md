@@ -1,5 +1,6 @@
 ---
 title: Credentials
+description: Reusable typed credential configurations (LLM, email adapter) referenced from settings
 ---
 
 # Credentials

@@ -1,5 +1,6 @@
 ---
 title: returns
+description: Returns and complaints (RMA) — submission, verification, reverse-logistics shipments and settlement over a configurable status graph
 ---
 
 # `returns`

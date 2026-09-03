@@ -38,6 +38,7 @@ import { join, relative } from 'node:path';
 
 export {
   auditCopiedAssets,
+  classifyAssetFile,
   collectRuntimeAssets,
   copyRuntimeAssets,
   extensionOf,

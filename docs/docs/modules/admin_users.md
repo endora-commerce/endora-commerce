@@ -1,5 +1,6 @@
 ---
 title: admin_users
+description: Platform Administrator accounts + impersonation
 ---
 
 # `admin_users`

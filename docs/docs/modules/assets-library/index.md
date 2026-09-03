@@ -1,3 +1,8 @@
+---
+title: Assets Library
+description: Central digital-asset library with pluggable storage adapters, soft-delete, and reference-protection guards
+---
+
 # Assets Library
 
 The Assets Library is the platform's digital-asset substrate. It owns:

@@ -1,3 +1,8 @@
+---
+title: Prompt Actions (AI assistant)
+description: Natural-language prompt mode for the admin command palette, with an explicit preview-and-confirm step before any change
+---
+
 # Prompt Actions (AI assistant)
 
 The `prompt_actions` module adds a natural-language prompt mode to the admin

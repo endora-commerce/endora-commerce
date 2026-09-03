@@ -1,3 +1,8 @@
+---
+title: Google Tag Manager
+description: Google Tag Manager containers per sales channel, with a documented commerce dataLayer and an optional server-side relay
+---
+
 # Google Tag Manager
 
 The `google_tag_manager` module (feature 066) puts your **GTM container** on the storefront, one per

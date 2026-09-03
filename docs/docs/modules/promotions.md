@@ -1,5 +1,6 @@
 ---
 title: promotions
+description: Cart-level percentage / amount / free-delivery discounts with eligibility filters
 ---
 
 # `promotions`

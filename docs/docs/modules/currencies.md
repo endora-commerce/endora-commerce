@@ -1,5 +1,6 @@
 ---
 title: currencies
+description: Pool of accepted ISO 4217 currencies + default
 ---
 
 # `currencies`

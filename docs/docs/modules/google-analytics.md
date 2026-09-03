@@ -1,3 +1,8 @@
+---
+title: Google Analytics
+description: Google Analytics 4 for the storefront — per-channel Measurement ID, Enhanced Ecommerce, a custom-events builder and optional server-side tagging
+---
+
 # Google Analytics
 
 The `google_analytics` module (feature 049) integrates the storefront with

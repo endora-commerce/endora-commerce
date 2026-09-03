@@ -1,5 +1,7 @@
 ---
+title: Megamenu
 sidebar_position: 1
+description: Configurable navigation tree with per-channel + per-language bindings
 ---
 
 # Megamenu

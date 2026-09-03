@@ -1,5 +1,6 @@
 ---
 title: import_export
+description: CSV import / export for bulk-edit entities
 ---
 
 # `import_export`

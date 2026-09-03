@@ -1,5 +1,6 @@
 ---
 title: payments
+description: Payment driver dispatch + settlement events
 ---
 
 # `payments`

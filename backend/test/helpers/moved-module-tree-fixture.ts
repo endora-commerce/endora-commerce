@@ -616,6 +616,14 @@ const SPLIT_WORKSPACE_GLOBS: readonly string[] = [
   // it walks the workspace members for the one declaring a `"@/*"` tsconfig
   // path. See {@link copyAdminApplication}.
   'admin',
+  // The documentation site is a member for the same reason, one feature over:
+  // `check-module-docs`' population is the pages under the modules category, and
+  // the site is derived from the workspace member holding a Docusaurus
+  // configuration (feature 100). A fixture without it answers "no workspace
+  // member holds a Docusaurus configuration" — true of the fixture, and silent
+  // about the module tree, which is what this file exists to measure. See
+  // {@link copyDocumentationSite}.
+  'docs',
   'packages/*',
   'packages/modules/*',
 ];
@@ -751,6 +759,25 @@ function splitManifestIndex(relocated: ReadonlySet<string>): string {
  * `src` holds the route table, the nav and the surface directories. 4.8 MB,
  * about the same as the platform package this fixture already carries.
  */
+/**
+ * The documentation site, as `check-module-docs` reads it (feature 100).
+ *
+ * Copied whole rather than stubbed, for `copyAdminApplication`'s reason: the
+ * check's population is the pages under the modules category and its second
+ * author is the committed sidebar fragment, so a synthetic site would prove that
+ * the check can read a synthetic site. The build outputs are left behind —
+ * nothing here builds the site, and `.docusaurus` is a cache of a previous run.
+ */
+function copyDocumentationSite(root: string): void {
+  const source = join(REPO_ROOT, 'docs');
+  const destination = join(root, 'docs');
+  mkdirSync(destination, { recursive: true });
+  for (const file of ['package.json', 'docusaurus.config.js', 'sidebars.js', 'sidebars.modules.generated.js']) {
+    cpSync(join(source, file), join(destination, file));
+  }
+  cpSync(join(source, 'docs'), join(destination, 'docs'), { recursive: true });
+}
+
 function copyAdminApplication(root: string): void {
   const source = join(REPO_ROOT, 'admin');
   const destination = join(root, 'admin');
@@ -803,6 +830,7 @@ export function createSplitModuleTreeFixture(
   );
   copyPlatformPackage(root);
   copyAdminApplication(root);
+  copyDocumentationSite(root);
 
   const relocate = (id: string, declared: boolean): void => {
     const from = join(backend, 'src', 'modules', id);

@@ -72,6 +72,20 @@ import {
 import { declaresRegisterModule } from './lib/module-roots.js';
 import { ADMIN_REGISTRY_ARTEFACT, findAliasMember } from './lib/admin-surfaces.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
+import {
+  attributeDocs,
+  categoryPositionOf,
+  collectDocPages,
+  comparePages,
+  DOCS_SIDEBAR_ARTEFACT,
+  labelOf,
+  MODULE_MAP_ARTEFACT,
+  MODULES_CATEGORY,
+  resolveDocsLayout,
+  type DocsAttribution,
+  type DocsLayout,
+  type ModuleDocs,
+} from './lib/module-docs.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = resolve(here, '../src');
@@ -135,6 +149,23 @@ export function generatedArtifactPaths(): readonly string[] {
     entitiesRegistryOutputPath,
     migrationsRegistryOutputPath,
     adminRegistryOutputPath(),
+    ...docsArtefactPaths(),
+  ];
+}
+
+/**
+ * The two documentation artefacts, at the site the workspace declares.
+ *
+ * A function for the same reason `adminRegistryOutputPath` is: the site's
+ * location is filesystem work over the workspace globs, and a module-level
+ * constant would do it at *import* time — so a tree with no Docusaurus site
+ * would throw before any caller had a chance to say what it was doing.
+ */
+function docsArtefactPaths(): readonly string[] {
+  const layout = resolveDocsLayout(repoRoot);
+  return [
+    join(layout.member.dir, DOCS_SIDEBAR_ARTEFACT),
+    join(layout.modulesRoot, MODULE_MAP_ARTEFACT),
   ];
 }
 
@@ -1600,9 +1631,264 @@ export function renderAdminRegistry(
   };
 }
 
+// ── the documentation registry ──────────────────────────────────────────────
+//
+// Artefacts six and seven (feature 100 / roadmap F12, `contracts/docs-registry.md`
+// §1). They join this generator rather than getting one of their own for the
+// reason the admin registry did: the population is the generated manifest index,
+// which this generator already walks, and two derivations of one population are
+// two answers waiting to disagree — which is exactly the state they replace.
+// Three hand-maintained lists described the modules this platform composes, and
+// all three disagreed with the index and with each other: 8 written pages were
+// reachable from no navigation and 23 registered modules had no map row.
+//
+// **Only the navigation is generated.** 10,311 lines of hand-written prose stay
+// hand-written and stay where they are; nothing here writes a page.
+
+/** The label the module map's first column uses when a page carries none. */
+const MAP_FALLBACK_LABEL = (moduleId: string): string => moduleId;
+
+/** One module's row and navigation entry, as the two artefacts need it. */
+interface DocsRegistryEntry {
+  readonly moduleId: string;
+  readonly docs: ModuleDocs | null;
+  /** `@endora-commerce/mod-<id>` for a packaged module, `core` for a host-owned one. */
+  readonly shipsFrom: string;
+}
+
+/**
+ * Every registered module, with the documentation the site holds for it.
+ *
+ * The population is the **index's**, so a module with no page is an entry with
+ * no documentation rather than an absence — the module map is a census of the
+ * platform, not a census of what somebody happened to write.
+ */
+export function collectDocsRegistry(
+  registered: readonly string[],
+  attribution: DocsAttribution,
+  packages: readonly ModulePackage[],
+): readonly DocsRegistryEntry[] {
+  const byModule = new Map(attribution.documented.map((entry) => [entry.moduleId, entry]));
+  const packageName = new Map(packages.map((pkg) => [pkg.moduleId, pkg.name]));
+  return [...registered]
+    .sort((a, b) => a.localeCompare(b))
+    .map((moduleId) => ({
+      moduleId,
+      docs: byModule.get(moduleId) ?? null,
+      shipsFrom: packageName.get(moduleId) ?? 'core',
+    }));
+}
+
+/** A JS string literal for the emitted CommonJS fragment. */
+function jsString(value: string): string {
+  return `'${value.split('\\').join('\\\\').split("'").join("\\'")}'`;
+}
+
+/**
+ * The sidebar's Modules category, as the array Docusaurus already accepts.
+ *
+ * `.js` rather than `.ts` because `sidebars.js` is `.js`, `sidebarPath` is
+ * `require`d by Docusaurus, and `docs/tsconfig.json` extends
+ * `@docusaurus/tsconfig`, which sets no `allowJs` — so a `.ts` fragment would be
+ * read by the site and by no type-checker, which is worse than either.
+ *
+ * Ordering is **flat and alphabetical by label**, with a page's own
+ * `sidebar_position` overriding (research D-5). Today's hand-written list
+ * clusters the payment and delivery vendors out of alphabetical order, and that
+ * clustering is not derivable — `tpay` does not declare `payments` in its
+ * manifest dependencies at all — so the flat list is taken and the loss is
+ * stated rather than papered over with a front-matter field this repository
+ * would have invented. `spec.md` Q1 is the owner's question about it.
+ */
+export function emitDocsSidebar(entries: readonly DocsRegistryEntry[]): string {
+  const items = entries
+    .filter((entry): entry is DocsRegistryEntry & { docs: ModuleDocs } => entry.docs !== null)
+    .map((entry) => ({
+      label: labelOf(entry.docs.entry, MAP_FALLBACK_LABEL(entry.moduleId)),
+      position: categoryPositionOf(entry.docs.entry),
+      docs: entry.docs,
+    }))
+    .sort(comparePages)
+    .map(({ label, docs }) => {
+      if (docs.children.length === 0) {
+        return `  { type: 'doc', id: ${jsString(docs.entry.docId)}, label: ${jsString(label)} },`;
+      }
+      const children = docs.children
+        .map((child) => `      ${jsString(child.docId)},`)
+        .join('\n');
+      return (
+        `  {\n` +
+        `    type: 'category',\n` +
+        `    label: ${jsString(label)},\n` +
+        `    link: { type: 'doc', id: ${jsString(docs.entry.docId)} },\n` +
+        `    items: [\n${children}\n    ],\n` +
+        `  },`
+      );
+    })
+    .join('\n');
+
+  // The generated map is navigation for a generated page, so it belongs in the
+  // generated fragment: putting it in `sidebars.js` would make the category's
+  // item list a hand-edited file again, one entry short of the thing this
+  // artefact exists to remove.
+  const map = `  { type: 'doc', id: ${jsString(
+    `${MODULES_CATEGORY}/${MODULE_MAP_ARTEFACT.replace(/\.mdx?$/, '')}`,
+  )}, label: 'Module map' },`;
+
+  return `${HEADER('generate-composer.ts')}//
+// The Modules category of the documentation sidebar (feature 100 / roadmap F12,
+// \`contracts/docs-registry.md\` §1). \`sidebars.js\` requires it:
+//
+//     items: require('./sidebars.modules.generated.js'),
+//
+// Every entry is derived — the module set from the generated manifest index, the
+// page from the site's own tree, the label from the page's own Docusaurus front
+// matter (\`sidebar_label\`, else \`title\`), the order from \`sidebar_position\` and
+// then alphabetically by label. No field this repository invented appears here or
+// in any page, so a third-party module author writes ordinary Docusaurus
+// markdown and learns nothing from us.
+//
+// It exists because the hand-written list this replaces was edited by 12 of the
+// 12 most recently added modules and forgotten by seven of them: \`ksef\`,
+// \`newsletter\`, \`pwa\`, \`returns\`, \`shipments\`, \`transactional_emails\` and
+// \`google_analytics\` each had a written page a reader could only reach by
+// guessing a URL, and nothing in the repository could see it.
+
+/** @type {import('@docusaurus/plugin-content-docs').SidebarItemConfig[]} */
+const modules = [
+${map}
+${items}
+];
+
+module.exports = modules;
+`;
+}
+
+/** Escape a cell so a capability sentence carrying a pipe cannot break the table. */
+function markdownCell(value: string): string {
+  return value.split('|').join('\\|').split('\n').join(' ').trim();
+}
+
+/**
+ * The module map — one row per **registered** module, never per page.
+ *
+ * A module the index registers and no page documents gets a row saying so,
+ * rather than being silently absent: the map is a census of the platform, and an
+ * absence is the defect this feature exists to end. 23 registered modules had no
+ * row when this landed.
+ *
+ * The old table's third column, `Owns HTTP surface?`, is **dropped**. It was
+ * hand-written, wrong in several rows, and is not cheaply derivable — a module's
+ * routes are registered through `ctx.routes` at composition and declared in no
+ * manifest. A column that cannot be derived is a column that goes stale, which
+ * is the defect this artefact replaces.
+ */
+export function emitModuleMap(entries: readonly DocsRegistryEntry[]): string {
+  const rows = entries
+    .map((entry) => {
+      if (entry.docs === null) {
+        return (
+          `| \`${entry.moduleId}\` | _no page yet_ | ${markdownCell(entry.shipsFrom)} |`
+        );
+      }
+      const label = labelOf(entry.docs.entry, MAP_FALLBACK_LABEL(entry.moduleId));
+      const href = `./${entry.docs.entry.relativePath}`;
+      const capability = entry.docs.entry.frontMatter.description ?? '_no description yet_';
+      return `| [${markdownCell(label)}](${href}) | ${markdownCell(capability)} | ${markdownCell(entry.shipsFrom)} |`;
+    })
+    .join('\n');
+
+  return `<!-- AUTO-GENERATED by scripts/generate-composer.ts — DO NOT EDIT.
+     Run \`pnpm --filter backend run composer:generate\` to refresh. Editing this
+     file by hand is undone by the next run, and
+     \`pnpm --filter backend run overlay:check\` fails on the drift. -->
+---
+title: Module map
+sidebar_label: Module map
+description: Every module this platform composes, with the capability it owns and the package that ships it.
+---
+
+# Module map
+
+One row per module the platform registers — derived from the generated manifest
+index, the pages on disk and each page's own \`description\` front matter. A
+module with no page is listed with none rather than left out: this is a census
+of the platform, not of what happens to be written.
+
+| Module | Capability | Ships from |
+| --- | --- | --- |
+${rows}
+`;
+}
+
+/** One read of the site's tree and the index, shared by both docs artefacts. */
+function docsRegistry(packages: readonly ModulePackage[]): {
+  layout: DocsLayout;
+  entries: readonly DocsRegistryEntry[];
+} {
+  const layout = resolveDocsLayout(repoRoot);
+  const ids = discoverManifests(packages).map((manifest) => manifest.id);
+  return {
+    layout,
+    entries: collectDocsRegistry(ids, attributeDocs(collectDocPages(layout.modulesRoot), ids), packages),
+  };
+}
+
+/**
+ * Pure render — the target path + expected content of the sidebar fragment.
+ *
+ * The path is derived from the workspace member holding the Docusaurus
+ * configuration, never written down (D-100), exactly as the admin registry's is
+ * derived from the member declaring the `"@/*"` alias.
+ */
+export function renderDocsSidebar(
+  packages: readonly ModulePackage[] = modulePackages(),
+): RenderedArtefact {
+  const { layout, entries } = docsRegistry(packages);
+  return {
+    outputPath: join(layout.member.dir, DOCS_SIDEBAR_ARTEFACT),
+    content: emitDocsSidebar(entries),
+    entryKind: 'doc-id',
+    entryRoot: layout.contentRoot,
+  };
+}
+
+/** Pure render — the target path + expected content of the module map. */
+export function renderModuleMap(
+  packages: readonly ModulePackage[] = modulePackages(),
+): RenderedArtefact {
+  const { layout, entries } = docsRegistry(packages);
+  return {
+    outputPath: join(layout.modulesRoot, MODULE_MAP_ARTEFACT),
+    content: emitModuleMap(entries),
+    entryKind: 'doc-id',
+    entryRoot: layout.contentRoot,
+  };
+}
+
+/**
+ * One rendered artefact, and how `overlay:check` reads the entries in it.
+ *
+ * `entryKind` exists because the two documentation artefacts name **doc ids and
+ * relative page links** rather than import specifiers, and the containment
+ * verdict has to be re-derived for them (`contracts/docs-registry.md` R2.3). It
+ * is carried on the artefact rather than inferred from its extension so that the
+ * generator that knows the answer is the one that states it — an inference off
+ * `.js` would have classified the sidebar fragment as a source file, whose
+ * import specifiers are none.
+ */
+export interface RenderedArtefact {
+  readonly outputPath: string;
+  readonly content: string;
+  /** Defaults to `'specifier'` — every artefact that came before feature 100. */
+  readonly entryKind?: 'specifier' | 'doc-id';
+  /** The root a bare `doc-id` entry resolves against. Absent for a specifier. */
+  readonly entryRoot?: string;
+}
+
 /** Every committed artefact, rendered from one read of the tree. */
 export async function renderAll(): Promise<
-  ReadonlyArray<{ label: string; outputPath: string; content: string }>
+  ReadonlyArray<RenderedArtefact & { label: string }>
 > {
   const packages = modulePackages();
   const sources = readSourceTree(packages);
@@ -1613,6 +1899,8 @@ export async function renderAll(): Promise<
     { label: 'entities-registry', ...renderEntitiesRegistry(sources) },
     { label: 'migrations-registry', ...renderMigrationsRegistry(sources) },
     { label: 'admin-registry', ...renderAdminRegistry(packages) },
+    { label: 'docs-sidebar', ...renderDocsSidebar(packages) },
+    { label: 'module-map', ...renderModuleMap(packages) },
   ];
 }
 

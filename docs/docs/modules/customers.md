@@ -1,5 +1,6 @@
 ---
 title: customers
+description: Customer lifecycle over `customer_accounts` — company and personal Organizations, sales-rep assignment and the admin customer surface
 ---
 
 # `customers`

@@ -1,5 +1,6 @@
 ---
 title: admin_roles
+description: Admin role definitions + per-module Permissions
 ---
 
 # `admin_roles`

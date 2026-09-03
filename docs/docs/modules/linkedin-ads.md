@@ -1,3 +1,8 @@
+---
+title: LinkedIn Ads
+description: LinkedIn Insight Tag per sales channel, reporting storefront actions against Campaign Manager conversion rules
+---
+
 # LinkedIn Ads
 
 Puts the **LinkedIn Insight Tag** on the storefront per sales channel and reports storefront

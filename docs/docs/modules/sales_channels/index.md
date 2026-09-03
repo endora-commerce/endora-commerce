@@ -1,6 +1,8 @@
 ---
 title: Sales Channels
+sidebar_label: Sales channels
 sidebar_position: 1
+description: Channel registry, request resolver, bidirectional membership for every channel-scoped entity
 ---
 
 # Sales Channels

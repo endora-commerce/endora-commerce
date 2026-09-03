@@ -336,6 +336,91 @@ export function classifySpecifier(
   return classifyResolvedPath(artifact, specifier, packageDir, roots);
 }
 
+// --- containment for a documentation artefact (feature 100) ---------------
+//
+// `foreign` applies to the two documentation artefacts and **has to be
+// re-derived**, which is `contracts/docs-registry.md` R2.3. The predicate is
+// identical — *what is the real path of the file this entry names, and is it
+// under an installed package* — and the implementation is not: the code above
+// classifies an **import specifier** resolved through Node, and a sidebar entry
+// is a **doc id**, a path into the site's own tree. The discriminator stays the
+// real path (R2.4) and the classifier is the same one, so the two kinds of
+// artefact cannot come to disagree about what `foreign` means.
+//
+// It matters here for the same reason it matters there, one phase early: Phase 2
+// gives a module package its own `docs/` directory, at which point a page's real
+// path is a package's — a **workspace** package in this repository, and an
+// installed one in a client's. `contracts/docs-registry.md` §6 rules that an
+// instance's registry is built rather than committed and that `foreign` does not
+// apply there; this half is what keeps it applying here.
+
+/** How an artefact names the things it points at. */
+export type ArtifactEntryKind = 'specifier' | 'doc-id';
+
+/** The candidate files a Docusaurus doc id can resolve to, in its own order. */
+function docIdCandidates(contentRoot: string, docId: string): string[] {
+  const base = join(contentRoot, ...docId.split('/'));
+  return [`${base}.md`, `${base}.mdx`, join(base, 'index.md'), join(base, 'index.mdx')];
+}
+
+/**
+ * Where one doc id, or one relative page link, actually lands.
+ *
+ * A doc id is resolved against the site's content root; a link the module map
+ * writes is already a path and is resolved against the artefact's own directory,
+ * which is what a markdown reader does with it. An entry naming no file on disk
+ * is `foreign` rather than skipped — it is contained by nothing, exactly as a
+ * bare specifier resolving to no package on disk already is.
+ */
+export function classifyDocEntry(
+  artifact: string,
+  entry: string,
+  contentRoot: string,
+  roots: PermittedRoots,
+): ContainmentSite {
+  const candidates = entry.startsWith('.')
+    ? [resolve(dirname(artifact), entry)]
+    : docIdCandidates(contentRoot, entry);
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (found === undefined) {
+    return {
+      artifact,
+      specifier: entry,
+      resolved: entry,
+      verdict: 'foreign',
+      detail:
+        'names no page on disk — a committed navigation entry that resolves to nothing is ' +
+        'contained by nothing, and Docusaurus refuses it as an unknown sidebar document id',
+    };
+  }
+  return classifyResolvedPath(artifact, entry, realPathOfNearestExisting(found), roots);
+}
+
+/**
+ * Every page a documentation artefact points at.
+ *
+ * Two spellings, because the two artefacts are two file formats: a doc id in the
+ * sidebar fragment (`id: 'modules/x'`, and a bare `'modules/x'` inside an
+ * `items` array), and a relative markdown link in the module map. Both are read
+ * as literal text, in the discipline the rest of this file uses; the bound is
+ * that an entry built by an expression is invisible, and neither generator
+ * writes one.
+ *
+ * A string is an entry when it carries a path separator or begins with a
+ * relative prefix. That is what keeps the fragment's own JSDoc tag and its
+ * prose comments out of the population without listing them.
+ */
+export function docEntries(content: string): string[] {
+  const found: string[] = [];
+  for (const match of content.matchAll(/(?:^\s*|[[,{:]\s*)'((?:\.{1,2}\/)?[A-Za-z0-9_./@-]+)'/gm)) {
+    found.push(match[1]!);
+  }
+  for (const match of content.matchAll(/\]\((\.{1,2}\/[^)\s]+)\)/g)) {
+    found.push(match[1]!);
+  }
+  return found.filter((entry) => entry.includes('/'));
+}
+
 /** Every `import`/`export … from '<specifier>'` the rendered artefact writes. */
 const SPECIFIER_LINE = /^\s*(?:import|export)\b[^;]*?\bfrom\s*'([^']+)'/;
 const BARE_IMPORT_LINE = /^\s*import\s*'([^']+)'/;
@@ -366,12 +451,34 @@ export function containmentSites(
   outputPath: string,
   content: string,
   roots: PermittedRoots,
+  entries: ArtifactEntrySource = { kind: 'specifier' },
 ): ContainmentSite[] {
+  if (entries.kind === 'doc-id') {
+    return docEntries(content).map((entry) =>
+      classifyDocEntry(outputPath, entry, entries.root, roots),
+    );
+  }
   return content
     .split('\n')
     .map(specifierOf)
     .filter((specifier): specifier is string => specifier !== null)
     .map((specifier) => classifySpecifier(outputPath, specifier, roots));
+}
+
+/** How one artefact names its entries, and what a bare one resolves against. */
+export type ArtifactEntrySource =
+  | { readonly kind: 'specifier' }
+  | { readonly kind: 'doc-id'; readonly root: string };
+
+/** The entry source an artefact declares, defaulting to the pre-feature-100 one. */
+export function entrySourceOf(artefact: {
+  entryKind?: 'specifier' | 'doc-id';
+  entryRoot?: string;
+}): ArtifactEntrySource {
+  if (artefact.entryKind === 'doc-id' && artefact.entryRoot !== undefined) {
+    return { kind: 'doc-id', root: artefact.entryRoot };
+  }
+  return { kind: 'specifier' };
 }
 
 /**
@@ -388,10 +495,15 @@ export function examineArtifact(
   expected: string,
   read: (p: string) => string,
   roots: PermittedRoots,
+  entries: ArtifactEntrySource = { kind: 'specifier' },
 ): ArtifactExamination {
   const bytes = compareArtifact(outputPath, expected, read);
-  const sites = containmentSites(outputPath, expected, roots);
-  const unreadable = unreadableEntryLines(expected);
+  const sites = containmentSites(outputPath, expected, roots, entries);
+  // A documentation artefact writes no import at all, so the "an import line I
+  // could not read a specifier out of" question is not one it has. Asking it
+  // anyway would report every prose line that begins with the word `import` as
+  // an entry this run cannot answer for, which is a refusal about the parser.
+  const unreadable = entries.kind === 'doc-id' ? [] : unreadableEntryLines(expected);
   const foreign = sites.filter((site) => site.verdict === 'foreign');
   const emptyRender = !bytes.ok && bytes.reason === 'empty';
   const verdict: ArtifactVerdict =
@@ -470,8 +582,15 @@ function check(
   expected: string,
   roots: PermittedRoots,
   regenerate?: string,
+  entries: ArtifactEntrySource = { kind: 'specifier' },
 ): ArtifactExamination {
-  const examined = examineArtifact(outputPath, expected, (p) => readFileSync(p, 'utf8'), roots);
+  const examined = examineArtifact(
+    outputPath,
+    expected,
+    (p) => readFileSync(p, 'utf8'),
+    roots,
+    entries,
+  );
   if (examined.verdict.ok) {
     process.stdout.write(`[overlay:check] ${label}: up-to-date and deterministic ✓\n`);
     return examined;
@@ -537,7 +656,14 @@ async function main(): Promise<void> {
   // `db/` registries to that same walk, for the same reason.
   const examined = [
     ...(await renderAll()).map((artifact) =>
-      check(artifact.label, artifact.outputPath, artifact.content, roots),
+      check(
+        artifact.label,
+        artifact.outputPath,
+        artifact.content,
+        roots,
+        undefined,
+        entrySourceOf(artifact),
+      ),
     ),
     ...overrideManifestTargets().map((deployment) => {
       const rendered = renderOverrideManifest(

@@ -1,5 +1,6 @@
 ---
 title: taxes
+description: Tax-rate resolver narrowed by country / product type / VAT status
 ---
 
 # `taxes`

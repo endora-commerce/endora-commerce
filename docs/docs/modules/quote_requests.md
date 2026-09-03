@@ -1,5 +1,6 @@
 ---
 title: quote_requests
+description: RFQ lifecycle (draft → quote → accept/reject)
 ---
 
 # `quote_requests`

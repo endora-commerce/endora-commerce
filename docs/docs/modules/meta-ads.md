@@ -1,3 +1,8 @@
+---
+title: Meta Ads
+description: Meta Pixel per sales channel, with the standard commerce events and optional custom events on top
+---
+
 # Meta Ads
 
 Puts the **Meta Pixel** on the storefront per sales channel and reports Meta's standard commerce

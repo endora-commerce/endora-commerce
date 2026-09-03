@@ -19,6 +19,7 @@ import {
   type SourceTree,
 } from '../../../scripts/generate-composer.js';
 import { findAliasMember } from '../../../scripts/lib/admin-surfaces.js';
+import { resolveDocsLayout } from '../../../scripts/lib/module-docs.js';
 import {
   nodeWorkspaceFs,
   workspaceMembers,
@@ -100,12 +101,39 @@ describe('coveredArtifactPaths', () => {
     return resolve(member.dir, target);
   })();
 
+  /**
+   * The documentation site's own root, derived the way the generator derives it
+   * (feature 100): the workspace member holding a Docusaurus configuration.
+   *
+   * A third root, because the two documentation artefacts are the first that
+   * live outside a source tree — and the first that are not `.ts`. A sweep that
+   * kept looking only under `backend/src` and the admin would have agreed with
+   * itself perfectly while two committed generated files drifted with nothing
+   * watching, which is exactly the state this ratchet exists to refuse.
+   */
+  const docsRoot = ((): string => {
+    const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+    return resolveDocsLayout(repoRoot).member.dir;
+  })();
+
+  /**
+   * Every committed generated file under `dir`, by suffix rather than by
+   * extension.
+   *
+   * `.generated.js` and `.generated.md` are the documentation registry's; the
+   * build outputs are skipped by name, because `build/` and `.docusaurus/` hold
+   * copies of the site's own tree and a sweep that read them would report each
+   * artefact several times over.
+   */
+  const SKIPPED = new Set(['node_modules', 'dist', 'build', '.docusaurus']);
+  const GENERATED = ['.generated.ts', '.generated.js', '.generated.md'];
+
   function generatedFilesUnder(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
-      if (name === 'node_modules' || name === 'dist') continue;
+      if (SKIPPED.has(name)) continue;
       const full = join(dir, name);
       if (statSync(full).isDirectory()) generatedFilesUnder(full, out);
-      else if (name.endsWith('.generated.ts')) out.push(full);
+      else if (GENERATED.some((suffix) => name.endsWith(suffix))) out.push(full);
     }
     return out;
   }
@@ -123,6 +151,7 @@ describe('coveredArtifactPaths', () => {
     const onDisk = [
       ...generatedFilesUnder(srcRoot),
       ...generatedFilesUnder(adminSourceRoot),
+      ...generatedFilesUnder(docsRoot),
     ].sort();
     expect(onDisk).toEqual([...coveredArtifactPaths()].sort());
   });

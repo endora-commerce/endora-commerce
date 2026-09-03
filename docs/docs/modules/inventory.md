@@ -1,5 +1,6 @@
 ---
 title: inventory
+description: Stock levels, reservations, availability notifications
 ---
 
 # `inventory`

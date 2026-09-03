@@ -1,5 +1,6 @@
 ---
 title: orders
+description: Order placement, status machine, payment + delivery linkage
 ---
 
 # `orders`

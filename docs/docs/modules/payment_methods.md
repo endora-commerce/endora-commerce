@@ -1,5 +1,6 @@
 ---
 title: payment_methods
+description: Configured payment methods
 ---
 
 # `payment_methods`

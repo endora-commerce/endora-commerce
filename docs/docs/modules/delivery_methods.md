@@ -1,5 +1,6 @@
 ---
 title: delivery_methods
+description: Configured delivery options
 ---
 
 # `delivery_methods`

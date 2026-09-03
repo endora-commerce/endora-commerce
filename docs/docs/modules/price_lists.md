@@ -1,5 +1,6 @@
 ---
 title: price_lists
+description: Customer / group / default pricing with volume tiers + per-category adjustments
 ---
 
 # `price_lists`

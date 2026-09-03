@@ -1,5 +1,6 @@
 ---
 title: health_checks
+description: Liveness + readiness probe
 ---
 
 # `health_checks`

@@ -985,6 +985,34 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // that read nothing.
     sources: ['manifest-index', 'shipped-languages'],
   },
+  'backend/scripts/check-module-docs.ts': {
+    prefix: '[module-docs]',
+    run: { kind: 'tsx', path: 'scripts/check-module-docs.ts', args: [] },
+    // The markdown this run opened: every page under the modules category plus
+    // the generated module map. 77 pages and the map when it landed, and it
+    // moves by one whenever anybody writes or deletes a page — which is the
+    // number that has to move, because the whole defect this check exists for
+    // was a page nobody's list mentioned.
+    files: 78,
+    // The finer population, and it answers a different question: the navigation
+    // entries the committed sidebar names plus the rows the committed map
+    // carries. A page added and not regenerated moves `files` and leaves `sites`
+    // where it was, which is exactly the drift the check refuses; 78 entries (65
+    // module entries, the map's own, and 12 sub-pages) and 71 rows.
+    sites: 149,
+    // Three authors, each seeing something the others cannot. `manifest-index`
+    // is issue #215's shared floor over the module walk, whose unit is the
+    // module's own directory. `sidebar-entries` is the **committed artefact's**
+    // own entry count, which is what sees the artefact rendering to nothing:
+    // `manifest-index` is satisfied by a module contributing any file at all, so
+    // an empty sidebar leaves it at full coverage while every page reads as an
+    // orphan. Its expected and covered are deliberately the same number — a
+    // sidebar missing *one* entry is `orphan-page`, the finding, and reconciling
+    // per module would report it as exit 2 instead. `emitted-manifests` is
+    // D-164's — a module package's manifest resolves at its build output, so
+    // `docs: false` edited in a package's source and not rebuilt reads as absent.
+    sources: ['manifest-index', 'sidebar-entries', 'emitted-manifests'],
+  },
   'backend/scripts/check-default-language-prose.ts': {
     prefix: '[default-language-prose]',
     run: { kind: 'tsx', path: 'scripts/check-default-language-prose.ts', args: [] },
@@ -1479,8 +1507,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-overlay-determinism.ts': {
     prefix: '[overlay:check]',
     run: { kind: 'tsx', path: 'scripts/check-overlay-determinism.ts', args: [] },
-    files: 8,
-    // Every import specifier in the six rendered artefacts, which is the
+    // Every entry in the rendered artefacts, which is the
     // population the `foreign` verdict answers over (feature 080, T030a):
     // 133 + 67 + 225 + 159 in the four generated files, one in each override
     // manifest. Recorded 2026-08-21.
@@ -1524,7 +1551,29 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Batch 15: 510 -> 511.** One: `admin/src/modules.generated.ts` gains the
     // `@endora-commerce/mod-catalog/admin` entry. `orders` was already in that
     // registry, its `order.entry.tabs` contribution having arrived in P4d.
-    sites: 524,
+    // **511 -> 524** on `origin/master` between this branch's fork point and its
+    // rebase: further `./admin` entries in the admin contribution registry.
+    //
+    // **Feature 100 Phase 1: files 8 -> 10, sites 524 -> 667**, and this is
+    // the first move of either number that is not an import line. 143 of the 156
+    // are this branch's — 78 navigation entries (65 module entries, the map's
+    // own, and 12 sub-pages) and 65 map links, one per documented module — and
+    // the remaining 13 are `origin/master`'s own growth between the fork point
+    // and the rebase, inside the band on that side and named here rather than
+    // absorbed. Measured on the rebased tree, not apportioned. The two files
+    // are the documentation artefacts — `docs/sidebars.modules.generated.js` and
+    // `docs/docs/modules/module-map.generated.md` — which is the first time the
+    // artefact set has grown since the admin registry. Their entries are **not**
+    // import specifiers: a sidebar entry is a doc id and a map row is a relative
+    // page link, so `foreign` is re-derived for them over the same real-path
+    // discriminator (`contracts/docs-registry.md` R2.3). One navigation entry per
+    // page plus the map's own, and one map link per documented module. It moves
+    // with the pages, which is what it is for: a module gaining a page moves it
+    // by one or two, and a module *losing* its page moves it down, which is the
+    // direction `check:module-docs`' own `orphan-page` and `undocumented-module`
+    // answer for.
+    sites: 667,
+    files: 10,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {

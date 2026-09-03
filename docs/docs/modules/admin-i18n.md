@@ -1,5 +1,6 @@
 ---
 title: Admin UI Languages
+description: Admin UI per-user language preference + module-scoped translation bundles
 ---
 
 # Admin UI Languages
