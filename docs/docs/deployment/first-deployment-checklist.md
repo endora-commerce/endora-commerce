@@ -246,7 +246,7 @@ Which roles need them:
 | A role whose holder… | needs |
 | --- | --- |
 | manages the customer-group list itself (`/customer-groups`) | `customer_groups:read` + `customer_groups:write` |
-| edits a customer and assigns their group — the picker in `admin/src/modules/customers/panels/ManagementPanels.tsx`, which reads `GET /api/v1/admin/customer-groups` | `customer_groups:read` |
+| edits a customer and assigns their group — the picker in `packages/modules/customers/src/admin/panels/ManagementPanels.tsx`, which reads `GET /api/v1/admin/customer-groups` | `customer_groups:read` |
 
 Those two, and no others. The promotion rule builder and the PWA push-audience builder also
 show a group list, but each reads it through **its own** module's endpoint

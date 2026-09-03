@@ -358,8 +358,8 @@ packages/modules/product_feeds/src/backend/
 └── routes.public.ts   GET /api/v1/public/product-feeds/:token
 ```
 
-Contracts live in `packages/contracts/src/product-feeds.ts`; the admin module is
-`admin/src/modules/product_feeds/`.
+Contracts live in `packages/contracts/src/product-feeds.ts`; the admin layer is
+`packages/modules/product_feeds/src/admin/`.
 
 ### The generation pipeline
 
