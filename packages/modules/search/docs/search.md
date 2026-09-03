@@ -31,7 +31,7 @@ re-exports `CatalogPage`. There is no parallel results-page contract.
 ## Settings
 
 Six knobs live under the `search` group, registered by
-`backend/src/modules/search/manifest.ts`:
+`packages/modules/search/src/manifest.ts`:
 
 | Code | Type | Default | Purpose |
 | --- | --- | --- | --- |
@@ -251,7 +251,7 @@ pnpm --filter backend run search:reindex
 pnpm --filter backend exec tsx src/cli.ts search reindex
 ```
 
-The body is `backend/src/modules/search/cli/reindex.ts`.
+The body is `packages/modules/search/src/backend/cli/reindex.ts`.
 
 ## Testing
 

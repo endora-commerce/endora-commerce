@@ -194,7 +194,7 @@ There is **no** comparisons-side cart proxy. The storefront's
 ## Settings
 
 One knob under the `compare` group, registered by
-`backend/src/modules/comparisons/manifest.ts`:
+`packages/modules/comparisons/src/manifest.ts`:
 
 | Code | Type | Default | Purpose |
 | --- | --- | --- | --- |

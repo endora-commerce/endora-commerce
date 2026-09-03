@@ -95,7 +95,7 @@ the admin UI can show "in use by" prompts.
 ## Pluggable storage adapters
 
 Each backend implements the `StorageAdapter` SPI in
-`backend/src/modules/assets_library/services/storage/`. Adding a fourth
+`packages/modules/assets_library/src/backend/services/storage/`. Adding a fourth
 backend (Azure Blob, Backblaze B2, …) is a matter of dropping in a new
 class that implements:
 

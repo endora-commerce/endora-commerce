@@ -30,7 +30,7 @@ Each module that wants to register settings or groups exports a sibling
 `manifest.ts` file using the helper from `@endora-commerce/contracts`:
 
 ```ts
-// backend/src/modules/<your_module>/manifest.ts
+// packages/modules/<your_module>/src/manifest.ts
 import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
 
 export const settingsManifest = defineModuleSettingsManifest({

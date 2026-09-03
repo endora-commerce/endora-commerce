@@ -11,7 +11,7 @@ the Admin UI's command palette (the `⌘K` / `Ctrl+K` modal — what the operato
 feature 020 onward those, and every future action, are declared once in their owning module's
 manifest and surfaced through this registry. Feature 020.
 
-The platform side lives at `backend/src/modules/admin_actions/` and the admin runtime at
+The platform side lives at `packages/modules/admin_actions/` and the admin runtime at
 `admin/src/lib/admin-actions/`.
 
 ## What a module declares

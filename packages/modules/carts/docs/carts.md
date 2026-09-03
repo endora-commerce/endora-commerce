@@ -114,7 +114,7 @@ Role gate: `CustomerAccount.role === 'organization_admin'` for every
 | `carts.abandonment.notification_recipient` | `""` (empty) | Single e-mail address to notify on abandonment. Empty = no notification e-mail (the status flip still occurs). |
 
 Seeded by the module-lifecycle ManifestReconciler on backend boot (see
-`backend/src/modules/carts/manifest.ts`).
+`packages/modules/carts/src/manifest.ts`).
 
 ## Merge-on-login
 
@@ -194,8 +194,8 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
   `pnpm --filter backend run cart:abandonment-sweep` runs one tick by hand.
   It is a manifest-declared command the host runs, so it sweeps through the
   composition's own `cartAbandonmentWorker` — see
-  `backend/src/modules/carts/cli/abandonment-sweep.ts` for the body and the
-  `cliCommands` export in `backend/src/modules/carts/manifest.ts` for the
+  `packages/modules/carts/src/backend/cli/abandonment-sweep.ts` for the body and
+  the `cliCommands` export in `packages/modules/carts/src/manifest.ts` for the
   declaration.
 
 ## Audit retention
