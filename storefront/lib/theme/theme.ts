@@ -2,7 +2,7 @@ import {
   DEFAULT_STOREFRONT_THEME_CODE,
   isStorefrontThemeCode,
   type StorefrontThemeCode,
-} from '@endora-commerce/contracts';
+} from './instance-themes';
 
 /**
  * Which token set this request renders in — feature `005-sales-channels`.
@@ -76,11 +76,18 @@ const reported = new Set<string>();
 /**
  * {@link resolveStorefrontTheme} plus the operator-facing half. This is what
  * the request path calls; the pure function above is what the tests assert.
+ *
+ * It returns the whole decision rather than the code alone, because the
+ * document element carries both halves: `data-theme` is what the stylesheet
+ * selects on, and `data-theme-requested` is the operator's answer to "why is
+ * this channel not branded". A caller handed the code alone would have to
+ * remember to ask a second question, and the one that forgot would emit no
+ * marker — see `StorefrontDocument`.
  */
 export function themeForChannel(
   themeCode: string | null | undefined,
   channelCode?: string | undefined,
-): StorefrontThemeCode {
+): ResolvedStorefrontTheme {
   const resolved = resolveStorefrontTheme(themeCode);
   if (resolved.unknownRequest !== null && !reported.has(resolved.unknownRequest)) {
     reported.add(resolved.unknownRequest);
@@ -93,7 +100,7 @@ export function themeForChannel(
         `rendering "${resolved.code}".`,
     );
   }
-  return resolved.code;
+  return resolved;
 }
 
 /** Test seam: forget which unknown codes have already been reported. */

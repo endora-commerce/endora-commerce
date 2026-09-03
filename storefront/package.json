@@ -7,11 +7,13 @@
     "node": ">=22.17.0"
   },
   "scripts": {
-    "dev": "node --env-file-if-exists=.env ./node_modules/.bin/next dev",
-    "build": "next build",
+    "dev": "pnpm run themes:generate && node --env-file-if-exists=.env ./node_modules/.bin/next dev",
+    "build": "pnpm run themes:generate && next build && pnpm run check:themes",
+    "themes:generate": "node scripts/generate-themes.mjs",
+    "check:themes": "node scripts/check-themes.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint app lib",
+    "lint": "eslint app lib scripts",
     "test": "vitest run"
   },
   "dependencies": {

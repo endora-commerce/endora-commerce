@@ -48,22 +48,66 @@ The chain, end to end:
 | `sales_channels.theme_code` | the operator's choice, per channel, edited on the channel's identity form |
 | `GET /api/v1/storefront/sales-channel` | the public read of the **resolved** channel |
 | `lib/api/sales-channel.ts` | fetches it, threading `X-Sales-Channel`; answers `null` rather than throwing |
+| `lib/theme/instance-themes.ts` | this instance's default and its membership predicate |
+| `lib/theme/themes.generated.ts` | **generated** — the codes this instance provides |
 | `lib/theme/theme.ts` | maps `themeCode` → a token set, and decides the unknown case |
 | `lib/server-context.ts` | resolves it once per request, beside the locale |
-| `lib/theme/StorefrontDocument.tsx` | the `<html>` element that carries `data-theme` |
-| `app/globals.css` | the token blocks themselves |
+| `lib/theme/StorefrontDocument.tsx` | the `<html>` element that carries `data-theme` and `data-theme-requested` |
+| `app/globals.css` | this instance's own token blocks |
+| `app/themes.generated.css` | **generated** — one `@import` per installed theme package |
 
-**Adding a theme is two edits, and both are checked.** A
-`:root[data-theme='<code>']` block in `app/globals.css`, and the code in
-`STOREFRONT_THEME_CODES` (`packages/contracts/src/sales-channels.ts`), which is
-what the admin's theme dropdown offers.
-`test/channel-theme.test.tsx` fails when either side is missing — a declared
-theme with no block is a dropdown entry that changes nothing, which is the
-defect this mechanism was built to repair.
+**The platform does not hold a list of themes** (owner ruling D-199,
+`specs/102-storefront-theme-discovery/`). `@endora-commerce/contracts` used to
+export `STOREFRONT_THEME_CODES` and four symbols around it; they are gone. A
+theme is a token set a third party may publish as an ordinary npm package, so
+no set the platform can compile is the whole set. **This instance** answers the
+question instead, from two sources it can read without a network:
+
+1. the `endora: { themes: [...] }` block of every theme package it has
+   installed, and
+2. the `:root[data-theme='<code>']` blocks its own `app/globals.css` declares.
+
+**Adding one of this storefront's own themes is one edit.** Write the
+`:root[data-theme='<code>']` block in `app/globals.css` above `:root.is-dark`,
+then run:
+
+```bash
+pnpm --filter storefront run themes:generate
+```
+
+**Installing someone else's theme is `npm install` and nothing else.** The
+generator finds the package, adds its codes to the registry and its `@import`
+to `app/themes.generated.css`. Never edit either artefact, and never add an
+`@import` by hand — `check:themes` refuses one as `unregistered-theme`.
+
+Both artefacts are committed, and the generator runs at the front of `dev` and
+`build`. It is chained explicitly rather than through `predev` / `prebuild`
+because pnpm does not run `pre` / `post` scripts by default, and a wiring that
+silently does nothing is worse than no wiring.
+
+**The build checks itself, over the emitted stylesheet.**
+`pnpm --filter storefront run check:themes` runs at the end of `build` and
+refuses six disagreements: `undefined-theme`, `partial-theme`,
+`unregistered-theme`, `dark-scope-shadowed`, `duplicate-theme` and
+`unresolvable-theme-css`. It reads `.next/static/css`, not `app/globals.css` as
+source text — a third-party theme's block exists only after the CSS build, so a
+source scan cannot see a bad `exports` map, a dropped `@source` glob or a purge.
+It exits **2** rather than 0 when there is nothing to read (an empty registry,
+no emitted stylesheet, a stylesheet with no `[data-theme]` block, no instance
+default), because a green must not be able to mean "not looking".
+
+What a third-party theme author has to do is one page and names no file in this
+repository:
+`specs/102-storefront-theme-discovery/contracts/theme-package.md`.
 
 **An unknown theme falls back and reports; it never guesses.** A channel that
-names a code this storefront does not implement renders in the default theme
-and logs the requested code once per process. The page a buyer asked for is not
+names a code this storefront does not have renders in the default theme, logs
+the requested code once per process, and stamps
+`data-theme-requested="<code>"` on `<html>` — present only when the request fell
+back, so a correct render carries nothing. That attribute exists because the
+mistake is made in the **admin** and the log line lands in the **storefront's**
+container: a different deployment, read by a different person. Nothing is
+reported back to the platform, in either direction. The page a buyer asked for is not
 the operator's configuration mistake to pay for — but nothing matches a prefix,
 folds a separator or picks the "nearest" theme either, so a misconfigured
 channel is visibly the reference brand rather than some third brand nobody

@@ -2,10 +2,14 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { STOREFRONT_THEME_CODES } from '@endora-commerce/contracts';
 import { getPublicSalesChannel } from '../lib/api/sales-channel';
 import { resolveStorefrontTheme, resetThemeWarnings, themeForChannel } from '../lib/theme/theme';
 import { StorefrontDocument } from '../lib/theme/StorefrontDocument';
+import {
+  DEFAULT_STOREFRONT_THEME_CODE,
+  isStorefrontThemeCode,
+} from '../lib/theme/instance-themes';
+import { INSTANCE_THEME_CODES } from '../lib/theme/themes.generated';
 
 /**
  * Feature `005-sales-channels` — `sales_channels.theme_code` is read.
@@ -53,6 +57,14 @@ function themeBlock(code: string): Record<string, string> | null {
 /** The `data-theme` value of the rendered document element. */
 function renderedThemeOf(html: string): string | null {
   return /<html[^>]*\sdata-theme="([^"]+)"/.exec(html)?.[1] ?? null;
+}
+
+/**
+ * The `data-theme-requested` value, or `null` when the document does not carry
+ * one — which is what a correctly configured channel renders (feature 102).
+ */
+function requestedThemeOf(html: string): string | null {
+  return /<html[^>]*\sdata-theme-requested="([^"]+)"/.exec(html)?.[1] ?? null;
 }
 
 interface RecordedCall {
@@ -180,6 +192,22 @@ describe('an unknown theme refuses rather than guesses', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]![0])).toContain('industria-pro');
     expect(String(warn.mock.calls[0]![0])).toContain('serwis-c');
+
+    // And the document says so (feature 102). The mistake is made in the admin
+    // and the log line appears in the storefront's container, hours later, read
+    // by someone else; this puts the answer in the artefact that already
+    // carries the question. It is the whole operator-facing signal while the
+    // suggestion Setting is held, so it carries the *code* and not a bare
+    // marker — that is what distinguishes a typo from a missing package.
+    expect(requestedThemeOf(html)).toBe('industria-pro');
+  });
+
+  it('marks the document only when the request fell back', async () => {
+    // Absent on every correct render, and absent when the channel names no
+    // theme — which is not an unknown theme and is not reported.
+    expect(requestedThemeOf(await renderForChannel('serwis-a', 'industria'))).toBeNull();
+    expect(requestedThemeOf(await renderForChannel('serwis-a', null))).toBeNull();
+    expect(requestedThemeOf(await renderForChannel('serwis-a', ''))).toBeNull();
   });
 
   it('reports each unknown code once per process, not once per page view', async () => {
@@ -205,38 +233,56 @@ describe('an unknown theme refuses rather than guesses', () => {
   });
 });
 
-describe('the declared catalogue and the shipped stylesheet agree', () => {
-  it('ships a token block for every code the admin can offer', () => {
-    for (const code of STOREFRONT_THEME_CODES) {
-      const block = themeBlock(code);
-      expect(
-        block,
-        `STOREFRONT_THEME_CODES declares "${code}" but app/globals.css has no ` +
-          `:root[data-theme='${code}'] block, so the admin would offer a theme ` +
-          `that renders nothing.`,
-      ).not.toBeNull();
-      // A block that sets no primitive is a block that changes nothing.
-      expect(Object.keys(block!).length).toBeGreaterThan(0);
+/**
+ * What used to be here — *"the declared catalogue and the shipped stylesheet
+ * agree"* — walked `STOREFRONT_THEME_CODES` and grepped `app/globals.css` as
+ * **source text**. Both halves are gone, and its substance moved rather than
+ * being dropped (feature 102, `contracts/instance-theme-registry.md` §5):
+ *
+ *   *ships a token block for every code the admin can offer* → `undefined-theme`
+ *   *gives every theme the same set of primitives*           → `partial-theme`
+ *   *declares the theme scopes above the dark scope*         → `dark-scope-shadowed`
+ *
+ * all three in `scripts/check-themes.mjs`, over the **emitted** stylesheet and
+ * over an **open** set — so they now cover a third-party theme, a bad `exports`
+ * map, a dropped `@source` glob and a purge, none of which a source scan can
+ * see. `test/theme-registry.test.ts` is where they are proven red.
+ *
+ * What is left here is the part that needs no build and that a scaffold gets
+ * wrong: the instance's own registry has to be internally coherent.
+ */
+describe('the theme set is this instance\'s, not the platform\'s', () => {
+  it('answers membership from the generated registry, not from a code\'s shape', () => {
+    // The trap this design exists to avoid: an open predicate over the code
+    // regex would make every well-formed string a known theme, which deletes
+    // `unknownRequest` and the fallback with it.
+    for (const code of INSTANCE_THEME_CODES) expect(isStorefrontThemeCode(code)).toBe(true);
+    for (const code of ['industria-pro', 'theme-x', 'nordic-dark']) {
+      if ((INSTANCE_THEME_CODES as readonly string[]).includes(code)) continue;
+      expect(isStorefrontThemeCode(code), `${code} is not installed here`).toBe(false);
     }
   });
 
-  it('gives every theme the same set of primitives, so none renders half-branded', () => {
-    const [first, ...rest] = STOREFRONT_THEME_CODES.map((code) =>
-      Object.keys(themeBlock(code) ?? {}).sort(),
-    );
-    for (const other of rest) expect(other).toEqual(first);
+  it('has a default the registry declares, so the fallback is itself renderable', () => {
+    expect(INSTANCE_THEME_CODES.length).toBeGreaterThan(0);
+    expect(
+      (INSTANCE_THEME_CODES as readonly string[]).includes(DEFAULT_STOREFRONT_THEME_CODE),
+      `DEFAULT_STOREFRONT_THEME_CODE is "${DEFAULT_STOREFRONT_THEME_CODE}", which the generated ` +
+        `registry does not declare — every fallback would render unbranded.`,
+    ).toBe(true);
   });
 
-  it('declares the theme scopes above the dark scope, so dark mode still wins', () => {
-    // Both selectors have specificity (0,2,0); document order decides. A theme
-    // block moved below `:root.is-dark` would silently disable dark mode for
-    // every themed channel.
-    const lastTheme = Math.max(
-      ...STOREFRONT_THEME_CODES.map((code) => css.indexOf(`:root[data-theme='${code}']`)),
-    );
-    // The rule, not the comment above `@theme inline` that also names it.
-    const darkRule = css.indexOf('\n:root.is-dark {');
-    expect(darkRule).toBeGreaterThan(-1);
-    expect(darkRule).toBeGreaterThan(lastTheme);
+  it('renders each registered theme, and each selects a real token block', () => {
+    // The open-set replacement for "ships a token block for every code the
+    // admin can offer": over this instance's registry rather than over a
+    // platform enum. A package-supplied theme has no block in *this* file, and
+    // that is the check's population rather than this one's — `themeBlock`
+    // reads the instance's own source on purpose.
+    for (const code of INSTANCE_THEME_CODES) {
+      expect(isStorefrontThemeCode(code)).toBe(true);
+      const block = themeBlock(code);
+      if (block === null) continue;
+      expect(Object.keys(block).length).toBeGreaterThan(0);
+    }
   });
 });
