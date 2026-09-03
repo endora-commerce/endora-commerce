@@ -41,3 +41,37 @@ describe('the CMS palette hidden drawer', () => {
     expect(categories.filter((c) => c.visible === false).map((c) => c.key)).toEqual(['internal']);
   });
 });
+
+/**
+ * The e-mail palette's hidden drawer, and the one **deliberate behaviour
+ * change** this feature ships (`data-model.md` §2.1, defect D-c).
+ *
+ * `EmailColumn` was in no category at all, so Puck put it in the *Other* group,
+ * where an author could insert it outside an `EmailRow` — and it renders wrong
+ * there. `transactional_emails` now declares an `internal` section,
+ * `visible: false`, and puts it in; the derived palette therefore stops offering
+ * it. Asserted here because the change is a **manifest** fact, and asserted at
+ * all because a hidden section that silently became visible is exactly the kind
+ * of regression nothing else in the tree would report.
+ */
+describe('the e-mail palette hidden drawer', () => {
+  const te = REGISTERED_MANIFESTS.find(
+    (entry) => entry.manifest.id === 'transactional_emails',
+  )!.manifest;
+  const categories = (te.blockCategories ?? []) as BlockCategory[];
+  const blocks = (te.blocks ?? []) as BlockDefinition[];
+
+  it('holds EmailColumn, hidden, so it is no longer insertable from Other', () => {
+    const internal = categories.find((category) => category.key === 'internal');
+    expect(internal, '`transactional_emails` declares an `internal` section').toBeDefined();
+    expect(internal!.visible).toBe(false);
+    expect(internal!.contexts).toEqual(['email']);
+    expect(blocks.filter((b) => b.category === 'internal').map((b) => b.name)).toEqual([
+      'transactional_emails.EmailColumn',
+    ]);
+  });
+
+  it('leaves every other e-mail section visible', () => {
+    expect(categories.filter((c) => c.visible === false).map((c) => c.key)).toEqual(['internal']);
+  });
+});

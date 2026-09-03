@@ -109,6 +109,42 @@ describe('the derived palette', () => {
     expect(cms['layout']?.visible).toBeUndefined();
   });
 
+  it('carries a hidden section into the newsletter palette too, still hidden', () => {
+    // The e-mail palette's own hidden drawer is what stops `EmailColumn` being
+    // insertable outside an `EmailRow` (defect D-c), and the newsletter palette
+    // *is* the e-mail palette — so the admission has to carry `visible: false`
+    // with the section rather than only its membership.
+    const hidden: ServedPaletteSection = {
+      key: 'internal',
+      titleKey: 'internal',
+      contexts: ['email'],
+      weight: 50,
+      visible: false,
+      ownerModule: 'te',
+    };
+    const column: ServedPaletteBlock = {
+      name: 'te.EmailColumn',
+      ownerModule: 'te',
+      category: 'internal',
+      contexts: ['email'],
+      weight: 10,
+    };
+    const options = {
+      title: (s: ServedPaletteSection) => s.titleKey,
+      renderable: new Set([...RENDERABLE, column.name]),
+    };
+    for (const context of ['email', 'newsletter'] as const) {
+      const palette = buildPaletteCategories(
+        [...ALL_BLOCKS, column],
+        [...ALL_SECTIONS, hidden],
+        context,
+        options,
+      );
+      expect(palette['internal']?.visible, context).toBe(false);
+      expect(palette['internal']?.components, context).toEqual(['te.EmailColumn']);
+    }
+  });
+
   it('does not render a declared section nothing populates', () => {
     const empty: ServedPaletteSection = {
       key: 'ghost',
