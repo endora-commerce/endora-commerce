@@ -769,10 +769,221 @@ describe('checkPortCatches — the two-way ratchet', () => {
 describe('PORT_CATCHES_TO_DRAIN', () => {
   it('gives a reason for every entry, not a label', () => {
     for (const [key, reason] of Object.entries(PORT_CATCHES_TO_DRAIN)) {
-      expect(key, 'ledger keys are `<path under src/>:<port>`').toMatch(/^[\w./-]+\.ts:\w+$/);
+      expect(
+        key,
+        'ledger keys are `<path under src/>:<port>`, with `#promise` for the promise form',
+      ).toMatch(/^[\w./-]+\.ts:\w+(#promise)?$/);
       // Long enough to be an explanation. "Defensive" is not a reason, and the
       // ledger exists to be argued with rather than skimmed.
       expect(reason.length, `${key} needs a reason`).toBeGreaterThan(80);
     }
+  });
+});
+
+/**
+ * The promise form — `.catch(handler)` and `.then(onOk, onErr)`.
+ *
+ * The check read the `try`/`catch` **statement** and nothing else, so
+ * `port.remove(id).catch(() => undefined)` was invisible to it: one grep for
+ * `ts.CatchClause` and none for `.catch`. That is the same defect the statement
+ * rule exists to refuse, written with a method call instead of a keyword, and a
+ * rule a caller can leave by changing punctuation is not a rule.
+ *
+ * Every fixture enters at `findPortCatches` / `checkPortCatches` with source
+ * text (issue #130): the blindness was in the site recogniser, so a fixture
+ * handed a pre-recognised site would prove nothing about it.
+ */
+describe('findPortCatches — the promise form', () => {
+  /** The holder shape: a gated port behind an `async` method the caller awaits. */
+  const promiseTree = (consumerService: string): Map<string, string> =>
+    new Map([
+      ['modules/promotions/backend.ts', PROVIDER],
+      ['modules/carts/backend.ts', CONSUMER_BACKEND],
+      ['modules/carts/services/cart-admin-service.ts', consumerService],
+    ]);
+
+  const SWALLOWED = `
+export class CartAdminService {
+  async remove(id: string) {
+    await this.deps.promotion.detach(id).catch(() => undefined);
+  }
+}
+`;
+
+  it('sees a `.catch` that swallows the presence answer', () => {
+    const found = findPortCatches({ sources: promiseTree(SWALLOWED) });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      moduleId: 'carts',
+      port: 'promotion',
+      handled: false,
+      form: 'promise',
+    });
+  });
+
+  it('accepts a `.catch` whose handler re-throws unconditionally', () => {
+    const rethrows = SWALLOWED.replace(
+      '.catch(() => undefined)',
+      '.catch((err) => { throw err; })',
+    );
+    expect(findPortCatches({ sources: promiseTree(rethrows) }).map((e) => e.handled)).toEqual([
+      true,
+    ]);
+  });
+
+  it('accepts a `.catch` narrowed with rethrowIfModuleDisabled', () => {
+    const narrowed = SWALLOWED.replace(
+      '.catch(() => undefined)',
+      '.catch((err) => { rethrowIfModuleDisabled(err); return undefined; })',
+    );
+    expect(findPortCatches({ sources: promiseTree(narrowed) }).map((e) => e.handled)).toEqual([
+      true,
+    ]);
+  });
+
+  it('accepts a `.catch` whose concise body calls the narrowing', () => {
+    const narrowed = SWALLOWED.replace(
+      '.catch(() => undefined)',
+      '.catch((err) => rethrowIfModuleDisabled(err))',
+    );
+    expect(findPortCatches({ sources: promiseTree(narrowed) }).map((e) => e.handled)).toEqual([
+      true,
+    ]);
+  });
+
+  it('refuses a conditional re-throw in the handler, exactly as the statement form does', () => {
+    // `ModuleDisabledError` is an `HttpError`, so a status-code test lets it
+    // through by accident rather than by decision — the reason the statement
+    // form refuses this shape, unchanged by the punctuation.
+    const conditional = SWALLOWED.replace(
+      '.catch(() => undefined)',
+      '.catch((err) => { if (err instanceof HttpError) throw err; })',
+    );
+    expect(findPortCatches({ sources: promiseTree(conditional) }).map((e) => e.handled)).toEqual([
+      false,
+    ]);
+  });
+
+  it('sees `.then(onOk, onErr)` — the same rejection handler in a different hat', () => {
+    const thenForm = SWALLOWED.replace(
+      '.catch(() => undefined)',
+      '.then((x) => x, () => undefined)',
+    );
+    const found = findPortCatches({ sources: promiseTree(thenForm) });
+    expect(found.map((e) => ({ port: e.port, handled: e.handled, form: e.form }))).toEqual([
+      { port: 'promotion', handled: false, form: 'promise' },
+    ]);
+  });
+
+  it('is not a site when `.then` has no rejection handler', () => {
+    const oneArm = SWALLOWED.replace('.catch(() => undefined)', '.then((x) => x)');
+    expect(findPortCatches({ sources: promiseTree(oneArm) })).toHaveLength(0);
+  });
+
+  it('is not a site for `.finally`, which consumes no rejection', () => {
+    const finallyForm = SWALLOWED.replace('.catch(() => undefined)', '.finally(() => undefined)');
+    expect(findPortCatches({ sources: promiseTree(finallyForm) })).toHaveLength(0);
+  });
+
+  it('does not read a `.catch` over a receiver that reaches no port as a site', () => {
+    const noPort = `
+export class CartAdminService {
+  async remove(id: string) {
+    await this.deps.somethingElse.detach(id).catch(() => undefined);
+  }
+}
+`;
+    expect(findPortCatches({ sources: promiseTree(noPort) })).toHaveLength(0);
+  });
+
+  it('guards the receiver chain only — a port inside `.then`s success arm is not guarded', () => {
+    const inOkArm = `
+export class CartAdminService {
+  async remove(id: string) {
+    await ready().then((x) => this.deps.promotion.detach(x), () => undefined);
+  }
+}
+`;
+    expect(findPortCatches({ sources: promiseTree(inOkArm) })).toHaveLength(0);
+  });
+
+  it('derives OWNER LOCKED for a promise-form site from the manifests (D-63)', () => {
+    const locked = checkPortCatches(
+      {
+        sources: promiseTree(SWALLOWED),
+        manifests: [
+          { id: 'promotions', activation: { nonDeactivatable: true, reason: 'core pricing' } },
+        ],
+      },
+      {},
+    );
+    expect(locked.violations).toHaveLength(0);
+    expect(locked.ownerLocked).toHaveLength(1);
+
+    const unlocked = checkPortCatches(
+      {
+        sources: promiseTree(SWALLOWED),
+        manifests: [
+          { id: 'promotions', activation: { settingCode: 'promotions.enabled', default: true } },
+        ],
+      },
+      {},
+    );
+    expect(unlocked.ownerLocked).toHaveLength(0);
+    expect(unlocked.violations).toHaveLength(1);
+  });
+
+  it('keys a promise-form site apart from a statement-form one over the same alias', () => {
+    // Two forms, one file, one alias. A shared key would let a ledger entry
+    // written for one silently absorb the other — the failure `keyOf`'s
+    // line-independence was chosen to avoid, one granularity across.
+    const both = `
+export class CartAdminService {
+  async remove(id: string) {
+    try {
+      await this.deps.promotion.detach(id);
+    } catch {
+      /* swallowed */
+    }
+    await this.deps.promotion.detach(id).catch(() => undefined);
+  }
+}
+`;
+    const keys = findPortCatches({ sources: promiseTree(both) }).map(keyOf).sort();
+    expect(keys).toEqual([
+      'modules/carts/services/cart-admin-service.ts:promotion',
+      'modules/carts/services/cart-admin-service.ts:promotion#promise',
+    ]);
+
+    const ledgered = checkPortCatches(
+      { sources: promiseTree(both) },
+      { 'modules/carts/services/cart-admin-service.ts:promotion': 'the statement form only' },
+    );
+    expect(ledgered.violations.map(keyOf)).toEqual([
+      'modules/carts/services/cart-admin-service.ts:promotion#promise',
+    ]);
+  });
+});
+
+describe('checkPortCatches — the promise-form census refuses a blind run', () => {
+  it('counts every rejection handler it read, port-reaching or not', () => {
+    const sources = new Map([
+      [
+        'modules/carts/services/misc.ts',
+        'export async function go() {\n' +
+          '  await fetchThing().catch(() => undefined);\n' +
+          '  await other().then((x) => x, () => undefined);\n' +
+          '}',
+      ],
+    ]);
+    expect(checkPortCatches({ sources }, {}).rejectionHandlerSites).toBe(2);
+  });
+
+  it('reports zero when a tree holds none — the state the CLI refuses with exit 2', () => {
+    // The `check:subscribe-seam` worker-half shape: the module-population floor
+    // stays satisfied by files carrying no promise at all, so a recogniser that
+    // stopped resolving would print a clean line over an unprotected tree.
+    const sources = new Map([['modules/carts/services/misc.ts', 'export const x = 1;\n']]);
+    expect(checkPortCatches({ sources }, {}).rejectionHandlerSites).toBe(0);
   });
 });

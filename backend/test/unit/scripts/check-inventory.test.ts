@@ -134,7 +134,7 @@ import {
   vacuousContainmentPopulation,
 } from '../../../scripts/check-overlay-determinism.js';
 import { coreSources, renderEntitiesRegistry } from '../../../scripts/generate-composer.js';
-import { checkPortCatches } from '../../../scripts/check-port-catches.js';
+import { checkPortCatches, keyOf, type PortCatch } from '../../../scripts/check-port-catches.js';
 import {
   findNonBindingIssues,
   findRootIssues,
@@ -1204,6 +1204,73 @@ const PORT_CATCH_DEPS_TREE = new Map([
     'try { await this.deps.promotion.applyToCart({}); } catch { return 0; }',
   ],
 ]);
+
+/**
+ * The promise form — `.catch(handler)` and `.then(onOk, onErr)`.
+ *
+ * The check read `ts.CatchClause` and nothing else, so
+ * `port.remove(id).catch(() => undefined)` was outside its population entirely:
+ * the rule was escapable by punctuation. Each fixture below is **source text**
+ * handed to `checkPortCatches` (issue #130) — the blindness was in the site
+ * recogniser, so a fixture entering below it would prove nothing about it.
+ *
+ * `promiseTree` differs from {@link PORT_CATCH_DEPS_TREE} in one expression, so
+ * a proof that goes green because the *alias* analysis broke reads 0 here and 0
+ * there together.
+ */
+const promiseTree = (guarded: string): ReadonlyMap<string, string> =>
+  new Map([
+    [
+      'modules/promotions/backend.ts',
+      "export function registerModule(ctx) { ctx.di.providePort('promotionService', x); }",
+    ],
+    [
+      'modules/carts/backend.ts',
+      "const deps = { promotion: lazyPort<Promotions>(ctx, 'promotionService') };",
+    ],
+    ['modules/carts/services/cart-total-service.ts', guarded],
+  ]);
+
+const PORT_CATCH_PROMISE_TREE = promiseTree(
+  'await this.deps.promotion.detach(id).catch(() => undefined);',
+);
+
+/** The same swallow written as `.then`'s rejection arm. */
+const PORT_CATCH_PROMISE_THEN_TREE = promiseTree(
+  'await this.deps.promotion.detach(id).then((x) => x, () => undefined);',
+);
+
+/** A conditional re-throw — refused in the promise form exactly as in the statement one. */
+const PORT_CATCH_PROMISE_CONDITIONAL_TREE = promiseTree(
+  'await this.deps.promotion.detach(id).catch((e) => { if (e instanceof HttpError) throw e; });',
+);
+
+/**
+ * Two discriminations in one tree, each of which has to read **clean**.
+ *
+ * `.finally` consumes no rejection, and `.then`'s *success* arm is not routed to
+ * the handler beside it — that is the language's rule, so a check that guarded
+ * either would be reporting sites that cannot exist. The tree also carries the
+ * real swallow as a control, so the proof reads 1 rather than 0 when the
+ * recogniser is working and the limits hold.
+ */
+const PORT_CATCH_PROMISE_LIMITS_TREE = promiseTree(
+  'await this.deps.promotion.detach(id).finally(() => undefined);\n' +
+    'await ready().then((x) => this.deps.promotion.detach(x), () => undefined);\n' +
+    'await this.deps.promotion.purge(id).catch(() => undefined);',
+);
+
+/**
+ * Both spellings over one alias in one file — the ledger-key discrimination.
+ *
+ * A shared key would let an entry written for the `try` silently absorb a
+ * `.catch` added later, which is the inheritance `keyOf`'s line-independence was
+ * chosen to avoid, one granularity across.
+ */
+const PORT_CATCH_BOTH_FORMS_TREE = promiseTree(
+  'try { await this.deps.promotion.detach(id); } catch { /* swallowed */ }\n' +
+    'await this.deps.promotion.detach(id).catch(() => undefined);',
+);
 
 /**
  * D-88 — the gate reached one hop backwards, through `this` and nothing else.
@@ -4663,6 +4730,59 @@ const CHECKS: readonly CheckEntry[] = [
           .violations;
         return violations.length === 1 && violations[0]?.port === 'customFields' ? 1 : 0;
       }),
+      // --- the promise form -------------------------------------------------
+      //
+      // One proof per shape the rule claims to refuse in this spelling, plus
+      // the two limits it claims **not** to reach and the key discrimination.
+      // The limit proof is a discrimination rather than a zero: its tree
+      // carries a real swallow beside the two shapes that must stay invisible,
+      // so it reads 1 while the limits hold and 2 the moment one of them stops
+      // holding — a bare 0 would also be what a dead recogniser prints.
+      'promise-catch-swallows-the-answer': top(
+        () => checkPortCatches({ sources: PORT_CATCH_PROMISE_TREE }, {}).violations.length,
+      ),
+      'promise-then-rejection-arm-swallows-the-answer': top(
+        () => checkPortCatches({ sources: PORT_CATCH_PROMISE_THEN_TREE }, {}).violations.length,
+      ),
+      'promise-catch-conditional-rethrow': top(
+        () =>
+          checkPortCatches({ sources: PORT_CATCH_PROMISE_CONDITIONAL_TREE }, {}).violations.length,
+      ),
+      'promise-finally-and-then-success-arm-are-not-guarded': top(() => {
+        const violations = checkPortCatches({ sources: PORT_CATCH_PROMISE_LIMITS_TREE }, {})
+          .violations;
+        return violations.length === 1 ? 1 : 0;
+      }),
+      'promise-form-keys-apart-from-the-statement-form': top(() => {
+        const both = checkPortCatches({ sources: PORT_CATCH_BOTH_FORMS_TREE }, {
+          'modules/carts/services/cart-total-service.ts:promotion': 'the statement form only',
+        });
+        return both.violations.length === 1 &&
+          keyOf(both.violations[0] as PortCatch).endsWith('#promise')
+          ? 1
+          : 0;
+      }),
+      // The second population floor. The module floor is satisfied by any file
+      // a registered module contributes, none of which need hold a promise, so
+      // a recogniser that stopped resolving would print a clean line over an
+      // unjudged population (`check:subscribe-seam`'s worker half). Read as a
+      // proof rather than as a `vacuousGuard` field because the tree it is
+      // about is one that holds handlers and *no* ports.
+      'promise-census-counts-handlers-that-reach-no-port': top(
+        () =>
+          checkPortCatches(
+            {
+              sources: new Map([
+                [
+                  'modules/carts/services/misc.ts',
+                  'await fetchThing().catch(() => undefined);\n' +
+                    'await other().then((x) => x, () => undefined);\n',
+                ],
+              ]),
+            },
+            {},
+          ).rejectionHandlerSites,
+      ),
     },
   },
   {
@@ -7310,7 +7430,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // collisions the scoping rules now refuse, and — pointing the other way —
       // the call-bound local that must go on being a finding, because "the
       // analysis cannot follow this" is not "this is not a port".
-      'backend/scripts/check-port-catches.ts': 13,
+      'backend/scripts/check-port-catches.ts': 19,
       // Plus T034's one: a name an installed package owns is an undeclared
       // edge, not the consumer's wiring bug the short map reported. Plus the
       // 2026-08-25 ruling's three for the `refuses-without` rail: a refusal

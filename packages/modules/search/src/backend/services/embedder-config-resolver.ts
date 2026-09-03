@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ResolveResult } from '@endora-commerce/contracts';
-import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import { rethrowIfModuleDisabled, type SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { SEARCH_SETTING_CODES } from '../../manifest.js';
 
 /** Narrow port over CredentialsService.resolve (feature 058, Principle I). */
@@ -49,7 +49,15 @@ export async function resolveEmbedderConfig(
     return { url: '', apiKey: '', model: '' };
   }
 
-  const resolved = await credentials.resolve(refCode).catch(() => null);
+  // Tolerated: an unset or unresolvable reference means LLM search is not
+  // configured, and the caller is right to serve without it. **A presence
+  // answer is not that**: `credentials` being switched off would otherwise read
+  // as "the operator never configured this", and the screen would offer to fix
+  // a setting that is already correct.
+  const resolved = await credentials.resolve(refCode).catch((error: unknown) => {
+    rethrowIfModuleDisabled(error);
+    return null;
+  });
   if (!resolved || resolved.status !== 'ok') {
     return { url: '', apiKey: '', model: '' };
   }

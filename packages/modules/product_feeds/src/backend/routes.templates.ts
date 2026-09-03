@@ -164,14 +164,14 @@ export async function registerProductFeedsTemplateRoutes(
 
   app.get('/api/v1/admin/feed-templates/:id/export', read, async (request, reply) => {
     const { id } = parseOrThrow(idParamsSchema, request.params);
-    const { body, filename } = await deps.io.exportDocument(id);
+    const { serialized, filename } = await deps.io.exportDocument(id);
     return reply
       .header('Content-Type', 'application/json; charset=utf-8')
       .header('Content-Disposition', `attachment; filename="${filename}"`)
       // The document carries the field list of a template, not prices, but it
       // is still shop configuration: no intermediary may cache it.
       .header('Cache-Control', 'private, no-store')
-      .send(body);
+      .send(serialized);
   });
 
   app.get('/api/v1/admin/feed-templates/:id', read, async (request, reply) => {

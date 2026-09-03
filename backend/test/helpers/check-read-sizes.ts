@@ -1349,8 +1349,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
+    //
+    // **The promise form (issue #84's blind spot): sites 162 -> 168, files
+    // unchanged.** The check gained a second site class — `.catch(handler)` and
+    // `.then(onOk, onErr)` — so `sites` is now guarded-port sites in **both**
+    // spellings. It opens no new file, which is why only one of the two numbers
+    // moves.
+    //
+    // Six is the net of two movements measured separately on the branch's own
+    // base, and both belong to this change: **+14** promise-form sites the
+    // widening adds, and **-8** sites that leave the population because three
+    // bindings were renamed — `pim_pimcore`'s file-scoped `worker`, and
+    // `product_feeds`' `open` and `body` — each of which was carrying an alias
+    // into calls on a BullMQ handle, an artefact store and a web
+    // `ReadableStream`. Six of those eight were the promise sites those
+    // renames cleared; two were `try` sites over the same aliases.
+    //
+    // **The inherited drift is deliberately left standing.** This row read 162
+    // while the tree read 190 before a line of this branch was written: the
+    // `089-unopim-pim-sync` merge of 2026-09-02 moved it and nothing
+    // re-recorded it, and the same merge is the whole of `files` 1916 -> 2003.
+    // Re-recording either would file `master`'s growth under this change, so
+    // 168 keeps the +28 sites and +87 files of drift visible to whoever owns
+    // it.
     files: 1916,
-    sites: 162,
+    sites: 168,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
