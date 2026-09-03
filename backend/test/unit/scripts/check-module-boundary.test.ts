@@ -12,10 +12,12 @@ import {
   collectModuleFiles,
   declaredEntryType,
   findCrossModuleSql,
+  findMigrationSql,
   generatedExemptionIssues,
   isPermanent,
   keyOf,
   ledgerDirectory,
+  migrationKeyOf,
   loadLedgerShards,
   modulePackageDirectories,
   permanentEntryIssue,
@@ -27,7 +29,13 @@ import {
   type AdminBoundarySurfaces,
   type LedgerEntry,
   type LedgerShard,
+  type MigrationLedgers,
+  type MigrationSqlFinding,
 } from '../../../scripts/check-module-boundary.js';
+import {
+  dependencyClosures,
+  loadManifestDependencies,
+} from '../../../scripts/lib/manifest-dependencies.js';
 import { ADMIN_HOST_OWNER } from '../../../scripts/lib/admin-surfaces.js';
 import { resolveModuleLayout } from '../../../scripts/lib/module-roots.js';
 import {
@@ -1066,7 +1074,11 @@ describe('the sql predicate — the shapes it has to see (D-87)', () => {
     expect(sqlFindings(source, BLOG_SERVICE)).toEqual([]);
   });
 
-  it('ignores a migration — the execution order owns that question', () => {
+  it('leaves a migration to R1 and R2 rather than to this predicate', () => {
+    // The exclusion is **narrowed**, not deleted (feature 097): what a migration
+    // is out of is this predicate's "every reach is debt" rule and its ledger,
+    // not the population. `analyzeMigrationSql` judges the same statement under
+    // the two migration rules, with two ledgers of its own.
     expect(
       sqlFindings(
         'this.addSql(`select id from products`);',
@@ -1344,6 +1356,322 @@ describe('the table→owner map — two sources, and the entity wins', () => {
     expect(report.migrationTables).toBe(1);
     expect(report.migrationOnlyTables).toBe(1);
     expect(report.unattributed).toEqual([]);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * A migration's cross-module SQL (feature 097,
+ * `specs/097-migration-sql-boundary/contracts/migration-cross-module-sql.md`)
+ *
+ * The `sql` predicate excluded `migrations/` outright and delegated to
+ * `test/unit/db/fk-dependency-drift.test.ts`, which reads `create table`,
+ * `alter table` and `references "…"` and no DML statement at all — so 76
+ * cross-module DML accesses in 28 migration files were judged by nothing in the
+ * repository.
+ *
+ * Two rules replace the blanket exclusion, and they are two findings rather than
+ * one because they have different remedies: R1 is repaired by a manifest line
+ * **or** by moving the statement, R2 only by moving it. Merged, R2 would go
+ * blind behind R1's red for every module that happens to declare its target —
+ * 21 of the 37 module-targeting writes standing today (issue #130's shape).
+ *
+ * Every fixture below enters at the **top** of the analysis: source text, a
+ * schema the owner map is built from, and the **declared** manifest graph, so
+ * the closure traversal that decides R1 runs rather than being handed its
+ * answer.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The schema the migration fixtures resolve against — source text, like every
+ * other SQL fixture in this file, so both owner-map passes run.
+ */
+const MIGRATION_SCHEMA: ReadonlyMap<string, string> = new Map([
+  [
+    'modules/a/entities/a-thing.entity.ts',
+    "@Entity({ tableName: 'a_table' })\nexport class AThing {}",
+  ],
+  [
+    'modules/b/entities/b-thing.entity.ts',
+    "@Entity({ tableName: 'b_table' })\nexport class BThing {}",
+  ],
+  [
+    'kernel/sales-channels/sales-channel.entity.ts',
+    "@Entity({ tableName: 'sales_channels' })\nexport class SalesChannel {}",
+  ],
+  [
+    'db/migrations/20260424T165847_core_foundation_init.ts',
+    'this.addSql(`create table "sales_channel_products" ' +
+      '("sales_channel_id" uuid not null, "product_id" uuid not null);`);',
+  ],
+]);
+
+const A_MIGRATION = 'modules/a/migrations/20260901T101010_a_widen.ts';
+
+/**
+ * One migration source against the fixture schema and a **declared** graph.
+ *
+ * The graph is the manifests' own `dependencies` arrays, never a ready-made
+ * closure: `transitive-declaration` is a proof about the traversal, and a
+ * fixture handing in the closure would leave it unexercised (issue #130).
+ */
+function migrationFindings(
+  source: string,
+  declared: Readonly<Record<string, readonly string[]>>,
+  file: string = A_MIGRATION,
+): readonly MigrationSqlFinding[] {
+  return findMigrationSql({
+    sources: new Map([[file, source]]),
+    schema: new Map([...MIGRATION_SCHEMA, [file, source]]),
+    dependencyClosures: dependencyClosures(new Map(Object.entries(declared))),
+  }).found;
+}
+
+const rulesOf = (found: readonly MigrationSqlFinding[]): readonly string[] =>
+  found.map((finding) => finding.rule);
+
+describe('a migration\u2019s cross-module SQL \u2014 R1, the declaration rule', () => {
+  it('reports an undeclared write under both rules', () => {
+    const found = migrationFindings(
+      'this.addSql(`update "b_table" set "flag" = true where "id" is not null;`);',
+      { a: [], b: [] },
+    );
+    expect(rulesOf(found)).toEqual([
+      'undeclared-migration-table-reference',
+      'migration-writes-a-foreign-table',
+    ]);
+    expect(found[0]).toMatchObject({
+      file: A_MIGRATION,
+      moduleId: 'a',
+      target: 'b',
+      table: 'b_table',
+      direction: 'write',
+    });
+  });
+
+  it('reports an undeclared read under R1 alone', () => {
+    const found = migrationFindings(
+      'this.addSql(`select "id" from "b_table";`);',
+      { a: [], b: [] },
+    );
+    expect(rulesOf(found)).toEqual(['undeclared-migration-table-reference']);
+    expect(found[0]?.direction).toBe('read');
+  });
+
+  it('clears a declared read', () => {
+    expect(
+      migrationFindings('this.addSql(`select "id" from "b_table";`);', { a: ['b'], b: [] }),
+    ).toEqual([]);
+  });
+
+  it('clears a read declared transitively', () => {
+    // The closure is transitive (ordering-algorithm.md Step 3): `a` declares
+    // `c`, `c` declares `b`, so `a` inherits `b` exactly as the migration
+    // ordering does. A direct-list rule would refuse an edge the platform's own
+    // execution order already guarantees.
+    expect(
+      migrationFindings('this.addSql(`select "id" from "b_table";`);', {
+        a: ['c'],
+        b: [],
+        c: ['b'],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('a migration\u2019s cross-module SQL \u2014 R2, the ownership rule', () => {
+  it('reports a declared write, which is the clause R1 alone cannot state', () => {
+    // The case that produced the feature cannot be repaired by declaring:
+    // `transactional_emails` is `nonDeactivatable` and `newsletter` is
+    // switchable, so the manifest line R1 would ask for makes `newsletter`'s
+    // activation control a dead switch. If this proof goes green on R1's
+    // implementation, R2 was folded into R1 and the design was lost.
+    const found = migrationFindings(
+      'this.addSql(`update "b_table" set "flag" = true where "id" is not null;`);',
+      { a: ['b'], b: [] },
+    );
+    expect(rulesOf(found)).toEqual(['migration-writes-a-foreign-table']);
+    expect(found[0]).toMatchObject({ moduleId: 'a', target: 'b', table: 'b_table' });
+  });
+
+  it('sees a write named by a knex builder', () => {
+    // The builder names its table as a call argument, so a statement-only
+    // implementation goes green here while the coupling stands (issue #187's
+    // shape at this population). The assertion is on `syntax`, or the proof
+    // would be satisfied by the path it is not testing.
+    const found = migrationFindings(
+      ['const knex = em.getKnex();', "await knex('b_table').insert({ id });"].join('\n'),
+      { a: ['b'], b: [] },
+    );
+    expect(rulesOf(found)).toEqual(['migration-writes-a-foreign-table']);
+    expect(found[0]).toMatchObject({ syntax: 'builder', direction: 'write', table: 'b_table' });
+  });
+
+  it('clears a write into the module\u2019s own table', () => {
+    expect(
+      migrationFindings('this.addSql(`update "a_table" set "flag" = true;`);', { a: [], b: [] }),
+    ).toEqual([]);
+  });
+});
+
+describe('a migration\u2019s cross-module SQL \u2014 what neither rule reaches', () => {
+  it('clears a kernel-owned table under both rules', () => {
+    // Decided from the owner map's own answer, never from a table-name list: the
+    // kernel is composed unconditionally and cannot appear in a `dependencies`
+    // array, so R1 would demand a declaration `defineModuleManifest` has no
+    // vocabulary for. A written list would go stale the first time the platform
+    // relocates a table, and that failure is fail-**open**.
+    expect(
+      migrationFindings(
+        'this.addSql(`insert into "sales_channels" ("id") values (?);`);',
+        { a: [], b: [] },
+      ),
+    ).toEqual([]);
+  });
+
+  it('clears DDL — `fk-dependency-drift.test.ts` owns that and this must not duplicate it', () => {
+    expect(
+      migrationFindings(
+        'this.addSql(`create table "b_table" ("id" uuid not null);`);',
+        { a: [], b: [] },
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not read SQL out of a comment', () => {
+    // The AST reader's property, re-asserted at the new population: a regex over
+    // source text hallucinated a dozen tables off apostrophes in English prose.
+    expect(
+      migrationFindings(
+        [
+          '/* This used to `update "b_table" set "flag" = true where id is not null`. */',
+          "// It's gone, and it's b's own migration that does it now.",
+          'export class Migration20260901T101010AWiden {}',
+        ].join('\n'),
+        { a: [], b: [] },
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('a migration\u2019s cross-module SQL \u2014 the ledgers are two-way', () => {
+  const UNDECLARED_WRITE = 'this.addSql(`update "b_table" set "flag" = true where "id" is not null;`);';
+  const MIGRATION_KEY = `${A_MIGRATION}:b_table`;
+
+  function check(source: string, ledgers: MigrationLedgers) {
+    return checkModuleBoundary(
+      {
+        sources: new Map([
+          ['modules/a/backend.ts', 'export function registerModule(ctx) {}'],
+          ['modules/b/backend.ts', 'export function registerModule(ctx) {}'],
+          [A_MIGRATION, source],
+        ]),
+        schema: new Map([...MIGRATION_SCHEMA, [A_MIGRATION, source]]),
+        dependencyClosures: dependencyClosures(new Map([['a', ['b']], ['b', []]])),
+      },
+      [],
+      ledgers,
+    );
+  }
+
+  const shardOf = (entries: Readonly<Record<string, LedgerEntry>>): LedgerShard => ({
+    moduleId: 'a',
+    entries,
+  });
+
+  it('fails on an unledgered foreign write', () => {
+    const result = check(UNDECLARED_WRITE, { undeclaredReferences: [], foreignWrites: [] });
+    expect(result.foreignWrites.violations.map((f) => f.table)).toEqual(['b_table']);
+  });
+
+  it('fails on an R1 entry the walk no longer finds', () => {
+    const result = check('export class Migration20260901T101010AWiden {}', {
+      undeclaredReferences: [shardOf({ [MIGRATION_KEY]: 'the cycle no declaration can express' })],
+      foreignWrites: [],
+    });
+    expect(result.undeclaredReferences.stale).toEqual([MIGRATION_KEY]);
+  });
+
+  it('fails on an R2 count the walk disagrees with', () => {
+    const result = check(UNDECLARED_WRITE, {
+      undeclaredReferences: [],
+      foreignWrites: [shardOf({ [MIGRATION_KEY]: { sites: 2, reason: 'moves to b_init' } })],
+    });
+    expect(result.foreignWrites.countIssues).toHaveLength(1);
+  });
+
+  it('fails on an entry filed under another module\u2019s shard', () => {
+    const result = check(UNDECLARED_WRITE, {
+      undeclaredReferences: [],
+      foreignWrites: [{ moduleId: 'b', entries: { [MIGRATION_KEY]: 'moves to b_init' } }],
+    });
+    expect(result.foreignWrites.misfiledEntries).toEqual([`b: ${MIGRATION_KEY}`]);
+  });
+
+  it('keeps the two ledgers apart — an R2 entry does not account for an R1 finding', () => {
+    // Contract §2.1 and §4.3: one merged finding would let the R2 population go
+    // blind behind R1's red, and one shard holding two predicates with different
+    // verdicts is how `ledger-size` stops meaning anything.
+    const result = checkModuleBoundary(
+      {
+        sources: new Map([
+          ['modules/a/backend.ts', 'export function registerModule(ctx) {}'],
+          ['modules/b/backend.ts', 'export function registerModule(ctx) {}'],
+          [A_MIGRATION, UNDECLARED_WRITE],
+        ]),
+        schema: new Map([...MIGRATION_SCHEMA, [A_MIGRATION, UNDECLARED_WRITE]]),
+        dependencyClosures: dependencyClosures(new Map([['a', []], ['b', []]])),
+      },
+      [],
+      {
+        undeclaredReferences: [],
+        foreignWrites: [shardOf({ [MIGRATION_KEY]: 'moves to b_init' })],
+      },
+    );
+    expect(result.foreignWrites.violations).toEqual([]);
+    expect(result.undeclaredReferences.violations.map((f) => f.table)).toEqual(['b_table']);
+  });
+});
+
+describe('a migration\u2019s cross-module SQL \u2014 the refusals (contract §6)', () => {
+  const READ = {
+    moduleFiles: ['modules/orders/a.ts'],
+    registeredModules: ['orders'],
+    ledgerDirectoryExists: true,
+    entityTables: 220,
+    migrationTables: 241,
+    migrationFiles: 225,
+    migrationRegistryMissing: [] as readonly string[],
+    declaresNoDependency: false,
+    migrationLedgerDirectoriesExist: true,
+  };
+
+  it('refuses a run that opened no migration file at all', () => {
+    // The refusal that matters most here: the `manifest-index` floor is
+    // satisfied by any file a registered module contributes, and a module's
+    // backend sources are plentiful — so a `migrations/` walk that stopped
+    // resolving leaves the check reporting clean over an unjudged population.
+    expect(vacuousReason({ ...READ, migrationFiles: 0 })).not.toBeNull();
+    expect(vacuousReason(READ)).toBeNull();
+  });
+
+  it('refuses a migration walk that came back short of the registry', () => {
+    expect(
+      vacuousReason({ ...READ, migrationRegistryMissing: ['Migration20260901T101010AWiden'] }),
+    ).not.toBeNull();
+  });
+
+  it('refuses a manifest graph in which nothing declares anything', () => {
+    // An empty closure makes R1 fire on every cross-module access in the tree.
+    // The failure is loud rather than silent, and it is still a broken read:
+    // reporting 59 findings that are all artefacts of it is worse than stopping.
+    expect(vacuousReason({ ...READ, declaresNoDependency: true })).not.toBeNull();
+  });
+
+  it('refuses a missing migration ledger directory', () => {
+    // Distinct from an empty one: an empty directory after the sweep drains is
+    // legal and green, and treating the two alike turns a two-way ratchet into a
+    // one-way one.
+    expect(vacuousReason({ ...READ, migrationLedgerDirectoriesExist: false })).not.toBeNull();
   });
 });
 
@@ -1790,7 +2118,48 @@ describe('the tree itself', () => {
       adminFiles.length + adminHostFiles.length,
     );
 
-    const result = checkModuleBoundary(scan.input, shards);
+    // The migration rules run over the real tree on the CLI's own terms
+    // (feature 097): the same closure, from the same generated index, and both
+    // ledger directories loaded through the same shard loader. Without them this
+    // assertion would report `violations=0` over a population it never analysed
+    // — the input field's "absent means do not run" is a fixture's answer, not a
+    // tree assertion's.
+    const migrationLedgers = {
+      undeclaredReferences: await loadLedgerShards(
+        join(ledgerDirectory(), '..', 'migration-undeclared-references'),
+      ),
+      foreignWrites: await loadLedgerShards(
+        join(ledgerDirectory(), '..', 'migration-foreign-writes'),
+      ),
+    };
+    const result = checkModuleBoundary(
+      {
+        ...scan.input,
+        dependencyClosures: dependencyClosures(
+          await loadManifestDependencies(layout.manifestIndexPath),
+        ),
+      },
+      shards,
+      migrationLedgers,
+    );
+    // Issue #215 over the migration population: the module floor above is
+    // satisfied by any file a registered module contributes, so a `migrations/`
+    // walk that stopped resolving leaves every other number here intact.
+    expect(result.migrationFiles, 'the walk opened no migration file').toBeGreaterThan(100);
+    expect(
+      result.migrationFindings.length,
+      'no cross-module DML found in any migration — the rules judged nothing',
+    ).toBeGreaterThan(0);
+    for (const verdict of [result.undeclaredReferences, result.foreignWrites]) {
+      expect(verdict.violations.map(migrationKeyOf)).toEqual([]);
+      expect(verdict.stale).toEqual([]);
+      expect(verdict.emptyShards).toEqual([]);
+      expect(verdict.orphanShards).toEqual([]);
+      expect(verdict.misfiledEntries).toEqual([]);
+      expect(verdict.permanentIssues).toEqual([]);
+      expect(verdict.countIssues).toEqual([]);
+      expect(verdict.shardShapeIssues).toEqual([]);
+    }
     expect(result.tableOwners.entityTables, 'entity pass resolved nothing').toBeGreaterThan(100);
     expect(result.tableOwners.migrationOnlyTables, 'migration pass added nothing').toBeGreaterThan(
       0,

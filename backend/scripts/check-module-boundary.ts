@@ -237,9 +237,32 @@
  *   - `backend/test/**` — reporting only, under `--tests`. A test is allowed to
  *     know more than the code it tests, and after F4 a test importing another
  *     module's entity is a `devDependency` edge.
- *   - **`migrations/`, for the `sql` predicate** — a migration naming another
+ *   - **`migrations/`, for the `sql` predicate's *rule*, and not for its
+ *     population** (feature 097). This entry read "a migration naming another
  *     module's table is the dependency-corrected execution order's problem, and
- *     `test/unit/db/fk-dependency-drift.test.ts` already owns it.
+ *     `test/unit/db/fk-dependency-drift.test.ts` already owns it", and **that
+ *     sentence is why the hole existed for as long as it did**: it names a real
+ *     file that plausibly covers the case, so a reader who followed it stopped.
+ *     It does not cover it. `fk-graph.ts` is that test's whole reader and its
+ *     own header commits it to "node:fs + regex only"; its complete vocabulary
+ *     is `tableName:`, `create|alter table` and `references "…"`. There is no
+ *     `insert`, no `update`, no `delete` and no `select` anywhere in the file.
+ *     Ordering is neither instrument's subject and never was — that is
+ *     `src/db/migration-order.ts`'.
+ *
+ *     So the two subjects are: **DDL** there, **DML** here. The populations
+ *     cannot overlap even in principle, because `STATEMENT_HEAD` admits only
+ *     `select`, `insert into`, `update`, `delete from` and `with`, and never
+ *     `create` or `alter`. What a migration is excluded from above is this
+ *     predicate's rule — *every reach is debt*, into
+ *     `scripts/ledgers/cross-module-imports/` — and {@link analyzeMigrationSql}
+ *     judges the same statements under two rules of their own, with two ledgers
+ *     of their own: **R1**, a cross-module table reference requires the owner in
+ *     the declaring module's transitive manifest `dependencies` closure (which
+ *     is AGENTS.md § *Migrations* item 4 with its predicate widened from
+ *     `references` to DML), and **R2**, a migration may not *write* another
+ *     module's table whether or not R1 holds. Kernel-owned tables are outside
+ *     both, by derivation from the owner map.
  *   - **Comments, for both `sql` paths** — not by exclusion but by
  *     construction: the predicate reads literal *nodes*. The first spike was a
  *     regex over source text and hallucinated a dozen tables (`every`, `bumps`,
@@ -380,6 +403,19 @@ import {
   UnreadableSubpathError,
   type ModulePackageSurfaces,
 } from './lib/module-package-subpaths.js';
+import {
+  declaresNoDependency,
+  dependencyClosures,
+  loadManifestDependencies,
+  ManifestDependenciesUnreadableError,
+  type DeclaredDependencies,
+  type DependencyClosures,
+} from './lib/manifest-dependencies.js';
+import {
+  declaredMigrationClasses,
+  migrationRegistryCoverage,
+  registeredMigrations,
+} from './lib/migration-registry.js';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 import {
   declaredTableNames,
@@ -407,6 +443,29 @@ import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const TEST_ROOT = join(BACKEND_ROOT, 'test');
 const LEDGER_ROOT = join(BACKEND_ROOT, 'scripts', 'ledgers', 'cross-module-imports');
+/**
+ * R1's ledger — a migration naming a table its module does not declare
+ * (feature 097, contract §4.1).
+ *
+ * A directory of its own rather than entries in `cross-module-imports`, because
+ * the two hold different rules: there, every reach is debt; here, a *declared*
+ * reach is fine and only an undeclared one is recorded. One file carrying two
+ * predicates with different verdicts is how `ledger-size` stops meaning
+ * anything (contract §4.3).
+ */
+const MIGRATION_REFERENCE_LEDGER_ROOT = join(
+  BACKEND_ROOT,
+  'scripts',
+  'ledgers',
+  'migration-undeclared-references',
+);
+/** R2's ledger — a migration writing another module's table (contract §4.2). */
+const MIGRATION_WRITE_LEDGER_ROOT = join(
+  BACKEND_ROOT,
+  'scripts',
+  'ledgers',
+  'migration-foreign-writes',
+);
 
 /**
  * Module files a generator owns, and the script that emits each.
@@ -482,6 +541,57 @@ export interface CrossModuleSqlAccess {
 
 /** What either predicate produces. Both are ledgered in the same shard. */
 export type ModuleBoundaryFinding = CrossModuleImport | CrossModuleSqlAccess;
+
+/**
+ * Which of the two migration rules a finding states (feature 097, contract §2).
+ *
+ * Two findings and not one, because they have different remedies: an R1 finding
+ * is repaired by a manifest line **or** by moving the statement; an R2 finding
+ * only by moving it. A single merged finding would let the R2 population go
+ * blind behind R1's red for every module that happens to declare its target —
+ * 21 of the 37 module-targeting writes standing when this landed, which is
+ * issue #130's shape (one signal's red hiding another's blindness).
+ *
+ * One statement may produce **both**; `transactional_emails`' two `UPDATE`s did.
+ */
+export type MigrationSqlRule =
+  | 'undeclared-migration-table-reference'
+  | 'migration-writes-a-foreign-table';
+
+/**
+ * A migration naming another module's table in DML (feature 097).
+ *
+ * Deliberately **not** a `ModuleBoundaryFinding`: it takes its own two ledgers,
+ * because the host check's rule over an ordinary source is "every reach is debt"
+ * and R1's rule is "a declared reach is fine". Sharing the shards would put two
+ * verdicts in one file (contract §4.3).
+ */
+export interface MigrationSqlFinding {
+  readonly rule: MigrationSqlRule;
+  /** Path under `src/`, POSIX separators — `layout.keyOf`'s spelling. */
+  readonly file: string;
+  readonly line: number;
+  /** The module whose `migrations/` directory holds the file. */
+  readonly moduleId: string;
+  /** The module that owns the table. Never the kernel — see {@link analyzeMigrationSql}. */
+  readonly target: string;
+  readonly table: string;
+  readonly direction: SqlAccessDirection;
+  readonly syntax: SqlAccessSyntax;
+  readonly statement: string;
+}
+
+/**
+ * The migration ledgers' key: `<file>:<table>`.
+ *
+ * Not `(file, target)`: a migration may name two of `B`'s tables for different
+ * reasons and the entry has to say which. Not `(file, line)`: a line-keyed entry
+ * reds on any insertion above the site, which is `check:admin-zones`' recorded
+ * reasoning and this repository's rule for every ledger it has.
+ */
+export function migrationKeyOf(found: MigrationSqlFinding): string {
+  return `${found.file}:${found.table}`;
+}
 
 /**
  * The ledger key, and a site's identity.
@@ -799,38 +909,55 @@ export interface ModuleBoundaryInput {
    * is the one way this absence can mean something other than what it says.
    */
   readonly adminSurfaces?: AdminBoundarySurfaces | null;
+  /**
+   * Each module's **transitive** manifest `dependencies` closure (feature 097).
+   *
+   * Absent means "do not run the migration rules" — the idiom
+   * {@link ModuleBoundaryInput.schema} already uses for the `sql` predicate, and
+   * what keeps every import-predicate fixture in this tree meaning what it
+   * meant. It never means "nothing is declared": an empty graph makes R1 fire
+   * on every cross-module access there is, which is why the CLI refuses one
+   * outright (contract §6.3) rather than analysing under it.
+   *
+   * Computed once from the generated manifest index, by the traversal
+   * `test/unit/db/fk-dependency-drift.test.ts` also uses — one closure, or the
+   * two instruments enforcing AGENTS.md § *Migrations* item 4 over DDL and DML
+   * answer differently for one edge.
+   */
+  readonly dependencyClosures?: DependencyClosures;
 }
 
 /** The tree with no module package installed — every fixture, and CI before !910. */
 const NO_MODULE_PACKAGES: ReadonlyMap<string, string> = new Map();
 
-export interface CheckResult {
+export interface CheckResult extends LedgerVerdict<ModuleBoundaryFinding> {
   readonly total: number;
-  /** Cross-module reaches no shard accounts for. */
-  readonly violations: readonly ModuleBoundaryFinding[];
-  readonly ledgered: readonly ModuleBoundaryFinding[];
-  /** Ledger keys that describe no finding in this run. */
-  readonly stale: readonly string[];
-  /** Shards with no entries — the file is to be deleted, not emptied. */
-  readonly emptyShards: readonly string[];
-  /** Shards named for a module that does not exist. */
-  readonly orphanShards: readonly string[];
-  /** `<shard>: <key>` for a key whose file is not this shard's module. */
-  readonly misfiledEntries: readonly string[];
-  /** Keys the repository has decided to keep — excluded from `ledger-size`. */
-  readonly permanentKeys: readonly string[];
-  /** A permanent entry that states no reason or no retiring condition. */
-  readonly permanentIssues: readonly string[];
-  /**
-   * An entry whose recorded site count is not what the walk found, in either
-   * direction, or which records a count that is not a positive integer
-   * (issue #267).
-   */
-  readonly countIssues: readonly string[];
-  /** A shard whose file declares an entry type of its own (issue #217). */
-  readonly shardShapeIssues: readonly string[];
   /** What each pass of the table→owner map resolved, and what is left over. */
   readonly tableOwners: TableOwnerReport;
+  /**
+   * Import specifiers the walk examined, cleared ones included (issue #244).
+   *
+   * The `read:` line's `sites=` is this **plus**
+   * {@link CheckResult.examinedTableReferences}, and the two are carried apart
+   * rather than pre-summed for the reason
+   * `READ_SIZE_WITHOUT_A_SITE_POPULATION` recorded against printing one number
+   * here at all: a sum over two populations hides the one that went to zero. So
+   * each addend has a floor of its own in {@link vacuousReason}, and zero is
+   * refused before the sum is printed.
+   */
+  readonly examinedSpecifiers: number;
+  /** Table references the walk examined, in migrations and outside them. */
+  readonly examinedTableReferences: number;
+  /** How many migration files the walk opened (feature 097, contract §6.1). */
+  readonly migrationFiles: number;
+  /** Every migration class those files declare — contract §5's coverage half. */
+  readonly migrationClasses: ReadonlySet<string>;
+  /** Every R1 and R2 finding, in file then line order. */
+  readonly migrationFindings: readonly MigrationSqlFinding[];
+  /** R1's verdict — a migration naming a table its module does not declare. */
+  readonly undeclaredReferences: LedgerVerdict<MigrationSqlFinding>;
+  /** R2's verdict — a migration writing another module's table. */
+  readonly foreignWrites: LedgerVerdict<MigrationSqlFinding>;
 }
 
 /** Where a module lives and what it is called: `{ id: 'orders', dir: 'modules/orders' }`. */
@@ -1171,6 +1298,20 @@ function surfaceOf(targetPath: string): CrossModuleSurface {
 }
 
 /**
+ * How many units an analysis **examined**, as opposed to had a finding in
+ * (issue #244's `sites=`).
+ *
+ * A mutable counter passed down rather than a second walk, because the walk is
+ * the expensive half: both recognisers already parse every source once, and
+ * re-parsing 2190 files to count what they cleared would add most of the check's
+ * runtime to answer a disclosure question. Every fixture omits it and pays
+ * nothing.
+ */
+export interface SiteTally {
+  count: number;
+}
+
+/**
  * Every cross-module import `source` names.
  *
  * `file` is the path **under `src/`**, because that is what decides the owning
@@ -1185,6 +1326,7 @@ export function analyzeSource(
   surfaces: ModulePackageSurfaces = EVERY_SUBPATH_IS_A_REACH,
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
   admin: AdminBoundarySurfaces | null = NO_ADMIN_SURFACES,
+  tally?: SiteTally,
 ): CrossModuleImport[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
   if (isAdminRegistryFile(file, admin)) return [];
@@ -1193,6 +1335,7 @@ export function analyzeSource(
 
   const found: CrossModuleImport[] = [];
   for (const specifier of namedSpecifiers(source, file)) {
+    if (tally !== undefined) tally.count += 1;
     const packaged = resolveModulePackage(specifier.text, modulePackages);
     if (packaged !== null) {
       // The importer's own package, named by its own npm name — the self-import
@@ -1256,17 +1399,29 @@ export function analyzeSource(
   return found;
 }
 
-/** Every cross-module import in the input, in file then line order. */
-export function findCrossModuleImports(input: ModuleBoundaryInput): CrossModuleImport[] {
+/**
+ * Every cross-module import in the input, in file then line order, with the
+ * number of specifiers the walk examined to find them.
+ *
+ * `sites` is the import half of the `read:` line's finer population. It counts
+ * what was **cleared** as well as what was reported, which is the distinction
+ * issue #244 is about — a number that moves with the findings cannot answer
+ * "did you read the tree".
+ */
+export function findCrossModuleImports(input: ModuleBoundaryInput): {
+  readonly found: CrossModuleImport[];
+  readonly sites: number;
+} {
   const packages = input.modulePackages ?? NO_MODULE_PACKAGES;
   const surfaces = input.modulePackageSurfaces ?? EVERY_SUBPATH_IS_A_REACH;
   const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
   const admin = input.adminSurfaces ?? NO_ADMIN_SURFACES;
+  const tally: SiteTally = { count: 0 };
   const found = [...input.sources].flatMap(([file, text]) =>
-    analyzeSource(text, file, packages, surfaces, hostResident, admin),
+    analyzeSource(text, file, packages, surfaces, hostResident, admin, tally),
   );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
-  return found;
+  return { found, sites: tally.count };
 }
 
 // ---------------------------------------------------------------------------
@@ -1309,6 +1464,16 @@ export interface TableOwnerReport {
   readonly unattributed: readonly string[];
 }
 
+/**
+ * The owner id the kernel's own tables carry.
+ *
+ * Spelled once because two rules turn on it: this check's `sql` predicate
+ * reports a kernel reach as an ordinary finding, and feature 097's migration
+ * rules exclude one from both (contract §3). `fk-dependency-drift.test.ts` has
+ * its own `KERNEL_OWNER` for the same reason on the DDL side.
+ */
+const KERNEL_OWNER = 'kernel';
+
 /** The declaring file's owner: a module, the kernel, or a core directory. */
 function declaringOwnerOf(
   file: string,
@@ -1317,7 +1482,7 @@ function declaringOwnerOf(
   const module = moduleLocationOf(file, hostResident);
   if (module !== null) return module;
   const head = file.split('/')[0] ?? '';
-  if (head === 'kernel') return { id: 'kernel', dir: 'kernel' };
+  if (head === KERNEL_OWNER) return { id: KERNEL_OWNER, dir: KERNEL_OWNER };
   if (head === '') return null;
   // `core:*` marks "declared outside any module" — the pre-065 DDL block lives
   // in `src/db/migrations`, and attribution below decides whose table it is.
@@ -1439,16 +1604,20 @@ export function analyzeSqlSource(
   owners: ReadonlyMap<string, TableOwner>,
   hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
   admin: AdminBoundarySurfaces | null = NO_ADMIN_SURFACES,
+  tally?: SiteTally,
 ): CrossModuleSqlAccess[] {
   if (GENERATED_MODULE_FILES[file] !== undefined) return [];
-  // A migration naming another module's table is the execution order's problem,
-  // and `fk-dependency-drift.test.ts` already owns it.
-  if (file.includes('/migrations/')) return [];
+  // A migration is judged by {@link analyzeMigrationSql}, under R1 and R2, with
+  // its own two ledgers — not by this predicate's "every reach is debt" rule
+  // (feature 097). The exclusion is **narrowed**, not deleted: what is excluded
+  // here is the host rule, not the population.
+  if (isMigration(file)) return [];
   const owner = moduleLocationOf(file, hostResident, admin);
   if (owner === null) return [];
 
   const found: CrossModuleSqlAccess[] = [];
   for (const access of sqlTableAccesses(source, file)) {
+    if (tally !== undefined) tally.count += 1;
     const target = owners.get(access.table);
     if (target === undefined || isCoreOwner(target)) continue;
     if (target.dir === owner.dir) continue;
@@ -1472,10 +1641,16 @@ export function analyzeSqlSource(
 export function findCrossModuleSql(input: ModuleBoundaryInput): {
   readonly found: CrossModuleSqlAccess[];
   readonly report: TableOwnerReport;
+  /** Table references examined outside `migrations/` — the `read:` line's half. */
+  readonly sites: number;
+  /** The map both SQL analyses resolve against, so the caller builds it once. */
+  readonly owners: ReadonlyMap<string, TableOwner>;
 } {
   if (input.schema === undefined) {
     return {
       found: [],
+      sites: 0,
+      owners: new Map(),
       report: {
         entityTables: 0,
         migrationTables: 0,
@@ -1491,11 +1666,154 @@ export function findCrossModuleSql(input: ModuleBoundaryInput): {
     input.packageTables ?? [],
     hostResident,
   );
+  const tally: SiteTally = { count: 0 };
   const found = [...input.sources].flatMap(([file, text]) =>
-    analyzeSqlSource(text, file, owners, hostResident, input.adminSurfaces ?? NO_ADMIN_SURFACES),
+    analyzeSqlSource(
+      text,
+      file,
+      owners,
+      hostResident,
+      input.adminSurfaces ?? NO_ADMIN_SURFACES,
+      tally,
+    ),
   );
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
-  return { found, report };
+  return { found, report, sites: tally.count, owners };
+}
+
+// ---------------------------------------------------------------------------
+// A migration's cross-module SQL (feature 097)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether this path is a migration, in the one spelling the whole check uses.
+ *
+ * A module's migrations live in its own `migrations/` directory — the
+ * scaffolder's answer for the application tree and for a package alike
+ * (AGENTS.md § *Migrations* item 1) — and the core block at `db/migrations/` is
+ * outside every module walk root, so it never reaches this predicate at all.
+ */
+function isMigration(file: string): boolean {
+  return file.includes('/migrations/');
+}
+
+/**
+ * Every finding R1 and R2 produce over one migration source.
+ *
+ * The entry point is the same as {@link analyzeSqlSource}'s — source text, a
+ * path, and the two maps — so a red proof enters where a real run enters and the
+ * owner map's passes and the closure traversal both run rather than being handed
+ * their answers (issue #130).
+ *
+ * **The kernel is out of both rules, by derivation** (contract §3). Not because
+ * kernel tables are unimportant: both rules are about a **manifest edge**, and
+ * the kernel is not a module — it is composed unconditionally, cannot be
+ * switched off, cannot be uninstalled and cannot appear in a `dependencies`
+ * array, so R1 over a kernel table would demand a declaration
+ * `defineModuleManifest` has no vocabulary for. The answer comes off the owner
+ * map, never off a table-name list: 17 of the 76 accesses standing when this
+ * landed are kernel-targeting, and a written list would go stale the first time
+ * the platform relocates a table — the failure
+ * `check:platform-surface`'s row records, which was fail-**open**.
+ *
+ * R2's silence over kernel *writes* is deferred rather than ruled
+ * (`research.md` §8): every kernel write in the tree is a `sales_channel_*`
+ * bridge insert inside a seed CTE that R2 already reports at its module end, so
+ * widening changes no count today.
+ */
+export function analyzeMigrationSql(
+  source: string,
+  file: string,
+  owners: ReadonlyMap<string, TableOwner>,
+  closures: DependencyClosures,
+  hostResident: HostResidentModules = NO_HOST_RESIDENT_MODULES,
+  tally?: SiteTally,
+): MigrationSqlFinding[] {
+  if (!isMigration(file)) return [];
+  const owner = moduleLocationOf(file, hostResident);
+  if (owner === null) return [];
+
+  const declared = closures.get(owner.id) ?? new Set<string>();
+  const found: MigrationSqlFinding[] = [];
+  for (const access of sqlTableAccesses(source, file)) {
+    if (tally !== undefined) tally.count += 1;
+    const target = owners.get(access.table);
+    if (target === undefined || isCoreOwner(target)) continue;
+    if (target.dir === owner.dir) continue;
+    if (target.id === KERNEL_OWNER) continue;
+    const common = {
+      file,
+      line: access.line,
+      moduleId: owner.id,
+      target: target.id,
+      table: access.table,
+      direction: access.direction,
+      syntax: access.syntax,
+      statement: access.statement,
+    } as const;
+    // Both, where both hold. A statement may produce two findings — the two
+    // `transactional_emails` `UPDATE`s that produced this feature do — because
+    // the remedies differ: R1 is answered by a manifest line or by moving the
+    // statement, R2 only by moving it.
+    if (!declared.has(target.id)) {
+      found.push({ rule: 'undeclared-migration-table-reference', ...common });
+    }
+    if (access.direction === 'write') {
+      found.push({ rule: 'migration-writes-a-foreign-table', ...common });
+    }
+  }
+  return found;
+}
+
+/**
+ * Every migration finding in the input, in file then line order.
+ *
+ * `input.dependencyClosures` absent means "do not run the migration rules" —
+ * the idiom {@link ModuleBoundaryInput.schema} already uses, and what keeps
+ * every import-predicate fixture in the tree meaning what it meant. It never
+ * means "nothing is declared": the CLI's own refusal
+ * ({@link vacuousReason}'s `declaresNoDependency`) is what answers that.
+ */
+export function findMigrationSql(
+  input: ModuleBoundaryInput,
+  /**
+   * The owner map, where the caller has already built it.
+   *
+   * The CLI has: {@link checkModuleBoundary} runs both SQL analyses over one
+   * tree and `buildTableOwners` parses 1836 schema sources, so building it twice
+   * would double the check's most expensive walk to answer the same question.
+   * **No red proof passes it** — every fixture hands in source text and lets
+   * both owner-map passes run, which is what issue #130 asks for; this argument
+   * exists so a caller that has already paid can say so.
+   */
+  prebuiltOwners?: ReadonlyMap<string, TableOwner>,
+): {
+  readonly found: MigrationSqlFinding[];
+  /** Table references examined **inside** `migrations/`. */
+  readonly sites: number;
+  /** How many migration files the walk opened — contract §6.1's input. */
+  readonly files: number;
+  /** Every migration class the walk found declared — contract §5's coverage. */
+  readonly declaredClasses: ReadonlySet<string>;
+} {
+  const migrations = [...input.sources].filter(([file]) => isMigration(file));
+  const declaredClasses = new Set<string>();
+  for (const [file, text] of migrations) {
+    for (const name of declaredMigrationClasses(text, file)) declaredClasses.add(name);
+  }
+  if (input.schema === undefined || input.dependencyClosures === undefined) {
+    return { found: [], sites: 0, files: migrations.length, declaredClasses };
+  }
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
+  const owners =
+    prebuiltOwners ??
+    buildTableOwners(input.schema, input.packageTables ?? [], hostResident).owners;
+  const tally: SiteTally = { count: 0 };
+  const found = migrations.flatMap(([file, text]) =>
+    analyzeMigrationSql(text, file, owners, input.dependencyClosures!, hostResident, tally),
+  );
+  found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
+  return { found, sites: tally.count, files: migrations.length, declaredClasses };
 }
 
 /** The file half of a ledger key, or `null` when the key does not parse. */
@@ -1506,38 +1824,59 @@ function fileOfKey(key: string): string | null {
 }
 
 /**
- * The two-way comparison, in both directions and over all five failure modes.
+ * One ledger's verdict, over the findings it accounts for.
  *
- * The module set is derived from the sources rather than from a second walk, so
- * "this module exists" means exactly "this module has sources in the input the
- * check read" — an orphan shard cannot be created by two walks disagreeing.
+ * Extracted rather than copied when feature 097 added two more ledgers: the
+ * eight failure modes are one rule about how a ledger may lie, and three
+ * implementations of them are three answers waiting to disagree — the reasoning
+ * AGENTS.md gives for the permission inventory carrying its own ratchet.
  */
-export function checkModuleBoundary(
-  input: ModuleBoundaryInput,
+export interface LedgerVerdict<T> {
+  /** Findings no shard accounts for. */
+  readonly violations: readonly T[];
+  readonly ledgered: readonly T[];
+  /** Keys that describe no finding in this run. */
+  readonly stale: readonly string[];
+  /** Shards with no entries — the file is to be deleted, not emptied. */
+  readonly emptyShards: readonly string[];
+  /** Shards named for a module that does not exist. */
+  readonly orphanShards: readonly string[];
+  /** `<shard>: <key>` for a key whose file is not this shard's module. */
+  readonly misfiledEntries: readonly string[];
+  /** Keys the repository has decided to keep — excluded from `ledger-size`. */
+  readonly permanentKeys: readonly string[];
+  /** A permanent entry that states no reason or no retiring condition. */
+  readonly permanentIssues: readonly string[];
+  /** An entry whose recorded site count is not what the walk found (issue #267). */
+  readonly countIssues: readonly string[];
+  /** A shard whose file declares an entry type of its own (issue #217). */
+  readonly shardShapeIssues: readonly string[];
+}
+
+/**
+ * The two-way comparison, over all eight failure modes, for one ledger.
+ *
+ * `shardOfKey` and `shardOfFinding` are the filing rule: a shard accounts for
+ * its own module and nothing else, or one module's shard could absorb another
+ * module's violation. `knownModules` is derived from the sources rather than
+ * from a second walk, so "this module exists" means exactly "this module has
+ * sources in the input the check read" — an orphan shard cannot be created by
+ * two walks disagreeing.
+ */
+function compareLedger<T>(
+  findings: readonly T[],
   shards: readonly LedgerShard[],
-): CheckResult {
-  const sql = findCrossModuleSql(input);
-  const all: ModuleBoundaryFinding[] = [...findCrossModuleImports(input), ...sql.found];
-  all.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
-  const present = new Set(all.map(keyOf));
+  keyFor: (finding: T) => string,
+  shardOfKey: (key: string) => string | null,
+  knownModules: ReadonlySet<string>,
+): LedgerVerdict<T> {
+  const present = new Set(findings.map(keyFor));
   // How many reaches each key actually covers, so an entry can be compared with
   // a number rather than with a boolean (issue #267).
   const found = new Map<string, number>();
-  for (const finding of all) {
-    const key = keyOf(finding);
+  for (const finding of findings) {
+    const key = keyFor(finding);
     found.set(key, (found.get(key) ?? 0) + 1);
-  }
-
-  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
-  const admin = input.adminSurfaces ?? NO_ADMIN_SURFACES;
-  // The owner set an orphan shard is judged against, and a shard's filing
-  // rule. `ownerLocationOf` rather than `moduleLocationOf`, so `host` is a
-  // legitimate shard name exactly while the walk produced an admin host file
-  // (feature 091, P1) — never because the name is written down here.
-  const modules = new Set<string>();
-  for (const file of input.sources.keys()) {
-    const owner = ownerLocationOf(file, hostResident, admin);
-    if (owner !== null) modules.add(owner.id);
   }
 
   const ledger = new Map<string, LedgerEntry>();
@@ -1552,15 +1891,12 @@ export function checkModuleBoundary(
   for (const shard of shards) {
     const keys = Object.keys(shard.entries);
     if (keys.length === 0) emptyShards.push(shard.moduleId);
-    if (!modules.has(shard.moduleId)) orphanShards.push(shard.moduleId);
+    if (!knownModules.has(shard.moduleId)) orphanShards.push(shard.moduleId);
     const shapeIssue = shardShapeIssue(shard.moduleId, shard.source);
     if (shapeIssue !== null) shardShapeIssues.push(shapeIssue);
     for (const key of keys) {
-      const file = fileOfKey(key);
-      const owner = file === null ? null : ownerLocationOf(file, hostResident, admin);
-      // A shard accounts for its own module and nothing else, so it cannot be
-      // used to make another module's violation disappear.
-      if (owner === null || owner.id !== shard.moduleId) {
+      const owner = shardOfKey(key);
+      if (owner === null || owner !== shard.moduleId) {
         misfiledEntries.push(`${shard.moduleId}: ${key}`);
         continue;
       }
@@ -1585,11 +1921,10 @@ export function checkModuleBoundary(
   }
 
   return {
-    total: all.length,
-    violations: all.filter((entry) => !ledger.has(keyOf(entry))),
-    ledgered: all.filter((entry) => ledger.has(keyOf(entry))),
-    // A permanent entry goes stale exactly like a draining one: it describes an
-    // import, and an import that is gone is an entry that lies.
+    violations: findings.filter((entry) => !ledger.has(keyFor(entry))),
+    ledgered: findings.filter((entry) => ledger.has(keyFor(entry))),
+    // A permanent entry goes stale exactly like a draining one: it describes a
+    // reach, and a reach that is gone is an entry that lies.
     stale: [...ledger.keys()].filter((key) => !present.has(key)).sort(),
     emptyShards: emptyShards.sort(),
     orphanShards: orphanShards.sort(),
@@ -1598,7 +1933,89 @@ export function checkModuleBoundary(
     permanentIssues: permanentIssues.sort(),
     countIssues: countIssues.sort(),
     shardShapeIssues: shardShapeIssues.sort(),
+  };
+}
+
+/**
+ * The migration rules' two ledgers (feature 097, contract §4).
+ *
+ * Two directories rather than entries in `cross-module-imports`, because they
+ * hold different rules — there every reach is debt, here a *declared* reach is
+ * fine — and because the two migration rules have different remedies from each
+ * other. Omitted is a fixture with no migration ledger.
+ */
+export interface MigrationLedgers {
+  /** R1 — `scripts/ledgers/migration-undeclared-references/<module>.ts`. */
+  readonly undeclaredReferences: readonly LedgerShard[];
+  /** R2 — `scripts/ledgers/migration-foreign-writes/<module>.ts`. */
+  readonly foreignWrites: readonly LedgerShard[];
+}
+
+const NO_MIGRATION_LEDGERS: MigrationLedgers = {
+  undeclaredReferences: [],
+  foreignWrites: [],
+};
+
+/**
+ * The two-way comparison, in both directions and over all eight failure modes,
+ * for each of the three ledgers this check now carries.
+ */
+export function checkModuleBoundary(
+  input: ModuleBoundaryInput,
+  shards: readonly LedgerShard[],
+  migrationLedgers: MigrationLedgers = NO_MIGRATION_LEDGERS,
+): CheckResult {
+  const sql = findCrossModuleSql(input);
+  const imports = findCrossModuleImports(input);
+  const migration = findMigrationSql(input, sql.owners);
+  const all: ModuleBoundaryFinding[] = [...imports.found, ...sql.found];
+  all.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
+
+  const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
+  const admin = input.adminSurfaces ?? NO_ADMIN_SURFACES;
+  // The owner set an orphan shard is judged against, and a shard's filing
+  // rule. `ownerLocationOf` rather than `moduleLocationOf`, so `host` is a
+  // legitimate shard name exactly while the walk produced an admin host file
+  // (feature 091, P1) — never because the name is written down here.
+  const modules = new Set<string>();
+  for (const file of input.sources.keys()) {
+    const owner = ownerLocationOf(file, hostResident, admin);
+    if (owner !== null) modules.add(owner.id);
+  }
+  const shardOfKey = (key: string): string | null => {
+    const file = fileOfKey(key);
+    return file === null ? null : (ownerLocationOf(file, hostResident, admin)?.id ?? null);
+  };
+
+  const hostVerdict = compareLedger(all, shards, keyOf, shardOfKey, modules);
+  const byRule = (rule: MigrationSqlRule): readonly MigrationSqlFinding[] =>
+    migration.found.filter((finding) => finding.rule === rule);
+
+  return {
+    total: all.length,
+    ...hostVerdict,
     tableOwners: sql.report,
+    examinedSpecifiers: imports.sites,
+    examinedTableReferences: sql.sites + migration.sites,
+    migrationFiles: migration.files,
+    migrationClasses: migration.declaredClasses,
+    migrationFindings: migration.found,
+    // Kept apart, deliberately (contract §2.1): merged, R2 would go blind
+    // behind R1's red for every module that happens to declare its target.
+    undeclaredReferences: compareLedger(
+      byRule('undeclared-migration-table-reference'),
+      migrationLedgers.undeclaredReferences,
+      migrationKeyOf,
+      shardOfKey,
+      modules,
+    ),
+    foreignWrites: compareLedger(
+      byRule('migration-writes-a-foreign-table'),
+      migrationLedgers.foreignWrites,
+      migrationKeyOf,
+      shardOfKey,
+      modules,
+    ),
   };
 }
 
@@ -1665,6 +2082,54 @@ export function vacuousReason(input: {
    * opened (issue #113).
    */
   readonly adminHostFiles?: readonly string[];
+  /**
+   * How many migration files the walk opened (feature 097, contract §6.1).
+   *
+   * **The refusal that matters most in this check**, and the one a careless
+   * implementation omits: the module-population floor above is satisfied by any
+   * file a registered module contributes, and a module's backend sources are
+   * plentiful — so a `migrations/` walk that stopped resolving leaves every
+   * other number intact and leaves R1 and R2 judging nothing, which is
+   * `violations=0` over an unjudged population. That is
+   * `check:subscribe-seam`'s worker-half reasoning at a second population.
+   *
+   * Omitted is a caller that runs no migration analysis — every fixture of the
+   * import predicate, which hands in three sources and no schema.
+   */
+  readonly migrationFiles?: number;
+  /**
+   * Migration classes the generated registry registers that the walk did not
+   * find (contract §6.2) — §5's reconciliation, as a refusal.
+   */
+  readonly migrationRegistryMissing?: readonly string[];
+  /**
+   * Whether **no** manifest declared a dependency at all (contract §6.3).
+   *
+   * An empty closure makes R1 fire on every cross-module access there is, so the
+   * failure is loud rather than silent — but it is still a broken read, and
+   * reporting 59 findings that are all artefacts of it is worse than stopping.
+   */
+  readonly declaresNoDependency?: boolean;
+  /**
+   * Whether both migration ledger directories are on disk (contract §6.5).
+   *
+   * Distinct from an empty one: an empty directory after the R2 sweep drains is
+   * legal and green, while a missing directory is a read that failed, and
+   * treating the two alike is how a two-way ratchet becomes a one-way one.
+   */
+  readonly migrationLedgerDirectoriesExist?: boolean;
+  /**
+   * Import specifiers the walk examined (issue #244), where the caller counts
+   * them.
+   *
+   * The `sites=` number is a **sum** over two populations, so each addend needs
+   * a floor of its own or the sum hides the one that went to zero — the
+   * objection `READ_SIZE_WITHOUT_A_SITE_POPULATION` recorded against printing
+   * one number here at all.
+   */
+  readonly importSites?: number;
+  /** Table references the walk examined, on the same terms. */
+  readonly tableSites?: number;
 }): string | null {
   if (input.moduleFiles.length === 0) {
     return 'no module sources under src/ — refusing to report a vacuous pass';
@@ -1713,6 +2178,48 @@ export function vacuousReason(input: {
       'the route table and the nav the layout was read from both live there, so an empty ' +
       'host walk is a walk that stopped working; refusing to report a vacuous pass'
     );
+  }
+  // Feature 097, contract §6. Each is an input whose absence makes one of the
+  // two migration rules **vacuously clean** — never "the tree is in violation".
+  if (input.migrationFiles !== undefined && input.migrationFiles === 0) {
+    return (
+      'the walk opened no migration file — the module floor above is satisfied by any file a ' +
+      "registered module contributes, and a module's backend sources are plentiful, so a " +
+      'migrations/ walk that stopped resolving leaves R1 and R2 judging nothing; refusing to ' +
+      'report a vacuous pass'
+    );
+  }
+  if (input.migrationRegistryMissing !== undefined && input.migrationRegistryMissing.length > 0) {
+    const named = input.migrationRegistryMissing.slice(0, 8).join(', ');
+    const rest = input.migrationRegistryMissing.length - 8;
+    return (
+      `${input.migrationRegistryMissing.length} migrations the generated registry registers ` +
+      `were not found by the walk (${named}${rest > 0 ? `, and ${rest} more` : ''}) — the ` +
+      'registry enumerates them by import and this walk finds them by path, so the two ' +
+      'disagreeing is a walk that came back short; refusing to report a vacuous pass'
+    );
+  }
+  if (input.declaresNoDependency === true) {
+    return (
+      'no manifest declared a dependency — an empty closure makes R1 fire on every ' +
+      'cross-module access in the tree, and reporting findings that are all artefacts of a ' +
+      'failed read is worse than stopping; refusing to report a vacuous pass'
+    );
+  }
+  if (input.migrationLedgerDirectoriesExist === false) {
+    return (
+      'a migration ledger directory is missing — an empty one after the sweep drains is legal, ' +
+      'an absent one is a read that failed, and treating the two alike turns a two-way ratchet ' +
+      'into a one-way one; refusing to report a vacuous pass'
+    );
+  }
+  // The `sites=` sum's two addends, each with its own floor: a sum cannot hide
+  // an addend that went to zero if zero is refused before the sum is printed.
+  if (input.importSites !== undefined && input.importSites === 0) {
+    return 'the walk examined no import specifier — refusing to report a vacuous pass';
+  }
+  if (input.tableSites !== undefined && input.tableSites === 0) {
+    return 'the walk examined no table reference — refusing to report a vacuous pass';
   }
   return null;
 }
@@ -2362,6 +2869,88 @@ function testSites(hostResident: HostResidentModules): number {
   return total;
 }
 
+/**
+ * What a migration finding is, what to do about it and where to record it
+ * (feature 097).
+ *
+ * The two rules print separately because their remedies differ, and the
+ * sentence is what an author reads before they reach for a manifest line that
+ * would make a switchable module unswitchable.
+ */
+function describeMigrationFinding(finding: MigrationSqlFinding): string {
+  const head =
+    `  - ${finding.file}:${finding.line}\n` +
+    `      ${finding.moduleId} -> ${finding.target}   ${finding.syntax} ${finding.direction}` +
+    `   ${finding.table}\n      ${finding.statement}\n`;
+  if (finding.rule === 'undeclared-migration-table-reference') {
+    return (
+      `${head}\n` +
+      `    \`${finding.moduleId}\` names a table \`${finding.target}\` owns, and its manifest\n` +
+      `    does not declare \`${finding.target}\` (transitively). Two remedies:\n` +
+      `      1. add '${finding.target}' to \`dependencies\` in ${finding.moduleId}'s manifest.ts\n` +
+      `         — but not if ${finding.moduleId} is \`nonDeactivatable\` and ${finding.target}\n` +
+      `         is switchable, because that makes ${finding.target}'s activation control a\n` +
+      '         dead switch (AGENTS.md § *Composition* item 4a);\n' +
+      `      2. move the statement into a \`${finding.target}\`-owned migration.\n`
+    );
+  }
+  return (
+    `${head}\n` +
+    `    A migration owned by \`${finding.moduleId}\` may not decide what is in a table\n` +
+    `    \`${finding.target}\` owns, whether or not the dependency is declared: a declaration\n` +
+    '    is an ordering-and-presence fact and a write is an ownership fact. Three seams:\n' +
+    `      1. \`${finding.target}\`'s own migration — the seed it could equally have written;\n` +
+    `      2. \`${finding.moduleId}\`'s \`installHook\`, which is idempotent by contract and\n` +
+    '         re-runs after a soft-uninstall -> install cycle;\n' +
+    `      3. \`${finding.target}\`'s port, at boot, where the seed needs services.\n`
+  );
+}
+
+/** The eight failure modes, printed for one migration ledger. */
+function reportMigrationLedger(
+  verdict: LedgerVerdict<MigrationSqlFinding>,
+  rule: MigrationSqlRule,
+  directory: string,
+): void {
+  if (verdict.violations.length > 0) {
+    console.error(
+      `\nA migration's cross-module SQL (feature 097, ${rule}).\n`,
+    );
+    for (const finding of verdict.violations) {
+      console.error(describeMigrationFinding(finding));
+      console.error(
+        '    If the statement must stand for now, record it in\n' +
+          `    backend/scripts/ledgers/${directory}/${finding.moduleId}.ts with a reason\n` +
+          '    naming the seam its repair takes.\n',
+      );
+    }
+  }
+  if (verdict.stale.length > 0) {
+    console.error(`\nStale ${directory} entries (they describe no statement any more):`);
+    for (const key of verdict.stale) console.error(`  - ${key}`);
+  }
+  if (verdict.emptyShards.length > 0) {
+    console.error(`\nEmpty ${directory} shards — delete the file rather than emptying it:`);
+    for (const id of verdict.emptyShards) {
+      console.error(`  - backend/scripts/ledgers/${directory}/${id}.ts`);
+    }
+  }
+  if (verdict.orphanShards.length > 0) {
+    console.error(`\n${directory} shards named for a module that does not exist:`);
+    for (const id of verdict.orphanShards) console.error(`  - ${id}`);
+  }
+  for (const [label, issues] of [
+    ['Misfiled', verdict.misfiledEntries],
+    ['Permanence', verdict.permanentIssues],
+    ['Count', verdict.countIssues],
+    ['Shard shape', verdict.shardShapeIssues],
+  ] as const) {
+    if (issues.length === 0) continue;
+    console.error(`\n${label} issues in ${directory}:`);
+    for (const issue of issues) console.error(`  - ${issue}`);
+  }
+}
+
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   const testMode = process.argv.includes('--tests');
@@ -2393,18 +2982,76 @@ async function main(): Promise<void> {
     return;
   }
   let shards: LedgerShard[];
+  let migrationLedgers: MigrationLedgers;
   try {
     shards = await loadLedgerShards(LEDGER_ROOT);
+    migrationLedgers = {
+      undeclaredReferences: await loadLedgerShards(MIGRATION_REFERENCE_LEDGER_ROOT),
+      foreignWrites: await loadLedgerShards(MIGRATION_WRITE_LEDGER_ROOT),
+    };
   } catch (error) {
     console.error(`[module-boundary] ${error instanceof Error ? error.message : String(error)}`);
     process.exit(2);
     return;
   }
+  // The transitive manifest closure R1 compares against, from the artefact this
+  // check already reads for its module floor (feature 097, FR-006). The
+  // traversal is `lib/manifest-dependencies.ts`', shared with
+  // `test/unit/db/fk-dependency-drift.test.ts` so the DDL and DML halves of
+  // AGENTS.md § *Migrations* item 4 cannot answer differently for one edge.
+  let declaredDependencies: DeclaredDependencies;
+  try {
+    declaredDependencies = await loadManifestDependencies(layout.manifestIndexPath);
+  } catch (error: unknown) {
+    const detail =
+      error instanceof ManifestDependenciesUnreadableError ? error.message : String(error);
+    console.error(
+      `[module-boundary] the manifest dependency graph could not be read (${detail}) — R1 ` +
+        'compares against it; refusing to report a vacuous pass',
+    );
+    process.exit(2);
+    return;
+  }
+  // The migration population's independent author (contract §5): the generator
+  // finds migrations by walking module directories and writes them down as
+  // registry entries, this check finds them by path. A module tree that moved
+  // makes the two disagree in the same run.
+  const registryPath = join(layout.srcRoot, 'db', 'migrations-registry.generated.ts');
+  if (!existsSync(registryPath)) {
+    console.error(
+      `[module-boundary] the migration registry at ${registryPath} is not on disk — it is the ` +
+        'independent expectation for the migration walk; refusing to report a vacuous pass',
+    );
+    process.exit(2);
+    return;
+  }
+  const registered = registeredMigrations(readFileSync(registryPath, 'utf8'), registryPath);
 
   // The shards are loaded before the vacuous guard rather than after it, so
   // that guard can use the ledger as the admin population's independent author
   // (feature 091). Its own "ledger directory missing" answer still fires first
   // in the failure that matters, because `loadLedgerShards` rejects on it.
+  // The analysis runs **before** the vacuous guard, because four of feature
+  // 097's five refusals are about what the analysis read — how many migration
+  // files it opened, which migration classes it found, how many specifiers and
+  // table references it examined — and none of those is knowable from the walk
+  // alone. The guard still exits 2 rather than reporting, so nothing it refuses
+  // can be printed as a verdict.
+  const analysed: ModuleBoundaryInput = {
+    ...scan.input,
+    dependencyClosures: dependencyClosures(declaredDependencies),
+  };
+  let result: CheckResult;
+  try {
+    result = checkModuleBoundary(analysed, shards, migrationLedgers);
+  } catch (error) {
+    if (!(error instanceof UnreadableSubpathError)) throw error;
+    console.error(`[module-boundary] ${error.message}`);
+    process.exit(2);
+    return;
+  }
+  const migrations = migrationRegistryCoverage(registered, result.migrationClasses);
+
   const vacuous = vacuousReason({
     moduleFiles: files,
     registeredModules,
@@ -2417,20 +3064,17 @@ async function main(): Promise<void> {
     fileExists: (path) => existsSync(join(layout.repoRoot, path)),
     moduleFileKeys: new Set(files.map((file) => layout.keyOf(file))),
     adminHostFiles,
+    migrationFiles: result.migrationFiles,
+    migrationRegistryMissing: migrations.missing,
+    declaresNoDependency: declaresNoDependency(declaredDependencies),
+    migrationLedgerDirectoriesExist:
+      existsSync(MIGRATION_REFERENCE_LEDGER_ROOT) && existsSync(MIGRATION_WRITE_LEDGER_ROOT),
+    importSites: result.examinedSpecifiers,
+    tableSites: result.examinedTableReferences,
   });
   if (vacuous !== null) {
     console.error(`[module-boundary] ${vacuous}`);
     process.exit(2);
-  }
-
-  let result: CheckResult;
-  try {
-    result = checkModuleBoundary(scan.input, shards);
-  } catch (error) {
-    if (!(error instanceof UnreadableSubpathError)) throw error;
-    console.error(`[module-boundary] ${error.message}`);
-    process.exit(2);
-    return;
   }
   const selected = <T extends { readonly moduleId: string }>(entries: readonly T[]): readonly T[] =>
     only === null ? entries : entries.filter((entry) => entry.moduleId === only);
@@ -2497,6 +3141,15 @@ async function main(): Promise<void> {
   });
   const installed = packageCoverage(packages);
   const coverages: ReadCoverage[] = installed === null ? [modules] : [modules, installed];
+  // The migration population's independent author (feature 097, contract §5).
+  // `manifest-index` cannot answer for it: that token is satisfied by any file a
+  // registered module contributes, and a module's backend sources are plentiful,
+  // so a `migrations/` walk that stopped resolving leaves it intact.
+  coverages.push({
+    source: 'migration-registry',
+    expected: migrations.expected,
+    covered: migrations.covered,
+  });
   // The npm name of every module package, reconciled against the package roots
   // the layout found by a different route — the directories it walks against the
   // names it read off their manifests. An empty map is a legal answer (no module
@@ -2554,6 +3207,9 @@ async function main(): Promise<void> {
   }
   reportReadSize({
     prefix: '[module-boundary]',
+    // The finer population, over both predicates (issue #244). Printed as one
+    // number and floored as two — see {@link CheckResult.examinedSpecifiers}.
+    sites: result.examinedSpecifiers + result.examinedTableReferences,
     // The surfaces reader is lazy — it opens a package's manifest and its
     // emitted module only for a subpath a module actually reached — so its
     // contribution is 0 on a tree where no module names a package specifier,
@@ -2573,6 +3229,23 @@ async function main(): Promise<void> {
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
       `ledger-size=${ledgerSize} (sites=${ledgerSites}) shards=${shards.length} ` +
       `stale=${result.stale.length} permanent=${result.permanentKeys.length}`,
+  );
+  // The migration rules' own summary (feature 097). Separate from the line
+  // above because the two populations are separate: `ledger-size` there is the
+  // packaging sweep's residue, and these two are a rule that has just landed —
+  // R1's ledger is not expected to empty and R2's is.
+  const migrationLedgerSize = (shardsOf: readonly LedgerShard[], permanent: readonly string[]) =>
+    shardsOf.reduce((sum, shard) => sum + Object.keys(shard.entries).length, 0) - permanent.length;
+  console.log(
+    `[module-boundary] migrations=${result.migrationFiles} ` +
+      `cross-module DML=${result.migrationFindings.length} ` +
+      `(undeclared=${result.undeclaredReferences.violations.length + result.undeclaredReferences.ledgered.length} ` +
+      `foreign-writes=${result.foreignWrites.violations.length + result.foreignWrites.ledgered.length}) ` +
+      `violations=${result.undeclaredReferences.violations.length + result.foreignWrites.violations.length} ` +
+      `r1-ledger=${migrationLedgerSize(migrationLedgers.undeclaredReferences, result.undeclaredReferences.permanentKeys)} ` +
+      `r2-ledger=${migrationLedgerSize(migrationLedgers.foreignWrites, result.foreignWrites.permanentKeys)} ` +
+      `stale=${result.undeclaredReferences.stale.length + result.foreignWrites.stale.length} ` +
+      `permanent=${result.undeclaredReferences.permanentKeys.length + result.foreignWrites.permanentKeys.length}`,
   );
   console.log(
     `[module-boundary] table→owner map: entity pass=${result.tableOwners.entityTables} ` +
@@ -2673,7 +3346,32 @@ async function main(): Promise<void> {
     for (const issue of result.shardShapeIssues) console.error(`  - ${issue}`);
   }
 
+  reportMigrationLedger(
+    result.undeclaredReferences,
+    'undeclared-migration-table-reference',
+    'migration-undeclared-references',
+  );
+  reportMigrationLedger(
+    result.foreignWrites,
+    'migration-writes-a-foreign-table',
+    'migration-foreign-writes',
+  );
+
+  const migrationFailed =
+    [result.undeclaredReferences, result.foreignWrites].some(
+      (verdict) =>
+        verdict.violations.length > 0 ||
+        verdict.stale.length > 0 ||
+        verdict.emptyShards.length > 0 ||
+        verdict.orphanShards.length > 0 ||
+        verdict.misfiledEntries.length > 0 ||
+        verdict.permanentIssues.length > 0 ||
+        verdict.countIssues.length > 0 ||
+        verdict.shardShapeIssues.length > 0,
+    );
+
   const failed =
+    migrationFailed ||
     result.violations.length > 0 ||
     result.stale.length > 0 ||
     result.emptyShards.length > 0 ||
