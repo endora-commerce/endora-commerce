@@ -1,0 +1,122 @@
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+import {
+  claimsOutsideTheOverlay,
+  coreModuleIdClaims,
+} from '../../../src/packages/claimed-module-ids.js';
+import { ModuleIdCollisionError } from '../../../src/packages/module-id-claims.js';
+import {
+  overlayModuleEntriesUnder,
+  overlayModuleManifestsUnder,
+} from '../../../src/overlay/overlay-runtime.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { FIXTURES } from '../../overlay/_fixtures.js';
+
+/**
+ * FR-004 — an overlay module may not claim an id somebody else already holds.
+ *
+ * The state this refuses is the one feature 103 measured, and it was not a
+ * disagreement between two designs but between two readers of one scan:
+ *
+ *   - `resolvedManifestEntries` dropped the colliding manifest (`continue`),
+ *     with a comment describing a shadowing reading D-201 retires;
+ *   - `overlayModuleEntriesUnder` applied no id check at all and composed it.
+ *
+ * So a deployment could run a module the resolved registry did not know about:
+ * no `module_registrations` row of its own, no permission-catalogue entry, and
+ * routes gated on the effective state of somebody else's module of the same id.
+ * Principle XVII defeated with nothing raised anywhere.
+ *
+ * The fixture is a **directory on disk** under a module id this build really
+ * registers, driven through the two exported "against an explicit root" seams —
+ * the ones `discoverOverlayModuleManifests` and `loadOverlayModuleEntries`
+ * delegate to — so the analysis is entered at the top rather than by handing a
+ * pre-built entry to the last function in the chain (issue #130).
+ */
+
+const COLLIDING_ROOT = join(FIXTURES, 'overlay-id-collision');
+const FREE_ROOT = join(FIXTURES, 'overlay-entries');
+
+/** The id the fixture takes. Derived, so a renamed module reds this file. */
+const TAKEN_ID = 'blog';
+
+describe('an overlay module claiming an id core already holds', () => {
+  it('is a real collision: the fixture id is one this build registers', () => {
+    // Non-vacuity. If `blog` ever stops being a registered module, the two
+    // refusals below would pass for the wrong reason — a fixture nobody
+    // collides with.
+    expect(DISCOVERED_MANIFESTS.map((entry) => entry.id)).toContain(TAKEN_ID);
+  });
+
+  it('is refused on the resolved-registry path, naming both claimants', async () => {
+    const failure = await overlayModuleManifestsUnder(COLLIDING_ROOT).catch(
+      (thrown: unknown) => thrown,
+    );
+
+    expect(failure).toBeInstanceOf(ModuleIdCollisionError);
+    const message = (failure as Error).message;
+    expect(message).toContain(TAKEN_ID);
+    // Both claimants' files, which is the whole remedy: an operator can only
+    // act on a path.
+    expect(message).toContain(join(COLLIDING_ROOT, TAKEN_ID));
+    expect(message).toContain(
+      coreModuleIdClaims().find((claim) => claim.id === TAKEN_ID)?.claimedBy ?? 'unresolved',
+    );
+  });
+
+  it('is refused on the composition path, by the same rule', async () => {
+    const failure = await overlayModuleEntriesUnder(COLLIDING_ROOT).catch(
+      (thrown: unknown) => thrown,
+    );
+
+    expect(failure).toBeInstanceOf(ModuleIdCollisionError);
+    expect((failure as ModuleIdCollisionError).collisions.map((c) => c.id)).toEqual([TAKEN_ID]);
+    expect(
+      (failure as ModuleIdCollisionError).collisions[0]?.claims.map((claim) => claim.origin),
+    ).toEqual(['core', 'overlay']);
+  });
+
+  it('says what to do about it, in the overlay\'s own terms', async () => {
+    const failure = await overlayModuleEntriesUnder(COLLIDING_ROOT).catch(
+      (thrown: unknown) => thrown,
+    );
+    // Not `pnpm remove`: nobody installed this, a deployment author wrote it.
+    expect((failure as Error).message).toMatch(/id of this deployment's own/);
+  });
+});
+
+describe('an overlay module whose id is free', () => {
+  it('is discovered and composed exactly as before', async () => {
+    const manifests = await overlayModuleManifestsUnder(FREE_ROOT);
+    expect(manifests.map((entry) => entry.id).sort()).toEqual([
+      'fixture_composed',
+      'fixture_manifest_only',
+    ]);
+
+    const entries = await overlayModuleEntriesUnder(FREE_ROOT);
+    expect(entries.map((entry) => entry.id)).toEqual(['fixture_composed']);
+  });
+});
+
+describe('the claimed set is derived from what this instance ships', () => {
+  it('agrees with the registry the platform composes, id for id', () => {
+    // D-100: `claimsOutsideTheOverlay` reads the generated index directly rather
+    // than `REGISTERED_MANIFESTS`, because `registered-manifests.ts` imports the
+    // overlay runtime and would close a cycle. Both derive from the same emitted
+    // entries; this is what keeps the shortcut from becoming a second answer.
+    const fromClaims = coreModuleIdClaims()
+      .map((claim) => `${claim.id} ${claim.claimedBy}`)
+      .sort();
+    const fromRegistry = REGISTERED_MANIFESTS.map(
+      (entry) => `${entry.manifest.id} ${entry.filePath}`,
+    ).sort();
+    expect(fromClaims).toEqual(fromRegistry);
+  });
+
+  it('holds no overlay claim of its own — the caller supplies those', () => {
+    expect(claimsOutsideTheOverlay({} as NodeJS.ProcessEnv).map((claim) => claim.origin)).not.toContain(
+      'overlay',
+    );
+  });
+});

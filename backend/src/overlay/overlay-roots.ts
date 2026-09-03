@@ -17,11 +17,6 @@ export function repoRoot(): string {
   return resolve(BACKEND_SRC, '..', '..');
 }
 
-/** Absolute path to the core modules root, `backend/src/modules`. */
-export function coreModulesRoot(): string {
-  return join(BACKEND_SRC, 'modules');
-}
-
 /**
  * The active deployment name, or `null` for a bare-core build.
  * Read from `DEPLOYMENT`; blank/whitespace is treated as unset.

@@ -16,7 +16,7 @@
 import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 import { discoverOverlayModuleManifests } from '../overlay/overlay-runtime.js';
 import {
-  assertNoPackageModuleIdCollisions,
+  assertNoModuleIdCollisions,
   type ModuleIdClaim,
 } from '../packages/module-id-claims.js';
 import type { ModuleIdClaimOrigin } from './services/module-origin.js';
@@ -237,19 +237,27 @@ provideDefaultGatingManifests(() => REGISTERED_MANIFESTS.map((entry) => entry.ma
  * test run — both discoveries come back empty and this returns the core
  * registry unchanged (FR-008).
  *
- * ## The two collisions, and why they are answered differently
+ * ## Collisions: one rule, whoever the claimants are
  *
- * An **overlay** module claiming a core id is dropped (`continue`). That is the
- * shipped answer and it is right: a deployment shadowing a module it authored
- * is what the overlay mechanism is for, and the deployment can see both files.
+ * A module id claimed twice is **refused**, naming every claimant's file
+ * (T030c, D-155.7; widened to the overlay by feature 103, FR-004).
  *
- * A **package** claiming an id that is already taken — by core, by the
- * deployment's overlay, or by another package — is **refused**, naming every
- * claimant's file (T030c, D-155.7). A stranger has no shadowing reading: the
- * operator installed something that cannot run here, and dropping it silently
- * disables a module they paid for while leaving its migrations, its settings
- * rows and its permissions to be attributed to somebody else's module of the
- * same id.
+ * The overlay half used to be answered differently — dropped with a `continue`,
+ * on the reading that a deployment shadowing a module it authored is what the
+ * overlay mechanism is for. File shadowing is retired (D-201), so that reading
+ * has nothing left to refer to, and it was never the whole answer anyway: this
+ * function dropped the manifest while `overlayModuleEntriesUnder` composed the
+ * module, so the deployment ran a module the resolved registry did not know
+ * about — no `module_registrations` row, no permission-catalogue entry, and its
+ * routes gated on the effective state of somebody else's module of the same id.
+ * Principle XVII defeated in silence.
+ *
+ * The refusal an overlay claim reaches is raised **before** this function sees
+ * it, inside the overlay scan, so that the composition path reaches the same
+ * rule without depending on a composition root calling this function first.
+ * What is left here is the claim set no single scan can assemble: core, the
+ * overlay and every installed package at once, so an operator with two bad
+ * packages has to run this only once.
  */
 export async function resolvedManifestEntries(
   env: NodeJS.ProcessEnv = process.env,
@@ -260,7 +268,6 @@ export async function resolvedManifestEntries(
     REGISTERED_MANIFESTS.map((entry) => [entry.manifest.id, entry]),
   );
   for (const found of overlay) {
-    if (byId.has(found.id)) continue; // core owns the id; an overlay may not shadow it here
     byId.set(found.id, {
       manifest: found.manifest,
       filePath: found.filePath,
@@ -277,10 +284,22 @@ export async function resolvedManifestEntries(
 
   // Every claim at once, so the refusal reports all of them rather than the
   // first — an operator with two bad packages should have to run this once.
-  const claims: ModuleIdClaim[] = [];
-  for (const [id, entry] of byId) {
-    claims.push({ id, origin: entry.origin, claimedBy: entry.filePath });
-  }
+  //
+  // Assembled from the three discoveries and **not** from `byId`, which is keyed
+  // by id: reading the claim set off it would be asking a map that has already
+  // resolved the collision whether there was one.
+  const claims: ModuleIdClaim[] = [
+    ...REGISTERED_MANIFESTS.map((entry) => ({
+      id: entry.manifest.id,
+      origin: entry.origin,
+      claimedBy: entry.filePath,
+    })),
+    ...overlay.map((found) => ({
+      id: found.id,
+      origin: 'overlay' as const,
+      claimedBy: found.filePath,
+    })),
+  ];
   for (const found of packages) {
     claims.push({
       id: found.id,
@@ -289,7 +308,7 @@ export async function resolvedManifestEntries(
       name: found.packageName,
     });
   }
-  assertNoPackageModuleIdCollisions(claims);
+  assertNoModuleIdCollisions(claims);
 
   for (const found of packages) {
     byId.set(found.id, {

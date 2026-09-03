@@ -23,7 +23,7 @@ import {
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
-import { coreModulesRoot } from '../../../src/overlay/overlay-roots.js';
+import { repoRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * Module presence is a **composition input** (feature 072, D-38 / D-40).
@@ -80,7 +80,7 @@ function manifest(id: string, settingCode: string): ModuleManifest {
 function coreEntry(id: string): ShippedModuleEntry {
   return {
     manifest: manifest(id, `${id}.enabled`),
-    filePath: join(coreModulesRoot(), id, 'manifest.ts'),
+    filePath: join(repoRoot(), 'packages', 'modules', id, 'package.json'),
     origin: 'core',
   };
 }

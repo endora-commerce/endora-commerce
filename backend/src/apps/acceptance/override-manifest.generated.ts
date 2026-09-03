@@ -7,10 +7,8 @@ import type { OverrideManifest } from '../../overlay/types.js';
 export const OVERRIDE_MANIFEST: OverrideManifest = {
   "deployment": "acceptance",
   "generatedFrom": {
-    "coreRoot": "backend/src/modules",
     "overlayRoot": "backend/src/apps/acceptance/modules"
   },
-  "overrides": [],
   "newModules": [
     "acceptance_overlay"
   ]

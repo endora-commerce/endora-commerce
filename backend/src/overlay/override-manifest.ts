@@ -1,19 +1,27 @@
 // Overlay resolution — override-manifest builder + serializer.
 //
 // The override manifest is the audit artifact of a deployment build (US3,
-// FR-005): it enumerates every core unit an overlay replaced and every
-// overlay-only module added. It is deterministic (repo-relative paths, sorted
-// arrays, no timestamps) so identical inputs produce byte-identical output
-// (FR-006, SC-003). See contracts/override-manifest.md.
+// FR-005): it records which deployment this is, which overlay root was read,
+// and which modules the deployment adds. It is deterministic (repo-relative
+// paths, sorted arrays, no timestamps) so identical inputs produce
+// byte-identical output (FR-006, SC-003).
+//
+// v2 dropped `overrides` and `generatedFrom.coreRoot` (feature 103, D-201). The
+// first enumerated the core units an overlay replaced, and nothing replaces a
+// core unit — the array could only ever be empty, and an always-empty field in
+// an artefact a determinism check byte-compares is a field that makes the check
+// agree with itself. See
+// specs/103-overlay-shadowing-retirement/contracts/override-manifest-v2.md.
+//
+// A `newModules` array is legitimately empty for a deployment shipping no
+// overlay module, so `overlay:check`'s `empty` verdict does not apply to an
+// override manifest. That was true in v1 and stays true; it is recorded here
+// because it is the property that let the always-empty `overrides` array go
+// unnoticed for a year.
 
 import { relative, sep } from 'node:path';
 import { repoRoot } from './overlay-roots.js';
-import {
-  type OverrideEntry,
-  type OverrideManifest,
-  type OverlayResolution,
-  unitKey,
-} from './types.js';
+import { type OverrideManifest, type OverlayResolution } from './types.js';
 
 function repoRelative(absPath: string, base: string): string {
   const rel = relative(base, absPath);
@@ -21,38 +29,22 @@ function repoRelative(absPath: string, base: string): string {
 }
 
 /**
- * Build the deterministic override manifest for a resolution. `coreRoot` /
- * `overlayRoot` are recorded (repo-relative) for reproducibility. `base`
- * defaults to the repository root; tests pass an explicit base.
+ * Build the deterministic override manifest for a resolution. `overlayRoot` is
+ * recorded (repo-relative) for reproducibility. `base` defaults to the
+ * repository root; tests pass an explicit base.
  */
 export function buildOverrideManifest(params: {
   deployment: string | null;
-  coreRoot: string;
   overlayRoot: string | null;
   resolution: OverlayResolution;
   base?: string;
 }): OverrideManifest {
   const base = params.base ?? repoRoot();
-  const overrides: OverrideEntry[] = params.resolution.overrides
-    .map((o) => ({
-      moduleId: o.moduleId,
-      kind: o.kind,
-      unitKey: o.relPath,
-      overlayPath: repoRelative(o.overlayPath, base),
-    }))
-    .sort(
-      (a, b) =>
-        a.moduleId.localeCompare(b.moduleId) ||
-        a.kind.localeCompare(b.kind) ||
-        a.unitKey.localeCompare(b.unitKey),
-    );
   return {
     deployment: params.deployment ?? 'core',
     generatedFrom: {
-      coreRoot: repoRelative(params.coreRoot, base),
       overlayRoot: params.overlayRoot === null ? null : repoRelative(params.overlayRoot, base),
     },
-    overrides,
     newModules: [...params.resolution.newModules].sort(),
   };
 }
@@ -83,11 +75,3 @@ import type { OverrideManifest } from '${typesImportSpecifier}';
 export const OVERRIDE_MANIFEST: OverrideManifest = ${body};
 `;
 }
-
-/** Convenience: does this manifest describe a divergence from core? */
-export function hasOverrides(manifest: OverrideManifest): boolean {
-  return manifest.overrides.length > 0 || manifest.newModules.length > 0;
-}
-
-// Re-export for consumers that build a key from a manifest entry.
-export { unitKey };

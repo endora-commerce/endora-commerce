@@ -13,11 +13,7 @@ import {
 } from '../../../src/lifecycle/services/presence-load.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { installGatingGraph } from '../../../src/lifecycle/services/gating-graph.js';
-import {
-  coreModulesRoot,
-  overlayModulesRootFor,
-  repoRoot,
-} from '../../../src/overlay/overlay-roots.js';
+import { overlayModulesRootFor, repoRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * T033a / D-157.6(b) — the first-boot reconciler does not install a package
@@ -42,7 +38,7 @@ import {
  * sign.
  *
  * Every fixture enters at the top of the analysis (issue #130): the entries are
- * built from the **real** roots (`coreModulesRoot()`, `overlayModulesRootFor()`
+ * built from the **real** roots (`repoRoot()`, `overlayModulesRootFor()`
  * and an instance `node_modules` path), and each carries the `origin` its
  * discovery would have set.
  *
@@ -69,11 +65,11 @@ function manifest(id: string): ModuleManifest {
   };
 }
 
-/** A core module's anchor: `backend/src/modules/<id>/manifest.ts`. */
+/** A core module's anchor: the `package.json` that claims its id (D-149). */
 function coreEntry(id: string): ShippedModuleEntry {
   return {
     manifest: manifest(id),
-    filePath: join(coreModulesRoot(), id, 'manifest.ts'),
+    filePath: join(repoRoot(), 'packages', 'modules', id, 'package.json'),
     origin: 'core',
   };
 }

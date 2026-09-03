@@ -7,11 +7,7 @@ import {
   type RegisteredManifestEntry,
 } from '../../../src/lifecycle/registered-manifests.js';
 import { collectRegisteredSettingsManifests } from '../../../../packages/modules/settings/src/backend/services/registered-settings-manifests.js';
-import {
-  coreModulesRoot,
-  overlayModulesRootFor,
-  repoRoot,
-} from '../../../src/overlay/overlay-roots.js';
+import { overlayModulesRootFor, repoRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * Feature 080, T046 — which manifests the **boot** settings reconcile walks.
@@ -72,11 +68,11 @@ function manifest(id: string): ModuleManifest {
   } as ModuleManifest;
 }
 
-/** A core module's anchor: `backend/src/modules/<id>/manifest.ts`. */
+/** A core module's anchor: the `package.json` that claims its id (D-149). */
 function coreEntry(id: string): RegisteredManifestEntry {
   return {
     manifest: manifest(id),
-    filePath: join(coreModulesRoot(), id, 'manifest.ts'),
+    filePath: join(repoRoot(), 'packages', 'modules', id, 'package.json'),
     origin: 'core',
   };
 }
