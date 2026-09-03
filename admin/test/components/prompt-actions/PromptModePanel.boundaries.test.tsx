@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { ApiError } from '@endora-commerce/api-client';
+import { ApiError } from '@/lib/api-client';
 
 /**
  * T053 — US3 interaction test: clarification candidate picker + free-text

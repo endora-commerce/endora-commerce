@@ -28,7 +28,6 @@ The repository is a **pnpm monorepo** with three independently buildable applica
 - `storefront/` — Next.js customer-facing website (SSR-first for catalog/category/product pages).
 - `admin/` — React admin panel (Vite). Usable on smartphone viewports from feature **029** (drawer navigation below 1024px; see [`docs/docs/admin/mobile-responsive.md`](./docs/docs/admin/mobile-responsive.md)).
 - `packages/contracts/` — Zod schemas shared across applications (source of truth for API types per Principle V).
-- `packages/api-client/` — typed HTTP client used by storefront and admin.
 - `packages/cms-components/` — Page Builder React components shared between admin (Puck editor) and storefront (`<Render>` server component); built around the new `cms` module's component-extension SPI. Styled with a self-contained, `cmsc:`-prefixed Tailwind stylesheet (`dist/cms-components.css`) so it renders identically in either host without restyling host chrome (feature 041).
 - `docs/` — Docusaurus documentation site for developers and Product Owners.
 
@@ -251,7 +250,7 @@ b2b-platform/
 ├── admin/            # React admin panel
 ├── packages/
 │   ├── contracts/      # shared Zod schemas + inferred types
-│   ├── api-client/     # typed HTTP client
+│   ├── admin-kit/      # the admin's design system, helpers and HTTP client
 │   └── cms-components/ # Page Builder React components shared by admin + storefront
 ├── docs/             # Docusaurus documentation site
 ├── docker-compose.yml

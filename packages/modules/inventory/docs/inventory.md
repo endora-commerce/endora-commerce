@@ -102,7 +102,7 @@ both old codes.
 
 Two foundation-001 routes predate the per-warehouse surface above and always
 address the seeded Default warehouse. Nothing in the platform calls either one
-— no admin screen, no `@endora-commerce/api-client` method, no seed, no script — so they
+— no admin screen, no admin API client call, no seed, no script — so they
 exist for a deployment's own integration and nothing else. Do not build against
 them.
 

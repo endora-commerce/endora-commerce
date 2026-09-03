@@ -44,10 +44,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
 const CHANGESET_BIN = join(REPO_ROOT, 'node_modules/.bin/changeset');
 
-/** The five packages, and the three the `linked` group covers. */
+/**
+ * The library packages this fixture carries, and the three the `linked` group
+ * covers. `api-client` was the fifth until D-202 deleted it.
+ */
 const LIBRARIES = [
   'contracts',
-  'api-client',
   'page-builder-core',
   'cms-components',
   'email-components',
@@ -203,14 +205,26 @@ describe('privatePackages.version — the setting that silently disables everyth
     expect(existsSync(join(dir, 'packages/contracts/CHANGELOG.md'))).toBe(true);
   });
 
-  /** `updateInternalDependencies: "patch"` — independent numbers, carried together. */
-  it('carries `@endora-commerce/api-client` on a `@endora-commerce/contracts` release without sharing its number', () => {
+  /**
+   * `updateInternalDependencies: "patch"` — independent numbers, carried
+   * together.
+   *
+   * The dependent used to be `@endora-commerce/api-client`, which D-202
+   * deleted. `@endora-commerce/page-builder-core` is the dependent that
+   * replaced it: it declares `@endora-commerce/contracts` at `workspace:*`
+   * exactly as that package did, so the mechanism under test is the same one.
+   * It is also a member of the `linked` group, which the next `describe` is
+   * about — asserted here so that the two facts are not confused with each
+   * other: `contracts` is **not** raised to the group's number, and the group
+   * follows its own member rather than the release that carried it in.
+   */
+  it('carries a dependent on a `@endora-commerce/contracts` release without sharing its number', () => {
     const dir = fixture({ files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') } });
 
     runChangeset(dir, ['version']);
 
     expect(versionOf(dir, 'contracts')).toBe('0.1.0');
-    expect(versionOf(dir, 'api-client')).toBe('0.0.1');
+    expect(versionOf(dir, 'page-builder-core')).toBe('0.0.1');
   });
 });
 

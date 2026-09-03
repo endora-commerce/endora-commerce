@@ -492,7 +492,7 @@ export async function registerInventoryAdminRoutes(
   // The two callers this header used to name are gone: the admin import posts to
   // `/inventory/import` and the catalog seed writes `StockLevel` through the
   // EntityManager. Nothing in the repository calls either route — no admin
-  // screen, no `@endora-commerce/api-client` method, no seed, no script — and the module's
+  // screen, no admin API client call, no seed, no script — and the module's
   // documentation page lists neither. They are kept for a deployment's own
   // integration, which is the only caller they can still have (issue #125).
   //

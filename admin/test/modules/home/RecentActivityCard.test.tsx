@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { ApiError } from '@endora-commerce/api-client';
+import { ApiError } from '@/lib/api-client';
 
 function fakeApiError(status: number): ApiError {
   return new ApiError(status, { error: { code: 'INTERNAL', message: 'test' } });

@@ -164,8 +164,9 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
       // the response stops being an `ErrorEnvelope` at all —
       // `{ statusCode, code, error, message }`, where `error` is the status
       // phrase and `error.code` is `undefined`.
-      // `@endora-commerce/api-client` sees `'error' in body`, builds an
-      // `ApiError` out of it and reports `undefined: undefined`.
+      // The admin's API client (`@endora-commerce/admin-kit/lib`) sees
+      // `'error' in body`, builds an `ApiError` out of it and reports
+      // `undefined: undefined`.
       //
       // Both injected callbacks can throw and one of them measurably did:
       // feature 080's T052 turned the root's `adminPreferredLanguage` closure

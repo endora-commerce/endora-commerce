@@ -372,9 +372,13 @@ export interface AssetPatchInput {
  *
  * Deliberately **not** `NodeJS.ReadableStream`: this package is imported by
  * the admin SPA and the storefront as well as the backend, and naming the
- * `NodeJS` namespace here fails `@endora-commerce/api-client`'s compile. A Node
- * `Readable` satisfies this shape — `Buffer` extends `Uint8Array` — so the one
- * caller passes its multipart part through unchanged.
+ * `NodeJS` namespace here fails the compile of a consumer that type-checks
+ * without `@types/node`. It named `@endora-commerce/api-client` until D-202
+ * deleted that package; measured again on the tree that replaced it, the
+ * consumer that goes red is `@endora-commerce/admin-kit`, which compiles this
+ * file with `types: ["vite/client"]`. A Node `Readable` satisfies this shape —
+ * `Buffer` extends `Uint8Array` — so the one caller passes its multipart part
+ * through unchanged.
  */
 export interface AssetUploadStream {
   [Symbol.asyncIterator](): AsyncIterableIterator<string | Uint8Array>;

@@ -3,7 +3,7 @@ import { screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
-import { ApiError } from '@endora-commerce/api-client';
+import { ApiError } from '@/lib/api-client';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**

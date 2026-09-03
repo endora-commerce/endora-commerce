@@ -136,7 +136,7 @@ export interface ResolutionFs {
 
 /** One `<consumer>/node_modules/@endora-commerce/<name>` link the manifests say must exist. */
 export interface WorkspaceLink {
-  /** Consumer directory, relative to the root — `backend`, `packages/api-client`. */
+  /** Consumer directory, relative to the root — `backend`, `packages/admin-kit`. */
   readonly consumer: string;
   /** The bare specifier, e.g. `@endora-commerce/contracts`. */
   readonly specifier: string;
