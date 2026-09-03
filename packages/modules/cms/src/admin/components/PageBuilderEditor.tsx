@@ -9,11 +9,13 @@ import {
   defaultPageBuilderConfig,
   makeMissingComponentConfig,
   withCmsPageRoot,
+  withMissingBlockPlaceholders,
   type CmsRenderEmbeds,
 } from '@endora-commerce/cms-components';
 import {
   buildPaletteCategories,
   contextAdmits,
+  countBlockNames,
   filterConfigByContext,
   type PageBuilderContext,
 } from '@endora-commerce/page-builder-core';
@@ -368,7 +370,14 @@ function mergeConfig(
   );
   for (const entry of declared) {
     if (components[entry.name]) continue;
-    components[entry.name] = makeMissingComponentConfig(entry.name, entry.ownerModule);
+    // `visible: true` because this is an editing surface: the operator has to be
+    // told which module a block is waiting on. The parameter had no caller until
+    // feature 096's T602 and the placeholder read the `?cms_admin=1` preview
+    // parameter instead, which nothing in this repository sets — so every
+    // placeholder the editor merged rendered an empty span.
+    components[entry.name] = makeMissingComponentConfig(entry.name, entry.ownerModule, {
+      visible: true,
+    });
   }
 
   // The sections come from the modules that declared them, resolved and merged
@@ -561,6 +570,25 @@ export function PageBuilderEditor({
     };
   }, []);
 
+  const viewports = useMemo(() => buildViewports(descriptor), [descriptor]);
+  const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
+  /** Holds canvas data across remount until parent `data` catches up (clear / copy-from). */
+  const pendingSeedRef = useRef<Data | null>(null);
+  const editorData = pendingSeedRef.current ?? data ?? emptyData;
+
+  /**
+   * The block names the loaded document carries, as a stable key.
+   *
+   * `editorData` changes identity on every keystroke and the set of names it
+   * holds almost never does, so keying the config on the document would rebuild
+   * the whole Puck config while an author types. The key is what the
+   * degradation merge below actually depends on (feature 096, T602).
+   */
+  const storedBlockNamesKey = useMemo(
+    () => [...countBlockNames(editorData).keys()].sort().join('\n'),
+    [editorData],
+  );
+
   const config = useMemo(() => {
     const merged = mergeConfig(
       descriptor,
@@ -570,14 +598,26 @@ export function PageBuilderEditor({
       sectionTitle,
     );
     const filtered = filterConfigByContext(merged, context);
-    const rooted = pageContainer ? withCmsPageRoot(filtered) : filtered;
+    // FR-019/FR-020 — a stored block nothing here can render degrades to the
+    // placeholder rather than vanishing from the canvas. **After** the context
+    // filter and after the categories, deliberately: the block stays visible and
+    // editable where it already is, and is not something an operator may insert.
+    const degraded = withMissingBlockPlaceholders(
+      filtered,
+      storedBlockNamesKey === '' ? [] : storedBlockNamesKey.split('\n'),
+    );
+    const rooted = pageContainer ? withCmsPageRoot(degraded) : degraded;
     return applyPageBuilderTranslations(rooted, t, blockLabel);
-  }, [descriptor, t, sectionTitle, blockLabel, blockOptions, pageContainer, context]);
-  const viewports = useMemo(() => buildViewports(descriptor), [descriptor]);
-  const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
-  /** Holds canvas data across remount until parent `data` catches up (clear / copy-from). */
-  const pendingSeedRef = useRef<Data | null>(null);
-  const editorData = pendingSeedRef.current ?? data ?? emptyData;
+  }, [
+    descriptor,
+    t,
+    sectionTitle,
+    blockLabel,
+    blockOptions,
+    pageContainer,
+    context,
+    storedBlockNamesKey,
+  ]);
   const lastValidDataRef = useRef(editorData);
   const knownRowIdsRef = useRef<Set<string>>(collectRowIds(editorData));
 
