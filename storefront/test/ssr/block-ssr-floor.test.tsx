@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import {
-  BlockSsrFloorRefusal,
   deriveLoadingStateMarkers,
   isLoadingState,
   reconcilePopulation,
   renderSkeletonModule,
   runBlockSsrFloor,
+  type BlockSsrFloorRefusal,
   type DisagreementLedgerEntry,
   type LedgerEntry,
   type LoadingStateMarkers,

@@ -60,6 +60,14 @@ export default [
         { selector: 'enumMember', format: ['PascalCase', 'UPPER_CASE'] },
         { selector: 'property', format: null },
         { selector: 'objectLiteralProperty', format: null },
+        // Carried over from the root config, which this block replaces wholesale
+        // rather than extends. typescript-eslint classifies a property whose
+        // value is a function as `objectLiteralMethod`, so dropping the selector
+        // put every `vi.mock` factory returning a React component — the name has
+        // to be the mocked module's export, and React requires it PascalCase —
+        // under the camelCase default. Nothing saw it while `test/` was outside
+        // the lint target.
+        { selector: 'objectLiteralMethod', format: null },
         // Default imports of PascalCase components (Link, Image, …).
         { selector: 'import', format: ['camelCase', 'PascalCase'] },
       ],
