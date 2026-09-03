@@ -478,6 +478,18 @@ quality:
     # fixture built to satisfy a check. No ledger, deliberately: every finding
     # is one line away from compliance in the merge request that produces it.
     - pnpm --filter backend run check:storefront-indexability
+    # `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3, FR-020…FR-022 — a
+    # client component does not fetch its own first-paint content. A render
+    # gated on state a `useEffect` populates is a component that sends a
+    # skeleton, an empty list or a `null` to a crawler, because the effect that
+    # would replace it never runs on the server.
+    # Its population is derived and that is the whole difference: the storefront
+    # application **and** every workspace package the storefront composes, taken
+    # from `storefront/package.json`'s own dependencies. All five known
+    # instances of the defect live in `packages/cms-components/`, so the
+    # roadmap's `storefront/components` population would have reported zero and
+    # been wrong on the day it landed (FR-021).
+    - pnpm --filter backend run check:rsc-discipline
     # Feature 021 / Principle VIII (issue #116) — a user-visible string in the
     # admin SPA is a translation key, not a literal. `AGENTS.md` has cited this
     # script as the gate since 021 and it ran in no job at all: first because its
