@@ -97,6 +97,11 @@ export interface PageBuilderRegistryOptions {
  * identifier — one contributor's stored documents silently rendering as
  * another's block. It has never been exercised because there was one
  * contributor; there are now six.
+ *
+ * **Two contributors, never one registering twice.** The owner is compared, so
+ * a module re-declaring its own manifest is idempotent; a name that arrives
+ * from a second module id is the collision, and it is the only thing this error
+ * is for.
  */
 export class DuplicateBlockNameError extends Error {
   constructor(name: string, first: string, second: string) {
@@ -137,7 +142,13 @@ export class PageBuilderRegistry {
   registerManifest(manifest: ModuleManifest): void {
     for (const block of (manifest.blocks ?? []) as BlockDefinition[]) {
       const existing = this.components.get(block.name);
-      if (existing) {
+      // **The refusal's subject is two contributors**, which is what D-31 asks
+      // for and what defect D-d got wrong by warning and overwriting. One
+      // module registering twice — an idempotent re-composition, a harness
+      // calling a fixture once per test case — is not a collision, and refusing
+      // it produced the sentence `declared by both "x" and "x"`, which is
+      // self-evidently not one.
+      if (existing && existing.ownerModule !== manifest.id) {
         throw new DuplicateBlockNameError(block.name, existing.ownerModule, manifest.id);
       }
       this.components.set(block.name, {

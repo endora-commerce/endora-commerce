@@ -94,6 +94,19 @@ describe('PageBuilderRegistry — declarations', () => {
     );
   });
 
+  it('is idempotent over one module re-declaring its own manifest', () => {
+    // The refusal's subject is **two contributors**, which is what D-31 asks for
+    // and what defect D-d got wrong by warning and overwriting. One module
+    // registered twice — an idempotent re-composition, a test harness calling a
+    // fixture once per case — is not a collision, and refusing it produced the
+    // sentence `declared by both "test_ext" and "test_ext"`, which is
+    // self-evidently not one. Measured: it took the extension SPI's integration
+    // test down, and that test is the only exercise the registration seam has.
+    const reg = new PageBuilderRegistry({ manifests: [CMS] });
+    expect(() => reg.registerManifest(CMS.manifest)).not.toThrow();
+    expect([...reg.knownNames()]).toEqual(['cms.Row']);
+  });
+
   it('omits a switched-off module’s blocks and restores them (B5, B6)', async () => {
     const present = new Set(['cms', 'catalog']);
     const reg = new PageBuilderRegistry({
