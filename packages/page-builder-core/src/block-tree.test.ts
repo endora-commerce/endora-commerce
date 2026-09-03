@@ -7,7 +7,7 @@
 // running at all.
 
 import { describe, expect, it } from 'vitest';
-import { countBlockNames, mapBlockNames, renameBlockNames } from './walk-block-names.js';
+import { countBlockNames, mapBlockNames, renameBlockNames } from './block-tree.js';
 
 const RENAMES = { Row: 'cms.Row', Column: 'cms.Column', Text: 'cms.Text', Slide: 'cms.Slide' };
 

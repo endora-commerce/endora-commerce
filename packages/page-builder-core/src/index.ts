@@ -134,3 +134,27 @@ export {
   parseBlockName,
   type ParsedBlockName,
 } from './block-name.js';
+
+// The structural walk over a stored Puck document — feature 096, T403/T602.
+//
+// It lived under the migration directory until Phase 6, which is where its
+// first two readers were: the five rename migrations and the operator's
+// pre-flight report. It is on the ordinary barrel because its third reader is a
+// runtime one — the admin editor has to know which of a stored document's names
+// no installed module can render, so that each of them degrades to the
+// data-preserving placeholder FR-019 requires. **What the migration subpath
+// quarantines is the frozen rename map, not this**: the difference between a
+// frozen historical constant and the permanent alias map the owner rejected on
+// 2026-09-02 is whether a resolver can reach the *map*, and
+// `backend/test/unit/cms/frozen-map-not-on-a-runtime-path.test.ts` is what holds
+// that line — which is also why this comment spells that subpath in prose
+// rather than as a specifier: the assertion is a text one over this file, and
+// it is right to be. A second, private walk written inside the admin would be
+// exactly the copy `block-name.ts`' header exists to refuse.
+export {
+  countBlockNames,
+  mapBlockNames,
+  renameBlockNames,
+  type BlockNameVisitor,
+  type BlockNameWalkResult,
+} from './block-tree.js';

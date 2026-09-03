@@ -1,10 +1,19 @@
-// The structural block-name walk — feature 096, T403.
+// The structural block-name walk — feature 096, T403, moved out of
+// `src/migration/` by T602.
 //
-// **One implementation, used by the five rename migrations and by the operator's
-// pre-flight report** (`contracts/block-name-migration.md` §3). The two differ in
-// what they do with a name and agree on how a name is found; two walks would be
-// two answers waiting to disagree about the one thing that must not disagree —
-// which nodes exist.
+// **One implementation, used by the five rename migrations, by the operator's
+// pre-flight report, and by the admin editor's degradation merge**
+// (`contracts/block-name-migration.md` §3). The three differ in what they do
+// with a name and agree on how a name is found; two walks would be two answers
+// waiting to disagree about the one thing that must not disagree — which nodes
+// exist.
+//
+// The third reader is why the file sits here rather than under `src/migration/`.
+// That subpath is not a runtime path, because the frozen rename map is in it and
+// a resolver that could reach the map would make this feature the permanent
+// alias map the owner rejected. The **walk** carries no such hazard: it knows
+// nothing about any correspondence and only says which node `type` values a
+// document holds, which is what FR-019's placeholder merge has to ask.
 //
 // ## It is structural, never textual
 //
