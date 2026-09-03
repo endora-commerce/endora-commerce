@@ -1,6 +1,81 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 4.0.1 → 4.0.2
+Rationale: PATCH. The 3.10.0 report — the amendment that introduced Principle
+XVII — carries a "Deferred items / TODOs" block naming four mechanisms the
+principle mandated and describing them as ones that "do NOT yet exist and must
+be built by the implementing feature". Feature 073 built all four, verified
+against the tree:
+
+  (a) the operator-activation axis — `admin/src/modules/platform/ModuleActivationControl.tsx`,
+      on the kernel-served `/platform/modules` screen that belongs to no module;
+  (b) the effective-state resolver — `packages/platform/src/kernel/lifecycle/effective-state.ts`,
+      read by every gating seam;
+  (c) the manifest fields — `ModuleManifestSchema.activation` and the
+      `nonDeactivatable` declaration, in `packages/contracts/src/modules.ts`, the
+      very file the block's parenthetical says "has none of these today";
+  (d) the gating-wrapper CI check — `check:off-state-coverage`, which landed at
+      zero violations over all 46 switchable modules, plus `check:entry-presence`
+      for the entry points a wrapper cannot reach.
+
+**The 3.10.0 report itself is not edited, and that is the substance of this
+amendment.** This document is a stack of Sync Impact Reports, newest first, each
+closing with a line saying the previous one follows *unchanged*. A superseded
+report records what was true when its amendment was made, and the 3.10.0 block is
+correct as exactly that: those four mechanisms genuinely did not exist on the day
+Principle XVII was ratified. Editing it would make the stack unreadable as history
+and would be a second defect rather than the repair. The stale path it cites —
+`backend/src/modules/_lifecycle/`, whose contents are now split between
+`packages/platform/src/kernel/lifecycle/` and `backend/src/lifecycle/` — stays with
+it for the same reason.
+
+What is corrected is the **annotation above** that report: the sentence a reader
+uses to decide whether the block below is live work or history. It said the
+deferred mechanisms were "several still in flight". That was true when written and
+is now false, and it is the only live claim in the vicinity.
+
+PATCH, not MINOR: Principle XVII's normative text is unchanged, and was read in
+full and found accurate — it describes the two orthogonal axes, the effective
+state and the fail-closed rule as binding and present, which the tree implements.
+No rule moves; nothing compliant becomes non-compliant. A statement of fact about
+the tree that had become untrue is corrected, which is 4.0.1's shape exactly.
+
+Why a false sentence here is worth a version at all: Governance says this document
+supersedes every other engineering document and wins any conflict until the other
+is reconciled, so a claim that contradicts the tree costs more here than anywhere
+else. This repository built `check:lock-claims` on precisely that reasoning — a
+written claim the manifests contradict is worse than no claim, and it is enforced
+by derivation so that it cannot go stale. The constitution is the one document no
+such instrument stands over, which makes its statements of fact the ones that have
+to be re-read by hand.
+
+Found by feature 100's SC-005 documentation sweep, which was looking for stale
+paths and surfaced a completed TODO list instead — the general lesson being that a
+population scoped by a string finds stale paths and cannot find stale claims.
+
+Modified principles:
+  - (none)
+
+Added sections:
+  - (none)
+
+Removed sections:
+  - (none)
+
+Templates / artifacts requiring alignment:
+  - ✅ .specify/templates/, .github/pull_request_template.md — neither names a
+       constitution version nor the deferred mechanisms; verified by grep.
+  - ✅ AGENTS.md — Principle XVII's working summary describes both axes as built,
+       and the module enable/disable checklist documents the shipped mechanism.
+
+Deferred items / TODOs:
+  - (none)
+
+--- The 4.0.1 report follows unchanged.
+
+SYNC IMPACT REPORT
+==================
 Version change: 4.0.0 → 4.0.1
 Rationale: PATCH. Principle XII's sanctioned-accessor clause said the rule was
 "enforced by the `no-unscoped-channel-query` lint rule". That sentence was
@@ -130,7 +205,9 @@ Deferred items / TODOs:
     final).
 
 --- The 3.10.0 report follows unchanged: it introduced Principle XVII and
---- records the mechanisms that principle deferred, several still in flight.
+--- records the mechanisms that principle deferred. All four were delivered
+--- by feature 073; see the 4.0.2 report above. The block below is history,
+--- not outstanding work, and the paths it cites are the ones of its own day.
 
 SYNC IMPACT REPORT
 ==================
@@ -1269,4 +1346,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 4.0.1 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-08-17
+**Version**: 4.0.2 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-09-03
