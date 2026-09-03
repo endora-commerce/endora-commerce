@@ -467,16 +467,25 @@ export interface RecordedReadSize {
  * predicate widened; the walks are reading the same trees with more files in
  * them.
  *
- * **Which entries were re-recorded was measured, not guessed.** The same test
- * was run on `master` first: it reported 11 entries drifted there, and those 11
- * are deliberately *not* touched here — absorbing somebody else's drift into
- * this branch's re-record is how two branches each write a number that describes
- * neither tree. The 20 below agreed on `master` and drift on this branch, which
- * is the definition of "an entry this change moved". Where an entry drifted on
- * `master` in one field and here in another (`check-diacritic-folds`' `sites`,
- * `check-singleton-identity`' `sites`, `check-default-language-prose`' `files`,
- * `check-fixture-substitution`' `sites`, `check-shared-table-wipes`' `sites`)
- * only the field this branch moved is re-recorded.
+ * **Which entries were re-recorded was measured on two trees, never by
+ * parking.** The same test was run against a **detached worktree of
+ * `origin/master`** and against the branch, and the two drift reports were
+ * differenced: 11 entries drift on `master` at `4ac598c6b`, the *same* 11 drift
+ * on the branch, and **not one entry moves from *agree* into *drift* because of
+ * this branch**. So those 11 are deliberately left alone — absorbing somebody
+ * else's stale record into this merge request is how a number comes to describe
+ * neither tree, and it would take the signal away from whoever owns it. The 20
+ * below are the entries that *do* agree on the merged tree, which is the whole
+ * of what a record is for.
+ *
+ * **Parking would have lied about two of them, and that is now written down**
+ * (`master`'s own `docs(register)` commit of the same day): `check:naming` and
+ * `check:language` take their population from `git ls-files --cached --others`,
+ * and `--cached` answers from the **index**, so a file that has been committed
+ * stays in the list after it is moved off disk — the delta reads zero and the
+ * run counts a path it did not open. Measured against the detached baseline
+ * instead, this branch adds +26 files to `check:naming` and +23 to
+ * `check:language`, both entirely inside the +21 each was already drifting by.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
