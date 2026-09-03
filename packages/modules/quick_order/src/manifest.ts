@@ -122,6 +122,7 @@ export const manifest = defineModuleManifest({
   activation: { settingCode: 'quick_order.enabled', default: true },
   settings,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   actions: [
     {
       id: 'open-quick-order',

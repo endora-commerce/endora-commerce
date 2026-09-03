@@ -78,6 +78,7 @@ export const manifest = defineModuleManifest({
   },
   settings: transactionalEmailsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   /**
    * `TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` — D-129's remaining sweep, Tier A
    * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;

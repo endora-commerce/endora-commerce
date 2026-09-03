@@ -1,5 +1,14 @@
 #!/usr/bin/env tsx
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -76,15 +85,22 @@ import {
   attributeDocs,
   categoryPositionOf,
   collectDocPages,
+  collectModuleDocPages,
   comparePages,
+  copyTargetOf,
   DOCS_SIDEBAR_ARTEFACT,
+  docsDeclarationIn,
+  duplicateDocIds,
+  isDirectory,
   labelOf,
   MODULE_MAP_ARTEFACT,
   MODULES_CATEGORY,
   resolveDocsLayout,
+  type DocPage,
   type DocsAttribution,
   type DocsLayout,
   type ModuleDocs,
+  type ModuleDocsSource,
 } from './lib/module-docs.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -698,6 +714,16 @@ interface DiscoveredManifest {
   id: string;
   /** Import specifier from the emitted index to the module's `manifest.ts`. */
   importPath: string;
+  /**
+   * The module's own documentation layer, as its manifest declares it — the
+   * declared directory joined to the module's root (feature 100 Phase 2).
+   *
+   * `null` when the manifest declares `docs: false` or declares nothing. The
+   * root is the anchor the *platform* supplies, exactly as `i18n.bundlesDir`'s
+   * is, so nothing in the module names a package or a build directory in order
+   * to find its own pages.
+   */
+  docsRoot: string | null;
   hasInstallHook: boolean;
   hasUninstallHook: boolean;
   hasLifecycleParticipant: boolean;
@@ -753,9 +779,19 @@ function discoverManifests(
   packages: readonly ModulePackage[] = modulePackages(),
 ): DiscoveredManifest[] {
   const byId = new Map<string, DiscoveredManifest>();
-  const entryFrom = (id: string, source: string, importPath: string): DiscoveredManifest => ({
+  const entryFrom = (
+    id: string,
+    source: string,
+    importPath: string,
+    // The module's own root — where a manifest-declared asset directory hangs
+    // off. It is the package directory for a packaged module and the manifest
+    // file's own directory for one in the application tree, which is the same
+    // anchor `dirname(manifestPath)` gives the running platform.
+    moduleRoot: string,
+  ): DiscoveredManifest => ({
     id,
     importPath,
+    docsRoot: docsRootOf(id, source, moduleRoot),
     hasInstallHook: detectHookExport('installHook', source, id),
     hasUninstallHook: detectHookExport('uninstallHook', source, id),
     // Feature 080, T036a / D-159 — a module's interest in *every other*
@@ -777,7 +813,7 @@ function discoverManifests(
     if (!existsSync(manifestPath)) continue;
     const source = readFileSync(manifestPath, 'utf8');
     if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
-    byId.set(id, entryFrom(id, source, srcSpecifier(manifestPath)));
+    byId.set(id, entryFrom(id, source, srcSpecifier(manifestPath), join(modulesRoot, id)));
   }
   for (const host of residentModules()) {
     byId.set(
@@ -786,6 +822,7 @@ function discoverManifests(
         host.id,
         readFileSync(host.manifestPath, 'utf8'),
         host.specifierFor(host.manifestPath),
+        dirname(host.manifestPath),
       ),
     );
   }
@@ -796,7 +833,16 @@ function discoverManifests(
     const entry = packageEntryPoints(pkg);
     byId.set(
       pkg.moduleId,
-      entryFrom(pkg.moduleId, readFileSync(entry.manifestPath, 'utf8'), entry.manifestSpecifier),
+      entryFrom(
+        pkg.moduleId,
+        readFileSync(entry.manifestPath, 'utf8'),
+        entry.manifestSpecifier,
+        // The **package** directory, not the manifest file's: a module
+        // package's `docs/` sits at the package root beside `i18n/`, outside
+        // `src/`, and travels in the `files` list
+        // (`module-documentation-layer.md` R1.2, R1.3).
+        pkg.dir,
+      ),
     );
   }
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
@@ -1821,16 +1867,97 @@ ${rows}
 `;
 }
 
-/** One read of the site's tree and the index, shared by both docs artefacts. */
+/**
+ * A module's documentation layer, from its manifest's own source text.
+ *
+ * A **computed** `dir` throws rather than reading as "declares nothing" (issue
+ * #113): a directory this walk cannot place is a module whose pages would
+ * simply not be collected, with no error anywhere.
+ */
+function docsRootOf(id: string, source: string, moduleRoot: string): string | null {
+  const declaration = docsDeclarationIn(source);
+  if (declaration === undefined || declaration === false) return null;
+  if (declaration === 'unreadable') {
+    throw new ModulePackageError(
+      `[composer] ${id}'s manifest declares \`docs\` with no literal \`dir\`. The directory is ` +
+        'the anchor the platform joins to the module\'s own root, so a value this generator ' +
+        'cannot read is a documentation layer nothing collects and nothing reports.',
+    );
+  }
+  return join(moduleRoot, declaration.dir);
+}
+
+/**
+ * Every page the platform can see, the site's own tree and the modules' alike.
+ *
+ * A **mixed** tree is the supported state and not a transitional accident: a
+ * page in the site tree and a page in a module package are attributed by the
+ * same derivation, which is what lets Phase 2 land one batch at a time
+ * (`plan.md` § Phasing). `_lifecycle` is the standing resident of the site half
+ * — its manifest resolves inside the platform package's **build output**, and
+ * documentation is not a compiled asset, so it has no package root to ship
+ * from.
+ *
+ * A declared directory that is **not on disk** is a refusal naming the module
+ * (FR-017), and two sources claiming one doc id is a refusal too: the copy
+ * would write one over the other and whichever ran second would win, making the
+ * site's content depend on a directory read order.
+ */
+function collectAllDocPages(layout: DocsLayout, manifests: readonly DiscoveredManifest[]): DocPage[] {
+  const sources: ModuleDocsSource[] = [];
+  const missing: string[] = [];
+  for (const manifest of manifests) {
+    if (manifest.docsRoot === null) continue;
+    if (!isDirectory(manifest.docsRoot)) {
+      missing.push(`${manifest.id} -> ${manifest.docsRoot}`);
+      continue;
+    }
+    sources.push({ moduleId: manifest.id, root: manifest.docsRoot });
+  }
+  if (missing.length > 0) {
+    throw new ModulePackageError(
+      `[composer] ${missing.length} module(s) declare a documentation directory that is not ` +
+        `on disk:\n${missing.map((entry) => `  - ${entry}`).join('\n')}\n` +
+        'A declared directory that is absent is a refusal and never "this module ships no ' +
+        'documentation" — declare `docs: false` if that is the decision, or ship the directory.',
+    );
+  }
+  const modulePages = collectModuleDocPages(sources);
+  const copies = new Set(modulePages.map((page) => copyTargetOf(page, layout.modulesRoot)));
+  const pages = [...collectDocPages(layout.modulesRoot, copies), ...modulePages];
+  const duplicates = duplicateDocIds(pages);
+  if (duplicates.length > 0) {
+    throw new ModulePackageError(
+      `[composer] ${duplicates.length} documentation page(s) are claimed twice:\n` +
+        duplicates
+          .map((entry) => `  - ${entry.docId}\n      ${entry.paths.join('\n      ')}`)
+          .join('\n'),
+    );
+  }
+  return pages.sort((a, b) => a.docId.localeCompare(b.docId));
+}
+
+/** One read of the site's tree, the modules' layers and the index. */
 function docsRegistry(packages: readonly ModulePackage[]): {
   layout: DocsLayout;
+  pages: readonly DocPage[];
   entries: readonly DocsRegistryEntry[];
+  /** Copy target -> module source, for `overlay:check`'s containment verdict. */
+  entrySources: ReadonlyMap<string, string>;
 } {
   const layout = resolveDocsLayout(repoRoot);
-  const ids = discoverManifests(packages).map((manifest) => manifest.id);
+  const manifests = discoverManifests(packages);
+  const ids = manifests.map((manifest) => manifest.id);
+  const pages = collectAllDocPages(layout, manifests);
   return {
     layout,
-    entries: collectDocsRegistry(ids, attributeDocs(collectDocPages(layout.modulesRoot), ids), packages),
+    pages,
+    entries: collectDocsRegistry(ids, attributeDocs(pages, ids), packages),
+    entrySources: new Map(
+      pages
+        .filter((page) => page.origin.kind === 'module')
+        .map((page) => [copyTargetOf(page, layout.modulesRoot), page.path] as const),
+    ),
   };
 }
 
@@ -1844,25 +1971,93 @@ function docsRegistry(packages: readonly ModulePackage[]): {
 export function renderDocsSidebar(
   packages: readonly ModulePackage[] = modulePackages(),
 ): RenderedArtefact {
-  const { layout, entries } = docsRegistry(packages);
+  const { layout, entries, entrySources } = docsRegistry(packages);
   return {
     outputPath: join(layout.member.dir, DOCS_SIDEBAR_ARTEFACT),
     content: emitDocsSidebar(entries),
     entryKind: 'doc-id',
     entryRoot: layout.contentRoot,
+    entrySources,
   };
+}
+
+/**
+ * The record of what the last collection wrote, so the next one can undo it.
+ *
+ * The copies are **not committed** (`.gitignore`), which is what keeps 10,311
+ * lines of prose from existing twice in this repository — one editable copy and
+ * one that looks editable and is not. The consequence is that nothing else
+ * knows which files under the modules category are copies, and a page a module
+ * deletes would otherwise be served for ever. The stamp answers exactly that
+ * and nothing else: a run removes the files the previous run wrote and no
+ * longer writes, and a fresh checkout with no stamp removes nothing, which is
+ * correct because it has copied nothing.
+ */
+const COPY_STAMP = '.module-docs-copies.json';
+
+/** What one collection did, for the caller to report. */
+export interface DocsCollection {
+  readonly modulesRoot: string;
+  readonly copied: readonly string[];
+  readonly removed: readonly string[];
+}
+
+/**
+ * Copy every module-owned page into the site's tree, preserving its address.
+ *
+ * **Copy, never symlink** (research D-8): Docusaurus resolves `docs.path` and
+ * its `include` globs against the site directory, and a symlinked subtree makes
+ * the file watcher, webpack's module graph and the markdown link resolver
+ * disagree about where a page is — issue #255's finding, one tool reading one
+ * tree while another reads a second.
+ *
+ * The target is the page's own relative path inside the category, so the copy
+ * preserves the doc id, the permalink and every relative link written against
+ * it (`module-documentation-layer.md` R5.2). That is what makes the move
+ * invisible to a reader and to an inbound link alike.
+ */
+export function collectDocsIntoSite(
+  packages: readonly ModulePackage[] = modulePackages(),
+): DocsCollection {
+  const { layout, pages } = docsRegistry(packages);
+  const stampPath = join(layout.member.dir, COPY_STAMP);
+  const previous: string[] = existsSync(stampPath)
+    ? (JSON.parse(readFileSync(stampPath, 'utf8')) as string[])
+    : [];
+
+  const copied: string[] = [];
+  for (const page of pages) {
+    if (page.origin.kind !== 'module') continue;
+    const target = copyTargetOf(page, layout.modulesRoot);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(page.path, target);
+    copied.push(relative(layout.member.dir, target));
+  }
+
+  const current = new Set(copied);
+  const removed: string[] = [];
+  for (const stale of previous) {
+    if (current.has(stale)) continue;
+    const target = join(layout.member.dir, stale);
+    if (!existsSync(target)) continue;
+    rmSync(target);
+    removed.push(stale);
+  }
+  writeFileSync(stampPath, `${JSON.stringify([...copied].sort(), null, 2)}\n`, 'utf8');
+  return { modulesRoot: layout.modulesRoot, copied: copied.sort(), removed: removed.sort() };
 }
 
 /** Pure render — the target path + expected content of the module map. */
 export function renderModuleMap(
   packages: readonly ModulePackage[] = modulePackages(),
 ): RenderedArtefact {
-  const { layout, entries } = docsRegistry(packages);
+  const { layout, entries, entrySources } = docsRegistry(packages);
   return {
     outputPath: join(layout.modulesRoot, MODULE_MAP_ARTEFACT),
     content: emitModuleMap(entries),
     entryKind: 'doc-id',
     entryRoot: layout.contentRoot,
+    entrySources,
   };
 }
 
@@ -1884,6 +2079,15 @@ export interface RenderedArtefact {
   readonly entryKind?: 'specifier' | 'doc-id';
   /** The root a bare `doc-id` entry resolves against. Absent for a specifier. */
   readonly entryRoot?: string;
+  /**
+   * Copy target -> the module-owned source it is copied from (feature 100
+   * Phase 2).
+   *
+   * `overlay:check` asks *whose file is this*, and for a module-owned page the
+   * answer is the module's package — not the site's tree, where the copy is not
+   * committed and on a fresh checkout is not there at all.
+   */
+  readonly entrySources?: ReadonlyMap<string, string>;
 }
 
 /** Every committed artefact, rendered from one read of the tree. */
@@ -1929,9 +2133,43 @@ async function main(): Promise<void> {
     writeFileSync(outputPath, content, 'utf8');
     process.stdout.write(`[composer] wrote ${outputPath}\n`);
   }
+
+  // The module-owned pages, into the site's tree (feature 100 Phase 2, FR-016).
+  // After the artefacts, because the sidebar names doc ids and Docusaurus
+  // refuses one that names no page: a run that wrote the navigation and then
+  // failed to place the pages has produced a site that cannot build, and this
+  // ordering makes the failure land before the navigation is on disk rather
+  // than after.
+  const collected = collectDocsIntoSite();
+  process.stdout.write(
+    `[composer] collected ${collected.copied.length} module page(s) into ` +
+      `${collected.modulesRoot}` +
+      (collected.removed.length === 0 ? '' : `, removed ${collected.removed.length} stale copy/copies`) +
+      '\n',
+  );
 }
 
 // Only write when executed directly (not when imported by the determinism check).
+//
+// `--docs-only` is the documentation site's own entry point: it places the
+// module-owned pages and touches no committed artefact. The site's `build` and
+// `dev` scripts run it, because the copies are not committed and a site that
+// collected nothing would build a navigation whose every entry names a page
+// that is not there. It is deliberately *not* the full generator: a docs build
+// that rewrote `composition.generated.ts` would repair the tree it is meant to
+// be measured against, which is the reason `--check` never writes either.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await main();
+  if (process.argv.includes('--docs-only')) {
+    const collected = collectDocsIntoSite();
+    process.stdout.write(
+      `[composer] collected ${collected.copied.length} module page(s) into ` +
+        `${collected.modulesRoot}` +
+        (collected.removed.length === 0
+          ? ''
+          : `, removed ${collected.removed.length} stale copy/copies`) +
+        '\n',
+    );
+  } else {
+    await main();
+  }
 }

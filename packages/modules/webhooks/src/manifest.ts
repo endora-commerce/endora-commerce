@@ -90,6 +90,7 @@ export const manifest = defineModuleManifest({
    * and skips it — silently.
    */
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   /**
    * `WEBHOOK_DELIVERY_NOT_REPLAYABLE` — D-129's remaining sweep, Tier B
    * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;

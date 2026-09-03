@@ -284,7 +284,17 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
     layers,
     assets: assetsUnder(srcDir, fs, packageDir),
     hasI18n: fs.listFiles(join(packageDir, 'i18n')).length > 0,
-    hasDocs: fs.listFiles(join(packageDir, 'docs')).length > 0,
+    // Directories count, exactly as they do for `test/` two lines below. A
+    // module's `docs/` is its fragment of the site's modules category
+    // (`module-documentation-layer.md` §1), so a module whose single page is a
+    // directory index — `docs/blog/index.md` — ships a `docs/` holding no
+    // top-level file at all. Seven of the 64 modules that moved in feature 100
+    // Phase 2 are that shape, and a file-only probe would have left `docs` out
+    // of their `files` list: the pages travel in the repository and in no
+    // published package, which is the one failure this layer exists to prevent.
+    hasDocs:
+      fs.listFiles(join(packageDir, 'docs')).length > 0 ||
+      fs.listDirectories(join(packageDir, 'docs')).length > 0,
     hasTests:
       fs.listFiles(join(packageDir, 'test')).length > 0 ||
       fs.listDirectories(join(packageDir, 'test')).length > 0,

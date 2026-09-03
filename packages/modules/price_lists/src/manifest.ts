@@ -142,6 +142,7 @@ export const manifest = defineModuleManifest({
       'platform a B2C shop rather than a reduced B2B one.',
   },
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   /**
    * `PRICE_LIST_NOT_FOUND` — D-129's remaining sweep, Tier A
    * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;

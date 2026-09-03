@@ -166,6 +166,7 @@ export const manifest = defineModuleManifest({
     { code: 'UNKNOWN_SALES_CHANNEL' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: 'sales_channels:read', label: 'View sales channels' },
     { code: 'sales_channels:write', label: 'Manage sales channels' },

@@ -148,6 +148,33 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
     expect(reason).not.toContain('no code opens one');
   });
 
+  it('finds no module keeping its documentation inside a compiled source root', () => {
+    // Feature 100 Phase 2's half of FR-021, and the thing that makes the
+    // classification above *safe* rather than merely ruled. `.md` is `ignored`,
+    // so a page under a package's `rootDir` would be compiled by nothing and
+    // copied by nothing: it would exist in the repository and in no published
+    // package, silently — `copy-runtime-assets`' own failure, one layer over.
+    //
+    // Measured over the tree rather than asserted about it: every module that
+    // declares documentation keeps it at its **package root**, beside `i18n/`,
+    // where this walk has never looked and never should.
+    for (const entry of DISCOVERED_MANIFESTS) {
+      const declaration = entry.manifest.docs;
+      if (declaration === undefined || declaration === false) continue;
+      const directory = dirname(entry.manifestPath);
+      const moduleId = entry.id;
+      expect(
+        collectRuntimeAssets(join(directory, 'src')).assets.filter((path) =>
+          path.endsWith('.md'),
+        ),
+        `${moduleId} keeps a markdown file under its compiled source root`,
+      ).toEqual([]);
+      expect(existsSync(join(directory, declaration.dir)), `${moduleId} declares ${declaration.dir}`).toBe(
+        true,
+      );
+    }
+  });
+
   it('reports an extension it has no ruling for instead of dropping it', () => {
     // A build that silently ships nothing for a new asset kind is the same
     // defect one directory over, so a kind neither list names stops the build.

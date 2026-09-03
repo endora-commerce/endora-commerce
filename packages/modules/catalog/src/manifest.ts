@@ -367,6 +367,7 @@ export const manifest = defineModuleManifest({
     { code: 'VARIANT_COMBINATION_EXISTS' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   actions: [
     {
       id: 'new-product',

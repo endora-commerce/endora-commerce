@@ -217,6 +217,7 @@ export const manifest = defineModuleManifest({
     { code: 'customers:manage', label: 'Manage customer organizations' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
 });
 
 /** Legacy export retained for backward compatibility. */

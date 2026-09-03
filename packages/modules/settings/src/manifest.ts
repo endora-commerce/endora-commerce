@@ -356,6 +356,7 @@ export const manifest = defineModuleManifest({
     { code: 'SETTING_VALUE_SHAPE_MISMATCH' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: 'settings:read', label: 'View settings' },
     { code: 'settings:write', label: 'Edit settings' },

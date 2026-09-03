@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
+import { readFileSync } from 'node:fs';
+
 import {
   checkModuleDocs,
+  loadForeignLinkLedger,
   mapRowsIn,
   MODULES_WITHOUT_DOCUMENTATION,
   navigationEntriesIn,
   PAGES_OUTSIDE_THE_NAVIGATION,
   pageKey,
+  sitesOf,
+  type ForeignLinkLedger,
   type ModuleDocsFindingKind,
+  type PageLink,
 } from '../../../scripts/check-module-docs.js';
 import {
   attributeDocs,
@@ -17,8 +23,9 @@ import {
   labelOf,
   moduleOfSlug,
   parseFrontMatter,
-  PAGES_ATTRIBUTED_BY_ALIAS,
+  relativeLinksIn,
   resolveDocsLayout,
+  slugNamesModule,
 } from '../../../scripts/lib/module-docs.js';
 import {
   createModuleDocsFixture,
@@ -60,16 +67,49 @@ function compliant(): {
   };
 }
 
+/**
+ * The links a fixture's module-owned pages write, resolved as the real run
+ * resolves them.
+ *
+ * The same three steps `main` takes — read the file, resolve the relative
+ * target to a doc id, and ask which module owns the page at that id — so a
+ * proof's link population is produced by the reader under test rather than
+ * declared beside it.
+ */
+function linksOf(fixture: ReturnType<typeof createModuleDocsFixture>): PageLink[] {
+  const owner = new Map<string, string>();
+  for (const page of fixture.pages) {
+    if (page.origin.kind === 'module' && page.origin.moduleId !== null) {
+      owner.set(page.docId, page.origin.moduleId);
+    }
+  }
+  const links: PageLink[] = [];
+  for (const page of fixture.pages) {
+    if (page.origin.kind !== 'module' || page.origin.moduleId === null) continue;
+    for (const link of relativeLinksIn(page, readFileSync(page.path, 'utf8'))) {
+      links.push({
+        fromModule: page.origin.moduleId,
+        fromDocId: page.docId,
+        toModule: link.docId === null ? null : owner.get(link.docId) ?? null,
+        toDocId: link.docId,
+        target: link.target,
+      });
+    }
+  }
+  return links;
+}
+
 function run(
   overrides: {
     modules?: readonly FixtureModuleDocs[];
     pages?: readonly FixturePage[];
     navigation?: readonly string[];
     rows?: readonly { moduleId: string; slug?: string | undefined }[];
-    aliases?: Readonly<Record<string, { moduleId: string; reason: string }>>;
+    links?: readonly PageLink[];
     ledgers?: {
       undocumented?: Readonly<Record<string, string>>;
       orphans?: Readonly<Record<string, string>>;
+      foreignLinks?: ForeignLinkLedger;
     };
   } = {},
 ): { findings: readonly { kind: ModuleDocsFindingKind; key: string }[] } {
@@ -78,14 +118,9 @@ function run(
   const pages = overrides.pages ?? base.pages;
   const fixture = createModuleDocsFixture(modules, pages);
   try {
-    // The alias table is an input and the fixture supplies its own — empty by
-    // default. Reading the real one over a synthetic tree would report all four
-    // of this repository's aliases stale in every proof, which is a finding
-    // about the fixture and not about the predicate.
     const attribution = attributeDocs(
       fixture.pages,
       modules.map((module) => module.id),
-      overrides.aliases ?? {},
     );
     const navigation =
       overrides.navigation ??
@@ -106,7 +141,8 @@ function run(
         mapArtefactNaming(rows),
         modules.map((module) => module.id),
       ),
-      ledgers: overrides.ledgers ?? { undocumented: {}, orphans: {} },
+      links: overrides.links ?? linksOf(fixture),
+      ledgers: overrides.ledgers ?? { undocumented: {}, orphans: {}, foreignLinks: {} },
     });
   } finally {
     fixture.cleanup();
@@ -142,34 +178,76 @@ describe('check:module-docs', () => {
       expect(moduleOfSlug('catalog', registered)).toBe('catalog');
     });
 
-    it('attributes nothing on a near miss — the fold is equality, not a guess', () => {
-      // `dictionary` and `dictionaries` differ by a suffix and the fold does not
-      // bridge them. That is why the four Q2 slugs need a declared alias rather
-      // than a heuristic: a rule invented to fit four cases is a population
-      // defined by whoever wrote it (issue #244).
-      expect(moduleOfSlug('dictionary', new Set(['dictionaries']), {})).toBeNull();
-      expect(moduleOfSlug('organization-hierarchy', new Set(['organizations']), {})).toBeNull();
+    it('strips a leading underscore, because Docusaurus will not route one (D-200)', () => {
+      // `_i18n.md` would be a **partial**: no route, and unfindable from
+      // `sidebars.js`. The equality rule was recommended without checking the
+      // tool and would have produced two missing pages and a broken sidebar.
+      expect(moduleOfSlug('i18n', new Set(['_i18n']))).toBe('_i18n');
+      expect(moduleOfSlug('lifecycle', new Set(['_lifecycle']))).toBe('_lifecycle');
+      expect(slugNamesModule('i18n', '_i18n')).toBe(true);
+      expect(slugNamesModule('google-analytics', 'google_analytics')).toBe(true);
     });
 
-    it('attributes a page through the declared alias, and only to a registered module', () => {
-      // The alias table is consulted after the fold, and its target has to be a
-      // module the index registers — an alias naming a module that has gone
-      // attributes nothing rather than inventing one. This repository's own
-      // table is the default, so these two also assert that it holds the entry
-      // the four Q2 slugs depend on.
-      expect(moduleOfSlug('admin-i18n', new Set(['_i18n']))).toBe('_i18n');
-      expect(moduleOfSlug('admin-i18n', new Set(['catalog']))).toBeNull();
-      expect(moduleOfSlug('admin-i18n', new Set(['_i18n']), {})).toBeNull();
+    it('attributes nothing on a near miss — the two rules are equality, not a guess', () => {
+      // `dictionary` and `dictionaries` differ by a suffix and neither the fold
+      // nor the underscore strip bridges them. That is the slip D-200 answered
+      // by renaming the page rather than by a heuristic invented to fit it.
+      expect(moduleOfSlug('dictionary', new Set(['dictionaries']))).toBeNull();
+      expect(moduleOfSlug('organization-hierarchy', new Set(['organizations']))).toBeNull();
+      expect(slugNamesModule('lifecycle', '_module_lifecycle')).toBe(false);
+    });
+
+    it('attributes a page to the module that ships it, whatever its slug says', () => {
+      // The shipper outranks the slug: a module's own declaration of what it
+      // ships cannot be beaten by a derivation from a file name. It is what
+      // retired the four-entry alias table, and what lets `organizations` own a
+      // second slug with nothing declared anywhere.
+      const fixture = createModuleDocsFixture(
+        [
+          {
+            id: 'organizations',
+            docs: [
+              { path: 'organizations.md', frontMatter: { title: 'Organizations' } },
+              { path: 'organization-hierarchy.md', frontMatter: { title: 'Hierarchy' } },
+            ],
+          },
+        ],
+        [],
+      );
+      try {
+        const attribution = attributeDocs(fixture.pages, ['organizations']);
+        expect(attribution.unlocated).toEqual([]);
+        expect(attribution.misowned).toEqual([]);
+        expect(attribution.documented[0]?.entry.docId).toBe('modules/organizations');
+        expect(attribution.documented[0]?.children.map((page) => page.docId)).toEqual([
+          'modules/organization-hierarchy',
+        ]);
+      } finally {
+        fixture.cleanup();
+      }
     });
 
     it('groups a module reached by two slugs into one entry', () => {
-      // `organizations` holds its own page and, through the alias,
-      // `organization-hierarchy`. Grouping by slug would emit the module twice,
-      // which the map's "one row per registered module" cannot represent.
-      const fixture = createModuleDocsFixture([{ id: 'organizations' }], [
-        { path: 'organizations.md', frontMatter: { title: 'organizations' } },
-        { path: 'organization-hierarchy.md', frontMatter: { title: 'Organization hierarchy' } },
-      ]);
+      // A module can own two slugs. Grouping by slug would emit the module
+      // twice, which the map's "one row per registered module" cannot
+      // represent. In the site's own tree the second slug names no module, so
+      // this case is the *shipper*'s: it is the module's `docs/` layer that
+      // groups them.
+      const fixture = createModuleDocsFixture(
+        [
+          {
+            id: 'organizations',
+            docs: [
+              { path: 'organizations.md', frontMatter: { title: 'organizations' } },
+              {
+                path: 'organization-hierarchy.md',
+                frontMatter: { title: 'Organization hierarchy' },
+              },
+            ],
+          },
+        ],
+        [],
+      );
       try {
         const attribution = attributeDocs(fixture.pages, ['organizations']);
         expect(attribution.documented).toHaveLength(1);
@@ -257,8 +335,8 @@ describe('check:module-docs', () => {
       expect(mapRowsIn(source, ['catalog', 'mfa'])).toEqual(['catalog', 'mfa']);
     });
 
-    it('resolves a map row through the alias, exactly as the walk resolves the page', () => {
-      const source = mapArtefactNaming([{ moduleId: 'admin-i18n', slug: 'admin-i18n' }]);
+    it("resolves a map row by D-200's rule, exactly as the walk resolves the page", () => {
+      const source = mapArtefactNaming([{ moduleId: 'i18n', slug: 'i18n' }]);
       expect(mapRowsIn(source, ['_i18n'])).toEqual(['_i18n']);
     });
   });
@@ -285,15 +363,20 @@ describe('check:module-docs', () => {
       expect(PAGES_OUTSIDE_THE_NAVIGATION).toEqual({});
     });
 
-    it('holds exactly the four slugs that name no module, each with its retiring condition', () => {
-      expect(Object.keys(PAGES_ATTRIBUTED_BY_ALIAS).sort()).toEqual([
-        'admin-i18n',
-        'dictionary',
-        'module-lifecycle',
-        'organization-hierarchy',
-      ]);
-      for (const entry of Object.values(PAGES_ATTRIBUTED_BY_ALIAS)) {
-        expect(entry.reason).toMatch(/Q2/);
+    it('holds the foreign-module links standing when Phase 2 moved the pages', async () => {
+      // Per consumer module, keyed on the target module — a cut that removes a
+      // module's last cross-module link touches that module's file and nobody
+      // else's. Two-way: an unledgered link fails, and so does an entry the
+      // walk no longer finds.
+      const ledger = await loadForeignLinkLedger();
+      expect(Object.keys(ledger).length).toBeGreaterThan(0);
+      for (const [consumer, targets] of Object.entries(ledger)) {
+        expect(Object.keys(targets).length).toBeGreaterThan(0);
+        for (const [target, entry] of Object.entries(targets)) {
+          expect(target).not.toBe(consumer);
+          expect(sitesOf(entry)).toBeGreaterThan(0);
+          expect(typeof entry === 'string' ? entry : entry.reason).toMatch(/FR-020|sibling/);
+        }
       }
     });
 
@@ -384,27 +467,169 @@ describe('check:module-docs', () => {
       ]);
     });
 
-    it('reports an alias whose page is gone and one the rename made redundant', () => {
-      const aliases = {
-        'organization-hierarchy': { moduleId: 'organizations', reason: 'Q2.' },
-      };
-      const gone = attributeDocs([], ['organizations'], aliases);
-      expect(gone.staleAliases).toEqual(['organization-hierarchy']);
+    it('reports a page a module ships under a sibling module\'s slug', () => {
+      // Shipper and subject disagree: `catalog` publishing at `blog`'s address
+      // takes a slug the sibling owns, and if `blog` ever ships that page the
+      // copy has two sources for one target. The page stays attributed to its
+      // shipper and the disagreement is reported rather than resolved.
+      const result = run({
+        modules: [
+          { id: 'catalog', docs: [{ path: 'blog.md', frontMatter: { title: 'Catalog' } }] },
+          { id: 'blog', docs: [{ path: 'blog-2.md', frontMatter: { title: 'Blog' } }] },
+        ],
+        pages: [],
+        rows: [
+          { moduleId: 'catalog', slug: 'blog' },
+          { moduleId: 'blog', slug: 'blog-2' },
+        ],
+      });
+      expect(result.findings.map((finding) => finding.kind)).toContain('misowned-page');
+      expect(
+        result.findings.find((finding) => finding.kind === 'misowned-page')?.key,
+      ).toBe('modules/blog');
+    });
 
-      const fixture = createModuleDocsFixture([{ id: 'dictionary' }], [
-        { path: 'dictionary/index.md', frontMatter: { title: 'Dictionary' } },
+    it('reports a page Docusaurus will not route, in both segment positions', () => {
+      // An underscore-prefixed file is a partial: no route, unfindable from the
+      // sidebar. `orphan-page` would call it reached, because the artefact does
+      // name it and only the build knows it generates nothing.
+      const file = run({
+        modules: [{ id: 'catalog', docs: [{ path: '_catalog.md', frontMatter: { title: 'C' } }] }],
+        pages: [],
+        rows: [{ moduleId: 'catalog', slug: '_catalog' }],
+      });
+      expect(file.findings.map((finding) => finding.kind)).toContain('unroutable-page');
+
+      const directory = run({
+        modules: [
+          { id: 'catalog', docs: [{ path: '_catalog/index.md', frontMatter: { title: 'C' } }] },
+        ],
+        pages: [],
+        rows: [{ moduleId: 'catalog', slug: '_catalog' }],
+      });
+      expect(directory.findings.map((finding) => finding.kind)).toContain('unroutable-page');
+    });
+
+    it("reports a module page's relative link into a sibling module's page", () => {
+      const result = run({
+        modules: [
+          {
+            id: 'catalog',
+            docs: [
+              {
+                path: 'catalog.md',
+                frontMatter: { title: 'Catalog' },
+                body: 'See [blog](./blog/index.md) and [again](./blog/index.md).',
+              },
+            ],
+          },
+          { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+        ],
+        pages: [],
+        rows: [
+          { moduleId: 'catalog', slug: 'catalog' },
+          { moduleId: 'blog', slug: 'blog' },
+        ],
+      });
+      expect(result.findings).toEqual([
+        expect.objectContaining({ kind: 'foreign-module-link', key: 'catalog:blog' }),
       ]);
-      try {
-        // The slug now folds onto a registered id of its own, so the alias
-        // attributes nothing the fold would not. That is the state Q2's rename
-        // produces, and it is a finding in the merge request that produces it.
-        const attribution = attributeDocs(fixture.pages, ['dictionary'], {
-          dictionary: { moduleId: 'dictionaries', reason: 'Q2.' },
-        });
-        expect(attribution.redundantAliases).toEqual(['dictionary']);
-      } finally {
-        fixture.cleanup();
-      }
+    });
+
+    it("does not report a module's link into its own pages, or one leaving the category", () => {
+      const result = run({
+        modules: [
+          {
+            id: 'catalog',
+            docs: [
+              {
+                path: 'catalog.md',
+                frontMatter: { title: 'Catalog' },
+                body: 'See [attrs](./catalog/attributes.md) and [ops](../operations/runbooks).',
+              },
+              { path: 'catalog/attributes.md', frontMatter: { title: 'Attributes' } },
+            ],
+          },
+          { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+        ],
+        pages: [],
+        rows: [
+          { moduleId: 'catalog', slug: 'catalog' },
+          { moduleId: 'blog', slug: 'blog' },
+        ],
+      });
+      expect(result.findings).toEqual([]);
+    });
+
+    it('reports both directions of the foreign-link ledger, count included', () => {
+      const tree = {
+        modules: [
+          {
+            id: 'catalog',
+            docs: [
+              {
+                path: 'catalog.md',
+                frontMatter: { title: 'Catalog' },
+                body: 'See [blog](./blog/index.md).',
+              },
+            ],
+          },
+          { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+        ],
+        pages: [],
+        rows: [
+          { moduleId: 'catalog', slug: 'catalog' },
+          { moduleId: 'blog', slug: 'blog' },
+        ],
+      } as const;
+
+      const ledgered = run({
+        ...tree,
+        ledgers: {
+          undocumented: {},
+          orphans: {},
+          foreignLinks: { catalog: { blog: 'FR-020 — one link.' } },
+        },
+      });
+      expect(ledgered.findings).toEqual([]);
+
+      // A count that no longer describes the walk is the stale entry one
+      // granularity down, and it fails just as loudly as an unrecorded link.
+      const wrongCount = run({
+        ...tree,
+        ledgers: {
+          undocumented: {},
+          orphans: {},
+          foreignLinks: { catalog: { blog: { sites: 4, reason: 'FR-020.' } } },
+        },
+      });
+      expect(wrongCount.findings.map((finding) => finding.key)).toEqual(['catalog:blog']);
+
+      const retired = run({
+        ...tree,
+        ledgers: {
+          undocumented: {},
+          orphans: {},
+          foreignLinks: {
+            catalog: { blog: 'FR-020.' },
+            blog: { catalog: 'FR-020 — a link nobody writes any more.' },
+          },
+        },
+      });
+      expect(retired.findings.map((finding) => finding.key)).toEqual(['blog:catalog']);
+    });
+
+    it('resolves a relative link the way Docusaurus does, and stops at the category edge', () => {
+      const page = {
+        relativePath: 'catalog/attributes.md',
+      } as never;
+      expect(
+        relativeLinksIn(page, 'a [x](../catalog.md) b [y](./attribute-sets.md#anchor) c [z](../../a/b)'),
+      ).toEqual([
+        { target: '../catalog.md', docId: 'modules/catalog' },
+        { target: './attribute-sets.md#anchor', docId: 'modules/catalog/attribute-sets' },
+        { target: '../../a/b', docId: null },
+      ]);
     });
   });
 

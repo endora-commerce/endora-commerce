@@ -211,6 +211,7 @@ export const manifest = defineModuleManifest({
     { code: 'SEARCH_BACKEND_UNAVAILABLE' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [{ code: 'search:write', label: 'Configure search (LLM / indexing)' }],
 });
 

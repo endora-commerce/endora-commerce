@@ -84,6 +84,7 @@ export const manifest = defineModuleManifest({
   // module's own namespace. Its screen's copy stays in `_i18n`'s `core`
   // scope, which is batch 4's shape and not a new one.
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   activation: {
     nonDeactivatable: true,
     reason:

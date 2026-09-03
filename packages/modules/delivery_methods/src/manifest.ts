@@ -139,6 +139,7 @@ export const manifest = defineModuleManifest({
   // module's own namespace. Its screen's copy stays in `_i18n`'s `core`
   // scope, which is batch 4's shape and not a new one.
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Feature 091 (Phase 4, batch 8) — the palette row `AppShell.tsx` carried by
   // hand, arriving as the declaration Principle XVI names, for the reason
   // recorded on `credit_limits`' entry: a `PALETTE_ITEMS` literal is a copy of

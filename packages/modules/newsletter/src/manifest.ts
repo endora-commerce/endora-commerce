@@ -151,6 +151,7 @@ export const manifest = defineModuleManifest({
    */
   errorCodes: [{ code: 'ALREADY_SUBSCRIBED' }],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: 'newsletter:read', label: 'View newsletter' },
     {

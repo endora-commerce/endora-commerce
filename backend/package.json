@@ -49,6 +49,7 @@
     "cli": "tsx --env-file-if-exists=.env src/cli.ts",
     "composer:check": "tsx scripts/generate-composer.ts --check",
     "composer:generate": "tsx scripts/generate-composer.ts",
+    "docs:collect": "tsx scripts/generate-composer.ts --docs-only",
     "db:fresh": "tsx --env-file-if-exists=.env src/db/migrate.ts fresh",
     "db:reset": "pnpm run db:fresh && pnpm run seed:dev",
     "dev": "node scripts/dev.mjs src/index.ts",
