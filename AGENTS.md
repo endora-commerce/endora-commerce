@@ -67,7 +67,7 @@ is already in the stack.
 
 | Path | Contents |
 | --- | --- |
-| `packages/modules/<id>/src/` | A domain module, and **this is where every one of them lives** since T040b closed on 2026-08-28: `manifest.ts`, `backend/` (composition in `index.ts`, plus `entities/`, `services/`, `routes.ts`, optional `plugin.ts`, `actions/`, `workers/`), `migrations/`, optional `ports/`, `i18n/`, `test/`. `backend/src/modules/` holds nothing but a `README.md` — a specifier pointing into it resolves to nothing, which is why an old branch cannot be merged without being packaged (measured on !1103: no intermediate state of it compiles) |
+| `packages/modules/<id>/src/` | A domain module, and **this is where every one of them lives** since T040b closed on 2026-08-28: `manifest.ts`, `backend/` (composition in `index.ts`, plus `entities/`, `services/`, `routes.ts`, optional `plugin.ts`, `actions/`, `workers/`), `migrations/` and optional `ports/`. **`i18n/` and `docs/` are the module's own, and they sit at the *package root* beside `src/`, not under it** — `bundlesDir` and `docs.dir` are joined to `dirname(manifestPath)`, which for a bare specifier is the directory holding the `package.json`. Measured: 63 packages carry `i18n/` and 64 carry `docs/` at the root, none under `src/`, against 59 `src/migrations/`, 8 `src/ports/` and 70 `src/backend/`. There is **no `test/` directory at all** — the 15 co-located tests sit beside their subjects as `*.test.ts`. `backend/src/modules/` holds nothing but a `README.md` — a specifier pointing into it resolves to nothing, which is why an old branch cannot be merged without being packaged (measured on !1103: no intermediate state of it compiles) |
 | `backend/src/apps/<deployment>/modules/<id>/` | Per-deployment overlay modules (feature 057) |
 | `backend/test/{unit,contract,integration,perf}/` | Backend tests, mirroring module names |
 | `specs/NNN-slug/` | Feature artifacts: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/`, `tasks.md` |
@@ -597,13 +597,22 @@ the kernel container (feature 072), and `ctx.routes` / `ctx.worker` / `ctx.subsc
 the wrappers for you — see the composition checklist above. **A per-deployment overlay module
 under `backend/src/apps/<deployment>/modules/` is composed the same way** (D-103): it ships
 `backend.ts`, gets an ordinary `ModuleContext`, and calls the same seams. Call the wrappers
-directly only where there is no `ModuleContext` — a CLI entry point. A few core modules still
-wrap a second time inside their `plugin.ts`; that is conversion residue, not a pattern to copy.
-**The set is not written down here**, because it is derived and it drains: this paragraph named
-four, and by the time anyone read it two of them (`product_feeds`, `pim_ergonode`) had been
-converted and now carry a comment saying they deliberately do *not* wrap, while `catalog` had
-joined and was named nowhere. A list wrong in both directions is worse than no list. Derive it:
-`grep -ln 'defineModuleRoutes(\|defineModuleWorker(' backend/src/modules/*/plugin.ts`.
+directly only where there is no `ModuleContext` — a CLI entry point. **No module in the tree wraps
+a second time inside its `plugin.ts`**, and that is measured rather than asserted: the five files
+that mention `defineModuleRoutes` or `defineModuleWorker` (`catalog`, `ksef`, `newsletter`,
+`pim_ergonode`, `product_feeds`) name them **only in comments**, each saying the module
+deliberately does *not* wrap because `ctx.routes` / `ctx.worker` already applies it.
+
+**This paragraph is kept as a worked example of its own failure mode**, because it went wrong twice
+in the same place. It first named four modules, and two of them had converted by the time anyone
+read it while a fifth had joined unnamed — a list wrong in both directions, which is worse than no
+list. The repair was to stop writing the set down and print a derivation instead. That derivation
+then went stale in the way a list cannot: it read
+`grep -ln '…' backend/src/modules/*/plugin.ts`, and F4 emptied that directory on 2026-08-28, so it
+matches nothing and **returns a silence a reader takes for confirmation**. A derivation that
+fails open is worse than the list it replaced. Derive it where the modules are, and read the hits
+rather than counting them:
+`grep -n 'defineModuleRoutes(\|defineModuleWorker(' packages/modules/*/src/backend/plugin.ts`.
 
 1. **Routes** — wrap the module's route registration in `defineModuleRoutes('<id>', …)` so
    gating holds at the registration seam for every route the module owns, including later
