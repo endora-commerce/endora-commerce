@@ -42,7 +42,7 @@ function walk(node: unknown, visit: (n: UnknownNode) => void): void {
     const obj = node as Record<string, unknown>;
     if (typeof obj['type'] === 'string') visit(obj as UnknownNode);
     // EmailRichText.props.content is TipTap JSON — do not treat it as nested Puck.
-    if (obj['type'] === 'EmailRichText') {
+    if (obj['type'] === 'transactional_emails.EmailRichText') {
       const props = obj['props'];
       if (props && typeof props === 'object') {
         for (const [key, value] of Object.entries(props as Record<string, unknown>)) {
@@ -74,11 +74,11 @@ function collectEmbedCodes(tree: unknown, typeName: string): Set<string> {
 }
 
 export function walkBlockEmbeds(tree: unknown): Set<string> {
-  return collectEmbedCodes(tree, 'EmailInsertBlock');
+  return collectEmbedCodes(tree, 'transactional_emails.EmailInsertBlock');
 }
 
 export function walkTemplateEmbeds(tree: unknown): Set<string> {
-  return collectEmbedCodes(tree, 'EmailInsertTemplate');
+  return collectEmbedCodes(tree, 'transactional_emails.EmailInsertTemplate');
 }
 
 /** Component type names present in the tree that are not in `knownNames`. */

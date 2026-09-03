@@ -1156,36 +1156,54 @@ const InvoiceFooter = invoiceSection({
 /* Config export                                                              */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The invoice renderer map — **the React half only**, keyed by namespaced block
+ * name (feature 096, T303; `contracts/block-definition.md` §4.3).
+ *
+ * **The `invoice` category is gone.** It is declared by `invoices` (with a
+ * `weight`, which is what makes `invoices` the namer) and jointly by `ksef`,
+ * and served merged by `GET /api/v1/admin/cms/page-builder/config`. Switching
+ * `invoices` off therefore leaves the section titled by `ksef`'s declaration
+ * with `ksef.InvoiceSection` still insertable — which a category list in this
+ * file could not express.
+ *
+ * The eleventh entry is **`ksef`'s**, not this module's: the block was stored as
+ * `InvoiceKsef` and the owner ruling of 2026-09-02 gave it to `ksef` as
+ * `ksef.InvoiceSection` (`data-model.md` §7.3). The React binding still lives
+ * here — moving it is F7's work, not this feature's — but the name it is keyed
+ * by now says who owns it.
+ */
 export const invoicePuckConfig: Config = {
   components: {
-    InvoiceHeader,
-    InvoiceParties,
-    InvoiceLineItems,
-    InvoiceVatSummary,
-    InvoiceTotals,
-    InvoiceNotes,
-    InvoiceKsef,
-    InvoiceSpacer,
-    InvoiceDivider,
-    InvoiceLogo,
-    InvoiceFooter,
+    'invoices.InvoiceHeader': InvoiceHeader,
+    'invoices.InvoiceParties': InvoiceParties,
+    'invoices.InvoiceLineItems': InvoiceLineItems,
+    'invoices.InvoiceVatSummary': InvoiceVatSummary,
+    'invoices.InvoiceTotals': InvoiceTotals,
+    'invoices.InvoiceNotes': InvoiceNotes,
+    'ksef.InvoiceSection': InvoiceKsef,
+    'invoices.InvoiceSpacer': InvoiceSpacer,
+    'invoices.InvoiceDivider': InvoiceDivider,
+    'invoices.InvoiceLogo': InvoiceLogo,
+    'invoices.InvoiceFooter': InvoiceFooter,
   },
-  categories: {
-    invoice: {
-      title: 'Invoice sections',
-      components: [
-        'InvoiceHeader',
-        'InvoiceParties',
-        'InvoiceLineItems',
-        'InvoiceVatSummary',
-        'InvoiceTotals',
-        'InvoiceNotes',
-        'InvoiceKsef',
-        'InvoiceSpacer',
-        'InvoiceDivider',
-        'InvoiceLogo',
-        'InvoiceFooter',
-      ],
-    },
+};
+
+/**
+ * The invoice palette's one section.
+ *
+ * **Derived from the renderer map rather than written out** (FR-008, SC-005):
+ * this file no longer holds a mapping from a category to a list of block names,
+ * which is what let a section list five of another module's blocks. The
+ * *authoritative* declarations are `invoices`' and `ksef`'s `blockCategories`,
+ * merged and presence-filtered by
+ * `GET /api/v1/admin/cms/page-builder/config`; this local derivation is what
+ * the editor renders until the invoice builder reads that descriptor, and it
+ * carries no name of its own.
+ */
+export const invoicePuckPalette: NonNullable<Config['categories']> = {
+  invoice: {
+    title: 'Invoice sections',
+    components: Object.keys(invoicePuckConfig.components ?? {}),
   },
 };

@@ -16,15 +16,15 @@ const data: Data = {
   root: { props: {} },
   content: [
     {
-      type: 'Row',
+      type: 'cms.Row',
       props: {
         id: rowId,
-        content: [{ type: 'Column', props: { id: colId, span: 12, content: [] } }],
+        content: [{ type: 'cms.Column', props: { id: colId, span: 12, content: [] } }],
       },
     },
   ],
   zones: {
-    [`${rowId}:content`]: [{ type: 'Column', props: { id: colId, span: 12, content: [] } }],
+    [`${rowId}:content`]: [{ type: 'cms.Column', props: { id: colId, span: 12, content: [] } }],
   },
 };
 
@@ -33,7 +33,7 @@ describe('puck-action-guards', () => {
     expect(isRowContentZone(`${rowId}:content`, data)).toBe(true);
     expect(isRowContentZone('root:content', data)).toBe(false);
     expect(getZoneParentComponentType('root:content', data)).toBe('root');
-    expect(getZoneParentComponentType(`${rowId}:content`, data)).toBe('Row');
+    expect(getZoneParentComponentType(`${rowId}:content`, data)).toBe('cms.Row');
   });
 
   it('blocks Column insert on root', () => {
@@ -41,7 +41,7 @@ describe('puck-action-guards', () => {
       shouldRevertPuckAction(
         {
           type: 'insert',
-          componentType: 'Column',
+          componentType: 'cms.Column',
           destinationIndex: 0,
           destinationZone: 'root:content',
         },
@@ -55,7 +55,7 @@ describe('puck-action-guards', () => {
       shouldRevertPuckAction(
         {
           type: 'insert',
-          componentType: 'Column',
+          componentType: 'cms.Column',
           destinationIndex: 1,
           destinationZone: `${rowId}:content`,
         },
@@ -69,7 +69,7 @@ describe('puck-action-guards', () => {
       shouldRevertPuckAction(
         {
           type: 'insert',
-          componentType: 'Row',
+          componentType: 'cms.Row',
           destinationIndex: 0,
           destinationZone: `${colId}:content`,
         },
@@ -90,9 +90,9 @@ describe('puck-action-guards', () => {
         },
         {
           ...data,
-          content: [{ type: 'Column', props: { id: colId, span: 12, content: [] } }],
+          content: [{ type: 'cms.Column', props: { id: colId, span: 12, content: [] } }],
           zones: {
-            'root:content': [{ type: 'Column', props: { id: colId, span: 12, content: [] } }],
+            'root:content': [{ type: 'cms.Column', props: { id: colId, span: 12, content: [] } }],
           },
         },
         data,
@@ -104,7 +104,7 @@ describe('puck-action-guards', () => {
     const sliderId = 'slider-1';
     const sliderData: Data = {
       root: { props: {} },
-      content: [{ type: 'ContentSlider', props: { id: sliderId, slides: [] } }],
+      content: [{ type: 'cms.ContentSlider', props: { id: sliderId, slides: [] } }],
       zones: {
         [`${sliderId}:slides`]: [],
       },
@@ -114,7 +114,7 @@ describe('puck-action-guards', () => {
       shouldRevertPuckAction(
         {
           type: 'insert',
-          componentType: 'Text',
+          componentType: 'cms.Text',
           destinationIndex: 0,
           destinationZone: `${sliderId}:slides`,
         },
@@ -126,7 +126,7 @@ describe('puck-action-guards', () => {
       shouldRevertPuckAction(
         {
           type: 'insert',
-          componentType: 'Slide',
+          componentType: 'cms.Slide',
           destinationIndex: 0,
           destinationZone: `${sliderId}:slides`,
         },
@@ -138,7 +138,7 @@ describe('puck-action-guards', () => {
       shouldRevertPuckAction(
         {
           type: 'insert',
-          componentType: 'Row',
+          componentType: 'cms.Row',
           destinationIndex: 0,
           destinationZone: `${sliderId}:slides`,
         },
@@ -156,9 +156,9 @@ describe('puck-action-guards', () => {
       [headingId]: { zone: `${slideId}:content`, index: 0 },
     };
     const items: Record<string, { type: string; props: Record<string, unknown> }> = {
-      [sliderId]: { type: 'ContentSlider', props: { id: sliderId } },
-      [slideId]: { type: 'Slide', props: { id: slideId } },
-      [headingId]: { type: 'Heading', props: { id: headingId } },
+      [sliderId]: { type: 'cms.ContentSlider', props: { id: sliderId } },
+      [slideId]: { type: 'cms.Slide', props: { id: slideId } },
+      [headingId]: { type: 'cms.Heading', props: { id: headingId } },
     };
     const getSelectorForId = (id: string) => selectors[id];
     const getItemById = (id: string) => items[id];
@@ -172,7 +172,7 @@ describe('puck-action-guards', () => {
     expect(
       hasInvalidColumnPlacement({
         root: { props: {} },
-        content: [{ type: 'Column', props: { id: colId, span: 12, content: [] } }],
+        content: [{ type: 'cms.Column', props: { id: colId, span: 12, content: [] } }],
       }),
     ).toBe(true);
     expect(hasInvalidColumnPlacement(data)).toBe(false);

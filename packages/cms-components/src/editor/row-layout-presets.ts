@@ -43,7 +43,7 @@ export const ROW_PRESET_DEFAULTS: Pick<RowProps, 'sectionLayout' | 'gap' | 'rowG
 
 function existingColumnContents(content: unknown): PuckItem[][] {
   return toPuckItemArray(content)
-    .filter((item) => item.type === 'Column')
+    .filter((item) => item.type === 'cms.Column')
     .map((col) => toPuckItemArray(col.props.content));
 }
 
@@ -83,7 +83,7 @@ export function applyRowLayoutPreset(
 
 /** Add one column and redistribute spans so they sum to 12 on one row. */
 export function addColumnFitRow(rowProps: RowProps): RowProps {
-  const columns = toPuckItemArray(rowProps.content).filter((item) => item.type === 'Column');
+  const columns = toPuckItemArray(rowProps.content).filter((item) => item.type === 'cms.Column');
   const preserved = columns.map((col) => toPuckItemArray(col.props.content));
   const nextCount = columns.length + 1;
   const base = Math.floor(12 / nextCount);
@@ -98,7 +98,7 @@ export function addColumnFitRow(rowProps: RowProps): RowProps {
 
 /** Append a full-width column (span 12) that wraps to a new grid row. */
 export function addColumnFullWidth(rowProps: RowProps): RowProps {
-  const columns = toPuckItemArray(rowProps.content).filter((item) => item.type === 'Column');
+  const columns = toPuckItemArray(rowProps.content).filter((item) => item.type === 'cms.Column');
   const col = createDefaultColumnItem(`col-${crypto.randomUUID()}`);
   const fullWidthCol: PuckItem = {
     ...col,
@@ -117,7 +117,7 @@ export function findRowById(
 ): PuckItem | null {
   const visit = (items: PuckItem[]): PuckItem | null => {
     for (const item of items) {
-      if (item.type === 'Row' && item.props.id === rowId) return item;
+      if (item.type === 'cms.Row' && item.props.id === rowId) return item;
       for (const value of Object.values(item.props)) {
         const nested = toPuckItemArray(value);
         if (nested.length > 0) {
@@ -147,7 +147,7 @@ export function replaceRowInData<T extends { content?: unknown; zones?: Record<s
 ): T {
   const mapItems = (items: PuckItem[]): PuckItem[] =>
     items.map((item) => {
-      if (item.type === 'Row' && item.props.id === rowId) {
+      if (item.type === 'cms.Row' && item.props.id === rowId) {
         return nextRow;
       }
       const nextProps: Record<string, unknown> = { ...item.props };
@@ -168,7 +168,7 @@ export function replaceRowInData<T extends { content?: unknown; zones?: Record<s
   const columns = toPuckItemArray(nextRow.props.content);
   nextZones[`${rowId}:content`] = columns;
   for (const col of columns) {
-    if (col.type !== 'Column' || typeof col.props.id !== 'string') continue;
+    if (col.type !== 'cms.Column' || typeof col.props.id !== 'string') continue;
     nextZones[`${col.props.id}:content`] = toPuckItemArray(col.props.content);
   }
 
@@ -187,11 +187,11 @@ export function wrapRowInContentSliderSlide<T extends { content?: unknown; zones
   row: PuckItem,
 ): T {
   const slides = [...toPuckItemArray(data.zones?.[slidesZone])];
-  if (slides[index]?.type !== 'Row') return data;
+  if (slides[index]?.type !== 'cms.Row') return data;
 
   const slideId = `slide-${crypto.randomUUID()}`;
   const slide: PuckItem = {
-    type: 'Slide',
+    type: 'cms.Slide',
     props: {
       id: slideId,
       content: [],

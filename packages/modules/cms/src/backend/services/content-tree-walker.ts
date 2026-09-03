@@ -38,11 +38,11 @@ export function walkAssetIds(tree: unknown, acc: AssetIdSet = new Set()): AssetI
 }
 
 export function walkBlockEmbeds(tree: unknown, acc: CodeSet = new Set()): CodeSet {
-  return walkEmbedsByType(tree, 'InsertBlock', acc);
+  return walkEmbedsByType(tree, 'cms.InsertBlock', acc);
 }
 
 export function walkTemplateEmbeds(tree: unknown, acc: CodeSet = new Set()): CodeSet {
-  return walkEmbedsByType(tree, 'InsertTemplate', acc);
+  return walkEmbedsByType(tree, 'cms.InsertTemplate', acc);
 }
 
 function walkEmbedsByType(tree: unknown, typeName: string, acc: CodeSet): CodeSet {

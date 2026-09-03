@@ -1,4 +1,9 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+  type ModuleCliCommand,
+} from '@endora-commerce/contracts';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { DEFAULT_BREAKPOINTS, type PageBuilderBreakpoints } from '@endora-commerce/page-builder-core/types/responsive';
 
 export const CMS_PAGE_BUILDER_SETTING_CODES = {
@@ -599,3 +604,21 @@ export function resolvePageBuilderBreakpointsFromEnv(): PageBuilderBreakpoints {
     desktopMin: Number.isFinite(desktopMin) ? desktopMin : DEFAULT_BREAKPOINTS.desktopMin,
   };
 }
+
+/**
+ * The operator's pre-flight report for the block-name migration (feature 096,
+ * T410; `contracts/block-name-migration.md` §7).
+ *
+ * The body is `await import()`ed so the generated manifest index stays light —
+ * this file is loaded by every check and every composition, and the report pulls
+ * in the frozen rename map and the structural walk.
+ */
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'block-names',
+    summary:
+      'Report the Page Builder block names stored in this database, and what the ' +
+      'namespacing migration will do to each. Read-only.',
+    run: async (context) => (await import('./backend/cli/block-names.js')).blockNames(context),
+  },
+];

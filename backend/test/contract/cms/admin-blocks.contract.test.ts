@@ -91,7 +91,7 @@ describe('admin CMS Blocks contract (T051)', () => {
     const updated = (patched.json() as { data: { version: number } }).data;
     const data = {
       root: { props: {} },
-      content: [{ type: 'Heading', props: { level: 'h2', text: 'Reusable block' } }],
+      content: [{ type: 'cms.Heading', props: { level: 'h2', text: 'Reusable block' } }],
     };
     const put = await h.app.inject({
       method: 'PUT',
@@ -179,7 +179,7 @@ describe('admin CMS Blocks contract (T051)', () => {
       languages: {
         'en-US': {
           root: { props: {} },
-          content: [{ type: 'InsertBlock', props: { code } }],
+          content: [{ type: 'cms.InsertBlock', props: { code } }],
         },
       },
     };

@@ -44,7 +44,7 @@ describe('storefront CMS block-by-code contract (T052)', () => {
     const now = new Date();
     const data = {
       root: { props: {} },
-      content: [{ type: 'Heading', props: { level: 'h2', text: `Block ${options.code}` } }],
+      content: [{ type: 'cms.Heading', props: { level: 'h2', text: `Block ${options.code}` } }],
     };
     await h.em().getConnection().execute(
       `insert into cms_blocks

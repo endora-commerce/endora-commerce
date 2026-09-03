@@ -459,11 +459,39 @@ export interface RecordedReadSize {
  * all four checkpoints, which is the evidence that this is growth and not a walk
  * that stopped looking. No band was widened and no assertion moved.
  */
+/**
+ * **Re-recorded 2026-09-03 by `feat/096-block-names-live`, for 25 fields across
+ * 20 entries** — every one of them the arithmetic of that branch's own files:
+ * five rename migrations, `page-builder-core`'s `migration/` and `palette.ts`,
+ * `cms`' `block-names` CLI command and this check estate's newest member. No
+ * predicate widened; the walks are reading the same trees with more files in
+ * them.
+ *
+ * **Which entries were re-recorded was measured on two trees, never by
+ * parking.** The same test was run against a **detached worktree of
+ * `origin/master`** and against the branch, and the two drift reports were
+ * differenced: 11 entries drift on `master` at `4ac598c6b`, the *same* 11 drift
+ * on the branch, and **not one entry moves from *agree* into *drift* because of
+ * this branch**. So those 11 are deliberately left alone — absorbing somebody
+ * else's stale record into this merge request is how a number comes to describe
+ * neither tree, and it would take the signal away from whoever owns it. The 20
+ * below are the entries that *do* agree on the merged tree, which is the whole
+ * of what a record is for.
+ *
+ * **Parking would have lied about two of them, and that is now written down**
+ * (`master`'s own `docs(register)` commit of the same day): `check:naming` and
+ * `check:language` take their population from `git ls-files --cached --others`,
+ * and `--cached` answers from the **index**, so a file that has been committed
+ * stays in the list after it is moved off disk — the delta reads zero and the
+ * run counts a path it did not open. Measured against the detached baseline
+ * instead, this branch adds +26 files to `check:naming` and +23 to
+ * `check:language`, both entirely inside the +21 each was already drifting by.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
     run: { kind: 'tsx', path: 'scripts/check-action-route-permissions.ts', args: [] },
-    files: 1878,
+    files: 1884,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -502,7 +530,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2002,
+    files: 2008,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -525,7 +553,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1552,
+    files: 1553,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -550,7 +578,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1803,
+    files: 1809,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -678,7 +706,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2002,
+    files: 2008,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -701,7 +729,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2002,
+    files: 2008,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -724,7 +752,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2002,
+    files: 2008,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -828,7 +856,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both the walk and the finer population in the same merge request.
     // **Batch 15: 532 -> 533.** One read site in the batch's own backend
     // integration test.
-    sites: 567,
+    sites: 569,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -870,7 +898,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2002,
+    files: 2008,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1016,7 +1044,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrel, which republished them — the bare specifier the D-168 analysis
     // reports as `unresolvable-reexport`. `sites` does not move: the file
     // rendered no zone, contributed to none and named no module id.
-    files: 2324,
+    files: 2330,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -1037,6 +1065,35 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // packages ship admin code, and under which subpath" — and it grows with
     // every batch of Story 3.
     sources: ['zone-enum', 'admin-ui', 'manifest-index', 'module-admin'],
+  },
+  'backend/scripts/check-block-names.ts': {
+    prefix: '[block-names]',
+    run: { kind: 'tsx', path: 'scripts/check-block-names.ts', args: [] },
+    // Source files opened, and the population is two trees that overlap: every
+    // module's own sources (`layout.moduleWalkRoots`) plus every page-builder
+    // family member's `src`. `migrations/` and `*.test.ts` are out by decision,
+    // so the number moves with ordinary module code and not with a migration or
+    // a test.
+    files: 1937,
+    // The finer population, and it is the one that moves when nothing else does
+    // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
+    // block declarations and the declared `(key, context)` sections. A block
+    // declared and rendered adds to `sites` and leaves `files` where it was,
+    // which is exactly what a widening of this check looks like.
+    sites: 266,
+    // Four authors, none of them `self-reported`, and each counts a
+    // **population** rather than a name set — the check's own header says why
+    // §5's two name-set spellings would have made findings 5 and 6 unreachable
+    // in production. `manifest-index` is issue #215's shared floor over the
+    // module walk. `renderer-maps` is the workspace's page-builder family
+    // against the members that produced a site, so a member whose map stops
+    // resolving is short rather than silently empty. `block-declarations` is
+    // the modules the manifests say declare a block, against those the walk
+    // produced a source for. `block-categories` is the declarations' own second
+    // author: rule 2 of `block-definition.md` §1 says every declared block
+    // names a declared section, so a shortfall is either that rule broken or a
+    // manifest read that came back partial.
+    sources: ['manifest-index', 'renderer-maps', 'block-declarations', 'block-categories'],
   },
   'backend/scripts/check-bundle-pairing.ts': {
     prefix: '[bundle-pairing]',
@@ -1138,7 +1195,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `catalog`' and `orders`' admin layers add to the module walk — this check
     // reads module sources and shipped bundles, and the twenty-four `.tsx`
     // screens are outside its extension set.
-    files: 1563,
+    files: 1564,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -1468,7 +1525,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // recorded entry in this file drifted upwards against a baseline already
     // stale before either branch; these matched the tree exactly, measured,
     // which is why they are the only ones re-recorded.
-    files: 4145,
+    files: 4157,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -1486,7 +1543,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tree; the deletion above takes two specifiers with it, so the combined
     // tree reads 11125. Composing the two recorded numbers would have written
     // 11127 beside `files: 4145` — internally consistent, and wrong by two.
-    sites: 11129,
+    sites: 11152,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -1683,7 +1740,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // by one or two, and a module *losing* its page moves it down, which is the
     // direction `check:module-docs`' own `orphan-page` and `undocumented-module`
     // answer for.
-    sites: 667,
+    sites: 672,
     files: 10,
     sources: [],
   },
@@ -1729,7 +1786,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-recording either would file `master`'s growth under this change, so
     // 168 keeps the +28 sites and +87 files of drift visible to whoever owns
     // it.
-    files: 2002,
+    files: 2008,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -1752,8 +1809,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1788,
-    sites: 1468,
+    files: 1794,
+    sites: 1470,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -1781,7 +1838,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `admin/index.ts` was added: twenty-four net. They reach no platform
     // symbol, so `ledger-size` does not move — this is the population growing,
     // which is exactly what this number is recorded to notice.
-    files: 2063,
+    files: 2069,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -1814,7 +1871,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population either — `host-dependents` below is, per package and derived on
     // every run, so a walk that stopped reading those specifiers is exit 2
     // rather than a band nobody re-recorded.
-    sites: 1742,
+    sites: 1744,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -1852,7 +1909,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1885,
+    files: 1891,
     sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -1931,7 +1988,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
     files: 1750,
-    sites: 162,
+    sites: 163,
     sources: [],
   },
   'backend/scripts/check-storefront-indexability.ts': {
@@ -1975,7 +2032,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2002,
+    files: 2008,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1998,7 +2055,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2002,
+    files: 2008,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2068,7 +2125,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // all, and packaging them turned every test import of either into one. 637
     // -> 963. Re-record it, never widen the band — the floor is what would catch
     // the walk losing the package tree.
-    sites: 1101,
+    sites: 1103,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {

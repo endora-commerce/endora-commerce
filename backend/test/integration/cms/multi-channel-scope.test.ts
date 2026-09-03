@@ -73,7 +73,7 @@ describe('CMS multi-channel scope (T061)', () => {
       payload: JSON.stringify({
         data: {
           root: { props: {} },
-          content: [{ type: 'Heading', props: { level: 'h1', text: name } }],
+          content: [{ type: 'cms.Heading', props: { level: 'h1', text: name } }],
         },
         version: page.version,
       }),

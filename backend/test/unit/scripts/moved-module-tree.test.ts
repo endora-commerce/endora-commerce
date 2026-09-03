@@ -70,6 +70,14 @@ const CHECKS: readonly MovedTreeCheck[] = [
   // check that asked "did the walk read anything?" would find the one module the
   // fixture keeps, read its bundles, and report a clean tree with 68 modules
   // unjudged. The floor is per module and refuses instead.
+  // `specs/096-page-builder-block-ownership/`. Its module half is every module's
+  // own sources, and over a moved tree the walk comes back with the
+  // page-builder family alone — three packages, several hundred files, none of
+  // them a module's. That is issue #215's exact shape: `files.length === 0` is
+  // false, the renderer-map sites are all still there, and the check would
+  // report a clean tree with 71 modules unjudged. The floor is per module and
+  // refuses first, before a finding count can be printed.
+  { script: 'check-block-names.ts', args: [], prefix: '[block-names]' },
   { script: 'check-bundle-pairing.ts', args: [], prefix: '[bundle-pairing]' },
   // `specs/100-module-owned-documentation/`. Its module walk is
   // `check:bundle-pairing`'s — each registered module's own directory — so the

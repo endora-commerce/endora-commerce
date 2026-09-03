@@ -436,8 +436,22 @@ export const cmsPageBuilderDescriptorSchema = z.object({
       weight: z.number().int().min(0).max(9999).optional(),
     }),
   ),
-  /** The declared palette sections, merged across every present module. */
-  categories: z.array(BlockCategorySchema).optional(),
+  /**
+   * The declared palette sections, **merged across every present module** —
+   * one entry per `(key, context)` the present modules declare, not one per
+   * declaration (`contracts/block-definition.md` §1.1 and §4.1).
+   *
+   * `ownerModule` is the one field a served section carries that a declaration
+   * does not: the module whose declaration won the fold, derived and never
+   * declared, exactly as a block's `ownerModule` is derived from its `name`. It
+   * is what lets an operator — and a support engineer reading a bug report —
+   * see why a section is called what it is called without composing the
+   * platform in their head. Optional on the wire, so a consumer reading only
+   * the declared fields keeps working.
+   */
+  categories: z
+    .array(BlockCategorySchema.extend({ ownerModule: z.string().optional() }))
+    .optional(),
 });
 export type CmsPageBuilderDescriptor = z.infer<typeof cmsPageBuilderDescriptorSchema>;
 

@@ -24,7 +24,7 @@ export function SliderPreviewActionBarExtras({
   type,
 }: {
   carouselId: string;
-  type: 'ImageSlider' | 'ProductSlider' | 'ContentSlider';
+  type: 'cms.ImageSlider' | 'catalog.ProductSlider' | 'cms.ContentSlider';
 }): ReactElement | null {
   const getItemById = usePageBuilderPuck((s) => s.getItemById);
   const data = usePageBuilderPuck((s) => safeGetPuckData(() => s.appState?.data));
@@ -38,9 +38,9 @@ export function SliderPreviewActionBarExtras({
   const slidesPerView = slidesPerViewFromProps(props.slidesPerView, tier);
 
   const slideCount =
-    type === 'ContentSlider'
+    type === 'cms.ContentSlider'
       ? getSlotZoneItemCount(data, contentSliderSlidesZone(carouselId))
-      : type === 'ImageSlider'
+      : type === 'cms.ImageSlider'
         ? Array.isArray(props.items)
           ? props.items.length
           : 0

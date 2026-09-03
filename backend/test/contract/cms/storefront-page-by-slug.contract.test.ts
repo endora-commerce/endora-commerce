@@ -55,7 +55,7 @@ describe('storefront CMS page-by-slug contract (T037)', () => {
       root: { props: {} },
       content: [
         {
-          type: 'Heading',
+          type: 'cms.Heading',
           props: { level: 'h1', text: `Heading ${options.slug}` },
         },
       ],

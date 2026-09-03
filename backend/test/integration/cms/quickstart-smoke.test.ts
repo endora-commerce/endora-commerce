@@ -68,7 +68,7 @@ describe('CMS quickstart smoke (T100)', () => {
       root: { props: {} },
       content: [
         {
-          type: 'Row',
+          type: 'cms.Row',
           props: {
             id: 'r1',
             gap: 24,
@@ -89,7 +89,7 @@ describe('CMS quickstart smoke (T100)', () => {
             overflow: false,
             content: [
               {
-                type: 'Column',
+                type: 'cms.Column',
                 props: {
                   id: 'col-1',
                   span: 6,
@@ -101,7 +101,7 @@ describe('CMS quickstart smoke (T100)', () => {
                   shadow: 'none',
                   content: [
                     {
-                      type: 'Heading',
+                      type: 'cms.Heading',
                       props: {
                         id: 'h1',
                         level: 'h1',
@@ -116,7 +116,7 @@ describe('CMS quickstart smoke (T100)', () => {
                 },
               },
               {
-                type: 'Column',
+                type: 'cms.Column',
                 props: {
                   id: 'col-2',
                   span: 6,
@@ -128,7 +128,7 @@ describe('CMS quickstart smoke (T100)', () => {
                   shadow: 'none',
                   content: [
                     {
-                      type: 'Text',
+                      type: 'cms.Text',
                       props: {
                         id: 't1',
                         text: 'Hello world',
@@ -145,7 +145,7 @@ describe('CMS quickstart smoke (T100)', () => {
                       },
                     },
                     {
-                      type: 'Button',
+                      type: 'cms.Button',
                       props: {
                         id: 'b1',
                         label: 'Shop',
@@ -199,7 +199,7 @@ describe('CMS quickstart smoke (T100)', () => {
       };
     };
     expect(resolvedBody.data.slug).toBe(slug);
-    expect(resolvedBody.data.content.data.content[0]?.type).toBe('Row');
+    expect(resolvedBody.data.content.data.content[0]?.type).toBe('cms.Row');
 
     // ── 3. Create a Block + attach to `homepage.top`. ─────────────────
     const blockCreated = await h.app.inject({
@@ -225,7 +225,7 @@ describe('CMS quickstart smoke (T100)', () => {
       payload: JSON.stringify({
         data: {
           root: { props: {} },
-          content: [{ type: 'Heading', props: { id: 'bh', level: 'h2', text: 'Hero' } }],
+          content: [{ type: 'cms.Heading', props: { id: 'bh', level: 'h2', text: 'Hero' } }],
         },
         version: block.version,
       }),
@@ -290,7 +290,7 @@ describe('CMS quickstart smoke (T100)', () => {
         data: {
           root: { props: {} },
           content: [{
-            type: 'Text',
+            type: 'cms.Text',
             props: {
               id: 'tt',
               text: 'Free shipping over 200 EUR',
@@ -312,8 +312,8 @@ describe('CMS quickstart smoke (T100)', () => {
     const pageWithEmbeds = {
       root: { props: {} },
       content: [
-        { type: 'InsertBlock', props: { id: 'ib', code: blockCode } },
-        { type: 'InsertTemplate', props: { id: 'it', code: templateCode } },
+        { type: 'cms.InsertBlock', props: { id: 'ib', code: blockCode } },
+        { type: 'cms.InsertTemplate', props: { id: 'it', code: templateCode } },
       ],
     };
     const repaintPage = await h.app.inject({
@@ -375,7 +375,7 @@ describe('CMS quickstart smoke (T100)', () => {
       payload: JSON.stringify({
         data: {
           root: { props: {} },
-          content: [{ type: 'InsertTemplate', props: { id: 'it', code: templateCode } }],
+          content: [{ type: 'cms.InsertTemplate', props: { id: 'it', code: templateCode } }],
         },
         version: (repaintPage.json() as { data: { version: number } }).data.version,
       }),

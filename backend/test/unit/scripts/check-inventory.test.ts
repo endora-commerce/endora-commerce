@@ -90,6 +90,13 @@ import {
   type BundlePairingFindingKind,
 } from '../../../scripts/check-bundle-pairing.js';
 import {
+  blockNameFindingsOfKind,
+  blockNameParseFailure,
+  blockNameRefusalOf,
+  nodeLiteralSource,
+  rendererMapSource,
+} from '../../helpers/block-name-fixture.js';
+import {
   FIXTURE_FILE,
   keyFor,
   proseDiscrimination,
@@ -3119,6 +3126,36 @@ const BUNDLE_PAIRING_COMPLIANT: FixtureModule = {
  * calls the same one, in the idiom `emitted-freshness-fixture.ts` established:
  * two builders over one population are two answers waiting to disagree.
  */
+/**
+ * `check:block-names`' red proofs run through the **shared** builder
+ * (`test/helpers/block-name-fixture.ts`), which is the same one the companion
+ * test calls. Two builders over one population are two answers waiting to
+ * disagree, and the one that disagrees quietly is the one inside a red proof.
+ *
+ * Every fixture enters as **source text plus a manifest set** — the two things a
+ * real run reads. The chain that then runs is the whole of it: TypeScript parses
+ * the text into sites and `analyseBlockNames` classifies them. A fixture handing
+ * in a pre-classified record would prove the reporter and leave all eight
+ * predicates unproven (issue #130).
+ */
+const BLOCK_NAMES_CMS = {
+  id: 'cms',
+  blocks: [{ name: 'cms.Hero', category: 'content', contexts: ['cms'] }],
+  categories: [{ key: 'content', contexts: ['cms'] }],
+};
+
+const BLOCK_NAMES_RENDERER = {
+  key: 'packages/cms-components/src/index.ts',
+  text: rendererMapSource(['cms.Hero']),
+};
+
+function blockNameFindingCount(
+  fixture: Parameters<typeof blockNameFindingsOfKind>[0],
+  kind: Parameters<typeof blockNameFindingsOfKind>[1],
+): number {
+  return blockNameFindingsOfKind(fixture, kind).length;
+}
+
 function bundlePairingFindings(
   declarations: readonly FixtureModule[],
   kind: BundlePairingFindingKind,
@@ -3610,6 +3647,185 @@ const CHECKS: readonly CheckEntry[] = [
       ),
       'declaration-discriminates-false-from-absent': top(() =>
         moduleDocsDeclarationDiscrimination(),
+      ),
+    },
+  },
+  {
+    // `specs/096-page-builder-block-ownership/contracts/block-name-check.md` —
+    // a Puck block name is written into `jsonb` and never rewritten, and no
+    // existing check's population contains one. It lands **after** the
+    // conversion with its one ledger empty, which AGENTS.md calls the cheapest
+    // possible moment to lock an invariant.
+    //
+    // Eight findings, eight proofs, plus five discriminations the predicate
+    // turns on and would be worthless without: a Puck **field** descriptor
+    // (`{ type: 'text', label: 'Gap' }`, hundreds of them, no `props` sibling);
+    // a block name in a comment and in a quoted example; a **joining** category
+    // declaration that omits `weight` and `visible`, which is the shape §1.1
+    // tells authors to write; a tree-**copy** helper (`{ type: record.type }`),
+    // which carries no authored name; and a `switch` that is not over
+    // `node.type`, measured to pull in 26 names from five files that render no
+    // block.
+    script: 'backend/scripts/check-block-names.ts',
+    npmScript: 'check:block-names',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-block-names.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its module half is `layout.moduleWalkRoots` under
+    // `refuseVacuousModulePopulation`, so a moved tree is refused rather than
+    // reported clean — and refused **first**, before a finding count can be
+    // printed, so it is named as a moved tree rather than as 74 violations.
+    residueGuard: 'derived-population',
+    red: {
+      'bare-block-name': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              { key: 'packages/modules/cms/src/seed.ts', text: nodeLiteralSource('Hero') },
+              BLOCK_NAMES_RENDERER,
+            ],
+            modules: [BLOCK_NAMES_CMS],
+          },
+          'bare-block-name',
+        ),
+      ),
+      'undeclared-block-name': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              { key: 'packages/modules/cms/src/seed.ts', text: nodeLiteralSource('cms.Nope') },
+              BLOCK_NAMES_RENDERER,
+            ],
+            modules: [BLOCK_NAMES_CMS],
+          },
+          'undeclared-block-name',
+        ),
+      ),
+      'foreign-namespace-declaration': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [BLOCK_NAMES_RENDERER],
+            modules: [
+              {
+                id: 'cms',
+                blocks: [{ name: 'catalog.ProductGrid', category: 'catalog', contexts: ['cms'] }],
+                categories: [{ key: 'catalog', contexts: ['cms'] }],
+              },
+            ],
+          },
+          'foreign-namespace-declaration',
+        ),
+      ),
+      'duplicate-block-name': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [BLOCK_NAMES_RENDERER],
+            modules: [
+              BLOCK_NAMES_CMS,
+              {
+                id: 'blog',
+                blocks: [{ name: 'cms.Hero', category: 'content', contexts: ['cms'] }],
+                categories: [{ key: 'content', contexts: ['cms'] }],
+              },
+            ],
+          },
+          'duplicate-block-name',
+        ),
+      ),
+      'declared-without-renderer': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [BLOCK_NAMES_RENDERER],
+            modules: [
+              {
+                id: 'cms',
+                blocks: [
+                  { name: 'cms.Hero', category: 'content', contexts: ['cms'] },
+                  { name: 'cms.Ghost', category: 'content', contexts: ['cms'] },
+                ],
+                categories: [{ key: 'content', contexts: ['cms'] }],
+              },
+            ],
+          },
+          'declared-without-renderer',
+        ),
+      ),
+      'renderer-without-declaration': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              {
+                key: 'packages/cms-components/src/index.ts',
+                text: rendererMapSource(['cms.Hero', 'cms.Orphan']),
+              },
+            ],
+            modules: [BLOCK_NAMES_CMS],
+          },
+          'renderer-without-declaration',
+        ),
+      ),
+      'unreadable-block-name': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              {
+                key: 'packages/modules/cms/src/seed.ts',
+                text:
+                  'declare const kind: string;\n' +
+                  'export const tree = { content: [{ type: `cms.${kind}`, props: {} }] };\n',
+              },
+              BLOCK_NAMES_RENDERER,
+            ],
+            modules: [BLOCK_NAMES_CMS],
+          },
+          'unreadable-block-name',
+        ),
+      ),
+      'category-presentation-disagreement': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              {
+                key: 'packages/modules/invoices/src/config.tsx',
+                text: rendererMapSource(['invoices.InvoiceHeader', 'ksef.InvoiceSection']),
+              },
+            ],
+            modules: [
+              {
+                id: 'invoices',
+                blocks: [
+                  { name: 'invoices.InvoiceHeader', category: 'invoice', contexts: ['invoice'] },
+                ],
+                categories: [{ key: 'invoice', contexts: ['invoice'], weight: 10 }],
+              },
+              {
+                id: 'ksef',
+                blocks: [
+                  { name: 'ksef.InvoiceSection', category: 'invoice', contexts: ['invoice'] },
+                ],
+                categories: [{ key: 'invoice', contexts: ['invoice'], weight: 20 }],
+              },
+            ],
+          },
+          'category-presentation-disagreement',
+        ),
+      ),
+      // The two vacuous-pass proofs (§7), entering the same way. A run that read
+      // no tree site is refused rather than reported clean, and a family member
+      // whose renderer map does not parse is **named** rather than treated as
+      // rendering nothing — which would make every one of its blocks a
+      // `declared-without-renderer` finding.
+      'refuses-a-run-with-no-tree-site': top(() =>
+        blockNameRefusalOf({ treeSites: 0 })?.kind === 'no-tree-site' ? 1 : 0,
+      ),
+      'names-an-unparseable-renderer-map': top(() =>
+        blockNameParseFailure({
+          key: 'packages/cms-components/src/index.ts',
+          text: "export const config: Config = { components: { 'cms.Hero': ,,, } };\n",
+        }) === null
+          ? 0
+          : 1,
       ),
     },
   },
@@ -8597,6 +8813,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // coupling, and one proof over the whole finding would let four of the five
       // go blind behind the first's red. Plus both stale directions of its ledger.
       'backend/scripts/check-admin-zones.ts': 12,
+      // Eight findings and both vacuous-pass proofs. The discriminations —
+      // a Puck field descriptor, a comment, a joining category declaration, a
+      // tree-copy helper and a non-`node.type` switch — live in the companion
+      // test, because each is a **green** and this record counts red shapes.
+      'backend/scripts/check-block-names.ts': 10,
       // Four findings and the discrimination the conditional turns on: a module
       // shipping neither bundle is exempt, and a run of nothing but such
       // modules is refused rather than reported clean.

@@ -11,15 +11,15 @@ export function defaultFooterTree(): PuckDataTree {
     root: { props: {} },
     content: [
       {
-        type: 'EmailDivider',
+        type: 'transactional_emails.EmailDivider',
         props: { id: 'default-footer-divider', thickness: 1, color: '#e5e7eb' },
       },
       {
-        type: 'EmailSpacer',
+        type: 'transactional_emails.EmailSpacer',
         props: { id: 'default-footer-spacer-top', height: 12 },
       },
       {
-        type: 'EmailFooterLegal',
+        type: 'transactional_emails.EmailFooterLegal',
         props: {
           id: 'default-footer-legal',
           text:
@@ -29,7 +29,7 @@ export function defaultFooterTree(): PuckDataTree {
         },
       },
       {
-        type: 'EmailSpacer',
+        type: 'transactional_emails.EmailSpacer',
         props: { id: 'default-footer-spacer-bottom', height: 24 },
       },
     ],

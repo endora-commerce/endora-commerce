@@ -240,6 +240,52 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'B',
   },
   {
+    id: 'check:block-names',
+    script: 'backend/scripts/check-block-names.ts',
+    scope: 'package',
+    /**
+     * **Neither of Tier B's two halves, which is why the phase is named rather
+     * than numbered.** `plan.md`'s Phase 3 is the owner map — `package-declarations`
+     * over the installed set, `switchable-modules` — and its Phase 4 is the admin
+     * half and enumerates three rules by name, at the end of which `pending`
+     * reaches zero. This rule is in neither list: what a lone package cannot
+     * supply is the **page-builder family's renderer maps**, which are workspace
+     * members that are not modules and not the admin. Writing `Phase 4` would
+     * have made that plan's own count wrong without saying so, so the string
+     * names the phase it belongs beside and what it adds — the idiom
+     * `check:module-docs` already uses for a rule waiting on another feature.
+     */
+    host: pending("Phase 4 — beside the admin half, and a fourth rule to it: this one waits on the page-builder family's renderer maps rather than on an admin layer"),
+    partial: [
+      {
+        signal: 'duplicate-block-name',
+        reason:
+          'two modules declaring one name is a fact about a **pair** of manifests, and a lone ' +
+          'package supplies one; its own manifest declaring a name twice is refused by ' +
+          '`defineModuleManifest` before this rule sees it',
+      },
+      {
+        signal: 'category-presentation-disagreement',
+        reason:
+          "the same shape one level up — a disagreement needs a peer's `blockCategories`, and " +
+          'one manifest declaring a `(key, context)` twice is `defineModuleManifest`’s rule 4',
+      },
+      {
+        signal: 'renderer-without-declaration',
+        reason:
+          'the renderer maps are the page-builder family’s — the workspace members that ' +
+          'declare one, derived per run and never a list — and a module package holds only ' +
+          'its own, so a name another member renders and nobody declares is outside the run',
+      },
+    ],
+    subjectDeclaration: {
+      kind: 'manifest-block',
+      declaration: '`blocks` in the module manifest',
+    },
+    readsArtefact: true,
+    tier: 'B',
+  },
+  {
     id: 'check:bundle-pairing',
     script: 'backend/scripts/check-bundle-pairing.ts',
     scope: 'package',

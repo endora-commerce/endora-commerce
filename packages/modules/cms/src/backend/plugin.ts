@@ -10,7 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
-import type { CmsColorPaletteEntry } from '@endora-commerce/contracts';
+import type { CmsColorPaletteEntry, ModuleManifest } from '@endora-commerce/contracts';
 
 import { PageBuilderRegistry, type PageBuilderBreakpointsResolver, type ColorPaletteResolver } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
@@ -52,6 +52,15 @@ export interface CmsModuleOptions {
    * to disable caching when they need every read to hit the DB.
    */
   redis?: Redis;
+  /**
+   * The composed modules, from which the Page Builder registry takes every
+   * block and category declaration (feature 096, T209). Core manifests plus
+   * this deployment's overlay modules, in the shape both composition roots
+   * contribute as `resolvedModuleRegistry`.
+   */
+  manifests?: ReadonlyArray<{ manifest: ModuleManifest }>;
+  /** Effective presence, read by the registry at enumeration (FR-010). */
+  isModulePresent?: (moduleId: string) => boolean;
 }
 
 export interface CmsModuleHandle {
@@ -82,145 +91,13 @@ export function cmsModule(options: CmsModuleOptions): {
 } {
   const pageBuilderRegistry = new PageBuilderRegistry({
     breakpoints: resolvePageBuilderBreakpointsFromEnv(),
-  });
-  // Register the CMS module's own built-in components in metadata-only
-  // form. Their actual React renderers live in @endora-commerce/cms-components.
-  // Field shapes are intentionally minimal at v1 ship; admin-side controls
-  // expand them as the editor matures.
-  pageBuilderRegistry.register('cms', {
-    components: {
-      Row: {
-        fields: {
-          gap: { type: 'number', label: 'Gap' },
-          align: {
-            type: 'select',
-            label: 'Align',
-            options: ['stretch', 'start', 'center', 'end'].map((v) => ({ label: v, value: v })),
-          },
-        },
-        contexts: ['cms'],
-      },
-      Column: {
-        fields: {
-          span: { type: 'number', label: 'Width (1–12)' },
-        },
-        contexts: ['cms'],
-      },
-      Text: { fields: { text: { type: 'text', label: 'Text' } }, contexts: ['cms'] },
-      Image: {
-        fields: {
-          src: { type: 'text', label: 'Image URL', required: true },
-          alt: { type: 'text', label: 'Alt text' },
-        },
-        contexts: ['cms'],
-      },
-      Icons: {
-        fields: {
-          name: { type: 'text', label: 'Icon name' },
-          size: { type: 'number', label: 'Size' },
-        },
-        contexts: ['cms'],
-        previewIcon: 'sparkles',
-      },
-      Social: {
-        fields: {
-          layout: {
-            type: 'select',
-            label: 'Layout',
-            options: [
-              { label: 'Icons only', value: 'icons-only' },
-              { label: 'Icons with labels', value: 'icons-with-labels' },
-              { label: 'Vertical list', value: 'vertical-list' },
-              { label: 'Pills', value: 'pills' },
-            ],
-          },
-        },
-        contexts: ['cms'],
-        previewIcon: 'share',
-      },
-      RichContent: { fields: { content: { type: 'richtext', label: 'Content' } }, contexts: ['cms'] },
-      Heading: {
-        fields: {
-          level: {
-            type: 'select',
-            label: 'Level',
-            options: [1, 2, 3, 4, 5, 6].map((n) => ({ label: `H${n}`, value: n })),
-          },
-          text: { type: 'text', label: 'Text' },
-        },
-        contexts: ['cms'],
-      },
-      Button: {
-        fields: {
-          label: { type: 'text', label: 'Label', required: true },
-          href: { type: 'text', label: 'Link target', required: true },
-          variant: {
-            type: 'select',
-            label: 'Variant',
-            options: ['primary', 'secondary', 'ghost'].map((v) => ({ label: v, value: v })),
-          },
-        },
-        contexts: ['cms'],
-      },
-      InsertBlock: {
-        fields: { code: { type: 'text', label: 'Block code', required: true } },
-        contexts: ['cms'],
-      },
-      InsertTemplate: {
-        // Legacy embed — kept in the SPI so existing trees resolve; not in the
-        // drawer palette (see @endora-commerce/cms-components categories.embeds).
-        fields: { code: { type: 'text', label: 'Template code', required: true } },
-        contexts: ['cms'],
-      },
-      RawHtml: {
-        fields: { html: { type: 'textarea', label: 'HTML' } },
-        contexts: ['cms'],
-      },
-      RawJs: {
-        fields: { script: { type: 'textarea', label: 'JavaScript' } },
-        contexts: ['cms'],
-      },
-      Video: {
-        fields: { url: { type: 'text', label: 'Video URL' } },
-        contexts: ['cms'],
-      },
-      ContentSlider: { fields: {}, contexts: ['cms'] },
-      Slide: { fields: {}, contexts: ['cms'] },
-      ImageSlider: { fields: {}, contexts: ['cms'] },
-      Tabs: { fields: {}, contexts: ['cms'] },
-      Accordion: { fields: {}, contexts: ['cms'] },
-      ProductCard: {
-        fields: { productSlug: { type: 'text', label: 'Product slug' } },
-        contexts: ['cms'],
-      },
-      ProductGrid: { fields: {}, contexts: ['cms'] },
-      ProductSlider: { fields: {}, contexts: ['cms'] },
-      CategoryList: { fields: {}, contexts: ['cms'] },
-      CategoryGrid: { fields: {}, contexts: ['cms'] },
-      Map: {
-        fields: {
-          provider: {
-            type: 'select',
-            label: 'Provider',
-            options: [
-              { label: 'Leaflet + OSM', value: 'leaflet' },
-              { label: 'Google Maps', value: 'google' },
-            ],
-          },
-        },
-        contexts: ['cms'],
-      },
-      Spacer: { fields: { heightPx: { type: 'number', label: 'Height' } }, contexts: ['cms'] },
-      FeatureList: { fields: {}, contexts: ['cms'], previewIcon: 'layout' },
-      Hero: { fields: { heading: { type: 'text', label: 'Heading' } }, contexts: ['cms'] },
-      LogoStrip: { fields: {}, contexts: ['cms'] },
-      Testimonial: { fields: { quote: { type: 'textarea', label: 'Quote' } }, contexts: ['cms'] },
-      Stats: { fields: {}, contexts: ['cms'] },
-      AnnouncementBar: { fields: { text: { type: 'text', label: 'Message' } }, contexts: ['cms'] },
-      SimpleTable: { fields: {}, contexts: ['cms'] },
-      NewsletterSignup: { fields: {}, contexts: ['cms'] },
-      ContactFormEmbed: { fields: {}, contexts: ['cms'] },
-    },
+    // Feature 096, T209 — the registry is populated from the composed modules'
+    // `blocks` and `blockCategories` declarations. The 35-name
+    // `register('cms', …)` call that stood here declared five of `catalog`'s
+    // blocks as `cms`', so the descriptor's `ownerModule` was wrong for every
+    // one of them and FR-010 had nothing true to filter on.
+    manifests: options.manifests,
+    isModulePresent: options.isModulePresent,
   });
 
   const cache = options.redis ? new CmsCache(options.redis, {}) : undefined;

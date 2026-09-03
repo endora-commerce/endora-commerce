@@ -34,6 +34,13 @@ export {
 } from './types/editor-chrome.js';
 
 export {
+  buildPaletteCategories,
+  type BuildPaletteOptions,
+  type ServedPaletteBlock,
+  type ServedPaletteSection,
+} from './palette.js';
+
+export {
   contextAdmits,
   definePageBuilderComponent,
   filterConfigByContext,

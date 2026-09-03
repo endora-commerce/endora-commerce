@@ -104,13 +104,13 @@ function RowActionBarExtras({ rowId }: { rowId: string }): ReactElement {
   const applyRow = (mutate: (props: RowProps) => RowProps): void => {
     const item = getItemById(rowId);
     const selector = getSelectorForId(rowId);
-    if (!item || item.type !== 'Row' || !selector) return;
+    if (!item || item.type !== 'cms.Row' || !selector) return;
     const nextProps = mutate(item.props as RowProps);
     dispatch({
       type: 'replace',
       destinationZone: selector.zone,
       destinationIndex: selector.index,
-      data: { type: 'Row', props: { ...nextProps, id: rowId } },
+      data: { type: 'cms.Row', props: { ...nextProps, id: rowId } },
       recordHistory: true,
     });
     setLayoutOpen(false);
@@ -165,11 +165,11 @@ export function PageBuilderActionBar({
   const target = useActionBarTarget();
   const selectedItem = usePageBuilderPuck((s) => s.selectedItem);
   const selectedRowId =
-    selectedItem?.type === 'Row' && typeof selectedItem.props.id === 'string'
+    selectedItem?.type === 'cms.Row' && typeof selectedItem.props.id === 'string'
       ? selectedItem.props.id
       : null;
   const rowId =
-    label === 'Row' ? (target?.type === 'Row' ? target.id : selectedRowId) : null;
+    label === 'Row' ? (target?.type === 'cms.Row' ? target.id : selectedRowId) : null;
   const showRowExtras = Boolean(rowId);
 
   const getSelectorForId = usePageBuilderPuck((s) => s.getSelectorForId);
@@ -181,28 +181,28 @@ export function PageBuilderActionBar({
   };
 
   const contentSliderId = ((): string | null => {
-    if (target?.type === 'ContentSlider') return resolveCarouselId('ContentSlider', target.id);
-    if (selectedItem?.type === 'ContentSlider' && typeof selectedItem.props.id === 'string') {
-      return resolveCarouselId('ContentSlider', selectedItem.props.id);
+    if (target?.type === 'cms.ContentSlider') return resolveCarouselId('cms.ContentSlider', target.id);
+    if (selectedItem?.type === 'cms.ContentSlider' && typeof selectedItem.props.id === 'string') {
+      return resolveCarouselId('cms.ContentSlider', selectedItem.props.id);
     }
     const selectedId = selectedItem?.props.id;
     if (typeof selectedId !== 'string') return null;
     const nestedSliderId = resolveContentSliderIdForItem(selectedId, getSelectorForId, getItemById);
-    return nestedSliderId ? resolveCarouselId('ContentSlider', nestedSliderId) : null;
+    return nestedSliderId ? resolveCarouselId('cms.ContentSlider', nestedSliderId) : null;
   })();
 
   const imageSliderId =
-    target?.type === 'ImageSlider'
-      ? resolveCarouselId('ImageSlider', target.id)
-      : selectedItem?.type === 'ImageSlider' && typeof selectedItem.props.id === 'string'
-        ? resolveCarouselId('ImageSlider', selectedItem.props.id)
+    target?.type === 'cms.ImageSlider'
+      ? resolveCarouselId('cms.ImageSlider', target.id)
+      : selectedItem?.type === 'cms.ImageSlider' && typeof selectedItem.props.id === 'string'
+        ? resolveCarouselId('cms.ImageSlider', selectedItem.props.id)
         : null;
 
   const productSliderId =
-    target?.type === 'ProductSlider'
-      ? resolveCarouselId('ProductSlider', target.id)
-      : selectedItem?.type === 'ProductSlider' && typeof selectedItem.props.id === 'string'
-        ? resolveCarouselId('ProductSlider', selectedItem.props.id)
+    target?.type === 'catalog.ProductSlider'
+      ? resolveCarouselId('catalog.ProductSlider', target.id)
+      : selectedItem?.type === 'catalog.ProductSlider' && typeof selectedItem.props.id === 'string'
+        ? resolveCarouselId('catalog.ProductSlider', selectedItem.props.id)
         : null;
 
   return (
@@ -216,10 +216,10 @@ export function PageBuilderActionBar({
         <ActionBar.Group>
           {contentSliderId ? <ContentSliderActionBarExtras sliderId={contentSliderId} /> : null}
           {imageSliderId ? (
-            <SliderPreviewActionBarExtras carouselId={imageSliderId} type="ImageSlider" />
+            <SliderPreviewActionBarExtras carouselId={imageSliderId} type="cms.ImageSlider" />
           ) : null}
           {productSliderId ? (
-            <SliderPreviewActionBarExtras carouselId={productSliderId} type="ProductSlider" />
+            <SliderPreviewActionBarExtras carouselId={productSliderId} type="catalog.ProductSlider" />
           ) : null}
         </ActionBar.Group>
       ) : null}

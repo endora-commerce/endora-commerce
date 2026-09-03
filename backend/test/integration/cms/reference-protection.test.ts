@@ -91,10 +91,10 @@ describe('CMS reference protection (T078)', () => {
     return (res.json() as { data: { id: string; version: number } }).data;
   }
 
-  async function setBlockContent(id: string, version: number, embedType: 'InsertBlock' | 'InsertTemplate', refCode: string | null) {
+  async function setBlockContent(id: string, version: number, embedType: 'cms.InsertBlock' | 'cms.InsertTemplate', refCode: string | null) {
     const data = refCode
       ? { root: { props: {} }, content: [{ type: embedType, props: { code: refCode } }] }
-      : { root: { props: {} }, content: [{ type: 'Heading', props: { level: 'h2', text: 'no-embed' } }] };
+      : { root: { props: {} }, content: [{ type: 'cms.Heading', props: { level: 'h2', text: 'no-embed' } }] };
     const res = await h.app.inject({
       method: 'PUT',
       url: `/api/v1/admin/cms/blocks/${id}/content/en-US`,
@@ -106,10 +106,10 @@ describe('CMS reference protection (T078)', () => {
     return (res.json() as { data: { version: number } }).data.version;
   }
 
-  async function setTemplateContent(id: string, version: number, embedType: 'InsertBlock' | 'InsertTemplate', refCode: string | null) {
+  async function setTemplateContent(id: string, version: number, embedType: 'cms.InsertBlock' | 'cms.InsertTemplate', refCode: string | null) {
     const data = refCode
       ? { root: { props: {} }, content: [{ type: embedType, props: { code: refCode } }] }
-      : { root: { props: {} }, content: [{ type: 'Heading', props: { level: 'h2', text: 'no-embed' } }] };
+      : { root: { props: {} }, content: [{ type: 'cms.Heading', props: { level: 'h2', text: 'no-embed' } }] };
     const res = await h.app.inject({
       method: 'PUT',
       url: `/api/v1/admin/cms/templates/${id}/content/en-US`,
@@ -121,7 +121,7 @@ describe('CMS reference protection (T078)', () => {
     return (res.json() as { data: { version: number } }).data.version;
   }
 
-  async function setPageContent(id: string, version: number, embedType: 'InsertBlock' | 'InsertTemplate', refCode: string) {
+  async function setPageContent(id: string, version: number, embedType: 'cms.InsertBlock' | 'cms.InsertTemplate', refCode: string) {
     const data = {
       root: { props: {} },
       content: [{ type: embedType, props: { code: refCode } }],
@@ -141,7 +141,7 @@ describe('CMS reference protection (T078)', () => {
     const stamp = Date.now();
     const block = await createBlock(`pb-block-${stamp}`);
     const page = await createPage(`pb-page-${stamp}`);
-    await setPageContent(page.id, page.version, 'InsertBlock', `pb-block-${stamp}`);
+    await setPageContent(page.id, page.version, 'cms.InsertBlock', `pb-block-${stamp}`);
 
     const blocked = await h.app.inject({
       method: 'DELETE',
@@ -156,7 +156,7 @@ describe('CMS reference protection (T078)', () => {
     const stamp = Date.now();
     const template = await createTemplate(`pt-tpl-${stamp}`);
     const page = await createPage(`pt-page-${stamp}`);
-    await setPageContent(page.id, page.version, 'InsertTemplate', `pt-tpl-${stamp}`);
+    await setPageContent(page.id, page.version, 'cms.InsertTemplate', `pt-tpl-${stamp}`);
 
     const blocked = await h.app.inject({
       method: 'DELETE',
@@ -171,7 +171,7 @@ describe('CMS reference protection (T078)', () => {
     const stamp = Date.now();
     const template = await createTemplate(`bt-tpl-${stamp}`);
     const host = await createBlock(`bt-block-${stamp}`);
-    await setBlockContent(host.id, host.version, 'InsertTemplate', `bt-tpl-${stamp}`);
+    await setBlockContent(host.id, host.version, 'cms.InsertTemplate', `bt-tpl-${stamp}`);
 
     const blocked = await h.app.inject({
       method: 'DELETE',
@@ -186,7 +186,7 @@ describe('CMS reference protection (T078)', () => {
     const stamp = Date.now();
     const block = await createBlock(`tb-block-${stamp}`);
     const host = await createTemplate(`tb-tpl-${stamp}`);
-    await setTemplateContent(host.id, host.version, 'InsertBlock', `tb-block-${stamp}`);
+    await setTemplateContent(host.id, host.version, 'cms.InsertBlock', `tb-block-${stamp}`);
 
     const blocked = await h.app.inject({
       method: 'DELETE',
@@ -239,7 +239,7 @@ describe('CMS reference protection (T078)', () => {
     const stamp = Date.now();
     const template = await createTemplate(`unblock-tpl-${stamp}`);
     const host = await createBlock(`unblock-block-${stamp}`);
-    const v1 = await setBlockContent(host.id, host.version, 'InsertTemplate', `unblock-tpl-${stamp}`);
+    const v1 = await setBlockContent(host.id, host.version, 'cms.InsertTemplate', `unblock-tpl-${stamp}`);
 
     const blocked = await h.app.inject({
       method: 'DELETE',
@@ -248,7 +248,7 @@ describe('CMS reference protection (T078)', () => {
     });
     expect(blocked.statusCode).toBe(409);
 
-    await setBlockContent(host.id, v1, 'InsertBlock', null);
+    await setBlockContent(host.id, v1, 'cms.InsertBlock', null);
 
     const ok = await h.app.inject({
       method: 'DELETE',

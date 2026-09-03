@@ -36,7 +36,7 @@ describe('newsletter send worker runtime (Principle X)', () => {
     const campaign = em.create(NewsletterCampaign, {
       name: 'RT',
       subject: 'Hi {{var subscriber.email}}',
-      content: { root: { props: {} }, content: [{ type: 'EmailText', props: { id: 't', text: 'Body' } }], zones: {} },
+      content: { root: { props: {} }, content: [{ type: 'transactional_emails.EmailText', props: { id: 't', text: 'Body' } }], zones: {} },
       language: 'en-US',
       targetType: 'all',
     });

@@ -11,7 +11,7 @@ import type { SettingsService } from '../../../src/kernel/settings/settings.serv
 import { NewsletterSubscriber, NewsletterSubscriberTag, NewsletterTag } from '../../helpers/package-entities.js';
 
 function textTree(text: string): Record<string, unknown> {
-  return { root: { props: {} }, content: [{ type: 'EmailText', props: { id: 't', text } }], zones: {} };
+  return { root: { props: {} }, content: [{ type: 'transactional_emails.EmailText', props: { id: 't', text } }], zones: {} };
 }
 
 describe('newsletter campaign service (US2)', () => {

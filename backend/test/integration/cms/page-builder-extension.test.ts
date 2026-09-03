@@ -4,6 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import {
   registerTestExtension,
@@ -55,6 +56,18 @@ describe('CMS Page Builder extension SPI (T086)', () => {
 
   it('exposes the registered component via GET /page-builder/config', async () => {
     registerTestExtension(h.cms.pageBuilderRegistry);
+    // Feature 096, FR-010 — the descriptor is filtered on each name's own owner
+    // segment, and `test_ext` is a **synthetic** module the lifecycle registry
+    // has never heard of, so without this the SPI's own fixture is correctly
+    // absent from its own assertion. Seeding the id into the registry cache is
+    // the established shape for a module a test builds for itself (it is what
+    // `check:off-state-coverage` recognises for `fixture_gated` and
+    // `demo_carrier`), and it makes the presence filter part of what this test
+    // exercises rather than something it has to work around.
+    registryCache.__setEnabledForTesting([
+      ...registryCache.enabledIds(),
+      TEST_EXTENSION_MODULE_CODE,
+    ]);
 
     const res = await h.app.inject({
       method: 'GET',

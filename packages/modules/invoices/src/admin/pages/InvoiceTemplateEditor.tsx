@@ -7,7 +7,7 @@ import { Alert, AlertDescription, Button, Card, CardContent, PageHeader, SaveBut
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { PageBuilderHeaderActions } from '@endora-commerce/page-builder-admin';
 import { PageBuilderOverlayBridge } from '@endora-commerce/page-builder-admin';
-import { invoicePuckConfig } from '../templates/invoice-puck-config.js';
+import { invoicePuckConfig, invoicePuckPalette } from '../templates/invoice-puck-config.js';
 import { createInvoiceBuilderEditorPlugin } from '../templates/invoice-builder-plugin.js';
 
 interface TemplateDetail {
@@ -28,6 +28,13 @@ const LANGUAGE = 'pl-PL';
  */
 const API_BASE = apiBaseUrl;
 const invoiceBuilderPlugin = createInvoiceBuilderEditorPlugin();
+
+/**
+ * The config Puck renders: the namespaced renderer map plus its one derived
+ * section (feature 096, T303). Built once at module scope because both halves
+ * are constants.
+ */
+const puckConfig = { ...invoicePuckConfig, categories: invoicePuckPalette };
 
 /**
  * Fill missing props from each component's `defaultProps`. Persisted trees
@@ -202,7 +209,7 @@ export function InvoiceTemplateEditor(): ReactNode {
               {loaded ? (
                 <Puck
                   key={`${id}:${LANGUAGE}:${canvasEpoch}`}
-                  config={invoicePuckConfig}
+                  config={puckConfig}
                   data={draft}
                   onChange={setDraft}
                   plugins={[invoiceBuilderPlugin]}

@@ -9,7 +9,7 @@ import { renderNewsletterEmail, withEmailBranding } from './content.service.js';
 function textTree(text: string): Record<string, unknown> {
   return {
     root: { props: {} },
-    content: [{ type: 'EmailText', props: { id: 't1', text } }],
+    content: [{ type: 'transactional_emails.EmailText', props: { id: 't1', text } }],
     zones: {},
   };
 }
@@ -66,14 +66,14 @@ describe('renderNewsletterEmail', () => {
       root: { props: {} },
       content: [
         {
-          type: 'EmailSection',
+          type: 'transactional_emails.EmailSection',
           props: { id: 'sec', backgroundColor: '#ffffff', paddingY: 8, paddingX: 16 },
         },
       ],
       zones: {
         'sec:content': [
           {
-            type: 'EmailRichText',
+            type: 'transactional_emails.EmailRichText',
             props: {
               content: null,
               html: '<p>Hello {{var subscriber.firstName}}</p>',

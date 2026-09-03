@@ -12,23 +12,23 @@ export interface InvoiceComponentField {
 
 export interface InvoiceComponentDescriptor {
   name: string;
-  ownerModule: 'invoices';
+  ownerModule: string;
   label: string;
   fields: Record<string, InvoiceComponentField>;
 }
 
 const LABELS: Record<string, string> = {
-  InvoiceHeader: 'Header (number + dates)',
-  InvoiceParties: 'Seller & buyer',
-  InvoiceLineItems: 'Line items table',
-  InvoiceVatSummary: 'VAT summary',
-  InvoiceTotals: 'Totals & amount in words',
-  InvoiceNotes: 'Notes (free text)',
-  InvoiceKsef: 'KSeF verification',
-  InvoiceSpacer: 'Spacer',
-  InvoiceDivider: 'Divider',
-  InvoiceLogo: 'Logo',
-  InvoiceFooter: 'Footer / legal',
+  'invoices.InvoiceHeader': 'Header (number + dates)',
+  'invoices.InvoiceParties': 'Seller & buyer',
+  'invoices.InvoiceLineItems': 'Line items table',
+  'invoices.InvoiceVatSummary': 'VAT summary',
+  'invoices.InvoiceTotals': 'Totals & amount in words',
+  'invoices.InvoiceNotes': 'Notes (free text)',
+  'ksef.InvoiceSection': 'KSeF verification',
+  'invoices.InvoiceSpacer': 'Spacer',
+  'invoices.InvoiceDivider': 'Divider',
+  'invoices.InvoiceLogo': 'Logo',
+  'invoices.InvoiceFooter': 'Footer / legal',
 };
 
 const YES_NO = [
@@ -46,7 +46,7 @@ const SHARED_MARGIN: Record<string, InvoiceComponentField> = {
 };
 
 const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
-  InvoiceHeader: {
+  'invoices.InvoiceHeader': {
     titleSize: { type: 'number', label: 'Title size' },
     titleColor: { type: 'color', label: 'Title color' },
     titleBold: radio('Title bold'),
@@ -69,7 +69,7 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     labelPaymentMethod: { type: 'text', label: 'Payment method label' },
     ...SHARED_MARGIN,
   },
-  InvoiceParties: {
+  'invoices.InvoiceParties': {
     sellerLabel: { type: 'text', label: 'Seller label' },
     buyerLabel: { type: 'text', label: 'Buyer label' },
     showSellerBank: radio('Show seller bank'),
@@ -81,7 +81,7 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     sellerWidthPercent: { type: 'number', label: 'Seller width %' },
     ...SHARED_MARGIN,
   },
-  InvoiceLineItems: {
+  'invoices.InvoiceLineItems': {
     fontSize: { type: 'number', label: 'Font size' },
     headerBold: radio('Header bold'),
     headerBackground: { type: 'color', label: 'Header background' },
@@ -96,7 +96,7 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     showGross: radio('Show gross value'),
     ...SHARED_MARGIN,
   },
-  InvoiceVatSummary: {
+  'invoices.InvoiceVatSummary': {
     fontSize: { type: 'number', label: 'Font size' },
     headerBold: radio('Header bold'),
     headerBackground: { type: 'color', label: 'Header background' },
@@ -106,7 +106,7 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     totalLabel: { type: 'text', label: 'Total row label' },
     ...SHARED_MARGIN,
   },
-  InvoiceTotals: {
+  'invoices.InvoiceTotals': {
     align: {
       type: 'select',
       label: 'Align',
@@ -131,7 +131,7 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     labelInWords: { type: 'text', label: 'In words label' },
     ...SHARED_MARGIN,
   },
-  InvoiceNotes: {
+  'invoices.InvoiceNotes': {
     text: { type: 'textarea', label: 'Notes text' },
     align: {
       type: 'select',
@@ -149,7 +149,7 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     showTopDivider: radio('Top divider'),
     ...SHARED_MARGIN,
   },
-  InvoiceKsef: {
+  'ksef.InvoiceSection': {
     fontSize: { type: 'number', label: 'Font size' },
     color: { type: 'color', label: 'Text color' },
     showProcessedAt: radio('Show processed at'),
@@ -158,11 +158,11 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     labelProcessedAt: { type: 'text', label: 'Processed at label' },
     ...SHARED_MARGIN,
   },
-  InvoiceSpacer: {
+  'invoices.InvoiceSpacer': {
     height: { type: 'number', label: 'Height (px)' },
     backgroundColor: { type: 'color', label: 'Background color' },
   },
-  InvoiceDivider: {
+  'invoices.InvoiceDivider': {
     thickness: { type: 'number', label: 'Thickness (px)' },
     color: { type: 'color', label: 'Color' },
     style: {
@@ -185,7 +185,7 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     },
     marginY: { type: 'number', label: 'Vertical margin (px)' },
   },
-  InvoiceLogo: {
+  'invoices.InvoiceLogo': {
     imageSource: {
       type: 'select',
       label: 'Image source',
@@ -209,7 +209,7 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     },
     marginBottom: { type: 'number', label: 'Margin bottom (px)' },
   },
-  InvoiceFooter: {
+  'invoices.InvoiceFooter': {
     text: { type: 'textarea', label: 'Footer text' },
     align: {
       type: 'select',
@@ -234,7 +234,11 @@ export const INVOICE_PAGE_BUILDER_DESCRIPTOR = {
   components: INVOICE_COMPONENT_NAMES.map(
     (name): InvoiceComponentDescriptor => ({
       name,
-      ownerModule: 'invoices',
+      // Derived from the name's owner segment rather than asserted: ten of the
+      // eleven are `invoices`' and the eleventh, `ksef.InvoiceSection`, is
+      // `ksef`'s (feature 096, T201). A literal here would have said `invoices`
+      // for a block `invoices` does not own.
+      ownerModule: name.slice(0, name.indexOf('.')),
       label: LABELS[name] ?? name,
       fields: FIELDS[name] ?? {},
     }),

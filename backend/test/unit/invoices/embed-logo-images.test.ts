@@ -32,7 +32,7 @@ describe('embedInvoiceLogoImages', () => {
     const tree = {
       content: [
         {
-          type: 'InvoiceLogo',
+          type: 'invoices.InvoiceLogo',
           props: {
             imageSource: 'library',
             assetId,
@@ -54,7 +54,7 @@ describe('embedInvoiceLogoImages', () => {
     const tree = {
       content: [
         {
-          type: 'InvoiceLogo',
+          type: 'invoices.InvoiceLogo',
           props: {
             src: 'http://localhost:3001/assets/file/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
           },
@@ -79,8 +79,8 @@ describe('logoSection + InvoicePdfRenderer with embedded logo', () => {
     const dataUri = toImageDataUri(PNG_1X1, 'image/png')!;
     const tree = {
       content: [
-        { type: 'InvoiceLogo', props: { src: dataUri, width: 80, maxHeight: 40 } },
-        { type: 'InvoiceHeader', props: {} },
+        { type: 'invoices.InvoiceLogo', props: { src: dataUri, width: 80, maxHeight: 40 } },
+        { type: 'invoices.InvoiceHeader', props: {} },
       ],
     };
     const buf = await new InvoicePdfRenderer().render(sampleInvoiceDetail(), 'en', tree);
@@ -95,14 +95,14 @@ describe('logoSection + InvoicePdfRenderer with embedded logo', () => {
     const tree = {
       content: [
         {
-          type: 'InvoiceLogo',
+          type: 'invoices.InvoiceLogo',
           props: {
             imageSource: 'library',
             assetId,
             src: `http://localhost:3001/assets/file/${assetId}`,
           },
         },
-        { type: 'InvoiceHeader', props: {} },
+        { type: 'invoices.InvoiceHeader', props: {} },
       ],
     };
     const buf = await renderer.render(sampleInvoiceDetail(), 'en', tree);

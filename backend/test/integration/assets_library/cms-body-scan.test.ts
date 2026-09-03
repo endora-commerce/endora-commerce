@@ -60,7 +60,7 @@ describe('cms body scan (T093)', () => {
         'en-US': {
           root: { props: {} },
           content: [
-            { type: 'Heading', props: { level: 1, text: 'See:' } },
+            { type: 'cms.Heading', props: { level: 1, text: 'See:' } },
             { type: 'LibraryImage', props: { assetId: asset.id, alt: 'embedded' } },
           ],
         },
@@ -99,7 +99,7 @@ describe('cms body scan (T093)', () => {
       languages: {
         'en-US': {
           root: { props: {} },
-          content: [{ type: 'Heading', props: { level: 1, text: 'See: nothing.' } }],
+          content: [{ type: 'cms.Heading', props: { level: 1, text: 'See: nothing.' } }],
         },
       },
     };

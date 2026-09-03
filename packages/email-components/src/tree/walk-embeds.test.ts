@@ -5,11 +5,11 @@ import { EMAIL_SAFE_COMPONENT_NAMES } from '../schema/component-types.js';
 const tree = {
   root: { props: {} },
   content: [
-    { type: 'EmailInsertBlock', props: { code: 'header' } },
-    { type: 'EmailImage', props: { src: 'x', logoAssetId: 'asset-1' } },
-    { type: 'EmailInsertTemplate', props: { code: 'promo' } },
+    { type: 'transactional_emails.EmailInsertBlock', props: { code: 'header' } },
+    { type: 'transactional_emails.EmailImage', props: { src: 'x', logoAssetId: 'asset-1' } },
+    { type: 'transactional_emails.EmailInsertTemplate', props: { code: 'promo' } },
     { type: 'NotSafe', props: {} },
-    { type: 'EmailInsertBlock', props: { code: '' } },
+    { type: 'transactional_emails.EmailInsertBlock', props: { code: '' } },
   ],
 };
 
@@ -29,7 +29,7 @@ describe('walk-embeds', () => {
   it('flags components not in the known set (legacy InsertTemplate is withdrawn)', () => {
     const known = new Set<string>(EMAIL_SAFE_COMPONENT_NAMES);
     expect([...walkUnknownComponents(tree, known)].sort()).toEqual(
-      ['EmailInsertTemplate', 'NotSafe'].sort(),
+      ['transactional_emails.EmailInsertTemplate', 'NotSafe'].sort(),
     );
   });
 
@@ -39,7 +39,7 @@ describe('walk-embeds', () => {
       root: { props: {} },
       content: [
         {
-          type: 'EmailRichText',
+          type: 'transactional_emails.EmailRichText',
           props: {
             align: 'left',
             html: '<p>Hello <strong>world</strong></p>',

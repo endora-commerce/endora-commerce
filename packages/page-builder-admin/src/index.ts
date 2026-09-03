@@ -74,5 +74,6 @@ export { PageBuilderColorPaletteProvider } from './chrome/ColorPaletteProvider.j
 export { ColorPaletteModal } from './chrome/ColorPaletteModal.js';
 export {
   getPageBuilderColorPalette,
+  getPageBuilderDescriptor,
   putPageBuilderColorPalette,
 } from './chrome/cms-page-builder-api.js';

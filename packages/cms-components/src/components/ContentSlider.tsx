@@ -113,8 +113,8 @@ const contentSliderConfig: ComponentConfig<ContentSliderProps> = {
       type: 'slot',
       label: 'Slides',
       // Row is accepted then wrapped into a Slide by the page-builder onAction handler.
-      allow: ['Slide', 'Row'],
-      disallow: ['Column', 'ContentSlider'],
+      allow: ['cms.Slide', 'cms.Row'],
+      disallow: ['cms.Column', 'cms.ContentSlider'],
     },
     slidesPerView: {
       type: 'select',

@@ -61,7 +61,10 @@ const sidebars = {
           type: 'category',
           label: 'Runbooks',
           link: { type: 'generated-index', title: 'Runbooks' },
-          items: ['operations/runbooks/module-lifecycle-stuck-lock'],
+          items: [
+            'operations/runbooks/block-name-migration',
+            'operations/runbooks/module-lifecycle-stuck-lock',
+          ],
         },
       ],
     },

@@ -10,8 +10,8 @@ describe('walkAssetIds', () => {
   it('collects assetId values from any nested props', () => {
     const tree = {
       content: [
-        { type: 'Image', props: { assetId: 'A', alt: 'x' } },
-        { type: 'Button', props: { iconAssetId: 'B' } },
+        { type: 'cms.Image', props: { assetId: 'A', alt: 'x' } },
+        { type: 'cms.Button', props: { iconAssetId: 'B' } },
         { type: 'Card', props: { mainImageAssetId: 'C', child: { props: { assetId: 'D' } } } },
       ],
     };
@@ -28,10 +28,10 @@ describe('walkBlockEmbeds + walkTemplateEmbeds', () => {
   it('collects InsertBlock + InsertTemplate codes by type, ignoring other types', () => {
     const tree = {
       content: [
-        { type: 'InsertBlock', props: { code: 'block-1' } },
-        { type: 'InsertBlock', props: { code: 'block-2' } },
-        { type: 'InsertTemplate', props: { code: 'tpl-1' } },
-        { type: 'Text', props: { code: 'should-be-ignored' } },
+        { type: 'cms.InsertBlock', props: { code: 'block-1' } },
+        { type: 'cms.InsertBlock', props: { code: 'block-2' } },
+        { type: 'cms.InsertTemplate', props: { code: 'tpl-1' } },
+        { type: 'cms.Text', props: { code: 'should-be-ignored' } },
       ],
     };
     expect(Array.from(walkBlockEmbeds(tree)).sort()).toEqual(['block-1', 'block-2']);
@@ -41,12 +41,12 @@ describe('walkBlockEmbeds + walkTemplateEmbeds', () => {
 
 describe('walkUnknownComponents', () => {
   it('returns components whose type is not in the known set', () => {
-    const known = new Set(['Row', 'Text']);
+    const known = new Set(['cms.Row', 'cms.Text']);
     const tree = {
       content: [
-        { type: 'Row', props: {} },
+        { type: 'cms.Row', props: {} },
         { type: 'TestCallout', props: { title: 'hi' } },
-        { type: 'Text', props: { html: '' } },
+        { type: 'cms.Text', props: { html: '' } },
         { type: 'Mystery', props: {} },
       ],
     };
