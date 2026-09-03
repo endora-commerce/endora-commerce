@@ -19,10 +19,19 @@
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+
+import ts from 'typescript';
 
 import { SUPPORTED_LANGUAGES } from '@endora-commerce/contracts';
 
+import {
+  barrelKeyOf,
+  publishedSurface,
+  PUBLISHED_SUBPATHS,
+  type HostPackage,
+  type PlatformSurface,
+} from '../lib/platform-surface.js';
 import { readSizeRefusal, type ReadCoverage, type ReadSizeInput } from '../lib/read-size.js';
 import { checkBundlePairing, type ModuleUnderCheck } from '../rules/bundle-pairing.js';
 import {
@@ -41,6 +50,51 @@ import {
   type ScannedFile,
 } from '../rules/nul-bytes.js';
 import {
+  analyzeSource as channelAnalyse,
+  collectChannelSources,
+} from '../rules/channel-resolution.js';
+import {
+  checkDefaultLanguageProse,
+  collectProseSources,
+  DETECTED_LANGUAGES,
+  isScannedPath as defaultLanguageProseOpens,
+  ledgerKey as proseLedgerKey,
+} from '../rules/default-language-prose.js';
+import {
+  checkDiacriticFolds,
+  collectFoldSources,
+  isScannablePath as foldsScannablePath,
+} from '../rules/diacritic-folds.js';
+import {
+  collectEntryScopeSources,
+  declaredProgramEntryPoints,
+  findEntrySites,
+  keyOf as entryScopeKeyOf,
+  violationsOf as entryScopeViolations,
+} from '../rules/entry-scope.js';
+import {
+  analyzeSource as relationAnalyse,
+  collectSources as collectRelationSources,
+  findingKey as relationKey,
+  isViolation as isRelationViolation,
+  RELATION_DECORATOR_HINT,
+} from '../rules/kernel-boundary.js';
+import {
+  checkPlatformSurface,
+  collectPlatformSurfaceSources,
+  keyOf as platformSurfaceKeyOf,
+  remedyOf as platformSurfaceRemedy,
+} from '../rules/platform-surface.js';
+import {
+  checkPortShape,
+  collectPortShapeSources,
+} from '../rules/port-shape.js';
+import {
+  checkTransactionContext,
+  collectTransactionSources,
+  keyOf as transactionKeyOf,
+} from '../rules/transaction-context.js';
+import {
   checkSubscribeSeam,
   checkWorkerSeam,
   collectSeamFiles,
@@ -49,7 +103,7 @@ import {
 } from '../rules/subscribe-seam.js';
 
 import { estateEntry, type EstateEntry } from './estate.js';
-import { layerExpectation, type PackageLayout } from './layout.js';
+import { isFile, layerExpectation, type PackageLayout } from './layout.js';
 import type { Finding, RuleResult } from './run.js';
 
 /** A rule's package-scope host. Pure but for reading the package off disk. */
@@ -242,7 +296,7 @@ const bundlePairing: PackageRuleHost = (layout) => {
     );
   }
 
-  const bundlesDir = manifest.i18n?.bundlesDir ?? null;
+  const bundlesDir = manifest.bundlesDir;
   if (bundlesDir === null || bundlesDir.length === 0) {
     return notApplicable(id, absentDeclaration(entry));
   }
@@ -433,11 +487,557 @@ const commandCoverage: PackageRuleHost = (layout) => {
   );
 };
 
+/* ------------------------------------------------------- channel:resolution */
+
+/**
+ * Constitution XII — the request's sales channel is resolved once, by the
+ * canonical resolver, and no module re-derives it.
+ *
+ * Unconditional: every module's backend sources are the subject, and there is
+ * no declaration a package can decline to make. This repository's rollout
+ * allow-list does not travel — a stranger's package is in no rollout of ours —
+ * so every violation is blocking.
+ */
+const channelResolution: PackageRuleHost = (layout) => {
+  const id = 'channel:resolution';
+  const entry = entryOf(id);
+  const files = collectChannelSources(layout.sourceRoot);
+  const coverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const readSize: ReadSizeInput = {
+    prefix: '[channel-resolution]',
+    files: files.length,
+    coverage: [coverage],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  const findings = files.flatMap((file) =>
+    channelAnalyse(readFileSync(file, 'utf8'), layout.keyOf(file)),
+  );
+
+  return ran(
+    id,
+    readSize,
+    findings.map((violation) => ({
+      rule: id,
+      key: `${violation.file}|${violation.kind}|${violation.line}`,
+      location: `${violation.file}:${violation.line}`,
+      message:
+        `${violation.kind}: ${violation.detail}. The current sales channel is resolved once, ` +
+        `by the platform's own resolver, and read through \`getResolvedChannel()\` — a module ` +
+        `that re-derives it answers a different question from the one the request asked ` +
+        `(Constitution XII).`,
+    })),
+  );
+};
+
+/* -------------------------------------------------- default-language-prose */
+
+/**
+ * The owner ruling of 2026-09-01, clause 1: a module's own prose is English by
+ * default.
+ *
+ * Unconditional, and the ledger is the **package's** — this repository's shards
+ * are a statement about its own 46 sites and a stranger's package predates none
+ * of them, so the analysis is handed no shard and the author's own
+ * acknowledgements are applied by `ledger.ts` over every rule at once.
+ *
+ * Detection is Polish only, which is the rule's declared bound rather than this
+ * host's: `DETECTED_LANGUAGES` is reconciled against the platform's shipped
+ * languages on the `read:` line, so a third shipped language is a short walk
+ * here exactly as it is in this repository.
+ */
+const defaultLanguageProse: PackageRuleHost = (layout) => {
+  const id = 'check:default-language-prose';
+  const entry = entryOf(id);
+  const files = collectProseSources(layout.sourceRoot);
+  // The rule's own membership predicate, not a `.ts` test: this walk prunes
+  // `migrations` by design (an applied migration cannot be edited, so a ledger
+  // entry over a literal in one would never drain), so a package that publishes
+  // a `./migrations` layer must not be reported short for a layer the rule
+  // excludes.
+  const coverage = coverageOf(layout, files, (path) =>
+    defaultLanguageProseOpens(path, layout.sourceRoot),
+  );
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const languages = [...SUPPORTED_LANGUAGES];
+  const detectable = languages.filter(
+    (language) => language === 'en' || DETECTED_LANGUAGES.includes(language.split('-')[0] ?? ''),
+  );
+  const sources = new Map(files.map((file) => [layout.keyOf(file), readFileSync(file, 'utf8')]));
+  const result = checkDefaultLanguageProse({ sources, languages }, [], () => layout.moduleId);
+  const readSize: ReadSizeInput = {
+    prefix: '[default-language-prose]',
+    files: sources.size,
+    sites: result.classified,
+    coverage: [
+      coverage,
+      { source: 'detected-languages', expected: languages.length, covered: detectable.length },
+    ],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  return ran(
+    id,
+    readSize,
+    result.violations.map((site) => ({
+      rule: id,
+      key: proseLedgerKey(site),
+      location: `${site.file}:${site.line}`,
+      message: `${site.kind}: ${site.language} prose in a ${site.placement} — ${site.text}`,
+    })),
+  );
+};
+
+/* ------------------------------------------------------- diacritic-folds */
+
+/**
+ * Issues #240 and #245 — the fold and the slug builder have one owner.
+ *
+ * The package is one population root, and `SHARED_FOLD_HELPER` is *right* to
+ * match nothing here: a package has no exempt file. It imports `foldDiacritics`
+ * and `slugify` from `@endora-commerce/contracts` like every other consumer,
+ * which is exactly what the exemption exists to make true — so both ledgers are
+ * empty and every finding is blocking.
+ */
+const diacriticFolds: PackageRuleHost = (layout) => {
+  const id = 'check:diacritic-folds';
+  const entry = entryOf(id);
+  // One root, named after the package's own source directory, so the rule's
+  // population predicate answers for a package-relative key exactly as it does
+  // for a repo-relative one.
+  const rootName = layout.keyOf(layout.sourceRoot);
+  const roots = { [rootName]: 'the package under check — its whole source tree.' };
+
+  const scanned: { path: string; source: string }[] = [];
+  for (const file of collectFoldSources(layout.sourceRoot)) {
+    const path = layout.keyOf(file);
+    if (!foldsScannablePath(path, roots)) continue;
+    scanned.push({ path, source: readFileSync(file, 'utf8') });
+  }
+  const coverage = coverageOf(
+    layout,
+    scanned.map((file) => join(layout.packageRoot, file.path)),
+    // `layerExpectation` hands an **absolute** layer entry; the rule's predicate
+    // reads the key namespace the walk keyed with, so it is asked in that one.
+    (absolute) => foldsScannablePath(layout.keyOf(absolute), roots),
+  );
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const result = checkDiacriticFolds(scanned, {}, {}, roots);
+  const readSize: ReadSizeInput = {
+    prefix: '[diacritic-folds]',
+    files: result.scanned,
+    sites: result.replaceSites,
+    coverage: [coverage],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  return ran(
+    id,
+    readSize,
+    result.violations.map((finding) => ({
+      rule: id,
+      key: `${finding.kind}|${finding.path}|${finding.literal}`,
+      location: `${finding.path}:${finding.line}:${finding.column}`,
+      message:
+        `${finding.kind}: ${finding.literal}. Import \`foldDiacritics\` or \`slugify\` from ` +
+        `\`@endora-commerce/contracts\` — the obvious one-liner reads as complete and is ` +
+        `not: \`ł\` has no canonical decomposition, so NFD leaves it alone and the strip ` +
+        `has nothing to remove.`,
+    })),
+  );
+};
+
+/* ------------------------------------------------------------- entry-scope */
+
+/**
+ * Feature 072 FR-020 — a non-HTTP entry point establishes its own scope.
+ *
+ * The subject is a `package.json` script running a source path, a worker, a
+ * repeating timer or a `process.on` handler. A package with none of those has
+ * nothing to scope, and the rule says so rather than reporting clean over a
+ * population it never had (`exit-reduction.md` §2).
+ */
+const entryScope: PackageRuleHost = (layout) => {
+  const id = 'check:entry-scope';
+  const entry = entryOf(id);
+  const files = collectEntryScopeSources(layout.sourceRoot);
+  const coverage = coverageOf(layout, files, (path) => path.endsWith('.ts') && !path.endsWith('.d.ts'));
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const declared = declaredProgramsOf(layout);
+  const sites = files.flatMap((file) =>
+    findEntrySites(file, readFileSync(file, 'utf8'), declared, layout.keyOf),
+  );
+  if (sites.length === 0) return notApplicable(id, absentDeclaration(entry));
+
+  const readSize: ReadSizeInput = {
+    prefix: '[entry-scope]',
+    files: files.length,
+    sites: sites.length,
+    coverage: [coverage],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  return ran(
+    id,
+    readSize,
+    entryScopeViolations(sites, {}).map((site) => ({
+      rule: id,
+      key: entryScopeKeyOf(site),
+      location: `${site.file}:${site.line}`,
+      message:
+        `${site.kind}/${site.construct} in \`${site.scheduler}\` establishes no scope. A ` +
+        `non-HTTP entry point has no caller to answer, so it opens its own: call ` +
+        `\`enterPlatformScope\` or \`enterSystemScope\` in the callback itself.`,
+    })),
+  );
+};
+
+/* ---------------------------------------------------------- kernel-boundary */
+
+/**
+ * Feature 072 D-32, rule A — an ORM relation stays inside its own module or
+ * points at the platform.
+ *
+ * Rules B and C are the platform roots' and a package holds none; they are
+ * declared unevaluated on this rule's line rather than counted zero.
+ */
+const kernelBoundary: PackageRuleHost = (layout) => {
+  const id = 'check:kernel-boundary';
+  const entry = entryOf(id);
+  const files = collectRelationSources(layout.sourceRoot);
+  const coverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const hostResident = hostResidentOf(layout);
+  const relationFiles = files.filter((file) =>
+    RELATION_DECORATOR_HINT.test(readFileSync(file, 'utf8')),
+  );
+  const readSize: ReadSizeInput = {
+    prefix: '[kernel-boundary]',
+    files: files.length,
+    sites: relationFiles.length,
+    coverage: [coverage],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  const findings = relationFiles.flatMap((file) =>
+    relationAnalyse(readFileSync(file, 'utf8'), file, hostResident),
+  );
+
+  return ran(
+    id,
+    readSize,
+    findings.filter(isRelationViolation).map((finding) => ({
+      rule: id,
+      key: relationKey(finding),
+      location: layout.keyOf(finding.file),
+      message:
+        `${finding.className}.${finding.property} (@${finding.decorator}) relates ` +
+        `${finding.sourceOwner} -> ${finding.targetOwner}. A relation across a module ` +
+        `boundary is a foreign key the ORM will create, in a schema neither module can be ` +
+        `detached from (Constitution I). Reach the other module through its port instead.`,
+    })),
+  );
+};
+
+/* --------------------------------------------------------- platform-surface */
+
+/**
+ * D-160.8 — a module reaches only the platform surface the host publishes.
+ *
+ * The relative-specifier half is vacuous here and is declared vacuous rather
+ * than counted zero: a module in a package reaches the host by **bare**
+ * specifier only. The host package is the installed `@endora-commerce/platform`,
+ * whose barrels this run reads; without it every host reach is `unreadable` and
+ * no rule is reported clean on that basis.
+ */
+const platformSurface: PackageRuleHost = (layout) => {
+  const id = 'check:platform-surface';
+  const entry = entryOf(id);
+  const files = collectPlatformSurfaceSources(layout.sourceRoot);
+  const coverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const host = installedPlatform(layout);
+  if (host === null) {
+    return unreadable(
+      id,
+      `\`@endora-commerce/platform\` is not installed beside this package, so the surface ` +
+        `it publishes cannot be read and a reach into it cannot be judged. Install the ` +
+        `platform — a shorter published set reports *fewer* findings, which is why this is ` +
+        `a refusal rather than a clean run.`,
+      null,
+    );
+  }
+
+  const sources = new Map(files.map((file) => [layout.keyOf(file), readFileSync(file, 'utf8')]));
+  const readSize: ReadSizeInput = {
+    prefix: '[platform-surface]',
+    files: sources.size,
+    coverage: [
+      coverage,
+      { source: 'platform-barrels', expected: host.barrels, covered: host.barrels },
+    ],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  const result = checkPlatformSurface(
+    {
+      sources,
+      files: new Set(sources.keys()),
+      surface: host.surface,
+      moduleIdOf: () => layout.moduleId,
+      canonicalTargetOf: (target: string) => target,
+      host: host.package,
+      platformSourceRoot: host.sourceRoot,
+    },
+    {},
+  );
+
+  return ran(
+    id,
+    readSize,
+    result.violations.map((finding) => ({
+      rule: id,
+      key: platformSurfaceKeyOf(finding),
+      location: `${finding.file}:${finding.line}`,
+      message: `${finding.kind}: ${platformSurfaceRemedy(finding)}`,
+    })),
+  );
+};
+
+/* --------------------------------------------------------------- port-shape */
+
+/**
+ * D-97.3 and issue #192 — signals 1 and 2 on a published port.
+ *
+ * Signal 3 asks whether a module resolves a container name **no contract
+ * publishes**, which needs the published surface of every installed peer; it is
+ * declared unevaluated on the rule's own line. Both ledgers and both
+ * platform-name sets are empty, which is what makes the two signals that do run
+ * blocking.
+ */
+const portShape: PackageRuleHost = (layout) => {
+  const id = 'check:port-shape';
+  const entry = entryOf(id);
+  const ports = layout.layers.find((layer) => layer.subpath === './ports');
+  if (ports === undefined) return notApplicable(id, absentDeclaration(entry));
+
+  const portFiles = collectPortShapeSources(ports.directory);
+  const moduleFiles = collectPortShapeSources(layout.sourceRoot);
+  const coverage = coverageOf(layout, moduleFiles, opensTypeScript);
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const readSize: ReadSizeInput = {
+    prefix: '[port-shape]',
+    files: moduleFiles.length,
+    sites: portFiles.length,
+    coverage: [
+      coverage,
+      { source: 'ports-subpaths', expected: 1, covered: portFiles.length > 0 ? 1 : 0 },
+    ],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  const keyed = (list: readonly string[]): Map<string, string> =>
+    new Map(list.map((file) => [layout.keyOf(file), readFileSync(file, 'utf8')]));
+  const result = checkPortShape({
+    contracts: new Map(),
+    modules: keyed(moduleFiles),
+    modulePorts: keyed(portFiles),
+    hostResidentModules: hostResidentOf(layout),
+  });
+
+  // Signal 1 only. Signal 2 compares a doc block's container name to the name
+  // the port is **registered** under, and a port's provider is routinely another
+  // module — `orders` publishes `PaymentPlacementApplyPort` and `payments`
+  // registers it — so over one package every such port reads
+  // `container-name-unregistered`. That is the state §5 of
+  // `contracts/package-scope-layout.md` rules on: a port whose owner is not
+  // installed is `unreadable` **for that edge**, never unowned, because the
+  // wiring may be right and the map short. Both signals are declared on the
+  // rule's own line rather than counted zero.
+  return ran(
+    id,
+    readSize,
+    result.findings.map((finding) => ({
+      rule: id,
+      key: `${finding.kind}|${finding.portName}|${finding.member}`,
+      location: `${finding.file}:${finding.line}`,
+      message:
+        `${finding.kind}: ${finding.portName}.${finding.member} — feature detection through a ` +
+        `port is impossible by construction. \`lazyPort\`'s proxy answers every property ` +
+        `with a function, so \`if (port.maybe)\` is always true and the forward throws when ` +
+        `the provider has none.`,
+    })),
+  );
+};
+
+/* ------------------------------------------------------ transaction-context */
+
+/**
+ * Issue #200 — SQL written inside a transaction that does not run inside it.
+ *
+ * The subject is the package's backend sources, which is what an `exports`
+ * subpath publishing them declares. The ledger argument is the **package's**,
+ * never this repository's: `CONNECTION_LEVEL_SQL_IN_TRANSACTIONS` is a statement
+ * about this tree's debt and a stranger's package predates none of it, so the
+ * analysis is handed an empty map and the author's own acknowledgements are
+ * applied later, by `ledger.ts`, over every rule at once.
+ */
+const transactionContext: PackageRuleHost = (layout) => {
+  const id = 'check:transaction-context';
+  const entry = entryOf(id);
+  const files = collectTransactionSources(layout.sourceRoot);
+  const coverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const sources = new Map(files.map((file) => [layout.keyOf(file), readFileSync(file, 'utf8')]));
+  const readSize: ReadSizeInput = {
+    prefix: '[transaction-context]',
+    files: sources.size,
+    coverage: [coverage],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  const result = checkTransactionContext({ sources }, {});
+  return ran(
+    id,
+    readSize,
+    result.violations.map((escape) => ({
+      rule: id,
+      key: transactionKeyOf(escape),
+      location: `${escape.file}:${escape.line}`,
+      message:
+        `[${escape.scope}/${escape.shape}/${escape.direction}] ${escape.statement} — a ` +
+        `connection-level handle takes its own pooled connection, so this statement ` +
+        `commits the moment it runs: the enclosing rollback cannot reach it and a read ` +
+        `cannot see what the transaction has written. Use the EntityManager's own ` +
+        `\`em.execute(sql, params)\`, which passes the transaction context and is ` +
+        `identical outside a transaction.`,
+    })),
+  );
+};
+
+/** `[<package-relative source root>] -> <module id>`, the attribution a package declares. */
+function hostResidentOf(layout: PackageLayout): ReadonlyMap<string, string> {
+  return new Map([[layout.keyOf(layout.sourceRoot), layout.moduleId]]);
+}
+
+/**
+ * The `package.json` scripts that run a source path — `check:entry-scope`'s
+ * second population source (issue #228), spelled the same way its keys are.
+ */
+function declaredProgramsOf(layout: PackageLayout): ReadonlySet<string> {
+  try {
+    const manifest = JSON.parse(
+      readFileSync(join(layout.packageRoot, 'package.json'), 'utf8'),
+    ) as { scripts?: Record<string, string> };
+    return new Set(
+      declaredProgramEntryPoints(JSON.stringify({ scripts: manifest.scripts ?? {} })),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * The installed `@endora-commerce/platform`, its published barrels and the
+ * surface they declare — or `null` when it is not installed.
+ *
+ * `check:platform-surface` refuses rather than degrades on its absence, because
+ * a shorter published set reports *fewer* findings: the obvious repair for a
+ * finding is to widen the barrel, and the whole of D-160.8 is that the barrel is
+ * not widened quietly.
+ */
+function installedPlatform(layout: PackageLayout): {
+  readonly package: HostPackage;
+  readonly surface: PlatformSurface;
+  readonly sourceRoot: string;
+  readonly barrels: number;
+} | null {
+  const dir = join(layout.packageRoot, 'node_modules', '@endora-commerce', 'platform');
+  if (!isFile(join(dir, 'package.json'))) return null;
+  let manifest: { name?: string; exports?: Record<string, unknown> };
+  try {
+    manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as typeof manifest;
+  } catch {
+    return null;
+  }
+  const name = manifest.name;
+  if (typeof name !== 'string') return null;
+
+  const barrelSources = new Map<string, string>();
+  const barrelTargets = new Map<string, string>();
+  for (const subpath of PUBLISHED_SUBPATHS) {
+    const source = join(dir, 'src', subpath, 'index.ts');
+    if (!isFile(source)) continue;
+    barrelSources.set(barrelKeyOf(subpath), readFileSync(source, 'utf8'));
+    barrelTargets.set(subpath, barrelKeyOf(subpath));
+  }
+  if (barrelSources.size === 0) return null;
+
+  const surface = publishedSurface(barrelSources, (fromKey, specifier) =>
+    resolvePlatformTarget(fromKey, specifier, dir),
+  );
+  return {
+    package: { name, subpathTargets: barrelTargets },
+    surface,
+    sourceRoot: 'src',
+    barrels: barrelSources.size,
+  };
+}
+
+/** A barrel's relative specifier, resolved against the installed platform's sources. */
+function resolvePlatformTarget(fromKey: string, specifier: string, dir: string): string | null {
+  const from = join(dir, 'src', fromKey.replace(/^src\//, ''));
+  for (const candidate of [
+    resolve(dirname(from), `${specifier.replace(/\.js$/, '')}.ts`),
+    resolve(dirname(from), specifier.replace(/\.js$/, ''), 'index.ts'),
+  ]) {
+    if (isFile(candidate)) return posixKey(relative(dir, candidate));
+  }
+  return null;
+}
+
+function posixKey(path: string): string {
+  return path.split(sep).join('/');
+}
+
 /* ------------------------------------------------------------------ helpers */
+
+/** One palette action, as the emitted manifest declares it. */
+interface EmittedAction {
+  readonly id: string;
+  readonly targetRoute: string;
+  readonly requiredPermission?: string;
+}
 
 /** The manifest shape this run reads out of the package's root export. */
 interface EmittedManifest {
-  readonly i18n?: { readonly bundlesDir?: string };
+  readonly bundlesDir: string | null;
+  readonly actions: readonly EmittedAction[];
 }
 
 /**
@@ -446,28 +1046,81 @@ interface EmittedManifest {
  * A rule whose subject is something the platform *loads* reads the emitted file
  * — that is not a shortcut, it is the only thing a published package has, and
  * answering from source would make this command's verdict differ from the
- * platform's, which is the one thing a conformance command must not do.
+ * platform's, which is the one thing a conformance command must not do
+ * (`contracts/package-scope-layout.md` §4). The artefact's currency is decided
+ * first: a source strictly newer than its emitted target is `stale-artefact`,
+ * and is never answered from source as a convenience.
+ *
+ * It is read as **text through the compiler API** rather than `await import`ed,
+ * for two reasons and not one. A host is synchronous, which is Phase 1's shape
+ * and the reason the whole estate can be iterated in one pass; and an import
+ * evaluates whatever the artefact's own import graph reaches, which for a module
+ * is the platform an author may not have installed. Reading literal AST nodes
+ * costs the same discipline every analysis in this estate already keeps.
+ *
+ * **One reader, and it fails closed.** A field it cannot read as a literal is
+ * `null` / absent rather than guessed at, and the rule that needs it reports
+ * `unreadable` — never a clean run over a manifest this run could not see.
  */
 function readEmittedManifest(layout: PackageLayout): EmittedManifest | null {
   const root = layout.layers.find((layer) => layer.subpath === '.');
   if (root === undefined) return null;
   const artefact = join(layout.packageRoot, ...root.target.replace(/^\.\//, '').split('/'));
-  const source = root.entry;
   try {
     const artefactStat = statSync(artefact);
-    const sourceStat = statSync(source);
+    const sourceStat = statSync(root.entry);
     if (sourceStat.mtimeMs > artefactStat.mtimeMs) return null;
   } catch {
     return null;
   }
-  // The manifest's own declaration is read as text rather than imported: an
-  // `await import` of a module package's artefact drags in the platform, which
-  // an author who has not installed it does not have — and the question here is
-  // one literal field.
-  const text = readFileSync(artefact, 'utf8');
-  const match = /bundlesDir\s*:\s*'([^']+)'|bundlesDir\s*:\s*"([^"]+)"/.exec(text);
-  const dir = match?.[1] ?? match?.[2];
-  return dir === undefined ? {} : { i18n: { bundlesDir: dir } };
+
+  const sf = ts.createSourceFile(
+    artefact,
+    readFileSync(artefact, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  let bundlesDir: string | null = null;
+  const actions: EmittedAction[] = [];
+
+  const literal = (node: ts.Node | undefined): string | null =>
+    node !== undefined && ts.isStringLiteralLike(node) ? node.text : null;
+  const property = (
+    object: ts.ObjectLiteralExpression,
+    name: string,
+  ): ts.Expression | undefined =>
+    object.properties.find(
+      (member): member is ts.PropertyAssignment =>
+        ts.isPropertyAssignment(member) &&
+        (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) &&
+        member.name.text === name,
+    )?.initializer;
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const dir = literal(property(node, 'bundlesDir'));
+      if (dir !== null) bundlesDir = dir;
+      const declared = property(node, 'actions');
+      if (declared !== undefined && ts.isArrayLiteralExpression(declared)) {
+        for (const element of declared.elements) {
+          if (!ts.isObjectLiteralExpression(element)) continue;
+          const actionId = literal(property(element, 'id'));
+          const targetRoute = literal(property(element, 'targetRoute'));
+          if (actionId === null || targetRoute === null) continue;
+          const required = literal(property(element, 'requiredPermission'));
+          actions.push({
+            id: actionId,
+            targetRoute,
+            ...(required === null ? {} : { requiredPermission: required }),
+          });
+        }
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+
+  return { bundlesDir, actions };
 }
 
 /**
@@ -510,9 +1163,17 @@ export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   string,
   PackageRuleHost
 >([
+  ['channel:resolution', channelResolution],
   ['check:bundle-pairing', bundlePairing],
   ['check:command-coverage', commandCoverage],
   ['check:container-imports', containerImports],
+  ['check:default-language-prose', defaultLanguageProse],
+  ['check:diacritic-folds', diacriticFolds],
+  ['check:entry-scope', entryScope],
+  ['check:kernel-boundary', kernelBoundary],
   ['check:nul-bytes', nulBytes],
+  ['check:platform-surface', platformSurface],
+  ['check:port-shape', portShape],
   ['check:subscribe-seam', subscribeSeam],
+  ['check:transaction-context', transactionContext],
 ]);

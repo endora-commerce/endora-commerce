@@ -458,7 +458,11 @@ async function readOne(
     }
     for (const file of files) {
       state.filesRead += 1;
-      for (const declaration of declaredTableNames(readFileSync(file, 'utf8'), file)) {
+      for (const declaration of declaredTableNames(
+        readFileSync(file, 'utf8'),
+        file,
+        (className) => pluralize(toSnakeCase(className)),
+      )) {
         if (declaration.source !== 'migration') continue;
         state.tables.push({
           table: declaration.table,

@@ -69,7 +69,7 @@ describe('check-action-route-permissions — the three findings', () => {
     const result = analyse({
       sources: sources(gatedList),
       actions: [{ moduleId: 'inventory', actionId: 'open-inventory', targetRoute: '/inventory' }],
-    });
+    }, {});
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0]?.kind).toBe('missing');
     expect(result.findings[0]?.enforced).toBe('orders:read');
@@ -82,7 +82,7 @@ describe('check-action-route-permissions — the three findings', () => {
     const result = analyse({
       sources: sources(gatedList),
       actions: [action({ requiredPermission: 'catalog:write' })],
-    });
+    }, {});
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0]?.kind).toBe('mismatched');
     expect(result.findings[0]?.enforced).toBe('orders:read');
@@ -93,7 +93,7 @@ describe('check-action-route-permissions — the three findings', () => {
     const result = analyse({
       sources: sources(gatedList),
       actions: [action({ actionId: 'open-ghost', targetRoute: '/ghost', moduleId: 'ghosts' })],
-    });
+    }, {});
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0]?.kind).toBe('unresolvable');
     expect(result.findings[0]?.where).toContain('no /api/v1/admin route corresponds');
@@ -113,7 +113,7 @@ describe('check-action-route-permissions — the three findings', () => {
           requiredPermission: 'platform.modules.read',
         }),
       ],
-    });
+    }, {});
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0]?.kind).toBe('unresolvable');
     expect(result.findings[0]?.enforced).toBe('(ambiguous)');
@@ -127,14 +127,14 @@ describe('check-action-route-permissions — the three findings', () => {
         app.get('/api/v1/admin/inventory', { preHandler: guards[level] }, handler);
       `),
       actions: [{ moduleId: 'inventory', actionId: 'open-inventory', targetRoute: '/inventory' }],
-    });
+    }, {});
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0]?.kind).toBe('unresolvable');
     expect(result.findings[0]?.enforced).toBe('(unreadable gate)');
   });
 
   it('says nothing when the declared code is the one the route enforces', () => {
-    expect(analyse({ sources: sources(gatedList), actions: [action()] }).findings).toEqual([]);
+    expect(analyse({ sources: sources(gatedList), actions: [action()] }, {}).findings).toEqual([]);
   });
 });
 
@@ -146,17 +146,20 @@ describe('check-action-route-permissions — what "agrees" means', () => {
       }, handler);
     `;
     for (const code of ['customers:read', 'customers:manage']) {
-      const result = analyse({
-        sources: sources(text, 'modules/organizations/routes.admin.ts'),
-        actions: [
-          action({
-            moduleId: 'organizations',
-            actionId: 'open-organizations',
-            targetRoute: '/organizations',
-            requiredPermission: code,
-          }),
-        ],
-      });
+      const result = analyse(
+        {
+          sources: sources(text, 'modules/organizations/routes.admin.ts'),
+          actions: [
+            action({
+              moduleId: 'organizations',
+              actionId: 'open-organizations',
+              targetRoute: '/organizations',
+              requiredPermission: code,
+            }),
+          ],
+        },
+        {},
+      );
       expect(result.findings, `${code} should pass the any-of gate`).toEqual([]);
     }
   });
@@ -175,7 +178,7 @@ describe('check-action-route-permissions — what "agrees" means', () => {
           requiredPermission: 'catalog:read',
         }),
       ],
-    });
+    }, {});
     expect(result.findings[0]?.kind).toBe('mismatched');
     expect(result.findings[0]?.enforced).toBe('any of [customers:read, customers:manage]');
   });
@@ -206,7 +209,7 @@ describe('check-action-route-permissions — what "agrees" means', () => {
           requiredPermission: 'admin_users:manage',
         }),
       ],
-    });
+    }, {});
     expect(result.findings).toEqual([]);
   });
 });
@@ -266,7 +269,7 @@ describe('check-action-route-permissions — the gate spellings in the tree', ()
       expect(routes[0]?.clauses).toEqual([['orders:read']]);
       // And the comparison runs on it: a shape read but not compared is the
       // same green as a shape not read.
-      expect(analyse({ sources: sources(text), actions: [action()] }).findings).toEqual([]);
+      expect(analyse({ sources: sources(text), actions: [action()] }, {}).findings).toEqual([]);
     });
   }
 

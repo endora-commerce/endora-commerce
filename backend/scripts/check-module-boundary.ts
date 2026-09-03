@@ -423,7 +423,14 @@ import {
   type SqlAccessDirection,
   type SqlAccessSyntax,
 } from './lib/sql-tables.js';
-import { pluralize } from '../src/db/pluralizing-naming-strategy.js';
+import { pluralize, toSnakeCase } from '../src/db/pluralizing-naming-strategy.js';
+
+/**
+ * The convention an `@Entity()` with no `tableName` follows, handed to
+ * `declaredTableNames` rather than imported by it: the naming strategy is the
+ * application's and `lib/sql-tables.ts` is the package's (feature 101, Phase 2).
+ */
+const entityTableName = (className: string): string => pluralize(toSnakeCase(className));
 import {
   loadRegisteredModuleIds,
   modulePopulationCoverage,
@@ -1519,7 +1526,7 @@ export function buildTableOwners(
   for (const [file, text] of schema) {
     const owner = declaringOwnerOf(file, hostResident);
     if (owner === null) continue;
-    for (const declaration of declaredTableNames(text, file)) {
+    for (const declaration of declaredTableNames(text, file, entityTableName)) {
       const seen = declaration.source === 'entity' ? fromEntity : fromMigration;
       seen.add(declaration.table);
       if (declaration.source === 'entity') owners.set(declaration.table, owner);
