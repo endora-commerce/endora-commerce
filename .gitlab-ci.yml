@@ -417,6 +417,17 @@ quality:
     # No ledger, deliberately: an entry could only license a single-language
     # module, which is the thing the ruling forbids.
     - pnpm --filter backend run check:bundle-pairing
+    # Feature 073 (Constitution XVII item 6) —
+    # `specs/073-lifecycle-gating-completion/contracts/off-state-coverage-ratchet.md`.
+    # Which modules actually carry an off-state proof was re-derived by hand
+    # three times and gave three different answers, because both careful
+    # attempts keyed on the **path** a test file sits at: `payments` is named by
+    # six files and not one of them is under `payments/`, and `customers` was
+    # missed by both. The predicate is the **argument** of an
+    # `expectModuleAbsent` call, resolved through the shapes the tree writes —
+    # a bare `withModuleOff` is a state seam and never coverage, which is the
+    # tiering. It lands at zero findings with an empty ledger.
+    - pnpm --filter backend run check:off-state-coverage
     # `specs/094-translation-boundary/` — the same ruling's first clause: English
     # is the default, so a prose literal in another language, outside a
     # per-language structure, in a module's own sources is a defect. The second

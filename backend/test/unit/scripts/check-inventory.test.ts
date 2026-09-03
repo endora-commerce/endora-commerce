@@ -102,6 +102,16 @@ import {
   validBundle,
   type FixtureModule,
 } from '../../helpers/bundle-pairing-fixture.js';
+import {
+  checkOffStateCoverage,
+  harnessExportsCoverage,
+  vacuousOffStateCoverage,
+  type ModuleUnderCheck as OffStateModule,
+  type OffStateCoverageFindingKind,
+  type OffStateCoverageInput,
+  type VacuousInput as OffStateVacuousInput,
+  type VacuousReasonKind as OffStateVacuousReasonKind,
+} from '../../../scripts/check-off-state-coverage.js';
 import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
 import {
   checkAdminSurface,
@@ -2708,6 +2718,66 @@ function adminZoneFixture(overrides: Partial<AdminZoneFixture> = {}): AdminZoneF
     registered: ['catalog', 'inpost', 'assets_library'],
     ...overrides,
   };
+}
+
+/**
+ * `check-off-state-coverage`'s standing population: two modules with an
+ * operator axis and one locked. Small on purpose — the check's risk is the
+ * resolver, not the arithmetic over the set.
+ */
+const OFF_STATE_MODULES: readonly OffStateModule[] = [
+  { moduleId: 'blog', activationSettingCode: 'blog.enabled' },
+  { moduleId: 'seo', activationSettingCode: 'seo.enabled' },
+  { moduleId: 'orders', activationSettingCode: null },
+];
+
+/** One caller file, in the shape the walk hands the analysis. */
+function offStateFile(text: string, path = 'backend/test/integration/x/off-state.test.ts'): {
+  path: string;
+  text: string;
+} {
+  return { path, text };
+}
+
+const OFF_STATE_BLOG_PROOF = offStateFile(
+  "await expectModuleAbsent(h, 'blog', { routes: ['/api/v1/admin/blog/posts'] });",
+  'backend/test/integration/blog/off-state.test.ts',
+);
+const OFF_STATE_SEO_PROOF = offStateFile(
+  "await expectModuleAbsent(h, 'seo', { routes: ['/api/v1/admin/seo/sitemap'] });",
+  'backend/test/integration/seo/off-state.test.ts',
+);
+
+/** A harness exporting exactly the two names the predicate keys on. */
+const OFF_STATE_HARNESS_SOURCE = [
+  "export type OffStateAxis = 'deactivated' | 'platform-unavailable';",
+  'export async function withModuleOff(moduleId, axis, body) {}',
+  'export async function expectModuleAbsent(server, moduleId, surfaces) {}',
+].join('\n');
+
+/** Findings of exactly one kind, over source text, a module list and a ledger. */
+function offStateFindings(
+  input: OffStateCoverageInput,
+  kind: OffStateCoverageFindingKind,
+): number {
+  return checkOffStateCoverage(input).findings.filter((finding) => finding.kind === kind).length;
+}
+
+/** One vacuous refusal, over the record a real run hands in. */
+function offStateRefusals(
+  overrides: Partial<OffStateVacuousInput>,
+  kind: OffStateVacuousReasonKind,
+): number {
+  const reason = vacuousOffStateCoverage({
+    modules: OFF_STATE_MODULES,
+    files: [OFF_STATE_BLOG_PROOF, OFF_STATE_SEO_PROOF],
+    harness: {
+      path: 'backend/test/helpers/off-state.ts',
+      source: OFF_STATE_HARNESS_SOURCE,
+    },
+    ...overrides,
+  });
+  return reason?.kind === kind ? 1 : 0;
 }
 
 /**
@@ -6516,6 +6586,231 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // `specs/073-lifecycle-gating-completion/contracts/off-state-coverage-ratchet.md`
+    // — Constitution XVII item 6, held by an instrument instead of by hand.
+    //
+    // **The strongest argument in the estate for a check.** Which modules carry
+    // a real off-state proof was derived by hand three times and gave three
+    // different answers: 15 by one path predicate, 23 by a narrower one, and 20
+    // by reading the call arguments. Both careful attempts were wrong *in both
+    // directions at once* — they credited modules holding only a partial proof
+    // while charging `payments`, which is asserted from its six consumers and
+    // from no file under `payments/`, and they missed `customers` entirely.
+    //
+    // It lands at **zero findings with an empty ledger**, so nothing in the tree
+    // exercises it and this entry carries the whole weight — the same position
+    // `check:bundle-pairing` is in. Fourteen shapes: six findings, two resolver
+    // shapes, and the six vacuous refusals. Plus two discriminations that decide
+    // whether it lands green at all, and both are the fail-*closed* direction of
+    // a derivation that could otherwise be written as a path exclusion.
+    //
+    // Every proof enters over **source text**, a module list and a ledger — what
+    // a real run reads. The resolver is the whole of this check's risk (a
+    // fixture of pre-resolved subjects would prove four lines of set arithmetic
+    // and leave it unproven), and issue #130's defect was exactly a fixture
+    // handed the value its check normally computes.
+    script: 'backend/scripts/check-off-state-coverage.ts',
+    npmScript: 'check:off-state-coverage',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-off-state-coverage.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is the **manifest index**, and its walk is over
+    // `backend/test/**`. A moved *module* tree leaves both intact, so the
+    // `moved-module-tree` fixture would assert no discrimination — its own
+    // moved-tree case is vacuous condition (3), a test root that opened no file,
+    // and (5), a harness that is not where the check looks, both proven below.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'uncovered-module': top(() =>
+        offStateFindings(
+          { modules: OFF_STATE_MODULES, files: [OFF_STATE_BLOG_PROOF] },
+          'uncovered-module',
+        ),
+      ),
+      'unresolvable-subject': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile('await expectModuleAbsent(h, idFor(row), { routes: [r] });'),
+            ],
+          },
+          'unresolvable-subject',
+        ),
+      ),
+      'unknown-subject': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile("await expectModuleAbsent(h, 'no_such_module', { routes: [r] });"),
+            ],
+          },
+          'unknown-subject',
+        ),
+      ),
+      'stale-ledger-entry': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [OFF_STATE_BLOG_PROOF, OFF_STATE_SEO_PROOF],
+            ledger: { seo: 'a reason that has outlived its module' },
+          },
+          'stale-ledger-entry',
+        ),
+      ),
+      'orphan-ledger-entry': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [OFF_STATE_BLOG_PROOF, OFF_STATE_SEO_PROOF],
+            // `orders` is registered and locked; both directions of "not in the
+            // population" answer here, and neither is a module id nobody knows.
+            ledger: { orders: 'locked, so it has no operator axis' },
+          },
+          'orphan-ledger-entry',
+        ),
+      ),
+      'ledger-entry-without-a-reason': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [OFF_STATE_BLOG_PROOF],
+            ledger: { seo: '   ' },
+          },
+          'ledger-entry-without-a-reason',
+        ),
+      ),
+      // The resolver shape the sixteen `_admin_surfaces/batch-*` files use, and
+      // the one a naive resolver misses. It is proven through `unknown-subject`
+      // rather than through a green: drop the `it.each` binding and the kind
+      // becomes `unresolvable-subject`, so this count falls to zero and the
+      // proof goes red. On the real tree, dropping it turns nine correct sites
+      // into findings that are not there.
+      'resolver-reads-an-it-each-table': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile(
+                [
+                  "const SUBJECTS = [{ module: 'no_such_module' }];",
+                  "it.each(SUBJECTS)('$module', async (s) => {",
+                  '  await expectModuleAbsent(h, s.module, { routes: [r] });',
+                  '});',
+                ].join('\n'),
+              ),
+            ],
+          },
+          'unknown-subject',
+        ),
+      ),
+      // The tiering, asserted rather than assumed: a module named **only**
+      // through `withModuleOff` has an off-state mention and no off-state
+      // proof. If the two helpers were treated alike this count is zero.
+      'a-bare-withModuleOff-is-not-coverage': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              offStateFile("await withModuleOff('seo', 'deactivated', async () => {});"),
+            ],
+          },
+          'uncovered-module',
+        ),
+      ),
+      // The two discriminations. Both are the same derivation seen from the
+      // side where getting it wrong is *silent*: a synthetic module a file
+      // builds for itself, and a per-deployment overlay module the generated
+      // index does not carry (D-104), are excused — and the excuse is derived
+      // from the source text and from the deployments on disk, never from a
+      // path exclusion, which is the defect this whole check exists to replace.
+      // A seeding the analysis cannot read excuses nothing.
+      'unknown-subject-survives-an-unreadable-seeding': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile(
+                [
+                  'registryCache.__setEnabledForTesting(idsFromSomewhere());',
+                  "await expectModuleAbsent({ app }, 'fixture_gated', { routes: [r] });",
+                ].join('\n'),
+              ),
+            ],
+          },
+          'unknown-subject',
+        ),
+      ),
+      'unknown-subject-survives-an-undeclared-deployment': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile("await withModuleOff('example_overlay', 'deactivated', f);"),
+            ],
+            deploymentModules: [],
+          },
+          'unknown-subject',
+        ),
+      ),
+      'vacuous-no-registered-module': top(() =>
+        offStateRefusals({ modules: [] }, 'no-registered-module'),
+      ),
+      'vacuous-no-activation-control': top(() =>
+        offStateRefusals(
+          { modules: [{ moduleId: 'orders', activationSettingCode: null }] },
+          'no-activation-control',
+        ),
+      ),
+      'vacuous-no-caller-file': top(() => offStateRefusals({ files: [] }, 'no-caller-file')),
+      // The load-bearing one. With 46 switchable modules this state is reported
+      // as 46 findings — loud, and the opposite of the truth.
+      'vacuous-no-assertion-site': top(() =>
+        offStateRefusals(
+          { files: [offStateFile("await withModuleOff('blog', 'deactivated', f);")] },
+          'no-assertion-site',
+        ),
+      ),
+      'vacuous-harness-not-found': top(() =>
+        offStateRefusals(
+          { harness: { path: 'backend/test/helpers/off-state.ts', source: null } },
+          'harness-not-found',
+        ),
+      ),
+      // The sixth condition is a **short walk** against an independent
+      // derivation rather than a refusal of this check's own, so it is proven
+      // through the shared reporter — over harness *source text*, which is
+      // where a real run reads it.
+      'vacuous-third-harness-export': top(() => {
+        const coverage = harnessExportsCoverage(
+          `${OFF_STATE_HARNESS_SOURCE}\nexport async function expectModuleDegraded(s, id) {}`,
+        );
+        if (coverage.expected !== 3 || coverage.covered !== 2) return 0;
+        return readSizeRefusal({
+          prefix: '[off-state-coverage]',
+          files: 107,
+          sites: 198,
+          coverage: [coverage],
+        })?.kind === 'short-walk'
+          ? 1
+          : 0;
+      }),
+    },
+  },
+  {
     // `specs/094-translation-boundary/contracts/default-language-prose-check.md`
     // — the owner's ruling of 2026-09-01, clause 1: English is the default. The
     // **second signal** for that ruling, and a check of its own because neither
@@ -7727,6 +8022,13 @@ describe('every red proof enters at the top of the analysis', () => {
       // enter as a tree on disk rather than as bytes: a directory exclusion is
       // a decision the walk takes, and a record list is its output.
       'backend/scripts/check-nul-bytes.ts': 11,
+      // Six findings, two resolver shapes and the six vacuous refusals — the
+      // fourteen the contract tabulates — plus the two discriminations that
+      // decide whether it lands green: a synthetic module a file builds for
+      // itself and a per-deployment overlay module are excused, and both
+      // excuses are proven from the direction where getting them wrong is
+      // silent rather than loud.
+      'backend/scripts/check-off-state-coverage.ts': 16,
       // Three ways an artefact can be wrong, plus the fourth verdict's four
       // (feature 080, T030a): the leak, the two discriminations it must not get
       // backwards — a workspace member is not a foreign package, a core-tree
