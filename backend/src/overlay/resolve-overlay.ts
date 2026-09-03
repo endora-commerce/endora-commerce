@@ -29,6 +29,17 @@ function toPosix(p: string): string {
   return sep === '/' ? p : p.split(sep).join('/');
 }
 
+/**
+ * Deterministic list of the module directories directly under an overlay root.
+ *
+ * The whole of what an overlay scan is, since D-201 retired file shadowing:
+ * a deployment's overlay module owns every file it ships, so there is nothing
+ * inside one of these directories for the platform to classify.
+ */
+export function listOverlayModuleDirs(root: string): string[] {
+  return listModuleDirs(root);
+}
+
 /** Deterministic list of subdirectories (module folders) directly under `root`. */
 function listModuleDirs(root: string): string[] {
   if (!existsSync(root)) return [];

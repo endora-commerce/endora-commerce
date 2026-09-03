@@ -27,8 +27,10 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
 import type { ModuleEntry } from '../kernel/compose.js';
-import { activeOverlayModulesRoot, coreModulesRoot } from './overlay-roots.js';
-import { indexCore, scanOverlay } from './resolve-overlay.js';
+import { claimsOutsideTheOverlay } from '../packages/claimed-module-ids.js';
+import { assertNoModuleIdCollisions } from '../packages/module-id-claims.js';
+import { activeOverlayModulesRoot } from './overlay-roots.js';
+import { listOverlayModuleDirs } from './resolve-overlay.js';
 
 /**
  * The two spellings one unit has: `<stem>.js` in a compiled tree, `<stem>.ts`
@@ -99,12 +101,45 @@ export interface OverlayModuleManifest {
 function newOverlayModuleIds(env: NodeJS.ProcessEnv): { root: string; ids: string[] } | null {
   const overlayRoot = activeOverlayModulesRoot(env);
   if (overlayRoot === null) return null;
-  return { root: overlayRoot, ids: overlayModuleIdsUnder(overlayRoot) };
+  return { root: overlayRoot, ids: overlayModuleIdsUnder(overlayRoot, env) };
 }
 
-/** The module ids under one overlay modules root that core does not already own. */
-function overlayModuleIdsUnder(root: string): string[] {
-  return scanOverlay(root, indexCore(coreModulesRoot())).newModules;
+/**
+ * The overlay module ids under one overlay modules root, **and the one place
+ * their claim on those ids is checked** (feature 103, FR-004).
+ *
+ * Both overlay seams go through here — `overlayModuleManifestsUnder`, which is
+ * what `resolvedManifestEntries()` reads, and `overlayModuleEntriesUnder`,
+ * which is what a composition root composes — so the two cannot answer
+ * differently, which is exactly what they used to do: one dropped a colliding
+ * manifest with a `continue` while the other composed the module, leaving it
+ * with no registry row, no permission-catalogue entry and its routes gated on
+ * the effective state of somebody else's module of the same id.
+ *
+ * The claimed set is derived from what this instance ships and what is
+ * installed in it (`claimsOutsideTheOverlay`), never written down — so a module
+ * that arrives, moves or leaves changes the answer in the same run.
+ *
+ * This used to be `scanOverlay(root, indexCore(coreModulesRoot())).newModules`
+ * — a file-shadowing scan whose core index resolved `backend/src/modules`,
+ * which has held no module since F4. With the index empty **every** overlay
+ * directory came back as a new module claiming its id, unchecked (D-201).
+ */
+function overlayModuleIdsUnder(root: string, env: NodeJS.ProcessEnv): string[] {
+  const ids = listOverlayModuleDirs(root);
+  assertNoModuleIdCollisions([
+    ...claimsOutsideTheOverlay(env),
+    ...ids.map((id) => ({
+      id,
+      origin: 'overlay' as const,
+      // The directory, not a manifest that may not be there: an overlay module
+      // with no manifest is refused a few lines down, by a message that names
+      // both candidate spellings, and a claim built from a path that does not
+      // exist would pre-empt it with a worse one.
+      claimedBy: join(root, id),
+    })),
+  ]);
+  return ids;
 }
 
 /**
@@ -131,7 +166,7 @@ export async function discoverOverlayModuleManifests(
  */
 export async function overlayModuleManifestsUnder(
   root: string,
-  ids: readonly string[] = overlayModuleIdsUnder(root),
+  ids: readonly string[] = overlayModuleIdsUnder(root, process.env),
 ): Promise<OverlayModuleManifest[]> {
   const out: OverlayModuleManifest[] = [];
   for (const id of ids) {
@@ -230,7 +265,7 @@ export async function loadOverlayModuleEntries(
 ): Promise<ModuleEntry[]> {
   const root = activeOverlayModulesRoot(env);
   if (root === null) return [];
-  return overlayModuleEntriesUnder(root);
+  return overlayModuleEntriesUnder(root, env);
 }
 
 /**
@@ -241,9 +276,12 @@ export async function loadOverlayModuleEntries(
  * code the deployment path runs — rather than by handing the last function a
  * pre-built entry (issue #130).
  */
-export async function overlayModuleEntriesUnder(root: string): Promise<ModuleEntry[]> {
+export async function overlayModuleEntriesUnder(
+  root: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ModuleEntry[]> {
   const entries: ModuleEntry[] = [];
-  for (const id of overlayModuleIdsUnder(root)) {
+  for (const id of overlayModuleIdsUnder(root, env)) {
     const moduleDir = join(root, id);
     const backendPath = resolveOverlayUnit(moduleDir, 'backend');
     if (backendPath === null) continue;

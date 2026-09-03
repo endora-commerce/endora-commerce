@@ -57,7 +57,7 @@ import {
   type InstalledPackage,
   type InstalledPackageScan,
 } from './installed-packages.js';
-import { assertNoPackageModuleIdCollisions, type ModuleIdClaim } from './module-id-claims.js';
+import { assertNoModuleIdCollisions, type ModuleIdClaim } from './module-id-claims.js';
 
 /** An installed package's manifest plus where on disk it came from. */
 export interface PackageModuleManifest {
@@ -131,6 +131,18 @@ function scan(roots: readonly string[]): InstalledPackageScan {
   const fresh = scanNodeModulesRoots(roots);
   scans.set(key, fresh);
   return fresh;
+}
+
+/**
+ * The module-id claims of every installed module package under `roots`.
+ *
+ * Exported so the *overlay* seams can be held to one collision rule over one
+ * claimed set (feature 103, FR-004) without a second enumeration of what is
+ * installed: the scan below is memoised per root list, so asking here costs a
+ * map lookup on a boot that has already asked.
+ */
+export function installedPackageModuleIdClaims(roots: readonly string[]): ModuleIdClaim[] {
+  return claimsFor(scan(roots).packages);
 }
 
 function claimsFor(packages: readonly InstalledPackage[]): ModuleIdClaim[] {
@@ -261,7 +273,7 @@ export async function packageModuleManifestsUnder(
   roots: readonly string[],
 ): Promise<PackageModuleManifest[]> {
   const found = scan(roots);
-  assertNoPackageModuleIdCollisions(claimsFor(found.packages));
+  assertNoModuleIdCollisions(claimsFor(found.packages));
   const out: PackageModuleManifest[] = [];
   for (const installed of found.packages) {
     const entry = await manifestEntryFor(installed);
@@ -290,7 +302,7 @@ export async function packageModuleEntriesUnder(
   roots: readonly string[],
 ): Promise<ModuleEntry[]> {
   const found = scan(roots);
-  assertNoPackageModuleIdCollisions(claimsFor(found.packages));
+  assertNoModuleIdCollisions(claimsFor(found.packages));
 
   const entries: ModuleEntry[] = [];
   for (const installed of found.packages) {
@@ -486,7 +498,7 @@ export async function packageSchemaContributionsUnder(
   roots: readonly string[],
 ): Promise<PackageSchemaContribution[]> {
   const found = scan(roots);
-  assertNoPackageModuleIdCollisions(claimsFor(found.packages));
+  assertNoModuleIdCollisions(claimsFor(found.packages));
 
   const out: PackageSchemaContribution[] = [];
   for (const installed of found.packages) {
