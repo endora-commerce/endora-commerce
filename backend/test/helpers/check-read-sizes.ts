@@ -639,13 +639,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // absorbs **+23** from earlier merges (base 36174efa1 observed 5192). The `sites`
     // field is left at 489 deliberately: this branch moves no fold site, and its +3 is
     // somebody else's to record.
-    // **D-202 (`@endora-commerce/api-client` removed): 5179 -> 5177.** The two
-    // `.ts` files of the deleted package, `src/index.ts` and `vitest.config.ts`.
-    // Its `package.json` and both tsconfigs are outside this walk. `sites` is
-    // again left at 489: this change writes no fold and no slug, and the base
-    // observed 492 — the same +3 the note above declines, still somebody
-    // else's to record.
-    files: 5177,
+    // **Feature 096, Phase 6: +3.** Three test files, one per surface.
+    files: 5182,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -695,7 +690,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // wrote none, and `packages/cli/test` joins the exclusion for the same
     // reason `backend/test/unit/scripts` carries — not as a precaution: this
     // merge request's own red proof spells a fold and this check reported it.
-    sites: 489,
+    // **Feature 096, Phase 6: 492 -> 493.** One `.replace()`, in the storefront
+    // degradation test, stripping Puck’s empty wrapper before asserting that an
+    // absent block rendered nothing. Its pattern is readable, so it enters the
+    // population and is cleared. Recording the observed value absorbs the **+3**
+    // the note above left here deliberately: that branch moved no fold site and
+    // said so, and this one does, so the field is this branch’s to record.
+    sites: 493,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -881,7 +882,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    files: 1749,
+    // **Feature 096, Phase 6: +1.** The backend block-owner off-state test.
+    files: 1750,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -915,7 +917,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    files: 1749,
+    // **Feature 096, Phase 6: +1.** The backend block-owner off-state test.
+    files: 1750,
     sites: null,
     sources: [],
   },
@@ -1704,16 +1707,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `docs/docs/modules/` in the same state on both trees: this is the one check
     // whose population is the whole repository rather than tracked source, and a tree
     // that has run the docs build carries ~77 more.
-    // **D-202 (`@endora-commerce/api-client` removed): 7392 -> 7386.** Whole-tree
-    // arithmetic and nothing else: the deleted package's five files, the two
-    // pending changesets whose front matter named it — `changeset status` exits
-    // 1 on a changeset for a package that is not in the workspace, so they go
-    // with it — and this merge request's own changeset back. Recording the
-    // observed value absorbs nothing: a detached read of the base is 7392, the
-    // recorded value exactly. The main checkout reads 7400 and is not the
-    // baseline — this walk does not prune a nested `git worktree`, and that
-    // checkout carries ten.
-    files: 7386,
+    // **Feature 096, Phase 6: +3.** Three test files, one per surface.
+    files: 7395,
     sites: null,
     sources: [],
   },
@@ -1733,14 +1728,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // one — which is the discrimination that keeps three files in the tree,
     // whose doc blocks say why they do *not* call `expectModuleAbsent`, from
     // being credited with a proof they explicitly declined to write.
-    files: 109,
+    // **Feature 096, Phase 6: +1.** This feature’s block-owner off-state test.
+    files: 110,
     // The finer population, and the one that moves when a **resolver shape** is
     // added or lost: every `expectModuleAbsent` and `withModuleOff` call the
     // walk read, both helpers, one per call however many modules the call
     // names. Nine of them are table-driven `it.each` sites, and the file count
     // does not move when that shape stops resolving — which is exactly why a
     // check that answers per call has to print both numbers (#235/#237).
-    sites: 198,
+    // **Feature 096, Phase 6: +3.** Three `withModuleOff` subjects in this
+    // feature’s block-owner off-state test — `ksef` on each axis, and the
+    // synthetic `test_ext` the same file seeds into the registry cache as a
+    // literal, which is what the exemption is derived from.
+    sites: 201,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -2066,7 +2066,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the two workspace packages it composes — not the 120 that declare
     // `'use client'`, and deliberately not the 36 candidates. A number that
     // moves with the findings cannot answer "did you read the tree".
-    files: 332,
+    // **Feature 096, Phase 6: +1.** The storefront degradation test, which is
+    // in the storefront walk; its `sites` do not move, the file classifying no
+    // `useEffect` of its own.
+    files: 333,
     // The `useEffect` callbacks classified inside those client components, and
     // this is the number that matters. #237's shape for this check is a syntax
     // walk that stops recognising an effect while the file count stands still:
@@ -2105,7 +2108,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    files: 1749,
+    // **Feature 096, Phase 6: +1.** The backend block-owner off-state test.
+    files: 1750,
     sites: 163,
     sources: [],
   },
@@ -2212,7 +2216,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+32** from earlier merges (this branch's base,
     // 36174efa1, observed 4184).
-    files: 4175,
+    // **Feature 096, Phase 6: +1.** This feature’s backend block-owner
+    // off-state test. The two frontend test files are outside this walk.
+    files: 4176,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2355,12 +2361,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+51** from earlier merges (this branch's base,
     // 36174efa1, observed 7461).
-    // **D-202 (`@endora-commerce/api-client` removed): 7452 -> 7446.** The same
-    // six files `check:nul-bytes` counts above; this walk opens `.changeset/`
-    // too. Measured against the base rather than by parking, for the reason the
-    // note above gives: the base reads 7452, the recorded value exactly, so
-    // recording the observed value absorbs nothing.
-    files: 7446,
+    // **Feature 096, Phase 6: +3.** The same three test files; this walk and
+    // `check-language.sh` see the identical set.
+    files: 7455,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2401,11 +2404,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+44** from earlier merges (this branch's base,
     // 36174efa1, observed 5575).
-    // **D-202 (`@endora-commerce/api-client` removed): 5566 -> 5564.** Two, not
-    // six: this walk does not read `.changeset/` or a `package.json`, so it
-    // loses the deleted package's two `.ts` files and nothing else. The base
-    // reads 5566, the recorded value exactly.
-    files: 5564,
+    // **Feature 096, Phase 6: +3.** Three test files, one per surface —
+    // storefront SSR, admin merge, and the backend round trip that drives a
+    // real module switch. The block-name walk moving out of the migration
+    // directory is a rename inside `page-builder-core` and moves no count.
+    files: 5569,
     sites: null,
     sources: ['manifest-index'],
   },
