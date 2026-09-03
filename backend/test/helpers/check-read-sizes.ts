@@ -1337,6 +1337,41 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: null,
     sources: [],
   },
+  'backend/scripts/check-off-state-coverage.ts': {
+    prefix: '[off-state-coverage]',
+    run: { kind: 'tsx', path: 'scripts/check-off-state-coverage.ts', args: [] },
+    // Every `.ts` file under `backend/test` whose text mentions either harness
+    // name, minus `test/helpers/off-state.ts` itself — the file that *declares*
+    // the two names is not a caller of them. It is deliberately not "files with
+    // a finding": the whole population of the caller walk, so a test root that
+    // moved falls to zero and is refused rather than reported clean.
+    //
+    // Three of the 109 are this check's own: the companion test, the inventory
+    // entry's fixtures and this comment all *mention* the two names, so the
+    // walk opens them. None of the three adds a **site**, because a call is
+    // read as an AST node and a harness call inside a string literal is not
+    // one — which is the discrimination that keeps three files in the tree,
+    // whose doc blocks say why they do *not* call `expectModuleAbsent`, from
+    // being credited with a proof they explicitly declined to write.
+    files: 109,
+    // The finer population, and the one that moves when a **resolver shape** is
+    // added or lost: every `expectModuleAbsent` and `withModuleOff` call the
+    // walk read, both helpers, one per call however many modules the call
+    // names. Nine of them are table-driven `it.each` sites, and the file count
+    // does not move when that shape stops resolving — which is exactly why a
+    // check that answers per call has to print both numbers (#235/#237).
+    sites: 198,
+    // Two independent authors, so the check computes no module list and no
+    // call-name list of its own. `manifest-index` is every entry the generated
+    // index carries against every entry whose manifest this run could classify
+    // — 71/71 — and the 46 of them with an activation control are printed on
+    // the summary line rather than in this token, because
+    // `manifest-index:46/71` is what `read-size.ts` refuses as a `short-walk`.
+    // `harness-exports` is the callable helpers `test/helpers/off-state.ts`
+    // exports against the two the predicate keys on: a third assertion helper
+    // makes it 2/3, which is the sixth vacuous refusal in the shared grammar.
+    sources: ['manifest-index', 'harness-exports'],
+  },
   'backend/scripts/check-overlay-determinism.ts': {
     prefix: '[overlay:check]',
     run: { kind: 'tsx', path: 'scripts/check-overlay-determinism.ts', args: [] },
