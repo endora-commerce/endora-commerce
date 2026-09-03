@@ -491,7 +491,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
     run: { kind: 'tsx', path: 'scripts/check-action-route-permissions.ts', args: [] },
-    files: 1884,
+    // **Feature 103 (overlay file shadowing retired): 1884 -> 1883.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go, `claimed-module-ids.ts`
+    // arrives.
+    files: 1883,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -530,7 +533,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2008,
+    // **Feature 103 (overlay file shadowing retired): 2008 -> 2007.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
+    // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
+    // collision rule.
+    files: 2007,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -627,7 +634,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // change moves the check's own *population predicate*, so 5160 describes a
     // walk that no longer exists and carrying it forward by a delta would
     // preserve a baseline whose predicate is gone.
-    files: 5169,
+    // **Feature 103 (overlay file shadowing retired): 5169 -> 5179.** This change's own
+    // contribution is **-13** over the whole-tree walk. Recording the observed value
+    // absorbs **+23** from earlier merges (base 36174efa1 observed 5192). The `sites`
+    // field is left at 489 deliberately: this branch moves no fold site, and its +3 is
+    // somebody else's to record.
+    files: 5179,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -706,7 +718,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2008,
+    // **Feature 103 (overlay file shadowing retired): 2008 -> 2007.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
+    // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
+    // collision rule.
+    files: 2007,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -729,7 +745,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2008,
+    // **Feature 103 (overlay file shadowing retired): 2008 -> 2007.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
+    // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
+    // collision rule.
+    files: 2007,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -752,7 +772,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2008,
+    // **Feature 103 (overlay file shadowing retired): 2008 -> 2007.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
+    // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
+    // collision rule.
+    files: 2007,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -846,15 +870,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moved aside and each check re-run, so the figure below is this merge
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
-    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +1 file.**
-    // the one new backend test file,
-    // `test/unit/scripts/check-rsc-discipline.test.ts`; `sites` is unmoved,
-    // because it holds no read with a fabricating fallback.
-    // Measured by parking this branch's added files and re-running, so the
-    // figure is this merge request's own contribution and nobody else's; the
-    // entries this branch moved *jointly* with `master` are left for their
-    // owners.
-    files: 1751,
+    // **Feature 103 (overlay file shadowing retired): 1750 -> 1748.** Fifteen test
+    // and fixture files go — four `test/overlay` suites whose subject is gone and
+    // five fixture trees — and three arrive with the id-collision red proof.
+    // Recording the observed value absorbs **+10** left by earlier merges (this
+    // branch's base, 36174efa1, observed 1760 against a recorded 1750).
+    files: 1748,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -883,14 +904,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moved aside and each check re-run, so the figure below is this merge
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
-    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +1 file.**
-    // the one new backend test file, which releases no harness resource of its
-    // own.
-    // Measured by parking this branch's added files and re-running, so the
-    // figure is this merge request's own contribution and nobody else's; the
-    // entries this branch moved *jointly* with `master` are left for their
-    // owners.
-    files: 1751,
+    // **Feature 103 (overlay file shadowing retired): 1750 -> 1748.** Fifteen test
+    // and fixture files go — four `test/overlay` suites whose subject is gone and
+    // five fixture trees — and three arrive with the id-collision red proof.
+    // Recording the observed value absorbs **+10** left by earlier merges (this
+    // branch's base, 36174efa1, observed 1760 against a recorded 1750).
+    files: 1748,
     sites: null,
     sources: [],
   },
@@ -913,7 +932,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2008,
+    // **Feature 103 (overlay file shadowing retired): 2008 -> 2007.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
+    // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
+    // collision rule.
+    files: 2007,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1237,7 +1260,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // plus the fifteen bundle entries `catalog` and `orders` gain in both
     // shipped languages — the nav labels and `catalog`'s three palette actions,
     // moved out of `_i18n` and therefore counted in each module's bundle now.
-    sites: 31619,
+    // **Feature 103 (overlay file shadowing retired): 31619 -> 32288.** This change's
+    // own contribution is **-2** literals, from the two deleted overlay error classes.
+    // The rest is growth from merges this branch rebased onto, and recording the
+    // observed value absorbs **+671** of it (this branch's base, 36174efa1, observed
+    // 32290). Stated rather than left implicit: the number is re-recorded here because
+    // this branch moved it, not because this branch grew it.
+    sites: 32288,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -1548,7 +1577,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // recorded entry in this file drifted upwards against a baseline already
     // stale before either branch; these matched the tree exactly, measured,
     // which is why they are the only ones re-recorded.
-    files: 4157,
+    // **Feature 103 (overlay file shadowing retired): 4157 -> 4156.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
+    // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
+    // collision rule.
+    files: 4156,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -1656,13 +1689,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // counts 15 added files, and parking this branch's own files puts the base
     // at 7335 against this branch's 7350. Recording the observed value absorbs
     // **+35** from merge requests that have already landed.
-    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +4 files.**
-    // the check, its two ledger shards and its companion test.
-    // Measured by parking this branch's added files and re-running, so the
-    // figure is this merge request's own contribution and nobody else's; the
-    // entries this branch moved *jointly* with `master` are left for their
-    // owners.
-    files: 7354,
+    // **Feature 103 (overlay file shadowing retired): 7350 -> 7388.** This change's
+    // own contribution is **-13** over the whole-tree walk: two `src/overlay`
+    // files and fifteen overlay test and fixture files go, four arrive. Recording
+    // the observed value absorbs **+51** from earlier merges (this branch's base,
+    // 36174efa1, observed 7401).
+    // Measured with the generated module-documentation copies under
+    // `docs/docs/modules/` in the same state on both trees: this is the one check
+    // whose population is the whole repository rather than tracked source, and a tree
+    // that has run the docs build carries ~77 more.
+    files: 7388,
     sites: null,
     sources: [],
   },
@@ -1815,7 +1851,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-recording either would file `master`'s growth under this change, so
     // 168 keeps the +28 sites and +87 files of drift visible to whoever owns
     // it.
-    files: 2008,
+    // **Feature 103 (overlay file shadowing retired): 2008 -> 2007.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
+    // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
+    // collision rule.
+    files: 2007,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -2040,21 +2080,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moved aside and each check re-run, so the figure below is this merge
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
-    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: 1750 -> 1761.**
-    // This branch adds one backend test file; feature 096's Phase 7 added eight
-    // more, and `master` was itself two files ahead of the recorded value before
-    // either branch existed. The figure below is **what the tree reads**, measured
-    // on the merged result — not the recorded value plus a delta.
-    //
-    // That distinction is the whole reason this entry conflicted. Both branches
-    // computed `recorded + own delta` and both were internally consistent and
-    // wrong against their own tree by exactly `master`'s pre-existing drift of 2:
-    // 096 recorded 1750 for a tree reading 1760, and this branch recorded 1751 for
-    // a tree reading 1753. The band is -10%/+50%, so neither failed; each simply
-    // carried the old drift forward, which is what makes the arithmetic method
-    // wrong rather than merely imprecise. Identify the entries you moved by
-    // parking and differencing; write down what your tree actually prints.
-    files: 1761,
+    // **Feature 103 (overlay file shadowing retired): 1750 -> 1748.** Fifteen test
+    // and fixture files go — four `test/overlay` suites whose subject is gone and
+    // five fixture trees — and three arrive with the id-collision red proof.
+    // Recording the observed value absorbs **+10** left by earlier merges (this
+    // branch's base, 36174efa1, observed 1760 against a recorded 1750).
+    files: 1748,
     sites: 163,
     sources: [],
   },
@@ -2099,7 +2130,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2008,
+    // **Feature 103 (overlay file shadowing retired): 2008 -> 2007.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
+    // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
+    // collision rule.
+    files: 2007,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2122,7 +2157,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 2008,
+    // **Feature 103 (overlay file shadowing retired): 2008 -> 2007.** One file, net:
+    // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
+    // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
+    // collision rule.
+    files: 2007,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2148,14 +2187,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moved aside and each check re-run, so the figure below is this merge
     // request's own contribution and nobody else's. The entries this branch
     // moved *jointly* with `master` are left for their owners.
-    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +4 files.**
-    // the check, its two ledger shards and its companion test; `sites` is
-    // unmoved, because none of them reaches a module package's source.
-    // Measured by parking this branch's added files and re-running, so the
-    // figure is this merge request's own contribution and nobody else's; the
-    // entries this branch moved *jointly* with `master` are left for their
-    // owners.
-    files: 4156,
+    // **Feature 103 (overlay file shadowing retired): 4152 -> 4171.** This change's
+    // own contribution is **-13** over the whole-tree walk: two `src/overlay`
+    // files and fifteen overlay test and fixture files go, four arrive. Recording
+    // the observed value absorbs **+32** from earlier merges (this branch's base,
+    // 36174efa1, observed 4184).
+    files: 4171,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2293,16 +2330,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // failing. Measured instead against a detached worktree of `origin/master`,
     // which reads 7395 to this branch's 7410. Recording the observed value
     // absorbs **+35** from merge requests that have already landed.
-    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +4 files.**
-    // the check, its two ledger shards and its companion test. Measured against a
-    // detached worktree of the base rather than by parking: this script's
-    // population comes from `git ls-files --cached --others`, which keeps a
-    // moved-away file in `--cached` and would report a delta of zero.
-    // Measured by parking this branch's added files and re-running, so the
-    // figure is this merge request's own contribution and nobody else's; the
-    // entries this branch moved *jointly* with `master` are left for their
-    // owners.
-    files: 7414,
+    // **Feature 103 (overlay file shadowing retired): 7410 -> 7448.** This change's
+    // own contribution is **-13** over the whole-tree walk: two `src/overlay`
+    // files and fifteen overlay test and fixture files go, four arrive. Recording
+    // the observed value absorbs **+51** from earlier merges (this branch's base,
+    // 36174efa1, observed 7461).
+    files: 7448,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2338,14 +2371,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check:naming` states: it reads 5517 to this branch's 5531. Recording the
     // observed value absorbs **+26** from merge requests that have already
     // landed.
-    // **Feature `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3: +4 files.**
-    // the check, its two ledger shards and its companion test — same git-derived
-    // population as `check-naming.sh`, and measured the same way.
-    // Measured by parking this branch's added files and re-running, so the
-    // figure is this merge request's own contribution and nobody else's; the
-    // entries this branch moved *jointly* with `master` are left for their
-    // owners.
-    files: 5535,
+    // **Feature 103 (overlay file shadowing retired): 5531 -> 5562.** This change's
+    // own contribution is **-13** over the whole-tree walk: two `src/overlay`
+    // files and fifteen overlay test and fixture files go, four arrive. Recording
+    // the observed value absorbs **+44** from earlier merges (this branch's base,
+    // 36174efa1, observed 5575).
+    files: 5562,
     sites: null,
     sources: ['manifest-index'],
   },
