@@ -18,6 +18,14 @@
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"
     },
+    "./rules/*.js": {
+      "types": "./dist/rules/*.d.ts",
+      "default": "./dist/rules/*.js"
+    },
+    "./checks": {
+      "types": "./dist/checks.d.ts",
+      "default": "./dist/checks.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

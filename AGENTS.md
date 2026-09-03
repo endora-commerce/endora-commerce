@@ -1116,6 +1116,19 @@ and fails on one it does not name), a companion test, and an exit code of **2** 
 was read" — an empty file list, a missing input, a tree it could not walk. A green result
 must not be able to mean "not looking": that is issue #113.
 
+**And an entry in `endora check`'s estate manifest** (`packages/cli/src/check/estate.ts`,
+feature `specs/101-endora-check/`), saying what your rule means when its subject is one module
+package instead of this repository: `package` with a host or a phase, or `repository-only`
+with a written reason. That reconciliation is two-way and lives in the same inventory test, so
+a check cannot arrive with no verdict there and a verdict cannot outlive its script — which is
+the point, because a command that fronts most of the estate and does not *name* the rest is a
+curated subset, and a curated subset is a list somebody updates or does not. **`repository-only`
+is a claim about the rule's subject, not about its root**: a rule the inventory records as
+walking the module tree (`residueGuard: 'derived-population'`) cannot be repository-only, since
+a module package is one of those modules, and the test refuses the contradiction. Neither the
+estate's size nor the reason lists are written down anywhere — both are derived, and the size
+went stale by four inside five days the last time it was in prose (D-100).
+
 **And it prints what it read** (issue #244). Exit 2 answers "the input was empty"; it does
 not answer "the input was 7% of itself", which is the case that happens — the same shape has
 now been found seven times, and every one of them was a check whose output said what it

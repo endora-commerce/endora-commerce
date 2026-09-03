@@ -1,93 +1,19 @@
 /**
- * CI check — no source file in this repository carries a raw NUL byte (issue #190).
+ * CI check — no source file in this repository carries a raw NUL byte
+ * (issue #190). **Repository-scope host** over the relocated analysis.
  *
- * ## Why a byte deserves its own check
+ * The rule, its declared exclusions and its ledger live in
+ * `@endora-commerce/cli/rules/nul-bytes.js`
+ * (`specs/101-endora-check/contracts/package-scope-layout.md` §6: one analysis,
+ * two hosts). This file supplies the population — every file under this
+ * repository's root — and prints the verdict; `endora check` supplies one module
+ * package's. Neither re-derives the other's walk, and both decide membership
+ * through the same `isScannablePath`, which is the rule rather than the walk.
  *
- * The artefact that would reveal this defect **is the diff itself**. Git's
- * content filter classifies a blob as binary when it finds a NUL in it, and from
- * that moment every diff of the file reads `Binary files a/… and b/… differ`.
- * The file stops being reviewable: `git diff`, `git blame -L`, the MR widget and
- * every review UI show nothing at all. So the one thing that would have caught
- * the byte during review is the thing the byte switches off.
- *
- * That is not hypothetical. Six files in this tree spelled a NUL separator as a
- * raw byte inside a template literal — `media-ingestor.ts` (issue #182) plus the
- * five issue #190 names — and each survived every review of every commit that
- * touched it, because none of those commits could be read.
- *
- * The separator itself is correct in all six: NUL is the one byte the joined
- * fields cannot contain, which is exactly what a join separator has to be. The
- * defect is never the byte's *value*, only how the **source** spells it. Write
- * `\0` (or `\x00`) and the compiled string is identical to the last bit while
- * the source stays text.
- *
- * ## Anywhere in the file, not just where git looks
- *
- * Git only reads the **first 8000 bytes** when it decides binary-or-not. The NUL
- * in `admin_actions/services/admin-actions-service.ts` sat at byte 8032, so git
- * kept diffing that file as text and only `file(1)` disagreed — the byte was
- * still there, still one edit away from crossing the window, and still invisible
- * to every tool that does not share git's heuristic. A rule that copied git's
- * window would have declared that file clean. This check reads the whole file.
- *
- * ## Only NUL
- *
- * The other C0 control characters are not in scope, deliberately. A raw `\x1f`
- * is unpleasant but it does not change how any tool classifies the file: the
- * diff still renders, review still works, and the ratchet this check installs
- * would be claiming more than the failure it was written for. NUL is the byte
- * with the tooling consequence, so NUL is the byte with the rule.
- *
- * ## The population, and how it fails
- *
- * Every file under the repository root **except** the two exclusions declared
- * below, each with its reason:
- *
- *   - `SKIPPED_DIRECTORIES` — trees that are not this repository's source.
- *   - `GENERATED_FILE_EXTENSIONS` — tool output written beside the source it
- *     came from, so no directory prune reaches it.
- *   - `BINARY_EXTENSIONS` and `BINARY_FILENAMES` — file types whose content is
- *     bytes by definition. A PNG is not a source file with a NUL problem; it is
- *     not a source file.
- *
- * The exclusion is a **deny-list on purpose**. An allow-list of known-text
- * extensions fails open: the next `.sql`, `.toml` or extension-less script to
- * arrive would be silently unscanned, and nothing would report it. With a
- * deny-list a new file type is scanned by default, and a genuinely binary one
- * announces itself by failing this check once — at which point it is added here
- * with a reason rather than to a silent skip.
- *
- * The cost of a *missing* exclusion is therefore work rather than correctness,
- * and it is real work: `.docusaurus` and `backend/var/assets` were not declared,
- * so a working tree that had built the docs site and served one upload scanned
- * 8288 files where a clean checkout scans 5165 — three thousand reads of output
- * nobody wrote, and a NUL among them would have been reported against a path no
- * merge request can change (issue #248). The candidates come from `.gitignore`:
- * a tree git is told not to track is a tree this repository does not author.
- *
- * **Which of the two tables an exclusion belongs in is decided by its name.**
- * `SKIPPED_DIRECTORIES` prunes a *name* wherever it occurs, so a name earns a
- * place there only when it names its own producer (`node_modules`, `.next`,
- * `storybook-static`) or is a dot-prefixed tool directory (`.turbo`, `.vite`).
- * A generic word is somebody's plausible source directory too, and pruning it
- * everywhere would take a subtree out of the scan for a name rather than for a
- * reason — so `backend/var` is anchored at the one path it occupies, in
- * `SKIPPED_PATH_PREFIXES`.
- *
- * Three `.gitignore` entries from the same sweep are deliberately **not**
- * declared: `out/`, `tmp/` and `uploads/`. Each is a bare generic word, none
- * held a single file in the measured tree, and an exclusion that buys no reads
- * buys only the chance of taking a future source directory out of the scan. The
- * deny-list is what makes that the safe order to be wrong in: an undeclared
- * tree costs reads, a wrongly declared one costs coverage, so a name arrives
- * here when it has been measured to matter and not before.
- *
- * A text file that genuinely must keep a NUL — a fixture whose whole point is a
- * real NUL arriving in real data — goes in `NUL_BYTES_ALLOWED` with a reason.
- * That ledger is **two-way**: an unledgered NUL fails the build, and a ledger
- * entry naming a file that no longer has one fails it too. It is empty; the five
- * issue #190 files were all repaired rather than ledgered, because in every one
- * of them the escape produces the same string at runtime and loses nothing.
+ * The forwarding specifier is **bare**, never a path into `dist`: one declared
+ * spelling, therefore one copy in any process, which is
+ * `check:singleton-identity`'s own rule applied to the machinery that enforces
+ * it.
  *
  * Usage: `tsx scripts/check-nul-bytes.ts [--list]`
  * Exit 0 = no unledgered NUL byte; exit 1 = at least one, or a stale ledger
@@ -97,293 +23,23 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import {
+  checkNulBytes,
+  findNulBytes,
+  GIT_BINARY_WINDOW,
+  isScannablePath,
+  isUnderSkippedPrefix,
+  NUL_BYTES_ALLOWED,
+  SKIPPED_DIRECTORIES,
+  type ScannedFile,
+} from '@endora-commerce/cli/rules/nul-bytes.js';
+
 import { reportReadSize } from './lib/read-size.js';
 
+export * from '@endora-commerce/cli/rules/nul-bytes.js';
+
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-
-/**
- * Directory names pruned wherever they occur, and why each is not source.
- *
- * Declared rather than hard-coded into the walk so that the reason travels with
- * the exclusion: a directory skipped here is a directory this check makes no
- * claim about, and the next reader gets to see which claim was dropped.
- */
-export const SKIPPED_DIRECTORIES: Readonly<Record<string, string>> = {
-  '.git': "Git's own object store — every pack file is binary by construction.",
-  node_modules: "Installed dependencies: third-party bytes, not this repository's source.",
-  dist: 'Build output, reproduced from source by the build.',
-  build: 'Build output, reproduced from source by the build.',
-  '.next': "Next.js build output, reproduced from the storefront's source.",
-  coverage: 'Coverage report output, regenerated by every run.',
-  '.pnpm-store': "pnpm's content-addressed package store.",
-  'test-results': 'Playwright run output, regenerated by every run.',
-  'playwright-report': 'Playwright report output, regenerated by every run.',
-  'blob-report': 'Playwright shard output, merged into the report and then discarded.',
-  '.playwright': "Playwright's per-run state directory.",
-  '.docusaurus':
-    "Docusaurus' generated route data and build cache, written beside the docs " +
-    'site it is generated from. The one this check was measured missing: a tree ' +
-    'that had built the site scanned it as source (issue #248).',
-  'storybook-static': 'Storybook build output, reproduced from the stories by the build.',
-  '.nyc_output': 'Coverage instrumentation output — the raw half of `coverage/`.',
-  '.turbo': "Turborepo's task cache.",
-  '.vite': "Vite's dependency pre-bundling cache.",
-  '.swc': "SWC's compilation cache.",
-  '.cache': 'A tool cache by name — the dot-prefixed convention for exactly that.',
-};
-
-/**
- * Repo-relative directory prefixes that are not this checkout, keyed by prefix
- * with the reason as the value — the same discipline as `SKIPPED_DIRECTORIES`,
- * but path-anchored rather than name-anchored.
- *
- * `SKIPPED_DIRECTORIES` matches a *name* anywhere in the tree, which is right
- * for `node_modules` and wrong here: `.claude/` also holds `agents/` and
- * `skills/`, which are tracked repository source and must stay scanned. Only
- * the worktree root is excluded. The same reasoning puts every generic-word
- * exclusion here rather than there — see the header.
- */
-export const SKIPPED_PATH_PREFIXES: Readonly<Record<string, string>> = {
-  '.claude/worktrees':
-    'Nested git worktrees — other commits of this same repository, each a ' +
-    'separate checkout with its own dependencies. Scanning them reports a ' +
-    'file already repaired on this commit, once per worktree, and reports it ' +
-    'against a path no merge request can change.',
-  'backend/var':
-    "The backend's local variable-data root: the content-addressed asset store " +
-    'a running instance writes uploads and generated documents into. Three ' +
-    'thousand of them stood in the measured tree, none written by anybody, and ' +
-    'a NUL in an uploaded file is data rather than a defect. Path-anchored ' +
-    'because `var` is a generic word, not the name of a producer.',
-};
-
-/**
- * Extensions whose content is bytes by definition, and why.
- *
- * A file here is out of the population entirely — not exempted from the rule but
- * outside it, because "a source file must not contain a NUL" says nothing about
- * a PNG. Adding an entry is cheap and visible; the cost of getting it wrong is
- * one file that stops being checked, which is why each carries a reason.
- */
-export const BINARY_EXTENSIONS: Readonly<Record<string, string>> = {
-  '.png': 'Raster image — app icons and the Playwright visual snapshots.',
-  '.jpg': 'Raster image.',
-  '.jpeg': 'Raster image.',
-  '.gif': 'Raster image.',
-  '.webp': 'Raster image.',
-  '.avif': 'Raster image.',
-  '.ico': 'Icon bundle — a container of raster images.',
-  '.pdf': 'Portable Document Format — a compressed byte container.',
-  '.zip': 'Archive — a compressed byte container.',
-  '.gz': 'Compressed stream.',
-  '.woff': 'Web font — a compressed font container.',
-  '.woff2': 'Web font — a compressed font container.',
-  '.ttf': 'Font — glyph outlines in a binary table format.',
-  '.otf': 'Font — glyph outlines in a binary table format.',
-  '.eot': 'Font — glyph outlines in a binary table format.',
-  '.mp4': 'Video — an encoded media container.',
-  '.webm': 'Video — an encoded media container.',
-  '.wasm': 'WebAssembly module — a binary instruction format.',
-};
-
-/**
- * Exact file names that are binary, for the files that carry no extension.
- *
- * Separate from `BINARY_EXTENSIONS` because a leading dot is a dotfile marker,
- * not an extension: `.gitignore` is text and must stay in the population, so a
- * dot-named file cannot be classified by the same rule. Matched on the basename
- * anywhere in the tree.
- */
-export const BINARY_FILENAMES: Readonly<Record<string, string>> = {
-  '.thumbnail':
-    'Design-tool project thumbnail — a WebP bitmap the tool writes without an extension.',
-};
-
-/**
- * Extensions of **generated** files that a tool writes beside the source it was
- * generated from, and why each is not this repository's source.
- *
- * A fourth category, and it exists because the other three cannot hold these
- * honestly. `SKIPPED_DIRECTORIES` prunes a directory, and these files sit in a
- * source directory rather than under a `dist/`. `BINARY_EXTENSIONS` says
- * "bytes by definition", and a `.tsbuildinfo` is JSON — filing it there would
- * put a false sentence in a reason field, which is the one thing this file's
- * discipline cannot afford. `NUL_BYTES_ALLOWED` is for a file that *carries* a
- * NUL and is right to.
- *
- * This is `.docusaurus`' case one granularity down. That entry exists because a
- * tree that had built the docs site scanned it as source (issue #248); this one
- * exists because a tree that has type-checked the storefront scans
- * `tsconfig.tsbuildinfo` as source. Both are gitignored output a tool drops
- * where it works.
- *
- * **The cost is not a false green** — a `.tsbuildinfo` holds no NUL, so nothing
- * was being missed. It is that the file count moved on any tree where a
- * type-check had run, and the estate's `read:` lines are what four Wave 4 merge
- * requests used to prove a change touched nothing it should not. Two agents
- * chased this `+1` to ground independently before it was written down. A
- * verification tool whose baseline shifts under you is worth less than one that
- * does not, which is the whole argument for the entry.
- */
-export const GENERATED_FILE_EXTENSIONS: Readonly<Record<string, string>> = {
-  '.tsbuildinfo':
-    "TypeScript's incremental build state, written beside the `tsconfig.json` it " +
-    'belongs to rather than into an output directory. Gitignored, reproduced by ' +
-    'the next `tsc`, and present or absent depending on whether anyone has run one.',
-};
-
-/**
- * Text files allowed to keep a raw NUL, with the reason it is right.
- *
- * **Two-way**, in the idiom of `BARE_SUBSCRIPTIONS_TO_DRAIN`: an unledgered NUL
- * fails the build, and an entry that no longer describes one fails it too.
- *
- * It is empty, and it should stay hard to add to. The obvious candidate — a
- * hostile-input fixture — is not one: a fixture builds a JavaScript string, and
- * `'\x00'` and a raw NUL byte produce the same string with the same code point,
- * so escaping costs the fixture nothing and buys back the diff. An entry here
- * has to name something the *file's bytes* do, not something its values do.
- */
-export const NUL_BYTES_ALLOWED: Readonly<Record<string, string>> = {};
-
-/** A file handed to the analysis: repo-relative POSIX path plus its raw bytes. */
-export interface ScannedFile {
-  readonly path: string;
-  readonly bytes: Uint8Array;
-}
-
-export interface NulByteFinding {
-  /** Repo-relative path, POSIX separators — also the ledger key. */
-  readonly path: string;
-  /** Byte offset of the first NUL. */
-  readonly byteOffset: number;
-  /** 1-based line, counting `\n`. */
-  readonly line: number;
-  /** 1-based **byte** column within that line. */
-  readonly column: number;
-  /** Total NUL bytes in the file, so a repair that fixes one of six is visible. */
-  readonly count: number;
-  /** True when git's own 8000-byte window would have missed it. */
-  readonly beyondGitBinaryWindow: boolean;
-}
-
-/** How many bytes of a blob git reads before deciding binary-or-text. */
-export const GIT_BINARY_WINDOW = 8000;
-
-const NUL = 0;
-
-/** The extension of a path, lower-cased, including the dot; `''` when there is none. */
-export function extensionOf(path: string): string {
-  const base = path.slice(path.lastIndexOf('/') + 1);
-  const dot = base.lastIndexOf('.');
-  // A leading dot is a dotfile (`.gitignore`), not an extension.
-  if (dot <= 0) return '';
-  return base.slice(dot).toLowerCase();
-}
-
-/**
- * Whether a path is in the population.
- *
- * Path-based rather than walk-based so the two exclusions are provable from a
- * synthetic path: the pruning a real run does for speed and the exclusion the
- * rule makes are then the same decision, taken in one place.
- */
-/**
- * Is this repo-relative path at, or under, a `SKIPPED_PATH_PREFIXES` entry?
- *
- * **One function, called from both places on purpose.** The walk prunes for
- * speed and `isScannablePath` states the rule, and while those were two
- * expressions of the same predicate the walk's copy kept the check reporting
- * `violations=0` after the rule's copy went missing — so the red proof, which
- * enters at `findNulBytes`, could not see its own exclusion disappear. A
- * duplicated decision is one that can go half-missing without anything
- * noticing.
- */
-function isUnderSkippedPrefix(relativePath: string): boolean {
-  return Object.keys(SKIPPED_PATH_PREFIXES).some(
-    (prefix) => relativePath === prefix || relativePath.startsWith(`${prefix}/`),
-  );
-}
-
-export function isScannablePath(path: string): boolean {
-  const segments = path.split('/');
-  if (segments.slice(0, -1).some((segment) => SKIPPED_DIRECTORIES[segment] !== undefined)) {
-    return false;
-  }
-  if (isUnderSkippedPrefix(path)) return false;
-  const basename = segments[segments.length - 1] ?? '';
-  if (BINARY_FILENAMES[basename] !== undefined) return false;
-  const extension = extensionOf(path);
-  if (GENERATED_FILE_EXTENSIONS[extension] !== undefined) return false;
-  return BINARY_EXTENSIONS[extension] === undefined;
-}
-
-/** Every NUL-carrying file among the scannable ones, first occurrence located. */
-export function findNulBytes(files: Iterable<ScannedFile>): NulByteFinding[] {
-  const found: NulByteFinding[] = [];
-
-  for (const file of files) {
-    if (!isScannablePath(file.path)) continue;
-    const { bytes } = file;
-
-    let count = 0;
-    let first = -1;
-    for (let i = 0; i < bytes.length; i += 1) {
-      if (bytes[i] === NUL) {
-        if (first === -1) first = i;
-        count += 1;
-      }
-    }
-    if (first === -1) continue;
-
-    let line = 1;
-    let lineStart = 0;
-    for (let i = 0; i < first; i += 1) {
-      if (bytes[i] === 0x0a) {
-        line += 1;
-        lineStart = i + 1;
-      }
-    }
-
-    found.push({
-      path: file.path,
-      byteOffset: first,
-      line,
-      column: first - lineStart + 1,
-      count,
-      beyondGitBinaryWindow: first >= GIT_BINARY_WINDOW,
-    });
-  }
-
-  found.sort((a, b) => a.path.localeCompare(b.path));
-  return found;
-}
-
-export interface CheckResult {
-  /** Files the analysis actually inspected — the vacuous-pass guard reads this. */
-  readonly scanned: number;
-  readonly total: number;
-  readonly violations: readonly NulByteFinding[];
-  readonly ledgered: readonly NulByteFinding[];
-  /** Ledger keys that no longer describe a NUL-carrying file. */
-  readonly stale: readonly string[];
-}
-
-export function checkNulBytes(
-  files: Iterable<ScannedFile>,
-  ledger: Readonly<Record<string, string>> = NUL_BYTES_ALLOWED,
-): CheckResult {
-  const scannable = [...files].filter((file) => isScannablePath(file.path));
-  const all = findNulBytes(scannable);
-  const paths = new Set(all.map((finding) => finding.path));
-  return {
-    scanned: scannable.length,
-    total: all.length,
-    violations: all.filter((finding) => ledger[finding.path] === undefined),
-    ledgered: all.filter((finding) => ledger[finding.path] !== undefined),
-    stale: Object.keys(ledger).filter((path) => !paths.has(path)),
-  };
-}
 
 function walk(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;

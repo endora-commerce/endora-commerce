@@ -176,8 +176,17 @@ export function readArtefactOf(
   return rootExportOf(pkg) ?? named;
 }
 
-/** The emitted extensions `tsc` writes, and the sources each can come from. */
-const SOURCE_EXTENSIONS: ReadonlyMap<string, readonly string[]> = new Map([
+/**
+ * The emitted extensions `tsc` writes, and the sources each can come from.
+ *
+ * Exported because {@link sourceOfEmitted} answers only for a source that
+ * **exists**, which is the right answer for a freshness comparison and the wrong
+ * one for a caller asking *which source this subpath would have had*: a declared
+ * `exports` subpath whose source is gone is exactly the short walk
+ * `endora check`'s floor exists to refuse, and a caller that had to write its
+ * own copy of this map to name it would be a second derivation of one fact.
+ */
+export const SOURCE_EXTENSIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['.js', ['.ts', '.tsx']],
   ['.mjs', ['.mts']],
   ['.cjs', ['.cts']],
