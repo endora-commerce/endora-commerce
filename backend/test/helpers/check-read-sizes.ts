@@ -875,7 +875,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    files: 1748,
+    files: 1749,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -909,7 +909,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    files: 1748,
+    files: 1749,
     sites: null,
     sources: [],
   },
@@ -1698,7 +1698,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `docs/docs/modules/` in the same state on both trees: this is the one check
     // whose population is the whole repository rather than tracked source, and a tree
     // that has run the docs build carries ~77 more.
-    files: 7388,
+    files: 7392,
     sites: null,
     sources: [],
   },
@@ -2085,7 +2085,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    files: 1748,
+    files: 1749,
     sites: 163,
     sources: [],
   },
@@ -2192,7 +2192,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+32** from earlier merges (this branch's base,
     // 36174efa1, observed 4184).
-    files: 4171,
+    files: 4175,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2335,7 +2335,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+51** from earlier merges (this branch's base,
     // 36174efa1, observed 7461).
-    files: 7448,
+    files: 7452,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2376,7 +2376,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+44** from earlier merges (this branch's base,
     // 36174efa1, observed 5575).
-    files: 5562,
+    files: 5566,
     sites: null,
     sources: ['manifest-index'],
   },
