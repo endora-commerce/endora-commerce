@@ -182,4 +182,189 @@ export const manifest = defineModuleManifest({
       weight: 242,
     },
   ],
+  /**
+   * The 17 e-mail Page Builder blocks this module owns, and the four e-mail
+   * palette sections its own blocks populate (feature 096, §7.2 and §2.1).
+   *
+   * They are not today's four. `order` moves to `orders`, which owns all eight
+   * blocks in it. `internal` is **new**: the e-mail palette has no hidden
+   * drawer today, which is exactly why `EmailColumn` sits in `components` and
+   * in no category and lands in Puck's *Other* group, insertable outside a row
+   * where it renders wrong. Putting it in a `visible: false` section is a
+   * deliberate behaviour change and the operator loses an *Other*-drawer entry
+   * that only ever worked inside a row. `EmailInsertTemplate` gains `embeds`:
+   * it has a renderer and a persisted name and appears in no palette at all.
+   *
+   * `contexts: ['email']` rather than `['email', 'newsletter']`: the newsletter
+   * palette is served by `filterConfigByContext`, which admits an `email` block
+   * into the `newsletter` context, and no newsletter section exists for a
+   * category declaration to name.
+   */
+  blocks: [
+    {
+      name: 'transactional_emails.EmailHeading',
+      labelKey: 'blocks.emailHeading.label',
+      descriptionKey: 'blocks.emailHeading.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 10,
+    },
+    {
+      name: 'transactional_emails.EmailText',
+      labelKey: 'blocks.emailText.label',
+      descriptionKey: 'blocks.emailText.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 20,
+    },
+    {
+      name: 'transactional_emails.EmailRichText',
+      labelKey: 'blocks.emailRichText.label',
+      descriptionKey: 'blocks.emailRichText.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 30,
+    },
+    {
+      name: 'transactional_emails.EmailButton',
+      labelKey: 'blocks.emailButton.label',
+      descriptionKey: 'blocks.emailButton.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 40,
+    },
+    {
+      name: 'transactional_emails.EmailImage',
+      labelKey: 'blocks.emailImage.label',
+      descriptionKey: 'blocks.emailImage.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 50,
+    },
+    {
+      name: 'transactional_emails.EmailLogo',
+      labelKey: 'blocks.emailLogo.label',
+      descriptionKey: 'blocks.emailLogo.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 60,
+    },
+    {
+      name: 'transactional_emails.EmailSocial',
+      labelKey: 'blocks.emailSocial.label',
+      descriptionKey: 'blocks.emailSocial.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 100,
+    },
+    {
+      name: 'transactional_emails.EmailCallout',
+      labelKey: 'blocks.emailCallout.label',
+      descriptionKey: 'blocks.emailCallout.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 110,
+    },
+    {
+      name: 'transactional_emails.EmailFooterLegal',
+      labelKey: 'blocks.emailFooterLegal.label',
+      descriptionKey: 'blocks.emailFooterLegal.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 120,
+    },
+    {
+      name: 'transactional_emails.EmailSection',
+      labelKey: 'blocks.emailSection.label',
+      descriptionKey: 'blocks.emailSection.description',
+      category: 'layout',
+      contexts: ['email'],
+      fields: {},
+      weight: 10,
+    },
+    {
+      name: 'transactional_emails.EmailRow',
+      labelKey: 'blocks.emailRow.label',
+      descriptionKey: 'blocks.emailRow.description',
+      category: 'layout',
+      contexts: ['email'],
+      fields: {},
+      weight: 20,
+    },
+    {
+      name: 'transactional_emails.EmailTable',
+      labelKey: 'blocks.emailTable.label',
+      descriptionKey: 'blocks.emailTable.description',
+      category: 'layout',
+      contexts: ['email'],
+      fields: {},
+      weight: 30,
+    },
+    {
+      name: 'transactional_emails.EmailDivider',
+      labelKey: 'blocks.emailDivider.label',
+      descriptionKey: 'blocks.emailDivider.description',
+      category: 'layout',
+      contexts: ['email'],
+      fields: {},
+      weight: 40,
+    },
+    {
+      name: 'transactional_emails.EmailSpacer',
+      labelKey: 'blocks.emailSpacer.label',
+      descriptionKey: 'blocks.emailSpacer.description',
+      category: 'layout',
+      contexts: ['email'],
+      fields: {},
+      weight: 50,
+    },
+    {
+      name: 'transactional_emails.EmailInsertBlock',
+      labelKey: 'blocks.emailInsertBlock.label',
+      descriptionKey: 'blocks.emailInsertBlock.description',
+      category: 'embeds',
+      contexts: ['email'],
+      fields: {},
+      weight: 10,
+    },
+    {
+      name: 'transactional_emails.EmailInsertTemplate',
+      labelKey: 'blocks.emailInsertTemplate.label',
+      descriptionKey: 'blocks.emailInsertTemplate.description',
+      category: 'embeds',
+      contexts: ['email'],
+      fields: {},
+      weight: 20,
+    },
+    {
+      name: 'transactional_emails.EmailColumn',
+      labelKey: 'blocks.emailColumn.label',
+      descriptionKey: 'blocks.emailColumn.description',
+      category: 'internal',
+      contexts: ['email'],
+      fields: {},
+      weight: 10,
+    },
+  ],
+  blockCategories: [
+    { key: 'content', titleKey: 'blocks.category.content', contexts: ['email'], weight: 10 },
+    { key: 'layout', titleKey: 'blocks.category.layout', contexts: ['email'], weight: 30 },
+    { key: 'embeds', titleKey: 'blocks.category.embeds', contexts: ['email'], weight: 40 },
+    {
+      key: 'internal',
+      titleKey: 'blocks.category.internal',
+      contexts: ['email'],
+      weight: 50,
+      visible: false,
+    },
+  ],
 });

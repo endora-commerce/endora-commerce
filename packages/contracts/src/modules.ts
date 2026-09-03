@@ -577,34 +577,62 @@ function assertErrorCodeRules(m: ModuleManifest): void {
 }
 
 /**
- * The three block-declaration rules (feature 096,
+ * The four block-declaration rules (feature 096,
  * `specs/096-page-builder-block-ownership/contracts/block-definition.md` §1).
  *
  * They live here rather than in the schema for the reason the activation rules
  * do: each is cross-field — one reads a block's `name` against the outer `id`,
- * one reads its `category` against the manifest's own `blockCategories` — and
- * every message has to name the module the author is looking at. They fire on
+ * one reads its `category` against the manifest's own `blockCategories`, one
+ * reads those declarations against each other — and every message has to name
+ * the module the author is looking at. They fire on
  * import, on the author's machine, with no instance and no database, which
  * matters more here than anywhere else in this file: a block name is written
  * into `jsonb` and never rewritten, so a wrong one caught in CI has already
  * been typed into a manifest, and one caught after a release is permanent.
  *
- * `check:block-names` re-derives all three for a manifest built without this
+ * `check:block-names` re-derives rules 1–3 for a manifest built without this
  * helper — the same belt-and-braces `check-port-dependencies.ts` applies to
  * `nonBindingDependencies`.
  *
  * **What this layer cannot decide is anything about a second manifest**, and
  * the limit is the one `assertErrorCodeRules` states for itself. Two modules
- * declaring one block name, and a category one module declares and another
- * names, are composition's questions and the check's. Rule 2 is therefore
- * enforced **within the declaring manifest**: a block's category must be
- * declared beside it. That is what FR-009 asks for — a contributor declares the
- * section in its own manifest instead of editing a shared map — and it is the
- * shape `contracts/block-definition.md` §1's own worked example writes, where
- * `catalog` declares both the block and the `catalog` category that `cms` also
- * declares.
+ * declaring one block name is composition's question and the check's; two
+ * modules declaring one `(key, context)` category is neither, because it is
+ * **normal and merges** — `contracts/block-definition.md` §1.1 is the ruling,
+ * the total order the merge resolves by and the two CI signals that hold
+ * in-tree modules to agreeing. Nothing here restates it.
+ *
+ * Rule 2 is therefore enforced **within the declaring manifest**, and per
+ * **context**: a block's category must be declared beside it, for every one of
+ * the block's `contexts`. That is what FR-009 asks for — a contributor declares
+ * the section in its own manifest instead of editing a shared map — and the
+ * per-context reading is T107's correction to Phase 1, which shipped "at least
+ * one". Under the weaker reading a block declared for `cms` and `email` whose
+ * section exists only in `cms` is uninsertable in the e-mail palette with no
+ * error anywhere, which is FR-009's silent-loss shape one level down.
  */
 function assertBlockRules(m: ModuleManifest): void {
+  // 4. One author, one section, one record. Judged first, and before any block
+  //    is read: a block is judged *against* `blockCategories`, so measuring it
+  //    against a set that contradicts itself reports the wrong defect. Unlike a
+  //    cross-module duplicate — which is normal and merges (§1.1) — this one
+  //    has a single author and is decidable where it is written.
+  const declaredSections = new Set<string>();
+  for (const category of m.blockCategories ?? []) {
+    for (const context of category.contexts) {
+      const pair = `${category.key}\u0000${context}`;
+      if (declaredSections.has(pair)) {
+        throw new Error(
+          `[contracts/modules] manifest "${m.id}" declares the palette section ` +
+            `"${category.key}" twice for context "${context}" — a section is one record, ` +
+            'resolved as one record, so a manifest that states it twice has stated a ' +
+            'title, a weight and a visibility for nobody to reconcile.',
+        );
+      }
+      declaredSections.add(pair);
+    }
+  }
+
   for (const block of m.blocks ?? []) {
     // 0. The grammar, before anything reads a segment of it. A name with no
     //    separator has no owner segment to compare against `id`, so a message
@@ -643,23 +671,24 @@ function assertBlockRules(m: ModuleManifest): void {
       );
     }
 
-    // 3. The category is a declared key, not free text. "At least one of the
-    //    block's contexts", never all of them: a block offered in two surfaces
-    //    whose section exists in one of them is legible, and the palette simply
-    //    does not render it in the other.
-    const declaresCategory = (m.blockCategories ?? []).some(
-      (category) =>
-        category.key === block.category &&
-        category.contexts.some((context) => block.contexts.includes(context)),
+    // 3. The category is a declared key, not free text, and it is declared for
+    //    **every** one of the block's contexts (T107). The block's own order is
+    //    what the message names, so an author fixing two missing contexts is
+    //    sent to the first of them rather than to whichever the set iterated.
+    const missingContext = block.contexts.find(
+      (context) =>
+        !(m.blockCategories ?? []).some(
+          (category) =>
+            category.key === block.category && category.contexts.includes(context),
+        ),
     );
-    if (!declaresCategory) {
+    if (missingContext !== undefined) {
       throw new Error(
         `[contracts/modules] manifest "${m.id}" declares block "${block.name}" in ` +
           `category "${block.category}", which this manifest does not declare in ` +
-          '`blockCategories` for any of the block\'s contexts ' +
-          `(${block.contexts.join(', ')}) — a section is declared, never assumed, so ` +
-          'that contributing a block into one costs no edit to a file the contributor ' +
-          'does not own.',
+          `\`blockCategories\` for context "${missingContext}" — a block's section is ` +
+          'declared beside it for every context the block is offered in, or the block ' +
+          'is uninsertable in that palette with no error anywhere.',
       );
     }
   }

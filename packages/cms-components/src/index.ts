@@ -134,8 +134,17 @@ export const defaultPageBuilderConfig: Config = {
       title: 'Interactive',
       components: ['ContentSlider', 'ImageSlider', 'Tabs', 'Accordion'],
     },
-    /** Hidden drawer category — keeps internal slot-only components out of "Other". */
-    _internal: {
+    /**
+     * Hidden drawer category — keeps internal slot-only components out of
+     * "Other". Keyed `internal` and not `_internal` since feature 096: a
+     * declared category's key is `^[a-z][a-z0-9_]*$`
+     * (`blockCategoryKeyRe`), which forbids a leading underscore, and the
+     * declaration this map becomes is `cms`' `internal` section. Same word,
+     * same title, same behaviour; the i18n key
+     * (`pageBuilder.categories.internal`, derived from this key by
+     * `page-builder-i18n.ts`) moved with it.
+     */
+    internal: {
       title: 'Internal',
       components: ['Column', 'Slide'],
       visible: false,

@@ -690,4 +690,95 @@ export const manifest = defineModuleManifest({
       weight: 225,
     },
   ],
+  /**
+   * The eight order blocks the e-mail Page Builder offers, and the Order
+   * section they populate (feature 096, §7.2 and §2.1).
+   *
+   * Every block in that section is this module's, so the section is this
+   * module's too — `transactional_emails` hand-writes it today and owns no
+   * block in it. Each renders one field of the order the e-mail is about,
+   * behind a label the operator edits.
+   *
+   * `contexts: ['email']` rather than `['email', 'newsletter']`: see the same
+   * note on `catalog`'s declarations. `fields: {}` is what the platform knows
+   * about these blocks — their editable shape lives in the renderer, exactly as
+   * it does for the CMS blocks the registry already registers with no fields.
+   */
+  blocks: [
+    {
+      name: 'orders.EmailOrderId',
+      labelKey: 'blocks.emailOrderId.label',
+      descriptionKey: 'blocks.emailOrderId.description',
+      category: 'order',
+      contexts: ['email'],
+      fields: {},
+      weight: 10,
+    },
+    {
+      name: 'orders.EmailOrderSummary',
+      labelKey: 'blocks.emailOrderSummary.label',
+      descriptionKey: 'blocks.emailOrderSummary.description',
+      category: 'order',
+      contexts: ['email'],
+      fields: {},
+      weight: 20,
+    },
+    {
+      name: 'orders.EmailOrderTotals',
+      labelKey: 'blocks.emailOrderTotals.label',
+      descriptionKey: 'blocks.emailOrderTotals.description',
+      category: 'order',
+      contexts: ['email'],
+      fields: {},
+      weight: 30,
+    },
+    {
+      name: 'orders.EmailAppliedDiscounts',
+      labelKey: 'blocks.emailAppliedDiscounts.label',
+      descriptionKey: 'blocks.emailAppliedDiscounts.description',
+      category: 'order',
+      contexts: ['email'],
+      fields: {},
+      weight: 40,
+    },
+    {
+      name: 'orders.EmailDeliveryMethod',
+      labelKey: 'blocks.emailDeliveryMethod.label',
+      descriptionKey: 'blocks.emailDeliveryMethod.description',
+      category: 'order',
+      contexts: ['email'],
+      fields: {},
+      weight: 50,
+    },
+    {
+      name: 'orders.EmailPaymentMethod',
+      labelKey: 'blocks.emailPaymentMethod.label',
+      descriptionKey: 'blocks.emailPaymentMethod.description',
+      category: 'order',
+      contexts: ['email'],
+      fields: {},
+      weight: 60,
+    },
+    {
+      name: 'orders.EmailShippingAddress',
+      labelKey: 'blocks.emailShippingAddress.label',
+      descriptionKey: 'blocks.emailShippingAddress.description',
+      category: 'order',
+      contexts: ['email'],
+      fields: {},
+      weight: 70,
+    },
+    {
+      name: 'orders.EmailBillingAddress',
+      labelKey: 'blocks.emailBillingAddress.label',
+      descriptionKey: 'blocks.emailBillingAddress.description',
+      category: 'order',
+      contexts: ['email'],
+      fields: {},
+      weight: 80,
+    },
+  ],
+  blockCategories: [
+    { key: 'order', titleKey: 'blocks.category.order', contexts: ['email'], weight: 20 },
+  ],
 });
