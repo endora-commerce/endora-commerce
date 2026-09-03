@@ -1,8 +1,8 @@
 import { cookies, headers } from 'next/headers';
-import type { I18nConfigResponse, StorefrontThemeCode } from '@endora-commerce/contracts';
+import type { I18nConfigResponse } from '@endora-commerce/contracts';
 import { getI18nConfig } from './api/i18n';
 import { getPublicSalesChannel } from './api/sales-channel';
-import { themeForChannel } from './theme/theme';
+import { themeForChannel, type ResolvedStorefrontTheme } from './theme/theme';
 import { getModulePresence, type ModulePresenceSet } from './api/module-presence';
 import { resolveLocale } from './i18n/locale';
 import { getSessionCookie } from './session';
@@ -37,8 +37,12 @@ export interface ServerContext {
    * `themeCode` (feature `005-sales-channels`). Stamped onto `<html
    * data-theme>` by the root layout, server-side, so the first paint already
    * carries the channel's brand.
+   *
+   * The whole decision rather than the code alone: `unknownRequest` is what the
+   * document element stamps as `data-theme-requested` when the channel named a
+   * theme this storefront does not have (feature 102).
    */
-  theme: StorefrontThemeCode;
+  theme: ResolvedStorefrontTheme;
 }
 
 export async function getServerContext(input?: { langOverride?: string | null }): Promise<ServerContext> {

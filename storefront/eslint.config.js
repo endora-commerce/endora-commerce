@@ -12,6 +12,32 @@ import nextPlugin from '@next/eslint-plugin-next';
 export default [
   ...rootConfig,
   {
+    /*
+     * The build scripts under `scripts/` are plain Node ESM, and the shared root
+     * config only reaches `.ts` / `.tsx` — so `eslint scripts` matched nothing
+     * and exited 0 over an unlinted directory. That is the green-that-means-not-
+     * looking this repository refuses everywhere else, so the block exists
+     * rather than the lint target being narrowed back.
+     *
+     * `.mjs` and not TypeScript because `generate-themes.mjs` runs before
+     * anything in the storefront is built, in a tree whose TypeScript toolchain
+     * belongs to whoever owns that storefront after `endora new storefront`.
+     */
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { process: 'readonly', console: 'readonly', URL: 'readonly' },
+    },
+    rules: {
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-undef': 'error',
+      eqeqeq: ['error', 'smart'],
+      'prefer-const': 'error',
+    },
+  },
+  {
     files: ['**/*.ts', '**/*.tsx'],
     plugins: {
       '@next/next': nextPlugin,

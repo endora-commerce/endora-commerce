@@ -140,6 +140,11 @@ export default async function RootLayout({
     // crawlers, the theme because the channel's token set has to be in the
     // first byte of HTML or the buyer sees the reference brand and then the
     // channel's (feature 005-sales-channels).
+    //
+    // `theme` is the whole decision, not the code alone: the document also
+    // carries `data-theme-requested` when the channel named a theme this
+    // storefront does not have, and deriving that inside the component is what
+    // stops a caller from forgetting it (feature 102).
     <StorefrontDocument lang={locale} theme={theme}>
       <DictionaryProvider
         initialDictionary={dictionary}
