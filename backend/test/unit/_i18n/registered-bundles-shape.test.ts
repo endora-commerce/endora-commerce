@@ -108,6 +108,165 @@ describe('registered module i18n bundles — real filesystem shape', () => {
   });
 
   /**
+   * Feature 096, T208 — block label, description and category-title keys
+   * (`contracts/block-definition.md` §2).
+   *
+   * They join the action keys above rather than getting a case of their own for
+   * the reason the action case exists at all: `labelKey` and `descriptionKey`
+   * are **module-relative** and live in the declaring module's own bundle, so a
+   * nested bundle, a missing language or a mistyped key all end the same way —
+   * the palette renders the raw key and the boot reconciler says nothing.
+   *
+   * Held to `SUPPORTED_LANGUAGES`, never to `loaded.byLanguage`: a module's own
+   * languages are what it happens to ship, and the question is what the platform
+   * ships.
+   */
+  it('every block label/description key declared in a manifest resolves in every shipped language', () => {
+    const missing: string[] = [];
+    let declared = 0;
+    for (const entry of withBundles) {
+      const blocks = entry.manifest.blocks ?? [];
+      if (blocks.length === 0) continue;
+      declared += blocks.length;
+      const loaded = loadModuleBundles(
+        entry.manifest.id,
+        dirname(entry.filePath),
+        entry.manifest.i18n!.bundlesDir,
+      );
+      if (loaded.byLanguage.size === 0) continue;
+      for (const language of SUPPORTED_LANGUAGES) {
+        const entries = loaded.byLanguage.get(language);
+        if (entries === undefined) {
+          missing.push(`${entry.manifest.id}/${language}.json → (no bundle in this language)`);
+          continue;
+        }
+        for (const block of blocks) {
+          for (const key of [block.labelKey, block.descriptionKey].filter(
+            (k): k is string => typeof k === 'string',
+          )) {
+            if (!(key in entries)) missing.push(`${entry.manifest.id}/${language}.json → ${key}`);
+          }
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+    // A green over an empty population would mean "no module declares a block",
+    // which is the state this case exists to stop being invisible.
+    expect(declared).toBeGreaterThan(0);
+  });
+
+  it('every declared palette section title resolves in every shipped language', () => {
+    const missing: string[] = [];
+    let declared = 0;
+    for (const entry of withBundles) {
+      const categories = entry.manifest.blockCategories ?? [];
+      if (categories.length === 0) continue;
+      declared += categories.length;
+      const loaded = loadModuleBundles(
+        entry.manifest.id,
+        dirname(entry.filePath),
+        entry.manifest.i18n!.bundlesDir,
+      );
+      if (loaded.byLanguage.size === 0) continue;
+      for (const language of SUPPORTED_LANGUAGES) {
+        const entries = loaded.byLanguage.get(language);
+        if (entries === undefined) {
+          missing.push(`${entry.manifest.id}/${language}.json → (no bundle in this language)`);
+          continue;
+        }
+        for (const category of categories) {
+          if (!(category.titleKey in entries)) {
+            missing.push(`${entry.manifest.id}/${language}.json → ${category.titleKey}`);
+          }
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+    expect(declared).toBeGreaterThan(0);
+  });
+
+  /**
+   * Feature 096, T208 — the title-agreement assertion
+   * (`contracts/block-definition.md` §1.1's table, row 4).
+   *
+   * Two modules declaring one `(key, context)` is normal and merges, and which
+   * declaration wins is a **function of the declarations** — lowest `weight`,
+   * ties by module id — so it changes when a module is switched off. If the two
+   * `titleKey`s resolve to different sentences the palette section renames
+   * itself depending on which modules are on, which is a presentation nobody
+   * wrote and no operator can predict.
+   *
+   * It lives here rather than in `check:block-names` because it is a question
+   * about **bundles**, and this file already has them open over
+   * `SUPPORTED_LANGUAGES` (`contracts/block-name-check.md` §3). The check
+   * answers the manifest half — a `weight` or a `visible` that disagrees.
+   */
+  it('two modules declaring one (key, context) title it identically in every shipped language', () => {
+    const byLanguage = new Map<string, Map<string, string>>();
+    for (const entry of withBundles) {
+      if ((entry.manifest.blockCategories ?? []).length === 0) continue;
+      byLanguage.set(
+        entry.manifest.id,
+        new Map(
+          Object.entries(
+            loadModuleBundles(
+              entry.manifest.id,
+              dirname(entry.filePath),
+              entry.manifest.i18n!.bundlesDir,
+            ).byLanguage.get('en') ?? {},
+          ),
+        ),
+      );
+    }
+    // `(key, context)` is the identity an entry listing three contexts states
+    // three times (§1.1). Grouping on the entry would call two disjoint
+    // sections a duplicate and miss an overlap in one context of two.
+    const sections = new Map<string, { module: string; titleKey: string }[]>();
+    for (const entry of withBundles) {
+      for (const category of entry.manifest.blockCategories ?? []) {
+        for (const context of category.contexts) {
+          const pair = `${category.key}|${context}`;
+          sections.set(pair, [
+            ...(sections.get(pair) ?? []),
+            { module: entry.manifest.id, titleKey: category.titleKey },
+          ]);
+        }
+      }
+    }
+    const joined = [...sections].filter(([, declarations]) => declarations.length > 1);
+    // The two this feature's own conversion creates — `data-model.md` §2.1.
+    // Zero joined sections would make every assertion below vacuous.
+    expect(joined.length).toBeGreaterThan(0);
+
+    const disagreements: string[] = [];
+    for (const language of SUPPORTED_LANGUAGES) {
+      const resolved = new Map<string, Record<string, string>>();
+      for (const entry of withBundles) {
+        if ((entry.manifest.blockCategories ?? []).length === 0) continue;
+        resolved.set(
+          entry.manifest.id,
+          loadModuleBundles(
+            entry.manifest.id,
+            dirname(entry.filePath),
+            entry.manifest.i18n!.bundlesDir,
+          ).byLanguage.get(language) ?? {},
+        );
+      }
+      for (const [pair, declarations] of joined) {
+        const titles = declarations.map(
+          (d) => `${d.module}:${resolved.get(d.module)?.[d.titleKey] ?? '(unresolved)'}`,
+        );
+        const texts = new Set(titles.map((t) => t.slice(t.indexOf(':') + 1)));
+        if (texts.size > 1) {
+          disagreements.push(`${language} ${pair} → ${titles.join(' | ')}`);
+        }
+      }
+    }
+    expect(disagreements).toEqual([]);
+    expect(byLanguage.size).toBeGreaterThan(0);
+  });
+
+  /**
    * Issue #65 — refusal-token sentences (`errors.<CODE>.<token>`).
    *
    * `check:error-translations` walks the declared codes, so it sees

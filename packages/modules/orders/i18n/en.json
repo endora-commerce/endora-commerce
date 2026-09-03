@@ -33,5 +33,22 @@
   "orderEntry.tab.standard": "Standard order",
   "nav.orders.label": "Orders",
   "nav.newOrder.label": "New order",
-  "nav.orderStatuses.label": "Order statuses"
+  "nav.orderStatuses.label": "Order statuses",
+  "blocks.emailOrderId.label": "Order ID",
+  "blocks.emailOrderId.description": "The order's business identifier, with a label.",
+  "blocks.emailOrderSummary.label": "Order summary",
+  "blocks.emailOrderSummary.description": "The ordered items, as an e-mail-safe table.",
+  "blocks.emailOrderTotals.label": "Summary",
+  "blocks.emailOrderTotals.description": "Net, tax and gross totals, with a label.",
+  "blocks.emailAppliedDiscounts.label": "Applied discounts",
+  "blocks.emailAppliedDiscounts.description": "The discounts applied to the order, with a label.",
+  "blocks.emailDeliveryMethod.label": "Delivery method",
+  "blocks.emailDeliveryMethod.description": "The chosen delivery method and its cost, with a label.",
+  "blocks.emailPaymentMethod.label": "Payment method",
+  "blocks.emailPaymentMethod.description": "The chosen payment method and its surcharge, with a label.",
+  "blocks.emailShippingAddress.label": "Shipping address",
+  "blocks.emailShippingAddress.description": "The order's shipping address, with a label.",
+  "blocks.emailBillingAddress.label": "Billing address",
+  "blocks.emailBillingAddress.description": "The order's billing address, with a label.",
+  "blocks.category.order": "Order"
 }
