@@ -79,6 +79,20 @@
  *     `check:module-boundary`'s shape, two-way, and carries a `sites` count
  *     where one page reaches one target more than once.
  *
+ *   * **`derived-fact-in-prose`** — a page stating **where a module's code
+ *     lives** (FR-023). D-100's rule: the manifest index answers it on every run,
+ *     every reader joins `dirname(manifestPath)` to reach a module's layers, and
+ *     the address has already moved once — `backend/src/modules/` has held
+ *     nothing but a README since F4 closed, while 50 sentences over 25 pages went
+ *     on naming it. It is not true of the reader's own instance either, where a
+ *     module lives under `node_modules`. **It is not "a number in prose" and not
+ *     "a path in prose"**: the tree is full of correct numbers and of paths that
+ *     name a file a reader is meant to open, and a predicate that could not tell
+ *     those from a derived fact would arrive with a ledger that is mostly
+ *     exceptions — which is what it means for a predicate to have outgrown its
+ *     population. `DERIVED_FACTS_IN_PROSE` is two-way, keyed on the page and a
+ *     **digest of the sentence** (R4.2), and expected to empty.
+ *
  * ## What it cannot see, stated here rather than discovered later
  *
  *   * **Front matter is a leading `---`-delimited block** and a value spanning
@@ -88,6 +102,16 @@
  *   * **A sidebar entry built by an expression** rather than written as a
  *     literal. The generator writes literals; a hand-edited artefact that did not
  *     would be `overlay:check`'s finding, not this one's.
+ *   * **The pre-F4 spelling of a module address.** `derived-fact-in-prose`
+ *     derives its prefixes from the layout — every registered module's own
+ *     directory, and every directory that is the parent of two or more of them —
+ *     so `backend/src/modules/<id>` is invisible: that tree holds no module and
+ *     there is nothing for the derivation to hang on. Two such sentences stood
+ *     when this landed. Deriving is still the right trade: a spelling written
+ *     down here would be a second copy of the fact the check exists to refuse,
+ *     and it is the *successor* address that a page will restate next.
+ *   * **A path built by an expression, or broken across a line.** The matcher
+ *     reads literal text with a boundary in front, in the estate's discipline.
  *   * **Whether a page is good, current or complete.** It answers reachability
  *     and attribution, and nothing else.
  *
@@ -96,11 +120,14 @@
  * exit 2 = the run could not see the population it judges — no registered
  * module, a module walk that came back short, no page read at all, a sidebar
  * artefact that contributed no entry, a module map that is unreadable or holds no
- * row, or a manifest artefact its own source has outrun.
+ * row, a manifest artefact its own source has outrun, no page of prose read at
+ * all, or no module directory placed — the last two being the two inputs whose
+ * absence makes `derived-fact-in-prose` vacuously clean over the whole site.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
@@ -115,8 +142,10 @@ import {
   DOCS_SIDEBAR_ARTEFACT,
   duplicateDocIds,
   MODULE_MAP_ARTEFACT,
+  MODULE_REFERENCE_CATEGORY,
   MODULES_CATEGORY,
   moduleOfSlug,
+  PAGE_EXTENSIONS,
   relativeLinksIn,
   resolveModuleDocs,
   DocsLayoutUnresolvableError,
@@ -136,7 +165,8 @@ export type ModuleDocsFindingKind =
   | 'unpaired-index-row'
   | 'misowned-page'
   | 'unroutable-page'
-  | 'foreign-module-link';
+  | 'foreign-module-link'
+  | 'derived-fact-in-prose';
 
 /**
  * Registered modules that ship no documentation page, each with the reason.
@@ -187,6 +217,300 @@ export const MODULES_WITHOUT_DOCUMENTATION: Readonly<Record<string, string>> = {
 export const PAGES_OUTSIDE_THE_NAVIGATION: Readonly<Record<string, string>> = {};
 
 /**
+ * Sentences that state where a module's code lives, each with the reason its
+ * repair has not been made yet.
+ *
+ * Two-way, keyed `<doc id>#<digest of the sentence>` (R4.1/R4.2), and
+ * **expected to empty** — every entry is a sentence somebody should rewrite to
+ * name the module instead of its address. A `sites` count where one sentence
+ * names more than one.
+ *
+ * It arrives pre-populated because a check that lands red is reverted rather
+ * than read. The population is not the one this feature predicted and the
+ * difference is worth recording: `spec.md` § 0.3 measured **50 occurrences over
+ * 25 files** of `backend/src/modules/`, and today's SC-005 sweep repaired
+ * almost all of them — into `packages/modules/`, which is the same derived fact
+ * one address later. What stands is what that sweep produced.
+ */
+export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> = {
+  'architecture/kernel#020b4020':
+    'cites `packages/modules/custom_fields/src/manifest.ts` by address. The file is real ' +
+    'and the sentence is worth keeping; the repair is to name the module and the file ' +
+    'rather than the path.',
+  'architecture/kernel#96cc32b0':
+    'cites `packages/modules/search/src/manifest.ts` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'architecture/kernel#deba7161':
+    'a template telling an author where to put a file. It spelled ' +
+    '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
+    'is derived and a page that restates it goes stale in silence.',
+  'architecture/migrations#1fe771b3':
+    'cites `packages/modules/organizations/src/manifest.ts` by address. The file is real ' +
+    'and the sentence is worth keeping; the repair is to name the module and the file ' +
+    'rather than the path.',
+  'architecture/migrations#2e3bfa0d':
+    'cites `packages/modules/orders/src/migrations` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'architecture/migrations#72990e2b':
+    'cites `packages/modules/quote_requests/src/migrations/status-mapping.ts` by address. ' +
+    'The file is real and the sentence is worth keeping; the repair is to name the module ' +
+    'and the file rather than the path.',
+  'architecture/migrations#a63a41bf':
+    '`_lifecycle`\'s sources sit inside the host package, and this sentence states that ' +
+    'address — which has already moved once. Name the module.',
+  'architecture/migrations#ac38292a':
+    'cites `packages/modules/_i18n/src/migrations` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'architecture/permissions#35643eab':
+    'cites ' +
+    '`packages/modules/admin_roles/src/backend/services/permission-catalogue.service.ts` ' +
+    'by address. The file is real and the sentence is worth keeping; the repair is to ' +
+    'name the module and the file rather than the path.',
+  'architecture/pim-connector#adf261f0':
+    'cites `packages/modules/pim_ergonode/README.md` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'architecture/pim-connector#c0df1fee':
+    'cites `packages/modules/pim_unopim/src/admin/components` by address. The file is ' +
+    'real and the sentence is worth keeping; the repair is to name the module and the ' +
+    'file rather than the path.',
+  'architecture/pim-connector#e19b92db':
+    'the page states `pim_connector`\'s own package directory. The generated reference ' +
+    'page carries the package that ships a module, so the sentence can link that instead ' +
+    'of restating it.',
+  'architecture/pim-ergonode#640040aa':
+    'cites ' +
+    '`packages/modules/pim_ergonode/src/backend/services/import/import-orchestrator.ts` ' +
+    'by address. The file is real and the sentence is worth keeping; the repair is to ' +
+    'name the module and the file rather than the path.',
+  'architecture/pim-ergonode#aa8a797f':
+    'the page states `pim_ergonode`\'s own package directory. The generated reference page ' +
+    'carries the package that ships a module, so the sentence can link that instead of ' +
+    'restating it.',
+  'architecture/pim-ergonode#e225df0b':
+    'cites ' +
+    '`packages/modules/pim_ergonode/src/migrations/20260804T190439_pim_ergonode_init.ts` ' +
+    'by address. The file is real and the sentence is worth keeping; the repair is to ' +
+    'name the module and the file rather than the path.',
+  'architecture/pim-pimcore#bc28b16e':
+    'the page states `pim_pimcore`\'s own package directory. The generated reference page ' +
+    'carries the package that ships a module, so the sentence can link that instead of ' +
+    'restating it.',
+  'architecture/pim-unopim#2fb8ac15':
+    'the page states `pim_unopim`\'s own package directory. The generated reference page ' +
+    'carries the package that ships a module, so the sentence can link that instead of ' +
+    'restating it.',
+  'contributing/translations#243c1fee':
+    'cites `packages/modules/_i18n/i18n` by address. The file is real and the sentence is ' +
+    'worth keeping; the repair is to name the module and the file rather than the path.',
+  'contributing/translations#2e5f023e':
+    'a template telling an author where to put a file. It spelled ' +
+    '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
+    'is derived and a page that restates it goes stale in silence.',
+  'deployment/first-deployment-checklist#0ad6acda':
+    'cites `packages/modules/orders/src/manifest.ts` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'deployment/first-deployment-checklist#10d91770':
+    'cites `packages/modules/customers/src/admin/panels/ManagementPanels.tsx` by address. ' +
+    'The file is real and the sentence is worth keeping; the repair is to name the module ' +
+    'and the file rather than the path.',
+  'deployment/first-deployment-checklist#237c0139':
+    'cites `packages/modules/catalog/src/backend/index.ts` by address. The file is real ' +
+    'and the sentence is worth keeping; the repair is to name the module and the file ' +
+    'rather than the path.',
+  'deployment/first-deployment-checklist#3b69ee67':
+    'cites `packages/modules/customer_accounts/src/manifest.ts` by address. The file is ' +
+    'real and the sentence is worth keeping; the repair is to name the module and the ' +
+    'file rather than the path.',
+  'deployment/first-deployment-checklist#3bb14526':
+    'cites `packages/modules/price_lists/src/manifest.ts` by address. The file is real ' +
+    'and the sentence is worth keeping; the repair is to name the module and the file ' +
+    'rather than the path.',
+  'deployment/first-deployment-checklist#46d41070':
+    'cites `packages/modules/mfa/src/manifest.ts` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'deployment/first-deployment-checklist#6367a07d':
+    'cites ' +
+    '`packages/modules/languages/src/migrations/20260425T161557_languages_currencies_init.ts` ' +
+    'by address. The file is real and the sentence is worth keeping; the repair is to ' +
+    'name the module and the file rather than the path.',
+  'deployment/first-deployment-checklist#6eb45dbe':
+    'cites `packages/modules/dictionaries/src/backend/index.ts` by address. The file is ' +
+    'real and the sentence is worth keeping; the repair is to name the module and the ' +
+    'file rather than the path.',
+  'deployment/first-deployment-checklist#77daf6d5':
+    'cites `packages/modules/ksef/src/manifest.ts` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'deployment/first-deployment-checklist#ed0f90c4': {
+    sites: 2,
+    reason:
+      'cites `packages/modules/payu/src/manifest.ts`, ' +
+      '`packages/modules/tpay/src/manifest.ts` by address. The file is real and the ' +
+      'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+      'the path.',
+  },
+  'deployment/first-deployment-checklist#f4382a7b':
+    'cites `packages/modules/invoices/src/manifest.ts` by address. The file is real and ' +
+    'the sentence is worth keeping; the repair is to name the module and the file rather ' +
+    'than the path.',
+  'modules/README#ae8f7ca5':
+    'a template telling an author where to put a file. It spelled ' +
+    '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
+    'is derived and a page that restates it goes stale in silence.',
+  'modules/admin-actions#db356b46':
+    'the page states `admin_actions`\'s own package directory. The generated reference ' +
+    'page carries the package that ships a module, so the sentence can link that instead ' +
+    'of restating it.',
+  'modules/assets-library/index#f1724269':
+    'cites `packages/modules/assets_library/src/backend/services/storage` by address. The ' +
+    'file is real and the sentence is worth keeping; the repair is to name the module and ' +
+    'the file rather than the path.',
+  'modules/autopay#5cba8391':
+    'the page states `autopay`\'s own package directory. The generated reference page ' +
+    'carries the package that ships a module, so the sentence can link that instead of ' +
+    'restating it.',
+  'modules/carts#278cbc02':
+    'cites `packages/modules/carts/src/manifest.ts` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'modules/carts#83e46841':
+    'cites `packages/modules/carts/src/backend/cli/abandonment-sweep.ts` by address. The ' +
+    'file is real and the sentence is worth keeping; the repair is to name the module and ' +
+    'the file rather than the path.',
+  'modules/carts#b3396c29':
+    'cites `packages/modules/audit_logs/src/backend/retention-policy.ts` by address. The ' +
+    'file is real and the sentence is worth keeping; the repair is to name the module and ' +
+    'the file rather than the path.',
+  'modules/carts#fef0832d':
+    'cites `packages/modules/carts/src/manifest.ts` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'modules/cms/index#ff32c0ae':
+    'cites `packages/modules/cms/src/backend/services/page-builder-registry.ts` by ' +
+    'address. The file is real and the sentence is worth keeping; the repair is to name ' +
+    'the module and the file rather than the path.',
+  'modules/comparisons#bb013c49':
+    'cites `packages/modules/comparisons/src/manifest.ts` by address. The file is real ' +
+    'and the sentence is worth keeping; the repair is to name the module and the file ' +
+    'rather than the path.',
+  'modules/dhl_parcel#955a8b02':
+    'the page states `dhl_parcel`\'s own package directory. The generated reference page ' +
+    'carries the package that ships a module, so the sentence can link that instead of ' +
+    'restating it.',
+  'modules/i18n#0addab46':
+    'the page states `_i18n`\'s own package directory. The generated reference page ' +
+    'carries the package that ships a module, so the sentence can link that instead of ' +
+    'restating it.',
+  'modules/i18n#1e85b73c':
+    'a template telling an author where to put a file. It spelled ' +
+    '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
+    'is derived and a page that restates it goes stale in silence.',
+  'modules/i18n#47a0e7d2':
+    'a worked example built on `my_module`, which the platform does not register — the ' +
+    'example outlived the module it was written against.',
+  'modules/i18n#8e634e8f':
+    'cites `packages/modules/_i18n/i18n` by address. The file is real and the sentence is ' +
+    'worth keeping; the repair is to name the module and the file rather than the path.',
+  'modules/i18n#968c9664':
+    'a template telling an author where to put a file. It spelled ' +
+    '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
+    'is derived and a page that restates it goes stale in silence.',
+  'modules/inpost#17d84bc5':
+    'cites `packages/modules/inpost/src/admin` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'modules/inpost#846849a3':
+    'the page states `inpost`\'s own package directory. The generated reference page ' +
+    'carries the package that ships a module, so the sentence can link that instead of ' +
+    'restating it.',
+  'modules/inventory#0ab317c1':
+    'cites `packages/modules/inventory/src/backend/services/display-band-resolver.ts` by ' +
+    'address. The file is real and the sentence is worth keeping; the repair is to name ' +
+    'the module and the file rather than the path.',
+  'modules/inventory#15fb54cc':
+    'cites `packages/modules/inventory/src/backend/services/threshold-resolver.ts` by ' +
+    'address. The file is real and the sentence is worth keeping; the repair is to name ' +
+    'the module and the file rather than the path.',
+  'modules/inventory#fb38ab3f':
+    'cites `packages/modules/inventory/src/backend/entities/warehouse.entity.ts` by ' +
+    'address. The file is real and the sentence is worth keeping; the repair is to name ' +
+    'the module and the file rather than the path.',
+  'modules/lifecycle#3d0eb1ed':
+    'a worked example built on `coupons`, which the platform does not register — the ' +
+    'example outlived the module it was written against.',
+  'modules/lifecycle#45379564':
+    'a worked example built on `coupons`, which the platform does not register — the ' +
+    'example outlived the module it was written against.',
+  'modules/lifecycle#4e18a71a':
+    'a worked example built on `coupons`, which the platform does not register — the ' +
+    'example outlived the module it was written against.',
+  'modules/lifecycle#5583c700':
+    'a worked example built on `coupons`, which the platform does not register — the ' +
+    'example outlived the module it was written against.',
+  'modules/lifecycle#66460269':
+    'a template telling an author where to put a file. It spelled ' +
+    '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
+    'is derived and a page that restates it goes stale in silence.',
+  'modules/lifecycle#82174e0a':
+    'a template telling an author where to put a file. It spelled ' +
+    '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
+    'is derived and a page that restates it goes stale in silence.',
+  'modules/lifecycle#d1aa5a86':
+    '`_lifecycle`\'s sources sit inside the host package, and this sentence states that ' +
+    'address — which has already moved once. Name the module.',
+  'modules/payment_methods#0407b038':
+    'a template telling an author where to put a file. It spelled ' +
+    '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
+    'is derived and a page that restates it goes stale in silence.',
+  'modules/payment_methods#4d6b92f2':
+    'cites `packages/modules/payments/src/backend/adapters/built-in-adapters.ts` by ' +
+    'address. The file is real and the sentence is worth keeping; the repair is to name ' +
+    'the module and the file rather than the path.',
+  'modules/paypal#2717d950':
+    'the page states `paypal`\'s own package directory. The generated reference page ' +
+    'carries the package that ships a module, so the sentence can link that instead of ' +
+    'restating it.',
+  'modules/payu#59215afe':
+    'cites `packages/modules/payu/README.md` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'modules/product_feeds#5ac59ce8':
+    'cites `packages/modules/product_feeds/src/backend` by address. The file is real and ' +
+    'the sentence is worth keeping; the repair is to name the module and the file rather ' +
+    'than the path.',
+  'modules/product_feeds#fad349b6':
+    'cites `packages/modules/product_feeds/src/admin` by address. The file is real and ' +
+    'the sentence is worth keeping; the repair is to name the module and the file rather ' +
+    'than the path.',
+  'modules/product_feeds#fb127f88':
+    'cites `packages/modules/product_feeds/src/backend/data/taxonomies/PROVENANCE.md` by ' +
+    'address. The file is real and the sentence is worth keeping; the repair is to name ' +
+    'the module and the file rather than the path.',
+  'modules/search#8d0bf6cb':
+    'cites `packages/modules/search/src/manifest.ts` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+  'modules/search#da53558c':
+    'cites `packages/modules/search/src/backend/cli/reindex.ts` by address. The file is ' +
+    'real and the sentence is worth keeping; the repair is to name the module and the ' +
+    'file rather than the path.',
+  'modules/settings/index#69fd3da0':
+    'a template telling an author where to put a file. It spelled ' +
+    '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
+    'is derived and a page that restates it goes stale in silence.',
+  'modules/tpay#83639bdf':
+    'cites `packages/modules/tpay/README.md` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
+};
+
+/**
  * One relative link a page writes, with both ends resolved.
  *
  * `fromModule` is the page's **shipper** — the module whose `docs/` layer the
@@ -219,6 +543,212 @@ export type ForeignLinkLedger = Readonly<Record<string, Readonly<Record<string, 
 /** How many sites an entry accounts for. */
 export function sitesOf(entry: ForeignLinkEntry): number {
   return typeof entry === 'string' ? 1 : entry.sites;
+}
+
+// ── `derived-fact-in-prose` (Phase 3, FR-023) ───────────────────────────────
+//
+// D-100's rule: a fact the platform **derives on every run**, written down a
+// second time in prose, goes stale silently and nobody finds out from the
+// sentence. The instance of it FR-023 names is *where a module's code lives* —
+// the manifest index answers it, `dirname(manifestPath)` is what every reader
+// joins to, and the address has already moved once: `backend/src/modules/` held
+// nothing but a README from the day F4 closed, and 50 sentences across 25 pages
+// went on naming it.
+//
+// **What this is not.** It is not "a number in prose" and it is not "a path in
+// prose". The tree is full of correct numbers and of paths that name a file a
+// reader is meant to open; a predicate that could not tell those from a derived
+// fact would arrive with a ledger that is mostly exceptions, which is the state
+// that means a predicate has outgrown its population. This one keys on a single
+// derived fact with a single owner, so an entry in its ledger is always a
+// sentence somebody should rewrite.
+//
+// **Both spellings, and neither written down** (D-100 applies to the check as
+// much as to the page). The prefixes come off the layout: every registered
+// module's own directory, and every directory that is the parent of two or more
+// of them — a *module tree*. That is what makes `packages/modules/<id>/…` a
+// finding today and what will make its successor one on the day the tree moves
+// again, with no edit here.
+//
+// The **bound** is the other half of the same derivation and is stated rather
+// than discovered later: a page naming the **pre-F4** address
+// `backend/src/modules/<id>` is invisible, because that tree holds no module and
+// there is nothing for the derivation to hang on. Two such sentences stood when
+// this landed and both are repaired in the merge request that added it; a third
+// would be caught by nothing here.
+
+/** A ledger entry: a reason, or a reason and a count. {@link ForeignLinkEntry}. */
+export type ProseLedgerEntry = ForeignLinkEntry;
+
+/**
+ * A directory a module's sources sit at, or sit **under**.
+ *
+ * `module` is one module's own directory and matches on its own; `tree` is a
+ * directory holding two or more of them and matches only with a segment after
+ * it, so that the sentence being refused is always one that names *a module*.
+ */
+export interface ModuleTreePrefix {
+  readonly path: string;
+  readonly kind: 'module' | 'tree';
+}
+
+/**
+ * Where this platform keeps module sources, from the layout and nothing else.
+ *
+ * A directory that is the parent of two or more module directories is a module
+ * **tree** — `packages/modules` today, and whatever succeeds it without a line
+ * changing here. "Two or more" is what keeps `backend/src` out of the tree set
+ * while `_lifecycle` lives under it: one module does not make a tree, and a
+ * prefix that broad would report every `backend/src/kernel/…` citation as a
+ * module path.
+ */
+export function moduleTreePrefixes(
+  directories: ReadonlyMap<string, string>,
+  repoRoot: string,
+): readonly ModuleTreePrefix[] {
+  const relativeTo = (path: string): string => relative(repoRoot, path).split('\\').join('/');
+  const modules = [...directories.values()].map(relativeTo);
+  const byParent = new Map<string, number>();
+  for (const directory of modules) {
+    const parent = directory.includes('/') ? directory.slice(0, directory.lastIndexOf('/')) : '';
+    if (parent === '') continue;
+    byParent.set(parent, (byParent.get(parent) ?? 0) + 1);
+  }
+  const prefixes: ModuleTreePrefix[] = [
+    ...modules.map((path) => ({ path, kind: 'module' as const })),
+    ...[...byParent]
+      .filter(([, count]) => count >= 2)
+      .map(([path]) => ({ path, kind: 'tree' as const })),
+  ];
+  // Longest first, so `packages/modules/catalog` is reported as itself rather
+  // than as the tree it sits in — one sentence, one reference.
+  return prefixes.sort((a, b) => b.path.length - a.path.length || a.path.localeCompare(b.path));
+}
+
+/** A path segment, including the `<id>` a template page writes in that position. */
+const PATH_SEGMENT = '[A-Za-z0-9_.<>*-]+';
+
+/**
+ * Every module-tree path one page's source writes, with the line it sits on.
+ *
+ * Read as literal text with a boundary in front, so a longer path that merely
+ * ends in one of these is not a match. The bounds, stated here: a path built by
+ * an expression is invisible, and so is one broken across a line — both of
+ * which are how a page would name a module's address without this seeing it,
+ * and neither of which is a shape any page in the tree writes.
+ */
+export function derivedFactReferencesIn(
+  source: string,
+  prefixes: readonly ModuleTreePrefix[],
+): readonly { readonly line: string; readonly reference: string }[] {
+  const found: { line: string; reference: string }[] = [];
+  const patterns = prefixes.map((prefix) => ({
+    kind: prefix.kind,
+    regexp: new RegExp(
+      `(?<![A-Za-z0-9_/.-])${prefix.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` +
+        (prefix.kind === 'tree' ? `(?:/${PATH_SEGMENT})+` : `(?:/${PATH_SEGMENT})*`),
+      'g',
+    ),
+  }));
+  for (const raw of source.split('\n')) {
+    const line = raw.trim();
+    let remaining = line;
+    for (const { regexp } of patterns) {
+      for (const match of remaining.matchAll(regexp)) {
+        found.push({ line, reference: match[0] });
+      }
+      // A longer prefix has already claimed its text, so the tree it sits in
+      // does not claim it a second time: one sentence naming one module's
+      // directory is one reference, whichever prefixes cover it.
+      remaining = remaining.replace(regexp, ' ');
+    }
+  }
+  return found;
+}
+
+/** One page's line that states where a module's code lives. */
+export interface DerivedFactSite {
+  /** The page's own doc id — never a repository path (R4.1). */
+  readonly docId: string;
+  /** Absolute path, for the message only. */
+  readonly path: string;
+  /** The line as written, trimmed — what the digest is taken over (R4.2). */
+  readonly line: string;
+  /** The module-tree paths this line names. */
+  readonly references: readonly string[];
+}
+
+/**
+ * The ledger key: the page, and a **digest of the sentence** (R4.2).
+ *
+ * Never a line number: Phase 2 moved 78 pages and the next batch of prose will
+ * move a hundred lines, and an entry that reds because somebody inserted a
+ * paragraph above it is an entry nobody trusts. A digest reds when the sentence
+ * itself changes, which is exactly when the reason under it stops describing
+ * anything.
+ */
+export function proseKey(docId: string, line: string): string {
+  return `${docId}#${createHash('sha256').update(line).digest('hex').slice(0, 8)}`;
+}
+
+/** One page of prose, as this half of the check reads it. */
+export interface ProsePage {
+  /** The site's identity for the page, relative to the content root. */
+  readonly docId: string;
+  readonly path: string;
+}
+
+/**
+ * Every page the documentation **site** serves, not only the modules category.
+ *
+ * The other findings are about a module's own pages; this one is about a
+ * sentence, and `spec.md` § 0.3 measured the sentences across the whole site —
+ * the architecture guides and the deployment checklist name a module's address
+ * as readily as its own page does. So the population is the content root, minus
+ * the two things a finding must never land in: the **copies** of module-owned
+ * pages (which is why the sources are read instead — FR-018's rule, one walk
+ * over) and the **generated artefacts**, whose prose nobody can edit.
+ */
+export function collectProsePages(
+  contentRoot: string,
+  skip: ReadonlySet<string> = new Set(),
+): ProsePage[] {
+  const pages: ProsePage[] = [];
+  const visit = (directory: string, prefix: string): void => {
+    for (const name of readdirSync(directory).sort()) {
+      const full = join(directory, name);
+      if (skip.has(full)) continue;
+      if (statSync(full).isDirectory()) {
+        visit(full, `${prefix}${name}/`);
+        continue;
+      }
+      if (!PAGE_EXTENSIONS.some((extension) => name.endsWith(extension))) continue;
+      if (name === MODULE_MAP_ARTEFACT) continue;
+      pages.push({ docId: `${prefix}${name.replace(/\.mdx?$/, '')}`, path: full });
+    }
+  };
+  visit(contentRoot, '');
+  return pages;
+}
+
+/** The sites one page holds, one per line that names a module's address. */
+export function derivedFactSitesOf(
+  page: ProsePage,
+  source: string,
+  prefixes: readonly ModuleTreePrefix[],
+): DerivedFactSite[] {
+  const byLine = new Map<string, string[]>();
+  for (const { line, reference } of derivedFactReferencesIn(source, prefixes)) {
+    const group = byLine.get(line);
+    if (group === undefined) byLine.set(line, [reference]);
+    else group.push(reference);
+  }
+  return [...byLine].map(([line, references]) => ({
+    docId: page.docId,
+    path: page.path,
+    line,
+    references,
+  }));
 }
 
 /**
@@ -308,6 +838,16 @@ export interface ModuleDocsInput {
    */
   readonly links?: readonly PageLink[];
   /**
+   * Every line of prose that names a module's address, already resolved to the
+   * page it sits on and the module-tree paths it writes.
+   *
+   * Handed in for issue #130's reason, exactly as `links` is: the classification
+   * below is the two-way ledger comparison, and the walk, the prefix derivation
+   * and the matcher are all upstream of it — a proof supplying a pre-grouped
+   * verdict would leave every one of them unproven.
+   */
+  readonly proseSites?: readonly DerivedFactSite[];
+  /**
    * The two ledgers, injected.
    *
    * They default to this file's own and are parameters so a red proof can enter
@@ -321,6 +861,8 @@ export interface ModuleDocsInput {
     readonly orphans?: Readonly<Record<string, string>>;
     /** Per consumer module, then per target module — see {@link ForeignLinkLedger}. */
     readonly foreignLinks?: ForeignLinkLedger;
+    /** Keyed `<doc id>#<digest of the sentence>` — see {@link DERIVED_FACTS_IN_PROSE}. */
+    readonly derivedFacts?: Readonly<Record<string, ProseLedgerEntry>>;
   };
 }
 
@@ -525,6 +1067,49 @@ export function checkModuleDocs(input: ModuleDocsInput): ModuleDocsResult {
     }
   }
 
+  // — `derived-fact-in-prose`, both directions of its ledger.
+  //
+  // Keyed on the page and a digest of the sentence (R4.2), with a `sites` count
+  // where one sentence names more than one module's address — the shape the
+  // foreign-link ledger uses, and for the same reason: a count below the walk
+  // is the reference nobody was asked about, one above it is the stale entry
+  // one granularity down.
+  const derivedFactLedger = input.ledgers?.derivedFacts ?? DERIVED_FACTS_IN_PROSE;
+  const proseWalked = new Map<string, { sites: number; site: DerivedFactSite }>();
+  for (const site of input.proseSites ?? []) {
+    const key = proseKey(site.docId, site.line);
+    const seen = proseWalked.get(key);
+    if (seen === undefined) proseWalked.set(key, { sites: site.references.length, site });
+    else seen.sites += site.references.length;
+  }
+  for (const [key, { sites, site }] of [...proseWalked].sort(([a], [b]) => a.localeCompare(b))) {
+    const entry = derivedFactLedger[key];
+    if (entry !== undefined && sitesOf(entry) === sites) continue;
+    findings.push({
+      kind: 'derived-fact-in-prose',
+      moduleId: null,
+      key,
+      detail:
+        entry === undefined
+          ? `states where ${site.references.map((path) => `\`${path}\``).join(', ')} lives, ` +
+            'which the manifest index answers on every run and which has already moved once: ' +
+            site.line
+          : `the ledger records ${sitesOf(entry)} reference(s) on this line and the walk found ` +
+            `${sites}: ${site.line}`,
+    });
+  }
+  for (const key of Object.keys(derivedFactLedger).sort()) {
+    if (proseWalked.has(key)) continue;
+    findings.push({
+      kind: 'derived-fact-in-prose',
+      moduleId: null,
+      key,
+      detail:
+        'no page states this any more, or the sentence has been rewritten — delete the entry ' +
+        'from DERIVED_FACTS_IN_PROSE',
+    });
+  }
+
   return { findings, documented, declaringNoDocs };
 }
 
@@ -557,6 +1142,15 @@ const REMEDIES: Readonly<Record<ModuleDocsFindingKind, string>> = {
     'partial for import into another page: it generates no route and a sidebar entry naming ' +
     'it cannot be resolved. D-200 is the rule for an infrastructure module — `_i18n` is ' +
     'documented at `i18n`, `_lifecycle` at `lifecycle`.',
+  'derived-fact-in-prose':
+    'Name the module, not its address. Where the module\'s code sits is a fact the platform ' +
+    'derives from the manifest index on every run, it has already moved once — every page in ' +
+    'this repository named `backend/src/modules/<id>/` until F4 closed — and it is not even ' +
+    "true of the reader's own instance, where a module lives under `node_modules`. The " +
+    'generated reference page carries the package that ships a module, so a sentence that ' +
+    'needs the fact can link that instead of restating it. The ledger is ' +
+    'DERIVED_FACTS_IN_PROSE, keyed on the page and a digest of the sentence, and it is ' +
+    'expected to empty.',
   'foreign-module-link':
     "Refer to the sibling by name, or link the module map — a sibling module may not be " +
     "installed in the reader's instance, and a relative link to a page that is not there fails " +
@@ -815,12 +1409,50 @@ async function main(): Promise<void> {
     refuse(String(error instanceof Error ? error.message : error));
   }
 
+  // — `derived-fact-in-prose` (FR-023). Its population is the **site**, not the
+  //   modules category: § 0.3 measured the sentences across the whole of
+  //   `docs/docs`, and an architecture guide names a module's address as readily
+  //   as the module's own page does.
+  //
+  //   Module-owned pages are read at their **source**, and their copies under
+  //   the modules category are skipped, so a finding lands on the file an author
+  //   can edit and never on an artefact (FR-018's rule, one walk over). The
+  //   generated reference pages are skipped for the same reason: their prose is
+  //   this generator's, and nobody can rewrite a sentence it renders.
+  const prosePages = [
+    ...collectProsePages(
+      docs.contentRoot,
+      new Set([...resolved.copies, join(docs.contentRoot, MODULE_REFERENCE_CATEGORY)]),
+    ),
+    ...resolved.modulePages.map((page) => ({ docId: page.docId, path: page.path })),
+  ].sort((a, b) => a.docId.localeCompare(b.docId));
+  if (prosePages.length === 0) {
+    refuse(
+      `the documentation site at ${docs.contentRoot} holds no page this run could read — ` +
+        '`derived-fact-in-prose` would report a clean tree over nothing; refusing to report a ' +
+        'vacuous pass',
+    );
+  }
+  // The prefixes are the whole predicate: with none, every sentence in the site
+  // is clean by construction and the check would say so.
+  const prefixes = moduleTreePrefixes(layout.moduleDirectories, layout.repoRoot);
+  if (prefixes.length === 0) {
+    refuse(
+      'no module directory could be placed, so this run knows of no address a page could ' +
+        'restate — `derived-fact-in-prose` would be vacuously clean over every page in the site',
+    );
+  }
+  const proseSites = prosePages.flatMap((page) =>
+    derivedFactSitesOf(page, readFileSync(page.path, 'utf8'), prefixes),
+  );
+
   const result = checkModuleDocs({
     modules: loaded.modules,
     attribution,
     navigationEntries,
     mapRows,
     links,
+    proseSites,
     ledgers: { foreignLinks },
   });
 
@@ -863,10 +1495,19 @@ async function main(): Promise<void> {
             covered: freshness.compared.length,
           },
         ];
+  // `files` counts each file **once**: the modules category's pages and the
+  // module-owned sources are in both walks, so the prose half adds only the
+  // site pages outside the category — the architecture guides and the
+  // deployment checklist, which is where half of § 0.3's sentences were.
+  const opened = new Set([...pages.map((page) => page.path), ...prosePages.map((page) => page.path)]);
   reportReadSize({
     prefix: PREFIX,
-    files: pages.length + 1,
-    sites: navigationEntries.length + mapRows.length + links.length,
+    files: opened.size + 1,
+    sites:
+      navigationEntries.length +
+      mapRows.length +
+      links.length +
+      proseSites.reduce((total, site) => total + site.references.length, 0),
     coverage: [
       coverage,
       {

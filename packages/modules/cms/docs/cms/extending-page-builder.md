@@ -27,7 +27,7 @@ In your module's `plugin.ts` (or a dedicated `register-page-builder.ts`),
 declare a function that takes the registry and registers your components:
 
 ```ts
-// backend/src/modules/promotions/services/register-page-builder.ts
+// the promotions module: src/backend/services/register-page-builder.ts
 import type { PageBuilderRegistry } from '../../cms/services/page-builder-registry.js';
 
 export function registerPromotionsPageBuilderComponents(

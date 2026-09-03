@@ -1,16 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import {
   checkModuleDocs,
+  collectProsePages,
+  DERIVED_FACTS_IN_PROSE,
+  derivedFactReferencesIn,
+  derivedFactSitesOf,
   loadForeignLinkLedger,
   mapRowsIn,
   MODULES_WITHOUT_DOCUMENTATION,
+  moduleTreePrefixes,
   navigationEntriesIn,
   PAGES_OUTSIDE_THE_NAVIGATION,
   pageKey,
+  proseKey,
   sitesOf,
+  type DerivedFactSite,
   type ForeignLinkLedger,
   type ModuleDocsFindingKind,
   type PageLink,
@@ -106,10 +114,12 @@ function run(
     navigation?: readonly string[];
     rows?: readonly { moduleId: string; slug?: string | undefined }[];
     links?: readonly PageLink[];
+    proseSites?: readonly DerivedFactSite[];
     ledgers?: {
       undocumented?: Readonly<Record<string, string>>;
       orphans?: Readonly<Record<string, string>>;
       foreignLinks?: ForeignLinkLedger;
+      derivedFacts?: Readonly<Record<string, string | { sites: number; reason: string }>>;
     };
   } = {},
 ): { findings: readonly { kind: ModuleDocsFindingKind; key: string }[] } {
@@ -142,7 +152,14 @@ function run(
         modules.map((module) => module.id),
       ),
       links: overrides.links ?? linksOf(fixture),
-      ledgers: overrides.ledgers ?? { undocumented: {}, orphans: {}, foreignLinks: {} },
+      proseSites: overrides.proseSites ?? [],
+      ledgers: {
+        undocumented: {},
+        orphans: {},
+        foreignLinks: {},
+        derivedFacts: {},
+        ...overrides.ledgers,
+      },
     });
   } finally {
     fixture.cleanup();
@@ -380,6 +397,27 @@ describe('check:module-docs', () => {
       }
     });
 
+    it('holds the sentences that state where a module lives, each with a reason', () => {
+      // Expected to empty: every entry is a sentence somebody should rewrite to
+      // name the module instead of its address. It arrives pre-populated because
+      // a check that lands red is reverted rather than read — and the population
+      // is not the one this feature predicted, which is recorded rather than
+      // quietly corrected: `spec.md` § 0.3 measured 50 occurrences over 25 files
+      // of `backend/src/modules/`, and the SC-005 sweep repaired almost all of
+      // them into `packages/modules/` — the same derived fact, one address later.
+      const keys = Object.keys(DERIVED_FACTS_IN_PROSE);
+      expect(keys.length).toBeGreaterThan(0);
+      for (const key of keys) {
+        // R4.1/R4.2 — the page's own doc id and a digest of the sentence. Never a
+        // repository path, and never a line: an insertion above the site must not
+        // red the entry, and an edited sentence must.
+        expect(key).toMatch(/^[A-Za-z0-9_./-]+#[0-9a-f]{8}$/);
+        const entry = DERIVED_FACTS_IN_PROSE[key]!;
+        expect(sitesOf(entry)).toBeGreaterThan(0);
+        expect((typeof entry === 'string' ? entry : entry.reason).length).toBeGreaterThan(40);
+      }
+    });
+
     it('keys a page ledger entry on the module and the slug, never on a repository path', () => {
       // R4.1. Phase 2 moves 78 pages one module at a time, and a path-keyed
       // entry goes stale on every batch — the shape AGENTS.md records for
@@ -398,7 +436,116 @@ describe('check:module-docs', () => {
     });
   });
 
-  describe('the finding predicates', () => {
+  describe('the derived-fact predicate', () => {
+  const prefixes = moduleTreePrefixes(
+    new Map([
+      ['catalog', '/repo/packages/modules/catalog'],
+      ['blog', '/repo/packages/modules/blog'],
+      ['_lifecycle', '/repo/packages/platform/src/lifecycle'],
+    ]),
+    '/repo',
+  );
+
+  it('derives both a module tree and a single module directory, and nothing wider', () => {
+    // "Two or more" is what keeps `packages/platform/src` out of the tree set
+    // while `_lifecycle` sits under it: one module does not make a tree, and a
+    // prefix that broad would report every platform citation as a module path.
+    expect([...prefixes].map((prefix) => `${prefix.kind} ${prefix.path}`).sort()).toEqual([
+      'module packages/modules/blog',
+      'module packages/modules/catalog',
+      'module packages/platform/src/lifecycle',
+      'tree packages/modules',
+    ]);
+  });
+
+  it('reads a module address out of prose, in the three spellings the tree writes', () => {
+    const found = derivedFactReferencesIn(
+      [
+        'The body is `packages/modules/catalog/src/backend/cli/reindex.ts`.',
+        'Put it at `packages/modules/<id>/src/manifest.ts`.',
+        'It lives at `packages/platform/src/lifecycle/`.',
+      ].join('\n'),
+      prefixes,
+    ).map((entry) => entry.reference);
+    expect(found).toEqual([
+      'packages/modules/catalog/src/backend/cli/reindex.ts',
+      'packages/modules/<id>/src/manifest.ts',
+      'packages/platform/src/lifecycle',
+    ]);
+  });
+
+  it('counts one sentence naming one module once, whichever prefixes cover it', () => {
+    // `packages/modules/catalog/...` is under a module prefix *and* under the
+    // tree prefix. Counting it twice would make every ledger count wrong by
+    // construction, and the count is one half of a two-way ratchet.
+    expect(
+      derivedFactReferencesIn('See `packages/modules/catalog/src/manifest.ts`.', prefixes),
+    ).toHaveLength(1);
+  });
+
+  it('says nothing about a path that names no module', () => {
+    // The rule is *where a module's code lives*, not "a path in prose". A
+    // predicate that could not tell the two apart would arrive with a ledger
+    // that is mostly exceptions.
+    expect(
+      derivedFactReferencesIn(
+        [
+          'The kernel is `packages/platform/src/kernel/compose.ts`.',
+          'Its tests are `backend/test/unit/catalog/pricing.test.ts`.',
+          'The contract is `packages/contracts/src/catalog.ts`.',
+        ].join('\n'),
+        prefixes,
+      ),
+    ).toEqual([]);
+  });
+
+  it('groups a sentence naming two modules into one site with two references', () => {
+    const sites = derivedFactSitesOf(
+      { docId: 'deployment/checklist', path: '/repo/docs/docs/deployment/checklist.md' },
+      'See `packages/modules/catalog/src/manifest.ts` and `packages/modules/blog/src/manifest.ts`.',
+      prefixes,
+    );
+    expect(sites).toHaveLength(1);
+    expect(sites[0]!.references).toHaveLength(2);
+  });
+
+  it('keys on the page and a digest of the sentence, never on a line', () => {
+    // R4.2 — an insertion above the site must not red the entry, and an edited
+    // sentence must.
+    expect(proseKey('architecture/kernel', 'a sentence')).toMatch(
+      /^architecture\/kernel#[0-9a-f]{8}$/,
+    );
+    expect(proseKey('architecture/kernel', 'a sentence')).not.toBe(
+      proseKey('architecture/kernel', 'a sentence.'),
+    );
+  });
+
+  it('walks the whole site, and never an artefact or a copy', () => {
+    // FR-018's rule, one walk over: a finding has to land on a file an author
+    // can edit. The module map and the generated reference pages are this
+    // repository's own output, and the copies under the modules category are a
+    // second spelling of a page whose source is the module's.
+    const fixture = createModuleDocsFixture(
+      [{ id: 'catalog' }],
+      [
+        { path: 'catalog.md', frontMatter: { title: 'Catalog' } },
+        { path: 'module-map.generated.md', frontMatter: { title: 'Module map' } },
+      ],
+    );
+    try {
+      const category = fixture.modulesRoot;
+      const pages = collectProsePages(fixture.contentRoot, new Set([join(category, 'catalog.md')]));
+      expect(pages.map((page) => page.docId)).toEqual([]);
+      expect(collectProsePages(fixture.contentRoot).map((page) => page.docId)).toEqual([
+        'modules/catalog',
+      ]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+});
+
+describe('the finding predicates', () => {
     it('exempts a module that declares docs: false and reports one that declares nothing', () => {
       // The distinction the whole design turns on: absent is a module nobody has
       // decided about, `false` is a decision. Collapsing them is how a
@@ -619,7 +766,50 @@ describe('check:module-docs', () => {
       expect(retired.findings.map((finding) => finding.key)).toEqual(['blog:catalog']);
     });
 
-    it('resolves a relative link the way Docusaurus does, and stops at the category edge', () => {
+    it('reports a sentence that states where a module lives, and its stale entry', () => {
+    const site: DerivedFactSite = {
+      docId: 'architecture/kernel',
+      path: '/repo/docs/docs/architecture/kernel.md',
+      line: 'The body lives in `packages/modules/catalog/src/backend/cli/reindex.ts`.',
+      references: ['packages/modules/catalog/src/backend/cli/reindex.ts'],
+    };
+    const key = proseKey(site.docId, site.line);
+    expect(run({ proseSites: [site] }).findings).toEqual([
+      expect.objectContaining({ kind: 'derived-fact-in-prose', key }),
+    ]);
+    expect(run({ proseSites: [site], ledgers: { derivedFacts: { [key]: 'FR-023.' } } }).findings)
+      .toEqual([]);
+    // The other direction: an entry for a sentence nobody writes any more.
+    expect(
+      run({ ledgers: { derivedFacts: { 'architecture/kernel#deadbeef': 'FR-023.' } } }).findings,
+    ).toEqual([
+      expect.objectContaining({ kind: 'derived-fact-in-prose', key: 'architecture/kernel#deadbeef' }),
+    ]);
+  });
+
+  it('reports a ledger count that no longer describes the sentence, in both directions', () => {
+    const site: DerivedFactSite = {
+      docId: 'deployment/checklist',
+      path: '/repo/docs/docs/deployment/checklist.md',
+      line: 'See `packages/modules/catalog/src/manifest.ts` and `packages/modules/blog/`.',
+      references: ['packages/modules/catalog/src/manifest.ts', 'packages/modules/blog'],
+    };
+    const key = proseKey(site.docId, site.line);
+    const under = run({ proseSites: [site], ledgers: { derivedFacts: { [key]: 'FR-023.' } } });
+    expect(under.findings.map((finding) => finding.kind)).toEqual(['derived-fact-in-prose']);
+    const exact = run({
+      proseSites: [site],
+      ledgers: { derivedFacts: { [key]: { sites: 2, reason: 'FR-023.' } } },
+    });
+    expect(exact.findings).toEqual([]);
+    const over = run({
+      proseSites: [site],
+      ledgers: { derivedFacts: { [key]: { sites: 3, reason: 'FR-023.' } } },
+    });
+    expect(over.findings.map((finding) => finding.kind)).toEqual(['derived-fact-in-prose']);
+  });
+
+  it('resolves a relative link the way Docusaurus does, and stops at the category edge', () => {
       const page = {
         relativePath: 'catalog/attributes.md',
       } as never;
