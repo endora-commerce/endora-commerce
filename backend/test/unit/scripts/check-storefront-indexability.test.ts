@@ -5,7 +5,10 @@ import {
   readSitemapDeclaration,
   routePatternOf,
   vacuousReason,
+  readStatusDecisions,
+  boundariesAbove,
   type RouteFile,
+  type SegmentWalk,
   type StorefrontIndexabilityFindingKind,
   type StorefrontIndexabilityResult,
 } from '../../../scripts/check-storefront-indexability.js';
@@ -76,15 +79,61 @@ export default function Page() { return null; }
  */
 const CLEAN_CATALOG = page('/(catalog)/catalog/page.tsx', INDEXABLE_BODY, SEO_DECLARATION);
 
+/**
+ * A page that decides a response status on the document render path.
+ *
+ * Source text with the import in it, because the five calls are bound through
+ * `next/navigation` and not by spelling — a fixture writing only `notFound()`
+ * would prove nothing about the binding.
+ */
+const DECIDING_BODY = `import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const row = await load(slug);
+  if (!row) notFound();
+  return null;
+}
+`;
+
+/**
+ * The same decision, inside a server action.
+ *
+ * §2.3, and the discrimination the whole classifier turns on: 224 of this
+ * tree's 292 such calls live in a shape like this one, measured correct with a
+ * boundary standing, and 33 of them are the authentication guards a classifier
+ * blind to the directive would report.
+ */
+const ACTION_BODY = `import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+async function save(form: FormData) {
+  'use server';
+  await persist(form);
+  redirect('/thanks');
+}
+export default function Page() {
+  return <form action={save} />;
+}
+`;
+
+/** A boundary walk that found the named files and could read every directory. */
+function boundaries(...files: readonly string[]): SegmentWalk {
+  return { boundaries: files.map((file) => `${APP_ROOT}${file}`), unreadable: [] };
+}
+
 function run(
   routes: readonly RouteFile[],
   staticRoutes: readonly string[] = ['/catalog'],
   dynamicRoutes: readonly string[] = [],
+  segments: SegmentWalk = { boundaries: [], unreadable: [] },
 ): StorefrontIndexabilityResult {
   return checkStorefrontIndexability({
     appRoot: APP_ROOT,
     routes,
     sitemapText: sitemapText(staticRoutes, dynamicRoutes),
+    segments,
   });
 }
 
@@ -254,12 +303,195 @@ describe('check-storefront-indexability — what it must not report', () => {
   });
 });
 
+describe('check-storefront-indexability — a status decision under a boundary', () => {
+  /**
+   * `specs/108-storefront-response-status/contracts/response-status.md` §5, and
+   * every case below is a conjunction: the page decides *and* a boundary sits
+   * above it. Both halves have their own discrimination, because getting either
+   * wrong makes the check useless in a different direction — a classifier blind
+   * to `'use server'` reports 33 correct authentication guards, and one blind to
+   * ancestry reports the one shape this tree actually had as clean.
+   */
+  const deciding = page('/wholesale/[slug]/page.tsx', DECIDING_BODY);
+
+  it('reports a boundary in the page\'s own segment', () => {
+    // Measured on a real build: with the root `loading.tsx` removed and one
+    // added at the page's own segment, `/p/missing` went back to 200 while a
+    // sibling route with no boundary of its own kept its 308.
+    const result = run(
+      [CLEAN_CATALOG, deciding],
+      ['/catalog'],
+      [],
+      boundaries('/wholesale/[slug]/loading.tsx'),
+    );
+    expect(findingsOf(result, 'status-decision-under-a-boundary')).toEqual(['/wholesale/[slug]']);
+  });
+
+  it('reports a boundary in an ancestor segment, route groups included', () => {
+    // The shape this tree had: one `app/loading.tsx`, three directories above
+    // the nearest of the 68 call sites it defeated. The chain is *directories*
+    // and not route segments — a route group contributes no URL segment and
+    // does contribute a directory Next reads a `loading.tsx` out of.
+    for (const boundary of ['/loading.tsx', '/wholesale/loading.tsx']) {
+      const result = run([CLEAN_CATALOG, deciding], ['/catalog'], [], boundaries(boundary));
+      expect(findingsOf(result, 'status-decision-under-a-boundary')).toEqual(['/wholesale/[slug]']);
+    }
+    const grouped = page('/(shop)/wholesale/page.tsx', DECIDING_BODY);
+    const result = run([CLEAN_CATALOG, grouped], ['/catalog'], [], boundaries('/(shop)/loading.tsx'));
+    expect(findingsOf(result, 'status-decision-under-a-boundary')).toEqual(['/wholesale']);
+  });
+
+  it('reads `template.tsx` as the same boundary', () => {
+    const result = run(
+      [CLEAN_CATALOG, deciding],
+      ['/catalog'],
+      [],
+      boundaries('/wholesale/template.tsx'),
+    );
+    expect(findingsOf(result, 'status-decision-under-a-boundary')).toEqual(['/wholesale/[slug]']);
+  });
+
+  it('says nothing about a deciding page with no boundary above it', () => {
+    const result = run([CLEAN_CATALOG, deciding]);
+    expect(findingsOf(result, 'status-decision-under-a-boundary')).toEqual([]);
+  });
+
+  it('says nothing about a boundary over a page that decides nothing', () => {
+    // `/catalog` is this: it keeps its `loading.tsx` because it decides no
+    // status, and a rule that reported it would be a rule asking the storefront
+    // to give up every skeleton it has.
+    const result = run(
+      [CLEAN_CATALOG, deciding],
+      ['/catalog'],
+      [],
+      boundaries('/(catalog)/catalog/loading.tsx'),
+    );
+    expect(findingsOf(result, 'status-decision-under-a-boundary')).toEqual([]);
+  });
+
+  it('says nothing about a boundary in a sibling segment', () => {
+    const result = run([CLEAN_CATALOG, deciding], ['/catalog'], [], boundaries('/other/loading.tsx'));
+    expect(findingsOf(result, 'status-decision-under-a-boundary')).toEqual([]);
+  });
+
+  it('says nothing about a `\'use server\'` decision under a boundary', () => {
+    // §5.4 — the one that must not fire. The finding here would be reported
+    // against a call that is measured correct: an action redirect answers 303
+    // with `x-action-redirect` while the boundary stands, because an action's
+    // result is never the document shell.
+    const action = page('/checkout/page.tsx', ACTION_BODY);
+    const result = run([CLEAN_CATALOG, action, deciding], ['/catalog'], [], boundaries('/loading.tsx'));
+    expect(findingsOf(result, 'status-decision-under-a-boundary')).toEqual(['/wholesale/[slug]']);
+  });
+});
+
+describe('check-storefront-indexability — reading the decision itself', () => {
+  it('reads the five calls, and only through their `next/navigation` binding', () => {
+    const read = (body: string): readonly string[] =>
+      readStatusDecisions(body, 'storefront/app/x/page.tsx').map((one) => one.call);
+
+    expect(
+      read(
+        "import { notFound, redirect, permanentRedirect } from 'next/navigation';\n" +
+          'export default function Page() { notFound(); redirect("/a"); permanentRedirect("/b"); }\n',
+      ),
+    ).toEqual(['notFound', 'redirect', 'permanentRedirect']);
+
+    // `authInterrupts`, which nothing in this tree uses yet — and the refactor
+    // this feature makes attractive is exactly the one that reaches for them.
+    expect(
+      read(
+        "import { forbidden, unauthorized } from 'next/navigation';\n" +
+          'export default function Page() { forbidden(); unauthorized(); }\n',
+      ),
+    ).toEqual(['forbidden', 'unauthorized']);
+
+    // A page's own helper of the same name decides nothing. Spelling would
+    // report it; the import binding does not.
+    expect(read('function redirect(to) {}\nexport default function Page() { redirect("/a"); }\n')).toEqual(
+      [],
+    );
+
+    // An alias is followed, because the call is the same call.
+    expect(
+      read(
+        "import { notFound as missing } from 'next/navigation';\n" +
+          'export default function Page() { missing(); }\n',
+      ),
+    ).toEqual(['notFound']);
+
+    // And so is a namespace import.
+    expect(
+      read(
+        "import * as nav from 'next/navigation';\n" +
+          'export default function Page() { nav.notFound(); }\n',
+      ),
+    ).toEqual(['notFound']);
+  });
+
+  it('reads a file-level `\'use server\'` as making every call in it an action', () => {
+    expect(
+      readStatusDecisions(
+        "'use server';\nimport { redirect } from 'next/navigation';\n" +
+          'export async function go() { redirect("/a"); }\n',
+        'storefront/app/x/actions.ts',
+      ),
+    ).toEqual([]);
+  });
+
+  it('carries the directive into everything nested inside the action', () => {
+    // A callback inside a `'use server'` function is still inside the action,
+    // and a decision after it in the same file is not.
+    const decisions = readStatusDecisions(
+      "import { redirect, notFound } from 'next/navigation';\n" +
+        'async function save() {\n' +
+        "  'use server';\n" +
+        '  await items.forEach(() => { redirect("/a"); });\n' +
+        '}\n' +
+        'export default function Page() { notFound(); }\n',
+      'storefront/app/x/page.tsx',
+    );
+    expect(decisions.map((one) => one.call)).toEqual(['notFound']);
+  });
+
+  it('names the line, so the finding points at something a reader can open', () => {
+    const [first] = readStatusDecisions(
+      "import { notFound } from 'next/navigation';\n\nexport default function Page() {\n  notFound();\n}\n",
+      'storefront/app/x/page.tsx',
+    );
+    expect(first?.line).toBe(4);
+  });
+});
+
+describe('check-storefront-indexability — the boundary chain', () => {
+  it('walks directories up to the app root and stops there', () => {
+    const found = [
+      'storefront/app/loading.tsx',
+      'storefront/app/(catalog)/loading.tsx',
+      'storefront/app/(catalog)/p/[slug]/loading.tsx',
+      'storefront/app/(catalog)/catalog/loading.tsx',
+      'storefront/other/loading.tsx',
+    ];
+    expect(boundariesAbove('storefront/app/(catalog)/p/[slug]/page.tsx', found, APP_ROOT)).toEqual([
+      'storefront/app/loading.tsx',
+      'storefront/app/(catalog)/loading.tsx',
+      'storefront/app/(catalog)/p/[slug]/loading.tsx',
+    ]);
+    // A boundary outside the app root is somebody else's file, and a sibling
+    // segment's is not above this page.
+    expect(boundariesAbove('storefront/app/page.tsx', found, APP_ROOT)).toEqual([
+      'storefront/app/loading.tsx',
+    ]);
+  });
+});
+
 describe('check-storefront-indexability — when it may not report at all', () => {
   it('refuses a run with no page file — a moved `storefront/app` (issue #215)', () => {
     const result = checkStorefrontIndexability({
       appRoot: APP_ROOT,
       routes: [],
       sitemapText: sitemapText(['/catalog']),
+      segments: { boundaries: [], unreadable: [] },
     });
     expect(vacuousReason(result)?.kind).toBe('no-page-file');
   });
@@ -274,6 +506,7 @@ describe('check-storefront-indexability — when it may not report at all', () =
         appRoot: APP_ROOT,
         routes: [CLEAN_CATALOG],
         sitemapText: text,
+        segments: { boundaries: [], unreadable: [] },
       });
       expect(vacuousReason(result)?.kind).toBe('unreadable-sitemap');
     }
@@ -285,6 +518,29 @@ describe('check-storefront-indexability — when it may not report at all', () =
       page('/b/page.tsx', 'export default function Page() { return null; }\n'),
     ]);
     expect(vacuousReason(result)?.kind).toBe('nothing-classified');
+  });
+
+  it('refuses a segment directory it could not enumerate', () => {
+    // Exit 2 rather than 1, and it is the direction that matters: a directory
+    // the walk was refused may hold the `loading.tsx` that defeats every page
+    // under it, and reporting those pages clean is the one verdict this run may
+    // not give about a directory it could not read.
+    const result = checkStorefrontIndexability({
+      appRoot: APP_ROOT,
+      routes: [CLEAN_CATALOG, page('/wholesale/page.tsx', DECIDING_BODY)],
+      sitemapText: sitemapText(['/catalog']),
+      segments: { boundaries: [], unreadable: [`${APP_ROOT}/(catalog)`] },
+    });
+    expect(vacuousReason(result)?.kind).toBe('unenumerable-segment');
+    expect(vacuousReason(result)?.message).toContain('(catalog)');
+  });
+
+  it('refuses a run in which no page was read as deciding a status', () => {
+    // The boundary predicate is a conjunction, so a call reader that stopped
+    // resolving prints `findings=0` honestly — over a storefront in which no
+    // dynamic route can 404.
+    const result = run([CLEAN_CATALOG]);
+    expect(vacuousReason(result)?.kind).toBe('nothing-decided');
   });
 
   it('refuses a partially moved tree through the sitemap coverage floor', () => {

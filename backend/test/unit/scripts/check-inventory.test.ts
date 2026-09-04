@@ -143,6 +143,7 @@ import {
   checkStorefrontIndexability,
   vacuousReason as storefrontIndexabilityVacuous,
   type RouteFile as StorefrontRouteFile,
+  type SegmentWalk,
   type StorefrontIndexabilityFindingKind,
 } from '../../../scripts/check-storefront-indexability.js';
 import {
@@ -3328,29 +3329,77 @@ const STOREFRONT_CLEAN_ROUTE: StorefrontRouteFile = {
   seoText: STOREFRONT_SEO_DECLARATION,
 };
 
+/**
+ * The clean tree's segment walk: no boundary anywhere, every directory read.
+ *
+ * A parameter rather than a constant because
+ * `status-decision-under-a-boundary` is a **conjunction** — a decision *and* a
+ * boundary above it — so its red proof and its discrimination differ only in
+ * this value, and its refusal differs only in the second field.
+ */
+const STOREFRONT_NO_BOUNDARY: SegmentWalk = { boundaries: [], unreadable: [] };
+
 function storefrontIndexabilityFindings(
   routes: readonly StorefrontRouteFile[],
   sitemap: { static: readonly string[]; dynamic?: readonly string[] },
   kind: StorefrontIndexabilityFindingKind,
+  segments: SegmentWalk = STOREFRONT_NO_BOUNDARY,
 ): number {
   return checkStorefrontIndexability({
     appRoot: STOREFRONT_APP_ROOT,
     routes,
     sitemapText: storefrontSitemap(sitemap.static, sitemap.dynamic ?? []),
+    segments,
   }).findings.filter((finding) => finding.kind === kind).length;
 }
 
-/** The three refusals `vacuousReason` answers, over the record a run produces. */
+/**
+ * A page that decides a response status on the document render path.
+ *
+ * Source text, and the import is in it: the five calls are bound through
+ * `next/navigation` rather than by spelling, so a fixture that only wrote
+ * `notFound()` would prove nothing about the binding — and a page with its own
+ * `redirect()` helper is correctly read as deciding nothing.
+ */
+function storefrontDecidingPage(
+  path = `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+): StorefrontRouteFile {
+  return {
+    path,
+    text:
+      "import { notFound } from 'next/navigation';\n" +
+      'export const metadata = { robots: { index: false, follow: false } };\n' +
+      'export default async function Page({ params }) {\n' +
+      '  const row = await load(params.slug);\n' +
+      '  if (!row) notFound();\n' +
+      '  return null;\n' +
+      '}\n',
+    seoText: null,
+  };
+}
+
+/**
+ * The refusals `vacuousReason` answers, over the record a run produces.
+ *
+ * `expected` names the kind, because five of them now share this helper and a
+ * proof asserting only "some refusal fired" would be green on whichever one
+ * happened to be reached first.
+ */
 function storefrontIndexabilityRefusals(
   routes: readonly StorefrontRouteFile[],
   sitemapText: string | null,
+  segments: SegmentWalk = STOREFRONT_NO_BOUNDARY,
+  expected?: string,
 ): number {
   const result = checkStorefrontIndexability({
     appRoot: STOREFRONT_APP_ROOT,
     routes,
     sitemapText,
+    segments,
   });
-  return storefrontIndexabilityVacuous(result) === null ? 0 : 1;
+  const refusal = storefrontIndexabilityVacuous(result);
+  if (refusal === null) return 0;
+  return expected === undefined || refusal.kind === expected ? 1 : 0;
 }
 
 /**
@@ -7082,13 +7131,23 @@ const CHECKS: readonly CheckEntry[] = [
       // a finding: with `storefront/app` gone the walk opens nothing and the
       // reconciliation below it is vacuously satisfied.
       'moved-app-tree-is-refused': top(() =>
-        storefrontIndexabilityRefusals([], storefrontSitemap(['/catalog'])),
+        storefrontIndexabilityRefusals(
+          [],
+          storefrontSitemap(['/catalog']),
+          STOREFRONT_NO_BOUNDARY,
+          'no-page-file',
+        ),
       ),
       // The second author gone. A check with one author is a check that agrees
       // with itself, so an absent or unreadable sitemap is exit 2 and not a
       // report over the route files alone.
       'unreadable-sitemap-is-refused': top(() =>
-        storefrontIndexabilityRefusals([STOREFRONT_CLEAN_ROUTE], null),
+        storefrontIndexabilityRefusals(
+          [STOREFRONT_CLEAN_ROUTE],
+          null,
+          STOREFRONT_NO_BOUNDARY,
+          'unreadable-sitemap',
+        ),
       ),
       // With a declaration-based predicate, "nobody declared anything" prints
       // `findings=0` honestly and means the opposite.
@@ -7102,6 +7161,53 @@ const CHECKS: readonly CheckEntry[] = [
             },
           ],
           storefrontSitemap(['/a']),
+          STOREFRONT_NO_BOUNDARY,
+          'nothing-classified',
+        ),
+      ),
+      // `specs/108-storefront-response-status/` FR-014. The boundary in the
+      // page's **own** segment: measured on a real build, adding a
+      // `loading.tsx` beside a page took its `/p/missing` back to 200 while a
+      // sibling route with none kept its 308.
+      'status-decision-under-a-boundary': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE, storefrontDecidingPage()],
+          { static: ['/catalog'] },
+          'status-decision-under-a-boundary',
+          { boundaries: [`${STOREFRONT_APP_ROOT}/wholesale/loading.tsx`], unreadable: [] },
+        ),
+      ),
+      // The ancestor segment, which is the shape this tree actually had: one
+      // `app/loading.tsx` defeating all 68 call sites at once, three
+      // directories above the nearest of them.
+      'boundary-in-an-ancestor-segment': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE, storefrontDecidingPage()],
+          { static: ['/catalog'] },
+          'status-decision-under-a-boundary',
+          { boundaries: [`${STOREFRONT_APP_ROOT}/loading.tsx`], unreadable: [] },
+        ),
+      ),
+      // Exit 2 rather than 1, and this is the one the analysis has to get
+      // right: a directory that could not be read may hold the `loading.tsx`
+      // that defeats every page under it, and reporting those pages as clean is
+      // the verdict this run may not give.
+      'unenumerable-segment-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [STOREFRONT_CLEAN_ROUTE, storefrontDecidingPage()],
+          storefrontSitemap(['/catalog']),
+          { boundaries: [], unreadable: [`${STOREFRONT_APP_ROOT}/(catalog)`] },
+          'unenumerable-segment',
+        ),
+      ),
+      // The predicate is a conjunction, so "no page decides anything" prints
+      // `findings=0` honestly and means the call reader stopped resolving.
+      'nothing-decided-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [STOREFRONT_CLEAN_ROUTE],
+          storefrontSitemap(['/catalog']),
+          STOREFRONT_NO_BOUNDARY,
+          'nothing-decided',
         ),
       ),
     },
@@ -9511,7 +9617,16 @@ describe('every red proof enters at the top of the analysis', () => {
       // check. They arrived in the same merge request, so the ledger would have
       // landed empty with nothing to strand, and a finding over the *declaration*
       // is what gives the per-route `seo.ts` a reader.
-      'backend/scripts/check-storefront-indexability.ts': 10,
+      // **10 -> 14 with `specs/108-storefront-response-status/`**: the eighth
+      // finding in both of the shapes it takes — a boundary in the page's own
+      // segment and one in an ancestor, which are the same rule and were
+      // measured to be two separately reachable defects — and two more vacuous
+      // reasons. The `'use server'` discrimination is **not** counted here and
+      // is not missing either: it belongs beside the reds in the companion test,
+      // where the whole population of a run can be asserted, because what it has
+      // to prove is that 33 correct authentication guards stay *out* of a
+      // finding list, and a proof counting findings of one kind cannot say that.
+      'backend/scripts/check-storefront-indexability.ts': 14,
       // Three spellings of a bare subscription, plus the two queue-consumer
       // shapes: a factory call whose value goes nowhere, and a `new Worker` the
       // module keeps to itself.

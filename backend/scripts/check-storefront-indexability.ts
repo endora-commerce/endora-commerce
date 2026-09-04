@@ -80,6 +80,39 @@
  *     HTML against, so a route without one is a route whose JSON-LD nothing can
  *     check; and it is a *declaration* rather than a table in this file,
  *     because a table here would be the second derivation of one judgement.
+ *   * **`status-decision-under-a-boundary`** — a `page.tsx` that decides a
+ *     response status while a `loading.tsx` or `template.tsx` sits in its own
+ *     segment or in any ancestor segment
+ *     (`specs/108-storefront-response-status/`, FR-014; `contracts/response-status.md`
+ *     §5). See below.
+ *
+ * ## The eighth finding, and why it is here rather than in a check of its own
+ *
+ * A `loading.tsx` puts every page below it inside a Suspense boundary; Next
+ * flushes the shell as soon as that fallback is ready, and after the flush there
+ * is no status line left to set. Measured: with the boundary standing, a
+ * `notFound()` answers **200** — as the page's *first* statement, before any
+ * promise resolves, just the same — a `permanentRedirect()` answers 200 with no
+ * `Location`, and an uncaught throw answers 200 carrying a skeleton. In this
+ * tree that was 68 correct call sites defeated by one file three directories up
+ * whose job is to render a progress bar.
+ *
+ * It is a finding kind on this walk rather than a new `check-*` script because
+ * this file already opens every `page.tsx` in `storefront/app` with the compiler
+ * API and the boundary files are two more names in a `readdir` it already does.
+ * A new script would cost the whole estate ritual — an inventory entry, an
+ * `endora check` estate verdict, a read-size band — to judge a population one
+ * program is already reading (contract §5.2, `specs/105-cms-root-page-urls/`'s
+ * precedent for FR-034).
+ *
+ * **`'use server'` is the load-bearing half** (§5.4). Of this tree's 292 such
+ * calls, 224 are inside server actions, where they compose an *action* response
+ * and are measured correct with the boundary standing. A classifier blind to the
+ * directive reports 33 correct authentication guards as findings.
+ *
+ * **No ledger, deliberately** (§5.3): every finding is one file deletion or one
+ * `<Suspense>` from compliance in the merge request that produces it, so an
+ * entry could only license re-opening the defect.
  *
  * **No ledger, deliberately.** Every finding is one line away from compliance
  * in the merge request that produces it, and the two ledgers
@@ -98,11 +131,25 @@
  *   * **`route.ts` and `layout.tsx`.** Neither produces a document.
  *   * **A route whose metadata is assembled by a helper in another file.** It
  *     is `unresolvable-indexability` here — named, not silently cleared.
+ *   * **A status decision taken in a `layout.tsx`, or in a helper the page
+ *     calls.** The population is the page files, and a decision reached through
+ *     an imported function is not read. Both are the boundary rule's, and
+ *     `conformance:storefront` is what answers for them by asking a booted
+ *     storefront (`specs/108-storefront-response-status/` FR-009).
+ *   * **A `<Suspense>` wrapping `{children}` in a layout.** Contract §2.1 names
+ *     it as the same boundary; this walk reads `loading.tsx` and `template.tsx`
+ *     file names and no layout body. There is none in this tree — the only
+ *     `<Suspense>` in it is a *sibling* of `{children}` — and the day there is
+ *     one, the conformance probe is what sees it.
+ *   * **A navigation call re-exported through another module.** The five names
+ *     are bound through this file's own `import … from 'next/navigation'`, so a
+ *     page importing its own wrapper is not read as deciding anything.
  *
  * Usage: `tsx scripts/check-storefront-indexability.ts [--list]`
  * Exit 0 = every route is classified and the two authors agree; exit 1 = at
  * least one finding; exit 2 = the run could not see the population it judges —
- * no page file, an unreadable sitemap, nothing classified either way, or a walk
+ * no page file, an unreadable sitemap, nothing classified either way, a segment
+ * directory it could not enumerate, no status decision read at all, or a walk
  * short of what the sitemap implies.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
@@ -127,7 +174,8 @@ export type StorefrontIndexabilityFindingKind =
   | 'missing-canonical'
   | 'sitemap-orphan-route'
   | 'orphan-sitemap-entry'
-  | 'undeclared-structured-data';
+  | 'undeclared-structured-data'
+  | 'status-decision-under-a-boundary';
 
 /** One `page.tsx` and the `seo.ts` beside it, as source text. */
 export interface RouteFile {
@@ -138,12 +186,31 @@ export interface RouteFile {
   readonly seoText: string | null;
 }
 
+/**
+ * What the walk of the segment directories found
+ * (`specs/108-storefront-response-status/contracts/response-status.md` §2.1).
+ *
+ * Two fields rather than one, because "there is no boundary here" and "this
+ * directory could not be read" are different answers and only the first is a
+ * clean tree. A directory the walk was refused might hold the `loading.tsx`
+ * that defeats a page's `notFound()`, and reporting that page as clean is the
+ * one verdict this finding may not give.
+ */
+export interface SegmentWalk {
+  /** Repo-relative paths of every `loading.tsx` / `template.tsx` under `appRoot`. */
+  readonly boundaries: readonly string[];
+  /** Repo-relative paths of directories under `appRoot` `readdir` refused. */
+  readonly unreadable: readonly string[];
+}
+
 export interface StorefrontIndexabilityInput {
   /** Repo-relative root the route patterns are derived against. */
   readonly appRoot: string;
   readonly routes: readonly RouteFile[];
   /** `storefront/app/sitemap.ts`'s source, or `null` when it is absent. */
   readonly sitemapText: string | null;
+  /** The route-level Suspense boundaries, and the directories that were unreadable. */
+  readonly segments: SegmentWalk;
 }
 
 export interface SitemapDeclaration {
@@ -172,7 +239,16 @@ export interface StorefrontIndexabilityResult {
   readonly filesRead: readonly string[];
   /** The `page.tsx` files alone: the population, before any classification. */
   readonly pagesRead: readonly string[];
+  /**
+   * Every response-status decision read on a document render path, over every
+   * page. The `status-decision-under-a-boundary` predicate is a conjunction, so
+   * "no page decides anything" prints `findings=0` honestly and means that the
+   * call reader stopped working.
+   */
+  readonly decisionsRead: number;
   readonly sitemap: SitemapDeclaration | null;
+  /** Directories under `appRoot` the walk could not enumerate. */
+  readonly unenumerableSegments: readonly string[];
   /** Sitemap entries that matched a route file. */
   readonly sitemapCovered: number;
   /** Sitemap entries declared. */
@@ -480,6 +556,189 @@ export function readSeoDeclaration(text: string | null): readonly string[] | nul
 }
 
 // ---------------------------------------------------------------------------
+// The status decision, and the boundary above it
+// ---------------------------------------------------------------------------
+
+/**
+ * The five calls that decide a response status
+ * (`specs/108-storefront-response-status/contracts/response-status.md` §2.2).
+ *
+ * `forbidden` and `unauthorized` are Next 15's `authInterrupts` pair and appear
+ * nowhere in this tree today. They are in the list rather than waiting to be
+ * added, because the refactor this feature makes attractive — 33 authentication
+ * guards that are about to become real `307`s — is exactly the one that reaches
+ * for them.
+ */
+const STATUS_DECISION_CALLS = [
+  'notFound',
+  'redirect',
+  'permanentRedirect',
+  'forbidden',
+  'unauthorized',
+] as const;
+
+export type StatusDecisionCall = (typeof STATUS_DECISION_CALLS)[number];
+
+/** The module the five are imported from; a call of any other `redirect` is not one. */
+const NAVIGATION_MODULE = 'next/navigation';
+
+/** The file names Next reads as a route-level Suspense boundary (§2.1). */
+const BOUNDARY_FILE_NAMES: readonly string[] = ['loading.tsx', 'template.tsx'];
+
+/** One decision a page takes, and where. */
+export interface StatusDecision {
+  readonly call: StatusDecisionCall;
+  /** 1-based, so the finding names a line a reader can open. */
+  readonly line: number;
+}
+
+function isDirective(statement: ts.Statement, directive: string): boolean {
+  return (
+    ts.isExpressionStatement(statement) &&
+    ts.isStringLiteral(statement.expression) &&
+    statement.expression.text === directive
+  );
+}
+
+/** A function whose body opens with `'use server'` — §2.3's discriminator. */
+function opensAsAnAction(node: ts.Node): boolean {
+  if (
+    !ts.isFunctionDeclaration(node) &&
+    !ts.isFunctionExpression(node) &&
+    !ts.isArrowFunction(node) &&
+    !ts.isMethodDeclaration(node)
+  ) {
+    return false;
+  }
+  const body = node.body;
+  if (body === undefined || !ts.isBlock(body)) return false;
+  const first = body.statements[0];
+  return first !== undefined && isDirective(first, 'use server');
+}
+
+/**
+ * Which local names in this file are the five navigation calls.
+ *
+ * Bound through the **import**, not by spelling: a page with its own
+ * `redirect()` helper is not deciding a response status, and a page that
+ * imports `notFound as missing` is. Both an aliased named import and a
+ * namespace import are followed; what is not followed is a re-export through
+ * another module, and that bound is in the header rather than discovered later.
+ */
+function navigationBindings(source: ts.SourceFile): {
+  readonly named: ReadonlyMap<string, StatusDecisionCall>;
+  readonly namespaces: ReadonlySet<string>;
+} {
+  const named = new Map<string, StatusDecisionCall>();
+  const namespaces = new Set<string>();
+  const known = new Set<string>(STATUS_DECISION_CALLS);
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    if (statement.moduleSpecifier.text !== NAVIGATION_MODULE) continue;
+    const clause = statement.importClause;
+    if (clause === undefined || clause.isTypeOnly) continue;
+    const bindings = clause.namedBindings;
+    if (bindings === undefined) continue;
+    if (ts.isNamespaceImport(bindings)) {
+      namespaces.add(bindings.name.text);
+      continue;
+    }
+    for (const element of bindings.elements) {
+      if (element.isTypeOnly) continue;
+      const imported = element.propertyName?.text ?? element.name.text;
+      if (!known.has(imported)) continue;
+      named.set(element.name.text, imported as StatusDecisionCall);
+    }
+  }
+  return { named, namespaces };
+}
+
+/**
+ * Every response-status decision this page takes **on the document render
+ * path** (§2.2), in source order.
+ *
+ * §2.3 is the load-bearing half and it is a rule about *execution context*, not
+ * about a call: 224 of this tree's 292 such calls are inside `'use server'`
+ * functions, where they compose an action response and are measured correct
+ * with a boundary standing. A classifier blind to the directive would report 33
+ * correct authentication guards as findings, which is a check nobody would
+ * keep.
+ *
+ * The directive is honoured in both places Next accepts it — at the top of the
+ * file, which makes every function in it an action, and at the top of a
+ * function body, which makes that function and everything nested inside it one.
+ */
+export function readStatusDecisions(text: string, path: string): readonly StatusDecision[] {
+  const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const first = source.statements[0];
+  // A file-level `'use server'` makes every export in it an action, so nothing
+  // in it is a document decision.
+  if (first !== undefined && isDirective(first, 'use server')) return [];
+
+  const { named, namespaces } = navigationBindings(source);
+  if (named.size === 0 && namespaces.size === 0) return [];
+
+  const decisions: StatusDecision[] = [];
+  const visit = (node: ts.Node, insideAnAction: boolean): void => {
+    const action = insideAnAction || opensAsAnAction(node);
+    if (!action && ts.isCallExpression(node)) {
+      const callee = node.expression;
+      const call = ts.isIdentifier(callee)
+        ? named.get(callee.text)
+        : ts.isPropertyAccessExpression(callee) &&
+            ts.isIdentifier(callee.expression) &&
+            namespaces.has(callee.expression.text) &&
+            (STATUS_DECISION_CALLS as readonly string[]).includes(callee.name.text)
+          ? (callee.name.text as StatusDecisionCall)
+          : undefined;
+      if (call !== undefined) {
+        decisions.push({
+          call,
+          line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+        });
+      }
+    }
+    ts.forEachChild(node, (child) => {
+      visit(child, action);
+    });
+  };
+  ts.forEachChild(source, (child) => {
+    visit(child, false);
+  });
+  return decisions;
+}
+
+/**
+ * Every boundary file that sits above this page: in its own segment, or in any
+ * ancestor segment up to `appRoot` inclusive (§2.1).
+ *
+ * Directory ancestry rather than route ancestry, deliberately. A route group
+ * `(catalog)` contributes no URL segment and does contribute a directory Next
+ * will read a `loading.tsx` out of, so a chain built from the route pattern
+ * would walk straight past the one place a boundary is most likely to be.
+ */
+export function boundariesAbove(
+  pagePath: string,
+  boundaries: readonly string[],
+  appRoot: string,
+): readonly string[] {
+  const segments = pagePath.split('/');
+  segments.pop();
+  const chain = new Set<string>();
+  while (segments.length > 0) {
+    const directory = segments.join('/');
+    chain.add(directory);
+    if (directory === appRoot) break;
+    segments.pop();
+  }
+  return boundaries.filter((boundary) => {
+    const at = boundary.slice(0, boundary.lastIndexOf('/'));
+    return chain.has(at);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // The analysis
 // ---------------------------------------------------------------------------
 
@@ -510,6 +769,7 @@ export function checkStorefrontIndexability(
     if (route.seoText !== null) filesRead.push(route.path.replace(/page\.tsx$/u, 'seo.ts'));
     patterns.set(routePatternOf(route.path, input.appRoot), route);
   }
+  for (const boundary of input.segments.boundaries) filesRead.push(boundary);
 
   /** Which route pattern serves this sitemap entry — the most specific one. */
   const serves = (entry: string): string | null => {
@@ -543,7 +803,33 @@ export function checkStorefrontIndexability(
     advertised.add(pattern);
   }
 
+  let decisionsRead = 0;
   for (const [pattern, route] of patterns) {
+    // `specs/108-storefront-response-status/` FR-014. Asked of every page,
+    // indexable or not, and before the indexability classification: a `noindex`
+    // account page whose `redirect()` answers 200 is the same defect as an
+    // indexable one whose `notFound()` does, and 33 of the 68 sites in this tree
+    // are behind a login.
+    const decisions = readStatusDecisions(route.text, route.path);
+    decisionsRead += decisions.length;
+    const above = boundariesAbove(route.path, input.segments.boundaries, input.appRoot);
+    if (decisions.length > 0 && above.length > 0) {
+      const first = decisions[0] as StatusDecision;
+      findings.push({
+        kind: 'status-decision-under-a-boundary',
+        subject: pattern,
+        path: route.path,
+        detail:
+          `the page calls \`${first.call}()\` at line ${first.line}` +
+          `${decisions.length === 1 ? '' : ` (and ${decisions.length - 1} more)`}, and ` +
+          `\`${above.join('`, `')}\` put${above.length === 1 ? 's' : ''} it inside a Suspense ` +
+          'boundary it does not own. Next flushes the shell as soon as that fallback is ready, ' +
+          'so by the time this page decides anything there is no status line left to set — ' +
+          'measured: the decision survives as a directive inside the RSC payload, which the ' +
+          'Next client library honours and no crawler, link checker or monitor does',
+      });
+    }
+
     const objects = readMetadataObjects(route.text, route.path);
     const contradiction = objects.find((object) => object.noindex && object.canonical);
     if (contradiction !== undefined) {
@@ -644,6 +930,8 @@ export function checkStorefrontIndexability(
     classified,
     filesRead,
     pagesRead,
+    decisionsRead,
+    unenumerableSegments: input.segments.unreadable,
     sitemap,
     sitemapCovered,
     sitemapExpected: entries.length,
@@ -654,7 +942,12 @@ export function checkStorefrontIndexability(
 // Refusals
 // ---------------------------------------------------------------------------
 
-export type VacuousReasonKind = 'no-page-file' | 'unreadable-sitemap' | 'nothing-classified';
+export type VacuousReasonKind =
+  | 'no-page-file'
+  | 'unreadable-sitemap'
+  | 'nothing-classified'
+  | 'unenumerable-segment'
+  | 'nothing-decided';
 
 export interface VacuousReason {
   readonly kind: VacuousReasonKind;
@@ -706,6 +999,31 @@ export function vacuousReason(result: StorefrontIndexabilityResult): VacuousReas
         'declared anything" prints `findings=0` honestly and means the opposite',
     };
   }
+  // `specs/108-storefront-response-status/contracts/response-status.md` §5.5,
+  // both of them. A directory the walk was refused is a directory that may hold
+  // the `loading.tsx` defeating a page below it, and the pages under it would be
+  // reported clean; and `status-decision-under-a-boundary` is a conjunction, so
+  // a call reader that stopped resolving prints `findings=0` honestly.
+  if (result.unenumerableSegments.length > 0) {
+    return {
+      kind: 'unenumerable-segment',
+      message:
+        `${result.unenumerableSegments.join(', ')} could not be enumerated, so whether a ` +
+        '`loading.tsx` sits there is unknown — and every page under it would be reported as ' +
+        'having no boundary above it, which is the one verdict this run may not give on a ' +
+        'directory it could not read',
+    };
+  }
+  if (result.decisionsRead === 0) {
+    return {
+      kind: 'nothing-decided',
+      message:
+        'no page in this tree was read as deciding a response status — no `notFound()`, no ' +
+        '`redirect()`, no `permanentRedirect()` outside a `\'use server\'` function. That is a ' +
+        'storefront no dynamic route can 404, so it is the call reader that stopped working ' +
+        'rather than the tree that became clean',
+    };
+  }
   return null;
 }
 
@@ -743,16 +1061,33 @@ const REMEDIES: Readonly<Record<StorefrontIndexabilityFindingKind, string>> = {
     "Ship a `seo.ts` beside the `page.tsx` exporting `seo: RouteSeo` with the route pattern " +
     'and the schema.org types the page emits. `jsonLd: []` is a valid declaration for a route ' +
     'that owes none — say so rather than leaving the question open.',
+  'status-decision-under-a-boundary':
+    'Delete the boundary, or move the skeleton inside the page. A `loading.tsx` is the one ' +
+    'thing a page cannot work around: the shell is flushed when its fallback is ready, and ' +
+    'nothing an author writes in the page component gets the status line back — a `notFound()` ' +
+    'as the very first statement answers 200 just the same. What a page *may* have is a ' +
+    '`<Suspense>` it renders itself, **below** the statement that decides the status; that ' +
+    'keeps the fallback in the first flush at an unchanged time to last byte ' +
+    '(`specs/108-storefront-response-status/research.md` §1.3). A route that decides nothing ' +
+    'keeps its `loading.tsx` — `/catalog` does.',
 };
 
 interface WalkedRoutes {
   readonly routes: readonly RouteFile[];
   readonly sitemapText: string | null;
+  readonly segments: SegmentWalk;
 }
 
 function walkRoutes(repoRoot: string): WalkedRoutes {
   const appDirectory = join(repoRoot, APP_ROOT);
   const routes: RouteFile[] = [];
+  // The same walk, one more file name. The boundary files sit in directories
+  // this already visits, which is why FR-014 is a finding kind here and not a
+  // check of its own (contract §5.2).
+  const boundaries: string[] = [];
+  const unreadable: string[] = [];
+
+  const here = (full: string): string => relative(repoRoot, full).split(sep).join('/');
 
   const walk = (directory: string): void => {
     let entries: import('node:fs').Dirent[];
@@ -761,7 +1096,11 @@ function walkRoutes(repoRoot: string): WalkedRoutes {
     } catch {
       // A directory that is not there contributes nothing; the *whole tree*
       // being gone is what `vacuousReason`'s `no-page-file` refuses, and it is
-      // the record that answers it rather than this walk.
+      // the record that answers it rather than this walk. A directory that is
+      // there and was refused is a different state, and it is recorded so
+      // `unenumerable-segment` can refuse over it: the boundary question cannot
+      // be answered for anything below it.
+      unreadable.push(here(directory));
       return;
     }
     for (const entry of entries) {
@@ -770,10 +1109,11 @@ function walkRoutes(repoRoot: string): WalkedRoutes {
         walk(full);
         continue;
       }
+      if (BOUNDARY_FILE_NAMES.includes(entry.name)) boundaries.push(here(full));
       if (entry.name !== 'page.tsx') continue;
       const seoPath = join(directory, 'seo.ts');
       routes.push({
-        path: relative(repoRoot, full).split(sep).join('/'),
+        path: here(full),
         text: readFileSync(full, 'utf8'),
         seoText: exists(seoPath) ? readFileSync(seoPath, 'utf8') : null,
       });
@@ -781,11 +1121,13 @@ function walkRoutes(repoRoot: string): WalkedRoutes {
   };
   walk(appDirectory);
   routes.sort((a, b) => a.path.localeCompare(b.path));
+  boundaries.sort();
 
   const sitemapPath = join(repoRoot, SITEMAP_FILE);
   return {
     routes,
     sitemapText: exists(sitemapPath) ? readFileSync(sitemapPath, 'utf8') : null,
+    segments: { boundaries, unreadable },
   };
 }
 
@@ -806,6 +1148,7 @@ function main(): void {
     appRoot: APP_ROOT,
     routes: walked.routes,
     sitemapText: walked.sitemapText,
+    segments: walked.segments,
   });
 
   // §5's refusals, all three of them over the record rather than over the walk,
@@ -845,7 +1188,8 @@ function main(): void {
   });
   console.log(
     `${PREFIX} pages=${walked.routes.length} indexable=${result.indexable.length} ` +
-      `noindex=${result.nonIndexable.length} findings=${result.findings.length}`,
+      `noindex=${result.nonIndexable.length} boundaries=${walked.segments.boundaries.length} ` +
+      `status-decisions=${result.decisionsRead} findings=${result.findings.length}`,
   );
 
   if (result.findings.length === 0) process.exit(0);
