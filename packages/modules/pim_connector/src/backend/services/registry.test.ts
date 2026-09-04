@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { PimConnectorRegistryService } from '../../../../packages/modules/pim_connector/src/backend/services/pim-connector-registry.service.js';
+import { PimConnectorRegistryService } from './pim-connector-registry.service.js';
 
 describe('pim_connector registry', () => {
   it('assertCanActivate refuses when Ergonode activation Setting is true', async () => {
