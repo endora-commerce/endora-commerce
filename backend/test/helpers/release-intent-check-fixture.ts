@@ -3,7 +3,7 @@
  *
  * The check's input is a *repository* — `pnpm-workspace.yaml`, a manifest per
  * member, `.changeset/config.json` and the changeset files — and every one of
- * its eight findings is a disagreement *between* those files. A fixture that
+ * its findings is a disagreement *between* those files. A fixture that
  * handed the analysis a ready-made list of "versionable packages" would leave
  * the derivation that produces that list unproven, and the derivation is the
  * part that has to survive 66 module packages arriving under a second scope
@@ -34,7 +34,18 @@ export type FileMap = Readonly<Record<string, string | null>>;
 export const DEFAULT_CHECKOUT: FileMap = {
   'pnpm-workspace.yaml': 'packages:\n  - apps/host\n  - packages/*\n',
   'package.json': '{ "name": "root", "version": "0.0.0", "private": true }',
-  'apps/host/package.json': '{ "name": "host", "version": "0.0.0", "private": true }',
+  // The application is a **Next** application, because that is how the check
+  // finds the reference storefront whose dependency closure is the publication
+  // set (feature 104, FR-001). It declares no `@fx/*` dependency, so that set is
+  // empty by default and any public package is one nobody decided to publish —
+  // `PUBLISHED_ALPHA` is the override that puts one in it.
+  'apps/host/package.json': JSON.stringify({
+    name: 'host',
+    version: '0.0.0',
+    private: true,
+    scripts: { build: 'next build' },
+    dependencies: { next: '^15.0.0' },
+  }),
   'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0", "private": true }',
   'packages/beta/package.json': '{ "name": "@fx/beta", "version": "1.0.0", "private": true }',
   // The emit configuration of each versionable package. `--since` reads it to
@@ -111,6 +122,42 @@ export const HOST_SOURCED_PACKAGE: FileMap = {
   'packages/beta/tsconfig.json':
     '{ "include": ["../../apps/host/src/kernel/**/*"], "exclude": ["../../apps/host/src/**/*.test.ts"] }',
 };
+
+/**
+ * `@fx/alpha` published, the way a package that may be public actually looks.
+ *
+ * Three separate facts, and the fixture carries all three because a proof of any
+ * one of the publication findings needs the other two out of the way: the
+ * reference storefront **depends** on it (so it is in the derived publication
+ * set), and it declares `repository` and `publishConfig.access` (so it is fit).
+ * Overriding one field of it at a time is how each finding is driven — which is
+ * also why this is a `FileMap` and not a boolean flag.
+ */
+export const PUBLISHED_ALPHA: FileMap = {
+  'apps/host/package.json': JSON.stringify({
+    name: 'host',
+    version: '0.0.0',
+    private: true,
+    scripts: { build: 'next build' },
+    dependencies: { next: '^15.0.0', '@fx/alpha': 'workspace:*' },
+  }),
+  'packages/alpha/package.json': JSON.stringify({
+    name: '@fx/alpha',
+    version: '1.0.0',
+    repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/alpha' },
+    publishConfig: { access: 'public' },
+  }),
+};
+
+/** {@link PUBLISHED_ALPHA}'s manifest, with `mutate` applied to it. */
+export function publishedAlphaAs(mutate: (manifest: Record<string, unknown>) => void): FileMap {
+  const manifest = JSON.parse(PUBLISHED_ALPHA['packages/alpha/package.json'] as string) as Record<
+    string,
+    unknown
+  >;
+  mutate(manifest);
+  return { ...PUBLISHED_ALPHA, 'packages/alpha/package.json': JSON.stringify(manifest) };
+}
 
 /** The `.changeset/config.json` of the default checkout, with `mutate` applied. */
 export function configuredAs(mutate: (config: Record<string, unknown>) => void): FileMap {

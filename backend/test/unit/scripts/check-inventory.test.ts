@@ -301,6 +301,8 @@ import {
   configuredAs as releaseIntentConfiguredAs,
   FIXTURE_ROOT as RELEASE_INTENT_ROOT,
   HOST_SOURCED_PACKAGE,
+  PUBLISHED_ALPHA,
+  publishedAlphaAs,
   type FileMap as ReleaseIntentFiles,
 } from '../../helpers/release-intent-check-fixture.js';
 
@@ -560,16 +562,16 @@ function errorSentenceTree(bundles: Record<string, Record<string, string>>): Tra
  * `check-release-intent` over a whole synthetic checkout, counting findings of
  * one kind (feature 080, T043).
  *
- * The fixture is the file map, because every one of this check's eight findings
+ * The fixture is the file map, because every one of this check's findings
  * is a disagreement *between* files — `pnpm-workspace.yaml` against the
  * manifests, `.changeset/config.json` against both. A proof handed a
  * pre-classified "these are the versionable packages" list would leave the
  * derivation unproven, and that derivation is the part that has to survive 66
  * module packages arriving under a second scope (D-160.2).
  *
- * Counting **by kind** rather than in total is the other half: eight signals
- * over one configuration is exactly the shape where seven go blind behind the
- * eighth's red.
+ * Counting **by kind** rather than in total is the other half: a dozen signals
+ * over one configuration is exactly the shape where eleven go blind behind the
+ * twelfth's red.
  */
 function releaseIntentFindings(
   overrides: ReleaseIntentFiles,
@@ -8924,20 +8926,113 @@ const CHECKS: readonly CheckEntry[] = [
         }),
         'version-disabled',
       )),
-      // D-160.5: everything stays private through Wave 4, and this is what
-      // makes the tag decision land in the merge request that changes it.
-      'publishable-package': top(() =>
+      // D-160.5, narrowed by feature 104 (FR-001/FR-010): the question is no
+      // longer "is this package public" — three correct packages answer yes to
+      // that, forever — but "may it be", against the closure of the reference
+      // storefront's dependencies. The fixture's application declares no `@fx/*`
+      // dependency, so `@fx/alpha` going public is a package nobody decided to
+      // publish.
+      'unexpected-public-package': top(() =>
         releaseIntentFindings(
           { 'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0" }' },
-          'publishable-package',
+          'unexpected-public-package',
         ),
       ),
-      'tag-without-publication': top(() => releaseIntentFindings(
-        releaseIntentConfiguredAs((config) => {
-          config['privatePackages'] = { version: true, tag: true };
-        }),
-        'tag-without-publication',
+      // Fitness, which is what replaces the blanket refusal. `license` is
+      // deliberately not among the fields — D-203's amendment defers it to the
+      // merge request that makes a package public on npmjs.
+      'incomplete-public-package': top(() =>
+        releaseIntentFindings(
+          publishedAlphaAs((manifest) => {
+            delete manifest['repository'];
+          }),
+          'incomplete-public-package',
+        ),
+      ),
+      // The value the rehearsal cannot exercise: GitLab ignores `--access`, so
+      // nothing before the first *public* publish would reveal it.
+      'restricted-public-package': top(() =>
+        releaseIntentFindings(
+          publishedAlphaAs((manifest) => {
+            manifest['publishConfig'] = { access: 'restricted' };
+          }),
+          'restricted-public-package',
+        ),
+      ),
+      // R2.1: a scope that resolves to no top-level namespace is not an error —
+      // the request is forwarded to npmjs and the client is told the package
+      // does not exist. Nothing an install does would report it.
+      'unresolvable-scope': top(() =>
+        releaseIntentFindings(
+          {
+            ...PUBLISHED_ALPHA,
+            'apps/host/package.json': JSON.stringify({
+              name: 'host',
+              version: '0.0.0',
+              private: true,
+              scripts: { build: 'next build' },
+              dependencies: { next: '^15.0.0', '@api/alpha': 'workspace:*' },
+            }),
+            'packages/alpha/package.json': JSON.stringify({
+              name: '@api/alpha',
+              version: '1.0.0',
+              repository: { url: 'https://example.invalid/fx.git' },
+              publishConfig: { access: 'public' },
+            }),
+          },
+          'unresolvable-scope',
+        ),
+      ),
+      // The tag rule, in the state the old one could not see. Its guard was
+      // `every versionable package is private`, so the first public package
+      // made it stop firing in both directions — this fixture is exactly that
+      // state, and it has to be red (feature 104, FR-011).
+      'tag-policy-unstated': top(() => releaseIntentFindings(
+        {
+          ...PUBLISHED_ALPHA,
+          ...releaseIntentConfiguredAs((config) => {
+            config['privatePackages'] = { version: true, tag: true };
+          }),
+        },
+        'tag-policy-unstated',
       )),
+      // …and its other half, which is what makes it total: with nothing private
+      // left the field governs nothing, so an absent one is the changesets
+      // default rather than a decision anybody took.
+      'tag-policy-unstated-once-nothing-is-private': top(() => releaseIntentFindings(
+        {
+          ...PUBLISHED_ALPHA,
+          'packages/beta/package.json': JSON.stringify({
+            name: '@fx/beta',
+            version: '1.0.0',
+            repository: { url: 'https://example.invalid/fx.git' },
+            publishConfig: { access: 'public' },
+          }),
+          'apps/host/package.json': JSON.stringify({
+            name: 'host',
+            version: '0.0.0',
+            private: true,
+            scripts: { build: 'next build' },
+            dependencies: { next: '^15.0.0', '@fx/alpha': 'workspace:*', '@fx/beta': 'workspace:*' },
+          }),
+          ...releaseIntentConfiguredAs((config) => {
+            config['privatePackages'] = { version: true };
+          }),
+        },
+        'tag-policy-unstated',
+      )),
+      // The publication set has to have an answer before a public package can
+      // be judged against it. A checkout with no reference storefront is exit 2
+      // — never "expected" and never "unexpected" (issue #113).
+      'undecidable-publication-set': top(() =>
+        releaseIntentRefusal(
+          {
+            ...PUBLISHED_ALPHA,
+            'apps/host/package.json': '{ "name": "host", "version": "0.0.0", "private": true }',
+          },
+          'no workspace member is a Next application',
+        ),
+      ),
       // The 67-package failure mode, written as it would arrive: one `ignore`
       // entry under the new scope, and every module package stops needing a
       // changeset while the gate goes on exiting 0.
@@ -9365,7 +9460,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // that reported every provider — or none — reads identically green on the
       // tree, which today declares four module ports and refuses none of them.
       'backend/scripts/check-port-shape.ts': 10,
-      // Eight findings, plus the two refusals that are decisions rather than
+      // Every finding, plus the two refusals that are decisions rather than
       // printing: the short walk (issue #215 over a workspace, where losing the
       // library glob leaves four application manifests answering every
       // question) and a pattern grammar it does not implement. `version-disabled`
@@ -9373,12 +9468,20 @@ describe('every red proof enters at the top of the analysis', () => {
       // written as `false`, and by deleting a block that reads as boilerplate.
       // Plus D-162's two for `--since`: the ninth finding, and the build
       // configuration it could not read, which read as absent would say the
-      // package publishes nothing outside its own directory. The fourteenth is
-      // pipeline 11491's discrimination — an empty diff from a real fork point
-      // is still a refusal, and an already-merged branch is a verdict — driven
-      // as one proof because either half alone is satisfied by a check that
-      // answers both the same way.
-      'backend/scripts/check-release-intent.ts': 14,
+      // package publishes nothing outside its own directory. Then pipeline
+      // 11491's discrimination — an empty diff from a real fork point is still a
+      // refusal, and an already-merged branch is a verdict — driven as one proof
+      // because either half alone is satisfied by a check that answers both the
+      // same way.
+      //
+      // **14 -> 19 (feature 104).** `publishable-package` and
+      // `tag-without-publication` are two shapes that leave; five findings and
+      // one refusal arrive, and `tag-policy-unstated` gets **two** for the same
+      // reason `version-disabled` does — the whole of FR-011 is that the rule
+      // says something in *both* states, so a single proof would be satisfied by
+      // a rule that is total in one of them, which is what the finding it
+      // replaces was.
+      'backend/scripts/check-release-intent.ts': 19,
       // Two findings — the centre and the undecidable gate — plus the ledger's
       // three directions and the three refusals `vacuousReason` answers. The
       // fourth refusal is `readSizeRefusal`'s `short-walk` over the
@@ -9769,11 +9872,20 @@ describe('the endora check estate holds every rule this inventory names', () => 
    *
    * The state that would make the incompleteness matter is the state the
    * tooling refuses, rather than a requirement written down and hoped for.
-   * **The instrument is `check:release-intent`'s existing `publishable-package`
-   * finding**, not a new one: that finding refuses `private: false` on *every*
-   * versionable member (D-160.5), which is strictly stronger than "refuse it
-   * while a rule is pending", and a second finding over a subset of one
-   * population is two derivations of one refusal.
+   * **The instrument is `check:release-intent`'s `unexpected-public-package`
+   * finding**, not a new one: it refuses `private: false` on every versionable
+   * member outside the publication set, and a second finding over a subset of
+   * one population is two derivations of one refusal.
+   *
+   * That finding was `publishable-package` — *every* public member — until
+   * feature 104 made three packages public and the blanket predicate stopped
+   * being able to survive its own merge request. The narrowing does not weaken
+   * this coupling and the reason is derived rather than asserted: the
+   * publication set is the closure of the reference storefront's `dependencies`
+   * and `peerDependencies`, `@endora-commerce/cli` is a build-time tool that no
+   * storefront installs, and a merge request that put it *into* that closure
+   * would be adding the CLI to the storefront's runtime dependencies — which is
+   * not a drive-by either.
    *
    * So what this repository has to hold is that the coupling is *reachable*:
    * the package is private, and it is in that check's population rather than in
@@ -9788,7 +9900,7 @@ describe('the endora check estate holds every rule this inventory names', () => 
 
     // The gate that enforces it, and the one configuration that could switch it
     // off silently — `ignore` is glob-matched against package *names*.
-    expect(read('backend/scripts/check-release-intent.ts')).toContain('publishable-package');
+    expect(read('backend/scripts/check-release-intent.ts')).toContain('unexpected-public-package');
     const changesets = JSON.parse(read('.changeset/config.json')) as { ignore?: string[] };
     for (const pattern of changesets.ignore ?? []) {
       const matcher = new RegExp(

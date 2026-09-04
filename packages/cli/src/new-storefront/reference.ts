@@ -34,6 +34,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
+import { isNextApplication } from '../lib/workspace-packages.js';
+
 /** Raised when the reference storefront cannot be read. Exit 2. */
 export class StorefrontHostError extends Error {}
 
@@ -229,16 +231,11 @@ function nextApplications(repoRoot: string): readonly string[] {
     } catch {
       continue;
     }
-    const deps = manifest['dependencies'];
-    const scripts = manifest['scripts'];
-    const declaresNext =
-      typeof deps === 'object' && deps !== null && 'next' in (deps as object);
-    const buildsWithNext =
-      typeof scripts === 'object' &&
-      scripts !== null &&
-      typeof (scripts as Record<string, unknown>)['build'] === 'string' &&
-      /\bnext build\b/.test((scripts as Record<string, string>)['build']!);
-    if (declaresNext && buildsWithNext) found.push(dir);
+    // The predicate lives in `lib/workspace-packages.ts` because
+    // `check-release-intent.ts` asks the same question of the same population
+    // — which member is the reference storefront — and two copies of it are two
+    // answers waiting to disagree (feature 104, FR-001).
+    if (isNextApplication(manifest)) found.push(dir);
   }
   return [...found].sort();
 }
