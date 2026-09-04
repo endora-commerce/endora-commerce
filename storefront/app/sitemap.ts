@@ -33,7 +33,7 @@ import { absoluteUrl } from '../lib/seo/site-url';
  * `SITEMAP_DYNAMIC_ROUTES` names the **route patterns** whose URLs it
  * enumerates from the backend below. The *URLs* of the dynamic half are data —
  * a product slug is a row, not a route — and are outside the reconciliation;
- * the *patterns* are not, because four of the nine indexable route types have
+ * the *patterns* are not, because three of the eight indexable route types have
  * no static URL at all and a reconciliation blind to them would report each of
  * them as unadvertised.
  */
@@ -52,7 +52,6 @@ export const SITEMAP_STATIC_ROUTES: readonly string[] = [
 export const SITEMAP_DYNAMIC_ROUTES: readonly string[] = [
   '/p/[slug]',
   '/c/[slug]',
-  '/cms/[...slug]',
   '/[...slug]',
 ];
 

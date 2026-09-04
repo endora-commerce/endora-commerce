@@ -51,7 +51,6 @@ function fixtures(without: readonly SubjectKind[] = []): FixtureManifest {
     product: { kind: 'product', segments: ['pump-01'], name: 'Pump 01' },
     category: { kind: 'category', segments: ['pumps'], name: 'Pumps' },
     blogPost: { kind: 'blogPost', segments: ['hello'], name: 'Hello' },
-    cmsPage: { kind: 'cmsPage', segments: ['about'], name: 'About' },
     contentPage: { kind: 'contentPage', segments: ['terms'], name: 'Terms' },
   } as const satisfies Record<SubjectKind, { kind: SubjectKind; segments: string[]; name: string }>;
   const subjects: FixtureManifest['subjects'] = {};
@@ -74,6 +73,24 @@ function manifestFor(declarations: readonly RouteDeclaration[]): Record<string, 
   return entries;
 }
 
+/**
+ * A ledger of this test's own, because the real one is **empty**.
+ *
+ * Three refusals below are about what an entry *does* — it excludes a route
+ * from the page set, it can leave the set empty, and it goes stale when the
+ * tree stops declaring its route. Written against
+ * `ROUTE_TYPES_WITHOUT_A_SUBJECT` they proved those things only while it held
+ * an entry, and it is a draining ledger: `specs/105-cms-root-page-urls/` took
+ * the one it opened with. So the proofs supply the entry and enter where a real
+ * run enters (issue #130).
+ */
+const LEDGER: Readonly<Record<string, { reason: string; retiredBy: string }>> = {
+  '/[...slug]': {
+    reason: 'a fixture entry, standing in for a route type nothing in the platform can serve',
+    retiredBy: 'the platform serving it',
+  },
+};
+
 function input(overrides: Partial<ConformancePlanInput> = {}): ConformancePlanInput {
   const declarations = overrides.declarations ?? [
     declaration('/', ['Organization'], 'storefront/app/seo.ts'),
@@ -93,7 +110,7 @@ describe('fillRoute', () => {
   it('substitutes every dynamic segment shape the file tree produces', () => {
     expect(fillRoute('/catalog', [])).toBe('/catalog');
     expect(fillRoute('/c/[slug]', ['pumps'])).toBe('/c/pumps');
-    expect(fillRoute('/cms/[...slug]', ['about', 'us'])).toBe('/cms/about/us');
+    expect(fillRoute('/[...slug]', ['pomoc', 'dostawa'])).toBe('/pomoc/dostawa');
     expect(fillRoute('/blog/[[...slug]]', ['hello'])).toBe('/blog/hello');
     expect(fillRoute('/', [])).toBe('/');
   });
@@ -176,10 +193,11 @@ describe('the refusals', () => {
 
   it('refuses a run whose plan produced no page', () => {
     // Distinct from `no-declaration`: declarations were read and every one of
-    // them dropped out, which is the state a green would report as nine clean
+    // them dropped out, which is the state a green would report as eight clean
     // pages over nothing.
     const plan = buildConformancePlan(
       input({ declarations: [declaration('/[...slug]', [], 'storefront/app/(content)/[...slug]/seo.ts')] , manifest: { '/(content)/[...slug]/page': '/[...slug]' } }),
+      LEDGER,
     );
     expect(plan.pages).toHaveLength(0);
     expect(planRefusal(plan)?.kind).toBe('no-page-planned');
@@ -189,6 +207,7 @@ describe('the refusals', () => {
     const declarations = [declaration('/catalog', [], 'storefront/app/(catalog)/catalog/seo.ts')];
     const plan = buildConformancePlan(
       input({ declarations, manifest: manifestFor(declarations) }),
+      LEDGER,
     );
     // `/[...slug]` is ledgered and this tree declares it nowhere.
     expect(planRefusal(plan)?.kind).toBe('stale-subjectless-entry');
@@ -207,10 +226,19 @@ describe('the subjectless-route ledger', () => {
         manifest: manifestFor(declarations),
         fixtures: fixtures(['contentPage']),
       }),
+      LEDGER,
     );
     expect(plan.pages.map((page) => page.route)).toEqual(['/catalog']);
     expect(plan.excluded.map((one) => one.route)).toEqual(['/[...slug]']);
     expect(planRefusal(plan)).toBeNull();
+  });
+
+  it('is empty, so the route types this job declares are the ones it measures', () => {
+    // The state a draining two-way ledger is supposed to reach. It is asserted
+    // rather than assumed, because "no entry" and "the entries were not read"
+    // look identical from a passing loop — which is why the three proofs above
+    // supply their own `LEDGER` instead of resting on this one.
+    expect(Object.keys(ROUTE_TYPES_WITHOUT_A_SUBJECT)).toEqual([]);
   });
 
   it('every entry names a route the subject table knows and carries a retiring condition', () => {

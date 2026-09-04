@@ -2222,23 +2222,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-storefront-indexability.ts': {
     prefix: '[storefront-indexability]',
     run: { kind: 'tsx', path: 'scripts/check-storefront-indexability.ts', args: [] },
-    // Every file the check **opens**: the 57 `page.tsx` files under
-    // `storefront/app`, the nine `seo.ts` declarations beside the indexable
+    // Every file the check **opens**: the 56 `page.tsx` files under
+    // `storefront/app`, the eight `seo.ts` declarations beside the indexable
     // ones, and `storefront/app/sitemap.ts` itself. It is deliberately not the
-    // 57 — a route losing its structured-data declaration moves this number and
+    // 56 — a route losing its structured-data declaration moves this number and
     // leaves `sites` where it was, which is one of the findings.
-    files: 67,
-    // Routes classified either way: 9 indexable + 48 `noindex`. It moves only
+    // **Feature 105 (a CMS page has one address): 67 -> 65.** `app/cms/[...slug]/`
+    // goes with its `seo.ts`, so the walk loses one `page.tsx` and one
+    // declaration; `/cms/{path}` is a permanent redirect in `next.config.js`,
+    // which this walk does not read.
+    files: 65,
+    // Routes classified either way: 8 indexable + 48 `noindex`. It moves only
     // when a page is added or removed, so a run whose `sites` fell while `files`
     // held is a route file that left the tree rather than a declaration that
     // left a route.
-    sites: 57,
+    // **Feature 105: 57 -> 56.** One `page.tsx`, and the pair is the point —
+    // `files` fell by two and `sites` by one, which is a route file and its
+    // declaration leaving together rather than either alone.
+    sites: 56,
     // `sitemap` is `storefront/app/sitemap.ts`'s own declared route set — the
-    // five static URLs plus the four dynamic patterns — against how many of them
-    // the route walk could match to a page file. It is #215's predicate for this
-    // population: a *partially* moved `storefront/app` leaves the rest readable
-    // and clean, and this is the only number that notices. Measured with
-    // everything but `(catalog)` moved aside: `files=9`, `sitemap:4/9`, exit 2.
+    // five static URLs plus the three dynamic patterns — against how many of
+    // them the route walk could match to a page file. It is #215's predicate for
+    // this population: a *partially* moved `storefront/app` leaves the rest
+    // readable and clean, and this is the only number that notices. Measured
+    // with everything but `(catalog)` moved aside: `files=9`, `sitemap:4/9`,
+    // exit 2.
     sources: ['sitemap'],
   },
   'backend/scripts/check-subscribe-seam.ts': {

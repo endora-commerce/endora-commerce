@@ -45,8 +45,14 @@ export * from './seo.js';
 export * from './i18n.js';
 export * from './platform-language.js';
 export * from './admin-i18n.js';
-export * from './cms-pages.js';
 export {
+  // `cmsPageStatusSchema` and `CmsPageStatus` are on this list because feature
+  // 105 removed the file that used to supply them to the barrel. Both files
+  // declared the same enum, `cms-pages.js`' star export won the collision, and
+  // that file is gone with the pre-014 page projection — so naming `cms.js`'
+  // pair here is what keeps the two names on the barrel with the shape they
+  // always had.
+  cmsPageStatusSchema,
   cmsContentEnvelopeSchema,
   cmsPageSummarySchema,
   cmsPageDetailSchema,
@@ -83,6 +89,7 @@ export {
   cmsResolvedTemplateSchema,
   cmsResolvedPageSchema,
   cmsResolvedHookSchema,
+  type CmsPageStatus,
   type CmsContentEnvelope,
   type CmsPageSummary,
   type CmsPageDetail,
@@ -115,8 +122,13 @@ export {
   type CmsResolvedPage,
   type CmsResolvedHook,
   // Feature 075, Phase P — the in-process port surface. Named here like every
-  // other `cms` export because this file re-exports the module explicitly to
-  // resolve name collisions.
+  // other `cms` export because this file re-exports the module by name rather
+  // than with a star: the barrel's CMS surface is what this list says it is,
+  // and nothing leaves `cms.ts` for a consumer without being written here.
+  // Until feature 105 the list also resolved a collision — `cms-pages.ts` held
+  // a second `cmsPageStatusSchema` and a second `CmsPage` over the pre-014
+  // `path`/`title`/`body` projection, and that file's last reader is gone with
+  // it.
   type CmsReference,
   type CmsExternalReferenceScanner,
   type CmsReferenceRegistryPort,
