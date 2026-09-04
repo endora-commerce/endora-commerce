@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   registerWebhooksAdminRoutes,
   type WebhooksAdminDeps,
-} from '../../../../packages/modules/webhooks/src/backend/routes.js';
-import type { Webhook } from '../../../../packages/modules/webhooks/src/backend/entities/webhook.entity.js';
-import type { WebhookService } from '../../../../packages/modules/webhooks/src/backend/services/webhook-service.js';
+} from './routes.js';
+import type { Webhook } from './entities/webhook.entity.js';
+import type { WebhookService } from './services/webhook-service.js';
 
 /**
  * Feature 080, T051 — who created a webhook is read from the **production**
