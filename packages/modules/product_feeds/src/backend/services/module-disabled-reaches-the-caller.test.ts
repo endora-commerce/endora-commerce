@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { productFeedsSettingsAccess } from '../../../../packages/modules/product_feeds/src/backend/plugin.js';
-import { DeliveryService } from '../../../../packages/modules/product_feeds/src/backend/services/delivery/delivery.service.js';
-import type { DeliveryConfigService } from '../../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-config.service.js';
-import { FeedGenerationService } from '../../../../packages/modules/product_feeds/src/backend/services/feed-generation.service.js';
-import { TaxonomyRefreshService } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-refresh.service.js';
+import { productFeedsSettingsAccess } from '../plugin.js';
+import { DeliveryService } from './delivery/delivery.service.js';
+import type { DeliveryConfigService } from './delivery/delivery-config.service.js';
+import { FeedGenerationService } from './feed-generation.service.js';
+import { TaxonomyRefreshService } from './taxonomy-refresh.service.js';
 
 /**
  * Composition checklist item 7 — a `catch` around a gated port must not absorb

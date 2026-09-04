@@ -6,7 +6,7 @@ import {
   UnknownSelectionFieldError,
   type SelectionCandidate,
   type SelectionCompileContext,
-} from '../../../../packages/modules/product_feeds/src/backend/services/selection-rule-compiler.js';
+} from './selection-rule-compiler.js';
 
 /**
  * Feature 067 / T061 — the selection-rule compiler (FR-025, FR-029).

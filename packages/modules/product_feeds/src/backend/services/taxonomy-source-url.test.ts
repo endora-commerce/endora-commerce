@@ -4,8 +4,8 @@ import {
   classifyAddress,
   isForbiddenAddress,
   validateTaxonomySourceUrl,
-} from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-source-url.js';
-import { TaxonomySourceFetcher } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-source-fetcher.js';
+} from './taxonomy-source-url.js';
+import { TaxonomySourceFetcher } from './taxonomy-source-fetcher.js';
 
 /**
  * Feature 067 Phase 11 / T120 — the egress guard (FR-091, research §R23).

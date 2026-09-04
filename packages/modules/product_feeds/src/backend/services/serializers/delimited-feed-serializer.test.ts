@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DelimitedFeedSerializer } from '../../../../packages/modules/product_feeds/src/backend/services/serializers/delimited-feed-serializer.js';
-import { createFeedReadable } from '../../../../packages/modules/product_feeds/src/backend/services/serializers/feed-stream.js';
-import type { FeedItemField } from '../../../../packages/modules/product_feeds/src/backend/services/serializers/serializer.interface.js';
+import { DelimitedFeedSerializer } from './delimited-feed-serializer.js';
+import { createFeedReadable } from './feed-stream.js';
+import type { FeedItemField } from './serializer.interface.js';
 
 /**
  * Feature 067 / T022 — the streaming delimited serializer (FR-011).

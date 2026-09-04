@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeTaxonomyRevisionImpact } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-revision-impact.js';
-import type { TaxonomyCategoryNode } from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-mapping-resolver.js';
+import { computeTaxonomyRevisionImpact } from './taxonomy-revision-impact.js';
+import type { TaxonomyCategoryNode } from './taxonomy-mapping-resolver.js';
 
 /**
  * Feature 067 Phase 11 / T123 — the impact preview (FR-094, research §R26).

@@ -4,7 +4,7 @@ import {
   buildTemplateDocument,
   serializeTemplateDocument,
   templateDocumentFilename,
-} from '../../../../packages/modules/product_feeds/src/backend/services/feed-template-io.service.js';
+} from './feed-template-io.service.js';
 
 /**
  * Feature 067 / T094 — the template portability document (FR-012, FR-013).

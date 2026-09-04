@@ -4,7 +4,7 @@ import {
   decryptFeedToken,
   encryptFeedToken,
   isFeedTokenEnvelope,
-} from '../../../../packages/modules/product_feeds/src/backend/services/token-secret-codec.js';
+} from './token-secret-codec.js';
 
 /**
  * The codec that makes a feed's link re-readable.

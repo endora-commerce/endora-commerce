@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   selectPurgeableRevisions,
   type RetentionCandidate,
-} from '../../../../packages/modules/product_feeds/src/backend/services/taxonomy-revision-retention.service.js';
+} from './taxonomy-revision-retention.service.js';
 
 /**
  * Feature 067 Phase 11 / T122 — the retention selector (FR-097,

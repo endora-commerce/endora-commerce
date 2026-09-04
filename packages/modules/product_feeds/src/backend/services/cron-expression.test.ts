@@ -5,7 +5,7 @@ import {
   isValidCronExpression,
   isValidTimezone,
   presetForCron,
-} from '../../../../packages/modules/product_feeds/src/backend/services/cron-expression.js';
+} from './cron-expression.js';
 
 /**
  * Feature 067 / T069 — cron validation and its plain-language echo (FR-031).

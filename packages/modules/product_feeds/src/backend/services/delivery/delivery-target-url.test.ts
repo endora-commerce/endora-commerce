@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   refuseForbiddenAddresses,
   validateDeliveryTargetUrl,
-} from '../../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-target-url.js';
+} from './delivery-target-url.js';
 
 /**
  * Feature 070 / SR-2, SR-4, AS-4 — the delivery egress guard.

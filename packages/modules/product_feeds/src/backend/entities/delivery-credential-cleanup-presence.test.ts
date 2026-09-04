@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { DeliveryConfigService } from '../../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-config.service.js';
-import { ProductFeed } from '../../../../packages/modules/product_feeds/src/backend/entities/product-feed.entity.js';
+import { DeliveryConfigService } from '../services/delivery/delivery-config.service.js';
+import { ProductFeed } from './product-feed.entity.js';
 
 /**
  * Removing a delivery configuration discloses that its credential was left
