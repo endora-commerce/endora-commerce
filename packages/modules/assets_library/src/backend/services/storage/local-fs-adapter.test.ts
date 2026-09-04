@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 
-import { LocalFsStorageAdapter } from '../../../../../packages/modules/assets_library/src/backend/services/storage/local-fs-adapter.js';
-import { HmacSigner } from '../../../../../packages/modules/assets_library/src/backend/services/hmac.js';
+import { LocalFsStorageAdapter } from './local-fs-adapter.js';
+import { HmacSigner } from '../hmac.js';
 
 const KEY_HEX = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
 const ASSET_ID = 'aabbccdd-1111-2222-3333-444455556666';

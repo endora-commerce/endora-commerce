@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { AdapterRegistry } from '../../../../../packages/modules/assets_library/src/backend/services/storage/adapter-registry.js';
-import { HmacSigner } from '../../../../../packages/modules/assets_library/src/backend/services/hmac.js';
-import { ConfigurationError } from '../../../../../packages/modules/assets_library/src/backend/services/storage/errors.js';
-import { LocalFsStorageAdapter } from '../../../../../packages/modules/assets_library/src/backend/services/storage/local-fs-adapter.js';
-import { legacyAssetResolver } from '../../../../../packages/modules/assets_library/src/backend/services/storage/legacy-resolver.js';
+import { AdapterRegistry } from './adapter-registry.js';
+import { HmacSigner } from '../hmac.js';
+import { ConfigurationError } from './errors.js';
+import { LocalFsStorageAdapter } from './local-fs-adapter.js';
+import { legacyAssetResolver } from './legacy-resolver.js';
 
 const KEY_HEX = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
 
