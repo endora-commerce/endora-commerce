@@ -10,6 +10,7 @@ import { InstallPrompt } from '../components/pwa/InstallPrompt';
 import { PushOptIn } from '../components/pwa/PushOptIn';
 import { SpeculationRules } from '../components/SpeculationRules';
 import { RouteTransition } from '../components/RouteTransition';
+import { NavigationFeedback } from '../components/NavigationFeedback';
 import { CartMergeToast } from '../components/CartMergeToast';
 import { CheckoutHeader } from '../components/checkout/CheckoutHeader';
 import { HeaderSwitch } from '../components/HeaderSwitch';
@@ -165,6 +166,14 @@ export default async function RootLayout({
           >
             {t('a11y.skipToContent')}
           </a>
+          {/* Client-side navigation feedback. It replaces the route-level
+              `loading.tsx` skeleton and adds no Suspense boundary, so every
+              page keeps setting its own response status. Silent below 200 ms;
+              see the component for the timings and their reasons. */}
+          <NavigationFeedback
+            label={t('a11y.navigating')}
+            slowLabel={t('a11y.navigatingSlow')}
+          />
           <HeaderSwitch
             minimal={<CheckoutHeader />}
             full={
