@@ -3,7 +3,7 @@ import {
   Ga4Forwarder,
   NoopForwarder,
   buildForwarderFromEnv,
-} from '../../../../packages/modules/analytics/src/backend/services/ga4-forwarder.js';
+} from './ga4-forwarder.js';
 
 /**
  * T237 — GA4 forwarder is opt-in. Without env vars the factory returns a
