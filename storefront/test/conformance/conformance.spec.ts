@@ -225,6 +225,52 @@ async function fetchPage(page: PlannedPage, currency: string, locale: string) {
   };
 }
 
+/**
+ * Let a page stop moving before it is measured.
+ *
+ * `networkidle` plus a fixed pause: the storefront finishes hydrating and, on
+ * some routes, navigates once afterwards. The pause is what stops the axe walk
+ * starting inside that window.
+ */
+async function settle(tab: Page): Promise<void> {
+  await tab.waitForLoadState('networkidle').catch(() => undefined);
+  await tab.waitForTimeout(1000);
+}
+
+/** The axe pass, retried once over a navigation and never over a violation. */
+async function analyseWithRetry(
+  tab: Page,
+): Promise<{ violations: AxeViolationShape[]; ran: number } | null> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const results = await new AxeBuilder({ page: tab })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze();
+      return {
+        violations: results.violations,
+        ran:
+          results.violations.length +
+          results.passes.length +
+          results.incomplete.length +
+          results.inapplicable.length,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('Execution context was destroyed')) throw error;
+      await settle(tab);
+    }
+  }
+  return null;
+}
+
+/** The shape of one axe violation, as much of it as this job reads. */
+interface AxeViolationShape {
+  readonly id: string;
+  readonly impact?: string | null | undefined;
+  readonly help?: string;
+  readonly nodes: readonly { readonly target: unknown[]; readonly html: string }[];
+}
+
 /** The axe pass and the reduced-motion observation, in one page load. */
 async function inspectInBrowser(
   browser: Browser,
@@ -235,18 +281,19 @@ async function inspectInBrowser(
   const tab = await context.newPage();
   try {
     await tab.goto(`${STOREFRONT_URL}${page.url}`, { waitUntil: 'domcontentloaded' });
-    // Let hydration settle before axe walks the tree. Without it the analysis
-    // races a client-side navigation and dies with `Execution context was
-    // destroyed` — measured — which is a failure of this plumbing wearing the
-    // costume of a page that could not be measured, and is exactly the state
-    // `no-axe-rules` must not be given a reason to fire over.
-    await tab.waitForLoadState('networkidle').catch(() => undefined);
+    await settle(tab);
     // `.claude/skills/ux-laws/SKILL.md` § 4's rules and no second statement of
     // them: the tags are the WCAG 2.2 AA scope, and which rules that is stays
     // axe's answer rather than a list kept here (FR-040).
-    const results = await new AxeBuilder({ page: tab })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    //
+    // Retried once, and only for a navigation. axe walks the tree from Node
+    // over many round trips, and a client-side navigation part-way through
+    // kills the execution context under it — measured, on a cold render, in
+    // `analyze()` itself. That is this plumbing failing, not the page; a page
+    // that fails the retry as well reports `rulesRun: 0`, which `no-axe-rules`
+    // turns into exit 2 naming it. What must never happen is the run treating
+    // an unmeasured page as a clean one.
+    const results = await analyseWithRetry(tab);
     const motion = await tab.evaluate(() => {
       const animating: string[] = [];
       for (const element of Array.from(document.querySelectorAll('*'))) {
@@ -265,17 +312,18 @@ async function inspectInBrowser(
     return {
       axe: {
         route: page.route,
-        violations: results.violations.map((violation) => ({
+        violations: (results?.violations ?? []).map((violation) => ({
           id: violation.id,
           impact: violation.impact ?? null,
-          help: violation.help,
-          nodes: violation.nodes.map((node) => ({ target: node.target, html: node.html })),
+          ...(violation.help === undefined ? {} : { help: violation.help }),
+          nodes: violation.nodes.map((node) => ({
+            target: node.target as (string | string[])[],
+            html: node.html,
+          })),
         })),
-        rulesRun:
-          results.violations.length +
-          results.passes.length +
-          results.incomplete.length +
-          results.inapplicable.length,
+        // `null` is "axe could not be run here at all" and it must not read as
+        // a page with no violations: zero rules is the `no-axe-rules` refusal.
+        rulesRun: results?.ran ?? 0,
       },
       motion: {
         route: page.route,
