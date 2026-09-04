@@ -7,7 +7,7 @@ import {
   encryptSecretValue,
   isSecretEnvelope,
   secretValueIsSet,
-} from '../../../../packages/modules/credentials/src/backend/services/secret-value-codec.js';
+} from './secret-value-codec.js';
 
 /**
  * Feature 058 US1 (T018) — the duplicated AES-256-GCM secret codec.

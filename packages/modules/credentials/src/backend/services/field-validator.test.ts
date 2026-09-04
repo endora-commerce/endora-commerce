@@ -4,13 +4,13 @@ import type { FieldDefinition } from '@endora-commerce/contracts';
 import {
   buildPersistableValues,
   maskSecrets,
-} from '../../../../packages/modules/credentials/src/backend/services/field-validator.js';
-import { llmConfigurationType } from '../../../../packages/modules/credentials/src/backend/types/llm.type.js';
-import { emailAdapterConfigurationType } from '../../../../packages/modules/credentials/src/backend/types/email-adapter.type.js';
+} from './field-validator.js';
+import { llmConfigurationType } from '../types/llm.type.js';
+import { emailAdapterConfigurationType } from '../types/email-adapter.type.js';
 import {
   decryptSecretValue,
   isSecretEnvelope,
-} from '../../../../packages/modules/credentials/src/backend/services/secret-value-codec.js';
+} from './secret-value-codec.js';
 
 /**
  * Feature 058 US1 (T017) — field validation + secret masking derived purely
