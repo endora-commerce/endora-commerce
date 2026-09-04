@@ -121,7 +121,11 @@ describe('assertLockedModulesPresent — the module this deployment never shippe
   it('tells whoever composed the deployment what to do about it', () => {
     const message = refusalFor(withoutAdminUsers(), null).message;
 
-    expect(message).toContain('reduced-deployment.ts');
+    // The deployment's own declaration file, and the field inside it the
+    // omission goes in — `divergence.ts` since D-205, which renamed the file
+    // once it grew past omissions.
+    expect(message).toContain('divergence.ts');
+    expect(message).toContain('omittedModules');
   });
 
   it('accepts the omission once the deployment has declared it', () => {

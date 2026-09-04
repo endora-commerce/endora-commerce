@@ -427,14 +427,14 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
       'the two axes. A divergence between the resolved set and what the lifecycle module sees ' +
       'is invisible to the suite; `test/unit/_lifecycle/registered-manifests.test.ts` covers ' +
       'the resolution over its inputs.',
-    loadReducedDeploymentDeclarations:
+    loadDivergenceDeclaration:
       'The input to the boot step below, and production-only for the same reason: it reads ' +
-      'the deployment’s own `reduced-deployment.ts` so that `loadModulePresence` can tell a ' +
+      'the deployment’s own `divergence.ts` so that `loadModulePresence` can tell a ' +
       'declared omission from an undeclared one. It became a call of this root’s with ' +
       'D-160.11 — the platform may not read `src/overlay/` — so the reader itself is now ' +
-      'exercised by nothing in a test composition; `test/unit/_lifecycle/reduced-deployment-ledger.test.ts` ' +
-      'covers it over its inputs, including the deployment that declares none. It drains with ' +
-      'the entry below, not before it.',
+      'exercised by nothing in a test composition; `test/unit/_lifecycle/divergence-declaration.test.ts` ' +
+      'covers it over its inputs, including both deployments, which declare none. It drains ' +
+      'with the entry below, not before it.',
     loadModulePresence:
       'The harness seeds the registry cache by hand, so the reconciler, the gating-graph ' +
       'install and D-101’s two refusals never run in a test composition. Each is proved by a ' +

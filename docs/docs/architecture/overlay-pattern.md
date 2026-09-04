@@ -44,7 +44,7 @@ takes one.
 | Add a capability | a client-only overlay module under `backend/src/apps/<deployment>/modules/<id>/`, shipping `backend.ts` and `manifest.ts` |
 | Run before or after another module's endpoint; veto it; rewrite its response | `ctx.interceptors` (feature `060`) |
 | Vary a behaviour the owner anticipated | a strategy port the owner publishes, registered behind `ctx.di.providePort` and read through `lazyPort` |
-| Change configuration | a manifest-declared Setting, and `reduced-deployment.ts` to omit a module |
+| Change configuration | a manifest-declared Setting, and `divergence.ts` to omit a module |
 | Add client-specific tables | from a **core** module, read from the overlay through that module's port — an overlay module contributes no schema, see below |
 | **Replace a route handler wholesale** | **No seam. Not offered.** See *The one thing there is no seam for* below |
 

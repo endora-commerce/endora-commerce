@@ -4,7 +4,7 @@
  *
  * The lifecycle subsystem is the platform's operator half, so its
  * platform-safe files moved to `packages/platform/src/lifecycle/`. What stayed
- * behind is the host half — the manifest registry, the reduced-deployment
+ * behind is the host half — the manifest registry, the divergence
  * reader and the five `module:*` commands — and everything in `backend/` that
  * named a moved file at its old path arrives here and is forwarded.
  *

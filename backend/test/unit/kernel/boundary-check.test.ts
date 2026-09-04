@@ -363,7 +363,7 @@ describe('analyzePlatformImports', () => {
     // *any* file a deployment owns, so the fixture names one that exists: the
     // attribution is to `apps/<deployment>`, not to the directory below it.
     const findings = analyzePlatformImports(
-      "import { REDUCED } from '../apps/example/reduced-deployment.js';",
+      "import { divergence } from '../apps/example/divergence.js';",
       kernelFile('compose.ts'),
       PLATFORM_ROOT,
     );

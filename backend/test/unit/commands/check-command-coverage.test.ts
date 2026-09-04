@@ -343,7 +343,7 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
     const appsRoot = fileURLToPath(new URL('../../../src/apps', import.meta.url));
     const overlay = collectScannedFiles(appsRoot).map((f) => f.replace(appsRoot, ''));
     expect(overlay.some((f) => f.includes('/modules/example_overlay/'))).toBe(true);
-    expect(overlay.some((f) => f.endsWith('/reduced-deployment.ts'))).toBe(true);
+    expect(overlay.some((f) => f.endsWith('/divergence.ts'))).toBe(true);
   });
 });
 

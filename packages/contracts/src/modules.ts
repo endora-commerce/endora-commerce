@@ -261,15 +261,17 @@ export type ModuleNonBindingDependency = z.infer<
  *
  * A deployment may compose fewer modules than its manifests declare; what it may
  * not do is arrive there silently, so the omission is declared in a committed,
- * reviewed file (`backend/src/apps/<deployment>/reduced-deployment.ts`) and the
- * boot refuses an omission that is not in it — or an entry for a module the
+ * reviewed file (`backend/src/apps/<deployment>/divergence.ts`) and the boot
+ * refuses an omission that is not in it — or an entry for a module the
  * deployment does ship, which is the same ledger read the other way.
  *
- * The shape lives here rather than in `_lifecycle` because the file that carries
- * it belongs to a **deployment**, and a deployment naming a module's internals is
- * the coupling that outlives the module.
+ * This is `ReducedDeploymentDeclaration` under its own name (D-205), and it is
+ * unchanged in substance: a module id, and a reason long enough to be an
+ * argument. What changed is where it sits — inside
+ * {@link DeploymentDivergenceDeclarationSchema}'s `omittedModules`, beside the
+ * other two things a deployment declares about itself.
  */
-export const ReducedDeploymentDeclarationSchema = z.object({
+export const OmittedModuleSchema = z.object({
   /** The module this deployment does not ship. */
   moduleId: z.string().regex(moduleIdRe),
   /**
@@ -278,8 +280,80 @@ export const ReducedDeploymentDeclarationSchema = z.object({
    */
   reason: z.string().min(20).max(800),
 });
-export type ReducedDeploymentDeclaration = z.infer<
-  typeof ReducedDeploymentDeclarationSchema
+export type OmittedModule = z.infer<typeof OmittedModuleSchema>;
+
+/**
+ * Everything a deployment declares about how it means to differ from core.
+ *
+ * `backend/src/apps/<deployment>/divergence.ts`, exporting `divergence`. The
+ * file was `reduced-deployment.ts` until it grew past omissions (D-205):
+ * *reduced* encodes a direction that is wrong for an addition, wrong for a
+ * substitution and wrong for an ordering, while `divergence` is already the
+ * word the generator's own header uses for the derived artefact beside it.
+ *
+ * The shape lives here rather than in `_lifecycle` because the file carrying it
+ * belongs to a **deployment**, and a deployment naming a module's internals is
+ * the coupling that outlives the module.
+ *
+ * **It holds judgement, ordering and prose — never population.** The single test
+ * for a field is whether the platform can derive it: the deployment's module
+ * list is the overlay walk's answer and the divergences themselves are the
+ * report's, so neither belongs here
+ * (`specs/107-override-report-and-ladder/contracts/deployment-declaration.md` §5).
+ *
+ * Every field defaults to empty, so a declaration that leaves one out means
+ * "none of these" rather than "unparseable" — the reading an absent file already
+ * gets. A deployment that diverges by nothing still ships the file with all
+ * three written out, because the mechanism is easier to find than to remember.
+ */
+export const DeploymentDivergenceDeclarationSchema = z.object({
+  /** The modules this deployment does not ship. D-101, unchanged in substance. */
+  omittedModules: z.array(OmittedModuleSchema).default([]),
+  /**
+   * Wrapping order, per registration name, for a name more than one of this
+   * deployment's overlay modules decorates — innermost first.
+   *
+   * **Checked, never applied.** The composer emits modules in its own order and
+   * drains decorations once; this declares that the resulting order was the
+   * intended one, and a composition that disagrees refuses. Making the
+   * declaration authoritative would put a hand-written array in front of the
+   * composer's topological emission, which is two orderings of one thing waiting
+   * to disagree.
+   *
+   * Only a deployment's own overlay modules can appear here: a core module and
+   * an installed package may not decorate a name they do not own (D-156.4), so
+   * every ambiguity this can resolve is between two of them.
+   *
+   * Nothing reads it yet — the supply is P4 of
+   * `specs/107-override-report-and-ladder/`.
+   */
+  decorationOrder: z
+    .record(z.string().min(1), z.array(z.string().regex(moduleIdRe)).min(1))
+    .default({}),
+  /**
+   * One sentence per divergence the platform derives, keyed by the derived
+   * entry's own key — `<kind>:<module>:<subject>`, never a path and never a
+   * line.
+   *
+   * A flat map rather than a reason field on a per-kind array, and the
+   * difference is structural rather than stylistic: a map can only ever
+   * *answer*. So the declaration cannot add a divergence the derivation did not
+   * find, nor hide one it did — the population is the report's and the judgement
+   * is this.
+   *
+   * The key's grammar is checked where the population it keys into exists;
+   * nothing reads this yet — the report is P2 of
+   * `specs/107-override-report-and-ladder/`.
+   */
+  reasons: z.record(z.string().min(1), z.string().min(20).max(800)).default({}),
+})
+  // Three fields are the whole vocabulary, so a fourth is a typo — and a
+  // mistyped field name under a lenient object is silently stripped, which
+  // reads as "this deployment declares nothing" for a file whose author wrote
+  // a declaration. Refusing it names the key.
+  .strict();
+export type DeploymentDivergenceDeclaration = z.infer<
+  typeof DeploymentDivergenceDeclarationSchema
 >;
 
 /**
