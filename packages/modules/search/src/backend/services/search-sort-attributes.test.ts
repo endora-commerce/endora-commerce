@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SearchListProductsParams } from '@endora-commerce/contracts';
-import { SORTABLE_ATTRIBUTES } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
-import { buildSort } from '../../../../packages/modules/search/src/backend/services/search-query.service.js';
+import { SORTABLE_ATTRIBUTES } from './search-indexer.js';
+import { buildSort } from './search-query.service.js';
 
 /**
  * Issue #287 — every sort the listing contract offers must name a field the

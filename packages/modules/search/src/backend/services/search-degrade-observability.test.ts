@@ -5,7 +5,7 @@ import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@endora
 import {
   SearchBackendUnavailable,
   SearchQueryService,
-} from '../../../../packages/modules/search/src/backend/services/search-query.service.js';
+} from './search-query.service.js';
 
 /**
  * Issue #287 — the degrade may be a degrade, but it may not be a fiction.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { resolveEmbedderConfig } from '../../../../packages/modules/search/src/backend/services/embedder-config-resolver.js';
+import { resolveEmbedderConfig } from './embedder-config-resolver.js';
 
 /**
  * An absent `credentials` is not read as "LLM search is not configured" (the

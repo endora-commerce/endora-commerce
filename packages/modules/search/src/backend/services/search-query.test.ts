@@ -4,7 +4,7 @@ import {
   buildFilterExpression,
   SearchBackendUnavailable,
   SearchQueryService,
-} from '../../../../packages/modules/search/src/backend/services/search-query.service.js';
+} from './search-query.service.js';
 
 /**
  * T068 — pure-unit tests on the filter/sort translator and the
