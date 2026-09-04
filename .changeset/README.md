@@ -1,6 +1,8 @@
 # Changesets
 
-This folder holds the release intent for the five workspace packages under `packages/`.
+This folder holds the release intent for the workspace packages under `packages/`
+(`pnpm changeset:status` prints how many there are; the count moves with every module
+package and does not belong in a sentence).
 The tooling is [Changesets](https://changesets.dev), adopted by owner ruling **D-107**
 (`specs/080-f4-real-scope/rulings.md`); **D-108** sets the versioning model.
 
@@ -90,10 +92,21 @@ D-108 defers — and a shared number would churn every dependent on each contrac
 without saying anything true. `@endora-commerce/api-client` was this paragraph's worked
 example until D-202 deleted the package.
 
-Nothing is published yet — every package under `packages/` is still `"private": true`. `privatePackages`
-is set to `{ "version": true, "tag": false }`, which is what makes the tooling see them at
-all: with the `@changesets/config@4` default (`false`), every command here would report a
-cheerful nothing.
+**Three packages are publishable and the rest are not** (feature 104, D-203):
+`@endora-commerce/contracts`, `@endora-commerce/cms-components` and
+`@endora-commerce/page-builder-core` — the set a scaffolded storefront resolves — have had
+`"private": true` removed, and `access` is `public`. Everything else under `packages/`,
+including `platform`, `admin-kit`, `cli` and every module package, stays private.
+
+That set is **derived and not listed**: it is the closure of the reference storefront's
+`dependencies` and `peerDependencies` over the workspace, which is what
+`check:release-intent` computes, so a fourth package joins it by being added to
+`storefront/package.json` and by nothing else.
+
+`privatePackages` is `{ "version": true, "tag": false }`, which is what makes the tooling see
+the private remainder at all: with the `@changesets/config@4` default (`false`), every
+command here would report a cheerful nothing for them. It says nothing about the three above
+— a public package is versioned, published and tagged regardless of that block.
 
 ## Commands
 
@@ -135,26 +148,34 @@ precisely the shape `release:changeset` exists to fail. The job recognises it fr
 files deleted under `.changeset/` and none added — and asks the inverted question instead: did
 any package's `version` actually move.
 
-There is deliberately no `release` / `publish` script. Nothing in this repository is
-published, and a script named for an action it cannot perform is worse than its absence.
-Adding it belongs to the merge request that makes a package public — and
-`pnpm --filter backend run check:release-intent` goes red the moment `private` comes off a
-package, so that merge request has to say so out loud.
+**Publishing is a CI job on that release branch, not a script here.** `publish:packages`
+(`.gitlab-ci.yml`, `stage: deploy`, manual) runs `changeset publish` against the registry
+`ENDORA_NPM_REGISTRY` names, with the token as an environment reference in an `.npmrc` it
+writes outside the checkout. It refuses an unset registry rather than falling through to
+`registry.npmjs.org`, and refuses a release branch whose publish plan turns out to be empty.
+There is still no `release` script in `package.json`: the credential belongs to CI and a
+script that cannot reach it is worse than its absence.
 
 ## Tags
 
-There are none, and that is an answer rather than a default.
+`privatePackages.tag` is `false`, and it governs the private packages only.
 
-`privatePackages.tag` is `false`. While every package is private, a git tag naming a package
-version anchors nothing a reader cannot re-derive from the commit that wrote the `version`
-field — which is a derived fact written down (D-100), here written into a ref that every clone
-then fetches, and there would be 67 of them per release once the module packages land. What
-would make a tag *anchor* something is publication: a tag is how you assert that this exact
-tree is what a registry serves under that version, and git history alone cannot say anything
-about a registry.
+For them the answer is unchanged: a git tag naming a private package's version anchors
+nothing a reader cannot re-derive from the commit that wrote the `version` field — a derived
+fact written down (D-100), here written into a ref that every clone then fetches, one per
+package per release. What makes a tag *anchor* something is publication: it is how you
+assert that this exact tree is what a registry serves under that version, which git history
+alone cannot say about a registry.
 
-So the answer is **coupled to publication rather than written down**:
-`check:release-intent` requires `tag: false` exactly while every versionable package is
-private, and reports the first package that stops being private. The tag decision therefore
-lands in the merge request that creates the need for it, which is the only one that can make
-it.
+For the three public ones the field is not consulted at all — `changeset publish` tags a
+public package whatever it says (`@changesets/cli@3.0.1`, `dist/git-tag.mjs`). It writes
+those tags locally in the publish job, and nothing pushes them, because a tag is only worth
+having once it points at something a registry the world can reach is serving. That decision
+belongs to the merge request that makes a package public on npmjs.
+
+**The rule is enforced in both states, which is the part worth knowing.**
+`check:release-intent`'s `tag-policy-unstated` requires `tag: false` while *any* versionable
+package is private, and — once none is — requires the field to be stated rather than
+defaulted. Its predecessor asked only while *every* package was private, so the first public
+package would have made it stop asking in both directions, with nothing left holding the
+field at all.
