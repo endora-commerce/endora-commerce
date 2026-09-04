@@ -89,6 +89,12 @@ export {
   cmsResolvedTemplateSchema,
   cmsResolvedPageSchema,
   cmsResolvedHookSchema,
+  // Feature 105, Phase 3 — what the shop advertises to a crawler.
+  cmsPageIndexEntrySchema,
+  cmsPageIndexResponseSchema,
+  // Feature 105, Phase 4 — the reserved set the editor and the refusal share.
+  cmsReservedSegmentsResponseSchema,
+  firstSlugSegment,
   type CmsPageStatus,
   type CmsContentEnvelope,
   type CmsPageSummary,
@@ -121,6 +127,9 @@ export {
   type CmsResolvedTemplate,
   type CmsResolvedPage,
   type CmsResolvedHook,
+  type CmsPageIndexEntry,
+  type CmsPageIndexResponse,
+  type CmsReservedSegmentsResponse,
   // Feature 075, Phase P — the in-process port surface. Named here like every
   // other `cms` export because this file re-exports the module by name rather
   // than with a star: the barrel's CMS surface is what this list says it is,

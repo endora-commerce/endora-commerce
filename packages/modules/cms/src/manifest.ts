@@ -12,6 +12,31 @@ export const CMS_PAGE_BUILDER_SETTING_CODES = {
   COLOR_PALETTE: 'cms.page_builder.color_palette',
 } as const;
 
+/**
+ * The deployment's reserved first path segments
+ * (`specs/105-cms-root-page-urls/` FR-031/FR-032;
+ * `contracts/cms-page-url.md` §5.2).
+ *
+ * A CMS page lives at the storefront root, `/{slug}`, so a page slugged
+ * `cart` saves, publishes and is never served: a root catch-all is Next's
+ * lowest-priority match and the storefront's own `/cart` wins. Nothing here
+ * creates that precedence and nothing may (§5.0) — this value is what lets the
+ * module tell the operator *before* the page disappears.
+ *
+ * **The value is the deployment's and the default is empty**, which is not a
+ * gap left open. The set is a fact about a *storefront's route table*; a
+ * headless backend serves storefronts it did not build, so a list shipped in
+ * `cms` would be a derived fact about a consumer written into the owner — stale
+ * the first time any client adds a route, and stale in the direction that fails
+ * open. The reference storefront publishes its own segments as
+ * `RESERVED_TOP_LEVEL_SEGMENTS` (`storefront/app/reserved-segments.ts`),
+ * reconciled against its route tree by `check:storefront-indexability`, and a
+ * deployment copies its value from there.
+ */
+export const CMS_SETTING_CODES = {
+  RESERVED_SLUG_SEGMENTS: 'cms.reserved_slug_segments',
+} as const;
+
 const settings = defineModuleSettingsManifest({
   moduleCode: 'cms',
   groups: [
@@ -28,6 +53,17 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'cms',
       valueType: 'boolean',
       defaultValue: true,
+    },
+    {
+      // Feature 105 — the deployment's reserved first path segments. See
+      // `CMS_SETTING_CODES` above for why the list is yours and not ours.
+      code: CMS_SETTING_CODES.RESERVED_SLUG_SEGMENTS,
+      name: 'Reserved page-slug segments',
+      description:
+        'First path segments your storefront already serves, as a JSON array of strings — for example ["cart","checkout","catalog"]. A CMS page is served at your storefront root, so a page whose slug starts with one of these would never be shown: the storefront route wins. Saving such a page is refused, and the page editor warns while the slug is being typed. Leave it empty and nothing is refused. The reference storefront publishes the segments it owns in storefront/app/reserved-segments.ts; a custom storefront has its own list.',
+      groupCode: 'cms',
+      valueType: 'json',
+      defaultValue: [],
     },
     {
       code: CMS_PAGE_BUILDER_SETTING_CODES.BREAKPOINT_TABLET_MIN,
@@ -136,6 +172,10 @@ export const manifest = defineModuleManifest({
     { code: 'CMS_REFERENCED' },
     { code: 'CMS_SCHEMA_UPGRADE_FAILED' },
     { code: 'CMS_SLUG_CONFLICT' },
+    // Feature 105. Its sentence names the offending segment through the
+    // envelope's `details` → `{placeholder}` path, so the operator reads which
+    // path would win rather than being told a slug is "invalid".
+    { code: 'CMS_SLUG_RESERVED' },
     { code: 'CMS_TEMPLATE_NOT_FOUND' },
   ],
   i18n: { bundlesDir: 'i18n' },

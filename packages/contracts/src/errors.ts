@@ -263,6 +263,9 @@ export const ERROR_CODES = {
   CMS_TEMPLATE_NOT_FOUND: 'CMS_TEMPLATE_NOT_FOUND',
   CMS_HOOK_NOT_FOUND: 'CMS_HOOK_NOT_FOUND',
   CMS_SLUG_CONFLICT: 'CMS_SLUG_CONFLICT',
+  // Feature 105 — the slug's first segment is one this deployment reserves for
+  // its storefront's own routes, so the page would save and never be served.
+  CMS_SLUG_RESERVED: 'CMS_SLUG_RESERVED',
   CMS_CODE_CONFLICT: 'CMS_CODE_CONFLICT',
   CMS_REFERENCED: 'CMS_REFERENCED',
   CMS_HOOK_SYSTEM_PROTECTED: 'CMS_HOOK_SYSTEM_PROTECTED',

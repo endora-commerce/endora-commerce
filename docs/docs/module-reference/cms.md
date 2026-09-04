@@ -55,6 +55,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `cms.page_builder.breakpoint.desktop_min` | Desktop breakpoint (min-width px) | `number` |
 | `cms.page_builder.breakpoint.tablet_min` | Tablet breakpoint (min-width px) | `number` |
 | `cms.page_builder.color_palette` | Page Builder color palette | `json` |
+| `cms.reserved_slug_segments` | Reserved page-slug segments | `json` |
 
 ## Translations
 

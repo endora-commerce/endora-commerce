@@ -45,6 +45,30 @@ export async function registerCmsAdminRoutes(
     });
   });
 
+  /**
+   * The deployment's reserved first path segments, for the page editor's inline
+   * warning (feature 105, FR-033; `contracts/cms-page-url.md` §5.3).
+   *
+   * **One source, two readers.** This answers from `CmsPageService`, off the
+   * same Setting the save-time refusal enforces, so the warning an operator
+   * reads while typing and the refusal they meet on Save cannot disagree.
+   *
+   * It is this module's endpoint rather than `GET /api/v1/admin/settings/:code`
+   * for a reason that is about the operator and not about layering: that route
+   * is gated `settings:read`, and a content editor holding `cms.write` without
+   * it would get a warning that silently never fires — the exact silence this
+   * phase exists to remove, reintroduced one permission over.
+   *
+   * `/pages/:id` below is no hazard: Fastify's radix router prefers a static
+   * segment over a parametric one whatever the registration order, so
+   * `reserved-segments` is never read as a page id.
+   */
+  app.get(
+    '/api/v1/admin/cms/pages/reserved-segments',
+    { preHandler: requireRead },
+    async () => ({ data: { segments: await deps.pageService.reservedSegments() } }),
+  );
+
   app.get('/api/v1/admin/cms/page-builder/config', { preHandler: requireRead }, async () => ({
     data: await deps.pageBuilderRegistry.describe(),
   }));

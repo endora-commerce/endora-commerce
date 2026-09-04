@@ -504,6 +504,67 @@ export const cmsResolvedHookSchema = z.object({
 });
 export type CmsResolvedHook = z.infer<typeof cmsResolvedHookSchema>;
 
+/**
+ * One published CMS page, as a crawler needs to be told about it
+ * (`specs/105-cms-root-page-urls/` FR-021; `contracts/cms-page-url.md` §4.1).
+ *
+ * `slug` is the **per-channel** slug — `cms_page_sales_channels.slug`, which is
+ * what §1 says the page's address is built from, and not `cms_pages.slug`,
+ * which carries one value for every channel the page is published to. The two
+ * agree for a single-channel page and are free to disagree for any other, which
+ * is why the join and not the column is the source.
+ *
+ * `updatedAt` is the page row's, and it is here because a sitemap entry with no
+ * `lastModified` tells a crawler nothing it did not already know. Nothing else
+ * of the page travels: this shape exists to enumerate addresses, and a rendered
+ * page-builder tree per row would put the whole CMS through memory on every
+ * sitemap build — the reasoning `CmsPageRecord` already states for dropping
+ * `body` and `content`.
+ */
+export const cmsPageIndexEntrySchema = z.object({
+  slug: z.string(),
+  updatedAt: isoDateTimeSchema,
+});
+export type CmsPageIndexEntry = z.infer<typeof cmsPageIndexEntrySchema>;
+
+/** The published pages of the requested sales channel (FR-021). */
+export const cmsPageIndexResponseSchema = z.object({
+  pages: z.array(cmsPageIndexEntrySchema),
+});
+export type CmsPageIndexResponse = z.infer<typeof cmsPageIndexResponseSchema>;
+
+/**
+ * The deployment's reserved first path segments, as the page editor reads them
+ * (`specs/105-cms-root-page-urls/` FR-033; `contracts/cms-page-url.md` §5.3).
+ *
+ * Normalised: lowercase, one path segment each, no duplicates — whatever an
+ * operator typed into the Setting. The editor compares a slug's first segment
+ * against this list, and the backend refuses a save against the same value, so
+ * the warning and the refusal cannot disagree.
+ */
+export const cmsReservedSegmentsResponseSchema = z.object({
+  segments: z.array(z.string()),
+});
+export type CmsReservedSegmentsResponse = z.infer<typeof cmsReservedSegmentsResponseSchema>;
+
+/**
+ * The first path segment of a CMS page slug — the only segment that can collide
+ * with a storefront route (`contracts/cms-page-url.md` §5.1).
+ *
+ * `cmsSlugRe` permits `/`, so `pomoc/dostawa` is one page at `/pomoc/dostawa`
+ * rather than a page under a section, and its first segment is `pomoc`. The
+ * storefront's route table decides the *first* segment of a URL and a catch-all
+ * takes everything after it, so that is what the refusal compares.
+ *
+ * **It lives here because two programs ask the question and must agree**: the
+ * backend, refusing a save, and the page editor, warning while the operator
+ * types. A second copy in the admin layer is a second answer waiting to
+ * disagree — the discipline `blockNameRe` and `slugify` already keep.
+ */
+export function firstSlugSegment(slug: string): string {
+  return slug.split('/').filter((segment) => segment.length > 0)[0]?.toLowerCase() ?? '';
+}
+
 // ---------------------------------------------------------------------------
 // --- ports -----------------------------------------------------------------
 //

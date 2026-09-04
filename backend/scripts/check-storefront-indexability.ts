@@ -163,9 +163,10 @@ import { reportReadSize } from './lib/read-size.js';
 
 const PREFIX = '[storefront-indexability]';
 
-/** Repo-relative, and the one place either path is spelled. */
+/** Repo-relative, and the one place any of these paths is spelled. */
 const APP_ROOT = 'storefront/app';
 const SITEMAP_FILE = 'storefront/app/sitemap.ts';
+const RESERVED_SEGMENTS_FILE = 'storefront/app/reserved-segments.ts';
 
 export type StorefrontIndexabilityFindingKind =
   | 'undeclared-indexability'
@@ -175,7 +176,9 @@ export type StorefrontIndexabilityFindingKind =
   | 'sitemap-orphan-route'
   | 'orphan-sitemap-entry'
   | 'undeclared-structured-data'
-  | 'status-decision-under-a-boundary';
+  | 'status-decision-under-a-boundary'
+  | 'unreserved-top-level-segment'
+  | 'stale-reserved-segment';
 
 /** One `page.tsx` and the `seo.ts` beside it, as source text. */
 export interface RouteFile {
@@ -207,8 +210,23 @@ export interface StorefrontIndexabilityInput {
   /** Repo-relative root the route patterns are derived against. */
   readonly appRoot: string;
   readonly routes: readonly RouteFile[];
+  /**
+   * Repo-relative paths of the `route.ts` / `route.tsx` handlers under
+   * `appRoot`, as **paths and no text**.
+   *
+   * A handler emits no document, so it is outside every indexability question
+   * and this walk deliberately does not open it. It does own a top-level path
+   * segment, though — `/api`, `/pwa`, `/manifest.webmanifest` — and a CMS page
+   * slugged into one of those is shadowed exactly as it would be by a page.
+   */
+  readonly handlerPaths: readonly string[];
   /** `storefront/app/sitemap.ts`'s source, or `null` when it is absent. */
   readonly sitemapText: string | null;
+  /**
+   * `storefront/app/reserved-segments.ts`'s source, or `null` when it is absent
+   * (`specs/105-cms-root-page-urls/` FR-034).
+   */
+  readonly reservedSegmentsText: string | null;
   /** The route-level Suspense boundaries, and the directories that were unreadable. */
   readonly segments: SegmentWalk;
 }
@@ -247,6 +265,13 @@ export interface StorefrontIndexabilityResult {
    */
   readonly decisionsRead: number;
   readonly sitemap: SitemapDeclaration | null;
+  /**
+   * `RESERVED_TOP_LEVEL_SEGMENTS`, or `null` when the declaration could not be
+   * read in full — the same all-or-nothing rule the sitemap arrays take.
+   */
+  readonly reservedSegments: readonly string[] | null;
+  /** The top-level path segments the route tree serves, deduplicated. */
+  readonly topLevelSegments: readonly string[];
   /** Directories under `appRoot` the walk could not enumerate. */
   readonly unenumerableSegments: readonly string[];
   /** Sitemap entries that matched a route file. */
@@ -368,6 +393,56 @@ export function readSitemapDeclaration(text: string | null): SitemapDeclaration 
   if (statics === undefined || statics === null) return null;
   if (dynamics === undefined || dynamics === null) return null;
   return { staticRoutes: statics, dynamicRoutes: dynamics };
+}
+
+const RESERVED_ARRAY = 'RESERVED_TOP_LEVEL_SEGMENTS';
+
+/**
+ * `RESERVED_TOP_LEVEL_SEGMENTS`, or `null` when it could not be read in full.
+ *
+ * All-or-nothing for the sitemap's reason restated one file over: an element
+ * this analysis cannot resolve makes the declaration *unreadable* rather than
+ * *shorter*, because a short reserved set reports every segment it lost as an
+ * `unreserved-top-level-segment` — a finding about the reader dressed as a
+ * finding about the tree.
+ */
+export function readReservedSegments(text: string | null): readonly string[] | null {
+  if (text === null) return null;
+  const source = ts.createSourceFile('reserved-segments.ts', text, ts.ScriptTarget.Latest, true);
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name)) continue;
+      if (declaration.name.text !== RESERVED_ARRAY) continue;
+      return readStringArray(declaration.initializer);
+    }
+  }
+  return null;
+}
+
+/**
+ * The top-level path segments this route tree serves, deduplicated and sorted.
+ *
+ * Derived from the **paths** of every routable file — pages and handlers alike
+ * — through `routePatternOf`, so route groups, private folders and parallel
+ * slots drop out exactly as they do for every other question this check asks.
+ *
+ * A **dynamic** first segment is not one: `/[...slug]` is the CMS catch-all
+ * itself, and reserving it would be the storefront reserving the thing a page
+ * slug *is*. The root page contributes nothing, for the same reason `/` is not
+ * a segment.
+ */
+export function topLevelSegmentsOf(
+  routedPaths: readonly string[],
+  appRoot: string,
+): readonly string[] {
+  const segments = new Set<string>();
+  for (const path of routedPaths) {
+    const first = routePatternOf(path, appRoot).split('/').filter((part) => part.length > 0)[0];
+    if (first === undefined || first.startsWith('[')) continue;
+    segments.add(first);
+  }
+  return [...segments].sort();
 }
 
 function readStringArray(expression: ts.Expression | undefined): readonly string[] | null {
@@ -753,6 +828,7 @@ export function checkStorefrontIndexability(
   input: StorefrontIndexabilityInput,
 ): StorefrontIndexabilityResult {
   const sitemap = readSitemapDeclaration(input.sitemapText);
+  const reservedSegments = readReservedSegments(input.reservedSegmentsText);
   const findings: StorefrontIndexabilityFinding[] = [];
   const filesRead: string[] = [];
   const classified: string[] = [];
@@ -760,6 +836,7 @@ export function checkStorefrontIndexability(
   const nonIndexable: string[] = [];
 
   if (input.sitemapText !== null) filesRead.push(SITEMAP_FILE);
+  if (input.reservedSegmentsText !== null) filesRead.push(RESERVED_SEGMENTS_FILE);
 
   const pagesRead: string[] = [];
   const patterns = new Map<string, RouteFile>();
@@ -923,6 +1000,48 @@ export function checkStorefrontIndexability(
     });
   }
 
+  /**
+   * `specs/105-cms-root-page-urls/` FR-034 — the storefront publishes the
+   * top-level segments it owns, reconciled against its own route tree.
+   *
+   * The two directions are reported apart, in this file's own idiom
+   * (`sitemap-orphan-route` / `orphan-sitemap-entry`), because a repair in one
+   * must not be able to hide a hole in the other — and because they fail
+   * differently: an unreserved segment is the fail-**open** case a CMS page can
+   * be silently lost to, a stale entry only refuses a slug that is free.
+   */
+  const topLevelSegments = topLevelSegmentsOf(
+    [...input.routes.map((route) => route.path), ...input.handlerPaths],
+    input.appRoot,
+  );
+  if (reservedSegments !== null) {
+    const reserved = new Set(reservedSegments);
+    for (const segment of topLevelSegments) {
+      if (reserved.has(segment)) continue;
+      findings.push({
+        kind: 'unreserved-top-level-segment',
+        subject: `/${segment}`,
+        path: RESERVED_SEGMENTS_FILE,
+        detail:
+          'this storefront serves this top-level path and does not publish it as reserved — a ' +
+          'CMS page slugged into it saves, publishes and is never shown, because the route ' +
+          'wins and nothing tells the operator',
+      });
+    }
+    const served = new Set(topLevelSegments);
+    for (const segment of reservedSegments) {
+      if (served.has(segment)) continue;
+      findings.push({
+        kind: 'stale-reserved-segment',
+        subject: `/${segment}`,
+        path: RESERVED_SEGMENTS_FILE,
+        detail:
+          'this segment is published as reserved and no route file serves it — a deployment ' +
+          'copying this list refuses a slug that is actually free',
+      });
+    }
+  }
+
   return {
     findings,
     indexable,
@@ -933,6 +1052,8 @@ export function checkStorefrontIndexability(
     decisionsRead,
     unenumerableSegments: input.segments.unreadable,
     sitemap,
+    reservedSegments,
+    topLevelSegments,
     sitemapCovered,
     sitemapExpected: entries.length,
   };
@@ -947,7 +1068,9 @@ export type VacuousReasonKind =
   | 'unreadable-sitemap'
   | 'nothing-classified'
   | 'unenumerable-segment'
-  | 'nothing-decided';
+  | 'nothing-decided'
+  | 'no-top-level-segment'
+  | 'unreadable-reserved-segments';
 
 export interface VacuousReason {
   readonly kind: VacuousReasonKind;
@@ -1024,6 +1147,28 @@ export function vacuousReason(result: StorefrontIndexabilityResult): VacuousReas
         'rather than the tree that became clean',
     };
   }
+  // `specs/105-cms-root-page-urls/` FR-034's two, and both are the shape #215
+  // is about: the reconciliation is a set comparison, so an empty set on either
+  // side reports the *other* side's whole contents and nothing about the tree.
+  if (result.topLevelSegments.length === 0) {
+    return {
+      kind: 'no-top-level-segment',
+      message:
+        `the walk of ${APP_ROOT} produced no top-level path segment at all, so every entry in ` +
+        `\`${RESERVED_ARRAY}\` would be reported stale — a finding about the walk rather than ` +
+        'about the tree',
+    };
+  }
+  if (result.reservedSegments === null) {
+    return {
+      kind: 'unreadable-reserved-segments',
+      message:
+        `${RESERVED_SEGMENTS_FILE} is absent, or its \`${RESERVED_ARRAY}\` could not be read as ` +
+        'a string array. It is the storefront\'s own statement of what it reserves, and a ' +
+        'deployment copies its `cms.reserved_slug_segments` value from it; with nothing to ' +
+        'read, the reconciliation below is vacuously satisfied in both directions',
+    };
+  }
   return null;
 }
 
@@ -1061,6 +1206,18 @@ const REMEDIES: Readonly<Record<StorefrontIndexabilityFindingKind, string>> = {
     "Ship a `seo.ts` beside the `page.tsx` exporting `seo: RouteSeo` with the route pattern " +
     'and the schema.org types the page emits. `jsonLd: []` is a valid declaration for a route ' +
     'that owes none — say so rather than leaving the question open.',
+  'unreserved-top-level-segment':
+    'Add the segment to `RESERVED_TOP_LEVEL_SEGMENTS` in ' +
+    '`storefront/app/reserved-segments.ts`, and add it to the deployment\'s ' +
+    '`cms.reserved_slug_segments` setting. A CMS page is served at the site root, so every ' +
+    'top-level path this storefront owns is a path a page can be silently lost to — the page ' +
+    'saves, publishes, and the URL goes on serving your route ' +
+    '(`specs/105-cms-root-page-urls/contracts/cms-page-url.md` §5.3.1).',
+  'stale-reserved-segment':
+    'Remove the entry, or add the route file it names. A segment that has left the storefront ' +
+    'and is still published as reserved refuses a page slug that is actually free — the ' +
+    'fail-safe direction of this reconciliation, and still one line of drift a deployment ' +
+    'copies.',
   'status-decision-under-a-boundary':
     'Delete the boundary, or move the skeleton inside the page. A `loading.tsx` is the one ' +
     'thing a page cannot work around: the shell is flushed when its fallback is ready, and ' +
@@ -1074,9 +1231,15 @@ const REMEDIES: Readonly<Record<StorefrontIndexabilityFindingKind, string>> = {
 
 interface WalkedRoutes {
   readonly routes: readonly RouteFile[];
+  /** `route.ts` / `route.tsx` paths — no text; see `handlerPaths` on the input. */
+  readonly handlerPaths: readonly string[];
   readonly sitemapText: string | null;
+  readonly reservedSegmentsText: string | null;
   readonly segments: SegmentWalk;
 }
+
+/** Next's names for a route handler, which emits no document. */
+const HANDLER_FILE_NAMES: readonly string[] = ['route.ts', 'route.tsx'];
 
 function walkRoutes(repoRoot: string): WalkedRoutes {
   const appDirectory = join(repoRoot, APP_ROOT);
@@ -1085,6 +1248,7 @@ function walkRoutes(repoRoot: string): WalkedRoutes {
   // this already visits, which is why FR-014 is a finding kind here and not a
   // check of its own (contract §5.2).
   const boundaries: string[] = [];
+  const handlerPaths: string[] = [];
   const unreadable: string[] = [];
 
   const here = (full: string): string => relative(repoRoot, full).split(sep).join('/');
@@ -1110,6 +1274,10 @@ function walkRoutes(repoRoot: string): WalkedRoutes {
         continue;
       }
       if (BOUNDARY_FILE_NAMES.includes(entry.name)) boundaries.push(here(full));
+      // A path and no read: a handler emits no document, so it answers no
+      // indexability question — it owns a top-level segment and nothing else
+      // (feature 105, FR-034).
+      if (HANDLER_FILE_NAMES.includes(entry.name)) handlerPaths.push(here(full));
       if (entry.name !== 'page.tsx') continue;
       const seoPath = join(directory, 'seo.ts');
       routes.push({
@@ -1122,11 +1290,15 @@ function walkRoutes(repoRoot: string): WalkedRoutes {
   walk(appDirectory);
   routes.sort((a, b) => a.path.localeCompare(b.path));
   boundaries.sort();
+  handlerPaths.sort();
 
   const sitemapPath = join(repoRoot, SITEMAP_FILE);
+  const reservedPath = join(repoRoot, RESERVED_SEGMENTS_FILE);
   return {
     routes,
+    handlerPaths,
     sitemapText: exists(sitemapPath) ? readFileSync(sitemapPath, 'utf8') : null,
+    reservedSegmentsText: exists(reservedPath) ? readFileSync(reservedPath, 'utf8') : null,
     segments: { boundaries, unreadable },
   };
 }
@@ -1147,7 +1319,9 @@ function main(): void {
   const result = checkStorefrontIndexability({
     appRoot: APP_ROOT,
     routes: walked.routes,
+    handlerPaths: walked.handlerPaths,
     sitemapText: walked.sitemapText,
+    reservedSegmentsText: walked.reservedSegmentsText,
     segments: walked.segments,
   });
 
@@ -1189,7 +1363,8 @@ function main(): void {
   console.log(
     `${PREFIX} pages=${walked.routes.length} indexable=${result.indexable.length} ` +
       `noindex=${result.nonIndexable.length} boundaries=${walked.segments.boundaries.length} ` +
-      `status-decisions=${result.decisionsRead} findings=${result.findings.length}`,
+      `status-decisions=${result.decisionsRead} segments=${result.topLevelSegments.length} ` +
+      `findings=${result.findings.length}`,
   );
 
   if (result.findings.length === 0) process.exit(0);

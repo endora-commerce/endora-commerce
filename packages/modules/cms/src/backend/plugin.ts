@@ -15,7 +15,7 @@ import type { CmsColorPaletteEntry, ModuleManifest } from '@endora-commerce/cont
 import { PageBuilderRegistry, type PageBuilderBreakpointsResolver, type ColorPaletteResolver } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
 import { resolvePageBuilderBreakpointsFromEnv } from '../manifest.js';
-import { CmsPageService } from './services/cms-page-service.js';
+import { CmsPageService, type ReservedSlugSegmentsResolver } from './services/cms-page-service.js';
 import { CmsBlockService } from './services/cms-block-service.js';
 import { CmsTemplateService } from './services/cms-template-service.js';
 import { CmsReferenceRegistry } from './services/cms-reference-registry.js';
@@ -81,6 +81,13 @@ export interface CmsModuleHandle {
   setColorPaletteResolver: (resolver: ColorPaletteResolver) => void;
   /** Late-bound writer for the global Page Builder color palette. */
   setColorPaletteWriter: (writer: ColorPaletteWriter) => void;
+  /**
+   * Late-bound reader for the deployment's reserved first path segments
+   * (feature 105, FR-032). Installed by `registerModule`, which is where every
+   * settings-backed value of this module is wired, so there is no setter left
+   * for a composition root to forget.
+   */
+  setReservedSlugSegmentsResolver: (resolver: ReservedSlugSegmentsResolver) => void;
   getColorPaletteWriter: () => ColorPaletteWriter | null;
   setAssetResolver: (resolver: CmsAssetResolver | null) => void;
 }
@@ -144,6 +151,9 @@ export function cmsModule(options: CmsModuleOptions): {
     },
     setColorPaletteWriter: (writer) => {
       colorPaletteWriter = writer;
+    },
+    setReservedSlugSegmentsResolver: (resolver) => {
+      pageService.setReservedSegmentsResolver(resolver);
     },
     getColorPaletteWriter: () => colorPaletteWriter,
     setAssetResolver: (resolver) => {

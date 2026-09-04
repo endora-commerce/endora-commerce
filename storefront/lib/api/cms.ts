@@ -1,5 +1,11 @@
-import type { CmsResolvedBlock, CmsResolvedHook, CmsResolvedPage } from '@endora-commerce/contracts';
+import type {
+  CmsPageIndexResponse,
+  CmsResolvedBlock,
+  CmsResolvedHook,
+  CmsResolvedPage,
+} from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
+import { isModuleDisabled } from './module-absence';
 
 /**
  * Fetch a published CMS block by its code (per the request's sales channel +
@@ -93,6 +99,40 @@ export async function getCmsHookByCode(
     if (err instanceof StorefrontApiError && err.status === 404) {
       return null;
     }
+    throw err;
+  }
+}
+
+/**
+ * The published CMS pages of the request's sales channel, for the sitemap
+ * (`specs/105-cms-root-page-urls/` FR-020…FR-022; `contracts/cms-page-url.md`
+ * §4.1/§4.3).
+ *
+ * `null` means the `cms` module is **absent**, and it means nothing else. A
+ * switched-off module is a decision the platform made and the shop renders
+ * around it: the sitemap then advertises no CMS URL and still serves, which is
+ * the correct sitemap rather than a degraded one — the answer `getBlogIndex`
+ * already gives. Absence is read from the module's own `MODULE_DISABLED`
+ * refusal through `isModuleDisabled`, never from a bare `catch`, which would
+ * make a network blip look identical to an operator's withdrawal.
+ *
+ * Every other error propagates to the caller, which is a sitemap source with a
+ * narrow tolerance of its own: a crawler that gets a 500 here is told the shop
+ * advertises nothing at all, so a short sitemap is the better answer — but the
+ * decision to shorten belongs to the sitemap, not to this reader.
+ */
+export async function getCmsPageIndex(
+  ctx: RequestContext,
+): Promise<CmsPageIndexResponse | null> {
+  try {
+    const res = await apiGet<{ data: CmsPageIndexResponse }>(
+      '/api/v1/cms/pages/by-channel',
+      ctx,
+      { revalidate: 60, tags: ['cms:page'] },
+    );
+    return res.data;
+  } catch (err) {
+    if (isModuleDisabled(err)) return null;
     throw err;
   }
 }
