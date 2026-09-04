@@ -3,7 +3,7 @@ import type { PromotionRule } from '@endora-commerce/contracts';
 import {
   evaluatePromotionRule,
   type PromotionRuleContext,
-} from '../../../../packages/modules/promotions/src/backend/services/promotion-rule-evaluator.js';
+} from './promotion-rule-evaluator.js';
 
 function ctx(overrides: Partial<PromotionRuleContext> = {}): PromotionRuleContext {
   return {

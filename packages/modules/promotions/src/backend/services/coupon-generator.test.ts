@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCouponCode } from '../../../../packages/modules/promotions/src/backend/services/coupon-service.js';
+import { buildCouponCode } from './coupon-service.js';
 
 describe('buildCouponCode', () => {
   it('respects the digits format', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CartLine } from '@endora-commerce/contracts';
-import { createPromotionActionRegistry } from '../../../../packages/modules/promotions/src/backend/services/promotion-action-registry.js';
-import type { CartApplyContext } from '../../../../packages/modules/promotions/src/backend/actions/types.js';
+import { createPromotionActionRegistry } from '../services/promotion-action-registry.js';
+import type { CartApplyContext } from './types.js';
 
 const registry = createPromotionActionRegistry();
 
