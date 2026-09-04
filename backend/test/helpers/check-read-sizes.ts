@@ -1782,7 +1782,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.changeset/*.md` files `feat/104-publication` brought with it, which this
     // whole-tree walk sees and the source-comment walks do not. Re-measured on
     // the rebased tree rather than added to the number above it.
-    files: 7486,
+    // **Feature 098 Phase 5 (the storefront performance budget): 7486 -> 7491.**
+    // Two are this branch's — `scripts/perf-storefront.sh` and
+    // `scripts/lib/storefront-stack.sh`, measured by moving both out of the tree
+    // and re-running, which read 7489. The other three `master` gained while
+    // this branch was open. The recorded number is what this tree reads.
+    // **Rebased onto `master` at a9deb1cfd: 7491 -> 7495.** Not this branch's
+    // two — the four `specs/106-module-owned-tests/*.md` files that merge
+    // brought with it, which this whole-tree walk sees. Re-measured on the
+    // rebased tree rather than added to the number above it.
+    files: 7495,
     sites: null,
     sources: [],
   },
@@ -2487,7 +2496,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.changeset/*.md` files `feat/104-publication` brought with it, which this
     // whole-tree walk sees and the source-comment walks do not. Re-measured on
     // the rebased tree rather than added to the number above it.
-    files: 7545,
+    // **Feature 098 Phase 5 (the storefront performance budget): 7545 -> 7551.**
+    // Two of the six are this branch's two new shell files, measured by moving
+    // both out of the tree and re-running, which read 7549; the other four were
+    // already standing on `master`. What is recorded is what this tree reads.
+    // **Rebased onto `master` at a9deb1cfd: 7551 -> 7555.** Not this branch's
+    // two — the four `specs/106-module-owned-tests/*.md` files that merge
+    // brought with it. Re-measured on the rebased tree.
+    files: 7555,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2540,7 +2556,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population.
     // All nine, exactly: `master` measured 5646 in the same detached
     // worktree, which is the number that was recorded.
-    files: 5655,
+    // **Feature 098 Phase 5 (the storefront performance budget): 5655 -> 5657.**
+    // Both are this branch's — `scripts/perf-storefront.sh` and
+    // `scripts/lib/storefront-stack.sh` — and exactly two, measured by moving
+    // them out of the tree and re-running, which read 5655 again. Unmoved by
+    // the rebase onto `master` at a9deb1cfd: the four specification pages that
+    // merge brought are outside this walk, which is source comments and
+    // `docs/docs/**`.
+    files: 5657,
     sites: null,
     sources: ['manifest-index'],
   },

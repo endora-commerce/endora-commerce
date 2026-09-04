@@ -1334,6 +1334,12 @@ perf:backend:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: manual
       allow_failure: true
+  # Shared with `perf:storefront` and `conformance:storefront`, which run on the
+  # same nightly schedule on the same 4 vCPU host (feature 098, T501). A p95
+  # measured beside another job's `next build` measures that build; the header
+  # above already says so about `test:backend`'s shards, and the schedule grew
+  # two more heavy jobs since it was written.
+  resource_group: perf-measurement
 
 # ---------------------------------------------------------------------------
 # The boot gate — the built image is booted, and asserted to be the platform the
@@ -1601,6 +1607,10 @@ build:docs:
 # `.claude/skills/ux-laws/SKILL.md` § 4 that turns on computed style — contrast,
 # focus visibility and `prefers-reduced-motion`. `scripts/conformance-storefront.sh`
 # carries the whole reasoning; it is `boot-gate`'s shape one application over.
+# The boot itself is `scripts/lib/storefront-stack.sh`, shared with
+# `perf:storefront` since feature 098's Phase 5 — the question the two jobs ask
+# differs, getting a storefront to the point of answering one does not, and
+# three of its steps are measurements somebody paid for rather than procedure.
 #
 # **It boots `next start`'s replacement, not the image.** The storefront builds
 # with `output: 'standalone'` and Next refuses to serve that build under
@@ -1686,6 +1696,125 @@ conformance:storefront:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: manual
       allow_failure: true
+  # Shared with `perf:backend` and `perf:storefront` (feature 098, T501). Two of
+  # the three build a Next application on a host whose OOM killer has already
+  # taken two concurrent frontend builds, and the other two are wall-clock
+  # verdicts this job's `next build` would be measured into.
+  resource_group: perf-measurement
+
+# ---------------------------------------------------------------------------
+# The storefront performance budget — `.lighthouserc.js` is measured against a
+# booted storefront (specs/098-storefront-ssr-seo-a11y-suite/ Phase 5, FR-050).
+#
+# **This file has existed since T242 and has had no runner since `5b0bfb5dd`
+# deleted the GitHub Actions workflows.** `lhci` was a dependency of nothing,
+# the config's own header said "NOT RUN BY CI", and Core Web Vitals
+# (Constitution VII) were asserted by a developer remembering to run three
+# commands. That header is corrected in the merge request that adds this job,
+# because a file describing a state a later change silently invalidates is the
+# shape this estate keeps finding.
+#
+# **Schedule only, for `perf:backend`'s reason and not a weaker one.** These are
+# wall-clock assertions. The runner host is shared — see the Memory block above
+# `test:backend` — and a Largest Contentful Paint measured beside two live
+# shards measures contention, so a per-MR gate would be a coin toss that blocks
+# merges. `when: manual` on a merge request is for someone deliberately
+# measuring a change they suspect.
+#
+# CI_SCHEDULE_KIND is set on the schedule itself, and the split is about the
+# sample count rather than the page set:
+#   nightly       three runs per URL — the gate. Lighthouse asserts on the
+#                 median, and three is what the committed thresholds were
+#                 re-based from.
+#   weekly-heavy  five runs per URL. A drift smaller than the run-to-run spread
+#                 is invisible at three samples on a 4 vCPU box, and six extra
+#                 Lighthouse runs have no place in a nightly.
+#
+# The first three runs on this runner are RECORDING runs (D-65, as for
+# `perf:backend`): `scripts/perf-storefront.sh --record` collects and asserts
+# nothing, and every threshold in `.lighthouserc.js` is re-based from what those
+# runs measure here. The numbers committed today come from local runs and carry
+# that derivation in a comment beside them; they are a starting point, not the
+# enforced number.
+#
+# It is **not** a `check-*` script and must not become one:
+# `test/unit/scripts/check-read-size.test.ts` spawns every one of those, and a
+# booted stack plus a browser inside a unit run is not a test.
+# ---------------------------------------------------------------------------
+perf:storefront:
+  stage: test
+  # The Playwright image, for `conformance:storefront`'s reasons — the browser
+  # and its system libraries are the version `@playwright/test` expects. This
+  # job drives Chrome through Lighthouse rather than through Playwright, and
+  # `scripts/perf-storefront.sh` derives `CHROME_PATH` from that same package,
+  # so the repository ships one browser rather than one per job.
+  image: mcr.microsoft.com/playwright:v1.60.0-noble
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    # The disposable `(^|_)test(_|$)` convention `test/global-setup.ts` and the
+    # dev-seed guard judge on, and `scripts/lib/storefront-stack.sh` refuses a
+    # DSN that does not — the seed it runs drops business data.
+    DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_storefront_perf_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    JWT_SECRET: storefront-perf-secret-not-a-real-one-00000000
+    SESSION_COOKIE_SECRET: storefront-perf-secret-not-a-real-one-00000000
+    NODE_ENV: development
+    LOG_LEVEL: warn
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - apt-get update -qq && apt-get install -y -qq postgresql-client curl >/dev/null
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+    - PGPASSWORD=b2b psql -h postgres -U b2b -d postgres -c "create database b2b_storefront_perf_test"
+  script:
+    # `@lhci/cli` is fetched with a pinned `pnpm dlx` inside the script rather
+    # than declared: this is the only job that runs it, so declaring it would
+    # cost `pnpm install --frozen-lockfile` in the other thirteen and buy this
+    # one nothing (plan.md § Complexity Tracking).
+    - LH_RUNS=3
+    - if [ "$CI_SCHEDULE_KIND" = "weekly-heavy" ]; then LH_RUNS=5; fi
+    - LHCI_NUMBER_OF_RUNS="$LH_RUNS" bash scripts/perf-storefront.sh
+  artifacts:
+    when: always
+    paths:
+      - storefront/test-results/lighthouse
+    expire_in: 1 week
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      allow_failure: false
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+  # The same fact about this host that serialises `test:backend`'s shards and
+  # the image builds. Three heavy jobs run on the nightly schedule — this one,
+  # `perf:backend` and `conformance:storefront` — the runner is 4 vCPU with
+  # `concurrent=2`, and two of the three build a Next application whose build
+  # `storefront/next.config.js` already caps at two workers because it was
+  # OOM-killed on this box twice. Two of them are also wall-clock verdicts, and
+  # a p95 or an LCP measured beside another job measures the other job. Costs
+  # nightly wall clock, which nobody is waiting on; revisit from the runner's
+  # own `concurrent` setting once the suite has a machine to itself.
+  resource_group: perf-measurement
 
 # ---------------------------------------------------------------------------
 # Build — Docker images → GitLab Container Registry

@@ -18,6 +18,12 @@ coverage/
 .nyc_output/
 *.lcov
 
+# `perf:storefront`'s raw Lighthouse reports. `lhci` writes them to the
+# directory it was invoked in; `scripts/perf-storefront.sh` deletes the
+# directory before every run and copies what it produced under
+# `storefront/test-results/`, which is where the CI job picks its artifact up.
+.lighthouseci/
+
 # Logs
 *.log
 npm-debug.log*
