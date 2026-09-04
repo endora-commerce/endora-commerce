@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConsoleMailer, InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+import { ConsoleMailer, InMemoryMailer } from './mailer.js';
 
 /**
  * D-59 — `Mailer.send` answers an outcome instead of `void`.
