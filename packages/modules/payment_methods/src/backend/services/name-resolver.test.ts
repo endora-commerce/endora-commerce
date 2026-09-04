@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePaymentMethodName } from '../../../../packages/modules/payment_methods/src/backend/services/name-resolver.js';
+import { resolvePaymentMethodName } from './name-resolver.js';
 
 describe('resolvePaymentMethodName', () => {
   it('prefers the exact language override', () => {
