@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { builtInShippingAdapters } from '../../../../packages/modules/delivery_methods/src/backend/adapters/built-in-adapters.js';
+import { builtInShippingAdapters } from './built-in-adapters.js';
 
 /**
  * T014 (US1) — contract conformance for the bundled offline adapters.
