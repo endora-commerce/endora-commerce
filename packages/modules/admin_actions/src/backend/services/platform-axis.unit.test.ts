@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AdminI18nTranslatePort, PermissionReadPort } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
-import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
+import { AdminActionsService } from './admin-actions-service.js';
 
 /**
  * The palette resolves **both** presence axes through the injected probe.

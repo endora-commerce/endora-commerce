@@ -9,8 +9,8 @@ import { describe, expect, it } from 'vitest';
 import {
   adminActionsModule,
   type AdminActionsManifestRegistryView,
-} from '../../../../packages/modules/admin_actions/src/backend/plugin.js';
-import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
+} from './plugin.js';
+import { AdminActionsService } from './services/admin-actions-service.js';
 
 /**
  * Feature 075, Phase C — `admin_actions` states its cross-module demand.
