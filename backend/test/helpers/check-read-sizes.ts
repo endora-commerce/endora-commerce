@@ -511,6 +511,32 @@ export interface RecordedReadSize {
  * that has been committed stays in the list whatever happens to it on disk, and a
  * delta taken by moving files aside on the branch reads zero. Both are measured
  * against the detached baseline instead.
+ *
+ * ## Feature 104 §§ 1.5–1.6 — the scaffold's registry (2026-09-04)
+ *
+ * **Four entries re-recorded, three deliberately left drifting**, on F7's
+ * separation and by the same method: the drift report named seven, and each of
+ * the seven checks was then run twice — once on the branch, once with the two
+ * files this branch **adds** parked off disk — so what is mine is a measurement
+ * rather than an inference. It adds
+ * `packages/cli/src/new-storefront/npmrc.ts` and one changeset, and edits
+ * nothing else that any of these seven walks counts.
+ *
+ * `check-lock-claims` (sites 14 -> 15, files 226 -> 240), `check-rsc-discipline`
+ * (sites 86 -> 90, files 332 -> 334) and `check-doc-snippets` (files
+ * 1186 -> 1209) read **the same numbers with and without this branch's files**.
+ * They are `master`'s: 267 files were added to it between the last re-record and
+ * this branch's base, by merges that did not come back for these entries.
+ * Absorbing them here would put this branch's name on somebody else's movement
+ * and remove the signal from whoever owns it.
+ *
+ * **Parking is valid for all four re-recorded here, including the two shell
+ * checks**, and the reason is the F7 caveat read precisely rather than repeated:
+ * `--cached` answers from the index, so it holds a file that has been
+ * *committed*. Both of this branch's files are untracked at the moment of
+ * measurement, so `--cached` never held them and `--others` stops listing them
+ * the moment they leave the disk — the delta is real. A branch parking a file it
+ * has already committed still needs the detached baseline.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -693,7 +719,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): files 5187 -> 5239.** 52 module
     // packages gain a `vitest.config.ts`; the 196 moves are net zero for a whole-tree
     // walk.
-    files: 5239,
+    // **Feature 104 §§ 1.5–1.6: files 5239 -> 5242, and only one of the three is
+    // this branch's.** `packages/cli/src/new-storefront/npmrc.ts` is the file it
+    // adds; the other two arrived on `master` between the last re-record and
+    // this branch's base. Measured rather than reasoned: the two files this
+    // branch adds were parked off disk and every drifted check re-run, which
+    // reads 5241 without them. Parking is valid here because both are
+    // **untracked** — the `--cached` caveat the two shell entries carry bites
+    // only on a file that has already been committed. The observed value is
+    // recorded rather than `recorded + 1`, for this row's own standing reason:
+    // 5240 would describe no tree at all.
+    files: 5242,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -753,7 +789,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 098 Phase 4: 499 -> 519.** The `.replace()` chains those seven
     // files carry — the served-HTML readers in `assertions.ts` are most of them.
     // None is a fold or a slug builder; `violations=0` is unchanged.
-    sites: 519,
+    // **Feature 104 § 1.5: 519 -> 520.** One site, and all of it this branch's —
+    // `npmrc.ts` strips the scheme off the registry URL to key the auth line
+    // (`.replace(/^https?:/, '')`), a `.replace()` whose pattern the slug
+    // predicate can read and clears. The parked-file measurement reads 519
+    // without it, so unlike this row's `files` field there is no inherited
+    // drift here to absorb.
+    sites: 520,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -1888,7 +1930,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // place in this project that is not representative of CI. A branch that
     // genuinely adds or removes files still re-records normally -- park them
     // and re-run to tell your own delta from the tree's.
-    files: 7557,
+    // **Feature 104 §§ 1.5–1.6: files 7557 -> 7561.** Two of the four are this
+    // branch's — `packages/cli/src/new-storefront/npmrc.ts` and its changeset —
+    // and this deny-list walk is the whole repository, so it opens both. The
+    // other two arrived on `master`. Measured by parking this branch's two off
+    // disk, which reads 7559; both are untracked, so the `--cached` caveat does
+    // not apply.
+    files: 7561,
     sites: null,
     sources: [],
   },
@@ -2664,7 +2712,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): files 7559 -> 7617.** 52 module
     // packages gain a `vitest.config.ts`; the 196 moves are net zero. The remaining +6
     // is inherited drift, on the same terms as `check-nul-bytes` above.
-    files: 7617,
+    // **Feature 104 §§ 1.5–1.6: files 7617 -> 7621.** Two of the four are this
+    // branch's — `npmrc.ts` and its changeset, this walk reading `.md` where
+    // `check:language`'s does not — and two arrived on `master`. Parking the
+    // two reads 7619, and parking is sound here because both files are
+    // untracked: `--cached` answers from the index, so the caveat recorded
+    // above bites on a file that has already been committed and not on one that
+    // has never been.
+    files: 7621,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2731,7 +2786,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): files 5653 -> 5705.** 52 module
     // packages gain a `vitest.config.ts`; the 196 moves are net zero for a whole-tree
     // walk.
-    files: 5705,
+    // **Feature 104 §§ 1.5–1.6: files 5705 -> 5708.** One of the three is this
+    // branch's: `npmrc.ts`. Its changeset is a `.md` outside `docs/docs/`, so
+    // this walk does not open it — which is why the delta here is +1 where
+    // `check:naming`'s, over the same two added files, is +2. The other two
+    // arrived on `master`; parking this branch's reads 5707.
+    files: 5708,
     sites: null,
     sources: ['manifest-index'],
   },

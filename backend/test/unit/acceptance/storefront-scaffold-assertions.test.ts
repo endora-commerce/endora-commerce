@@ -96,14 +96,20 @@ describe('the run\'s exit code', () => {
   });
 });
 
-describe('the expectation is compared in both directions', () => {
+describe('the expectation is compared in both directions, per supply route', () => {
   const results = [
     { id: 'A1', state: 'pass', detail: '' },
     { id: 'A2', state: 'pass', detail: '' },
   ] as const;
 
+  const recorded = (
+    assertions: Record<string, 'pass' | 'fail' | 'unmeasured'>,
+  ): { modes: Record<string, { state: 'recorded'; assertions: typeof assertions }> } => ({
+    modes: { tarball: { state: 'recorded', assertions } },
+  });
+
   it('is silent when the run agrees', () => {
-    const drift = compareToExpectation(results, { assertions: { A1: 'pass', A2: 'pass' } });
+    const drift = compareToExpectation(results, recorded({ A1: 'pass', A2: 'pass' }), 'tarball');
     expect(drift).toEqual([]);
     expect(exitCodeForExpectation(drift)).toBe(0);
   });
@@ -111,24 +117,77 @@ describe('the expectation is compared in both directions', () => {
   it('fails a newly-red assertion', () => {
     const drift = compareToExpectation(
       [{ id: 'A1', state: 'fail', detail: '' }],
-      { assertions: { A1: 'pass' } },
+      recorded({ A1: 'pass' }),
+      'tarball',
     );
     expect(drift).toEqual(['A1: recorded pass, measured fail']);
   });
 
   it('fails a newly-green assertion nobody recorded', () => {
-    const drift = compareToExpectation(results, { assertions: { A1: 'pass', A2: 'unmeasured' } });
+    const drift = compareToExpectation(
+      results,
+      recorded({ A1: 'pass', A2: 'unmeasured' }),
+      'tarball',
+    );
     expect(drift).toEqual(['A2: recorded unmeasured, measured pass']);
     expect(exitCodeForExpectation(drift)).toBe(1);
   });
 
   it('fails an assertion the run stopped evaluating, and one it never recorded', () => {
-    expect(compareToExpectation(results, { assertions: { A1: 'pass' } })).toEqual([
-      'A2 is not recorded in the expectation (it is pass)',
+    expect(compareToExpectation(results, recorded({ A1: 'pass' }), 'tarball')).toEqual([
+      'A2 is not recorded in the expectation\'s "tarball" mode (it is pass)',
     ]);
     expect(
-      compareToExpectation(results, { assertions: { A1: 'pass', A2: 'pass', A9: 'pass' } }),
+      compareToExpectation(results, recorded({ A1: 'pass', A2: 'pass', A9: 'pass' }), 'tarball'),
     ).toEqual(['A9 is recorded but this run did not evaluate it']);
+  });
+
+  it('reads the block of the mode the run took, and never the other one', () => {
+    // The two routes are recorded apart because `A3 pass` means "a packed file
+    // installed" under one and "a published version resolved" under the other.
+    // A comparison that read whichever block came first would answer one
+    // question with the other's record.
+    const expectation = {
+      modes: {
+        tarball: { state: 'recorded' as const, assertions: { A1: 'pass' as const } },
+        registry: { state: 'recorded' as const, assertions: { A1: 'fail' as const } },
+      },
+    };
+    const measured = [{ id: 'A1', state: 'pass', detail: '' }] as const;
+    expect(compareToExpectation(measured, expectation, 'tarball')).toEqual([]);
+    expect(compareToExpectation(measured, expectation, 'registry')).toEqual([
+      'A1: recorded fail, measured pass',
+    ]);
+  });
+
+  it('fails a mode the expectation records nothing about', () => {
+    const drift = compareToExpectation(results, recorded({ A1: 'pass', A2: 'pass' }), 'registry');
+    expect(drift).toEqual([
+      expect.stringContaining('the expectation records no such mode') as unknown as string,
+    ]);
+    expect(exitCodeForExpectation(drift)).toBe(1);
+  });
+
+  it('fails the first run of an `unrun` mode, naming every state it measured', () => {
+    // `unrun` is not an empty `recorded`: a route nobody has run owes no states,
+    // and the alternative — six predicted ones — is the guess the whole file
+    // refuses. So the first real run drifts and the record comes from it.
+    const drift = compareToExpectation(results, { modes: { registry: { state: 'unrun' } } }, 'registry');
+    expect(drift).toContain('A1: the "registry" mode is recorded as unrun and this run measured pass');
+    expect(drift).toContain('A2: the "registry" mode is recorded as unrun and this run measured pass');
+    expect(drift.at(-1)).toContain('record the "registry" mode\'s six states from this run');
+    expect(exitCodeForExpectation(drift)).toBe(1);
+  });
+
+  it('fails a mode state it cannot read, rather than treating it as recorded', () => {
+    const drift = compareToExpectation(
+      results,
+      { modes: { tarball: { state: 'provisional' as unknown as 'recorded' } } },
+      'tarball',
+    );
+    expect(drift).toEqual([
+      expect.stringContaining('neither `recorded` nor `unrun`') as unknown as string,
+    ]);
   });
 });
 
@@ -141,9 +200,16 @@ describe('the report', () => {
         { id: 'A3', state: 'unmeasured', detail: 'maybe' },
       ],
       ['a note'],
+      'tarball',
     );
     expect(text).toContain('[storefront-acceptance] A1 PASS — ok');
     expect(text).toContain('[storefront-acceptance] note: a note');
-    expect(text).toContain('pass=1 fail=1 unmeasured=1 of 3');
+    expect(text).toContain('mode=tarball pass=1 fail=1 unmeasured=1 of 3');
+  });
+
+  it('names the supply route, because the same six states mean different things under each', () => {
+    const results = [{ id: 'A3', state: 'pass', detail: 'installed' }] as const;
+    expect(formatReport(results, [], 'registry')).toContain('mode=registry');
+    expect(formatReport(results, [], 'tarball')).toContain('mode=tarball');
   });
 });

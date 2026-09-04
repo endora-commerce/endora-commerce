@@ -21,6 +21,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
+import { TOKEN_VARIABLE } from './npmrc.js';
 import {
   memberDirectories,
   resolveReference,
@@ -35,6 +36,14 @@ export interface NewStorefrontOptions {
   readonly dir?: string | undefined;
   /** Report what would be written and what each rewrite becomes; write nothing. */
   readonly dryRun?: boolean | undefined;
+  /**
+   * The registry the scaffolded storefront installs from.
+   *
+   * Absent writes no `.npmrc`, which is what a consumer of the public registry
+   * holds, and is deliberately the default so that the path this command takes
+   * unasked is the destination rather than the rehearsal.
+   */
+  readonly registry?: string | undefined;
   readonly cwd?: string | undefined;
 }
 
@@ -70,10 +79,12 @@ export async function runNewStorefront(
   }
 
   const members = memberDirectories(reference.repoRoot);
-  const plan = planStorefront(reference, members, targetDir);
+  const plan = planStorefront(reference, members, targetDir, {
+    ...(options.registry === undefined ? {} : { registry: options.registry }),
+  });
 
   if (options.dryRun === true) {
-    return { reference, targetDir, plan, dryRun: true, nextSteps: nextSteps(targetDir, plan.ranges.length) };
+    return { reference, targetDir, plan, dryRun: true, nextSteps: nextSteps(targetDir, plan) };
   }
 
   for (const file of plan.files) {
@@ -88,7 +99,7 @@ export async function runNewStorefront(
     targetDir,
     plan,
     dryRun: false,
-    nextSteps: nextSteps(targetDir, plan.ranges.length),
+    nextSteps: nextSteps(targetDir, plan),
   };
 }
 
@@ -109,13 +120,34 @@ function refuseOccupiedDirectory(targetDir: string): void {
  * It never runs them, for `endora new module`'s reason: a scaffold that ran the
  * consuming project's tooling would be a channel back to the instance, and D-195
  * is that there is none.
+ *
+ * **The first step is about the registry, and it changed with publication**
+ * (feature 104, § 1.5). It used to tell its reader to pack tarballs and pin them
+ * through `pnpm.overrides`, which was honest while nothing under `packages/` was
+ * published and became wrong the moment something was — instructions in a copy a
+ * client owns outright are not something anybody comes back to correct.
  */
-function nextSteps(targetDir: string, published: number): readonly string[] {
+function nextSteps(targetDir: string, plan: StorefrontPlan): readonly string[] {
+  const published = plan.ranges.length;
+  const ranges = `the ${String(published)} \`@endora-commerce/*\` ${
+    published === 1 ? 'range' : 'ranges'
+  }`;
+  const install =
+    plan.registry === null
+      ? `cd ${targetDir} && pnpm install — ${ranges} in the manifest are published semver and ` +
+        `resolve at the public npm registry, which is what this command assumes when it is not ` +
+        `told otherwise. If your instance installs them from a private registry, scaffold again ` +
+        `with \`--registry <url>\`: it writes the \`.npmrc\` for you, with the token as an ` +
+        `environment reference and never as a value.`
+      : `cd ${targetDir} && export ${TOKEN_VARIABLE}=… && pnpm install — the \`.npmrc\` this ` +
+        `command wrote points ${ranges} at ${plan.registry}. The file holds no secret: the ` +
+        `token is \${${TOKEN_VARIABLE}}, expanded at install time, so commit the file and keep ` +
+        `the value in your environment. If a fetch reports that a package "is not in the npm ` +
+        `registry", read the last line of pnpm's output before believing it — the registry ` +
+        `answers an expired credential with 404, in the same words it uses for a package that ` +
+        `genuinely does not exist.`;
   return [
-    `cd ${targetDir} && pnpm install — the ${String(published)} \`@endora-commerce/*\` ` +
-      `${published === 1 ? 'range is' : 'ranges are'} published semver now. Until this repository publishes them, install them from packed tarballs ` +
-      `(\`pnpm pack\` in each package, then a \`pnpm.overrides\` entry per package) — which is ` +
-      `what this command's own acceptance criterion does.`,
+    install,
     `set PUBLIC_API_BASE_URL (and the rest of .env.example) to the backend this storefront ` +
       `talks to. Nothing in the copy points at a backend.`,
     `pnpm run build — it runs \`themes:generate\`, \`next build\` and \`check:themes\`.`,

@@ -33,8 +33,15 @@ import {
   workspaceRanges,
 } from '../src/new-storefront/reference.js';
 import {
+  installedScopes,
+  normalizeRegistry,
+  npmrcContent,
+  TOKEN_VARIABLE,
+} from '../src/new-storefront/npmrc.js';
+import {
   cutForeignImports,
   cutForeignJsonPaths,
+  packageManagerFor,
   planStorefront,
   publishedRange,
   UnclassifiedReferenceError,
@@ -56,6 +63,12 @@ function temp(prefix: string): string {
 function fixtureRepo(options: { storefrontFiles: Record<string, string> }): string {
   const root = temp('endora-sf-fixture-');
   writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - shop\n  - packages/*\n');
+  // The checkout's own `packageManager`, which the scaffold copies rather than
+  // invents (FR-023). A fixture without it is the refusal, asserted below.
+  writeFileSync(
+    join(root, 'package.json'),
+    `${JSON.stringify({ name: 'fixture-root', private: true, packageManager: 'pnpm@9.15.0' }, null, 2)}\n`,
+  );
   mkdirSync(join(root, 'packages', 'contracts'), { recursive: true });
   writeFileSync(
     join(root, 'packages', 'contracts', 'package.json'),
@@ -283,6 +296,171 @@ describe('rule 4 — an outward reference no rule classifies is a refusal', () =
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe('the registry — an `.npmrc` the scaffold writes only when it is asked', () => {
+  it('appends the trailing slash GitLab\'s own troubleshooting requires', () => {
+    // R3.2: `//host/api/v4/packages/npm` without it is the documented
+    // incorrect form, and it fails at the client's install rather than here.
+    expect(normalizeRegistry('https://gitlab.example.com/api/v4/packages/npm')).toBe(
+      'https://gitlab.example.com/api/v4/packages/npm/',
+    );
+    expect(normalizeRegistry(' https://gitlab.example.com/api/v4/packages/npm/ ')).toBe(
+      'https://gitlab.example.com/api/v4/packages/npm/',
+    );
+  });
+
+  it('refuses a registry carrying its own credentials — the one shape that would commit a secret', () => {
+    expect(() => normalizeRegistry('https://ci:glpat-secret@gitlab.example.com/npm/')).toThrow(
+      /holds no secret by construction/,
+    );
+  });
+
+  it('refuses a blank value, a non-URL, a scheme npm cannot fetch, and a query', () => {
+    expect(() => normalizeRegistry('   ')).toThrow(/omit the flag entirely/);
+    expect(() => normalizeRegistry('gitlab.example.com/npm/')).toThrow(/not an absolute URL/);
+    expect(() => normalizeRegistry('ftp://gitlab.example.com/npm/')).toThrow(/"ftp:" scheme/);
+    expect(() => normalizeRegistry('https://gitlab.example.com/npm/?token=x')).toThrow(
+      /query or a fragment/,
+    );
+  });
+
+  it('names one registry line per scope and one auth line, with the token as a reference', () => {
+    const text = npmrcContent('https://gitlab.example.com/api/v4/packages/npm', [
+      '@acme',
+      '@other',
+    ]);
+    expect(text).toContain('@acme:registry=https://gitlab.example.com/api/v4/packages/npm/');
+    expect(text).toContain('@other:registry=https://gitlab.example.com/api/v4/packages/npm/');
+    expect(text).toContain(
+      `//gitlab.example.com/api/v4/packages/npm/:_authToken=\${${TOKEN_VARIABLE}}`,
+    );
+    // One credential per endpoint, not per scope.
+    expect(text.match(/_authToken/g)).toHaveLength(1);
+  });
+
+  it('refuses a registry for a storefront that declares no scoped workspace dependency', () => {
+    // An `.npmrc` naming no scope sends every fetch to the default registry
+    // while reading as though it configured something.
+    expect(() => npmrcContent('https://gitlab.example.com/npm/', [])).toThrow(
+      /configures nothing/,
+    );
+  });
+
+  it('derives the scopes from the ranges the storefront installs, in every field', () => {
+    expect(
+      installedScopes({
+        dependencies: { '@other/ui': 'workspace:^', next: '^15.0.0' },
+        devDependencies: { '@acme/contracts': 'workspace:*', typescript: '^5' },
+      }),
+    ).toEqual(['@acme', '@other']);
+    expect(installedScopes({ dependencies: { next: '^15.0.0' } })).toEqual([]);
+  });
+
+  it('writes the file for --registry and no file without it, and never a token value', async () => {
+    const root = fixtureRepo({
+      storefrontFiles: { 'package.json': MANIFEST, 'app/page.tsx': 'export default () => null;\n' },
+    });
+    const plain = join(temp('endora-sf-plain-'), 'shop');
+    const scoped = join(temp('endora-sf-scoped-'), 'shop');
+    try {
+      const bare = await runNewStorefront({ dir: plain, cwd: root });
+      expect(existsSync(join(plain, '.npmrc'))).toBe(false);
+      expect(bare.plan.registry).toBeNull();
+
+      const withRegistry = await runNewStorefront({
+        dir: scoped,
+        cwd: root,
+        registry: 'https://gitlab.example.com/api/v4/packages/npm',
+      });
+      const text = readFileSync(join(scoped, '.npmrc'), 'utf8');
+      expect(text).toContain('@acme:registry=https://gitlab.example.com/api/v4/packages/npm/');
+      expect(text).toContain(`\${${TOKEN_VARIABLE}}`);
+      expect(withRegistry.plan.registry).toBe('https://gitlab.example.com/api/v4/packages/npm/');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('tells its reader about the registry it wrote, and never about tarballs', async () => {
+    const root = fixtureRepo({
+      storefrontFiles: { 'package.json': MANIFEST, 'app/page.tsx': 'export default () => null;\n' },
+    });
+    const target = join(temp('endora-sf-steps-'), 'shop');
+    try {
+      const result = await runNewStorefront({
+        dir: target,
+        cwd: root,
+        dryRun: true,
+        registry: 'https://gitlab.example.com/api/v4/packages/npm/',
+      });
+      const steps = result.nextSteps.join('\n');
+      expect(steps).toContain('https://gitlab.example.com/api/v4/packages/npm/');
+      expect(steps).toContain(TOKEN_VARIABLE);
+      // The instruction publication made wrong. It named `pnpm pack` and a
+      // `pnpm.overrides` entry, in a copy the client owns outright and nobody
+      // comes back to correct.
+      expect(steps).not.toContain('pnpm.overrides');
+      expect(steps).not.toContain('tarball');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the scaffolded manifest declares `packageManager`', () => {
+  it('prefers the storefront\'s own declaration to the repository root\'s', () => {
+    const reference = {
+      repoRoot: '/repo',
+      dir: '/repo/shop',
+      files: [],
+      manifest: { packageManager: 'npm@11.16.0' },
+    };
+    expect(packageManagerFor(reference)).toBe('npm@11.16.0');
+  });
+
+  it('falls back to the checkout\'s root, and lands in the written manifest', async () => {
+    const root = fixtureRepo({
+      storefrontFiles: { 'package.json': MANIFEST, 'app/page.tsx': 'export default () => null;\n' },
+    });
+    const target = join(temp('endora-sf-pm-'), 'shop');
+    try {
+      await runNewStorefront({ dir: target, cwd: root });
+      const written = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
+        packageManager?: string;
+      };
+      expect(written.packageManager).toBe('pnpm@9.15.0');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a checkout that declares none rather than inventing one', async () => {
+    const root = fixtureRepo({
+      storefrontFiles: { 'package.json': MANIFEST, 'app/page.tsx': 'export default () => null;\n' },
+    });
+    const target = join(temp('endora-sf-nopm-'), 'shop');
+    try {
+      rmSync(join(root, 'package.json'));
+      await expect(runNewStorefront({ dir: target, cwd: root })).rejects.toThrow(
+        /declares `packageManager`/,
+      );
+      expect(existsSync(target)).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a value corepack would not resolve', () => {
+    expect(() =>
+      packageManagerFor({
+        repoRoot: '/repo',
+        dir: '/repo/shop',
+        files: [],
+        manifest: { packageManager: 'pnpm' },
+      }),
+    ).toThrow(/corepack resolves/);
   });
 });
 

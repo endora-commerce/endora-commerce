@@ -16,8 +16,36 @@ export interface AssertionResult {
   readonly detail: string;
 }
 
+/**
+ * How the instance got its `@endora-commerce/*` packages.
+ *
+ * `tarball` packs each one out of this checkout and pins it through
+ * `pnpm.overrides` — publication's stand-in, the only mode that works before the
+ * first publish, and therefore the default. `registry` installs the semver
+ * ranges the scaffold wrote, from a real registry, through the `.npmrc`
+ * `endora new storefront --registry` emits (feature 104, § 1.6).
+ *
+ * The two are one criterion asked of two supply routes, not two criteria: the
+ * six assertions are identical and only the install differs.
+ */
+export type AcceptanceMode = 'tarball' | 'registry';
+
+/**
+ * What one mode is recorded as.
+ *
+ * `unrun` is a state of its own and not an empty `recorded`: a mode nobody has
+ * run yet owes no assertion states, and recording a *prediction* of them would
+ * be the thing this file exists to refuse. The first run of such a mode drifts —
+ * naming every assertion it measured — which is what makes the record arrive
+ * from a measurement rather than from a guess.
+ */
+export interface ModeExpectation {
+  readonly state: 'recorded' | 'unrun';
+  readonly assertions?: Readonly<Record<string, AssertionState>>;
+}
+
 export interface AcceptanceExpectation {
-  readonly assertions: Readonly<Record<string, AssertionState>>;
+  readonly modes: Readonly<Record<string, ModeExpectation>>;
 }
 
 /**
@@ -128,30 +156,64 @@ export function exitCodeFor(results: readonly AssertionResult[]): number {
 }
 
 /**
- * The recorded expectation, compared in **both** directions.
+ * The recorded expectation for the mode this run took, compared in **both**
+ * directions.
  *
  * A newly-red assertion fails, and so does a newly-green one nobody recorded:
  * an unrecorded pass is a criterion whose meaning has moved without anybody
- * reading it, which is how a ratchet stops ratcheting.
+ * reading it, which is how a ratchet stops ratcheting. That rule is unchanged by
+ * the second mode; what the mode adds is *which* block it is asked of, and the
+ * `unrun` state for a supply route no run has measured yet.
  */
 export function compareToExpectation(
   results: readonly AssertionResult[],
   expectation: AcceptanceExpectation,
+  mode: AcceptanceMode,
 ): readonly string[] {
+  const recorded = expectation.modes[mode];
+  if (recorded === undefined) {
+    return [
+      `this run installed in the "${mode}" mode and the expectation records no such mode. ` +
+        `A mode with no record is a run nothing is compared against, which is the silent ` +
+        `green the two-way rule exists to refuse.`,
+    ];
+  }
+  if (recorded.state === 'unrun') {
+    if (results.length === 0) return [];
+    return [
+      ...results.map(
+        (result) =>
+          `${result.id}: the "${mode}" mode is recorded as unrun and this run measured ` +
+          `${result.state}`,
+      ),
+      `record the "${mode}" mode's six states from this run — it is the first measurement of ` +
+        `that supply route, and the record is meant to come from one rather than from a ` +
+        `prediction written before it was possible to run.`,
+    ];
+  }
+  if (recorded.state !== 'recorded') {
+    return [
+      `the "${mode}" mode is recorded with state "${String(recorded.state)}", which is neither ` +
+        `\`recorded\` nor \`unrun\`. A state this file cannot read is not a comparison.`,
+    ];
+  }
+  const assertions = recorded.assertions ?? {};
   const drift: string[] = [];
   const seen = new Set<string>();
   for (const result of results) {
     seen.add(result.id);
-    const expected = expectation.assertions[result.id];
+    const expected = assertions[result.id];
     if (expected === undefined) {
-      drift.push(`${result.id} is not recorded in the expectation (it is ${result.state})`);
+      drift.push(
+        `${result.id} is not recorded in the expectation's "${mode}" mode (it is ${result.state})`,
+      );
       continue;
     }
     if (expected !== result.state) {
       drift.push(`${result.id}: recorded ${expected}, measured ${result.state}`);
     }
   }
-  for (const id of Object.keys(expectation.assertions)) {
+  for (const id of Object.keys(assertions)) {
     if (!seen.has(id)) drift.push(`${id} is recorded but this run did not evaluate it`);
   }
   return drift;
@@ -161,8 +223,20 @@ export function exitCodeForExpectation(drift: readonly string[]): number {
   return drift.length === 0 ? 0 : 1;
 }
 
-/** One line per assertion, then the verdict. */
-export function formatReport(results: readonly AssertionResult[], notes: readonly string[]): string {
+/**
+ * One line per assertion, then the verdict — with the supply route on it.
+ *
+ * The mode is on the arithmetic line rather than in a note because the six
+ * states mean different things under the two: `A3 PASS` under `tarball` says an
+ * install from packed files worked, and under `registry` it says a published
+ * version resolved. A report that did not say which was read would be two
+ * claims under one sentence.
+ */
+export function formatReport(
+  results: readonly AssertionResult[],
+  notes: readonly string[],
+  mode: AcceptanceMode,
+): string {
   const lines = results.map(
     (result) => `[storefront-acceptance] ${result.id} ${result.state.toUpperCase()} — ${result.detail}`,
   );
@@ -171,7 +245,7 @@ export function formatReport(results: readonly AssertionResult[], notes: readonl
   const fail = results.filter((result) => result.state === 'fail').length;
   const unmeasured = results.filter((result) => result.state === 'unmeasured').length;
   lines.push(
-    `[storefront-acceptance] pass=${String(pass)} fail=${String(fail)} ` +
+    `[storefront-acceptance] mode=${mode} pass=${String(pass)} fail=${String(fail)} ` +
       `unmeasured=${String(unmeasured)} of ${String(results.length)}`,
   );
   return lines.join('\n');
