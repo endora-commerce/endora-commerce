@@ -45,6 +45,14 @@
 #     DEPLOY_HOST      (protected, masked)     VPS hostname/IP
 #     DEPLOY_USER      (protected, masked)     VPS ssh user (member of the docker group)
 #     DEPLOY_PATH      (protected)             dir on the VPS holding compose.prod.yml + .env (e.g. /opt/b2b)
+#   Publish (feature 104, D-203 — `publish:packages`, on a release branch only):
+#     ENDORA_NPM_REGISTRY (protected)          the npm endpoint to publish to, with its
+#                      trailing slash — GitLab's own troubleshooting says the scoped URL
+#                      carries one. Unset is exit 2 rather than a publish to npmjs.
+#     ENDORA_NPM_TOKEN (protected, masked)     a token that may write packages there.
+#                      Protected, so `release/*` has to be a protected branch pattern or
+#                      the job refuses; it is written into `.npmrc` as `${ENDORA_NPM_TOKEN}`,
+#                      an environment reference pnpm expands, so no file holds the value.
 
 stages:
   - quality
@@ -1680,5 +1688,120 @@ deploy:
     url: https://$STOREFRONT_DOMAIN
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  allow_failure: false
+
+# ---------------------------------------------------------------------------
+# Publish — the packages a scaffolded storefront resolves, to the registry a CI
+# variable names (feature 104, D-203)
+#
+# It runs on a **release branch** and nowhere else: `version:packages` cuts
+# `release/version-<date>`, consumes the changesets and moves the versions, and
+# this is what puts the result on a registry. `release:changeset` recognises the
+# same branch from its diff — it deletes changeset files and adds none — and
+# asks it the inverted question, whether anything's `version` actually moved. A
+# rule cannot read a diff, so the gate here is the branch shape that script
+# writes, plus `when: manual`: a publish is a deliberate act, and on npmjs
+# `package@version` can never be reused.
+#
+# **The protected-branch coupling is the operator's step.** `ENDORA_NPM_TOKEN`
+# is protected, so GitLab resolves it only on a protected ref — protect
+# `release/*` in Settings → Repository → Protected branches, or the job's first
+# refusal fires. That refusal is the fail-closed direction and is deliberate: an
+# unset registry variable would otherwise publish to `registry.npmjs.org`, which
+# is npm's default and the one place this rehearsal must not reach.
+#
+# `changeset publish` writes a local git tag for each **public** package it
+# publishes, whatever `privatePackages.tag` says — that field governs private
+# packages only (`@changesets/cli@3.0.1`, `dist/git-tag.mjs`). Nothing pushes
+# them, and the container is discarded, so they anchor nothing until D-160.5's
+# tag question is answered by the merge request that makes a package public on
+# npmjs.
+# ---------------------------------------------------------------------------
+publish:packages:
+  stage: deploy
+  image: node:22.17-slim
+  variables:
+    # `changeset publish` tags what it publishes, so it shells out to git.
+    GIT_DEPTH: 0
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    # Every package resolves at its own `dist`, and `changeset publish` packs
+    # what is on disk: an unbuilt workspace publishes tarballs with no code in
+    # them. This is also `toolchain-supply.test.ts`' rule — a job that runs a
+    # workspace script builds first — and the script below runs one.
+    - pnpm run build:packages
+  script:
+    - |
+      set -e
+      if [ -z "$ENDORA_NPM_REGISTRY" ]; then
+        echo "publish:packages — ENDORA_NPM_REGISTRY is unset. Publishing anyway would send these packages to registry.npmjs.org, which is npm's default and the one registry this rehearsal must not reach; a version spent there can never be reused. Set the variable (protected), and protect this branch pattern so GitLab resolves it." >&2
+        exit 2
+      fi
+      if [ -z "$ENDORA_NPM_TOKEN" ]; then
+        echo "publish:packages — ENDORA_NPM_TOKEN is unset. It is a protected variable, so this is what an unprotected ref looks like: the publish would be attempted anonymously and the registry would answer 404, which is the same sentence it gives for a package that does not exist." >&2
+        exit 2
+      fi
+    - |
+      # The scope is derived from the packages that are about to be published,
+      # never written here: `check:release-intent`'s `unresolvable-scope` holds
+      # them to exactly one, and a second copy of the answer in a CI file is the
+      # derived fact D-100 forbids.
+      set -e
+      scope=$(node -e '
+        const { readdirSync, readFileSync } = require("node:fs");
+        const scopes = new Set();
+        for (const entry of readdirSync("packages", { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          let manifest;
+          try { manifest = JSON.parse(readFileSync(`packages/${entry.name}/package.json`, "utf8")); }
+          catch { continue; }
+          if (manifest.private === true) continue;
+          if (typeof manifest.name === "string" && manifest.name.startsWith("@")) {
+            scopes.add(manifest.name.split("/")[0]);
+          }
+        }
+        const found = [...scopes];
+        if (found.length !== 1) {
+          console.error(`expected exactly one scope among the public packages, found ${found.length}: ${found.join(", ")}`);
+          process.exit(2);
+        }
+        process.stdout.write(found[0]);
+      ')
+    - |
+      # The token is written as an environment **reference**, not as a value:
+      # pnpm expands `${VAR}` in `.npmrc` in both the registry and the auth
+      # position (measured, feature 104 research §5), so no file in this job
+      # holds the secret and nothing can print it by cat-ing one. It goes to
+      # `$HOME`, not the checkout, so it cannot be committed or packed.
+      set -e
+      printf '%s:registry=%s\n' "$scope" "$ENDORA_NPM_REGISTRY" > "$HOME/.npmrc"
+      printf '%s:_authToken=${ENDORA_NPM_TOKEN}\n' "${ENDORA_NPM_REGISTRY#*:}" >> "$HOME/.npmrc"
+      echo "publish:packages — publishing $scope to $ENDORA_NPM_REGISTRY"
+    # The last gate before a publish. `quality` does not run on a branch
+    # pipeline — its rules are a merge request or the default branch — so
+    # without this line the release branch would publish having been judged only
+    # by the merge request that wrote it.
+    - pnpm --filter backend run check:release-intent
+    - |
+      set -e
+      status=0
+      pnpm exec changeset publish > changeset-publish.log 2>&1 || status=$?
+      cat changeset-publish.log
+      if [ "$status" -ne 0 ]; then exit "$status"; fi
+      # `changeset publish` exits 0 when it has nothing to publish, which is the
+      # same silence `version:packages` refuses on the version half: a release
+      # branch that consumed changesets and published nothing has either already
+      # published this version, or been read by a configuration that cannot see
+      # the packages at all.
+      if grep -q 'No unpublished projects to publish' changeset-publish.log; then
+        echo "publish:packages — this branch consumed changesets and published nothing. \`changeset publish\` reports a plan of zero releases and exits 0, which is byte-identical to a successful publish. Check that the versions moved (\`release:changeset\` asks that question) and that \`.changeset/config.json\` still sees the packages." >&2
+        exit 2
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH =~ /^release\/version-/'
       when: manual
   allow_failure: false
