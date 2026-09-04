@@ -74,6 +74,9 @@ const BLOG_POST_SLUG = 'conformance-fixture-post';
 const BLOG_CATEGORY_SLUG = 'conformance-fixture-category';
 const CMS_PAGE_SLUG = 'conformance-fixture-page';
 
+/** The one sentence both created fixtures use as their description. */
+const SUMMARY = 'A fixture the storefront conformance job measures this route type against.';
+
 interface ChannelRow {
   id: string;
   code: string;
@@ -110,6 +113,32 @@ async function defaultChannel(execute: Execute): Promise<ChannelRow> {
     );
   }
   return channel;
+}
+
+/**
+ * The shop's own identity, so the home page has an `Organization` to emit.
+ *
+ * `seed:dev` leaves `shop.name` and its siblings at their empty default, and
+ * `OrganizationJsonLd` deliberately renders **nothing** for a shop with no name
+ * — an `Organization` with an empty `name` is worse than none. So a run against
+ * the bare development seed reported the home page as declaring `Organization`
+ * and emitting none, which is a finding about the fixture and not about the
+ * page. A conformance fixture has to be a shop somebody could plausibly run.
+ */
+async function shopIdentity(execute: Execute): Promise<void> {
+  const values: ReadonlyArray<readonly [string, string]> = [
+    ['shop.name', 'Endora Conformance Shop'],
+    ['shop.address', 'ul. Testowa 1, 00-001 Warszawa'],
+    ['shop.contact_email', 'contact@conformance.invalid'],
+    ['shop.support_email', 'support@conformance.invalid'],
+    ['shop.phone', '+48 22 000 00 00'],
+  ];
+  for (const [code, value] of values) {
+    await execute(`update settings set global_value = ? where code = ?`, [
+      JSON.stringify(value),
+      code,
+    ]);
+  }
 }
 
 /** A product the storefront will serve: active, public, in this channel. */
@@ -152,7 +181,7 @@ async function category(execute: Execute, channel: ChannelRow): Promise<Subject 
        join products p on p.id = pc.product_id
        join sales_channel_products scp on scp.product_id = p.id
       where c.deleted_at is null
-        and c.active = true
+        and c.is_active = true
         and p.deleted_at is null
         and p.status = 'active'
         and p.visibility = 'public'
@@ -190,47 +219,67 @@ async function blogPost(execute: Execute, channel: ChannelRow): Promise<Subject 
   let id = existing[0]?.id;
   if (id === undefined) {
     id = randomUUID();
-    const categoryId = randomUUID();
-    await execute(
-      `insert into blog_categories (id, name, slug, enabled, position, created_at, updated_at)
-       values (?, ?, ?, true, 0, now(), now())
-       on conflict do nothing`,
-      [categoryId, JSON.stringify({ [language]: 'Conformance' }), BLOG_CATEGORY_SLUG],
-    );
-    await execute(
-      `insert into blog_category_sales_channels (blog_category_id, sales_channel_id, slug)
-       values (?, ?, ?) on conflict do nothing`,
-      [categoryId, channel.id, BLOG_CATEGORY_SLUG],
-    );
     await execute(
       `insert into blog_posts
-         (id, name, slug, active, status, published_at, description, content, version,
-          created_at, updated_at)
-       values (?, ?, ?, true, 'published', now(), ?, ?, 1, now(), now())`,
+         (id, name, slug, active, status, published_at, description, meta_description,
+          content, version, created_at, updated_at)
+       values (?, ?, ?, true, 'published', now(), ?, ?, ?, 1, now(), now())`,
       [
         id,
         JSON.stringify({ [language]: name }),
         BLOG_POST_SLUG,
-        'A post the conformance job measures the blog route type against.',
+        SUMMARY,
+        // The page emits `<meta name="description">` from this and from nothing
+        // else, so a post without one is a page with no description — a finding
+        // about a fixture nobody would publish rather than about the route.
+        JSON.stringify({ [language]: SUMMARY }),
         JSON.stringify({ languages: { [language]: { content: [], root: {} } } }),
       ],
     );
+  }
+
+  // The scope rows are written on **every** run, not only when the post is
+  // created, and that is the whole of this function's idempotence. `seed:dev`
+  // truncates `sales_channels`, which cascades these join rows away while
+  // leaving `blog_posts` — a different module's table — untouched. A script
+  // that took "the post exists" for "the post is reachable" therefore wrote a
+  // post nothing serves, and the run reported the blog route type as a page
+  // with no `<h1>` rather than as a fixture that was never linked. Measured.
+  let categoryId = (
+    await rows<{ id: string }>(
+      execute,
+      `select id from blog_categories where slug = ? and deleted_at is null limit 1`,
+      [BLOG_CATEGORY_SLUG],
+    )
+  )[0]?.id;
+  if (categoryId === undefined) {
+    categoryId = randomUUID();
     await execute(
-      `insert into blog_post_languages (blog_post_id, language) values (?, ?)
-       on conflict do nothing`,
-      [id, language],
-    );
-    await execute(
-      `insert into blog_post_sales_channels (blog_post_id, sales_channel_id, slug)
-       values (?, ?, ?) on conflict do nothing`,
-      [id, channel.id, BLOG_POST_SLUG],
-    );
-    await execute(
-      `insert into blog_post_categories (blog_post_id, blog_category_id) values (?, ?)
-       on conflict do nothing`,
-      [id, categoryId],
+      `insert into blog_categories (id, name, slug, enabled, position, created_at, updated_at)
+       values (?, ?, ?, true, 0, now(), now())`,
+      [categoryId, JSON.stringify({ [language]: 'Conformance' }), BLOG_CATEGORY_SLUG],
     );
   }
+  await execute(
+    `insert into blog_category_sales_channels (blog_category_id, sales_channel_id, slug)
+     values (?, ?, ?) on conflict do nothing`,
+    [categoryId, channel.id, BLOG_CATEGORY_SLUG],
+  );
+  await execute(
+    `insert into blog_post_languages (blog_post_id, language) values (?, ?)
+     on conflict do nothing`,
+    [id, language],
+  );
+  await execute(
+    `insert into blog_post_sales_channels (blog_post_id, sales_channel_id, slug)
+     values (?, ?, ?) on conflict do nothing`,
+    [id, channel.id, BLOG_POST_SLUG],
+  );
+  await execute(
+    `insert into blog_post_categories (blog_post_id, blog_category_id) values (?, ?)
+     on conflict do nothing`,
+    [id, categoryId],
+  );
   return { kind: 'blogPost', segments: [BLOG_POST_SLUG], name };
 }
 
@@ -256,25 +305,45 @@ async function cmsPage(execute: Execute, channel: ChannelRow): Promise<Subject |
     await execute(
       `insert into cms_pages
          (id, path, status, title, body, published_at, created_at, updated_at,
-          name, slug, active, content, languages, version)
-       values (?, ?, 'published', ?, ?, now(), now(), now(), ?, ?, true, ?, ?, 1)`,
+          name, slug, active, description, meta_description, content, languages, version)
+       values (?, ?, 'published', ?, ?, now(), now(), now(), ?, ?, true, ?, ?, ?, ?, 1)`,
       [
         id,
         CMS_PAGE_SLUG,
         JSON.stringify({ [language]: name }),
-        JSON.stringify({ [language]: 'A page the conformance job measures the CMS route type against.' }),
+        JSON.stringify({ [language]: SUMMARY }),
         name,
         CMS_PAGE_SLUG,
-        JSON.stringify({ languages: { [language]: { content: [], root: { props: { title: name } } } } }),
+        SUMMARY,
+        JSON.stringify({ [language]: SUMMARY }),
+        // One `cms.Heading` block at level 1. An **empty** page-builder tree
+        // renders a document with no `<h1>` at all, and the run then reports the
+        // CMS route type as serving no heading — true of that page and of
+        // nothing an editor would publish. The block is the palette's own
+        // registered name, so this fixture is a page the editor could have made.
+        JSON.stringify({
+          languages: {
+            [language]: {
+              root: { props: { title: name } },
+              content: [
+                {
+                  type: 'cms.Heading',
+                  props: { id: 'conformance-heading', level: 'h1', text: name },
+                },
+              ],
+            },
+          },
+        }),
         JSON.stringify([language]),
       ],
     );
-    await execute(
-      `insert into cms_page_sales_channels (page_id, sales_channel_id, slug) values (?, ?, ?)
-       on conflict do nothing`,
-      [id, channel.id, CMS_PAGE_SLUG],
-    );
   }
+  // Written on every run, for `blogPost`'s reason.
+  await execute(
+    `insert into cms_page_sales_channels (page_id, sales_channel_id, slug) values (?, ?, ?)
+     on conflict do nothing`,
+    [id, channel.id, CMS_PAGE_SLUG],
+  );
   return { kind: 'cmsPage', segments: [CMS_PAGE_SLUG], name };
 }
 
@@ -304,6 +373,7 @@ async function main(): Promise<void> {
 
   try {
     const channel = await defaultChannel(execute);
+    await shopIdentity(execute);
     const subjects: Partial<Record<SubjectKind, Subject>> = {};
 
     for (const [kind, produce] of [

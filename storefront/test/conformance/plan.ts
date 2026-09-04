@@ -1,3 +1,5 @@
+import ts from 'typescript';
+
 /**
  * The representative page set the conformance job measures, derived
  * (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-033;
@@ -95,12 +97,69 @@ export const ROUTE_TYPES_WITHOUT_A_SUBJECT: Readonly<
   },
 };
 
-/** One route's own SEO declaration, as the module exports it. */
+/** One route's own `seo.ts`, as source text. */
 export interface RouteDeclaration {
-  /** Repo-relative path of the `seo.ts` the values came from. */
+  /** Repo-relative path of the `seo.ts`. */
   readonly source: string;
+  readonly text: string;
+}
+
+/** What one declaration says, or `null` when it cannot be read in full. */
+export interface RouteSeoDeclaration {
   readonly route: string;
   readonly jsonLd: readonly string[];
+}
+
+/**
+ * Read `export const seo: RouteSeo = { route, jsonLd }` out of a declaration.
+ *
+ * **Source text rather than an import**, and that is not a preference: this
+ * runner is a Playwright spec, Playwright transforms a spec to CommonJS, and a
+ * dynamic `import()` of a `.ts` file bypasses that transform entirely — the
+ * measured answer is `SyntaxError: Unexpected token 'export'` at the first
+ * declaration, and the alternative is a static import list, which is the
+ * hand-written page set FR-033 exists to remove. It is the reading
+ * `backend/scripts/check-storefront-indexability.ts` already does, for its own
+ * reason (a check that runs with no services), so the two instruments read the
+ * declaration the same way.
+ *
+ * A declaration this cannot read in full is `null` — a **finding, never a
+ * skip** (issue #113). Read as "no route" it would silently shrink the page
+ * set, which is the one failure this job may not have.
+ */
+export function readSeoDeclaration(text: string): RouteSeoDeclaration | null {
+  const source = ts.createSourceFile('seo.ts', text, ts.ScriptTarget.Latest, true);
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== 'seo') continue;
+      const value = declaration.initializer;
+      if (value === undefined || !ts.isObjectLiteralExpression(value)) return null;
+      let route: string | null = null;
+      let jsonLd: string[] | null = null;
+      for (const property of value.properties) {
+        if (!ts.isPropertyAssignment(property)) continue;
+        const name = ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)
+          ? property.name.text
+          : null;
+        if (name === 'route' && ts.isStringLiteral(property.initializer)) {
+          route = property.initializer.text;
+        }
+        if (name === 'jsonLd' && ts.isArrayLiteralExpression(property.initializer)) {
+          const types: string[] = [];
+          let readable = true;
+          for (const element of property.initializer.elements) {
+            if (!ts.isStringLiteral(element)) readable = false;
+            else types.push(element.text);
+          }
+          jsonLd = readable ? types : null;
+        }
+      }
+      if (route === null || jsonLd === null) return null;
+      return { route, jsonLd };
+    }
+  }
+  return null;
 }
 
 /** One piece of seeded content, and what the page serving it should say. */
@@ -155,6 +214,8 @@ export interface PlanDisagreement {
 
 export interface ConformancePlan {
   readonly pages: readonly PlannedPage[];
+  /** Declarations whose `seo` value this analysis could not read in full. */
+  readonly unreadable: readonly string[];
   readonly excluded: readonly ExcludedRoute[];
   /** Declared routes the manifest does not carry, or carries elsewhere. */
   readonly disagreements: readonly PlanDisagreement[];
@@ -199,10 +260,8 @@ export function fillRoute(route: string, segments: readonly string[]): string {
  * The manifest key a declaration's own file corresponds to: the app path Next
  * built it under, which is the directory holding the `seo.ts` plus `/page`.
  */
-function manifestKeyOf(declaration: RouteDeclaration, appRoot: string): string {
-  const withinApp = declaration.source.startsWith(`${appRoot}/`)
-    ? declaration.source.slice(appRoot.length)
-    : declaration.source;
+function manifestKeyOf(source: string, appRoot: string): string {
+  const withinApp = source.startsWith(`${appRoot}/`) ? source.slice(appRoot.length) : source;
   return `${withinApp.replace(/\/seo\.ts$/u, '')}/page`;
 }
 
@@ -215,12 +274,19 @@ export function buildConformancePlan(input: ConformancePlanInput): ConformancePl
   const excluded: ExcludedRoute[] = [];
   const disagreements: PlanDisagreement[] = [];
   const withoutSubject: string[] = [];
+  const unreadable: string[] = [];
   const builtRoutes = input.manifest === null ? null : new Set(Object.values(input.manifest));
   let covered = 0;
 
-  for (const declaration of input.declarations) {
+  for (const raw of input.declarations) {
+    const read = readSeoDeclaration(raw.text);
+    if (read === null) {
+      unreadable.push(raw.source);
+      continue;
+    }
+    const declaration = { source: raw.source, route: read.route, jsonLd: read.jsonLd };
     if (builtRoutes !== null) {
-      const forThisFile = input.manifest?.[manifestKeyOf(declaration, input.appRoot)];
+      const forThisFile = input.manifest?.[manifestKeyOf(declaration.source, input.appRoot)];
       if (forThisFile !== undefined && forThisFile !== declaration.route) {
         disagreements.push({
           route: declaration.route,
@@ -267,13 +333,18 @@ export function buildConformancePlan(input: ConformancePlanInput): ConformancePl
     });
   }
 
-  const declaredRoutes = new Set(input.declarations.map((one) => one.route));
+  const declaredRoutes = new Set(
+    input.declarations
+      .map((one) => readSeoDeclaration(one.text)?.route)
+      .filter((route): route is string => route !== undefined),
+  );
   const staleLedgerEntries = Object.keys(ROUTE_TYPES_WITHOUT_A_SUBJECT).filter(
     (route) => !declaredRoutes.has(route),
   );
 
   return {
     pages,
+    unreadable,
     excluded,
     disagreements,
     withoutSubject,
@@ -286,6 +357,7 @@ export function buildConformancePlan(input: ConformancePlanInput): ConformancePl
 
 export type PlanRefusalKind =
   | 'no-declaration'
+  | 'unreadable-declaration'
   | 'no-manifest'
   | 'manifest-disagreement'
   | 'no-subject'
@@ -312,6 +384,15 @@ export function planRefusal(plan: ConformancePlan): PlanRefusal | null {
         'the walk found no route declaration at all — no `seo.ts` beside any `page.tsx`. The ' +
         'representative page set is derived from those declarations, so this run has no ' +
         'population and every assertion below it is vacuously satisfied',
+    };
+  }
+  if (plan.unreadable.length > 0) {
+    return {
+      kind: 'unreadable-declaration',
+      message:
+        `${plan.unreadable.join(', ')} declares an \`seo\` value this analysis cannot read in ` +
+        'full. Read as "no route" it would quietly shrink the page set, and a page type nobody ' +
+        'measured is exactly what a green over eight of nine pages looks like',
     };
   }
   if (!plan.manifestPresent) {

@@ -12,7 +12,8 @@ import {
   metaDescriptionOf,
   runRefusal,
   structuredDataOf,
-  targetOf,
+  describeElement,
+  selectorOf,
   titleOf,
   visibleText,
   WHAT_A_GREEN_DOES_NOT_MEAN,
@@ -242,7 +243,7 @@ describe('the accessibility verdict', () => {
         id: 'color-contrast',
         impact: 'serious',
         help: 'Elements must have sufficient colour contrast',
-        nodes: [{ target: ['.price'] }],
+        nodes: [{ target: ['.price'], html: '<span class="price muted">12,00 zl</span>' }],
       },
     ],
     ...overrides,
@@ -251,7 +252,7 @@ describe('the accessibility verdict', () => {
   const ledgered: KnownViolation = {
     route: '/p/[slug]',
     rule: 'color-contrast',
-    target: '.price',
+    target: 'span.muted.price',
     impact: 'serious',
     reason: 'the muted price token against the card surface',
     repairedBy: 'the token being darkened',
@@ -269,12 +270,18 @@ describe('the accessibility verdict', () => {
 
   it('reports `moderate` and `minor` without failing (FR-042)', () => {
     const verdict = classifyAxeRuns(
-      [run({ violations: [{ id: 'region', impact: 'moderate', nodes: [{ target: ['.x'] }] }] })],
+      [
+        run({
+          violations: [
+            { id: 'region', impact: 'moderate', nodes: [{ target: ['.x'], html: '<div class="x">' }] },
+          ],
+        }),
+      ],
       [],
     );
     expect(verdict.findings).toEqual([]);
     expect(verdict.reported).toEqual([
-      { route: '/p/[slug]', rule: 'region', impact: 'moderate', target: '.x' },
+      { route: '/p/[slug]', rule: 'region', impact: 'moderate', target: 'div.x' },
     ]);
   });
 
@@ -290,17 +297,67 @@ describe('the accessibility verdict', () => {
 
   it('keys on the route pattern and the target, so two elements are two entries', () => {
     const verdict = classifyAxeRuns(
-      [run({ violations: [{ ...run().violations[0]!, nodes: [{ target: ['.price'] }, { target: ['.sku'] }] }] })],
+      [
+        run({
+          violations: [
+            {
+              ...run().violations[0]!,
+              nodes: [
+                { target: ['.price'], html: '<span class="price muted">12,00 zl</span>' },
+                { target: ['.sku'], html: '<span class="sku">SKU-1</span>' },
+              ],
+            },
+          ],
+        }),
+      ],
       [ledgered],
     );
     expect(verdict.findings.map((one) => one.detail)).toEqual([
-      expect.stringContaining('.sku') as unknown as string,
+      expect.stringContaining('span.sku') as unknown as string,
     ]);
   });
 
-  it('flattens a shadow-root target the way axe nests it', () => {
-    expect(targetOf([['#host', '.inner']])).toBe('#host .inner');
-    expect(targetOf(['.a'])).toBe('.a');
+  it('flattens a shadow-root path the way axe nests it, for the report', () => {
+    expect(selectorOf([['#host', '.inner']])).toBe('#host .inner');
+    expect(selectorOf(['.a'])).toBe('.a');
+  });
+
+  it('keys on the element and not on axe\'s path, which is not stable', () => {
+    // Measured on this storefront: two runs against one build described the
+    // same element as `label:nth-child(2) > .text-subtle.font-mono.text-[11px]`
+    // and as `.cursor-pointer:nth-child(2) > .text-subtle.text-[11px].font-mono`.
+    // Sorting the class tokens is what makes those one key.
+    expect(describeElement('<span class="font-mono text-[11px] text-subtle">40</span>')).toBe(
+      describeElement('<span class="text-subtle font-mono text-[11px]">41</span>'),
+    );
+    expect(describeElement('<input type="search" aria-label="Szukaj">')).toBe(
+      'input[type="search"]',
+    );
+    expect(describeElement('<small>tagline</small>')).toBe('small');
+  });
+
+  it('numbers a second element with the same signature rather than merging them', () => {
+    const verdict = classifyAxeRuns(
+      [
+        run({
+          violations: [
+            {
+              id: 'color-contrast',
+              impact: 'serious',
+              nodes: [
+                { target: ['.a'], html: '<span class="muted">a</span>' },
+                { target: ['.b'], html: '<span class="muted">b</span>' },
+              ],
+            },
+          ],
+        }),
+      ],
+      [],
+    );
+    expect(verdict.findings.map((one) => one.detail.includes('span.muted#2'))).toEqual([
+      false,
+      true,
+    ]);
   });
 });
 

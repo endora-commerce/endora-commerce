@@ -4,6 +4,7 @@ import {
   buildConformancePlan,
   fillRoute,
   planRefusal,
+  readSeoDeclaration,
   ROUTE_TYPES_WITHOUT_A_SUBJECT,
   SUBJECT_KIND_BY_ROUTE,
   type ConformancePlanInput,
@@ -27,12 +28,21 @@ import {
 
 const DECLARATION_SOURCE = 'storefront/app/(catalog)/p/[slug]/seo.ts';
 
+/** A declaration as it is on disk: source text, the top of the analysis. */
 function declaration(
   route: string,
   jsonLd: readonly string[] = [],
   source = `storefront/app${route === '/' ? '' : route}/seo.ts`,
 ): RouteDeclaration {
-  return { source, route, jsonLd };
+  return {
+    source,
+    text:
+      `import type { RouteSeo } from '../lib/seo/route-seo';\n\n` +
+      `export const seo: RouteSeo = {\n` +
+      `  route: '${route}',\n` +
+      `  jsonLd: [${jsonLd.map((one) => `'${one}'`).join(', ')}],\n` +
+      `};\n`,
+  };
 }
 
 /** Every subject a seeded platform supplies, minus the ones a case withholds. */
@@ -56,8 +66,10 @@ function fixtures(without: readonly SubjectKind[] = []): FixtureManifest {
 function manifestFor(declarations: readonly RouteDeclaration[]): Record<string, string> {
   const entries: Record<string, string> = {};
   for (const one of declarations) {
+    const read = readSeoDeclaration(one.text);
+    if (read === null) continue;
     entries[`${one.source.replace(/^storefront\/app/u, '').replace(/\/seo\.ts$/u, '')}/page`] =
-      one.route;
+      read.route;
   }
   return entries;
 }
@@ -207,5 +219,44 @@ describe('the subjectless-route ledger', () => {
       expect(entry.reason.length).toBeGreaterThan(40);
       expect(entry.retiredBy.length).toBeGreaterThan(20);
     }
+  });
+});
+
+describe('reading a declaration', () => {
+  it('reads the route and the declared types out of the source text', () => {
+    expect(
+      readSeoDeclaration(
+        "export const seo: RouteSeo = { route: '/c/[slug]', jsonLd: ['BreadcrumbList', 'ItemList'] };",
+      ),
+    ).toEqual({ route: '/c/[slug]', jsonLd: ['BreadcrumbList', 'ItemList'] });
+  });
+
+  it('reads `jsonLd: []` as a declaration and not as an omission', () => {
+    expect(
+      readSeoDeclaration("export const seo: RouteSeo = { route: '/search', jsonLd: [] };"),
+    ).toEqual({ route: '/search', jsonLd: [] });
+  });
+
+  it('refuses a computed route or a computed type rather than reading part of it', () => {
+    expect(readSeoDeclaration('export const seo: RouteSeo = { route: ROUTE, jsonLd: [] };')).toBeNull();
+    expect(
+      readSeoDeclaration("export const seo: RouteSeo = { route: '/x', jsonLd: TYPES };"),
+    ).toBeNull();
+    expect(
+      readSeoDeclaration("export const seo: RouteSeo = { route: '/x', jsonLd: [TYPE] };"),
+    ).toBeNull();
+  });
+
+  it('refuses a run holding a declaration it cannot read, rather than shrinking the page set', () => {
+    const declarations = [
+      { source: 'storefront/app/(catalog)/catalog/seo.ts', text: 'export const seo = ROUTES;' },
+    ];
+    const plan = buildConformancePlan({
+      appRoot: 'storefront/app',
+      declarations,
+      manifest: { '/(catalog)/catalog/page': '/catalog' },
+      fixtures: fixtures(),
+    });
+    expect(planRefusal(plan)?.kind).toBe('unreadable-declaration');
   });
 });

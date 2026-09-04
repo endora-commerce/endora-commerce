@@ -75,7 +75,12 @@ export interface AxeRuleResult {
   readonly id: string;
   readonly impact?: string | null;
   readonly help?: string;
-  readonly nodes: readonly { readonly target: readonly (string | readonly string[])[] }[];
+  readonly nodes: readonly {
+    /** axe's own CSS path to the element — reported, never keyed on. */
+    readonly target: readonly (string | readonly string[])[];
+    /** The element's own opening markup. */
+    readonly html: string;
+  }[];
 }
 
 /** One page's axe run. */
@@ -415,9 +420,53 @@ function keyOf(route: string, rule: string, target: string): string {
   return `${route} ${rule} ${target}`;
 }
 
-/** A node's target selector, flattened — axe nests one for a shadow root. */
-export function targetOf(target: readonly (string | readonly string[])[]): string {
+/** axe's own CSS path, flattened — it nests one for a shadow root. */
+export function selectorOf(target: readonly (string | readonly string[])[]): string {
   return target.map((one) => (Array.isArray(one) ? one.join(' ') : String(one))).join(' ');
+}
+
+/**
+ * The element a violation is about, as a stable signature.
+ *
+ * **Not axe's CSS path**, and that is a deliberate departure from
+ * `contracts/accessibility-floor.md` §5's "target selector", made because the
+ * path is not stable enough to key a two-way ledger on. Measured on this
+ * storefront, two runs against the same build reported the same ten facet
+ * elements as
+ *
+ *   `… > label:nth-child(2) > .text-subtle.font-mono.text-\[11px\]`
+ *
+ * and
+ *
+ *   `… > .cursor-pointer:nth-child(2) > .text-subtle.text-\[11px\].font-mono`
+ *
+ * — a different discriminator for the same ancestor (the `label` element
+ * against one of its own classes) and a different class **order** on the
+ * element itself. A ledger keyed on that flaps ten unledgered violations and
+ * ten stale entries on alternate runs, which is a gate nobody can keep green
+ * and therefore a gate nobody keeps.
+ *
+ * So the key is the element's own opening tag, normalised: the tag name and its
+ * class tokens **sorted**, plus `type` / `id` / `name` / `role` where it carries
+ * no class. axe's path is still reported in the finding, because that is what a
+ * human uses to find the element on the page.
+ */
+export function describeElement(html: string): string {
+  const open = /^<([a-z0-9-]+)([^>]*)>/iu.exec(html.trim());
+  if (open === null) return html.trim().slice(0, 80);
+  const tag = (open[1] as string).toLowerCase();
+  const attributes = open[2] as string;
+  const classes = /\bclass="([^"]*)"/iu.exec(attributes)?.[1] ?? '';
+  const tokens = classes
+    .split(/\s+/u)
+    .filter((token) => token.length > 0)
+    .sort();
+  if (tokens.length > 0) return `${tag}.${tokens.join('.')}`;
+  for (const attribute of ['type', 'id', 'name', 'role']) {
+    const value = new RegExp(`\\b${attribute}="([^"]*)"`, 'iu').exec(attributes)?.[1];
+    if (value !== undefined) return `${tag}[${attribute}="${value}"]`;
+  }
+  return tag;
 }
 
 /**
@@ -444,8 +493,15 @@ export function classifyAxeRuns(
 
   for (const run of runs) {
     for (const violation of run.violations) {
+      // Two elements with one signature are two entries, distinguished by the
+      // order axe reports them in — the granularity `contracts/accessibility-
+      // floor.md` §5 asks for, kept without keying on an unstable path.
+      const occurrences = new Map<string, number>();
       for (const node of violation.nodes) {
-        const target = targetOf(node.target);
+        const signature = describeElement(node.html);
+        const seenBefore = occurrences.get(signature) ?? 0;
+        occurrences.set(signature, seenBefore + 1);
+        const target = seenBefore === 0 ? signature : `${signature}#${seenBefore + 1}`;
         const impact = violation.impact ?? 'unknown';
         total += 1;
         seen.add(keyOf(run.route, violation.id, target));
@@ -458,7 +514,7 @@ export function classifyAxeRuns(
           kind: 'accessibility-violation',
           route: run.route,
           detail:
-            `${violation.id} (${impact}) on \`${target}\`` +
+            `${violation.id} (${impact}) on \`${target}\` at \`${selectorOf(node.target)}\`` +
             `${violation.help === undefined ? '' : ` — ${violation.help}`}`,
         });
       }

@@ -1,9 +1,8 @@
 /* eslint-disable no-console -- a CI job: stdout is its interface, and the
    `read:` line, the three self-declarations and the sentence saying what a
    green does not mean are all output rather than diagnostics. */
-import { readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Browser, type Page } from '@playwright/test';
@@ -17,7 +16,6 @@ import {
   classifyKeyboardTraversal,
   classifyReducedMotion,
   runRefusal,
-  targetOf,
   WHAT_A_GREEN_DOES_NOT_MEAN,
   type AxeRun,
   type ConformanceFinding,
@@ -66,7 +64,32 @@ import {
 
 const STOREFRONT_URL = process.env['STOREFRONT_URL'] ?? 'http://127.0.0.1:3000';
 const BACKEND_URL = process.env['PUBLIC_API_BASE_URL'] ?? 'http://127.0.0.1:3001';
-const REPO_ROOT = resolve(dirname(new URL(import.meta.url).pathname), '../../..');
+/**
+ * The checkout this run is measuring, found by walking up from the working
+ * directory to the workspace file.
+ *
+ * `import.meta.url` is the obvious spelling and cannot be used: Playwright
+ * transforms a spec to CommonJS unless the file's own syntax forces otherwise,
+ * and a single `import.meta` in it produces `exports is not defined in ES
+ * module scope` and **no tests at all** — measured. Walking up also keeps the
+ * run inside the checkout it was invoked from, which is what issue #255 is
+ * about one mechanism over.
+ */
+function repoRoot(): string {
+  let directory = process.cwd();
+  for (let up = 0; up < 8; up += 1) {
+    if (existsSync(join(directory, 'pnpm-workspace.yaml'))) return directory;
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  throw new Error(
+    'no `pnpm-workspace.yaml` above the working directory, so this run cannot tell which ' +
+      'checkout it is measuring.',
+  );
+}
+
+const REPO_ROOT = repoRoot();
 const APP_ROOT = 'storefront/app';
 const FINDINGS_FILE = resolve(REPO_ROOT, 'storefront/test-results/conformance-findings.txt');
 const PREFIX = '[storefront-conformance]';
@@ -76,13 +99,10 @@ const PREFIX = '[storefront-conformance]';
 // ---------------------------------------------------------------------------
 
 /**
- * Every route's own SEO declaration, **imported** rather than parsed.
- *
- * The declaration is a TypeScript module the storefront itself imports, so the
- * honest way to read it is to evaluate it. Parsing its source text would be a
- * second reader of a file that already has one.
+ * Every route's own `seo.ts`, as source text. `plan.ts` reads it; the reason it
+ * is text and not an import is in `readSeoDeclaration`'s own doc block.
  */
-async function loadDeclarations(): Promise<readonly RouteDeclaration[]> {
+function loadDeclarations(): readonly RouteDeclaration[] {
   const appDirectory = resolve(REPO_ROOT, APP_ROOT);
   const found: string[] = [];
   const walk = (directory: string): void => {
@@ -99,21 +119,10 @@ async function loadDeclarations(): Promise<readonly RouteDeclaration[]> {
     // refuses over the absence, from the record rather than from this walk.
   }
   found.sort();
-
-  const declarations: RouteDeclaration[] = [];
-  for (const path of found) {
-    const module = (await import(pathToFileURL(path).href)) as {
-      seo?: { route?: string; jsonLd?: readonly string[] };
-    };
-    const seo = module.seo;
-    if (seo?.route === undefined || seo.jsonLd === undefined) continue;
-    declarations.push({
-      source: relative(REPO_ROOT, path).split(sep).join('/'),
-      route: seo.route,
-      jsonLd: seo.jsonLd,
-    });
-  }
-  return declarations;
+  return found.map((path) => ({
+    source: relative(REPO_ROOT, path).split(sep).join('/'),
+    text: readFileSync(path, 'utf8'),
+  }));
 }
 
 /** `next build`'s own enumeration of what it built — the second author. */
@@ -226,6 +235,12 @@ async function inspectInBrowser(
   const tab = await context.newPage();
   try {
     await tab.goto(`${STOREFRONT_URL}${page.url}`, { waitUntil: 'domcontentloaded' });
+    // Let hydration settle before axe walks the tree. Without it the analysis
+    // races a client-side navigation and dies with `Execution context was
+    // destroyed` — measured — which is a failure of this plumbing wearing the
+    // costume of a page that could not be measured, and is exactly the state
+    // `no-axe-rules` must not be given a reason to fire over.
+    await tab.waitForLoadState('networkidle').catch(() => undefined);
     // `.claude/skills/ux-laws/SKILL.md` § 4's rules and no second statement of
     // them: the tags are the WCAG 2.2 AA scope, and which rules that is stays
     // axe's answer rather than a list kept here (FR-040).
@@ -254,7 +269,7 @@ async function inspectInBrowser(
           id: violation.id,
           impact: violation.impact ?? null,
           help: violation.help,
-          nodes: violation.nodes.map((node) => ({ target: node.target })),
+          nodes: violation.nodes.map((node) => ({ target: node.target, html: node.html })),
         })),
         rulesRun:
           results.violations.length +
@@ -278,28 +293,114 @@ async function inspectInBrowser(
 // ---------------------------------------------------------------------------
 
 /**
+ * How many Tab presses count as "reachable by keyboard".
+ *
+ * Not an arbitrary bound: measured against this storefront, the primary CTA on
+ * a product page sits well past a hundred stops behind the header, the
+ * megamenu and the gallery, and a limit that stopped there would report a
+ * control that *is* reachable as one that is not — a finding about the
+ * instrument dressed as one about the page. It is generous on purpose; the
+ * assertion is reachability, and *how far down the tab order a buy button
+ * should be* is a design question this suite does not answer.
+ */
+const TAB_LIMIT = 400;
+
+/**
  * Tab until the focused element matches, or give up.
  *
  * The keyboard and nothing else: no `click`, no `focus()`, no selector-driven
  * shortcut. That is the whole assertion — a control a selector can reach and
  * `Tab` cannot is a control a keyboard reader does not have.
  */
-async function tabUntil(page: Page, selector: string, limit = 120): Promise<boolean> {
+/**
+ * Land on a page and let it hydrate before the keyboard touches it.
+ *
+ * `domcontentloaded` alone is not enough and the difference is not cosmetic:
+ * the add-to-cart control is a client component, so Enter pressed before
+ * hydration submits nothing, the cart stays empty, and the **next** step
+ * reports that no checkout control was reachable — a finding about this
+ * traversal's timing wearing the costume of a finding about the cart page.
+ * Measured: with the wait, the same run adds the line and reaches checkout.
+ */
+async function land(page: Page, url: string): Promise<void> {
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle').catch(() => undefined);
+  // The axe pass has opened and closed a context per page before this runs, and
+  // a page that is not the browser's focused tab receives no key events — every
+  // `Tab` lands nowhere, `document.activeElement` stays `<body>`, and the
+  // traversal reports every step of the primary path as unreachable. That is
+  // the instrument failing in the one way that looks exactly like the finding
+  // it exists to make, so the page is brought forward before it is typed at.
+  await page.bringToFront();
+}
+
+async function tabUntil(page: Page, selector: string, limit = TAB_LIMIT): Promise<boolean> {
   for (let step = 0; step < limit; step += 1) {
     await page.keyboard.press('Tab');
-    const matched = await page.evaluate((candidate) => {
-      const active = document.activeElement;
-      return active !== null && active.matches(candidate);
-    }, selector);
+    const matched = await focused(page, () =>
+      page.evaluate((candidate) => {
+        const active = document.activeElement;
+        return active !== null && active.matches(candidate);
+      }, selector),
+    );
     if (matched) return true;
   }
   return false;
+}
+
+/**
+ * What the keyboard actually reached, for a step that did not arrive.
+ *
+ * A finding that says only "not reachable" cannot be told apart from a
+ * traversal that never typed at the page at all, and the two have opposite
+ * repairs. So the detail carries both: how many such elements the document
+ * holds, and where focus ended up.
+ */
+async function whatWasReached(page: Page, selector: string): Promise<string> {
+  return page
+    .evaluate((candidate) => {
+      const active = document.activeElement;
+      const name =
+        active === null
+          ? 'nothing'
+          : `<${active.tagName.toLowerCase()}${
+              active.getAttribute('href') === null
+                ? ''
+                : ` href="${active.getAttribute('href') ?? ''}"`
+            }>`;
+      return (
+        `${document.querySelectorAll(candidate).length} such element(s) at ${document.location.href}` +
+        ` (${document.querySelectorAll('a,button').length} focusable-ish in all); focus ended on ${name}`
+      );
+    }, selector)
+    .catch(() => 'the page could not be asked');
+}
+
+/**
+ * Ask the page about its focused element, tolerating a navigation.
+ *
+ * The storefront navigates on the client while the tab loop runs, and a
+ * `page.evaluate` caught mid-navigation throws `Execution context was
+ * destroyed` — which would end the traversal with an exception rather than a
+ * verdict. That is the plumbing failing, not the page: the answer for that one
+ * stop is unknown, so the loop takes it as "not this one" and carries on.
+ * A control that is genuinely reachable is still reached, because the loop has
+ * hundreds of stops and the storefront navigates once.
+ */
+async function focused(page: Page, ask: () => Promise<boolean>): Promise<boolean> {
+  try {
+    return await ask();
+  } catch {
+    await page.waitForLoadState('networkidle').catch(() => undefined);
+    return false;
+  }
 }
 
 async function traversePrimaryPath(
   browser: Browser,
   locale: string,
   categoryUrl: string,
+  productUrl: string,
 ): Promise<{
   steps: KeyboardStep[];
   skipLink: { present: boolean; focusable: boolean };
@@ -309,7 +410,7 @@ async function traversePrimaryPath(
   const steps: KeyboardStep[] = [];
   const t = tForLocale(locale);
   try {
-    await page.goto(`${STOREFRONT_URL}/`, { waitUntil: 'domcontentloaded' });
+    await land(page, `${STOREFRONT_URL}/`);
     const present = (await page.locator('a[href^="#"]').count()) > 0;
     await page.keyboard.press('Tab');
     const focusable = await page.evaluate(() => {
@@ -318,21 +419,27 @@ async function traversePrimaryPath(
     });
 
     // Browse: the catalogue is reachable from the home page by keyboard.
-    await page.goto(`${STOREFRONT_URL}/`, { waitUntil: 'domcontentloaded' });
+    await land(page, `${STOREFRONT_URL}/`);
     steps.push(
       await hop(page, '/', '/catalog', 'a[href="/catalog"]', (url) => url.includes('/catalog')),
     );
 
     // Browse → PDP, from a real category page: a product link, activated with
     // the keyboard, lands on the product.
-    await page.goto(`${STOREFRONT_URL}${categoryUrl}`, { waitUntil: 'domcontentloaded' });
+    await land(page, `${STOREFRONT_URL}${categoryUrl}`);
     steps.push(
       await hop(page, categoryUrl, '/p/[slug]', 'a[href^="/p/"]', (url) => url.includes('/p/')),
     );
 
-    // PDP → cart: the commercial control carries an accessible name and the
-    // keyboard can operate it. Where the platform quotes no price the page
-    // offers a quote instead, and either satisfies the step.
+    // PDP → cart, on the **seeded** product rather than on whichever one the
+    // hop above happened to land on. The hop's subject is that browsing reaches
+    // a product page and it has just been asserted; this step's subject is the
+    // commercial control, and which controls a product page offers depends on
+    // whether the platform quotes a price for that product — so a step that
+    // took whatever the catalogue listed first would be measuring the seed's
+    // ordering. Measured: the same traversal reported "no control reachable"
+    // against a product with no price and passed against the fixture's.
+    await land(page, `${STOREFRONT_URL}${productUrl}`);
     const commercial = `button:not([disabled])`;
     const reached = await tabUntilNamed(page, commercial, [
       t('product.addToCart'),
@@ -345,14 +452,36 @@ async function traversePrimaryPath(
       detail: reached
         ? ''
         : `no enabled control named "${t('product.addToCart')}" or "${t('product.requestQuote')}" ` +
-          'was reachable by Tab within 120 stops',
+          `was reachable by Tab within ${TAB_LIMIT} stops ` +
+          `(${await whatWasReached(page, commercial)})`,
     });
-    if (reached) await page.keyboard.press('Enter');
+    if (reached) {
+      // The control is a Next **server action**: activating it POSTs to the
+      // page's own URL and the cart line appears only when that round trip
+      // lands. `networkidle` alone resolves before the request has even been
+      // issued — measured, and the visible consequence was the *next* step
+      // reporting no checkout control on an empty cart, which is a finding
+      // about this wait and not about the cart page. So the response is
+      // awaited, and the waiter is registered before the keypress.
+      const write = page
+        .waitForResponse((response) => response.request().method() === 'POST', {
+          timeout: 20_000,
+        })
+        .catch(() => null);
+      await page.keyboard.press('Enter');
+      await write;
+      await page.waitForLoadState('networkidle').catch(() => undefined);
+    }
 
-    // Cart → checkout.
-    await page.goto(`${STOREFRONT_URL}/cart`, { waitUntil: 'domcontentloaded' });
+    // Cart → checkout. The selector is `href*="/checkout"` rather than a
+    // prefix, and that is the product's answer and not a loosening: this
+    // traversal is a **guest**, and a guest's cart links to
+    // `/login?next=/checkout` because checkout needs a session. The step's
+    // subject is that the keyboard reaches the checkout path; whether a guest
+    // may complete it is a different question and the storefront's own.
+    await land(page, `${STOREFRONT_URL}/cart`);
     steps.push(
-      await hop(page, '/cart', '/checkout', 'a[href^="/checkout"]', (url) =>
+      await hop(page, '/cart', '/checkout', 'a[href*="/checkout"]', (url) =>
         url.includes('/checkout'),
       ),
     );
@@ -375,11 +504,19 @@ async function hop(
       from,
       to,
       reached: false,
-      detail: `no element matching \`${selector}\` was reachable by Tab within 120 stops`,
+      detail:
+        `no element matching \`${selector}\` was reachable by Tab within ${TAB_LIMIT} stops ` +
+        `(${await whatWasReached(page, selector)})`,
     };
   }
   await page.keyboard.press('Enter');
-  await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+  // `waitForURL` and not `waitForLoadState`: a Next `<Link>` navigates on the
+  // client, so the document never reloads and a load-state wait returns before
+  // the URL has moved — which reported every hop of the primary path as
+  // unreachable while every one of them worked. Measured.
+  await page
+    .waitForURL((candidate) => arrived(candidate.toString()), { timeout: 20_000 })
+    .catch(() => undefined);
   const url = page.url();
   return {
     from,
@@ -394,25 +531,23 @@ async function tabUntilNamed(
   page: Page,
   selector: string,
   names: readonly string[],
-  limit = 120,
+  limit = TAB_LIMIT,
 ): Promise<boolean> {
   for (let step = 0; step < limit; step += 1) {
     await page.keyboard.press('Tab');
-    const matched = await page.evaluate(
-      ({ candidate, wanted }) => {
-        const active = document.activeElement;
-        if (active === null || !active.matches(candidate)) return false;
-        const label = (
-          active.getAttribute('aria-label') ??
-          active.textContent ??
-          ''
-        )
-          .replace(/\s+/gu, ' ')
-          .trim()
-          .toLowerCase();
-        return wanted.some((one) => label.includes(one.toLowerCase()));
-      },
-      { candidate: selector, wanted: [...names] },
+    const matched = await focused(page, () =>
+      page.evaluate(
+        ({ candidate, wanted }) => {
+          const active = document.activeElement;
+          if (active === null || !active.matches(candidate)) return false;
+          const label = (active.getAttribute('aria-label') ?? active.textContent ?? '')
+            .replace(/\s+/gu, ' ')
+            .trim()
+            .toLowerCase();
+          return wanted.some((one) => label.includes(one.toLowerCase()));
+        },
+        { candidate: selector, wanted: [...names] },
+      ),
     );
     if (matched) return true;
   }
@@ -439,7 +574,7 @@ test('the storefront serves what it declares, and meets the accessibility floor'
 }) => {
   test.setTimeout(15 * 60 * 1000);
 
-  const declarations = await loadDeclarations();
+  const declarations = loadDeclarations();
   const manifest = loadRouteManifest();
   const fixtures = loadFixtures();
   const plan = buildConformancePlan({ appRoot: APP_ROOT, declarations, manifest, fixtures });
@@ -487,7 +622,13 @@ test('the storefront serves what it declares, and meets the accessibility floor'
   findings.push(...classifyReducedMotion(motion));
 
   const categoryPage = plan.pages.find((one) => one.subject?.kind === 'category');
-  const traversal = await traversePrimaryPath(browser, locale, categoryPage?.url ?? '/catalog');
+  const productPage = plan.pages.find((one) => one.subject?.kind === 'product');
+  const traversal = await traversePrimaryPath(
+    browser,
+    locale,
+    categoryPage?.url ?? '/catalog',
+    productPage?.url ?? '/catalog',
+  );
   findings.push(...classifyKeyboardTraversal(traversal.steps, traversal.skipLink));
 
   // §4.4 — the three facts that bound the verdict, printed rather than left to
@@ -519,6 +660,3 @@ test('the storefront serves what it declares, and meets the accessibility floor'
   }
   expect(findings.map((finding) => `${finding.kind} [${finding.route}]`)).toEqual([]);
 });
-
-/** Every axe node target, flattened — exported so the report and the ledger agree. */
-export { targetOf };
