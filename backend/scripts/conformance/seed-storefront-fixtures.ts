@@ -3,7 +3,7 @@
  * against (`specs/098-storefront-ssr-seo-a11y-suite/` Phase 4, T401/T402;
  * `contracts/accessibility-floor.md` §4.3 and §4.5's fifth refusal).
  *
- * Five of the storefront's nine indexable route types take a slug. This script
+ * Four of the storefront's eight indexable route types take a slug. This script
  * runs after `seed:dev`, against the same throwaway database, and answers one
  * question per kind: **what is there for this route type to be about?** It
  * discovers what the catalogue seed already produced and creates what nothing
@@ -55,7 +55,7 @@ import { mustBeNonProduction } from '../../src/seeds/dev-seed-guard.js';
 const PREFIX = '[conformance-fixtures]';
 
 /** Kinds the storefront's dynamic route types are about. */
-type SubjectKind = 'product' | 'category' | 'blogPost' | 'cmsPage' | 'contentPage';
+type SubjectKind = 'product' | 'category' | 'blogPost' | 'contentPage';
 
 interface Subject {
   kind: SubjectKind;
@@ -304,14 +304,22 @@ async function blogPost(execute: Execute, channel: ChannelRow): Promise<Subject 
 }
 
 /**
- * A published page-builder CMS page, likewise created here.
+ * A published page-builder CMS page, likewise created here — the subject of
+ * `/[...slug]`, which is the one address a CMS page has
+ * (`specs/105-cms-root-page-urls/contracts/cms-page-url.md` §1).
  *
  * `cms_pages` still carries its pre-014 `path`, `title` and `body` mirrors as
  * non-null columns, so they are written alongside the fields the storefront
  * actually reads (`slug`, `name`, `content`). That is the schema, not a
- * preference; a page written without them does not insert.
+ * preference; a page written without them does not insert. Feature 105 removed
+ * their last *reader*; dropping the columns is a migration of its own.
+ *
+ * The kind is `contentPage` and there is no second one. `cmsPage` existed
+ * beside it while the storefront served the same row at two route types, which
+ * is the finding `research.md` D-8 records — a per-route reconciliation cannot
+ * see two route types over one subject.
  */
-async function cmsPage(execute: Execute, channel: ChannelRow): Promise<Subject | null> {
+async function contentPage(execute: Execute, channel: ChannelRow): Promise<Subject | null> {
   const name = 'Conformance fixture page';
   const language = channel.default_language;
   const existing = await rows<{ id: string }>(
@@ -364,7 +372,7 @@ async function cmsPage(execute: Execute, channel: ChannelRow): Promise<Subject |
      on conflict do nothing`,
     [id, channel.id, CMS_PAGE_SLUG],
   );
-  return { kind: 'cmsPage', segments: [CMS_PAGE_SLUG], name };
+  return { kind: 'contentPage', segments: [CMS_PAGE_SLUG], name };
 }
 
 function localized(value: Record<string, string> | string, language: string): string {
@@ -407,7 +415,7 @@ async function main(): Promise<void> {
       ['product', product],
       ['category', category],
       ['blogPost', blogPost],
-      ['cmsPage', cmsPage],
+      ['contentPage', contentPage],
     ] as const) {
       const subject = await produce(execute, channel);
       if (subject === null) {

@@ -59,12 +59,28 @@ const nextConfig = {
       '.jsx': ['.tsx', '.jsx'],
     };
     // CMS Page Builder client chunk is large (Puck + shared components). Dev HMR
-    // otherwise times out with ChunkLoadError when navigating to /cms/*.
+    // otherwise times out with ChunkLoadError when navigating to a CMS page.
     config.output = {
       ...config.output,
       chunkLoadTimeout: 120_000,
     };
     return config;
+  },
+  /**
+   * A CMS page has one address and it is `/{slug}`
+   * (`specs/105-cms-root-page-urls/contracts/cms-page-url.md` §1). `/cms/*` is
+   * the address it was served at until then, so it answers a **permanent**
+   * redirect (§2.3 — a temporary one tells a crawler to keep the old URL
+   * indexed, which is the duplicate this feature removes).
+   *
+   * Static configuration rather than `middleware.ts` or a surviving route file
+   * (§2.1): the mapping needs no request state, so Next answers it without
+   * invoking the application, the middleware keeps its single job on a path
+   * that runs on every request, and there is no second route file serving one
+   * row.
+   */
+  async redirects() {
+    return [{ source: '/cms/:path*', destination: '/:path*', permanent: true }];
   },
   async headers() {
     return [

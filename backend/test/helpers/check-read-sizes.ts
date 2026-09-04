@@ -676,7 +676,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Seven of the nine: this walk is `admin`, `backend`, `storefront` and
     // `packages`, and it excludes `backend/scripts`, so the two files outside
     // `storefront/` do not reach it.
-    files: 5191,
+    // **Feature 105: 5191 -> 5187.** Four `.ts`/`.tsx` files leave the tree —
+    // the storefront's `app/cms/[...slug]/{page.tsx,seo.ts}`, the orphan admin
+    // screen `cms_pages/CmsPagesPage.tsx` and `packages/contracts/src/cms-pages.ts`.
+    // This walk is the whole repository, so it sees all four; `sites` is unmoved,
+    // none of them folding a diacritic or building a slug.
+    files: 5187,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1148,7 +1153,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrel, which republished them — the bare specifier the D-168 analysis
     // reports as `unresolvable-reexport`. `sites` does not move: the file
     // rendered no zone, contributed to none and named no module id.
-    files: 2330,
+    // **Feature 105: 2330 -> 2329.** `admin/src/modules/cms_pages/CmsPagesPage.tsx`,
+    // in the `admin/src` population. `sites` is unmoved and the four `sources`
+    // tokens with it — the deleted screen rendered no zone, contributed to none,
+    // and named no module id.
+    files: 2329,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -1650,7 +1659,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
     // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
     // collision rule.
-    files: 4156,
+    // **Feature 105: 4156 -> 4155.** One file, and it is the admin half of this
+    // walk: `admin/src/modules/cms_pages/CmsPagesPage.tsx`, which the layout
+    // attributes to the host (no nav entry claims that directory) and which is
+    // deleted with the contract it was typed against. The module walk is unmoved.
+    files: 4155,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -1668,7 +1681,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tree; the deletion above takes two specifiers with it, so the combined
     // tree reads 11125. Composing the two recorded numbers would have written
     // 11127 beside `files: 4145` — internally consistent, and wrong by two.
-    sites: 11152,
+    // **Feature 105: 11152 -> 11137.** The fifteen import specifiers of that one
+    // deleted file. The pair is what says which of the two happened: a file left
+    // the walk and took its specifiers with it, rather than a specifier shape the
+    // reader stopped recognising, which would have moved `sites` alone.
+    sites: 11137,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -1791,7 +1808,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // two — the four `specs/106-module-owned-tests/*.md` files that merge
     // brought with it, which this whole-tree walk sees. Re-measured on the
     // rebased tree rather than added to the number above it.
-    files: 7495,
+    // **Feature 105 (a CMS page has one address): 7495 -> 7499.** Net **-3**
+    // from this branch — four source files deleted and one changeset `.md`
+    // added — over a **+7** this entry already owed `master`, which reads 7502
+    // at bf869a18a. Both figures are measurements: a second worktree at this
+    // branch's own base commit, each check run in both trees. Subtracting the
+    // delta from the number above it would have recorded 7492 and left this
+    // entry wrong in the direction that hides a walk going short. A local
+    // `conformance:storefront` run adds one — `storefront/test-results/` is
+    // git-ignored and this deny-list walk opens it — so what is recorded is
+    // what a clean checkout reads.
+    files: 7499,
     sites: null,
     sources: [],
   },
@@ -2090,7 +2117,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1891,
+    // **Feature 105: 1891 -> 1890.** `packages/contracts/src/cms-pages.ts`, whose
+    // last reader went with the storefront's `path`-addressed CMS fetch. `sites`
+    // is unmoved: it declared no port, no registration and no `lazyPort`.
+    files: 1890,
     sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -2175,7 +2205,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 096, Phase 6: +1.** The storefront degradation test, which is
     // in the storefront walk; its `sites` do not move, the file classifying no
     // `useEffect` of its own.
-    files: 333,
+    // **Feature 105 (a CMS page has one address): 333 -> 332.** The storefront
+    // route file `app/cms/[...slug]/page.tsx` goes: the CMS page is served at
+    // `/{slug}` and `/cms/{path}` is a permanent redirect in `next.config.js`,
+    // which is configuration and not a `.tsx`. `sites` is unmoved — that file
+    // is a Server Component and classified no `useEffect`.
+    files: 332,
     // The `useEffect` callbacks classified inside those client components, and
     // this is the number that matters. #237's shape for this check is a syntax
     // walk that stops recognising an effect while the file count stands still:
@@ -2222,23 +2257,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-storefront-indexability.ts': {
     prefix: '[storefront-indexability]',
     run: { kind: 'tsx', path: 'scripts/check-storefront-indexability.ts', args: [] },
-    // Every file the check **opens**: the 57 `page.tsx` files under
-    // `storefront/app`, the nine `seo.ts` declarations beside the indexable
+    // Every file the check **opens**: the 56 `page.tsx` files under
+    // `storefront/app`, the eight `seo.ts` declarations beside the indexable
     // ones, and `storefront/app/sitemap.ts` itself. It is deliberately not the
-    // 57 — a route losing its structured-data declaration moves this number and
+    // 56 — a route losing its structured-data declaration moves this number and
     // leaves `sites` where it was, which is one of the findings.
-    files: 67,
-    // Routes classified either way: 9 indexable + 48 `noindex`. It moves only
+    // **Feature 105 (a CMS page has one address): 67 -> 65.** `app/cms/[...slug]/`
+    // goes with its `seo.ts`, so the walk loses one `page.tsx` and one
+    // declaration; `/cms/{path}` is a permanent redirect in `next.config.js`,
+    // which this walk does not read.
+    files: 65,
+    // Routes classified either way: 8 indexable + 48 `noindex`. It moves only
     // when a page is added or removed, so a run whose `sites` fell while `files`
     // held is a route file that left the tree rather than a declaration that
     // left a route.
-    sites: 57,
+    // **Feature 105: 57 -> 56.** One `page.tsx`, and the pair is the point —
+    // `files` fell by two and `sites` by one, which is a route file and its
+    // declaration leaving together rather than either alone.
+    sites: 56,
     // `sitemap` is `storefront/app/sitemap.ts`'s own declared route set — the
-    // five static URLs plus the four dynamic patterns — against how many of them
-    // the route walk could match to a page file. It is #215's predicate for this
-    // population: a *partially* moved `storefront/app` leaves the rest readable
-    // and clean, and this is the only number that notices. Measured with
-    // everything but `(catalog)` moved aside: `files=9`, `sitemap:4/9`, exit 2.
+    // five static URLs plus the three dynamic patterns — against how many of
+    // them the route walk could match to a page file. It is #215's predicate for
+    // this population: a *partially* moved `storefront/app` leaves the rest
+    // readable and clean, and this is the only number that notices. Measured
+    // with everything but `(catalog)` moved aside: `files=9`, `sitemap:4/9`,
+    // exit 2.
     sources: ['sitemap'],
   },
   'backend/scripts/check-subscribe-seam.ts': {
@@ -2417,7 +2460,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // band, which is what the band is for and also what it cannot say. Recorded
     // here by the merge request that added the `module-admin` token below,
     // because that is the run whose `[read-size drift]` block named it.
-    files: 422,
+    // **Feature 105: 422 -> 421.** `admin/src/modules/cms_pages/CmsPagesPage.tsx`
+    // goes with the pre-014 CMS page projection it was typed against. It carried
+    // no baseline entry — every string in it was already translated — so nothing
+    // in `HARDCODED_STRINGS_BASELINE` is stranded by the deletion.
+    files: 421,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -2503,7 +2550,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Rebased onto `master` at a9deb1cfd: 7551 -> 7555.** Not this branch's
     // two — the four `specs/106-module-owned-tests/*.md` files that merge
     // brought with it. Re-measured on the rebased tree.
-    files: 7555,
+    // **Feature 105: 7555 -> 7559.** Net **-3** from this branch — four source
+    // files deleted and one changeset `.md` added — over a **+7** this entry
+    // already owed `master`, which reads 7562 at bf869a18a. Measured in a
+    // second worktree at this branch's own base commit rather than subtracted
+    // from the number above it.
+    files: 7559,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2563,7 +2615,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the rebase onto `master` at a9deb1cfd: the four specification pages that
     // merge brought are outside this walk, which is source comments and
     // `docs/docs/**`.
-    files: 5657,
+    // **Feature 105: 5657 -> 5653.** The four `.ts`/`.tsx` files that branch
+    // deletes; its changeset is a `.md` outside `docs/docs/`, so this walk does
+    // not open it, which is why the delta here is -4 where `check:naming`'s,
+    // over the same four deletions, is -3.
+    files: 5653,
     sites: null,
     sources: ['manifest-index'],
   },

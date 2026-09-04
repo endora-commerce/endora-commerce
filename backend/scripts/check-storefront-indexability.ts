@@ -13,11 +13,11 @@
  * that client's tree and diverges there with nothing downstream to catch it. A
  * gate on the template is the only place any of this is enforceable once.
  *
- * ## The population is the pages, and "67 route files" is the wrong number
+ * ## The population is the pages, and "66 route files" is the wrong number
  *
- * `storefront/app` holds 67 files matching `page.tsx`/`route.ts`/`layout.tsx`.
+ * `storefront/app` holds 66 files matching `page.tsx`/`route.ts`/`layout.tsx`.
  * Five are API handlers that emit no document and five are layouts that are not
- * pages. The population is the **57 `page.tsx` files**, and of those 48 are
+ * pages. The population is the **56 `page.tsx` files**, and of those 48 are
  * account, auth, checkout, comparison and newsletter surfaces that must **not**
  * be indexed. Emitting a canonical on `/account/password` would be a defect,
  * not a repair — which is why the check asks every page for a *classification*
@@ -34,8 +34,10 @@
  * **`contradictory-indexability` is per metadata *object*, not per file**, and
  * that is load-bearing rather than a nicety: `if (!page) return { title: 'Not
  * found', robots: { index: false } }; return { alternates: { canonical } };` is
- * *correct*, and four of the nine indexable routes in this tree ship exactly
- * it. A per-file contradiction test would report every one of them.
+ * *correct*, and four of the eight indexable routes in this tree ship exactly
+ * it — `/p/[slug]`, `/c/[slug]`, `/[...slug]` and `/blog/[[...slug]]`, measured
+ * rather than remembered. A per-file contradiction test would report every one
+ * of them.
  *
  * ## The second author is the sitemap, and it is a deliverable in its own right
  *
@@ -49,9 +51,9 @@
  *
  * The *URLs* of the dynamic half stay outside the reconciliation — a product
  * slug is a row, not a route, and this check runs with no services. The
- * *patterns* do not: four of the nine indexable route types have no static URL
- * at all, and a reconciliation blind to them would report every one of them as
- * unadvertised. That is a correction to `contracts/seo-declarations.md` §4,
+ * *patterns* do not: three of the eight indexable route types have no static
+ * URL at all, and a reconciliation blind to them would report every one of them
+ * as unadvertised. That is a correction to `contracts/seo-declarations.md` §4,
  * which speaks only of the static set.
  *
  * ## Findings

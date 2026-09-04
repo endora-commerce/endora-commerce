@@ -37,16 +37,26 @@ import ts from 'typescript';
  *
  * ## Dynamic segments come from the seed, and a route with no subject refuses
  *
- * Five of the nine route types take a slug. The seeded platform supplies one
+ * Four of the eight route types take a slug. The seeded platform supplies one
  * subject per kind (`scripts/conformance/seed-storefront-fixtures.ts` writes
  * the manifest this reads), and a dynamic route type with no subject is exit 2
  * — `contracts/accessibility-floor.md` §4.5's fifth refusal — because it would
  * otherwise be silently skipped and the run would report a clean sweep over
- * eight pages while calling itself nine.
+ * seven pages while calling itself eight.
  */
 
-/** The kinds of content a seeded platform supplies for a dynamic route type. */
-export type SubjectKind = 'product' | 'category' | 'blogPost' | 'cmsPage' | 'contentPage';
+/**
+ * The kinds of content a seeded platform supplies for a dynamic route type.
+ *
+ * There is **one** kind of CMS page and it is `contentPage`. There were two
+ * until `specs/105-cms-root-page-urls/` — `cmsPage` for `/cms/[...slug]` and
+ * `contentPage` for `/[...slug]`, two kinds naming one table — and that is the
+ * finding this suite recorded rather than the one it was pointed at
+ * (`research.md` D-8): a per-route reconciliation cannot see a pair of route
+ * types over one subject, because each half of the pair is individually
+ * consistent. The pair is gone, and so is the second kind.
+ */
+export type SubjectKind = 'product' | 'category' | 'blogPost' | 'contentPage';
 
 /**
  * Which kind of content fills a route type's dynamic segments.
@@ -64,7 +74,6 @@ export const SUBJECT_KIND_BY_ROUTE: Readonly<Record<string, SubjectKind>> = {
   '/p/[slug]': 'product',
   '/c/[slug]': 'category',
   '/blog/[[...slug]]': 'blogPost',
-  '/cms/[...slug]': 'cmsPage',
   '/[...slug]': 'contentPage',
 };
 
@@ -82,19 +91,13 @@ export const SUBJECT_KIND_BY_ROUTE: Readonly<Record<string, SubjectKind>> = {
 export const ROUTE_TYPES_WITHOUT_A_SUBJECT: Readonly<
   Record<string, { readonly reason: string; readonly retiredBy: string }>
 > = {
-  '/[...slug]': {
-    reason:
-      'Its `page.tsx` fetches `GET /api/v1/cms/pages/{path}`, and no module registers that ' +
-      'route: the `cms` module publishes `/api/v1/cms/pages/by-slug` (which `/cms/[...slug]` ' +
-      'uses) and nothing else on the storefront surface. Every URL under this route type ' +
-      'therefore resolves to `notFound()`, so there is no subject to seed and no 200 to ' +
-      'assert. Measured 2026-09-04 by grepping every module\'s storefront routes; the ' +
-      '`CmsPage` shape it reads (`title`/`body`) matches no column `cms_pages` still carries.',
-    retiredBy:
-      'Either the `cms` module ships the storefront route this page fetches, or the route ' +
-      'file is removed and its `seo.ts` with it. Both are product decisions and neither is ' +
-      'this suite\'s to make; the entry is what stops the gap being invisible meanwhile.',
-  },
+  // Empty, and it opened with one entry. `/[...slug]` fetched
+  // `GET /api/v1/cms/pages/{path}`, an endpoint no commit in this repository
+  // has ever registered, so every URL under it resolved to `notFound()`: there
+  // was no subject to seed and no 200 to assert. `specs/105-cms-root-page-urls/`
+  // is that entry's `retiredBy` taken — the route now resolves through
+  // `GET /api/v1/cms/pages/by-slug`, which is what `/cms/[...slug]` used before
+  // it was retired, and the seed supplies its `contentPage` subject.
 };
 
 /** One route's own `seo.ts`, as source text. */
@@ -268,8 +271,20 @@ function manifestKeyOf(source: string, appRoot: string): string {
 /**
  * The plan, over the declarations, the framework's manifest and the seed's
  * subjects — the three inputs a real run reads, and the top of the analysis.
+ *
+ * `ledger` defaults to {@link ROUTE_TYPES_WITHOUT_A_SUBJECT} and is a parameter
+ * for one reason: that ledger is **empty**, and three of this analysis's
+ * refusals are about what an entry does. A red proof written against the real
+ * constant stops proving anything the moment the constant empties — which is
+ * the state a two-way ledger is supposed to reach — so the proofs supply their
+ * own entries and enter where a real run enters.
  */
-export function buildConformancePlan(input: ConformancePlanInput): ConformancePlan {
+export function buildConformancePlan(
+  input: ConformancePlanInput,
+  ledger: Readonly<
+    Record<string, { readonly reason: string; readonly retiredBy: string }>
+  > = ROUTE_TYPES_WITHOUT_A_SUBJECT,
+): ConformancePlan {
   const pages: PlannedPage[] = [];
   const excluded: ExcludedRoute[] = [];
   const disagreements: PlanDisagreement[] = [];
@@ -311,7 +326,7 @@ export function buildConformancePlan(input: ConformancePlanInput): ConformancePl
       covered += 1;
     }
 
-    const ledgered = ROUTE_TYPES_WITHOUT_A_SUBJECT[declaration.route];
+    const ledgered = ledger[declaration.route];
     const kind = SUBJECT_KIND_BY_ROUTE[declaration.route];
     const subject = kind === undefined ? null : (input.fixtures?.subjects[kind] ?? null);
 
@@ -338,7 +353,7 @@ export function buildConformancePlan(input: ConformancePlanInput): ConformancePl
       .map((one) => readSeoDeclaration(one.text)?.route)
       .filter((route): route is string => route !== undefined),
   );
-  const staleLedgerEntries = Object.keys(ROUTE_TYPES_WITHOUT_A_SUBJECT).filter(
+  const staleLedgerEntries = Object.keys(ledger).filter(
     (route) => !declaredRoutes.has(route),
   );
 

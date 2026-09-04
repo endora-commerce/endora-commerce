@@ -68,6 +68,17 @@ import type { KnownViolation } from './assertions';
  * None of it was visible to anything in this repository before this run:
  * `.lighthouserc.js` carried `color-contrast: 'warn'` and had had no runner
  * since `5b0bfb5dd`.
+ *
+ * ## The three CMS entries were re-keyed, not re-measured
+ *
+ * `specs/105-cms-root-page-urls/` gave a CMS page one address: the route type
+ * that served it moved from `/cms/[...slug]` to `/[...slug]`, and the page
+ * component moved with it unchanged. The three entries that were keyed on the
+ * old pattern are the header search input, the header tagline and the footer
+ * legal line — page chrome, which every route in this table carries — so they
+ * are the same three sites under the pattern that now serves them. The page
+ * count is unmoved at eight: the tree declared nine route types and excused one
+ * for having no subject, and it now declares eight and excuses none.
  */
 export const KNOWN_ACCESSIBILITY_VIOLATIONS: readonly KnownViolation[] = [
   {
@@ -583,7 +594,7 @@ export const KNOWN_ACCESSIBILITY_VIOLATIONS: readonly KnownViolation[] = [
     repairedBy: 'the footer muted token being lightened against its dark surface',
   },
   {
-    route: '/cms/[...slug]',
+    route: '/[...slug]',
     rule: 'aria-allowed-attr',
     target: 'input[type="search"]',
     impact: 'critical',
@@ -591,7 +602,7 @@ export const KNOWN_ACCESSIBILITY_VIOLATIONS: readonly KnownViolation[] = [
     repairedBy: 'SearchAutocomplete giving the input `role="combobox"` and an `aria-controls` naming its listbox, which is the role those two attributes belong to',
   },
   {
-    route: '/cms/[...slug]',
+    route: '/[...slug]',
     rule: 'color-contrast',
     target: 'small',
     impact: 'serious',
@@ -599,7 +610,7 @@ export const KNOWN_ACCESSIBILITY_VIOLATIONS: readonly KnownViolation[] = [
     repairedBy: 'the `--color-subtle` token being darkened, or this line moving off it',
   },
   {
-    route: '/cms/[...slug]',
+    route: '/[...slug]',
     rule: 'color-contrast',
     target: 'span',
     impact: 'serious',

@@ -32,7 +32,7 @@ describe('canonicalPath', () => {
   it('substitutes each segment shape Next\'s file tree produces', () => {
     expect(canonicalPath('/catalog', {})).toBe('/catalog');
     expect(canonicalPath('/c/[slug]', { slug: 'pumps' })).toBe('/c/pumps');
-    expect(canonicalPath('/cms/[...slug]', { slug: ['about', 'us'] })).toBe('/cms/about/us');
+    expect(canonicalPath('/[...slug]', { slug: ['pomoc', 'dostawa'] })).toBe('/pomoc/dostawa');
     expect(canonicalPath('/blog/[[...slug]]', { slug: ['first-post'] })).toBe('/blog/first-post');
   });
 

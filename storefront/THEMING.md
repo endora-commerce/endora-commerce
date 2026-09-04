@@ -128,7 +128,7 @@ storefront/
 │   │   ├── client.ts              ← fetch wrapper; threads X-Sales-Channel + Accept-Language.
 │   │   ├── catalog.ts             ← listProducts, getProductBySlug, getCategoryTree, getFilters
 │   │   ├── i18n.ts                ← getI18nConfig
-│   │   └── cms.ts                 ← getCmsPage
+│   │   └── cms.ts                 ← getCmsPageBySlug, getCmsBlockByCode, getCmsHookByCode
 │   ├── i18n/
 │   │   ├── locale.ts              ← resolveLocale, pickLocalizedString
 │   │   └── messages.ts            ← chrome strings (nav, button captions)
