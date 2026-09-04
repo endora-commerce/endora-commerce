@@ -40,12 +40,14 @@
     "zod": "^4.2.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@next/eslint-plugin-next": "^15",
     "@playwright/test": "^1.60.0",
     "@types/node": "^22.9.0",
     "@types/leaflet": "^1.9.21",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "axe-core": "^4.13.0",
     "postcss": "^8.5.10",
     "typescript": "^5.9.3",
     "vitest": "^2.1.4"
