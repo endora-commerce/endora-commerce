@@ -4,7 +4,7 @@ import {
   pickPriorityChain,
   tieBreak,
   type PriceListCandidate,
-} from '../../../../packages/modules/price_lists/src/backend/services/price-list-resolver.js';
+} from './price-list-resolver.js';
 
 function makeCandidate(
   id: string,

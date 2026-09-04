@@ -3,7 +3,7 @@ import type { ApplicationRule } from '@endora-commerce/contracts';
 import {
   evaluateApplicationRule,
   type ResolutionContext,
-} from '../../../../packages/modules/price_lists/src/backend/services/application-rule-evaluator.js';
+} from './application-rule-evaluator.js';
 
 const SC = 'sc_pl_default';
 const ORG = 'org_acme';

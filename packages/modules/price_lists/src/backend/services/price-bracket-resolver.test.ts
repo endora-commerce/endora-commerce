@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   resolvePriceBracket,
   type PriceBracketRow,
-} from '../../../../packages/modules/price_lists/src/backend/services/price-bracket-resolver.js';
+} from './price-bracket-resolver.js';
 
 function row(over: Partial<PriceBracketRow>): PriceBracketRow {
   return {

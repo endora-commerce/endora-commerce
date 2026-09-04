@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PricingCache,
   type PricingCacheKey,
-} from '../../../../packages/modules/price_lists/src/backend/services/pricing-cache.js';
+} from './pricing-cache.js';
 
 const baseKey: PricingCacheKey = {
   productId: 'p1',
