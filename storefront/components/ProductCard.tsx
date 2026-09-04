@@ -61,7 +61,22 @@ export function ProductCard(props: {
   const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t);
 
   return (
-    <article className="group relative flex flex-col rounded-lg border border-line bg-surface transition hover:-translate-y-[3px] hover:border-[var(--ink-700)] hover:shadow-md">
+    // The `active:` half is the click's own acknowledgement, and it is not
+    // decoration (`specs/108-storefront-response-status/`, the owner's Q1
+    // ruling). `NavigationFeedback` is delay-gated at 200 ms and the measured
+    // medians on this storefront are 69–128 ms, so **most navigations show
+    // nothing at all** — which is the right answer to flicker only if the press
+    // itself says something. Until now the card carried `hover:` and no
+    // `active:`, so a tap on a touch device gave no feedback until the next
+    // page arrived; the route-level skeleton had been covering that at ~20 ms.
+    //
+    // Both idioms are ones `globals.css` already ships, reused rather than
+    // invented: `.btn:active`'s "the press cancels the lift"
+    // (`translate-y-0 shadow-none`) and `.m-tap`'s "the press tints the
+    // surface" (`active:bg-surface-alt`). `:active` matches the ancestors of
+    // the pressed element, so a tap anywhere in the card — the image link, the
+    // heading link — lands here.
+    <article className="group relative flex flex-col rounded-lg border border-line bg-surface transition hover:-translate-y-[3px] hover:border-[var(--ink-700)] hover:shadow-md active:translate-y-0 active:border-line-strong active:bg-surface-alt active:shadow-none">
       <Link
         href={`/p/${product.slug}`}
         className="relative flex aspect-square items-center justify-center overflow-hidden rounded-t-lg border-b border-line bg-surface-alt"

@@ -28,6 +28,11 @@
 #     (FR-031), plus the primary domain content on the PDP and the category
 #     page (FR-032). **A plain `fetch` is the no-JavaScript condition** and no
 #     browser is introduced for it (FR-030);
+#   * one **deliberately absent** URL per dynamic route type, at `404` and at
+#     nothing else (specs/108-storefront-response-status/, FR-009…FR-013). The
+#     URL is that same declaration filled with a token that cannot be a subject,
+#     never a second page list; a run that planned probes and issued none is a
+#     refusal rather than a pass;
 #   * `@axe-core/playwright` over the same set, failing at `serious` and
 #     `critical` against a two-way ledger (FR-040…FR-043);
 #   * a keyboard traversal of the primary path and the skip link, and that a
@@ -49,10 +54,11 @@
 # Exit 0 = the storefront serves what it declares and meets the floor.
 # Exit 1 = a finding.
 # Exit 2 = the run could not see what it judges — no route declaration, no
-#          build manifest, a route type with no seeded subject, a page set that
-#          disagrees with the framework, no page served at all, or a browser
-#          that evaluated no rule. A green that could mean "not looking" is not
-#          a green.
+#          build manifest, a route type with no seeded subject, a dynamic route
+#          type that produced no absent URL, a page set that disagrees with the
+#          framework, no page served at all, no absent probe issued, or a
+#          browser that evaluated no rule. A green that could mean "not looking"
+#          is not a green.
 set -uo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)

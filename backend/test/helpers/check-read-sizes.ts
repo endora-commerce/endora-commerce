@@ -2317,7 +2317,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // goes with its `seo.ts`, so the walk loses one `page.tsx` and one
     // declaration; `/cms/{path}` is a permanent redirect in `next.config.js`,
     // which this walk does not read.
-    files: 65,
+    // **Feature 108 (the status line tells the truth): 65 -> 66.** The walk
+    // gains the `loading.tsx` / `template.tsx` files, which is what the eighth
+    // finding is decided against, and this branch deletes two of the three it
+    // found. Both halves moved and the net is +1, which is the number worth
+    // recording rather than either: 65 -> 68 with the boundaries this tree had,
+    // then 68 -> 66 as `app/loading.tsx` and `app/(catalog)/p/[slug]/loading.tsx`
+    // go. `app/(catalog)/catalog/loading.tsx` stays, because `/catalog` decides
+    // no status, and it is the one boundary file this number now counts.
+    files: 66,
     // Routes classified either way: 8 indexable + 48 `noindex`. It moves only
     // when a page is added or removed, so a run whose `sites` fell while `files`
     // held is a route file that left the tree rather than a declaration that
@@ -2333,6 +2341,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // readable and clean, and this is the only number that notices. Measured
     // with everything but `(catalog)` moved aside: `files=9`, `sitemap:4/9`,
     // exit 2.
+    //
+    // Feature 108's two refusals are deliberately **not** a third coverage
+    // token. `unenumerable-segment` is not a short walk — it is a walk that
+    // says so itself, from a directory `readdir` refused — and `nothing-decided`
+    // is a floor on a population no second author in this repository enumerates:
+    // "how many pages decide a status" is what this walk computes, and a token
+    // reconciling it against itself would say the same thing twice.
     sources: ['sitemap'],
   },
   'backend/scripts/check-subscribe-seam.ts': {

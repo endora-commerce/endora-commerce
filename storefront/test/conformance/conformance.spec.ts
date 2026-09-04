@@ -11,6 +11,7 @@ import { formatMoney } from '../../lib/i18n/money';
 import { tForLocale } from '../../lib/i18n/messages';
 import { canonicalPath } from '../../lib/seo/route-seo';
 import {
+  assertAbsentPage,
   assertServedPage,
   classifyAxeRuns,
   classifyKeyboardTraversal,
@@ -27,6 +28,7 @@ import { KNOWN_ACCESSIBILITY_VIOLATIONS } from './known-violations';
 import {
   buildConformancePlan,
   planRefusal,
+  type AbsentProbe,
   type FixtureManifest,
   type PlannedPage,
   type RouteDeclaration,
@@ -42,6 +44,12 @@ import {
  * and which touches neither the network nor a browser. That separation is
  * `scripts/lib/boot-gate-assert.sh`'s, for its reason: a gate whose judgement
  * can only run against a booted stack is a gate nobody can prove goes red.
+ *
+ * Since `specs/108-storefront-response-status/` it collects a third: the status
+ * line of one **deliberately absent** URL per dynamic route type
+ * (`contracts/response-status.md` §4). That one is a status and nothing else —
+ * see `assertAbsentPage` for why a not-found document is asked no other
+ * question.
  *
  * ## One test, deliberately
  *
@@ -223,6 +231,28 @@ async function fetchPage(page: PlannedPage, currency: string, locale: string) {
           ? { heading: page.subject?.name ?? '', linksProducts: true }
           : null,
   };
+}
+
+/**
+ * The status line of a deliberately absent URL, and nothing else
+ * (`specs/108-storefront-response-status/contracts/response-status.md` §4.1).
+ *
+ * `redirect: 'manual'` because a followed redirect reports the status of
+ * wherever it landed: a route that answered `308` to an absent slug would be
+ * indistinguishable here from one that answered `200`, and those are two
+ * different defects. The body is not read at all — the assertion is the line
+ * above it.
+ */
+async function fetchAbsent(probe: AbsentProbe, locale: string): Promise<number> {
+  try {
+    const response = await fetch(`${STOREFRONT_URL}${probe.url}`, {
+      headers: { 'accept-language': locale },
+      redirect: 'manual',
+    });
+    return response.status;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -661,7 +691,25 @@ test('the storefront serves what it declares, and meets the accessibility floor'
     motion.push(inspected.motion);
   }
 
-  const runtime = runRefusal({ planned: plan.pages.length, fetched, ok, axeRuns });
+  // The second half of the page set: one deliberately absent URL per dynamic
+  // route type, asserted at 404 and at nothing else. It is a separate loop
+  // rather than a branch inside the one above because an absent URL has no
+  // subject, no canonical and no accessibility question — see `assertAbsentPage`.
+  let absentIssued = 0;
+  for (const probe of plan.absent) {
+    const status = await fetchAbsent(probe, locale);
+    absentIssued += 1;
+    findings.push(...assertAbsentPage({ route: probe.route, url: probe.url, status }));
+  }
+
+  const runtime = runRefusal({
+    planned: plan.pages.length,
+    fetched,
+    ok,
+    axeRuns,
+    absentPlanned: plan.absent.length,
+    absentIssued,
+  });
   if (runtime !== null) refuse(runtime.kind, runtime.message);
 
   const axe = classifyAxeRuns(axeRuns, KNOWN_ACCESSIBILITY_VIOLATIONS);
@@ -687,6 +735,9 @@ test('the storefront serves what it declares, and meets the accessibility floor'
       `channel=${fixtures.channel.code} language=${locale} ` +
       `modules=${modules === null ? 'unknown' : `${modules.present}/${modules.total}`} ` +
       `assertions=${plan.pages.length} axe-rules=${axeRuns[0]?.rulesRun ?? 0} ` +
+      // `response-status.md` §4.5. A green run that probed four absences and one
+      // that probed none read identically without it.
+      `absent=${absentIssued}/${plan.absent.length} ` +
       `sources=next-manifest:${plan.coverage.covered}/${plan.coverage.expected}`,
   );
   console.log(
