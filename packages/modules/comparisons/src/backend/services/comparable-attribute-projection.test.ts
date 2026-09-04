@@ -4,7 +4,7 @@ import {
   classifyRow,
   formatForDisplay,
   type ComparableAttributeDefinition,
-} from '../../../../packages/modules/comparisons/src/backend/services/comparable-attribute-projection.js';
+} from './comparable-attribute-projection.js';
 
 /**
  * T017 — projection rules per research.md R-6. No DB; pure functions.

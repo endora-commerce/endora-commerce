@@ -7,12 +7,12 @@ import type {
 import {
   AssetByteFetcher,
   IMAGE_FALLBACK_BYTES,
-} from '../../../../packages/modules/comparisons/src/backend/services/asset-byte-fetcher.js';
+} from './asset-byte-fetcher.js';
 import {
   ComparisonPdfRenderer,
   filterRowsByMode,
   pickOrientation,
-} from '../../../../packages/modules/comparisons/src/backend/services/comparison-pdf-renderer.js';
+} from './comparison-pdf-renderer.js';
 
 /**
  * T051 — Unit test for the PDF document-definition. Asserts on the

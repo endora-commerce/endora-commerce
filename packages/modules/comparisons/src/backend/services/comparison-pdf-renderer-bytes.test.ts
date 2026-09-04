@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ComparisonOwnerView } from '@endora-commerce/contracts';
-import { ComparisonPdfRenderer } from '../../../../packages/modules/comparisons/src/backend/services/comparison-pdf-renderer.js';
-import { AssetByteFetcher } from '../../../../packages/modules/comparisons/src/backend/services/asset-byte-fetcher.js';
+import { ComparisonPdfRenderer } from './comparison-pdf-renderer.js';
+import { AssetByteFetcher } from './asset-byte-fetcher.js';
 
 /**
  * Smoke-test on the byte path: assert the renderer produces a real PDF
