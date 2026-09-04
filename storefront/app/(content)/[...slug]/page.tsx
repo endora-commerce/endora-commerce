@@ -63,16 +63,15 @@ export default async function CmsContentPage({ params }: PageProps): Promise<Rea
   // row resolves, so a home-page setting naming a page this channel does not
   // publish still answers 404 rather than redirecting to a different document.
   //
-  // **It reaches a browser and not a crawler, and that is this storefront's
-  // property rather than this line's.** Measured 2026-09-04 against a booted
-  // production build: the response is `200` carrying `NEXT_REDIRECT;replace;/;
-  // 308;` in the RSC payload, because `app/loading.tsx` puts every page inside
-  // a Suspense boundary and the shell is flushed before this component
-  // resolves — after which no status line is left to set. The same is true of
-  // every `notFound()` in the application, `/p/[slug]`, `/c/[slug]` and
-  // `/blog/[[...slug]]` included, all of which answer `200` carrying
-  // `NEXT_HTTP_ERROR_FALLBACK;404`. One decision retires both; it is not this
-  // route's to take.
+  // **It reaches every consumer, and that took the deletion of a file three
+  // directories up.** Until `specs/108-storefront-response-status/` the
+  // response was `200` carrying `NEXT_REDIRECT;replace;/;308;` in the RSC
+  // payload — no `Location`, no `Refresh`, no canonical — because
+  // `app/loading.tsx` put every page inside a Suspense boundary and the shell
+  // was flushed before this component resolved. There was nothing this line
+  // could have been written differently to fix; the boundary is gone, and it
+  // may not come back above a page that decides a status
+  // (`check:storefront-indexability`'s `status-decision-under-a-boundary`).
   if (cmsPageSlug !== null && normalizeCmsUrlPath(cmsPageSlug) === path) permanentRedirect('/');
 
   return (
