@@ -3,7 +3,7 @@ import type { PushAudienceRule } from '@endora-commerce/contracts';
 import {
   evaluatePushAudienceRule,
   type PushAudienceContext,
-} from '../../../../packages/modules/pwa/src/backend/services/push-audience-evaluator.js';
+} from './push-audience-evaluator.js';
 
 const linked: PushAudienceContext = {
   salesChannelId: 'sc-1',

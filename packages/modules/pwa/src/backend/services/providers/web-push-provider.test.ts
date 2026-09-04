@@ -9,7 +9,7 @@ vi.mock('web-push', () => ({
 }));
 
 const { WebPushProvider } = await import(
-  '../../../../packages/modules/pwa/src/backend/services/providers/web-push-provider.js'
+  './web-push-provider.js'
 );
 
 function settingsWith(keys: Record<string, string>) {
