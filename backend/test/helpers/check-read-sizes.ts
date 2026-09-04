@@ -768,7 +768,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // recorded at what this tree reads rather than left half-current, because an
     // entry that describes the tree in one number and not the other is an entry
     // the drift report has to keep naming.
-    files: 1186,
+    // **2026-09-04: 1186 -> 1209.** 26 markdown files were added under `specs/`
+    // and `docs/docs/` since this was set -- the 104, 106, 107 and 108 spec
+    // directories, chiefly. The walk is documents, not the module tree they cite.
+    files: 1209,
     sites: 12,
     sources: [],
   },
@@ -1052,8 +1055,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // figure is this merge request's own contribution and nobody else's; the
     // entries this branch moved *jointly* with `master` are left for their
     // owners.
-    files: 226,
-    sites: 14,
+    // **2026-09-04: 226 -> 240, and this one is a correction rather than growth.**
+    // Counted at the commit that set 226 and at this one, the four population
+    // components are flat -- ledger shards 45 -> 45, module manifests 70 -> 70,
+    // `packages/contracts/src` 89 -> 88, `check-*` scripts 35 -> 35. So the tree
+    // did not grow into 240; 226 was already below what the walk read when it was
+    // recorded, and stayed inside the +50% band for a day. Worth stating rather
+    // than quietly bumping: a re-record can under-record, and the band cannot see
+    // it in that direction either.
+    files: 240,
+    // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
+    sites: 15,
     sources: ['manifest-index', 'contracts-barrel'],
   },
   'backend/scripts/check-admin-zones.ts': {
@@ -1861,6 +1873,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // whole-repository walk. The remaining +6 is inherited drift — the four
     // `specs/108-storefront-response-status/` pages among it — recorded here rather
     // than left to go stale in an entry this branch rewrites anyway.
+    // **Measure this entry in a clean checkout, never in the main one.** On
+    // 2026-09-04 a drift report run in the *main* checkout reported this walk
+    // eight files above its record, and re-recording that would have pinned a
+    // number only that machine produces: the check walks the whole repository
+    // root, and the main checkout of this project carries eleven nested `git
+    // worktree`s under `.claude/worktrees/`. A clean checkout of the same
+    // commit -- byte-identical tracked files, nothing untracked -- read exactly
+    // the recorded value, so there was nothing to re-record.
+    //
+    // The rule generalises past that day and is why this note is here rather
+    // than the number it was about: for a whole-repository walk, *where* you
+    // measure is part of the measurement, and the main checkout is the one
+    // place in this project that is not representative of CI. A branch that
+    // genuinely adds or removes files still re-records normally -- park them
+    // and re-run to tell your own delta from the tree's.
     files: 7557,
     sites: null,
     sources: [],
@@ -2266,7 +2293,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `files=332` prints exactly the same beside `findings=0` over a tree the
     // predicate can no longer see. `vacuousReason`'s `nothing-classified` is
     // the floor at zero; this band is what catches the partial case.
-    sites: 86,
+    // **2026-09-04: 86 -> 90.** Four client components gained a first-paint fetch
+    // as features 105 and 108 landed; five `.tsx` files were added over the same
+    // range. `files` did not move, which is the #235/#237 pair this entry records:
+    // the site count is the one that carries the signal here.
+    sites: 90,
     // `storefront-deps` is `storefront/package.json`'s own dependency list —
     // the `@endora-commerce/*` workspace members declaring `react` — against
     // how many of them contributed a file to the walk. It is #215's predicate
