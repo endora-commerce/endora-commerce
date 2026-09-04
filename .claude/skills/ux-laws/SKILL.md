@@ -236,7 +236,15 @@ These are not laws of UX, but no design ships without them:
   validation state).
 - Icon-only controls carry an `aria-label`; decorative imagery carries `aria-hidden="true"`.
 - Form errors are programmatically linked (`aria-describedby`, `aria-invalid`) and announced.
-- Respect `prefers-reduced-motion` for any animation.
+- Respect `prefers-reduced-motion` for any animation — and drop the **motion**, not the
+  **information**. A blanket `animation-iteration-count: 1 !important` guard freezes an
+  informational animation into an ornament: measured on `.b2b-progress`, which becomes a static
+  stripe indistinguishable from a decorative border, and on `.b2b-spin`, which becomes an arc.
+- A status conveyed visually — loading, saving, a result count, a validation summary — has a
+  programmatic equivalent in a live region (`role="status"` / `aria-live="polite"`), mounted
+  **before** it has text, because a live region that arrives already carrying its message is not
+  reliably announced. WCAG SC 4.1.3, level AA. **Axe cannot decide this**: it is a design-review
+  obligation, and it reached this list through D-206 rather than through a tool.
 
 ---
 
