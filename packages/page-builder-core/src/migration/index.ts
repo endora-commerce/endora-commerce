@@ -21,10 +21,17 @@ export {
   dropRenameFunctionSql,
 } from './rename-block-names-sql.js';
 
+// The structural walk itself is **not** part of this subpath's quarantine and
+// lives one directory up, on the package's ordinary barrel (`../block-tree.js`).
+// The thing that must not be reachable at runtime is the frozen rename *map*;
+// the walk is a generic "offer me every node `type` in this document", and the
+// admin's degradation merge needs exactly that to decide which stored names
+// have no renderer (FR-019). Re-exported here so the five migrations and the
+// report keep importing one specifier.
 export {
   countBlockNames,
   mapBlockNames,
   renameBlockNames,
   type BlockNameVisitor,
   type BlockNameWalkResult,
-} from './walk-block-names.js';
+} from '../block-tree.js';
