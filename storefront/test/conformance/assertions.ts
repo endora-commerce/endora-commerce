@@ -417,7 +417,7 @@ const FAILING_IMPACTS = new Set(['serious', 'critical']);
 
 /** The `(route, rule, target)` triple, one string, for both directions. */
 function keyOf(route: string, rule: string, target: string): string {
-  return `${route} ${rule} ${target}`;
+  return [route, rule, target].join(' ');
 }
 
 /** axe's own CSS path, flattened — it nests one for a shadow root. */
