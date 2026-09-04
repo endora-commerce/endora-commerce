@@ -696,7 +696,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population and is cleared. Recording the observed value absorbs the **+3**
     // the note above left here deliberately: that branch moved no fold site and
     // said so, and this one does, so the field is this branch’s to record.
-    sites: 493,
+    sites: 494,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -893,7 +893,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
     // **Feature 100 Phase 3: 1749 -> 1750.** One: the companion test this branch
     // adds under `backend/test/`, which is this walk's population.
-    files: 1750,
+    files: 1751,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -929,7 +929,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
     // **Feature 100 Phase 3: 1749 -> 1750.** One: the companion test this branch
     // adds under `backend/test/`, which is this walk's population.
-    files: 1750,
+    files: 1751,
     sites: null,
     sources: [],
   },
@@ -1733,7 +1733,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its declared exclusions, so it sees every file a branch adds: 72 of the 149
     // are this branch's (71 reference pages and one test file) and the rest is
     // `origin/master`'s growth, inside the band and named rather than absorbed.
-    files: 7541,
+    files: 7539,
     sites: null,
     sources: [],
   },
@@ -2149,7 +2149,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
     // **Feature 100 Phase 3: 1749 -> 1750.** One: the companion test this branch
     // adds under `backend/test/`, which is this walk's population.
-    files: 1750,
+    files: 1751,
     sites: 163,
     sources: [],
   },
@@ -2257,7 +2257,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the observed value absorbs **+32** from earlier merges (this branch's base,
     // 36174efa1, observed 4184).
     // **Feature 100 Phase 3: 4175 -> 4176.** One: the companion test this branch adds.
-    files: 4176,
+    files: 4177,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2403,7 +2403,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 100 Phase 3: 7452 -> 7524.** The 72 are this branch's: 71 generated
     // reference pages and one test file, all of them tracked or untracked-and-not-
     // ignored, which is what this listing counts.
-    files: 7524,
+    files: 7522,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2447,7 +2447,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 100 Phase 3: 5566 -> 5638.** The 72 are this branch's 71 generated
     // reference pages — every one of them a `/docs/` page and therefore in the
     // Principle VIII population — plus one source file.
-    files: 5638,
+    files: 5639,
     sites: null,
     sources: ['manifest-index'],
   },
