@@ -997,6 +997,22 @@ select:focus-visible {
     scroll-behavior: auto !important;
   }
   .b2b-route-fade { animation: none !important; }
+
+  /* The blanket reset above freezes every animation after one 0.01 ms
+     iteration. For decoration that is right; for an *indicator* it removes the
+     information and keeps the ornament. Measured on the built stylesheet with
+     `reducedMotion: 'reduce'`: `.b2b-progress::after` computes to
+     `transform: none` with `getAnimations()` empty, identical at 0.3 s and at
+     3.0 s — a static 2 px rule 40% of the viewport wide, indistinguishable
+     from a border. Motion is not what the bar has to carry; presence is. So
+     drop the travelling segment and let the bar be a full-width state that
+     appears and disappears. `NavigationFeedback`'s live region carries the
+     same fact to a screen reader. */
+  .b2b-progress::after {
+    width: 100%;
+    background: var(--brand-600);
+    opacity: 0.85;
+  }
 }
 
 /* Breadcrumbs already styled via .b2b-breadcrumbs above */

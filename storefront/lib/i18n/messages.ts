@@ -12,6 +12,8 @@ export type SupportedLocale = string;
 
 export type MessageKey =
   | 'a11y.skipToContent'
+  | 'a11y.navigating'
+  | 'a11y.navigatingSlow'
   | 'nav.home'
   | 'nav.catalog'
   | 'nav.search'
@@ -341,6 +343,8 @@ export type MessageKey =
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
     'a11y.skipToContent': 'Skip to content',
+    'a11y.navigating': 'Loading the next page.',
+    'a11y.navigatingSlow': 'Still loading. The next page is taking longer than usual.',
     'nav.home': 'Home',
     'nav.catalog': 'Catalog',
     'nav.search': 'Search',
@@ -676,6 +680,8 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
   },
   'pl-PL': {
     'a11y.skipToContent': 'Przejdz do tresci',
+    'a11y.navigating': 'Wczytywanie następnej strony.',
+    'a11y.navigatingSlow': 'Nadal wczytujemy. Następna strona ładuje się dłużej niż zwykle.',
     'nav.home': 'Strona glowna',
     'nav.catalog': 'Katalog',
     'nav.search': 'Wyszukiwanie',
