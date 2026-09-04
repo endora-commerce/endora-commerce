@@ -201,6 +201,18 @@ describe('T143a cluster 6 — module-owned machinery is built by its module', ()
  */
 const layout = await requireModuleLayout('[module-owned-contributions]');
 
+/**
+ * Every module's **source**, which is deliberately not every module's `.ts`.
+ *
+ * A module package's harness-free tests sit beside the sources they cover
+ * (feature 106), so a bare `.ts` walk reads them as well — and the offender
+ * sweep below matches flattened text, comments included. `customers`'
+ * `sales-rep-scope-wiring.test.ts` opens by describing the defect it pins,
+ * *"the module used to construct `new SalesRepAssignmentService(...)`"*, and
+ * that sentence read as a second construction of the service. The subject of
+ * every assertion in this file is composition — who registers, who constructs,
+ * who resolves — and a test is none of those.
+ */
 function moduleFiles(): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {
@@ -208,7 +220,7 @@ function moduleFiles(): string[] {
       if (name === 'node_modules' || name === 'dist') continue;
       const full = join(dir, name);
       if (statSync(full).isDirectory()) walk(full);
-      else if (name.endsWith('.ts')) out.push(full);
+      else if (name.endsWith('.ts') && !name.endsWith('.test.ts')) out.push(full);
     }
   };
   for (const root of layout.moduleWalkRoots) walk(root);

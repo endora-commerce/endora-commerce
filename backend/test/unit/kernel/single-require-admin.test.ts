@@ -49,13 +49,23 @@ const KERNEL_PORT = 'packages/platform/src/kernel/ports/require-admin.ts';
  * `node_modules`, and pnpm links every workspace member into it — so an
  * unpruned walk reads the platform's `require-admin.ts` once per module package
  * and reports 60 declarations of a type that has one.
+ *
+ * A **test file is not a declaration and not an implementation** (feature 106).
+ * A module package's harness-free tests now sit beside the sources they cover,
+ * so this walk reads them too — and a test whose subject is the scanner that
+ * *recognises* `createRequireAdmin` carries that text as a fixture string:
+ * `admin_roles`' `permission-inventory-scanner.test.ts` builds the source it
+ * scans out of literals, and the implementation sweep read it as a second
+ * implementation of the guard. The exclusion is on the file's role, not on where
+ * it happens to live: both assertions here are about source, and a fixture is
+ * not source.
  */
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     if (PRUNED_DIRECTORIES.includes(entry)) continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
-    else if (entry.endsWith('.ts')) out.push(full);
+    else if (entry.endsWith('.ts') && !entry.endsWith('.test.ts')) out.push(full);
   }
   return out;
 }
