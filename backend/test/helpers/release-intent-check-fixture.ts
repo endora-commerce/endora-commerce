@@ -168,3 +168,42 @@ export function configuredAs(mutate: (config: Record<string, unknown>) => void):
   mutate(config);
   return { '.changeset/config.json': JSON.stringify(config, null, 2) };
 }
+
+/**
+ * One public package a *second* workspace glob puts a directory deeper — the
+ * shape `packages/modules/*` has in this repository, and the one the publish
+ * job's own derivation could not see.
+ *
+ * It is a whole checkout override rather than a flag because the thing under
+ * test is the walk: the workspace file gains the nested entry, the member sits
+ * under it, and `packages/*` goes on matching `packages/modules` itself, which
+ * carries no manifest and is therefore the parent of members rather than a
+ * member. That is the directory whose absent `package.json` the retired
+ * `readdir` threw on.
+ *
+ * `@fx/alpha` and `@fx/beta` stay private, so the nested member is the **only**
+ * public package: a derivation that cannot reach it resolves no scope at all
+ * rather than a subtly narrower one, which is what makes the proof discriminate.
+ */
+export const NESTED_FAMILY_PACKAGE: FileMap = {
+  'pnpm-workspace.yaml': 'packages:\n  - apps/host\n  - packages/*\n  - packages/modules/*\n',
+  'apps/host/package.json': JSON.stringify({
+    name: 'host',
+    version: '0.0.0',
+    private: true,
+    scripts: { build: 'next build' },
+    dependencies: { next: '^15.0.0', '@fx/gamma': 'workspace:*' },
+  }),
+  'packages/modules/gamma/package.json': JSON.stringify({
+    name: '@fx/gamma',
+    version: '1.0.0',
+    repository: {
+      type: 'git',
+      url: 'https://example.invalid/fx.git',
+      directory: 'packages/modules/gamma',
+    },
+    publishConfig: { access: 'public' },
+  }),
+  'packages/modules/gamma/tsconfig.build.json':
+    '{ "compilerOptions": { "rootDir": "./src" }, "include": ["src/**/*"] }',
+};

@@ -12,11 +12,13 @@ import {
   matchesTsGlob,
   normalizeRelative,
   parseChangeset,
+  publishScope,
   readPublishedSurface,
   readReleaseIntent,
   unreadablePattern,
   unservableScope,
   type BranchDiff,
+  type PublishScope,
   type ReleaseIntentFinding,
   type ReleaseIntentFindingKind,
 } from '../../../scripts/check-release-intent.js';
@@ -26,6 +28,7 @@ import {
   configuredAs,
   FIXTURE_ROOT,
   HOST_SOURCED_PACKAGE,
+  NESTED_FAMILY_PACKAGE,
   PUBLISHED_ALPHA,
   publishedAlphaAs,
   type FileMap,
@@ -1073,5 +1076,157 @@ describe('check-release-intent --since — the derivation underneath', () => {
       },
     ]);
     expect(result.findings).toEqual([]);
+  });
+});
+
+/**
+ * `--print-publish-scope` — the derivation `publish:packages` used to keep.
+ *
+ * The job writes one `.npmrc` line per scope *before* `changeset publish` runs,
+ * so it has to name the scope in advance. It derived it itself, with a
+ * `readdir("packages")` one level deep, and that is the `build:packages`
+ * single-star problem arriving a second time through a `readdir`:
+ * `packages/modules` carries no `package.json`, the read threw, the `catch`
+ * swallowed it, and every module package under it was invisible. Measured on the
+ * tree that repaired it: 9 directories walked, one of them the parent of 70
+ * members the derivation never saw.
+ *
+ * **A green run proves nothing about it**, which is why the proofs below are
+ * shaped the way they are: the retired derivation is *correct* for the three
+ * top-level public packages this repository has today, and stays correct until
+ * the first module package goes public. So the discriminating fixture is a
+ * checkout whose only public package sits a directory deeper, and the red proof
+ * runs the retired predicate over that same fixture to show it answers nothing.
+ */
+describe('check-release-intent — the publish scope', () => {
+  function scopeOfCheckout(overrides: Parameters<typeof checkout>[0] = {}): PublishScope {
+    const tree = checkout(overrides);
+    const inputs = readReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in inputs) throw new Error(`expected inputs, got a refusal: ${inputs.reason}`);
+    return publishScope(inputs.members);
+  }
+
+  /**
+   * The derivation exactly as `.gitlab-ci.yml` carried it, over the fixture's
+   * filesystem. It is reproduced here rather than imported because it is
+   * *deleted*: what this asserts is that the fixture discriminates, and a proof
+   * that cannot show the old answer differing from the new one is a proof of
+   * nothing.
+   */
+  function retiredReaddirDerivation(overrides: Parameters<typeof checkout>[0] = {}): string[] {
+    const tree = checkout(overrides);
+    const scopes = new Set<string>();
+    for (const entry of tree.fs.listDirectories(`${FIXTURE_ROOT}/packages`)) {
+      let manifest: Record<string, unknown>;
+      try {
+        manifest = JSON.parse(
+          tree.fs.readText(`${FIXTURE_ROOT}/packages/${entry}/package.json`) ?? 'null',
+        ) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+      // The `catch` above is the one that swallowed `packages/modules`; a `null`
+      // parse is the same absence arriving without a throw.
+      if (manifest === null || manifest['private'] === true) continue;
+      const name = manifest['name'];
+      if (typeof name === 'string' && name.startsWith('@')) scopes.add(name.split('/')[0]!);
+    }
+    return [...scopes].sort();
+  }
+
+  it('resolves the scope of the public packages', () => {
+    const resolved = scopeOfCheckout(PUBLISHED_ALPHA);
+    expect(resolved.refusal).toBe('');
+    expect(resolved.scope).toBe('fx');
+    expect(resolved.packages).toEqual(['@fx/alpha']);
+  });
+
+  /** The red proof: the shape that was broken, and the two answers over it. */
+  it('sees a public package a second workspace glob puts a directory deeper', () => {
+    const resolved = scopeOfCheckout(NESTED_FAMILY_PACKAGE);
+    expect(resolved.refusal).toBe('');
+    expect(resolved.scope).toBe('fx');
+    expect(resolved.packages).toEqual(['@fx/gamma']);
+  });
+
+  it('is the answer the retired one-level `readdir` could not give', () => {
+    // Same checkout, same filesystem, the derivation this branch deleted: the
+    // nested member is not under `packages/<name>/package.json`, so it is not
+    // seen, and the job would have authenticated for no scope at all.
+    expect(retiredReaddirDerivation(NESTED_FAMILY_PACKAGE)).toEqual([]);
+    // While the top-level shape it *was* written for still answers, which is
+    // why nothing in this repository has gone wrong yet.
+    expect(retiredReaddirDerivation(PUBLISHED_ALPHA)).toEqual(['@fx']);
+  });
+
+  it('refuses an empty member set rather than resolving a scope over nothing', () => {
+    // The CLI mode cannot reach this through a real checkout — `readReleaseIntent`
+    // refuses a `pnpm-workspace.yaml` that yields no entry first, and the mode
+    // exits 2 on that refusal, which is asserted below. The branch is here
+    // because `publishScope` is exported and a second caller would otherwise
+    // resolve a scope over an empty population.
+    const resolved = publishScope([]);
+    expect(resolved.scope).toBeNull();
+    expect(resolved.refusal).toContain('no member at all');
+  });
+
+  it('is refused upstream for a workspace that declares no member', () => {
+    // A flow-style `packages:` list reads as no entry (`lib/workspace-packages.ts`).
+    const tree = checkout({ 'pnpm-workspace.yaml': 'packages: [apps/host, packages/*]\n' });
+    const inputs = readReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    expect('reason' in inputs ? inputs.reason : '').toContain('no `packages:` entries');
+  });
+
+  it('refuses a checkout in which nothing is public', () => {
+    const resolved = scopeOfCheckout();
+    expect(resolved.scope).toBeNull();
+    expect(resolved.refusal).toContain('no versionable package is public');
+  });
+
+  it('refuses a public package with no scope, rather than skipping it', () => {
+    const resolved = scopeOfCheckout(
+      publishedAlphaAs((manifest) => {
+        manifest['name'] = 'alpha';
+      }),
+    );
+    expect(resolved.scope).toBeNull();
+    expect(resolved.refusal).toContain('unscoped');
+  });
+
+  it('refuses two scopes, which one `.npmrc` line cannot cover', () => {
+    const resolved = scopeOfCheckout({
+      ...PUBLISHED_ALPHA,
+      'packages/beta/package.json': JSON.stringify({
+        name: '@other/beta',
+        version: '1.0.0',
+        repository: 'https://example.invalid/fx.git',
+        publishConfig: { access: 'public' },
+      }),
+    });
+    expect(resolved.scope).toBeNull();
+    expect(resolved.refusal).toContain('2 scopes');
+  });
+
+  /**
+   * And over the tree the job actually runs it on, so a green here is a
+   * statement about this repository rather than about a fixture.
+   */
+  it('resolves this repository to one scope over every workspace member', () => {
+    const root = REPO_ROOT.replace(/\/$/, '');
+    const inputs = readReleaseIntent(root, nodeWorkspaceFs(), (dir) =>
+      readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name),
+    );
+    if ('reason' in inputs) throw new Error(inputs.reason);
+    const resolved = publishScope(inputs.members);
+
+    expect(resolved.scope).toBe('endora-commerce');
+    // The population is the whole workspace, module packages included — the
+    // number the retired derivation could not reach was 9 directories.
+    expect(inputs.members.length).toBeGreaterThan(70);
+    expect(
+      inputs.members.filter((member) => member.dir.startsWith('packages/modules/')).length,
+    ).toBeGreaterThan(0);
   });
 });
