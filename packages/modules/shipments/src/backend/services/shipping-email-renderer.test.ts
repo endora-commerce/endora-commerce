@@ -3,7 +3,7 @@ import {
   defaultShippingEmailRenderer,
   registerShippingEmailRenderer,
   resolveShippingEmailRenderer,
-} from '../../../../packages/modules/shipments/src/backend/services/shipping-email-renderer.js';
+} from './shipping-email-renderer.js';
 
 /**
  * T047 (US6) — email shipping-renderer registry + default text builder.

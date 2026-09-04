@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AutoShipmentOnPaidNotifier } from '../../../../packages/modules/shipments/src/backend/services/auto-shipment-on-paid.js';
-import type { ShipmentService } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
+import { AutoShipmentOnPaidNotifier } from './auto-shipment-on-paid.js';
+import type { ShipmentService } from './shipment-service.js';
 import type {
   DeliveryMethodReadPort,
   OrderReadPort,
