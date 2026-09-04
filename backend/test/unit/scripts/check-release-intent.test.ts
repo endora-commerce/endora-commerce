@@ -15,6 +15,7 @@ import {
   readPublishedSurface,
   readReleaseIntent,
   unreadablePattern,
+  unservableScope,
   type BranchDiff,
   type ReleaseIntentFinding,
   type ReleaseIntentFindingKind,
@@ -25,6 +26,8 @@ import {
   configuredAs,
   FIXTURE_ROOT,
   HOST_SOURCED_PACKAGE,
+  PUBLISHED_ALPHA,
+  publishedAlphaAs,
   type FileMap,
 } from '../../helpers/release-intent-check-fixture.js';
 
@@ -142,17 +145,90 @@ describe('check-release-intent — the four lines that look like boilerplate', (
       'packages/beta/package.json': '{ "name": "@fx/beta", "version": "1.0.0" }',
     });
     expect(kinds(found)).not.toContain('version-disabled');
-    expect(kinds(found)).not.toContain('tag-without-publication');
+    expect(kinds(found)).not.toContain('tag-policy-unstated');
   });
 });
 
-describe('check-release-intent — publication, and the tag question it carries', () => {
-  it('reports a versionable package that is no longer private (D-160.5)', () => {
+describe('check-release-intent — publication, and which packages may be public', () => {
+  /**
+   * D-203 publishes three packages, so `publishable-package` — which fired for
+   * *any* public versionable member — would fire three times on a correct tree,
+   * forever. The narrowed question is **may this package be public**, answered
+   * by the closure of the reference storefront's dependencies (feature 104,
+   * FR-001), and this is the half that must still go red: a package nobody
+   * decided to publish.
+   */
+  it('reports a public package the reference storefront does not reach', () => {
     const found = findings({
       'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0" }',
     });
-    expect(kinds(found)).toContain('publishable-package');
-    expect(found.find((f) => f.kind === 'publishable-package')?.subject).toBe('@fx/alpha');
+    expect(kinds(found)).toContain('unexpected-public-package');
+    expect(found.find((f) => f.kind === 'unexpected-public-package')?.subject).toBe('@fx/alpha');
+  });
+
+  /**
+   * The discrimination that makes the narrowing worth having: the package the
+   * storefront depends on, complete and public, is not a finding at all. Without
+   * this the rule could be satisfied by a check that still refuses every public
+   * package, which is the state feature 104 exists to leave.
+   */
+  it('reports nothing for a public package that is in the set and fit to be', () => {
+    expect(findings(PUBLISHED_ALPHA)).toEqual([]);
+  });
+
+  /**
+   * The closure is over `dependencies` **and** `peerDependencies`, because a
+   * consumer installs both: `cms-components` reaches `page-builder-core` only as
+   * a peer, and a closure that stopped at `dependencies` would report the
+   * package the storefront actually resolves as one nobody decided to publish.
+   */
+  it('follows `peerDependencies` into the publication set', () => {
+    const found = findings({
+      ...PUBLISHED_ALPHA,
+      'packages/alpha/package.json': JSON.stringify({
+        name: '@fx/alpha',
+        version: '1.0.0',
+        repository: { url: 'https://example.invalid/fx.git' },
+        publishConfig: { access: 'public' },
+        peerDependencies: { '@fx/beta': 'workspace:^' },
+      }),
+      'packages/beta/package.json': JSON.stringify({
+        name: '@fx/beta',
+        version: '1.0.0',
+        repository: { url: 'https://example.invalid/fx.git' },
+        publishConfig: { access: 'public' },
+      }),
+    });
+    expect(kinds(found)).not.toContain('unexpected-public-package');
+  });
+
+  /**
+   * And **not** over `devDependencies`, which is load-bearing rather than
+   * tidy: `page-builder-admin` dev-depends on five siblings and a consumer
+   * installs none of them, so a closure that followed them would declare eight
+   * packages publishable where three are.
+   */
+  it('does not follow `devDependencies` into the publication set', () => {
+    const found = findings({
+      ...PUBLISHED_ALPHA,
+      'packages/beta/package.json': JSON.stringify({
+        name: '@fx/beta',
+        version: '1.0.0',
+        repository: { url: 'https://example.invalid/fx.git' },
+        publishConfig: { access: 'public' },
+      }),
+      'apps/host/package.json': JSON.stringify({
+        name: 'host',
+        version: '0.0.0',
+        private: true,
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0', '@fx/alpha': 'workspace:*' },
+        devDependencies: { '@fx/beta': 'workspace:^' },
+      }),
+    });
+    expect(found.filter((f) => f.kind === 'unexpected-public-package').map((f) => f.subject)).toEqual(
+      ['@fx/beta'],
+    );
   });
 
   /**
@@ -162,36 +238,273 @@ describe('check-release-intent — publication, and the tag question it carries'
    * and `docs` — and be switched off within a day.
    */
   it('does not report an application that is not private', () => {
-    const found = findings({ 'apps/host/package.json': '{ "name": "host", "version": "0.0.0" }' });
-    expect(kinds(found)).not.toContain('publishable-package');
+    const found = findings({
+      'apps/host/package.json': JSON.stringify({
+        name: 'host',
+        version: '0.0.0',
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0' },
+      }),
+    });
+    expect(kinds(found)).not.toContain('unexpected-public-package');
+  });
+});
+
+describe('check-release-intent — is a public package fit to be published', () => {
+  it('reports a public package that declares no `repository`', () => {
+    const found = findings(
+      publishedAlphaAs((manifest) => {
+        delete manifest['repository'];
+      }),
+    );
+    expect(kinds(found)).toContain('incomplete-public-package');
+    expect(found.find((f) => f.kind === 'incomplete-public-package')?.message).toContain(
+      '`repository`',
+    );
   });
 
-  it('reports tagging turned on while nothing is published', () => {
+  it('reports a public package that declares no `publishConfig.access`', () => {
+    const found = findings(
+      publishedAlphaAs((manifest) => {
+        delete manifest['publishConfig'];
+      }),
+    );
+    expect(found.find((f) => f.kind === 'incomplete-public-package')?.message).toContain(
+      '`publishConfig.access`',
+    );
+  });
+
+  /**
+   * `license` is **not** judged, and its absence is a decision rather than an
+   * oversight: the owner deferred the licence to the merge request that makes a
+   * package public on npmjs (D-203, amended 2026-09-04), and licence
+   * rights come from the contract. A check that demanded it here would force
+   * the question this repository has deliberately not answered yet.
+   */
+  it('does not report a public package that declares no `license`', () => {
+    expect(kinds(findings(PUBLISHED_ALPHA))).not.toContain('incomplete-public-package');
+  });
+
+  /**
+   * The value the rehearsal cannot exercise. GitLab ignores `--access` and takes
+   * a package's visibility from the project, so nothing about a private-registry
+   * publish would reveal this before the first public one — which is the publish
+   * that cannot be taken back.
+   */
+  it('reports `access: restricted` declared by the package itself', () => {
+    const found = findings(
+      publishedAlphaAs((manifest) => {
+        manifest['publishConfig'] = { access: 'restricted' };
+      }),
+    );
+    expect(kinds(found)).toContain('restricted-public-package');
+  });
+
+  it('reports `access: restricted` inherited from `.changeset/config.json`', () => {
+    const found = findings({
+      ...publishedAlphaAs((manifest) => {
+        delete manifest['publishConfig'];
+      }),
+      ...configuredAs((config) => {
+        config['access'] = 'restricted';
+      }),
+    });
+    expect(kinds(found)).toContain('restricted-public-package');
+  });
+
+  /**
+   * And the state that arrives by omission, which is the one that ships: neither
+   * the package nor the configuration states an access, and changesets defaults
+   * to `restricted`. A rule that read "no value" as "nothing to judge" would be
+   * silent for exactly the tree that publishes to nobody.
+   */
+  it('reports the changesets default when nobody states an access at all', () => {
+    const found = findings({
+      ...publishedAlphaAs((manifest) => {
+        delete manifest['publishConfig'];
+      }),
+      ...configuredAs((config) => {
+        delete config['access'];
+      }),
+    });
+    expect(kinds(found)).toContain('restricted-public-package');
+  });
+
+  it('does not report a package whose access resolves to public', () => {
+    expect(kinds(findings(PUBLISHED_ALPHA))).not.toContain('restricted-public-package');
+  });
+});
+
+describe('check-release-intent — a scope the registry can serve', () => {
+  /**
+   * R2/R2.1: the instance endpoint turns a **scope** into a top-level namespace
+   * path, and a scope that resolves to none is not an error — the request is
+   * forwarded to npmjs and the client is told the package is not in the npm
+   * registry. Every case below is therefore invisible to any install anyone
+   * could run, which is why they are static findings.
+   */
+  it('reports an unscoped public package', () => {
+    const found = findings({
+      ...PUBLISHED_ALPHA,
+      'apps/host/package.json': JSON.stringify({
+        name: 'host',
+        version: '0.0.0',
+        private: true,
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0', alpha: 'workspace:*' },
+      }),
+      'packages/alpha/package.json': JSON.stringify({
+        name: 'alpha',
+        version: '1.0.0',
+        repository: { url: 'https://example.invalid/fx.git' },
+        publishConfig: { access: 'public' },
+      }),
+    });
+    expect(kinds(found)).toContain('unresolvable-scope');
+    expect(found.find((f) => f.kind === 'unresolvable-scope')?.message).toContain('unscoped');
+  });
+
+  it('reports a scope GitLab reserves as a top-level route', () => {
+    const found = findings({
+      ...PUBLISHED_ALPHA,
+      'apps/host/package.json': JSON.stringify({
+        name: 'host',
+        version: '0.0.0',
+        private: true,
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0', '@api/alpha': 'workspace:*' },
+      }),
+      'packages/alpha/package.json': JSON.stringify({
+        name: '@api/alpha',
+        version: '1.0.0',
+        repository: { url: 'https://example.invalid/fx.git' },
+        publishConfig: { access: 'public' },
+      }),
+    });
+    expect(found.find((f) => f.kind === 'unresolvable-scope')?.message).toContain('reserved');
+  });
+
+  it('reports a scope that is not spellable as a namespace path', () => {
+    expect(unservableScope('@fx~one/alpha')).toContain('namespace path');
+    expect(unservableScope('@fx.git/alpha')).toContain('`.git`');
+    expect(unservableScope('@endora-commerce/contracts')).toBeNull();
+  });
+
+  /**
+   * The client holds one `.npmrc` line per scope (R3) and the scaffold writes
+   * one, so a second scope resolves through whatever the client's default
+   * registry is — which serves none of them, in the same sentence as a package
+   * that does not exist.
+   */
+  it('reports two public packages published under two scopes', () => {
+    const found = findings({
+      ...PUBLISHED_ALPHA,
+      'apps/host/package.json': JSON.stringify({
+        name: 'host',
+        version: '0.0.0',
+        private: true,
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0', '@fx/alpha': 'workspace:*', '@other/beta': 'workspace:*' },
+      }),
+      'packages/beta/package.json': JSON.stringify({
+        name: '@other/beta',
+        version: '1.0.0',
+        repository: { url: 'https://example.invalid/fx.git' },
+        publishConfig: { access: 'public' },
+      }),
+    });
+    expect(found.find((f) => f.kind === 'unresolvable-scope')?.subject).toBe('fx, other');
+  });
+});
+
+describe('check-release-intent — the tag policy, in both states', () => {
+  it('reports tagging turned on while a versionable package is private', () => {
     const found = findings(
       configuredAs((config) => {
         config['privatePackages'] = { version: true, tag: true };
       }),
     );
-    expect(kinds(found)).toContain('tag-without-publication');
+    expect(kinds(found)).toContain('tag-policy-unstated');
   });
 
   /**
-   * The coupling that makes the tag answer enforced rather than a paragraph:
-   * the day a package stops being private, `privatePackages.tag` stops being
-   * required to be `false`, and `publishable-package` is what puts a human in
-   * front of the decision in that same merge request.
+   * **The regression the old rule had built into it.** `tag-without-publication`
+   * asked its question under `privateVersionable.length === versionable.length`,
+   * so the first public package made it stop firing in *either* direction and
+   * nothing then held `privatePackages.tag` at all — the estate's own failure,
+   * a check that quietly stops asking, arriving through the repair that made
+   * three packages public. In the mixed state the private remainder is still
+   * tagged, so the rule still has a subject.
    */
-  it('stops requiring `tag: false` once a versionable package is publishable', () => {
+  it('keeps asking in the mixed state, where the old rule went quiet', () => {
     const found = findings({
+      ...PUBLISHED_ALPHA,
       ...configuredAs((config) => {
         config['privatePackages'] = { version: true, tag: true };
       }),
-      'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0" }',
     });
-    expect(kinds(found)).not.toContain('tag-without-publication');
-    expect(kinds(found)).toContain('publishable-package');
+    expect(kinds(found)).toContain('tag-policy-unstated');
+    expect(found.find((f) => f.kind === 'tag-policy-unstated')?.message).toContain(
+      'versionable package(s) are private',
+    );
+  });
+
+  /**
+   * The other state, and the reason the rule is *total*: once no versionable
+   * package is private the field governs nothing — `changeset publish` tags a
+   * public package whatever it says — so an absent field is the
+   * `@changesets/config@4` default rather than anybody's decision. There is no
+   * configuration of that field, in either state, for which no rule applies.
+   */
+  it('reports an unstated tag policy once nothing versionable is private', () => {
+    const found = findings({
+      ...PUBLISHED_ALPHA,
+      'packages/beta/package.json': JSON.stringify({
+        name: '@fx/beta',
+        version: '1.0.0',
+        repository: { url: 'https://example.invalid/fx.git' },
+        publishConfig: { access: 'public' },
+      }),
+      'apps/host/package.json': JSON.stringify({
+        name: 'host',
+        version: '0.0.0',
+        private: true,
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0', '@fx/alpha': 'workspace:*', '@fx/beta': 'workspace:*' },
+      }),
+      ...configuredAs((config) => {
+        config['privatePackages'] = { version: true };
+      }),
+    });
+    expect(kinds(found)).toContain('tag-policy-unstated');
+    expect(found.find((f) => f.kind === 'tag-policy-unstated')?.message).toContain('is not stated');
+  });
+
+  it('accepts a stated policy in that state, whichever way it is stated', () => {
+    const allPublic = (tag: boolean): FileMap => ({
+      ...PUBLISHED_ALPHA,
+      'packages/beta/package.json': JSON.stringify({
+        name: '@fx/beta',
+        version: '1.0.0',
+        repository: { url: 'https://example.invalid/fx.git' },
+        publishConfig: { access: 'public' },
+      }),
+      'apps/host/package.json': JSON.stringify({
+        name: 'host',
+        version: '0.0.0',
+        private: true,
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0', '@fx/alpha': 'workspace:*', '@fx/beta': 'workspace:*' },
+      }),
+      ...configuredAs((config) => {
+        config['privatePackages'] = { version: true, tag };
+      }),
+    });
+    expect(kinds(findings(allPublic(true)))).not.toContain('tag-policy-unstated');
+    expect(kinds(findings(allPublic(false)))).not.toContain('tag-policy-unstated');
   });
 });
+
 
 describe('check-release-intent — the ignore list, both directions', () => {
   /**
@@ -297,7 +610,7 @@ describe('check-release-intent — groups and written intent', () => {
   });
 });
 
-describe('check-release-intent — six ways it refuses to report on what it did not read', () => {
+describe('check-release-intent — eight ways it refuses to report on what it did not read', () => {
   it('refuses a missing `.changeset/config.json`', () => {
     expect(refusal({ '.changeset/config.json': null })).toContain('missing');
   });
@@ -346,6 +659,50 @@ describe('check-release-intent — six ways it refuses to report on what it did 
         }),
       ),
     ).toContain('glob grammar');
+  });
+
+  /**
+   * Feature 104's two, and both turn on the same fact: with a package public,
+   * *which packages may be public* has to have an answer. A checkout with no
+   * reference storefront has none — and reporting the public package as
+   * expected, or as unexpected, would be a verdict this run did not measure
+   * (issue #113).
+   */
+  it('refuses a public package in a checkout with no reference storefront', () => {
+    expect(
+      refusal({
+        ...PUBLISHED_ALPHA,
+        'apps/host/package.json': '{ "name": "host", "version": "0.0.0", "private": true }',
+      }),
+    ).toContain('no workspace member is a Next application');
+  });
+
+  it('refuses a public package in a checkout with two of them', () => {
+    expect(
+      refusal({
+        ...PUBLISHED_ALPHA,
+        'packages/beta/package.json': JSON.stringify({
+          name: '@fx/beta',
+          version: '1.0.0',
+          private: true,
+          scripts: { build: 'next build' },
+          dependencies: { next: '^15.0.0' },
+        }),
+      }),
+    ).toContain('are Next applications');
+  });
+
+  /**
+   * The discrimination that keeps those two conditional. An all-private
+   * checkout asks no publication question, so the absence of a reference
+   * storefront is not a refusal there — every other predicate still answers,
+   * and a check that exited 2 over a population nothing consults would be
+   * switched off rather than repaired.
+   */
+  it('does not refuse an all-private checkout with no reference storefront', () => {
+    expect(
+      findings({ 'apps/host/package.json': '{ "name": "host", "version": "0.0.0", "private": true }' }),
+    ).toEqual([]);
   });
 });
 

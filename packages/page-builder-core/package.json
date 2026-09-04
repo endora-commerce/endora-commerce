@@ -1,9 +1,16 @@
 {
   "name": "@endora-commerce/page-builder-core",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "description": "Shared Page Builder primitives — responsive props, context filtering, and component definition helpers for CMS, email, and invoice builders.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/page-builder-core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

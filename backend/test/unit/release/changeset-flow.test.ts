@@ -155,25 +155,31 @@ describe('the changesets CLI is the one this repository ships', () => {
 
 describe('privatePackages.version — the setting that silently disables everything', () => {
   /**
-   * The headline measurement. Every package under `packages/` is
+   * The headline measurement. 75 of the 78 versionable packages are
    * `"private": true`, and `@changesets/config@4` defaults `privatePackages` to
    * `false`; with it false, `changeset version` reports success and moves
    * nothing, leaving the changeset file on disk to be consumed by a release
    * that will never come.
+   *
+   * The subject is `email-components` and was `contracts` until feature 104
+   * published the latter. That is not a fixture detail: `privatePackages`
+   * governs **private** packages, so the measurement is only available over one
+   * — and the case below is the other half, which nothing asserted while every
+   * package was private because there was no tree in which to see it.
    */
   it('bumps nothing, exits 0 and keeps the changeset when it is `false`', () => {
     const dir = fixture({
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
-      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/email-components', 'minor') },
     });
-    const before = versionOf(dir, 'contracts');
+    const before = versionOf(dir, 'email-components');
 
     const run = runChangeset(dir, ['version']);
 
     expect(run.status).toBe(0);
-    expect(versionOf(dir, 'contracts')).toBe(before);
+    expect(versionOf(dir, 'email-components')).toBe(before);
     expect(existsSync(join(dir, '.changeset/a.md'))).toBe(true);
   });
 
@@ -182,12 +188,33 @@ describe('privatePackages.version — the setting that silently disables everyth
       mutateConfig: (config) => {
         delete config['privatePackages'];
       },
-      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/email-components', 'minor') },
     });
-    const before = versionOf(dir, 'contracts');
+    const before = versionOf(dir, 'email-components');
 
     expect(runChangeset(dir, ['version']).status).toBe(0);
-    expect(versionOf(dir, 'contracts')).toBe(before);
+    expect(versionOf(dir, 'email-components')).toBe(before);
+  });
+
+  /**
+   * And the state feature 104 created, which bounds everything above: the same
+   * setting moves a **public** package regardless. `privatePackages.version` is
+   * not a switch on the release flow, it is a switch on whether *private*
+   * packages take part in one — so `check:release-intent`'s `version-disabled`
+   * is a rule about the private remainder, and the day that remainder empties
+   * the setting stops having a subject.
+   */
+  it('bumps a public package whatever `privatePackages.version` says', () => {
+    const dir = fixture({
+      mutateConfig: (config) => {
+        config['privatePackages'] = { version: false, tag: false };
+      },
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+    });
+
+    expect(runChangeset(dir, ['version']).status).toBe(0);
+    expect(versionOf(dir, 'contracts')).toBe('0.1.0');
+    expect(existsSync(join(dir, '.changeset/a.md'))).toBe(false);
   });
 
   /**

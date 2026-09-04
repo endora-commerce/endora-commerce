@@ -1758,7 +1758,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +8.** The whole-repository walk gains the command's three sources and
     // its test, the acceptance criterion's two sources and its test, and the
     // recorded expectation.
-    files: 7470,
+    // **Feature 104: 7470 -> 7476, of which this branch's own contribution is
+    // +2** — its two changeset files, which is the one thing a merge request
+    // reliably adds to a whole-repository walk. The other +4 arrived with
+    // `specs/104-package-publication/`, four markdown files merged on the design
+    // branch without a re-record; recording the observed value absorbs them,
+    // which is what "record what the tree reads" means here.
+    files: 7476,
     sites: null,
     sources: [],
   },
@@ -2119,8 +2125,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer — the population is `2 + members` and the finer one is the patterns
     // and members the ignore list is matched over, so both fall by exactly one.
     // The base reads 85/93, the recorded values exactly.
+    //
+    // **92 -> 105 (feature 104): `sites` only, and `files` deliberately not.**
+    // The population is still `2 + members` — the same 84 manifests are opened
+    // — but three of them are now public, and a public versionable member is
+    // four more decisions: may it be public, is it complete, what does its
+    // `access` resolve to, and can the registry serve its scope. Plus one for
+    // the scope agreement across the set, which is a decision about the set
+    // rather than about a member. 92 + 3x4 + 1, measured, not computed from a
+    // delta.
     files: 84,
-    sites: 92,
+    sites: 105,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
@@ -2430,7 +2445,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its test, the acceptance criterion's two sources and its test, and the
     // recorded expectation. Measured against a detached baseline, for the reason
     // `check:language`'s entry gives.
-    files: 7530,
+    // **Feature 104: 7530 -> 7536**, the same +2 changeset files and the same +4
+    // from `specs/104-package-publication/`'s design merge — the two entries move
+    // together because both walk the whole tracked tree. Parking this one is not
+    // an option: `check:naming` runs in `quality:static` on every push.
+    files: 7536,
     sites: null,
     sources: ['manifest-index'],
   },

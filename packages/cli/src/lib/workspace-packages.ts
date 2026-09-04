@@ -408,3 +408,31 @@ export function adminUiPackages(
     .map((member) => ({ dir: member.dir, name: member.name }))
     .sort((left, right) => left.dir.localeCompare(right.dir));
 }
+
+/**
+ * Is this manifest a Next application — the shape the reference storefront has?
+ *
+ * A member qualifies by declaring `next` as a dependency **and** a `build`
+ * script that runs it. Both halves are needed: a package that merely depends on
+ * `next` may be a component library that peers on it, and a `build` script
+ * naming `next build` in a manifest that does not depend on `next` is a
+ * misconfiguration rather than an application.
+ *
+ * It lives here, beside the derivation of *which directories are members*,
+ * because two consumers ask the same question of the same population and a
+ * second copy of the predicate is two answers waiting to disagree about which
+ * application they are talking about: `new-storefront/reference.ts` resolves the
+ * storefront it copies, and `check-release-intent.ts` resolves the one whose
+ * dependency closure is the publication set (feature 104, FR-001).
+ */
+export function isNextApplication(manifest: Readonly<Record<string, unknown>>): boolean {
+  const dependencies = manifest['dependencies'];
+  const scripts = manifest['scripts'];
+  const declaresNext =
+    typeof dependencies === 'object' && dependencies !== null && 'next' in dependencies;
+  const build =
+    typeof scripts === 'object' && scripts !== null
+      ? (scripts as Record<string, unknown>)['build']
+      : undefined;
+  return declaresNext && typeof build === 'string' && /\bnext build\b/.test(build);
+}
