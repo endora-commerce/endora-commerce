@@ -667,7 +667,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +4.** The whole-tree walk gains `packages/cli/src/new-storefront/`'s
     // three sources and the command's test file. `backend/scripts` is outside this
     // check's population, so the acceptance criterion adds nothing.
-    files: 5183,
+    files: 5184,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -724,7 +724,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrived on `master` and are absorbed here, because a record must describe the
     // tree it is committed with and `recorded + my delta` is the arithmetic that
     // carries somebody else's staleness forward for ever.
-    sites: 497,
+    sites: 499,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -920,7 +920,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
-    files: 1750,
+    files: 1752,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -955,7 +955,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
-    files: 1750,
+    files: 1752,
     sites: null,
     sources: [],
   },
@@ -1758,7 +1758,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +8.** The whole-repository walk gains the command's three sources and
     // its test, the acceptance criterion's two sources and its test, and the
     // recorded expectation.
-    files: 7400,
+    files: 7470,
     sites: null,
     sources: [],
   },
@@ -2173,7 +2173,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
-    files: 1750,
+    files: 1752,
     sites: 163,
     sources: [],
   },
@@ -2283,7 +2283,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +3.** `backend/` plus each package: `packages/cli/src/new-storefront/`'s
     // three sources. The two acceptance scripts are under `backend/scripts`, which
     // this walk does not read.
-    files: 4178,
+    files: 4180,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2430,7 +2430,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its test, the acceptance criterion's two sources and its test, and the
     // recorded expectation. Measured against a detached baseline, for the reason
     // `check:language`'s entry gives.
-    files: 7460,
+    files: 7530,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2475,7 +2475,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // expectation is JSON and outside this walk. Measured against a detached
     // worktree of `origin/master` rather than parked: `--cached` answers from the
     // index, so a delta taken on the branch alone would have read zero.
-    files: 5573,
+    files: 5646,
     sites: null,
     sources: ['manifest-index'],
   },
