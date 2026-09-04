@@ -750,10 +750,10 @@ export function checkRscDiscipline(input: RscDisciplineInput): RscDisciplineResu
           'whose initial value the analysis cannot decide. Deferred or first-paint is not ' +
           'readable here, and the undecidable case may not default to deferred.',
       });
-      seen.add(`${shard ?? ''} ${key}`);
+      seen.add(`${shard ?? ''}\0${key}`);
       continue;
     }
-    seen.add(`${shard ?? ''} ${key}`);
+    seen.add(`${shard ?? ''}\0${key}`);
     if (entry === undefined) {
       findings.push({
         kind: 'client-fetch-on-first-paint',
@@ -788,7 +788,7 @@ export function checkRscDiscipline(input: RscDisciplineInput): RscDisciplineResu
 
   for (const [shard, entries] of Object.entries(input.ledger)) {
     for (const key of Object.keys(entries)) {
-      if (seen.has(`${shard} ${key}`)) continue;
+      if (seen.has(`${shard}\0${key}`)) continue;
       const separator = key.lastIndexOf('#');
       findings.push({
         kind: 'stale-ledger-entry',
