@@ -121,8 +121,12 @@ import {
 } from '../../../scripts/check-off-state-coverage.js';
 import {
   checkModuleDocs,
+  derivedFactSitesOf,
   mapRowsIn,
+  moduleTreePrefixes,
   navigationEntriesIn,
+  proseKey,
+  type DerivedFactSite,
   type ForeignLinkLedger,
   type ModuleDocsFindingKind,
   type PageLink,
@@ -3043,10 +3047,12 @@ function moduleDocsFindings(
     navigation?: readonly string[];
     rows?: readonly { moduleId: string; slug?: string | undefined }[];
     links?: readonly PageLink[];
+    proseSites?: readonly DerivedFactSite[];
     ledgers?: {
       undocumented?: Readonly<Record<string, string>>;
       orphans?: Readonly<Record<string, string>>;
       foreignLinks?: ForeignLinkLedger;
+      derivedFacts?: Readonly<Record<string, string | { sites: number; reason: string }>>;
     };
   },
   kind: ModuleDocsFindingKind,
@@ -3079,11 +3085,66 @@ function moduleDocsFindings(
         modules.map((module) => module.id),
       ),
       links: options.links ?? moduleDocsLinks(fixture),
-      ledgers: { undocumented: {}, orphans: {}, foreignLinks: {}, ...options.ledgers },
+      proseSites: options.proseSites ?? [],
+      ledgers: {
+        undocumented: {},
+        orphans: {},
+        foreignLinks: {},
+        derivedFacts: {},
+        ...options.ledgers,
+      },
     }).findings.filter((finding) => finding.kind === kind).length;
   } finally {
     fixture.cleanup();
   }
+}
+
+/**
+ * A page of prose, as **source text**, over a layout this repository does not
+ * have (feature 100 Phase 3, FR-023).
+ *
+ * The fixture enters at the top of the analysis (issue #130): the prefix
+ * derivation, the matcher and the per-line grouping all run over it, and a proof
+ * handing in a built `DerivedFactSite` would prove the ledger comparison and
+ * leave the predicate — which is the half that decides whether a sentence is a
+ * finding at all — unproven.
+ */
+const MODULE_DOCS_PROSE_LAYOUT = new Map([
+  ['catalog', '/repo/packages/modules/catalog'],
+  ['blog', '/repo/packages/modules/blog'],
+]);
+
+function moduleDocsProseSites(source: string): DerivedFactSite[] {
+  return derivedFactSitesOf(
+    { docId: 'architecture/kernel', path: '/repo/docs/docs/architecture/kernel.md' },
+    source,
+    moduleTreePrefixes(MODULE_DOCS_PROSE_LAYOUT, '/repo'),
+  );
+}
+
+/** The sentence that states where a module's code lives, and one that does not. */
+const MODULE_DOCS_DERIVED_FACT = 'The body is `packages/modules/catalog/src/backend/cli/x.ts`.';
+const MODULE_DOCS_ORDINARY_PATH = 'The kernel is `packages/platform/src/kernel/compose.ts`.';
+
+/**
+ * The discrimination `derived-fact-in-prose` turns on, counted as *cleanliness*.
+ *
+ * The rule is D-100's — a fact the platform derives, restated — and it is
+ * neither "a number in prose" nor "a path in prose". Without this proof the two
+ * above would pass over a predicate that had quietly widened to every path in
+ * the documentation, at which point the ledger is mostly exceptions and the
+ * signal is worth nothing.
+ */
+function moduleDocsDerivedFactDiscrimination(): number {
+  const derived = moduleDocsFindings(
+    { proseSites: moduleDocsProseSites(MODULE_DOCS_DERIVED_FACT) },
+    'derived-fact-in-prose',
+  );
+  const ordinary = moduleDocsFindings(
+    { proseSites: moduleDocsProseSites(MODULE_DOCS_ORDINARY_PATH) },
+    'derived-fact-in-prose',
+  );
+  return derived === 1 && ordinary === 0 ? 1 : 0;
 }
 
 /**
@@ -3625,6 +3686,15 @@ const CHECKS: readonly CheckEntry[] = [
     // which is what lets a proof reach the three findings that only exist for a
     // module-owned page: publishing under a sibling's slug, a slug the site
     // will not route, and a relative link into a sibling's pages.
+    //
+    // **Phase 3 adds `derived-fact-in-prose`** (FR-023), whose population is the
+    // whole site rather than the modules category: an architecture guide names a
+    // module's address as readily as the module's own page does, and § 0.3
+    // measured the sentences across all of `docs/docs`. Its proofs enter as
+    // **source text** and run the real prefix derivation and matcher, because
+    // the predicate is the half that decides whether a sentence is a finding at
+    // all — and the discrimination beside them is what says the rule is *a fact
+    // the platform derives*, not *a path in prose*.
     script: 'backend/scripts/check-module-docs.ts',
     npmScript: 'check:module-docs',
     job: 'quality',
@@ -3740,6 +3810,46 @@ const CHECKS: readonly CheckEntry[] = [
           },
           'foreign-module-link',
         ),
+      ),
+      // FR-023 — a sentence stating where a module's code lives. Both
+      // directions of the ledger: an unledgered sentence, and an entry for one
+      // nobody writes any more, which is the entry the draining batch cannot
+      // see go stale.
+      'derived-fact-in-prose:unledgered': top(() =>
+        moduleDocsFindings(
+          { proseSites: moduleDocsProseSites(MODULE_DOCS_DERIVED_FACT) },
+          'derived-fact-in-prose',
+        ),
+      ),
+      'derived-fact-in-prose:stale': top(() =>
+        moduleDocsFindings(
+          {
+            ledgers: {
+              derivedFacts: { 'architecture/kernel#deadbeef': 'a sentence nobody writes now.' },
+            },
+          },
+          'derived-fact-in-prose',
+        ),
+      ),
+      // The count, which is the other granularity: one sentence naming two
+      // modules is one key and two references, and a ledger that recorded one
+      // is an entry describing half the line it covers.
+      'derived-fact-in-prose:count': top(() => {
+        const sites = moduleDocsProseSites(
+          'See `packages/modules/catalog/src/manifest.ts` and `packages/modules/blog/`.',
+        );
+        return moduleDocsFindings(
+          {
+            proseSites: sites,
+            ledgers: {
+              derivedFacts: { [proseKey(sites[0]!.docId, sites[0]!.line)]: 'one reference.' },
+            },
+          },
+          'derived-fact-in-prose',
+        );
+      }),
+      'derived-fact-discriminates-a-derived-address-from-a-path': top(() =>
+        moduleDocsDerivedFactDiscrimination(),
       ),
       'declaration-discriminates-false-from-absent': top(() =>
         moduleDocsDeclarationDiscrimination(),
@@ -9185,7 +9295,15 @@ describe('every red proof enters at the top of the analysis', () => {
       // call reachable), and **both** directions of `foreign-module-link`'s
       // per-consumer ledger, because the direction a draining batch cannot see
       // is the recorded link the walk no longer finds.
-      'backend/scripts/check-module-docs.ts': 11,
+      //
+      // **11 -> 15 with Phase 3**: `derived-fact-in-prose`, both directions of
+      // its ledger, its `sites` count, and the discrimination the whole
+      // predicate turns on — that a path naming no module is not a finding. The
+      // last is the one that carries the others: the rule is D-100's *a fact the
+      // platform derives, restated*, and a predicate that widened to every path
+      // in the documentation would arrive with a ledger that is mostly
+      // exceptions, which the three red proofs above would not notice.
+      'backend/scripts/check-module-docs.ts': 15,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue

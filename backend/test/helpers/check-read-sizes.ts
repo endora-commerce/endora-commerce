@@ -696,14 +696,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population and is cleared. Recording the observed value absorbs the **+3**
     // the note above left here deliberately: that branch moved no fold site and
     // said so, and this one does, so the field is this branch’s to record.
-    sites: 493,
+    sites: 494,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
     prefix: '[doc-snippets]',
     run: { kind: 'tsx', path: 'scripts/check-doc-snippets.ts', args: [] },
-    files: 1102,
-    sites: 11,
+    // **Feature 100 Phase 3: 1102 -> 1186.** 71 of the 84 are this branch's one
+    // generated reference page per module, which land under `docs/docs` and are
+    // therefore in this walk's population though none of them cites a snippet; the
+    // other 13 are `origin/master`'s own growth, inside the band and named here
+    // rather than absorbed. `sites` moves by one for the same reason it always
+    // does: a document grew a `verbatim-from` block, and not this branch's doing —
+    // recorded at what this tree reads rather than left half-current, because an
+    // entry that describes the tree in one number and not the other is an entry
+    // the drift report has to keep naming.
+    files: 1186,
+    sites: 12,
     sources: [],
   },
   'backend/scripts/check-entity-tenant-classification.ts': {
@@ -882,8 +891,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    // **Feature 096, Phase 6: +1.** The backend block-owner off-state test.
-    files: 1750,
+    // **Feature 100 Phase 3: 1749 -> 1750.** One: the companion test this branch
+    // adds under `backend/test/`, which is this walk's population.
+    files: 1751,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -917,8 +927,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    // **Feature 096, Phase 6: +1.** The backend block-owner off-state test.
-    files: 1750,
+    // **Feature 100 Phase 3: 1749 -> 1750.** One: the companion test this branch
+    // adds under `backend/test/`, which is this walk's population.
+    files: 1751,
     sites: null,
     sources: [],
   },
@@ -1183,7 +1194,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moves by one whenever anybody writes or deletes a page — which is the
     // number that has to move, because the whole defect this check exists for
     // was a page nobody's list mentioned.
-    files: 78,
+    files: 103,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -1198,7 +1209,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widening is a *third* population classified for the first time. A run that
     // moved neither number would have said the move changed nothing, and a run
     // that moved only `files` would have said pages were written.
-    sites: 194,
+    //
+    // **Phase 3: files 78 -> 103, sites 194 -> 264.** `derived-fact-in-prose`'s
+    // population is the **site**, not the modules category — § 0.3 measured the
+    // sentences across all of `docs/docs`, and an architecture guide names a
+    // module's address as readily as the module's own page does — so the walk
+    // now opens the 25 pages outside the category as well, and every page it
+    // already opened is counted once. The 70 sites are the module addresses it
+    // classified, over 69 sentences; one sentence names two. Both numbers had to
+    // move and they move for different reasons, which is the #235/#237 shape
+    // again: a page written outside the category moves `files` alone, and a
+    // sentence added to a page already read moves `sites` alone.
+    sites: 264,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -1707,11 +1729,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `docs/docs/modules/` in the same state on both trees: this is the one check
     // whose population is the whole repository rather than tracked source, and a tree
     // that has run the docs build carries ~77 more.
-    // **Feature 096, Phase 6: +3.** Three test files, one per surface. Measured
-    // **on the rebased tree**: 7392 -> 7395 is this branch's own three, and the
-    // fourth is one file the base gained while this branch was open, which this
-    // walk sees and `check-language.sh`'s and `check-diacritic-folds`' do not.
-    files: 7390,
+    // **Feature 100 Phase 3: 7392 -> 7541.** This walk is the whole repository minus
+    // its declared exclusions, so it sees every file a branch adds: 72 of the 149
+    // are this branch's (71 reference pages and one test file) and the rest is
+    // `origin/master`'s growth, inside the band and named rather than absorbed.
+    files: 7539,
     sites: null,
     sources: [],
   },
@@ -1823,8 +1845,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // by one or two, and a module *losing* its page moves it down, which is the
     // direction `check:module-docs`' own `orphan-page` and `undocumented-module`
     // answer for.
-    sites: 672,
-    files: 10,
+    //
+    // **Feature 100 Phase 3: files 10 -> 81, sites 672 -> 814.** The 71 are one
+    // committed reference page per module (FR-022), which is the largest single
+    // move the artefact set has ever made and the reason `files` is the number
+    // that has to move: `overlay:check` holds each of them to `stale`, so a
+    // module whose manifest changes and whose page does not is a build failure.
+    // 142 of the 143 sites are this branch's, exactly two per page — the
+    // navigation entry the sidebar fragment gains for it, and the one relative
+    // link the page itself writes (its module's prose page, or the module map
+    // for a module nobody has written about). The remaining 1 is `origin/master`'s
+    // own growth between the fork point and the run, inside the band on that
+    // side and named here rather than absorbed. Measured on this tree, not
+    // apportioned. A module added or removed now moves `files` by one, which is
+    // the property that makes the number worth recording.
+    sites: 814,
+    files: 81,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -2111,8 +2147,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five fixture trees — and three arrive with the id-collision red proof.
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
-    // **Feature 096, Phase 6: +1.** The backend block-owner off-state test.
-    files: 1750,
+    // **Feature 100 Phase 3: 1749 -> 1750.** One: the companion test this branch
+    // adds under `backend/test/`, which is this walk's population.
+    files: 1751,
     sites: 163,
     sources: [],
   },
@@ -2219,9 +2256,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+32** from earlier merges (this branch's base,
     // 36174efa1, observed 4184).
-    // **Feature 096, Phase 6: +1.** This feature’s backend block-owner
-    // off-state test. The two frontend test files are outside this walk.
-    files: 4176,
+    // **Feature 100 Phase 3: 4175 -> 4176.** One: the companion test this branch adds.
+    files: 4177,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2364,12 +2400,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+51** from earlier merges (this branch's base,
     // 36174efa1, observed 7461).
-    // **Feature 096, Phase 6: +3.** The same three test files. Measured on the
-    // rebased tree, so the recorded value carries the same +1 as
-    // `check-nul-bytes` — the file the base gained while this branch was open.
-    // `check-language.sh` does not see it, which is why the two walks that used
-    // to move together no longer do.
-    files: 7450,
+    // **Feature 100 Phase 3: 7452 -> 7524.** The 72 are this branch's: 71 generated
+    // reference pages and one test file, all of them tracked or untracked-and-not-
+    // ignored, which is what this listing counts.
+    files: 7522,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2410,11 +2444,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+44** from earlier merges (this branch's base,
     // 36174efa1, observed 5575).
-    // **Feature 096, Phase 6: +3.** Three test files, one per surface —
-    // storefront SSR, admin merge, and the backend round trip that drives a
-    // real module switch. The block-name walk moving out of the migration
-    // directory is a rename inside `page-builder-core` and moves no count.
-    files: 5567,
+    // **Feature 100 Phase 3: 5566 -> 5638.** The 72 are this branch's 71 generated
+    // reference pages — every one of them a `/docs/` page and therefore in the
+    // Principle VIII population — plus one source file.
+    files: 5639,
     sites: null,
     sources: ['manifest-index'],
   },

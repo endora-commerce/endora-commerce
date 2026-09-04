@@ -96,6 +96,50 @@ export const DOCS_SIDEBAR_ARTEFACT = 'sidebars.modules.generated.js';
 /** The generated module map, inside the modules category it indexes. */
 export const MODULE_MAP_ARTEFACT = 'module-map.generated.md';
 
+/**
+ * The category holding one generated reference page per module (Phase 3,
+ * FR-022/FR-024).
+ *
+ * A category of its own, **outside** {@link MODULES_CATEGORY}, and the
+ * separation is the design rather than a filing preference. Three things follow
+ * from it, none of which would if the pages sat beside the prose:
+ *
+ *   * **a generated page can never collide with a hand-written one.** A module's
+ *     prose page is `modules/<slug>`, its reference page `module-reference/<slug>`.
+ *     There is no name a page author can choose that takes an address the
+ *     generator writes, and no rule anybody has to remember;
+ *   * **the attribution walk's population does not move.** `undocumented-module`
+ *     asks whether anybody *wrote* about a module, and a generated table is not
+ *     an answer to it — a reference page inside the modules category would have
+ *     made every registered module documented and retired that whole ledger in
+ *     the merge request that added the generator;
+ *   * **it is committed on ordinary terms.** `docs/docs/modules/**` is
+ *     git-ignored, because the module-owned pages are copied there at build
+ *     time, so a committed artefact under that tree would need `git add -f` for
+ *     ever after.
+ *
+ * The pages are still *reached* from the Modules category: the generated
+ * sidebar fragment names each module's reference page beside its prose, so a
+ * reader never has to know that the two live in different directories.
+ */
+export const MODULE_REFERENCE_CATEGORY = 'module-reference';
+
+/**
+ * The documentation slug that names a module — {@link slugNamesModule}'s
+ * inverse, and the one place that choice is made.
+ *
+ * A slug is hyphenated where an id is snake_case, and a **leading underscore is
+ * dropped**: Docusaurus excludes an underscore-prefixed file from routing by
+ * design, so `_i18n` is documented at `i18n` and `_lifecycle` at `lifecycle`
+ * (D-200). Both transformations are {@link slugNamesModule}'s applied the other
+ * way round, so a page this names is a page that derivation attributes back —
+ * asserted as a round trip over every registered id rather than left to the two
+ * staying in step by inspection.
+ */
+export function slugForModule(moduleId: string): string {
+  return moduleId.replace(/^_/, '').split('_').join('-');
+}
+
 /** Extensions Docusaurus reads as a documentation page. */
 export const PAGE_EXTENSIONS: readonly string[] = ['.md', '.mdx'];
 

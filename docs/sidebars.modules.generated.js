@@ -24,19 +24,111 @@
 /** @type {import('@docusaurus/plugin-content-docs').SidebarItemConfig[]} */
 const modules = [
   { type: 'doc', id: 'modules/module-map.generated', label: 'Module map' },
-  { type: 'doc', id: 'modules/addresses', label: 'addresses' },
-  { type: 'doc', id: 'modules/admin-actions', label: 'Admin Command Palette Actions' },
-  { type: 'doc', id: 'modules/i18n', label: 'Admin UI Languages' },
-  { type: 'doc', id: 'modules/admin_roles', label: 'admin_roles' },
-  { type: 'doc', id: 'modules/admin_users', label: 'admin_users' },
-  { type: 'doc', id: 'modules/analytics', label: 'analytics' },
-  { type: 'doc', id: 'modules/api_keys', label: 'api_keys' },
-  { type: 'doc', id: 'modules/assets-library/index', label: 'Assets Library' },
-  { type: 'doc', id: 'modules/audit_logs', label: 'audit_logs' },
-  { type: 'doc', id: 'modules/auth', label: 'auth' },
-  { type: 'doc', id: 'modules/autopay', label: 'Autopay' },
-  { type: 'doc', id: 'modules/blog/index', label: 'Blog' },
-  { type: 'doc', id: 'modules/carts', label: 'carts' },
+  {
+    type: 'category',
+    label: 'addresses',
+    link: { type: 'doc', id: 'modules/addresses' },
+    items: [
+      'module-reference/addresses',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Admin Command Palette Actions',
+    link: { type: 'doc', id: 'modules/admin-actions' },
+    items: [
+      'module-reference/admin-actions',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Admin UI Languages',
+    link: { type: 'doc', id: 'modules/i18n' },
+    items: [
+      'module-reference/i18n',
+    ],
+  },
+  { type: 'doc', id: 'module-reference/admin-notifications', label: 'admin_notifications' },
+  {
+    type: 'category',
+    label: 'admin_roles',
+    link: { type: 'doc', id: 'modules/admin_roles' },
+    items: [
+      'module-reference/admin-roles',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'admin_users',
+    link: { type: 'doc', id: 'modules/admin_users' },
+    items: [
+      'module-reference/admin-users',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'analytics',
+    link: { type: 'doc', id: 'modules/analytics' },
+    items: [
+      'module-reference/analytics',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'api_keys',
+    link: { type: 'doc', id: 'modules/api_keys' },
+    items: [
+      'module-reference/api-keys',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Assets Library',
+    link: { type: 'doc', id: 'modules/assets-library/index' },
+    items: [
+      'module-reference/assets-library',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'audit_logs',
+    link: { type: 'doc', id: 'modules/audit_logs' },
+    items: [
+      'module-reference/audit-logs',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'auth',
+    link: { type: 'doc', id: 'modules/auth' },
+    items: [
+      'module-reference/auth',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Autopay',
+    link: { type: 'doc', id: 'modules/autopay' },
+    items: [
+      'module-reference/autopay',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Blog',
+    link: { type: 'doc', id: 'modules/blog/index' },
+    items: [
+      'module-reference/blog',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'carts',
+    link: { type: 'doc', id: 'modules/carts' },
+    items: [
+      'module-reference/carts',
+    ],
+  },
   {
     type: 'category',
     label: 'Catalog',
@@ -50,6 +142,7 @@ const modules = [
       'modules/catalog/attachments',
       'modules/catalog/gallery-and-labels',
       'modules/catalog/product-links',
+      'module-reference/catalog',
     ],
   },
   {
@@ -58,54 +151,326 @@ const modules = [
     link: { type: 'doc', id: 'modules/cms/index' },
     items: [
       'modules/cms/extending-page-builder',
+      'module-reference/cms',
     ],
   },
-  { type: 'doc', id: 'modules/comparisons', label: 'Compare Products' },
-  { type: 'doc', id: 'modules/credentials', label: 'Credentials' },
-  { type: 'doc', id: 'modules/credit_limits', label: 'credit_limits' },
-  { type: 'doc', id: 'modules/currencies', label: 'currencies' },
-  { type: 'doc', id: 'modules/customer_accounts', label: 'customer_accounts' },
-  { type: 'doc', id: 'modules/customers', label: 'customers' },
-  { type: 'doc', id: 'modules/delivery_methods', label: 'delivery_methods' },
-  { type: 'doc', id: 'modules/dhl_parcel', label: 'DHL Parcel' },
-  { type: 'doc', id: 'modules/dictionaries/index', label: 'Dictionary' },
-  { type: 'doc', id: 'modules/pim_ergonode', label: 'Ergonode PIM' },
-  { type: 'doc', id: 'modules/google-analytics', label: 'Google Analytics' },
-  { type: 'doc', id: 'modules/google-tag-manager', label: 'Google Tag Manager' },
-  { type: 'doc', id: 'modules/health_checks', label: 'health_checks' },
-  { type: 'doc', id: 'modules/import_export', label: 'import_export' },
-  { type: 'doc', id: 'modules/inpost', label: 'InPost' },
-  { type: 'doc', id: 'modules/inventory', label: 'inventory' },
-  { type: 'doc', id: 'modules/invoices', label: 'invoices' },
-  { type: 'doc', id: 'modules/ksef', label: 'KSeF' },
-  { type: 'doc', id: 'modules/languages', label: 'languages' },
-  { type: 'doc', id: 'modules/linkedin-ads', label: 'LinkedIn Ads' },
-  { type: 'doc', id: 'modules/megamenu/index', label: 'Megamenu' },
-  { type: 'doc', id: 'modules/meta-ads', label: 'Meta Ads' },
-  { type: 'doc', id: 'modules/lifecycle', label: 'Module Lifecycle' },
-  { type: 'doc', id: 'modules/newsletter', label: 'newsletter' },
-  { type: 'doc', id: 'modules/orders', label: 'orders' },
+  {
+    type: 'category',
+    label: 'Compare Products',
+    link: { type: 'doc', id: 'modules/comparisons' },
+    items: [
+      'module-reference/comparisons',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Credentials',
+    link: { type: 'doc', id: 'modules/credentials' },
+    items: [
+      'module-reference/credentials',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'credit_limits',
+    link: { type: 'doc', id: 'modules/credit_limits' },
+    items: [
+      'module-reference/credit-limits',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'currencies',
+    link: { type: 'doc', id: 'modules/currencies' },
+    items: [
+      'module-reference/currencies',
+    ],
+  },
+  { type: 'doc', id: 'module-reference/custom-fields', label: 'custom_fields' },
+  {
+    type: 'category',
+    label: 'customer_accounts',
+    link: { type: 'doc', id: 'modules/customer_accounts' },
+    items: [
+      'module-reference/customer-accounts',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'customers',
+    link: { type: 'doc', id: 'modules/customers' },
+    items: [
+      'module-reference/customers',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'delivery_methods',
+    link: { type: 'doc', id: 'modules/delivery_methods' },
+    items: [
+      'module-reference/delivery-methods',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'DHL Parcel',
+    link: { type: 'doc', id: 'modules/dhl_parcel' },
+    items: [
+      'module-reference/dhl-parcel',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Dictionary',
+    link: { type: 'doc', id: 'modules/dictionaries/index' },
+    items: [
+      'module-reference/dictionaries',
+    ],
+  },
+  { type: 'doc', id: 'module-reference/email', label: 'email' },
+  {
+    type: 'category',
+    label: 'Ergonode PIM',
+    link: { type: 'doc', id: 'modules/pim_ergonode' },
+    items: [
+      'module-reference/pim-ergonode',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Google Analytics',
+    link: { type: 'doc', id: 'modules/google-analytics' },
+    items: [
+      'module-reference/google-analytics',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Google Tag Manager',
+    link: { type: 'doc', id: 'modules/google-tag-manager' },
+    items: [
+      'module-reference/google-tag-manager',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'health_checks',
+    link: { type: 'doc', id: 'modules/health_checks' },
+    items: [
+      'module-reference/health-checks',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'import_export',
+    link: { type: 'doc', id: 'modules/import_export' },
+    items: [
+      'module-reference/import-export',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'InPost',
+    link: { type: 'doc', id: 'modules/inpost' },
+    items: [
+      'module-reference/inpost',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'inventory',
+    link: { type: 'doc', id: 'modules/inventory' },
+    items: [
+      'module-reference/inventory',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'invoices',
+    link: { type: 'doc', id: 'modules/invoices' },
+    items: [
+      'module-reference/invoices',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'KSeF',
+    link: { type: 'doc', id: 'modules/ksef' },
+    items: [
+      'module-reference/ksef',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'languages',
+    link: { type: 'doc', id: 'modules/languages' },
+    items: [
+      'module-reference/languages',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'LinkedIn Ads',
+    link: { type: 'doc', id: 'modules/linkedin-ads' },
+    items: [
+      'module-reference/linkedin-ads',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Megamenu',
+    link: { type: 'doc', id: 'modules/megamenu/index' },
+    items: [
+      'module-reference/megamenu',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Meta Ads',
+    link: { type: 'doc', id: 'modules/meta-ads' },
+    items: [
+      'module-reference/meta-ads',
+    ],
+  },
+  { type: 'doc', id: 'module-reference/mfa', label: 'mfa' },
+  {
+    type: 'category',
+    label: 'Module Lifecycle',
+    link: { type: 'doc', id: 'modules/lifecycle' },
+    items: [
+      'module-reference/lifecycle',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'newsletter',
+    link: { type: 'doc', id: 'modules/newsletter' },
+    items: [
+      'module-reference/newsletter',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'orders',
+    link: { type: 'doc', id: 'modules/orders' },
+    items: [
+      'module-reference/orders',
+    ],
+  },
   {
     type: 'category',
     label: 'organizations',
     link: { type: 'doc', id: 'modules/organizations' },
     items: [
       'modules/organization-hierarchy',
+      'module-reference/organizations',
     ],
   },
-  { type: 'doc', id: 'modules/payment_methods', label: 'payment_methods' },
-  { type: 'doc', id: 'modules/payments', label: 'payments' },
-  { type: 'doc', id: 'modules/paypal', label: 'PayPal' },
-  { type: 'doc', id: 'modules/payu', label: 'PayU' },
-  { type: 'doc', id: 'modules/pim_pimcore', label: 'Pimcore PIM' },
-  { type: 'doc', id: 'modules/price_lists', label: 'price_lists' },
-  { type: 'doc', id: 'modules/product_feeds', label: 'Product Feeds' },
-  { type: 'doc', id: 'modules/promotions', label: 'promotions' },
-  { type: 'doc', id: 'modules/prompt-actions', label: 'Prompt Actions (AI assistant)' },
-  { type: 'doc', id: 'modules/pwa', label: 'PWA (Progressive Web App)' },
-  { type: 'doc', id: 'modules/quick_order', label: 'quick_order' },
-  { type: 'doc', id: 'modules/quote_requests', label: 'quote_requests' },
-  { type: 'doc', id: 'modules/returns', label: 'returns' },
+  {
+    type: 'category',
+    label: 'payment_methods',
+    link: { type: 'doc', id: 'modules/payment_methods' },
+    items: [
+      'module-reference/payment-methods',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'payments',
+    link: { type: 'doc', id: 'modules/payments' },
+    items: [
+      'module-reference/payments',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'PayPal',
+    link: { type: 'doc', id: 'modules/paypal' },
+    items: [
+      'module-reference/paypal',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'PayU',
+    link: { type: 'doc', id: 'modules/payu' },
+    items: [
+      'module-reference/payu',
+    ],
+  },
+  { type: 'doc', id: 'module-reference/pim-connector', label: 'pim_connector' },
+  {
+    type: 'category',
+    label: 'Pimcore PIM',
+    link: { type: 'doc', id: 'modules/pim_pimcore' },
+    items: [
+      'module-reference/pim-pimcore',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'price_lists',
+    link: { type: 'doc', id: 'modules/price_lists' },
+    items: [
+      'module-reference/price-lists',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Product Feeds',
+    link: { type: 'doc', id: 'modules/product_feeds' },
+    items: [
+      'module-reference/product-feeds',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'promotions',
+    link: { type: 'doc', id: 'modules/promotions' },
+    items: [
+      'module-reference/promotions',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Prompt Actions (AI assistant)',
+    link: { type: 'doc', id: 'modules/prompt-actions' },
+    items: [
+      'module-reference/prompt-actions',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'PWA (Progressive Web App)',
+    link: { type: 'doc', id: 'modules/pwa' },
+    items: [
+      'module-reference/pwa',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'quick_order',
+    link: { type: 'doc', id: 'modules/quick_order' },
+    items: [
+      'module-reference/quick-order',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'quote_requests',
+    link: { type: 'doc', id: 'modules/quote_requests' },
+    items: [
+      'module-reference/quote-requests',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'returns',
+    link: { type: 'doc', id: 'modules/returns' },
+    items: [
+      'module-reference/returns',
+    ],
+  },
   {
     type: 'category',
     label: 'Sales channels',
@@ -113,18 +478,90 @@ const modules = [
     items: [
       'modules/sales_channels/admin-usage',
       'modules/sales_channels/developer-guide',
+      'module-reference/sales-channels',
     ],
   },
-  { type: 'doc', id: 'modules/search', label: 'search' },
-  { type: 'doc', id: 'modules/seo', label: 'seo' },
-  { type: 'doc', id: 'modules/settings/index', label: 'Settings' },
-  { type: 'doc', id: 'modules/shipments', label: 'shipments' },
-  { type: 'doc', id: 'modules/shopping_lists', label: 'shopping_lists' },
-  { type: 'doc', id: 'modules/taxes', label: 'taxes' },
-  { type: 'doc', id: 'modules/tpay', label: 'TPay' },
-  { type: 'doc', id: 'modules/transactional-emails', label: 'transactional_emails' },
-  { type: 'doc', id: 'modules/pim_unopim', label: 'UnoPim PIM' },
-  { type: 'doc', id: 'modules/webhooks', label: 'webhooks' },
+  {
+    type: 'category',
+    label: 'search',
+    link: { type: 'doc', id: 'modules/search' },
+    items: [
+      'module-reference/search',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'seo',
+    link: { type: 'doc', id: 'modules/seo' },
+    items: [
+      'module-reference/seo',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Settings',
+    link: { type: 'doc', id: 'modules/settings/index' },
+    items: [
+      'module-reference/settings',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'shipments',
+    link: { type: 'doc', id: 'modules/shipments' },
+    items: [
+      'module-reference/shipments',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'shopping_lists',
+    link: { type: 'doc', id: 'modules/shopping_lists' },
+    items: [
+      'module-reference/shopping-lists',
+    ],
+  },
+  { type: 'doc', id: 'module-reference/stripe', label: 'stripe' },
+  {
+    type: 'category',
+    label: 'taxes',
+    link: { type: 'doc', id: 'modules/taxes' },
+    items: [
+      'module-reference/taxes',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'TPay',
+    link: { type: 'doc', id: 'modules/tpay' },
+    items: [
+      'module-reference/tpay',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'transactional_emails',
+    link: { type: 'doc', id: 'modules/transactional-emails' },
+    items: [
+      'module-reference/transactional-emails',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'UnoPim PIM',
+    link: { type: 'doc', id: 'modules/pim_unopim' },
+    items: [
+      'module-reference/pim-unopim',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'webhooks',
+    link: { type: 'doc', id: 'modules/webhooks' },
+    items: [
+      'module-reference/webhooks',
+    ],
+  },
 ];
 
 module.exports = modules;

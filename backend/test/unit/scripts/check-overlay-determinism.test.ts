@@ -19,7 +19,7 @@ import {
   type SourceTree,
 } from '../../../scripts/generate-composer.js';
 import { findAliasMember } from '../../../scripts/lib/admin-surfaces.js';
-import { resolveDocsLayout } from '../../../scripts/lib/module-docs.js';
+import { MODULE_REFERENCE_CATEGORY, resolveDocsLayout } from '../../../scripts/lib/module-docs.js';
 import {
   nodeWorkspaceFs,
   workspaceMembers,
@@ -117,6 +117,28 @@ describe('coveredArtifactPaths', () => {
   })();
 
   /**
+   * The generated reference pages' category (feature 100 Phase 3).
+   *
+   * A **directory** rather than a filename suffix, because these artefacts are
+   * pages a reader lands on: `module-reference/catalog.generated` would put the
+   * word in a public URL to satisfy a sweep. Every page in that category is
+   * generated from a manifest, so the category *is* the population — and
+   * sweeping it keeps the ratchet two-way in the direction that matters most
+   * here: a page for a module that has gone is on disk, named by no render, and
+   * is exactly what this comparison reports.
+   */
+  const referenceRoot = ((): string => {
+    const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+    return join(resolveDocsLayout(repoRoot).contentRoot, MODULE_REFERENCE_CATEGORY);
+  })();
+
+  function referencePagesOnDisk(): string[] {
+    return readdirSync(referenceRoot)
+      .filter((name) => name.endsWith('.md') || name.endsWith('.mdx'))
+      .map((name) => join(referenceRoot, name));
+  }
+
+  /**
    * Every committed generated file under `dir`, by suffix rather than by
    * extension.
    *
@@ -152,6 +174,7 @@ describe('coveredArtifactPaths', () => {
       ...generatedFilesUnder(srcRoot),
       ...generatedFilesUnder(adminSourceRoot),
       ...generatedFilesUnder(docsRoot),
+      ...referencePagesOnDisk(),
     ].sort();
     expect(onDisk).toEqual([...coveredArtifactPaths()].sort());
   });
