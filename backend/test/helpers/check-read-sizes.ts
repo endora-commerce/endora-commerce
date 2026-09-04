@@ -2119,8 +2119,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer — the population is `2 + members` and the finer one is the patterns
     // and members the ignore list is matched over, so both fall by exactly one.
     // The base reads 85/93, the recorded values exactly.
+    //
+    // **92 -> 105 (feature 104): `sites` only, and `files` deliberately not.**
+    // The population is still `2 + members` — the same 84 manifests are opened
+    // — but three of them are now public, and a public versionable member is
+    // four more decisions: may it be public, is it complete, what does its
+    // `access` resolve to, and can the registry serve its scope. Plus one for
+    // the scope agreement across the set, which is a decision about the set
+    // rather than about a member. 92 + 3x4 + 1, measured, not computed from a
+    // delta.
     files: 84,
-    sites: 92,
+    sites: 105,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
