@@ -4,8 +4,8 @@ import {
   CustomFieldValidationError,
   CustomFieldValueService,
   type DefinitionSource,
-} from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
-import type { CachedDefinition } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
+} from './custom-field-value.service.js';
+import type { CachedDefinition } from './custom-field-definitions-cache.js';
 
 /**
  * Unit tests for the pure value-validation logic (feature 055, SC-002/SC-003/FR-010).

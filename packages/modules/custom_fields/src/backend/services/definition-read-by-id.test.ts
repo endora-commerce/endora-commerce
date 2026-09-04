@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { CustomFieldDefinitionReadService } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-read-port.js';
-import type { CachedDefinition } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-definitions-cache.js';
-import type { FreshDefinitionSource } from '../../../../packages/modules/custom_fields/src/backend/services/custom-field-read-port.js';
+import { CustomFieldDefinitionReadService } from './custom-field-read-port.js';
+import type { CachedDefinition } from './custom-field-definitions-cache.js';
+import type { FreshDefinitionSource } from './custom-field-read-port.js';
 
 /**
  * Feature 080, T053(b) — `getById` answers with published records.
