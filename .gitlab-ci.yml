@@ -459,6 +459,21 @@ quality:
     # a bare `withModuleOff` is a state seam and never coverage, which is the
     # tiering. It lands at zero findings with an empty ledger.
     - pnpm --filter backend run check:off-state-coverage
+    # `specs/106-module-owned-tests/contracts/module-test-ownership.md` — a test
+    # file belongs to the module it is about, and a module package's tests are
+    # configured to run. Feature 106 moved 211 files into 56 packages and its
+    # instrument did not ship with them: 185 harness-free single-owner files were
+    # left under `backend/test` with nothing reporting them, nothing stopping the
+    # 186th, and 56 packages' `vitest.config.ts` guarded by nothing — a
+    # configuration whose deletion leaves test files that no job collects, which
+    # is the state that looks greenest.
+    # Ownership is the file's **import specifiers**, never the directory it sits
+    # in: that predicate was tried three times in this repository and gave three
+    # different answers, because a file in one module's directory routinely names
+    # another. The ledger arrives holding the 185, split into `scheduled` and
+    # `retained` so the drain is a number on every run rather than a diff nobody
+    # sums.
+    - pnpm --filter backend run check:test-ownership
     # `specs/094-translation-boundary/` — the same ruling's first clause: English
     # is the default, so a prose literal in another language, outside a
     # per-language structure, in a module's own sources is a defect. The second

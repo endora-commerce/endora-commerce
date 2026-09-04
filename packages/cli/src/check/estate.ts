@@ -765,6 +765,46 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'A',
   },
   {
+    id: 'check:test-ownership',
+    script: 'backend/scripts/check-test-ownership.ts',
+    scope: 'package',
+    /**
+     * **Not `repository-only`, and the inventory refuses the alternative.** The
+     * rule walks the module tree, so it is recorded `residueGuard:
+     * 'derived-population'` and Invariant 3 refuses a repository-only claim over
+     * one — which is right, because a module package is one of those modules and
+     * *"are this package's tests where they belong and configured to run"* is
+     * exactly the question one package asks about itself.
+     *
+     * The phase is named rather than numbered, in `check:block-names`' idiom.
+     * `plan.md`'s Phase 3 is the owner map and its Phase 4 the admin half; this
+     * rule is in neither list, and what a lone package cannot supply is the
+     * **application's own test tree** — `misplaced-test`'s whole population is
+     * `backend/test/**`, which no package has. A package host therefore
+     * evaluates four of the five findings and declares the fifth unevaluated,
+     * which is the `partial` below rather than a smaller rule.
+     */
+    host: pending(
+      'a phase of its own — the analysis is relocated with the rest, and what a package cannot supply is the *application* test tree that `misplaced-test` is about',
+    ),
+    partial: [
+      {
+        signal: 'misplaced-test',
+        reason:
+          "its population is the application's own `backend/test/**`, which a module package " +
+          'does not have; the four findings whose subject is the package itself are evaluated',
+      },
+    ],
+    subjectDeclaration: ALWAYS,
+    readsArtefact: false,
+    // **B, not A.** Resolving an owner needs the npm name each *sibling* module
+    // package publishes mapped to the id it declares — the peers' manifests over
+    // the installed set — because half the tree names a module by bare
+    // specifier. A rule that read only relative paths would classify that half
+    // as platform-owned, which is the fail-open direction.
+    tier: 'B',
+  },
+  {
     id: 'check:transaction-context',
     script: 'backend/scripts/check-transaction-context.ts',
     scope: 'package',

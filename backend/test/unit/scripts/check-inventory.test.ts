@@ -73,6 +73,15 @@ import {
   RELATION_DECORATOR_HINT,
 } from '../../../scripts/check-kernel-boundary.js';
 import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
+import {
+  findingsOfKind as testOwnershipFindingsOfKind,
+  ledgerIssues as testOwnershipLedgerIssues,
+  HARNESS_FREE_BLOG_TEST,
+  SCHEDULED as TEST_OWNERSHIP_SCHEDULED,
+  SERVER_BOUND_BLOG_TEST,
+  shard as testOwnershipShard,
+} from '../../helpers/test-ownership-fixture.js';
+import { vacuousTestOwnership } from '../../../scripts/check-test-ownership.js';
 import { ADMIN_HOST_OWNER } from '../../../scripts/lib/admin-surfaces.js';
 import { checkEmittedFreshness } from '../../../scripts/lib/emitted-freshness.js';
 import {
@@ -9260,6 +9269,209 @@ const CHECKS: readonly CheckEntry[] = [
       }),
     },
   },
+  {
+    script: 'backend/scripts/check-test-ownership.ts',
+    npmScript: 'check:test-ownership',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/test-ownership-check.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    /**
+     * **`not-a-module-walk` is this field's "not spawned in the proof file", and
+     * the reason is measured rather than claimed.**
+     *
+     * The check *does* floor its module half per module, on the module's own
+     * directory — `check:bundle-pairing`'s conjunction, because 14 of the 70
+     * packages ship no test and a floor over test files would refuse every clean
+     * run — and it *does* delegate to `refuseVacuousModulePopulation`, asked
+     * before either addend of the union, so a moved tree is refused by name. The
+     * assertion below that a `derived-population` check names that delegation is
+     * therefore satisfied here too; what it cannot join is the shared fixture,
+     * for the same kind of reason the two shell checks carry (they reconcile
+     * against the index and need a git work tree).
+     *
+     * `moved-module-tree.test.ts`' backends carry **no `backend/test`**, which
+     * is this check's first vacuous condition rather than its module one — so
+     * the split half, which asserts exit 0, is unreachable without giving the
+     * fixture one. Giving it one was tried and measured: the split tree then
+     * reds `check-singleton-identity`, whose staleness rule skips an entry whose
+     * file the walk did not open *precisely because these fixtures have no test
+     * tree*, and whose remaining two allowances read stale there because the
+     * fixture's stub manifest index imports a packaged module's **source**
+     * rather than its published artefact — a bare specifier cannot be used,
+     * since the fixture borrows this checkout's `node_modules` and would resolve
+     * into the real tree (#255). Two correct allowances, one red, for the
+     * fixture's shape and not the repository's.
+     *
+     * It retires when that stub can name a packaged module the way the generator
+     * does (D-149); until then the module floor is proven directly, over the
+     * floor's own inputs, in the companion test.
+     */
+    residueGuard: 'not-a-module-walk',
+    red: {
+      // §4's five findings, each over source text and a file map. Nothing here
+      // hands the check an owner list or a verdict, so the specifier walk, the
+      // call-node predicate and the ownership table run in every proof.
+      'misplaced-test': top(() =>
+        testOwnershipFindingsOfKind(
+          { application: { 'backend/test/unit/blog/cache.test.ts': HARNESS_FREE_BLOG_TEST } },
+          'misplaced-test',
+        ),
+      ),
+      'harness-bound-move': top(() =>
+        testOwnershipFindingsOfKind(
+          { packages: { 'packages/modules/blog/src/backend/boot.test.ts': SERVER_BOUND_BLOG_TEST } },
+          'harness-bound-move',
+        ),
+      ),
+      'unconfigured-package-tests': top(() =>
+        testOwnershipFindingsOfKind(
+          {
+            packages: { 'packages/modules/blog/src/backend/cache.test.ts': 'export {};\n' },
+            manifests: { blog: { testScript: null } },
+          },
+          'unconfigured-package-tests',
+        ),
+      ),
+      'outward-reach': top(() =>
+        testOwnershipFindingsOfKind(
+          {
+            packages: {
+              'packages/modules/blog/src/backend/cache.test.ts':
+                "import { h } from '../../../../../backend/test/helpers/fixtures.js';\nexport { h };\n",
+            },
+          },
+          'outward-reach',
+        ),
+      ),
+      // A finding and never a skip (issue #113): the repository is where an
+      // unmoved file already is, so reading an unreadable file as the
+      // repository's agrees with the defect.
+      'unclassifiable-test': top(() =>
+        testOwnershipFindingsOfKind(
+          { application: { 'backend/test/unit/blog/broken.test.ts': 'const x = {{{ ;\n' } },
+          'unclassifiable-test',
+        ),
+      ),
+      // The ledger is two-way, so the stale direction is a shape of its own: the
+      // batch that frees an entry is structurally the batch that cannot see it
+      // go stale.
+      'stale-ledger-entry': top(
+        () =>
+          testOwnershipLedgerIssues({
+            application: { 'backend/test/unit/blog/cache.test.ts': HARNESS_FREE_BLOG_TEST },
+            modules: ['blog'],
+            ledger: [
+              testOwnershipShard('blog', {
+                'backend/test/unit/blog/cache.test.ts': TEST_OWNERSHIP_SCHEDULED,
+                'backend/test/unit/blog/gone.test.ts': TEST_OWNERSHIP_SCHEDULED,
+              }),
+            ],
+          }).length,
+      ),
+      // Issue #217, one population over: a shard that declares a narrower entry
+      // type makes the `scheduled` field a type error in it, so the drain would
+      // have to be claimed in prose and the rule that reads it would never run
+      // over that shard at all.
+      'mistyped-shard': top(
+        () =>
+          testOwnershipLedgerIssues({
+            application: { 'backend/test/unit/blog/cache.test.ts': HARNESS_FREE_BLOG_TEST },
+            modules: ['blog'],
+            ledger: [
+              testOwnershipShard(
+                'blog',
+                { 'backend/test/unit/blog/cache.test.ts': TEST_OWNERSHIP_SCHEDULED },
+                'export const entries: Readonly<Record<string, string>> = {};\n',
+              ),
+            ],
+          }).length,
+      ),
+      // The two addends of the union, floored separately: 1428 of the 1639 files
+      // are the application's, so a package walk that went to zero leaves the
+      // file count looking healthy while three of the five findings have no
+      // population — and the converse.
+      'no-application-test-file': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 0,
+          packageFiles: 211,
+          attributions: 1090,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      'no-package-test-file': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 0,
+          attributions: 1090,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      // Issue #237's shape: the file count stands still while the syntax walk
+      // goes blind, and every file then reads as the platform's.
+      'no-owner-attribution': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 211,
+          attributions: 0,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      'no-package-test-script': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 211,
+          attributions: 1090,
+          packagesDeclaringTests: 0,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      // An *empty* ledger is a clean tree — the state this sweep drains towards
+      // — and a *missing* one is a run that could not read its baseline.
+      'missing-ledger-directory': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 211,
+          attributions: 1090,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: false,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      // The `composesServer` predicate's subject. A harness that moved or was
+      // renamed must be a refusal, never a reclassification of every
+      // server-bound file in the tree at once.
+      'harness-not-found': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 211,
+          attributions: 1090,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function bootServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+    },
+  },
 ];
 
 // --- the enumeration --------------------------------------------------------
@@ -9632,6 +9844,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // module keeps to itself.
       'backend/scripts/check-subscribe-seam.ts': 5,
       // Two shapes, two scopes, and the ledger's stale direction.
+      // Feature 106's five findings, the ledger's two failure directions that
+      // are not a finding (stale entry, mistyped shard), and the six exit-2
+      // conditions of contract §7 — the two addends of the union floored apart,
+      // the owner resolver going blind, the independent author losing its
+      // subject, the missing ledger directory, and the harness moving.
+      'backend/scripts/check-test-ownership.ts': 13,
       'backend/scripts/check-transaction-context.ts': 5,
       // Two finding kinds, plus the `module-admin` floor's refusal — the third
       // root family's only independent author, added when feature 091's drain
