@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ABSENT_SEGMENT,
   buildConformancePlan,
   fillRoute,
   planRefusal,
@@ -134,6 +135,95 @@ describe('the representative page set', () => {
   it('counts manifest coverage as the `sources=next-manifest:<n>/<n>` token', () => {
     const plan = buildConformancePlan(input());
     expect(plan.coverage).toEqual({ covered: 3, expected: 3 });
+  });
+});
+
+describe('the absent half of the page set', () => {
+  it('derives one absent URL per dynamic route type, from the same declaration', () => {
+    // §4.2 — the same `seo.ts`, the same `fillRoute`, a different token. The
+    // absent URL and the present one differ in exactly the segment the seed
+    // supplied, which is what makes this one author rather than two.
+    const declarations = [
+      declaration('/catalog', ['BreadcrumbList'], 'storefront/app/(catalog)/catalog/seo.ts'),
+      declaration('/p/[slug]', ['Product'], DECLARATION_SOURCE),
+      declaration('/[...slug]', [], 'storefront/app/(content)/[...slug]/seo.ts'),
+      declaration('/blog/[[...slug]]', [], 'storefront/app/blog/[[...slug]]/seo.ts'),
+    ];
+    const plan = buildConformancePlan(input({ declarations, manifest: manifestFor(declarations) }));
+
+    expect(plan.absent.map((probe) => probe.route)).toEqual([
+      '/p/[slug]',
+      '/[...slug]',
+      '/blog/[[...slug]]',
+    ]);
+    expect(plan.absent.map((probe) => probe.url)).toEqual([
+      `/p/${ABSENT_SEGMENT}`,
+      `/${ABSENT_SEGMENT}`,
+      `/blog/${ABSENT_SEGMENT}`,
+    ]);
+  });
+
+  it('gives a static route type no absent probe — it has no segment to falsify', () => {
+    // §4.3. `/` and `/catalog` are their own subjects: "the same URL with a
+    // slug that does not exist" is not a state they have.
+    const declarations = [
+      declaration('/', ['Organization'], 'storefront/app/seo.ts'),
+      declaration('/catalog', [], 'storefront/app/(catalog)/catalog/seo.ts'),
+    ];
+    const plan = buildConformancePlan(input({ declarations, manifest: manifestFor(declarations) }));
+    expect(plan.absent).toEqual([]);
+    expect(planRefusal(plan)).toBeNull();
+  });
+
+  it('carries the declaration each probe came from, so a finding names a file', () => {
+    const plan = buildConformancePlan(input());
+    expect(plan.absent[0]?.declaredIn).toBe(DECLARATION_SOURCE);
+  });
+
+  it('gives a route type with no subject no absent probe either', () => {
+    // The two halves share a population: a route type the seed cannot supply is
+    // already `no-subject`, and inventing an absent probe for it would report a
+    // 404 as proof about a route type nothing else in this run measured.
+    const declarations = [declaration('/p/[slug]', [], DECLARATION_SOURCE)];
+    const plan = buildConformancePlan(
+      input({
+        declarations,
+        manifest: manifestFor(declarations),
+        fixtures: fixtures(['product']),
+      }),
+    );
+    expect(plan.absent).toEqual([]);
+    expect(planRefusal(plan)?.kind).toBe('no-subject');
+  });
+
+  it('refuses a route type classified as dynamic that produced no absent URL', () => {
+    // §4.4's second half. It is reachable exactly when the subject table names a
+    // route with no dynamic segment — a static route classified as dynamic, or
+    // an entry left standing while its pattern lost its slug. The fill then
+    // produces the present URL again, and a probe of it would assert 404 of a
+    // page that correctly answers 200; skipping it silently is what a green over
+    // "three of four route types" looks like.
+    //
+    // The table is supplied here rather than read, for the reason `LEDGER` is:
+    // every entry of the real one names a dynamic route today, so a proof
+    // resting on it would be proving nothing (issue #130).
+    const declarations = [declaration('/kontakt', [], 'storefront/app/kontakt/seo.ts')];
+    const plan = buildConformancePlan(
+      input({ declarations, manifest: manifestFor(declarations) }),
+      {},
+      { '/kontakt': 'contentPage' },
+    );
+    expect(plan.withoutAnAbsentProbe).toEqual(['/kontakt']);
+    expect(planRefusal(plan)?.kind).toBe('route-without-an-absent-probe');
+    expect(planRefusal(plan)?.message).toContain('/kontakt');
+  });
+
+  it('uses a token no seed could have created', () => {
+    // The one way this probe can lie is by naming something that exists. It is
+    // asserted rather than assumed because the token is the whole falsifier: a
+    // short or plausible slug would make every 404 below it an accident.
+    expect(ABSENT_SEGMENT.length).toBeGreaterThan(24);
+    expect(ABSENT_SEGMENT).toMatch(/^[a-z0-9-]+$/u);
   });
 });
 

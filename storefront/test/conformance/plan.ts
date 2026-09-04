@@ -43,6 +43,17 @@ import ts from 'typescript';
  * — `contracts/accessibility-floor.md` §4.5's fifth refusal — because it would
  * otherwise be silently skipped and the run would report a clean sweep over
  * seven pages while calling itself eight.
+ *
+ * ## The page set has a second half, and it is the same declaration read twice
+ *
+ * `specs/108-storefront-response-status/contracts/response-status.md` §4 adds
+ * one **deliberately absent** URL per dynamic route type, asserted at `404` and
+ * at nothing else. It is derived here rather than written down for the reason
+ * the present half is: a hand-written list of absent URLs would be a second
+ * author for the same population, and the two would disagree the first time a
+ * route type was added. So the route pattern comes from the same `seo.ts`, and
+ * the only difference is which token fills its dynamic segments —
+ * {@link ABSENT_SEGMENT} instead of the seed's slug.
  */
 
 /**
@@ -205,6 +216,37 @@ export interface PlannedPage {
   readonly declaredIn: string;
 }
 
+/**
+ * The segment token an absent probe fills a dynamic route with
+ * (`specs/108-storefront-response-status/contracts/response-status.md` §4.2).
+ *
+ * Long, prefixed and carrying a random-looking tail on purpose: it is a slug
+ * that must never resolve to a row, and the one way this probe can lie is by
+ * naming something a seed happens to have created. It is a **token**, not a
+ * second page list — the URL around it comes from the same `seo.ts` the present
+ * probe's does, filled by the same {@link fillRoute}.
+ */
+export const ABSENT_SEGMENT = 'endora-conformance-absent-6f2a91c4';
+
+/**
+ * A URL whose subject deliberately does not exist, and the route type it was
+ * derived from.
+ *
+ * There is no `subject`, no `jsonLd` and no canonical here, and that absence is
+ * the design: the only thing asserted of an absent URL is its **status line**
+ * (§4.1). A not-found document owes no structured data and no domain content,
+ * so asking it for either would assert the not-found page's own contents under
+ * the name of the route that did not serve it.
+ */
+export interface AbsentProbe {
+  /** The route pattern the probe was derived from. */
+  readonly route: string;
+  /** The URL to fetch — the pattern with its dynamic segments filled by the token. */
+  readonly url: string;
+  /** Repo-relative path of the declaration, so a finding names a file. */
+  readonly declaredIn: string;
+}
+
 export interface ExcludedRoute {
   readonly route: string;
   readonly reason: string;
@@ -217,6 +259,17 @@ export interface PlanDisagreement {
 
 export interface ConformancePlan {
   readonly pages: readonly PlannedPage[];
+  /**
+   * One deliberately absent URL per dynamic route type that has a subject
+   * (§4.1–§4.3). A **static** route type has no dynamic segment to falsify and
+   * contributes none.
+   */
+  readonly absent: readonly AbsentProbe[];
+  /**
+   * Route types with a seeded subject whose absent URL came out identical to
+   * the present one, so nothing about them was falsified — §4.4's second half.
+   */
+  readonly withoutAnAbsentProbe: readonly string[];
   /** Declarations whose `seo` value this analysis could not read in full. */
   readonly unreadable: readonly string[];
   readonly excluded: readonly ExcludedRoute[];
@@ -278,14 +331,25 @@ function manifestKeyOf(source: string, appRoot: string): string {
  * constant stops proving anything the moment the constant empties — which is
  * the state a two-way ledger is supposed to reach — so the proofs supply their
  * own entries and enter where a real run enters.
+ *
+ * `subjectKinds` is a parameter for the mirror of that reason. Every entry of
+ * {@link SUBJECT_KIND_BY_ROUTE} names a route with a dynamic segment today, so
+ * `route-without-an-absent-probe` — the refusal for a route type classified as
+ * dynamic that produced no absent URL — has no subject in this tree at all. It
+ * is reachable exactly when somebody classifies a **static** route as dynamic,
+ * or leaves an entry standing while its pattern loses its segment, and both are
+ * states the constant is in rather than states the analysis can be handed.
  */
 export function buildConformancePlan(
   input: ConformancePlanInput,
   ledger: Readonly<
     Record<string, { readonly reason: string; readonly retiredBy: string }>
   > = ROUTE_TYPES_WITHOUT_A_SUBJECT,
+  subjectKinds: Readonly<Record<string, SubjectKind>> = SUBJECT_KIND_BY_ROUTE,
 ): ConformancePlan {
   const pages: PlannedPage[] = [];
+  const absent: AbsentProbe[] = [];
+  const withoutAnAbsentProbe: string[] = [];
   const excluded: ExcludedRoute[] = [];
   const disagreements: PlanDisagreement[] = [];
   const withoutSubject: string[] = [];
@@ -327,7 +391,7 @@ export function buildConformancePlan(
     }
 
     const ledgered = ledger[declaration.route];
-    const kind = SUBJECT_KIND_BY_ROUTE[declaration.route];
+    const kind = subjectKinds[declaration.route];
     const subject = kind === undefined ? null : (input.fixtures?.subjects[kind] ?? null);
 
     if (ledgered !== undefined) {
@@ -339,11 +403,33 @@ export function buildConformancePlan(
       continue;
     }
 
+    const url = fillRoute(declaration.route, subject?.segments ?? []);
     pages.push({
       route: declaration.route,
-      url: fillRoute(declaration.route, subject?.segments ?? []),
+      url,
       jsonLd: declaration.jsonLd,
       subject,
+      declaredIn: declaration.source,
+    });
+
+    // §4.3 — the absent half's population is the **dynamic** route types, and
+    // it is the same population `SUBJECT_KIND_BY_ROUTE` already names. A static
+    // route type has no segment to falsify: its subject is the route itself, so
+    // "the same URL with a slug that does not exist" is not a thing that
+    // exists for it.
+    if (kind === undefined) continue;
+    const absentUrl = fillRoute(declaration.route, [ABSENT_SEGMENT]);
+    // A pattern that swallowed the token produced the present URL again, and a
+    // probe of it would assert 404 of a page that correctly answers 200. That
+    // is not a probe to skip — it is §4.4's second refusal, because the route
+    // type is classified as dynamic and nothing about it was falsified.
+    if (absentUrl === url) {
+      withoutAnAbsentProbe.push(declaration.route);
+      continue;
+    }
+    absent.push({
+      route: declaration.route,
+      url: absentUrl,
       declaredIn: declaration.source,
     });
   }
@@ -359,6 +445,8 @@ export function buildConformancePlan(
 
   return {
     pages,
+    absent,
+    withoutAnAbsentProbe,
     unreadable,
     excluded,
     disagreements,
@@ -377,7 +465,8 @@ export type PlanRefusalKind =
   | 'manifest-disagreement'
   | 'no-subject'
   | 'stale-subjectless-entry'
-  | 'no-page-planned';
+  | 'no-page-planned'
+  | 'route-without-an-absent-probe';
 
 export interface PlanRefusal {
   readonly kind: PlanRefusalKind;
@@ -446,6 +535,17 @@ export function planRefusal(plan: ConformancePlan): PlanRefusal | null {
         '`ROUTE_TYPES_WITHOUT_A_SUBJECT` holds an entry for ' +
         `${plan.staleLedgerEntries.join(', ')}, which this tree declares nowhere. An entry ` +
         'describing no route excuses nothing and hides the next route that needs excusing',
+    };
+  }
+  if (plan.withoutAnAbsentProbe.length > 0) {
+    return {
+      kind: 'route-without-an-absent-probe',
+      message:
+        `${plan.withoutAnAbsentProbe.join(', ')} is classified as a dynamic route type with a ` +
+        'seeded subject and produced no absent URL — the pattern swallowed the token, so the ' +
+        'probe would have re-fetched the present page and asserted 404 of a page that correctly ' +
+        'answers 200. A route type whose absence nothing falsified is a route type this run ' +
+        'says nothing about',
     };
   }
   if (plan.pages.length === 0) {

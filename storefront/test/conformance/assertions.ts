@@ -27,6 +27,18 @@
  * accessibility testing covers a minority of WCAG, one of the floor's rules is
  * decided by no automated rule at all, and the sweep is one channel, one
  * language and one module set.
+ *
+ * ## The status line is a judgement of its own
+ *
+ * `specs/108-storefront-response-status/contracts/response-status.md` §1: a
+ * response's status line states the outcome of the request, for every consumer
+ * and not only for one holding a Next client. {@link assertAbsentPage} is that
+ * half — one deliberately absent URL per dynamic route type, and the **status
+ * and nothing else**. It is deliberately not `assertServedPage` with a
+ * different expected code: a not-found document owes no canonical, no
+ * structured data and no domain content, so every other assertion in this file
+ * would be made about the not-found page under the name of the route that did
+ * not serve it.
  */
 
 // ---------------------------------------------------------------------------
@@ -70,6 +82,21 @@ export interface DomainContentExpectation {
   readonly linksProducts?: boolean;
 }
 
+/**
+ * One deliberately absent URL, as a plain `fetch` answered it.
+ *
+ * The status and nothing more. There is no `html` field, and that is the point
+ * rather than an omission: what a not-found document *contains* is
+ * `app/not-found.tsx`'s question, and the one thing this probe exists to
+ * establish is the line above the body.
+ */
+export interface AbsentPage {
+  /** The route pattern the probe was derived from — the finding's subject. */
+  readonly route: string;
+  readonly url: string;
+  readonly status: number;
+}
+
 /** One axe rule result, in the shape `@axe-core/playwright` returns. */
 export interface AxeRuleResult {
   readonly id: string;
@@ -97,6 +124,7 @@ export interface AxeRun {
 
 export type ConformanceFindingKind =
   | 'non-200'
+  | 'absent-page-not-404'
   | 'missing-title'
   | 'missing-meta-description'
   | 'missing-canonical'
@@ -385,6 +413,40 @@ export function assertServedPage(page: ServedPage): readonly ConformanceFinding[
   return findings;
 }
 
+/**
+ * FR-009 — a URL whose subject does not exist answers `404`.
+ *
+ * The whole assertion, and the sentence it produces is written for the reader
+ * who will meet it: a `200` here is not "the wrong number", it is the storefront
+ * telling every crawler, link checker and monitor that a page that is not there
+ * is there. A `3xx` is reported apart from the rest because it is a different
+ * defect with a different repair — a route that redirects an absent slug
+ * somewhere is answering a question nobody asked.
+ */
+export function assertAbsentPage(page: AbsentPage): readonly ConformanceFinding[] {
+  if (page.status === 404) return [];
+  const what =
+    page.status === 200
+      ? 'answered HTTP 200. The slug is one nothing in this platform can have created, so the ' +
+        'page decided it was absent and the response said the opposite — a crawler is told the ' +
+        'page exists, Search Console files it as a Soft 404, and the URL is re-fetched for as ' +
+        'long as it is linked'
+      : page.status >= 300 && page.status < 400
+        ? `answered HTTP ${page.status}. A URL with no subject is absent, not moved: a redirect ` +
+          'here sends a reader, and every ranking signal the address holds, to a page that is ' +
+          'not what was asked for'
+        : page.status === 0
+          ? 'could not be fetched at all, so nothing about it was measured'
+          : `answered HTTP ${page.status} rather than 404`;
+  return [
+    {
+      kind: 'absent-page-not-404',
+      route: page.route,
+      detail: `${page.url} ${what}`,
+    },
+  ];
+}
+
 // ---------------------------------------------------------------------------
 // FR-040…FR-043 — the accessibility pass
 // ---------------------------------------------------------------------------
@@ -631,7 +693,11 @@ export function classifyReducedMotion(
 // Refusals — this job fails rather than reports
 // ---------------------------------------------------------------------------
 
-export type RunRefusalKind = 'short-fetch' | 'no-page-fetched' | 'no-axe-rules';
+export type RunRefusalKind =
+  | 'short-fetch'
+  | 'no-page-fetched'
+  | 'no-axe-rules'
+  | 'no-absent-probe-issued';
 
 export interface RunRefusal {
   readonly kind: RunRefusalKind;
@@ -641,16 +707,25 @@ export interface RunRefusal {
 /**
  * Why this run may not report on what it measured, or `null`.
  *
- * `contracts/accessibility-floor.md` §4.5's first, second and fourth refusals.
- * The third (classification against the built route manifest) and the fifth
- * (a route type the seed produced no subject for) are decided before anything
- * is fetched, in `plan.ts`.
+ * `contracts/accessibility-floor.md` §4.5's first, second and fourth refusals,
+ * plus `response-status.md` §4.4's first half. The third (classification
+ * against the built route manifest), the fifth (a route type the seed produced
+ * no subject for) and §4.4's second half (a dynamic route type that produced no
+ * absent URL) are decided before anything is fetched, in `plan.ts`.
+ *
+ * Ordered widest first: a run that fetched nothing is answered as such rather
+ * than as a status half that issued no probe, which is true of it and is not
+ * what went wrong.
  */
 export function runRefusal(input: {
   readonly planned: number;
   readonly fetched: number;
   readonly ok: number;
   readonly axeRuns: readonly AxeRun[];
+  /** Absent URLs the plan produced — `response-status.md` §4.4's first half. */
+  readonly absentPlanned: number;
+  /** Absent URLs this run actually fetched. */
+  readonly absentIssued: number;
 }): RunRefusal | null {
   if (input.fetched < input.planned) {
     return {
@@ -667,6 +742,16 @@ export function runRefusal(input: {
       message:
         'no representative page answered HTTP 200. Nothing was measured — a storefront that is ' +
         'not serving is not a storefront with no findings',
+    };
+  }
+  if (input.absentPlanned > 0 && input.absentIssued === 0) {
+    return {
+      kind: 'no-absent-probe-issued',
+      message:
+        `the plan produced ${input.absentPlanned} absent URL(s) and this run issued none. The ` +
+        'status half of this suite measured nothing, and a suite that measures nothing must not ' +
+        'report that everything is well — a 404 that has stopped being a 404 is invisible to ' +
+        'every other assertion here, all of which are made about pages that answered 200',
     };
   }
   const silent = input.axeRuns.filter((run) => run.rulesRun === 0).map((run) => run.route);

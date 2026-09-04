@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertAbsentPage,
   assertServedPage,
   canonicalOf,
   canonicalPathOf,
@@ -381,15 +382,86 @@ describe('the keyboard traversal', () => {
   });
 });
 
+describe('the status line of a URL with no subject', () => {
+  /** The whole assertion: `specs/108-storefront-response-status/` FR-009. */
+  const probe = { route: '/p/[slug]', url: '/p/endora-conformance-absent-6f2a91c4' };
+
+  it('passes a 404', () => {
+    expect(assertAbsentPage({ ...probe, status: 404 })).toEqual([]);
+  });
+
+  it('reports a 200 — the defect this feature exists for', () => {
+    const [finding] = assertAbsentPage({ ...probe, status: 200 });
+    expect(finding?.kind).toBe('absent-page-not-404');
+    expect(finding?.route).toBe('/p/[slug]');
+    expect(finding?.detail).toContain(probe.url);
+    // The sentence has to name the consequence, because the number alone reads
+    // as a cosmetic disagreement: it is the storefront telling every crawler,
+    // link checker and monitor that a page that is not there is there.
+    expect(finding?.detail).toContain('Soft 404');
+  });
+
+  it('reports a redirect apart from a 200 — a different defect, a different repair', () => {
+    const [finding] = assertAbsentPage({ ...probe, status: 308 });
+    expect(finding?.kind).toBe('absent-page-not-404');
+    expect(finding?.detail).toContain('absent, not moved');
+  });
+
+  it('reports a fetch that never landed rather than reading it as a 404', () => {
+    // Status 0 is "no status was observed". Read as anything else it would be
+    // the one shape this probe must never take: a green from a request that
+    // measured nothing.
+    const [finding] = assertAbsentPage({ ...probe, status: 0 });
+    expect(finding?.kind).toBe('absent-page-not-404');
+    expect(finding?.detail).toContain('could not be fetched');
+  });
+
+  it('reports a 500 as itself', () => {
+    const [finding] = assertAbsentPage({ ...probe, status: 500 });
+    expect(finding?.detail).toContain('HTTP 500');
+  });
+});
+
 describe('the refusals', () => {
   const axeRuns = [{ route: '/', rulesRun: 84, violations: [] }];
+  /** A run whose status half did what it planned, so each red below is one edit from it. */
+  const absent = { absentPlanned: 3, absentIssued: 3 };
 
   it('refuses a run that fetched fewer pages than it planned', () => {
-    expect(runRefusal({ planned: 9, fetched: 8, ok: 8, axeRuns })?.kind).toBe('short-fetch');
+    expect(runRefusal({ planned: 9, fetched: 8, ok: 8, axeRuns, ...absent })?.kind).toBe(
+      'short-fetch',
+    );
   });
 
   it('refuses a run in which no page answered 200 — nothing was measured', () => {
-    expect(runRefusal({ planned: 9, fetched: 9, ok: 0, axeRuns })?.kind).toBe('no-page-fetched');
+    expect(runRefusal({ planned: 9, fetched: 9, ok: 0, axeRuns, ...absent })?.kind).toBe(
+      'no-page-fetched',
+    );
+  });
+
+  it('refuses a run that planned absent probes and issued none', () => {
+    // `response-status.md` §4.4. The status half is invisible to every other
+    // assertion here — all of them are made about pages that answered 200 — so
+    // a run that skipped it reports a clean sweep having measured nothing about
+    // the thing this feature added.
+    const refusal = runRefusal({
+      planned: 9,
+      fetched: 9,
+      ok: 9,
+      axeRuns,
+      absentPlanned: 4,
+      absentIssued: 0,
+    });
+    expect(refusal?.kind).toBe('no-absent-probe-issued');
+    expect(refusal?.message).toContain('4');
+  });
+
+  it('does not refuse a run that planned no absent probe at all', () => {
+    // A tree with no dynamic route type owes none, and the refusal is a
+    // conditional rather than a universal for that reason.
+    expect(
+      runRefusal({ planned: 1, fetched: 1, ok: 1, axeRuns, absentPlanned: 0, absentIssued: 0 }),
+    ).toBeNull();
   });
 
   it('refuses a page on which axe evaluated no rule at all', () => {
@@ -398,13 +470,14 @@ describe('the refusals', () => {
       fetched: 1,
       ok: 1,
       axeRuns: [{ route: '/catalog', rulesRun: 0, violations: [] }],
+      ...absent,
     });
     expect(refusal?.kind).toBe('no-axe-rules');
     expect(refusal?.message).toContain('/catalog');
   });
 
   it('passes a run that fetched everything it planned and ran rules on every page', () => {
-    expect(runRefusal({ planned: 1, fetched: 1, ok: 1, axeRuns })).toBeNull();
+    expect(runRefusal({ planned: 1, fetched: 1, ok: 1, axeRuns, ...absent })).toBeNull();
   });
 });
 
