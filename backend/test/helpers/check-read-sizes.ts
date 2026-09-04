@@ -519,7 +519,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 103 (overlay file shadowing retired): 1884 -> 1883.** One file, net:
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go, `claimed-module-ids.ts`
     // arrives.
-    files: 1883,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 1883 -> 1935.** 52 module
+    // packages gain a `vitest.config.ts`, and its route walk reads a package root.
+    files: 1935,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -562,7 +564,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
     // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
     // collision rule.
-    files: 2007,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 2059,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -585,7 +589,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1553,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 1553 -> 1604.** 52 module
+    // packages gain a `vitest.config.ts`, less the one module it excludes by argument.
+    files: 1604,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -610,7 +616,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1809,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 1809 -> 2057.** +248 = 196
+    // harness-free single-owner test files leave `backend/test/` and land inside the
+    // module walk this check reads, plus the 52 new configurations.
+    files: 2057,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -681,7 +690,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // screen `cms_pages/CmsPagesPage.tsx` and `packages/contracts/src/cms-pages.ts`.
     // This walk is the whole repository, so it sees all four; `sites` is unmoved,
     // none of them folding a diacritic or building a slug.
-    files: 5187,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 5187 -> 5239.** 52 module
+    // packages gain a `vitest.config.ts`; the 196 moves are net zero for a whole-tree
+    // walk.
+    files: 5239,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -783,7 +795,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
     // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
     // collision rule.
-    files: 2007,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 2059,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -810,7 +824,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
     // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
     // collision rule.
-    files: 2007,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 2059,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -837,7 +853,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
     // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
     // collision rule.
-    files: 2007,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 2059,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -937,7 +955,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
-    files: 1752,
+    // **Feature 106 (`specs/106-module-owned-tests/`): sites 569 -> 555, files 1752 ->
+    // 1556.** 196 harness-free single-owner test files leave `backend/test/`. `sites`
+    // falls by 14, the reads those files carried.
+    files: 1556,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -947,7 +968,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both the walk and the finer population in the same merge request.
     // **Batch 15: 532 -> 533.** One read site in the batch's own backend
     // integration test.
-    sites: 569,
+    sites: 555,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -972,7 +993,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
-    files: 1752,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
+    // harness-free single-owner test files leave `backend/test/`.
+    files: 1556,
     sites: null,
     sources: [],
   },
@@ -999,7 +1022,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
     // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
     // collision rule.
-    files: 2007,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 2059,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1157,7 +1182,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in the `admin/src` population. `sites` is unmoved and the four `sources`
     // tokens with it — the deleted screen rendered no zone, contributed to none,
     // and named no module id.
-    files: 2329,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 2329 -> 2577.** +248 = 196
+    // harness-free single-owner test files leave `backend/test/` into the module walk
+    // roots this check reads, plus the 52 new configurations.
+    files: 2577,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -1187,7 +1215,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // family member's `src`. `migrations/` and `*.test.ts` are out by decision,
     // so the number moves with ordinary module code and not with a migration or
     // a test.
-    files: 1937,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 1937 -> 1989.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 1989,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -1319,7 +1349,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `catalog`' and `orders`' admin layers add to the module walk — this check
     // reads module sources and shipped bundles, and the twenty-four `.tsx`
     // screens are outside its extension set.
-    files: 1564,
+    // **Feature 106 (`specs/106-module-owned-tests/`): sites 32288 -> 32496, files 1564
+    // -> 1616.** 52 module packages gain a `vitest.config.ts`; `sites` is the literals
+    // in them.
+    files: 1616,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -1344,7 +1377,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // observed value absorbs **+671** of it (this branch's base, 36174efa1, observed
     // 32290). Stated rather than left implicit: the number is re-recorded here because
     // this branch moved it, not because this branch grew it.
-    sites: 32288,
+    sites: 32496,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -1663,7 +1696,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walk: `admin/src/modules/cms_pages/CmsPagesPage.tsx`, which the layout
     // attributes to the host (no nav entry claims that directory) and which is
     // deleted with the contract it was typed against. The module walk is unmoved.
-    files: 4155,
+    // **Feature 106 (`specs/106-module-owned-tests/`): sites 11137 -> 11887, files 4155
+    // -> 4651.** 196 harness-free single-owner test files leave `backend/test/` and
+    // arrive in the module walk, and 52 module packages gain a `vitest.config.ts` —
+    // both roots this check reads, so each file counts on both sides of its union.
+    // `sites` is the specifiers and table references they carry.
+    files: 4651,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -1685,7 +1723,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // deleted file. The pair is what says which of the two happened: a file left
     // the walk and took its specifiers with it, rather than a specifier shape the
     // reader stopped recognising, which would have moved `sites` alone.
-    sites: 11137,
+    sites: 11887,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -1818,7 +1856,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `conformance:storefront` run adds one — `storefront/test-results/` is
     // git-ignored and this deny-list walk opens it — so what is recorded is
     // what a clean checkout reads.
-    files: 7499,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 7499 -> 7557.** 52 module
+    // packages gain a `vitest.config.ts`; the 196 moves are net zero for a
+    // whole-repository walk. The remaining +6 is inherited drift — the four
+    // `specs/108-storefront-response-status/` pages among it — recorded here rather
+    // than left to go stale in an entry this branch rewrites anyway.
+    files: 7557,
     sites: null,
     sources: [],
   },
@@ -1994,7 +2037,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
     // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
     // collision rule.
-    files: 2007,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 2059,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -2017,7 +2062,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // their packages as twenty-four `.tsx` screens plus
     // `catalog/src/admin/index.ts`, `catalog/src/admin/lib/resolve-product-selection.ts`
     // and `orders/src/admin/lib/paymentStatus.ts`.
-    files: 1794,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 1794 -> 1846.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 1846,
     sites: 1470,
     sources: ['manifest-index'],
   },
@@ -2120,7 +2167,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 105: 1891 -> 1890.** `packages/contracts/src/cms-pages.ts`, whose
     // last reader went with the storefront's `path`-addressed CMS fetch. `sites`
     // is unmoved: it declared no port, no registration and no `lazyPort`.
-    files: 1890,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 1890 -> 1942.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 1942,
     sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -2250,7 +2299,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Recording the observed value absorbs **+10** left by earlier merges (this
     // branch's base, 36174efa1, observed 1760 against a recorded 1750).
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
-    files: 1752,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
+    // harness-free single-owner test files leave `backend/test/`.
+    files: 1556,
     sites: 163,
     sources: [],
   },
@@ -2307,7 +2358,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
     // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
     // collision rule.
-    files: 2007,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 2059,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2334,7 +2387,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go with the shadowing
     // machinery, `packages/claimed-module-ids.ts` arrives with the module-id
     // collision rule.
-    files: 2007,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
+    // packages gain a `vitest.config.ts`.
+    files: 2059,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2378,7 +2433,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The storefront is outside this walk by construction — its conjunct 1
     // (a file whose closure also loads a package's published artefact) is
     // false there.
-    files: 4181,
+    // **Feature 106 (`specs/106-module-owned-tests/`): sites 1103 -> 852, files 4181 ->
+    // 4233.** `sites` falls by 251 because a test that reached
+    // `packages/modules/<id>/src` from `backend/test` was a cross-package value reach
+    // and the same test inside that package is not — the population this check exists
+    // to judge genuinely shrank. `files` rises by the 52 new configurations.
+    files: 4233,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2422,7 +2482,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // all, and packaging them turned every test import of either into one. 637
     // -> 963. Re-record it, never widen the band — the floor is what would catch
     // the walk losing the package tree.
-    sites: 1103,
+    sites: 852,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {
@@ -2555,7 +2615,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // already owed `master`, which reads 7562 at bf869a18a. Measured in a
     // second worktree at this branch's own base commit rather than subtracted
     // from the number above it.
-    files: 7559,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 7559 -> 7617.** 52 module
+    // packages gain a `vitest.config.ts`; the 196 moves are net zero. The remaining +6
+    // is inherited drift, on the same terms as `check-nul-bytes` above.
+    files: 7617,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2619,7 +2682,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // deletes; its changeset is a `.md` outside `docs/docs/`, so this walk does
     // not open it, which is why the delta here is -4 where `check:naming`'s,
     // over the same four deletions, is -3.
-    files: 5653,
+    // **Feature 106 (`specs/106-module-owned-tests/`): files 5653 -> 5705.** 52 module
+    // packages gain a `vitest.config.ts`; the 196 moves are net zero for a whole-tree
+    // walk.
+    files: 5705,
     sites: null,
     sources: ['manifest-index'],
   },
