@@ -124,8 +124,17 @@ async function defaultChannel(execute: Execute): Promise<ChannelRow> {
  * the bare development seed reported the home page as declaring `Organization`
  * and emitting none, which is a finding about the fixture and not about the
  * page. A conformance fixture has to be a shop somebody could plausibly run.
+ *
+ * **It counts what it wrote, and that is the point rather than a flourish.**
+ * These rows are *created by the platform's own boot*, not by `seed:dev`, so on
+ * a database that has never had the backend run against it the `update` below
+ * matches nothing — and an `update` that matches nothing is silent. That is
+ * exactly how this returned after it had been fixed once: the run was green
+ * three times against a database that already carried the rows, and red the
+ * first time one was created from scratch. The caller decides what an
+ * unwritable identity means; this function's job is to say so.
  */
-async function shopIdentity(execute: Execute): Promise<void> {
+async function shopIdentity(execute: Execute): Promise<number> {
   const values: ReadonlyArray<readonly [string, string]> = [
     ['shop.name', 'Endora Conformance Shop'],
     ['shop.address', 'ul. Testowa 1, 00-001 Warszawa'],
@@ -139,6 +148,17 @@ async function shopIdentity(execute: Execute): Promise<void> {
       code,
     ]);
   }
+  // `in (…)` with one placeholder per code, not `= any(?)`: the driver expands
+  // an array parameter into a comma-separated list, which `any()` will not take.
+  const placeholders = values.map(() => '?').join(', ');
+  const written = await rows<{ count: string }>(
+    execute,
+    `select count(*)::text as count
+       from settings
+      where code in (${placeholders}) and global_value is not null`,
+    values.map(([code]) => code),
+  );
+  return Number(written[0]?.count ?? 0);
 }
 
 /** A product the storefront will serve: active, public, in this channel. */
@@ -373,7 +393,14 @@ async function main(): Promise<void> {
 
   try {
     const channel = await defaultChannel(execute);
-    await shopIdentity(execute);
+    const identity = await shopIdentity(execute);
+    if (identity === 0) {
+      console.warn(
+        `${PREFIX} no \`shop.*\` setting could be written — those rows are created by the ` +
+          'platform\'s own boot, so this database has never had the backend run against it. ' +
+          'The home page will declare `Organization` and emit none.',
+      );
+    }
     const subjects: Partial<Record<SubjectKind, Subject>> = {};
 
     for (const [kind, produce] of [
@@ -404,7 +431,8 @@ async function main(): Promise<void> {
     writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
     console.log(
       `${PREFIX} channel=${channel.code} language=${channel.default_language} ` +
-        `currency=${channel.default_currency} subjects=${Object.keys(subjects).length} -> ${path}`,
+        `currency=${channel.default_currency} subjects=${Object.keys(subjects).length} ` +
+        `shop-settings=${identity}/5 -> ${path}`,
     );
   } finally {
     await closeOrm();

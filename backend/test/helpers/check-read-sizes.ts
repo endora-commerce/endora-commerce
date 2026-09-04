@@ -1778,7 +1778,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population.
     // This walk is the whole repository, so the fourteen are the nine plus
     // five `master` gained while this branch was open.
-    files: 7484,
+    // **Rebased onto feature 104: 7484 -> 7486.** Not this branch's nine — the two
+    // `.changeset/*.md` files `feat/104-publication` brought with it, which this
+    // whole-tree walk sees and the source-comment walks do not. Re-measured on
+    // the rebased tree rather than added to the number above it.
+    files: 7486,
     sites: null,
     sources: [],
   },
@@ -2479,7 +2483,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // standing on `master` (measured 7534 there, in a detached worktree of
     // `origin/master`, before this branch was rebased onto it). The recorded
     // number is what this tree reads, not the old record plus a delta.
-    files: 7543,
+    // **Rebased onto feature 104: 7543 -> 7545.** Not this branch's nine — the two
+    // `.changeset/*.md` files `feat/104-publication` brought with it, which this
+    // whole-tree walk sees and the source-comment walks do not. Re-measured on
+    // the rebased tree rather than added to the number above it.
+    files: 7545,
     sites: null,
     sources: ['manifest-index'],
   },
