@@ -11,6 +11,7 @@
 export type SupportedLocale = string;
 
 export type MessageKey =
+  | 'a11y.skipToContent'
   | 'nav.home'
   | 'nav.catalog'
   | 'nav.search'
@@ -339,6 +340,7 @@ export type MessageKey =
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
+    'a11y.skipToContent': 'Skip to content',
     'nav.home': 'Home',
     'nav.catalog': 'Catalog',
     'nav.search': 'Search',
@@ -673,6 +675,7 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'quoteRequests.resubmit': 'Submit again',
   },
   'pl-PL': {
+    'a11y.skipToContent': 'Przejdz do tresci',
     'nav.home': 'Strona glowna',
     'nav.catalog': 'Katalog',
     'nav.search': 'Wyszukiwanie',

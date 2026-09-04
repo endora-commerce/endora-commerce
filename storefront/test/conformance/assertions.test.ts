@@ -6,6 +6,7 @@ import {
   canonicalPathOf,
   classifyAxeRuns,
   classifyKeyboardTraversal,
+  classifyReducedMotion,
   countHeadings,
   firstHeadingText,
   metaDescriptionOf,
@@ -368,5 +369,27 @@ describe('the canonical is compared as a path', () => {
     expect(
       kinds({ ...page, html: page.html.replace('/p/pump-01"', '/en/p/pump-01"') }),
     ).toContain('canonical-mismatch');
+  });
+});
+
+describe('prefers-reduced-motion', () => {
+  it('fails an element still running an animation while the preference is set', () => {
+    const findings = classifyReducedMotion([
+      { route: '/', mediaQueryMatches: true, animating: ['.spinner'] },
+    ]);
+    expect(findings.map((one) => one.kind)).toEqual(['motion-under-reduced-motion']);
+  });
+
+  it('fails an emulation that did not reach the document, rather than reporting it clean', () => {
+    const findings = classifyReducedMotion([
+      { route: '/', mediaQueryMatches: false, animating: [] },
+    ]);
+    expect(findings[0]?.detail).toContain('the emulation, not the page');
+  });
+
+  it('says nothing about a transition — the rule is about animation', () => {
+    expect(classifyReducedMotion([{ route: '/', mediaQueryMatches: true, animating: [] }])).toEqual(
+      [],
+    );
   });
 });

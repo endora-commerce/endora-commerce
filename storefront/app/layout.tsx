@@ -152,6 +152,19 @@ export default async function RootLayout({
         channel={ctx.salesChannelCode}
       >
         <div className="flex min-h-screen flex-col bg-bg">
+          {/* Bypass Blocks (WCAG 2.4.1). The first tab stop on every page,
+              visible only while focused, so a keyboard reader is not made to
+              traverse the header and the megamenu on every navigation. It is
+              the first child of the layout deliberately: the tab order is the
+              document order, and a skip link that is not first skips nothing.
+              `conformance:storefront` asserts both halves — that it is there,
+              and that one Tab reaches it. */}
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-[16px] focus:top-[16px] focus:z-50 focus:rounded-[4px] focus:bg-bg focus:px-[16px] focus:py-[10px] focus:text-fg focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {t('a11y.skipToContent')}
+          </a>
           <HeaderSwitch
             minimal={<CheckoutHeader />}
             full={
@@ -172,7 +185,7 @@ export default async function RootLayout({
               </>
             }
           />
-          <main className="flex-1">
+          <main id="main-content" tabIndex={-1} className="flex-1">
             {/* Feature 037 — post-login cart-merge confirmation. The
                 component reads-and-clears its own flash cookie, so it
                 renders to `null` on every page except the one that

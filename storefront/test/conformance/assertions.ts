@@ -104,7 +104,8 @@ export type ConformanceFindingKind =
   | 'accessibility-violation'
   | 'stale-accessibility-ledger-entry'
   | 'unreachable-keyboard-step'
-  | 'missing-skip-link';
+  | 'missing-skip-link'
+  | 'motion-under-reduced-motion';
 
 export interface ConformanceFinding {
   readonly kind: ConformanceFindingKind;
@@ -518,6 +519,53 @@ export function classifyKeyboardTraversal(
           'user still traverses the whole header on every page'
         : 'the document carries no skip link, so a keyboard user traverses the whole header ' +
           'before reaching the content on every page',
+    });
+  }
+  return findings;
+}
+
+/**
+ * What a page does while `prefers-reduced-motion: reduce` is emulated.
+ *
+ * `.claude/skills/ux-laws/SKILL.md` § 4's last rule, and the one rule of the
+ * floor that no axe rule decides — which is why it is asserted directly rather
+ * than left to the pass. The subject is a running **animation**: a `transition`
+ * is a response to an interaction that has already happened, and zeroing every
+ * one of them is a stronger requirement than the rule states, so a transition
+ * is not a finding here and saying so is the point.
+ */
+export interface ReducedMotionObservation {
+  readonly route: string;
+  /** Whether the emulation reached the document at all. */
+  readonly mediaQueryMatches: boolean;
+  /** Elements running a named animation with a non-zero duration. */
+  readonly animating: readonly string[];
+}
+
+export function classifyReducedMotion(
+  observations: readonly ReducedMotionObservation[],
+): readonly ConformanceFinding[] {
+  const findings: ConformanceFinding[] = [];
+  for (const observation of observations) {
+    if (!observation.mediaQueryMatches) {
+      findings.push({
+        kind: 'motion-under-reduced-motion',
+        route: observation.route,
+        detail:
+          '`matchMedia(\'(prefers-reduced-motion: reduce)\')` does not match while the browser ' +
+          'is emulating it. Nothing below was measured under the preference this assertion is ' +
+          'about, so a clean result here would mean the emulation, not the page',
+      });
+      continue;
+    }
+    if (observation.animating.length === 0) continue;
+    findings.push({
+      kind: 'motion-under-reduced-motion',
+      route: observation.route,
+      detail:
+        `${observation.animating.length} element(s) keep a running animation while the reader ` +
+        `has asked for reduced motion: ${observation.animating.slice(0, 5).join(', ')}` +
+        `${observation.animating.length > 5 ? ', …' : ''}`,
     });
   }
   return findings;

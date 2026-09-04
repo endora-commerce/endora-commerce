@@ -8,7 +8,9 @@ import {
   SUBJECT_KIND_BY_ROUTE,
   type ConformancePlanInput,
   type FixtureManifest,
+  type FixtureSubject,
   type RouteDeclaration,
+  type SubjectKind,
 } from './plan';
 
 /**
@@ -33,18 +35,21 @@ function declaration(
   return { source, route, jsonLd };
 }
 
-function fixtures(overrides: Partial<FixtureManifest['subjects']> = {}): FixtureManifest {
-  return {
-    channel: { code: 'pl_default', currency: 'PLN', language: 'en-US' },
-    subjects: {
-      product: { kind: 'product', segments: ['pump-01'], name: 'Pump 01' },
-      category: { kind: 'category', segments: ['pumps'], name: 'Pumps' },
-      blogPost: { kind: 'blogPost', segments: ['hello'], name: 'Hello' },
-      cmsPage: { kind: 'cmsPage', segments: ['about'], name: 'About' },
-      contentPage: { kind: 'contentPage', segments: ['terms'], name: 'Terms' },
-      ...overrides,
-    },
-  };
+/** Every subject a seeded platform supplies, minus the ones a case withholds. */
+function fixtures(without: readonly SubjectKind[] = []): FixtureManifest {
+  const all = {
+    product: { kind: 'product', segments: ['pump-01'], name: 'Pump 01' },
+    category: { kind: 'category', segments: ['pumps'], name: 'Pumps' },
+    blogPost: { kind: 'blogPost', segments: ['hello'], name: 'Hello' },
+    cmsPage: { kind: 'cmsPage', segments: ['about'], name: 'About' },
+    contentPage: { kind: 'contentPage', segments: ['terms'], name: 'Terms' },
+  } as const satisfies Record<SubjectKind, { kind: SubjectKind; segments: string[]; name: string }>;
+  const subjects: FixtureManifest['subjects'] = {};
+  for (const [kind, subject] of Object.entries(all) as [SubjectKind, FixtureSubject][]) {
+    if (without.includes(kind)) continue;
+    subjects[kind] = subject;
+  }
+  return { channel: { code: 'pl_default', currency: 'PLN', language: 'en-US' }, subjects };
 }
 
 /** A manifest that carries every declared route, as `next build` writes it. */
@@ -149,7 +154,7 @@ describe('the refusals', () => {
         input({
           declarations,
           manifest: manifestFor(declarations),
-          fixtures: fixtures({ category: undefined }),
+          fixtures: fixtures(['category']),
         }),
       ),
     );
@@ -188,7 +193,7 @@ describe('the subjectless-route ledger', () => {
       input({
         declarations,
         manifest: manifestFor(declarations),
-        fixtures: fixtures({ contentPage: undefined }),
+        fixtures: fixtures(['contentPage']),
       }),
     );
     expect(plan.pages.map((page) => page.route)).toEqual(['/catalog']);

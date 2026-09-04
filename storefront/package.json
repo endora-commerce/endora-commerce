@@ -14,7 +14,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint app components lib scripts test",
-    "test": "vitest run"
+    "test": "vitest run",
+    "conformance": "playwright test --config playwright.conformance.config.ts"
   },
   "dependencies": {
     "@endora-commerce/cms-components": "workspace:^",
