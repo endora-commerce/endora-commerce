@@ -4,9 +4,9 @@ import type { AddressRecord } from '@endora-commerce/contracts';
 // hands it to a stubbed service, never to an ORM, so the door in
 // `helpers/package-entities.ts` — which exists to keep one *registered* class —
 // has nothing to protect here and returns a non-constructable type.
-import { Address } from '../../../../packages/modules/addresses/src/backend/entities/address.entity.js';
-import type { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
-import { createAddressServicePort } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
+import { Address } from '../entities/address.entity.js';
+import type { AddressService } from './address-service.js';
+import { createAddressServicePort } from './address-ports.js';
 
 /**
  * `createAddressServicePort` — the record-mapping adapter behind
