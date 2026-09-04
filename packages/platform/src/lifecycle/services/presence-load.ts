@@ -48,6 +48,11 @@ export type ReducedDeploymentFinding =
  * envelope; this refuses an **initial state** nobody asked about, and answers the
  * person who composed the deployment, at their terminal, before anything serves.
  * Merging the two would re-make exactly the conflation D-100 exists to stop.
+ *
+ * It keeps its name after D-205 renamed the file it points at. The declaration
+ * is `divergence.ts` because it grew past omissions; this refusal did not — all
+ * three of its findings are about a module set that is *reduced*, which is what
+ * `omittedModules` still declares.
  */
 export class ReducedDeploymentError extends Error {
   readonly findings: readonly ReducedDeploymentFinding[];
@@ -59,7 +64,7 @@ export class ReducedDeploymentError extends Error {
   }
 }
 
-const LEDGER_PATH = 'backend/src/apps/<deployment>/reduced-deployment.ts';
+const LEDGER_PATH = 'backend/src/apps/<deployment>/divergence.ts';
 
 function refusalMessage(findings: readonly ReducedDeploymentFinding[]): string {
   const lines: string[] = [
@@ -84,16 +89,16 @@ function refusalMessage(findings: readonly ReducedDeploymentFinding[]): string {
     } else {
       lines.push(
         `  ${finding.moduleId} — declared as omitted, but this deployment ships it and its row is fine.`,
-        `      Remove the entry from ${LEDGER_PATH}; a declaration nothing omits is how a`,
-        '      deployment silently reacquires the hazard it once declared.',
+        `      Remove the entry from the \`omittedModules\` of ${LEDGER_PATH}; a declaration`,
+        '      nothing omits is how a deployment silently reacquires the hazard it once declared.',
       );
     }
     lines.push('');
   }
   lines.push(
     'Ship the modules, or — if the omission is deliberate — declare each one, with a reason,',
-    `in ${LEDGER_PATH}. The declaration is reviewed in the merge request that assembles the`,
-    'deployment, which a flag set at 2 a.m. is not (D-69, D-101).',
+    `in the \`omittedModules\` of ${LEDGER_PATH}. The declaration is reviewed in the merge`,
+    'request that assembles the deployment, which a flag set at 2 a.m. is not (D-69, D-101).',
   );
   return lines.join('\n');
 }
@@ -236,10 +241,11 @@ export async function loadModulePresence(opts: {
   entries: readonly ShippedModuleEntry[];
   /**
    * The module ids this deployment declares it deliberately does not ship —
-   * `backend/src/apps/<deployment>/reduced-deployment.ts`, read by the host.
+   * the `omittedModules` of `backend/src/apps/<deployment>/divergence.ts`, read
+   * by the host.
    *
    * **Injected** (feature 080, D-160.11). This step used to call
-   * `loadReducedDeploymentDeclarations()` itself, which reads the deployment
+   * `loadDivergenceDeclaration()` itself, which reads the deployment
    * root out of `backend/src/overlay/` — a directory the platform may not name
    * and could not publish (D-52/D-53, §1.4l). Which deployment a process runs
    * as is a fact about the process, so the root that already resolved it hands

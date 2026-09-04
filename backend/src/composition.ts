@@ -140,7 +140,7 @@ import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
 import { lifecycleModuleFromStaticEntries } from './lifecycle/plugin.js';
 import { loadModulePresence } from './lifecycle/services/presence-load.js';
-import { loadReducedDeploymentDeclarations } from './lifecycle/services/reduced-deployment.js';
+import { loadDivergenceDeclaration } from './lifecycle/services/divergence.js';
 import {
   deploymentShippedEntries,
   resolvedManifestEntries,
@@ -385,7 +385,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       loadModulePresence({
         em,
         entries: resolvedRegistry,
-        declaredOmissions: (await loadReducedDeploymentDeclarations()).map(
+        declaredOmissions: (await loadDivergenceDeclaration()).omittedModules.map(
           (entry) => entry.moduleId,
         ),
       }),

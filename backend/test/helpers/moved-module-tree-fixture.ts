@@ -66,7 +66,7 @@ const RESIDUE_ROOTS: readonly string[] = [
   'kernel',
   // Feature 080, D-160.11's second half. `_lifecycle`'s **host half** stayed
   // here when the module merged into the platform package: its manifest
-  // registry, its reduced-deployment reader, the five `module:*` commands, and
+  // registry, its divergence reader, the five `module:*` commands, and
   // the re-export shims every consumer of a moved file still names. Three
   // spawned checks import one of those files as code — `check-port-dependencies`
   // takes the gating graph and the deactivation ledger, `check-action-route-permissions`

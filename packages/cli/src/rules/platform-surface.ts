@@ -296,7 +296,7 @@ export interface LedgeredReach {
  * moved `_lifecycle`'s platform-safe files into the host package, where the
  * same specifier crosses no boundary
  * ({@link PlatformSurfaceInput.platformSourceRoot}), and left its host half —
- * the manifest registry, the reduced-deployment reader and the five `module:*`
+ * the manifest registry, the divergence reader and the five `module:*`
  * commands — outside the module walk, where it is host code like `src/db` and
  * `src/overlay` and was never this check's subject.
  *

@@ -221,7 +221,7 @@ describe('check:platform-surface findings', () => {
   });
 
   it('reports a walked file no module owns instead of skipping it', () => {
-    const result = checkPlatformSurface(input({ 'backend/src/apps/example/reduced-deployment.ts': '' }), {});
+    const result = checkPlatformSurface(input({ 'backend/src/apps/example/divergence.ts': '' }), {});
     expect(kinds(result.violations)).toEqual(['unattributed-source']);
     expect(result.violations[0]?.moduleId).toBeNull();
   });

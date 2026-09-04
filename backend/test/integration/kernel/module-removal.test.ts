@@ -435,8 +435,8 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // **The whole entry was rewritten by D-160.11's second half, and what it
   // records is a different kind of reference.** The module's sources moved into
   // `@endora-commerce/platform`; what stayed at `backend/src/lifecycle/` is the
-  // host half the ruling names — the manifest registry, the reduced-deployment
-  // reader, the five `module:*` commands — plus twelve **re-export shims**, one
+  // host half the ruling names — the manifest registry, the divergence reader,
+  // the five `module:*` commands — plus twelve **re-export shims**, one
   // per moved file that something in `backend/` still names at its old path.
   // Those shims are the bridge, and they are the only files in this application
   // that reach the module's directory: `src/cli.ts` and `src/composition.ts`

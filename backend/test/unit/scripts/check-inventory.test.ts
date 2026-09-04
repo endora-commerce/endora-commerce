@@ -6490,7 +6490,7 @@ const CHECKS: readonly CheckEntry[] = [
       ),
       'unattributed-source': top(() =>
         platformSurfaceFindings(
-          { 'backend/src/apps/example/reduced-deployment.ts': '' },
+          { 'backend/src/apps/example/divergence.ts': '' },
           'unattributed-source',
         ),
       ),
