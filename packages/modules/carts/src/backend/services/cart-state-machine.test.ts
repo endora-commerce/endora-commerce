@@ -3,8 +3,8 @@ import {
   derivePrimaryCta,
   nextApprovalState,
   shouldReArmOnBuyerMutation,
-} from '../../../../packages/modules/carts/src/backend/services/cart-state-machine.js';
-import type { CartApprovalStatus, CartStatus } from '../../../../packages/modules/carts/src/backend/entities/cart.entity.js';
+} from './cart-state-machine.js';
+import type { CartApprovalStatus, CartStatus } from '../entities/cart.entity.js';
 
 /**
  * Feature 027 T084 / T085 — pure state-machine unit tests for the

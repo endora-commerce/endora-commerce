@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CartEmailDispatch } from '../../../../packages/modules/carts/src/backend/services/cart-approval-service.js';
+import type { CartEmailDispatch } from './cart-approval-service.js';
 
 /**
  * T090 unit test — confirms the `CartEmailDispatch` port contract.
