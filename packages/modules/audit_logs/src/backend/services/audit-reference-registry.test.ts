@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AuditReferenceResolver } from '@endora-commerce/contracts';
-import { AuditReferenceRegistry } from '../../../../packages/modules/audit_logs/src/backend/services/audit-reference-registry.js';
+import { AuditReferenceRegistry } from './audit-reference-registry.js';
 
 /**
  * The audit-log reference registry (feature 075, D-87 drain).
