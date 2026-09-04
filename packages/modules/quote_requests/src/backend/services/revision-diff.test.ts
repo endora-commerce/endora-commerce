@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { RfqRevisionService } from '../../../../packages/modules/quote_requests/src/backend/services/rfq-revision-service.js';
-import type { QuoteRequestRevisionLine } from '../../../../packages/modules/quote_requests/src/backend/entities/quote-request-revision.entity.js';
+import { RfqRevisionService } from './rfq-revision-service.js';
+import type { QuoteRequestRevisionLine } from '../entities/quote-request-revision.entity.js';
 
 const svc = new RfqRevisionService(() => ({}) as never);
 
