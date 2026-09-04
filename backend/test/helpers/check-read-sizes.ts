@@ -1758,7 +1758,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +8.** The whole-repository walk gains the command's three sources and
     // its test, the acceptance criterion's two sources and its test, and the
     // recorded expectation.
-    files: 7470,
+    // **Feature 104: 7470 -> 7476, of which this branch's own contribution is
+    // +2** — its two changeset files, which is the one thing a merge request
+    // reliably adds to a whole-repository walk. The other +4 arrived with
+    // `specs/104-package-publication/`, four markdown files merged on the design
+    // branch without a re-record; recording the observed value absorbs them,
+    // which is what "record what the tree reads" means here.
+    files: 7476,
     sites: null,
     sources: [],
   },
@@ -2439,7 +2445,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its test, the acceptance criterion's two sources and its test, and the
     // recorded expectation. Measured against a detached baseline, for the reason
     // `check:language`'s entry gives.
-    files: 7530,
+    // **Feature 104: 7530 -> 7536**, the same +2 changeset files and the same +4
+    // from `specs/104-package-publication/`'s design merge — the two entries move
+    // together because both walk the whole tracked tree. Parking this one is not
+    // an option: `check:naming` runs in `quality:static` on every push.
+    files: 7536,
     sites: null,
     sources: ['manifest-index'],
   },
