@@ -5,7 +5,7 @@ import type {
   SystemRoleCodePort,
   UpsertAdminRoleInput,
 } from '@endora-commerce/contracts';
-import { BLOG_ROLE_CODES, seedBlogRoles } from '../../../../packages/modules/blog/src/backend/services/seed-roles.js';
+import { BLOG_ROLE_CODES, seedBlogRoles } from './seed-roles.js';
 
 /**
  * `seedBlogRoles` reaches `admin_roles` through `adminRolePort` (feature 075).
