@@ -3,7 +3,7 @@ import {
   authorOfCurrentStatus,
   currentStatusAuthors,
   type StatusTransitionRecord,
-} from '../../../../packages/modules/orders/src/backend/domain/status-authorship.js';
+} from './status-authorship.js';
 
 /**
  * Issue #284 — reading an order's transition history back to find out who put

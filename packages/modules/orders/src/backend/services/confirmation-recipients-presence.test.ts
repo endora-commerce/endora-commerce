@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { OrderConfirmationService } from '../../../../packages/modules/orders/src/backend/services/order-confirmation-service.js';
+import { OrderConfirmationService } from './order-confirmation-service.js';
 
 /**
  * The additional confirmation recipients do not silently become none when

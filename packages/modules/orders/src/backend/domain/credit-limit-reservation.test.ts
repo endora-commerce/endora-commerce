@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mayHoldCreditLimitReservation } from '../../../../packages/modules/orders/src/backend/domain/credit-limit-reservation.js';
+import { mayHoldCreditLimitReservation } from './credit-limit-reservation.js';
 
 /**
  * The predicate that decides whether `orders` asks `credit_limits` anything at

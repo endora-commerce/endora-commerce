@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   BusinessIdGenerator,
   type BusinessIdSettingsResolver,
-} from '../../../../packages/modules/orders/src/backend/services/business-id-generator.js';
+} from './business-id-generator.js';
 
 // The generator never touches the DB in these tests — the sequence draw is
 // injected. A bare object stands in for the tx EntityManager (unused by the

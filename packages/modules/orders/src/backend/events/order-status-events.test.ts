@@ -3,7 +3,7 @@ import {
   orderStatusAfterEventNames,
   orderStatusBeforeEventNames,
   orderStatusEventName,
-} from '../../../../packages/modules/orders/src/backend/events/order-status-events.js';
+} from './order-status-events.js';
 
 describe('orderStatusEventName', () => {
   it('builds the from→to before name', () => {

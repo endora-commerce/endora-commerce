@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   buildOrderConfirmationEmail,
   buildOrderConfirmationVariables,
-} from '../../../../packages/modules/orders/src/backend/email-templates/order-confirmation.js';
+} from './order-confirmation.js';
 import {
   noCarrierShippingLineRenderer,
   noGatewayPaymentLineRenderer,
-} from '../../../../packages/modules/orders/src/backend/email-templates/adapter-line-baselines.js';
+} from './adapter-line-baselines.js';
 
 /**
  * Feature 075 — the builder takes the two renderer contracts instead of

@@ -8,7 +8,7 @@ import {
   OrderStatusGraph,
   resolveOrderStatusName,
   type OrderStatusDef,
-} from '../../../../packages/modules/orders/src/backend/domain/order-status-graph.js';
+} from './order-status-graph.js';
 
 describe('resolveOrderStatusName', () => {
   const def = { code: 'paid', name: { en: 'Paid', pl: 'Zapłacone' }, defaultName: 'Paid' };

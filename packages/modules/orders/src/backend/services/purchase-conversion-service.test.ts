@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { PurchaseConversionService } from '../../../../packages/modules/orders/src/backend/services/purchase-conversion-service.js';
+import { PurchaseConversionService } from './purchase-conversion-service.js';
 
 /**
  * Issue #277 — spending an order's claim on a GA4 `purchase` conversion.
