@@ -76,6 +76,13 @@ function fixtureRepo(options: { storefrontFiles: Record<string, string> }): stri
   // git is the copy population's author, so the fixture has to be a checkout.
   for (const args of [['init', '-q'], ['add', '-A'], ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'f']]) {
     const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    // `spawnSync` reports a *missing binary* in `error`, not in `stderr` — which stays
+    // `undefined` while `status` is `null`. Reading only `stderr` produced
+    // `git init -q: undefined` in a container with no git, a message naming neither git nor
+    // its absence and sending its reader to look at the fixture. Say which of the two it is.
+    if (result.error) {
+      throw new Error(`git ${args.join(' ')} could not run — is git installed? ${result.error.message}`);
+    }
     if (result.status !== 0) throw new Error(`git ${args.join(' ')}: ${result.stderr}`);
   }
   return root;
