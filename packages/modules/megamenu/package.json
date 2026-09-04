@@ -39,7 +39,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -52,7 +53,8 @@
     "ioredis": "^5",
     "lucide-react": "^1",
     "react": "^19",
-    "react-router-dom": "^7"
+    "react-router-dom": "^7",
+    "vitest": "^2"
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -68,6 +70,7 @@
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
     "react-router-dom": "^7.14.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4"
   }
 }

@@ -99,7 +99,7 @@ describe('check-nul-bytes — what it refuses', () => {
     // same one, so a test file is in the population like any other source.
     const found = findNulBytes([
       {
-        path: 'backend/test/unit/product_feeds/xml-feed-serializer.test.ts',
+        path: 'packages/modules/product_feeds/src/backend/services/serializers/xml-feed-serializer.test.ts',
         bytes: bytes('const hostile = `A\0B`;\n'),
       },
     ]);
@@ -314,7 +314,7 @@ describe('check-nul-bytes — the tree it guards', () => {
     'packages/modules/admin_actions/src/backend/services/admin-actions-service.ts',
     'packages/modules/orders/src/backend/domain/order-status-graph.ts',
     'packages/modules/product_feeds/src/backend/services/taxonomy-revision-identity.ts',
-    'backend/test/unit/product_feeds/xml-feed-serializer.test.ts',
+    'packages/modules/product_feeds/src/backend/services/serializers/xml-feed-serializer.test.ts',
   ];
 
   it.each(repaired)('%s spells its NUL separator as an escape', (path) => {

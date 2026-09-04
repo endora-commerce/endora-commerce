@@ -342,9 +342,21 @@ done
 #   - segment params `:foo`
 #   - leading-underscore segments (e.g. /_health, /_openapi.json, /_test/*) —
 #     internal/diagnostic convention.
+#
+# A **test file is not a route declaration** (feature 106). The population is
+# matched on the filename — anything holding `routes` — and a module package's
+# harness-free tests now sit beside the sources they cover, so
+# `currency-routes-ports.test.ts` and `i18n-routes-currency-ports.test.ts`
+# joined it by being named after their subject. What they hold is a *request*:
+# `app.inject({ url: '/api/v1/admin/currencies/XAA' })`, where `XAA` is ISO
+# 4217's reserved test code and is uppercase because the currency it stands for
+# is. The rule judges what a module declares, so a caller is out of its
+# population; a genuine route declared in a `.test.ts` would be a different
+# defect, and one no naming rule can see.
 # ──────────────────────────────────────────────────────────────────────────
 route_files=()
 for f in "${changed_files[@]}"; do
+  [[ "$f" == *.test.ts ]] && continue
   if [[ "$f" == "$source_root"/*routes*.ts ]] || [[ "$f" == "$source_root"/*/routes*.ts ]]; then
     route_files+=("$f")
     continue
@@ -358,7 +370,7 @@ for f in "${changed_files[@]}"; do
 done
 if [[ "$mode" == "full" ]]; then
   while IFS= read -r f; do route_files+=("$f"); done < <(
-    find "$source_root" "${module_dirs[@]}" -name 'routes*.ts' 2>/dev/null
+    find "$source_root" "${module_dirs[@]}" -name 'routes*.ts' ! -name '*.test.ts' 2>/dev/null
   )
 fi
 if [ "${#route_files[@]}" -gt 0 ]; then
