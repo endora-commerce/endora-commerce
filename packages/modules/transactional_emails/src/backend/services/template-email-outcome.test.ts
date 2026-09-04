@@ -13,7 +13,7 @@ import type { TransactionalEmailSendInput, TransactionalSendOutcome } from '@end
 import {
   makeTemplateEmail,
   noopTemplateEmail,
-} from '../../../../packages/modules/transactional_emails/src/backend/services/template-email.js';
+} from './template-email.js';
 
 const CHANNEL = '00000000-0000-0000-0000-0000000000aa';
 
