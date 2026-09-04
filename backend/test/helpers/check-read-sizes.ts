@@ -729,7 +729,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // only on a file that has already been committed. The observed value is
     // recorded rather than `recorded + 1`, for this row's own standing reason:
     // 5240 would describe no tree at all.
-    files: 5241,
+    files: 5245,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -813,7 +813,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-04: 1186 -> 1209.** 26 markdown files were added under `specs/`
     // and `docs/docs/` since this was set -- the 104, 106, 107 and 108 spec
     // directories, chiefly. The walk is documents, not the module tree they cite.
-    files: 1209,
+    files: 1210,
     sites: 12,
     sources: [],
   },
@@ -949,7 +949,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the migration was answer-preserving over the whole enumeration — so the
     // band that was recorded against the chain is the band the derivation meets.
     files: 128,
-    sites: 864,
+    sites: 867,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -1003,7 +1003,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): sites 569 -> 555, files 1752 ->
     // 1556.** 196 harness-free single-owner test files leave `backend/test/`. `sites`
     // falls by 14, the reads those files carried.
-    files: 1558,
+    files: 1560,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1013,7 +1013,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both the walk and the finer population in the same merge request.
     // **Batch 15: 532 -> 533.** One read site in the batch's own backend
     // integration test.
-    sites: 555,
+    sites: 556,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -1040,7 +1040,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
     // harness-free single-owner test files leave `backend/test/`.
-    files: 1558,
+    files: 1560,
     sites: null,
     sources: [],
   },
@@ -1431,7 +1431,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // observed value absorbs **+671** of it (this branch's base, 36174efa1, observed
     // 32290). Stated rather than left implicit: the number is re-recorded here because
     // this branch moved it, not because this branch grew it.
-    sites: 32496,
+    sites: 32508,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -1777,7 +1777,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // deleted file. The pair is what says which of the two happened: a file left
     // the walk and took its specifiers with it, rather than a specifier shape the
     // reader stopped recognising, which would have moved `sites` alone.
-    sites: 11887,
+    sites: 11889,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -1936,7 +1936,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // other two arrived on `master`. Measured by parking this branch's two off
     // disk, which reads 7559; both are untracked, so the `--cached` caveat does
     // not apply.
-    files: 7619,
+    files: 7625,
     sites: null,
     sources: [],
   },
@@ -2140,7 +2140,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1794 -> 1846.** 52 module
     // packages gain a `vitest.config.ts`.
     files: 1846,
-    sites: 1470,
+    sites: 1471,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -2380,7 +2380,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
     // harness-free single-owner test files leave `backend/test/`.
-    files: 1558,
+    files: 1560,
     sites: 163,
     sources: [],
   },
@@ -2404,7 +2404,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // then 68 -> 66 as `app/loading.tsx` and `app/(catalog)/p/[slug]/loading.tsx`
     // go. `app/(catalog)/catalog/loading.tsx` stays, because `/catalog` decides
     // no status, and it is the one boundary file this number now counts.
-    files: 66,
+    files: 67,
     // Routes classified either way: 8 indexable + 48 `noindex`. It moves only
     // when a page is added or removed, so a run whose `sites` fell while `files`
     // held is a route file that left the tree rather than a declaration that
@@ -2469,7 +2469,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **1639 -> 1640**: the branch's own companion test is a `.test.ts` under
     // `backend/test`, so this check counts it. Recorded after the fact rather
     // than predicted, which is the only way this number is ever right.
-    files: 1640,
+    files: 1642,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -2477,7 +2477,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // removes the specifiers that named it, and an owner resolver that stopped
     // matching either spelling collapses this to zero while `files` is untouched
     // (issue #237's shape).
-    sites: 1090,
+    sites: 1091,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -2562,7 +2562,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/<id>/src` from `backend/test` was a cross-package value reach
     // and the same test inside that package is not — the population this check exists
     // to judge genuinely shrank. `files` rises by the 52 new configurations.
-    files: 4292,
+    files: 4294,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2749,7 +2749,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // untracked: `--cached` answers from the index, so the caveat recorded
     // above bites on a file that has already been committed and not on one that
     // has never been.
-    files: 7679,
+    files: 7685,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2821,7 +2821,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this walk does not open it — which is why the delta here is +1 where
     // `check:naming`'s, over the same two added files, is +2. The other two
     // arrived on `master`; parking this branch's reads 5707.
-    files: 5765,
+    files: 5769,
     sites: null,
     sources: ['manifest-index'],
   },
