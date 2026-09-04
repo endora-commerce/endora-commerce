@@ -640,7 +640,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // field is left at 489 deliberately: this branch moves no fold site, and its +3 is
     // somebody else's to record.
     // **Feature 096, Phase 6: +3.** Three test files, one per surface.
-    files: 5182,
+    files: 5180,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1711,7 +1711,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **on the rebased tree**: 7392 -> 7395 is this branch's own three, and the
     // fourth is one file the base gained while this branch was open, which this
     // walk sees and `check-language.sh`'s and `check-diacritic-folds`' do not.
-    files: 7396,
+    files: 7390,
     sites: null,
     sources: [],
   },
@@ -2369,7 +2369,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-nul-bytes` — the file the base gained while this branch was open.
     // `check-language.sh` does not see it, which is why the two walks that used
     // to move together no longer do.
-    files: 7456,
+    files: 7450,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2414,7 +2414,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // storefront SSR, admin merge, and the backend round trip that drives a
     // real module switch. The block-name walk moving out of the migration
     // directory is a rename inside `page-builder-core` and moves no count.
-    files: 5569,
+    files: 5567,
     sites: null,
     sources: ['manifest-index'],
   },
