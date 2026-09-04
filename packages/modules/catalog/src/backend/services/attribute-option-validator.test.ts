@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   validateOptionList,
   isValidOptionValue,
-} from '../../../../packages/modules/catalog/src/backend/services/attribute-option-validator.js';
+} from './attribute-option-validator.js';
 
 describe('validateOptionList (catalog/attribute-option-validator)', () => {
   const baseOption = (over: { value: string; isDefault?: boolean }) => ({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveLabel } from '../../../../packages/modules/catalog/src/backend/services/label-resolver.js';
+import { resolveLabel } from './label-resolver.js';
 
 /**
  * T011 — per-locale label resolver unit tests.

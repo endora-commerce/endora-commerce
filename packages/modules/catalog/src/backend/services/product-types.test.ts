@@ -26,7 +26,7 @@ import {
   ProductTypeValidationError,
   type ProductTypeForVariantCheck,
   type ProductTypeForDownloadCheck,
-} from '../../../../packages/modules/catalog/src/backend/services/product-type-validations.js';
+} from './product-type-validations.js';
 
 describe('assertConfigurableHasVariants (T040)', () => {
   it('passes when type is not "configurable" (regardless of variant count)', () => {
