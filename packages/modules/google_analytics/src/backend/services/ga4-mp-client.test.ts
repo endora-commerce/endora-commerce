@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Ga4MpClient } from '../../../../packages/modules/google_analytics/src/backend/services/ga4-mp-client.js';
+import { Ga4MpClient } from './ga4-mp-client.js';
 
 const dest = { endpoint: '', measurementId: 'G-ABC', apiSecret: 'sekret' };
 const event = {
