@@ -667,7 +667,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +4.** The whole-tree walk gains `packages/cli/src/new-storefront/`'s
     // three sources and the command's test file. `backend/scripts` is outside this
     // check's population, so the acceptance criterion adds nothing.
-    files: 5184,
+    // **Feature 098 Phase 4 (the storefront conformance job): 5184 -> 5191.**
+    // The nine files that job is made of — six under
+    // `storefront/test/conformance/`, `storefront/playwright.conformance.config.ts`,
+    // `backend/scripts/conformance/seed-storefront-fixtures.ts` and
+    // `scripts/conformance-storefront.sh` — intersected with this walk's
+    // population.
+    // Seven of the nine: this walk is `admin`, `backend`, `storefront` and
+    // `packages`, and it excludes `backend/scripts`, so the two files outside
+    // `storefront/` do not reach it.
+    files: 5191,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -724,7 +733,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrived on `master` and are absorbed here, because a record must describe the
     // tree it is committed with and `recorded + my delta` is the arithmetic that
     // carries somebody else's staleness forward for ever.
-    sites: 499,
+    // **Feature 098 Phase 4: 499 -> 519.** The `.replace()` chains those seven
+    // files carry — the served-HTML readers in `assertions.ts` are most of them.
+    // None is a fold or a slug builder; `violations=0` is unchanged.
+    sites: 519,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -1758,13 +1770,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +8.** The whole-repository walk gains the command's three sources and
     // its test, the acceptance criterion's two sources and its test, and the
     // recorded expectation.
-    // **Feature 104: 7470 -> 7476, of which this branch's own contribution is
-    // +2** — its two changeset files, which is the one thing a merge request
-    // reliably adds to a whole-repository walk. The other +4 arrived with
-    // `specs/104-package-publication/`, four markdown files merged on the design
-    // branch without a re-record; recording the observed value absorbs them,
-    // which is what "record what the tree reads" means here.
-    files: 7476,
+    // **Feature 098 Phase 4 (the storefront conformance job): 7470 -> 7484.**
+    // The nine files that job is made of — six under
+    // `storefront/test/conformance/`, `storefront/playwright.conformance.config.ts`,
+    // `backend/scripts/conformance/seed-storefront-fixtures.ts` and
+    // `scripts/conformance-storefront.sh` — intersected with this walk's
+    // population.
+    // This walk is the whole repository, so the fourteen are the nine plus
+    // five `master` gained while this branch was open.
+    // **Rebased onto feature 104: 7484 -> 7486.** Not this branch's nine — the two
+    // `.changeset/*.md` files `feat/104-publication` brought with it, which this
+    // whole-tree walk sees and the source-comment walks do not. Re-measured on
+    // the rebased tree rather than added to the number above it.
+    files: 7486,
     sites: null,
     sources: [],
   },
@@ -2298,7 +2316,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +3.** `backend/` plus each package: `packages/cli/src/new-storefront/`'s
     // three sources. The two acceptance scripts are under `backend/scripts`, which
     // this walk does not read.
-    files: 4180,
+    // **Feature 098 Phase 4 (the storefront conformance job): 4180 -> 4181.**
+    // The nine files that job is made of — six under
+    // `storefront/test/conformance/`, `storefront/playwright.conformance.config.ts`,
+    // `backend/scripts/conformance/seed-storefront-fixtures.ts` and
+    // `scripts/conformance-storefront.sh` — intersected with this walk's
+    // population.
+    // One of the nine: `backend/scripts/conformance/seed-storefront-fixtures.ts`.
+    // The storefront is outside this walk by construction — its conjunct 1
+    // (a file whose closure also loads a package's published artefact) is
+    // false there.
+    files: 4181,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2445,11 +2473,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its test, the acceptance criterion's two sources and its test, and the
     // recorded expectation. Measured against a detached baseline, for the reason
     // `check:language`'s entry gives.
-    // **Feature 104: 7530 -> 7536**, the same +2 changeset files and the same +4
-    // from `specs/104-package-publication/`'s design merge — the two entries move
-    // together because both walk the whole tracked tree. Parking this one is not
-    // an option: `check:naming` runs in `quality:static` on every push.
-    files: 7536,
+    // **Feature 098 Phase 4 (the storefront conformance job): 7530 -> 7543.**
+    // The nine files that job is made of — six under
+    // `storefront/test/conformance/`, `storefront/playwright.conformance.config.ts`,
+    // `backend/scripts/conformance/seed-storefront-fixtures.ts` and
+    // `scripts/conformance-storefront.sh` — intersected with this walk's
+    // population.
+    // Nine of the thirteen are this branch's; the other four were already
+    // standing on `master` (measured 7534 there, in a detached worktree of
+    // `origin/master`, before this branch was rebased onto it). The recorded
+    // number is what this tree reads, not the old record plus a delta.
+    // **Rebased onto feature 104: 7543 -> 7545.** Not this branch's nine — the two
+    // `.changeset/*.md` files `feat/104-publication` brought with it, which this
+    // whole-tree walk sees and the source-comment walks do not. Re-measured on
+    // the rebased tree rather than added to the number above it.
+    files: 7545,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2494,7 +2532,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // expectation is JSON and outside this walk. Measured against a detached
     // worktree of `origin/master` rather than parked: `--cached` answers from the
     // index, so a delta taken on the branch alone would have read zero.
-    files: 5646,
+    // **Feature 098 Phase 4 (the storefront conformance job): 5646 -> 5655.**
+    // The nine files that job is made of — six under
+    // `storefront/test/conformance/`, `storefront/playwright.conformance.config.ts`,
+    // `backend/scripts/conformance/seed-storefront-fixtures.ts` and
+    // `scripts/conformance-storefront.sh` — intersected with this walk's
+    // population.
+    // All nine, exactly: `master` measured 5646 in the same detached
+    // worktree, which is the number that was recorded.
+    files: 5655,
     sites: null,
     sources: ['manifest-index'],
   },
