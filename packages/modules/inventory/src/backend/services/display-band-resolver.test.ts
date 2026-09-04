@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveDisplayBand } from '../../../../packages/modules/inventory/src/backend/services/display-band-resolver.js';
+import { resolveDisplayBand } from './display-band-resolver.js';
 
 describe('resolveDisplayBand (T023)', () => {
   it('returns "available" when manageStock is false regardless of on-hand', () => {

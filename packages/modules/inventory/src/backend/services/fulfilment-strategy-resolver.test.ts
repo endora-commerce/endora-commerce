@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveAllocations } from '../../../../packages/modules/inventory/src/backend/services/fulfilment-strategy-resolver.js';
+import { resolveAllocations } from './fulfilment-strategy-resolver.js';
 
 const W = (id: string, code: string, available: number, isDefault = false) => ({
   warehouseId: id,

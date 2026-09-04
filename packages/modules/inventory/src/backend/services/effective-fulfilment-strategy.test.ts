@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveEffectiveFulfilmentStrategy,
   type EffectiveFulfilment,
-} from '../../../../packages/modules/inventory/src/backend/services/effective-fulfilment-strategy.js';
+} from './effective-fulfilment-strategy.js';
 
 const CHANNEL_DEFAULT: EffectiveFulfilment = {
   strategy: 'default_first',
