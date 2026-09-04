@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { RmaNumberGenerator } from '../../../../packages/modules/returns/src/backend/services/rma-number-generator.js';
+import { RmaNumberGenerator } from './rma-number-generator.js';
 
 const fakeEm = {} as EntityManager;
 

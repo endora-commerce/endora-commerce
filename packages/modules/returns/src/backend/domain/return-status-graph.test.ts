@@ -6,7 +6,7 @@ import {
   ReturnStatusConfigError,
   ReturnStatusGraph,
   type ReturnStatusDef,
-} from '../../../../packages/modules/returns/src/backend/domain/return-status-graph.js';
+} from './return-status-graph.js';
 
 describe('ReturnStatusGraph — default seed', () => {
   const graph = buildDefaultReturnGraph();

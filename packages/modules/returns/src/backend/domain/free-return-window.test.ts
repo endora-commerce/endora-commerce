@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isWithinFreeWindow } from '../../../../packages/modules/returns/src/backend/domain/free-return-window.js';
+import { isWithinFreeWindow } from './free-return-window.js';
 
 describe('isWithinFreeWindow (US7 / SC-005)', () => {
   const anchor = new Date('2026-06-01T12:00:00.000Z');

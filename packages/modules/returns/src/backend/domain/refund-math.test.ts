@@ -3,7 +3,7 @@ import {
   defaultRefundForQuantity,
   exceedsCap,
   sumApproved,
-} from '../../../../packages/modules/returns/src/backend/domain/refund-math.js';
+} from './refund-math.js';
 
 describe('refund math (US5 / FR-031/032)', () => {
   it('defaults the refund to paid-per-unit (incl. tax) × quantity', () => {
