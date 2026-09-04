@@ -1219,6 +1219,13 @@ test:frontend:
   stage: test
   image: node:22.17-slim
   before_script:
+    # `packages/cli`'s storefront-scaffold tests build a fixture **checkout**, because the
+    # scaffold's copy population is `git ls-files` and a fixture that is not a repository
+    # would test a different derivation. `node:22.17-slim` ships no git, so `spawnSync`
+    # returns `status: null` and the failure reads `git init -q: undefined` — a message that
+    # names neither git nor its absence. Four other jobs in this file install it for their
+    # own reasons; this is the fifth.
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
     - pnpm run build:packages
@@ -1466,7 +1473,10 @@ acceptance:storefront-scaffold:
     PUBLIC_API_BASE_URL: http://127.0.0.1:3001
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
-    - apt-get update -qq && apt-get install -y -qq postgresql-client curl >/dev/null
+    # `git` because `endora new storefront` derives its copy population from `git ls-files`;
+    # without it the scaffold exits 2 — *the run could not see the tree* — and this job
+    # correctly reports that as neither a pass nor a failure of the criterion.
+    - apt-get update -qq && apt-get install -y -qq postgresql-client curl git >/dev/null
     - pnpm install --frozen-lockfile
     - pnpm run build:packages
   script:
