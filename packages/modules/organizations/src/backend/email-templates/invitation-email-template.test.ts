@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildInvitationEmail } from '../../../../packages/modules/organizations/src/backend/email-templates/invitation.js';
+import { buildInvitationEmail } from './invitation.js';
 
 /**
  * T178 — pure template builder. The renderer is keyboard-only because
