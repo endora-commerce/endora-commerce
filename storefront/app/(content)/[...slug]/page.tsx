@@ -62,6 +62,17 @@ export default async function CmsContentPage({ params }: PageProps): Promise<Rea
   // so there is one place and nothing to keep in sync. It is asked *after* the
   // row resolves, so a home-page setting naming a page this channel does not
   // publish still answers 404 rather than redirecting to a different document.
+  //
+  // **It reaches a browser and not a crawler, and that is this storefront's
+  // property rather than this line's.** Measured 2026-09-04 against a booted
+  // production build: the response is `200` carrying `NEXT_REDIRECT;replace;/;
+  // 308;` in the RSC payload, because `app/loading.tsx` puts every page inside
+  // a Suspense boundary and the shell is flushed before this component
+  // resolves — after which no status line is left to set. The same is true of
+  // every `notFound()` in the application, `/p/[slug]`, `/c/[slug]` and
+  // `/blog/[[...slug]]` included, all of which answer `200` carrying
+  // `NEXT_HTTP_ERROR_FALLBACK;404`. One decision retires both; it is not this
+  // route's to take.
   if (cmsPageSlug !== null && normalizeCmsUrlPath(cmsPageSlug) === path) permanentRedirect('/');
 
   return (
