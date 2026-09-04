@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InvoiceDetail } from '@endora-commerce/contracts';
-import { ksefSection, type InvoiceDetailWithKsef } from '../../../../packages/modules/invoices/src/backend/pdf-components/sections.js';
+import { ksefSection, type InvoiceDetailWithKsef } from './sections.js';
 
 /**
  * Feature 059 (T028) — the invoices PDF `ksefSection`: number + date as

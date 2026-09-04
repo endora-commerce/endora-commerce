@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatInvoiceNumber } from '../../../../packages/modules/invoices/src/backend/services/invoice-number-generator.js';
+import { formatInvoiceNumber } from './invoice-number-generator.js';
 
 const date = new Date('2026-05-04T10:00:00.000Z');
 

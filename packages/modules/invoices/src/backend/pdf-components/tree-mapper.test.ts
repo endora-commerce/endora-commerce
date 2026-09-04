@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { treeToContent, pickLanguageTree } from '../../../../packages/modules/invoices/src/backend/pdf-components/tree-mapper.js';
-import { headerSection, lineItemsSection } from '../../../../packages/modules/invoices/src/backend/pdf-components/sections.js';
-import { sampleInvoiceDetail } from '../../../../packages/modules/invoices/src/backend/pdf-components/sample.js';
-import { GENERIC_INVOICE_TEMPLATE_CONTENT } from '../../../../packages/modules/invoices/src/backend/seeds/generic-invoice-template.js';
+import { treeToContent, pickLanguageTree } from './tree-mapper.js';
+import { headerSection, lineItemsSection } from './sections.js';
+import { sampleInvoiceDetail } from './sample.js';
+import { GENERIC_INVOICE_TEMPLATE_CONTENT } from '../seeds/generic-invoice-template.js';
 
 const inv = sampleInvoiceDetail();
 

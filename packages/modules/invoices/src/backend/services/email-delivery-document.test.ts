@@ -8,8 +8,8 @@ import type {
 import {
   InvoiceEmailDispatcher,
   type InvoiceEmailDispatchDeps,
-} from '../../../../packages/modules/invoices/src/backend/services/invoice-email-dispatch.js';
-import { INVOICES_SETTING_CODES } from '../../../../packages/modules/invoices/src/manifest.js';
+} from './invoice-email-dispatch.js';
+import { INVOICES_SETTING_CODES } from '../../manifest.js';
 
 /**
  * D-59 — the invoice e-mail names the document it delivers, so its delivery

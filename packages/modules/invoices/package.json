@@ -43,7 +43,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -52,6 +53,7 @@
     "@endora-commerce/page-builder-admin": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@fastify/type-provider-zod": "^1",
     "@measured/puck": "^0",
     "@mikro-orm/core": "^6",
     "@mikro-orm/migrations": "^6",
@@ -62,6 +64,7 @@
     "pdfmake": "^0",
     "react": "^19",
     "react-router-dom": "^7",
+    "vitest": "^2",
     "zod": "^4"
   },
   "devDependencies": {
@@ -71,6 +74,7 @@
     "@endora-commerce/page-builder-admin": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@fastify/type-provider-zod": "^1.0.0",
     "@measured/puck": "^0.20.2",
     "@mikro-orm/core": "^6.6.13",
     "@mikro-orm/migrations": "^6.6.13",
@@ -84,6 +88,7 @@
     "react": "^19.2.5",
     "react-router-dom": "^7.14.2",
     "typescript": "^5.9.3",
+    "vitest": "^2.1.4",
     "zod": "^4.2.0"
   }
 }

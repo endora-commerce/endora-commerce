@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InvoicePdfRenderer } from '../../../../packages/modules/invoices/src/backend/services/invoice-pdf-renderer.js';
+import { InvoicePdfRenderer } from './invoice-pdf-renderer.js';
 import type { InvoiceDetail } from '@endora-commerce/contracts';
 
 const detail: InvoiceDetail = {
