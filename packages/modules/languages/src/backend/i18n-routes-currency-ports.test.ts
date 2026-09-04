@@ -5,7 +5,7 @@ import type { CurrencyReadPort, CurrencyRecord } from '@endora-commerce/contract
 import {
   registerI18nRoutes,
   type I18nRoutesDeps,
-} from '../../../../packages/modules/languages/src/backend/routes.js';
+} from './routes.js';
 
 /**
  * Feature 075, Phase C — `languages` asks `currencies` over its published

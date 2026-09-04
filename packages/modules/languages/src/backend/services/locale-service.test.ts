@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { LocaleService } from '../../../../packages/modules/languages/src/backend/services/locale-service.js';
-import type { LanguageService } from '../../../../packages/modules/languages/src/backend/services/language-service.js';
+import { LocaleService } from './locale-service.js';
+import type { LanguageService } from './language-service.js';
 
 /**
  * Unit tests for the translation-fallback helper (FR-105). Locale chain:
