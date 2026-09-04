@@ -4,7 +4,7 @@ import { MFA_SETTING_CODES } from '@endora-commerce/contracts';
 import {
   MfaPolicyResolver,
   type SettingsReader,
-} from '../../../../packages/modules/mfa/src/backend/services/mfa-policy-resolver.js';
+} from './mfa-policy-resolver.js';
 
 /**
  * Fake settings reader: returns the value mapped per (code, channel), or

@@ -4,7 +4,7 @@ import {
   hashRecoveryCode,
   normalizeRecoveryCode,
   RECOVERY_CODE_COUNT,
-} from '../../../../packages/modules/mfa/src/backend/services/recovery-codes.js';
+} from './recovery-codes.js';
 
 describe('recovery codes', () => {
   it('generates the configured number of distinct codes', () => {
