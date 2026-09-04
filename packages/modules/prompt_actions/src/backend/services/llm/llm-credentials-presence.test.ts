@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { LlmProviderFactory } from '../../../../packages/modules/prompt_actions/src/backend/services/llm/provider-factory.js';
+import { LlmProviderFactory } from './provider-factory.js';
 
 /**
  * An absent `credentials` is not read as `not_configured` (the promise half of
