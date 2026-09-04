@@ -639,7 +639,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // absorbs **+23** from earlier merges (base 36174efa1 observed 5192). The `sites`
     // field is left at 489 deliberately: this branch moves no fold site, and its +3 is
     // somebody else's to record.
-    files: 5179,
+    // **D-202 (`@endora-commerce/api-client` removed): 5179 -> 5177.** The two
+    // `.ts` files of the deleted package, `src/index.ts` and `vitest.config.ts`.
+    // Its `package.json` and both tsconfigs are outside this walk. `sites` is
+    // again left at 489: this change writes no fold and no slug, and the base
+    // observed 492 — the same +3 the note above declines, still somebody
+    // else's to record.
+    files: 5177,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1698,7 +1704,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `docs/docs/modules/` in the same state on both trees: this is the one check
     // whose population is the whole repository rather than tracked source, and a tree
     // that has run the docs build carries ~77 more.
-    files: 7392,
+    // **D-202 (`@endora-commerce/api-client` removed): 7392 -> 7386.** Whole-tree
+    // arithmetic and nothing else: the deleted package's five files, the two
+    // pending changesets whose front matter named it — `changeset status` exits
+    // 1 on a changeset for a package that is not in the workspace, so they go
+    // with it — and this merge request's own changeset back. Recording the
+    // observed value absorbs nothing: a detached read of the base is 7392, the
+    // recorded value exactly. The main checkout reads 7400 and is not the
+    // baseline — this walk does not prune a nested `git worktree`, and that
+    // checkout carries ten.
+    files: 7386,
     sites: null,
     sources: [],
   },
@@ -2035,8 +2050,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // run rather than the ceiling being raised: the previous batch's decision to
     // let `sites` ride is what put it 22 % outside on the next one, so it is
     // tracked per batch from here.
-    files: 85,
-    sites: 93,
+    // **85 -> 84 and 93 -> 92 (D-202)**: the first move in the other direction.
+    // `@endora-commerce/api-client` is deleted, so the workspace has one member
+    // fewer — the population is `2 + members` and the finer one is the patterns
+    // and members the ignore list is matched over, so both fall by exactly one.
+    // The base reads 85/93, the recorded values exactly.
+    files: 84,
+    sites: 92,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
@@ -2335,7 +2355,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+51** from earlier merges (this branch's base,
     // 36174efa1, observed 7461).
-    files: 7452,
+    // **D-202 (`@endora-commerce/api-client` removed): 7452 -> 7446.** The same
+    // six files `check:nul-bytes` counts above; this walk opens `.changeset/`
+    // too. Measured against the base rather than by parking, for the reason the
+    // note above gives: the base reads 7452, the recorded value exactly, so
+    // recording the observed value absorbs nothing.
+    files: 7446,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2376,7 +2401,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files and fifteen overlay test and fixture files go, four arrive. Recording
     // the observed value absorbs **+44** from earlier merges (this branch's base,
     // 36174efa1, observed 5575).
-    files: 5566,
+    // **D-202 (`@endora-commerce/api-client` removed): 5566 -> 5564.** Two, not
+    // six: this walk does not read `.changeset/` or a `package.json`, so it
+    // loses the deleted package's two `.ts` files and nothing else. The base
+    // reads 5566, the recorded value exactly.
+    files: 5564,
     sites: null,
     sources: ['manifest-index'],
   },

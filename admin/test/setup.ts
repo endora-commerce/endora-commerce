@@ -46,8 +46,8 @@ configure({ asyncUtilTimeout: 5_000 });
 /**
  * No admin test reaches the network.
  *
- * `@endora-commerce/api-client`'s `createApiClient` captures the global `fetch`
- * when it is called, and the kit calls it once at module scope — so this
+ * `@endora-commerce/admin-kit/lib`'s `createApiClient` captures the global
+ * `fetch` when it is called, and the kit calls it once at module scope — so this
  * assignment has to happen before the test module graph is loaded, which is what
  * a setup file is. Every request a screen makes therefore fails here, by name,
  * instead of leaving the process.

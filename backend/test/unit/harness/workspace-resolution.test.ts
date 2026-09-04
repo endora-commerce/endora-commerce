@@ -464,8 +464,8 @@ describe('this checkout', () => {
     // the application resolve the platform's *source* under `tsx` and its
     // *`dist`* under vitest and in production — two module records for one set
     // of files, which is precisely the duplication this package was relocated to
-    // end. For `contracts`, `api-client` and the three component packages that
-    // split costs nothing: they export schemas, types and React components, and
+    // end. For `contracts` and the three component packages that split costs
+    // nothing: they export schemas, types and React components, and
     // nothing compares one of those by identity. The platform exports
     // `HttpError` (`instanceof`, at two dispatch sites), `SalesChannel` (an ORM
     // entity class, `Duplicate entity names are not allowed`), `effectiveState`

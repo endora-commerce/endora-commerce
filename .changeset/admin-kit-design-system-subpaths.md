@@ -32,9 +32,8 @@ field-by-field comparison and none of them passes `toBe`.
 
 **Every dependency the kit renders with is a `peerDependency`** — `react`,
 `react-router-dom`, `lucide-react`, the four Radix packages,
-`class-variance-authority`, `clsx`, `tailwind-merge`, `echarts`,
-`@endora-commerce/contracts` and `@endora-commerce/api-client`. An application
-must resolve one copy of each: two copies of `react-router-dom` is two router
+`class-variance-authority`, `clsx`, `tailwind-merge`, `echarts` and
+`@endora-commerce/contracts`. An application must resolve one copy of each: two copies of `react-router-dom` is two router
 contexts and a `useNavigate()` that throws.
 
 **Two groups are deliberately not published**, both recorded in
