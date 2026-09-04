@@ -125,6 +125,33 @@ describe('permission gate scanner — call shapes', () => {
   });
 });
 
+describe('permission gate scanner — a test is not an enforcement site', () => {
+  // Feature 106 moved every co-located test into `packages/modules/<id>/src/`,
+  // which is inside this scanner's walk. This file is one of them, and its
+  // fixtures are deliberately fake codes — so before the exclusion the scanner
+  // read them as real gates and the contract test went red on `master` with 18
+  // codes "enforced but not grantable". The rule is about what the file *is*,
+  // not where it sits: a gate written in a test guards nothing an operator can
+  // reach.
+  it('ignores a gate written in a *.test.ts beside the module sources', () => {
+    writeModule('alpha', 'routes.admin.ts', `requireAdmin('alpha:read');`);
+    writeModule('alpha', 'routes.admin.test.ts', `requireAdmin('alpha:fixture');`);
+    expect(codes()).toEqual(['alpha:read']);
+  });
+
+  it('ignores a *.spec.ts too, and a test that is the only file in the module', () => {
+    writeModule('beta', 'beta.spec.ts', `requireAdmin('beta:fixture');`);
+    expect(codes()).toEqual([]);
+  });
+
+  it('still reads a source file whose name merely contains "test"', () => {
+    // The predicate is the `.test.`/`.spec.` suffix, not the substring — a
+    // module legitimately named for testing infrastructure keeps its gates.
+    writeModule('gamma', 'test-harness-routes.ts', `requireAdmin('gamma:read');`);
+    expect(codes()).toEqual(['gamma:read']);
+  });
+});
+
 describe('permission gate scanner — shapes that carry no code', () => {
   it('ignores a mention inside a comment', () => {
     writeModule(

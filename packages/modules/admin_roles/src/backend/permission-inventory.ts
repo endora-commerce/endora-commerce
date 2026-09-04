@@ -198,6 +198,19 @@ function* walkSources(dir: string, seen: Set<string>): Generator<string> {
       continue;
     }
     if (!entry.isFile() || !/\.(ts|js)$/.test(entry.name)) continue;
+    // **A test is not an enforcement site, and this exclusion had no subject
+    // until feature 106.** Every test used to live under `backend/test`, which
+    // no scan root reaches, so the walk could not meet one; 106 moved the
+    // co-located tests *into* `packages/modules/<id>/src/`, and this scanner's
+    // own unit test — whose fixtures are deliberately fake codes and
+    // deliberately unreadable gate arguments — moved with them. Its fixtures
+    // were then read as real gates: 18 codes reported *"enforced but not
+    // grantable"* and 2 as unresolvable, red on `master`. A gate written in a
+    // test guards nothing an operator can reach, so the population is source
+    // and never a test, whichever directory the test now sits in. The predicate
+    // is the suffix and not the substring: a module legitimately named for test
+    // infrastructure keeps its gates.
+    if (/\.(test|spec)\.(ts|js)$/.test(entry.name)) continue;
     if (seen.has(path)) continue;
     seen.add(path);
     yield path;
