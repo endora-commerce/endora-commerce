@@ -6,7 +6,7 @@ import type {
   CurrencyReadPort,
   CurrencyRecord,
 } from '@endora-commerce/contracts';
-import { registerCurrencyRoutes } from '../../../../packages/modules/currencies/src/backend/routes.js';
+import { registerCurrencyRoutes } from './routes.js';
 
 /**
  * The currency admin surface, now registered by the module that owns the table
