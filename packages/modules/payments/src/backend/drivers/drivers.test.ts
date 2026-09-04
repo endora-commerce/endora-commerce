@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BankTransferDriver } from '../../../../packages/modules/payments/src/backend/drivers/bank-transfer-driver.js';
-import { PickupDriver } from '../../../../packages/modules/payments/src/backend/drivers/pickup-driver.js';
-import { GatewayAdapterPortNotWired } from '../../../../packages/modules/payments/src/backend/drivers/gateway-adapter-port.js';
+import { BankTransferDriver } from './bank-transfer-driver.js';
+import { PickupDriver } from './pickup-driver.js';
+import { GatewayAdapterPortNotWired } from './gateway-adapter-port.js';
 
 /**
  * T139 / T140 / T141 — driver contracts. The drivers are pure-data today;

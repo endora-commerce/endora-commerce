@@ -3,7 +3,7 @@ import {
   defaultPaymentEmailRenderer,
   registerPaymentEmailRenderer,
   resolvePaymentEmailRenderer,
-} from '../../../../packages/modules/payments/src/backend/services/payment-email-renderer.js';
+} from './payment-email-renderer.js';
 
 /**
  * T049 (US6) — email payment-renderer registry + default text builder.

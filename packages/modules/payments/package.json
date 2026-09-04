@@ -35,7 +35,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -47,7 +48,8 @@
     "@mikro-orm/postgresql": "^6",
     "fastify": "^5",
     "lucide-react": "^1",
-    "react": "^19"
+    "react": "^19",
+    "vitest": "^2"
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -62,6 +64,7 @@
     "fastify": "^5.8.5",
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4"
   }
 }
