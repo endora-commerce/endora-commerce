@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CustomerAuthorityService,
   type SalesRepVisibility,
-} from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
+} from './customer-authority-service.js';
 
 /**
  * Pure unit test for the staff-authority matrix (spec FR-037, research §R2).
