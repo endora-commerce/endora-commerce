@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SEEDED_HOOKS } from '../../../../packages/modules/cms/src/backend/services/seed-hooks.js';
+import { SEEDED_HOOKS } from './seed-hooks.js';
 
 /**
  * The reconciler's *idempotency* property is best exercised in a real-DB

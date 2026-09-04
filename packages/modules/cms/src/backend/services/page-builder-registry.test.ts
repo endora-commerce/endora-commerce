@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleManifest } from '@endora-commerce/contracts';
-import { PageBuilderRegistry } from '../../../../packages/modules/cms/src/backend/services/page-builder-registry.js';
+import { PageBuilderRegistry } from './page-builder-registry.js';
 
 /**
  * Feature 096, T209/T210 — the registry is populated from the composed modules'
