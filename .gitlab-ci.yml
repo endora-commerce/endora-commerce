@@ -1989,27 +1989,32 @@ publish:packages:
       # never written here: `check:release-intent`'s `unresolvable-scope` holds
       # them to exactly one, and a second copy of the answer in a CI file is the
       # derived fact D-100 forbids.
+      #
+      # It is asked of that same check rather than computed here, and the reason
+      # is the defect this line replaces. The derivation used to live in this
+      # file as a `readdir("packages")` one level deep, which is the
+      # `build:packages` single-star problem arriving a second time through a
+      # `readdir`: `packages/modules` carries no `package.json` of its own, so
+      # the read threw, the `catch` swallowed it, and all 70 module packages
+      # under it were invisible. Correct for the three top-level public packages
+      # and silently wrong from the first public module package onward — which
+      # D-203's shape-2 client needs, since an instance installs every module
+      # from a registry. The symptom would have been a publish that authenticated
+      # for a scope it never derived, or published nothing for one, while the job
+      # reported success.
+      #
+      # `--print-publish-scope` walks the **workspace members** instead:
+      # `pnpm-workspace.yaml` already enumerates `packages/*` and
+      # `packages/modules/*`, and a third entry changes the answer by being
+      # written there. Nothing in this job names a directory. Stdout is the scope
+      # and nothing else; the disclosure of what it read goes to stderr, into the
+      # job log.
+      #
+      # `exec tsx`, not `run check:release-intent --`: `pnpm run` prints its
+      # `> backend@0.0.0 …` banner on **stdout**, which this command substitution
+      # would capture into the `.npmrc` line (measured).
       set -e
-      scope=$(node -e '
-        const { readdirSync, readFileSync } = require("node:fs");
-        const scopes = new Set();
-        for (const entry of readdirSync("packages", { withFileTypes: true })) {
-          if (!entry.isDirectory()) continue;
-          let manifest;
-          try { manifest = JSON.parse(readFileSync(`packages/${entry.name}/package.json`, "utf8")); }
-          catch { continue; }
-          if (manifest.private === true) continue;
-          if (typeof manifest.name === "string" && manifest.name.startsWith("@")) {
-            scopes.add(manifest.name.split("/")[0]);
-          }
-        }
-        const found = [...scopes];
-        if (found.length !== 1) {
-          console.error(`expected exactly one scope among the public packages, found ${found.length}: ${found.join(", ")}`);
-          process.exit(2);
-        }
-        process.stdout.write(found[0]);
-      ')
+      scope=$(pnpm --filter backend exec tsx scripts/check-release-intent.ts --print-publish-scope)
     - |
       # The token is written as an environment **reference**, not as a value:
       # pnpm expands `${VAR}` in `.npmrc` in both the registry and the auth

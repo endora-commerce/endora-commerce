@@ -255,7 +255,26 @@
  * which is a measured verdict, while an empty diff from a real fork point is a
  * measurement that came back empty and stays exit 2.
  *
+ * ## A third mode that reports no verdict — `--print-publish-scope`
+ *
+ * `publish:packages` needs the npm scope *before* it publishes: it writes one
+ * `.npmrc` line per scope and pnpm reads that line to find the registry and the
+ * credential. The job derived it itself, with a `readdir('packages')` one level
+ * deep, and `packages/modules` — a directory with no `package.json` — threw into
+ * a `catch` that swallowed it, hiding 70 module packages. That is the
+ * `build:packages` single-star problem in a second place, and it is exactly the
+ * second copy of a derived answer D-100 forbids: this check already classifies
+ * every workspace member as versionable-or-not and public-or-not, and already
+ * holds the public ones to a single scope (`unresolvable-scope`, 2e). So the job
+ * asks the same program the same question instead of keeping its own answer, and
+ * {@link publishScope} is that question.
+ *
+ * It prints the scope on **stdout** and everything else on stderr, and it is a
+ * derivation rather than a judgement: no read-size line, no findings, and exit 2
+ * for every way the scope cannot be resolved.
+ *
  * Usage: `tsx scripts/check-release-intent.ts [--root <dir>] [--since <ref>]`
+ *        `tsx scripts/check-release-intent.ts --print-publish-scope`
  * Exit 0 = the flow can still go red; 1 = a finding; 2 = it did not read.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
@@ -688,6 +707,107 @@ const GITLAB_RESERVED_PATHS: ReadonlySet<string> = new Set([
 export function scopeOf(name: string): string | null {
   const match = /^@([^/]+)\//.exec(name);
   return match === null ? null : match[1]!;
+}
+
+/**
+ * The one scope `publish:packages` writes an `.npmrc` line for, or why it
+ * cannot be derived.
+ *
+ * A record rather than a string, because a job that cannot resolve the scope
+ * must say which of the four ways it failed: no member at all, nothing public,
+ * a public package with no scope to authenticate for, and more than one scope.
+ */
+export interface PublishScope {
+  /** The scope, without its `@` — `endora-commerce` — or `null` on a refusal. */
+  readonly scope: string | null;
+  /** The public versionable package names, sorted. Populated on a refusal too. */
+  readonly packages: readonly string[];
+  /** Why no scope was resolved. Empty exactly when {@link scope} is not `null`. */
+  readonly refusal: string;
+}
+
+/**
+ * The scope of the packages this checkout would publish (feature 104).
+ *
+ * `publish:packages` writes one `.npmrc` line per scope and pnpm needs it before
+ * `changeset publish` runs, so the job has to know the scope *before* the
+ * publish rather than after. It derived it by walking `packages` one level deep
+ * — which is the `build:packages` single-star problem arriving a second time
+ * through a `readdir`: `packages/modules` carries no `package.json`, the read
+ * threw, the `catch` swallowed it, and every module package under it was
+ * invisible. Measured on the tree that repaired it: 9 directories walked, one of
+ * them the parent of **70** members the derivation never saw. Nothing was wrong
+ * yet only because those 70 are private; the first public one would have been
+ * published under a scope the job never authenticated for, or not published at
+ * all, while the job reported success.
+ *
+ * So the population is the **workspace members** — `pnpm-workspace.yaml` is
+ * already the one authority for which directories are packages, and it already
+ * enumerates `packages/*` and `packages/modules/*`. Nothing here names a
+ * directory, and a third workspace entry changes the answer by being written in
+ * that file and by nothing else (D-100).
+ *
+ * The predicate is *family and not private* — versionable, and public — which is
+ * the set `changeset publish` will actually publish. `family` is
+ * `lib/workspace-packages.ts`' classification rather than the `ignore` list, and
+ * the two cannot silently disagree: `ignored-family-member` and
+ * `unignored-application` are the findings this check reconciles them with.
+ */
+export function publishScope(members: readonly ClassifiedMember[]): PublishScope {
+  if (members.length === 0) {
+    return {
+      scope: null,
+      packages: [],
+      refusal:
+        'the workspace declares no member at all, so there is no manifest to read a scope off. ' +
+        'A flow-style `packages:` list in `pnpm-workspace.yaml` reads as no entry ' +
+        '(`lib/workspace-packages.ts`), and an empty population would leave the publish running ' +
+        'against whatever registry the client `.npmrc` already names',
+    };
+  }
+
+  const publishable = members
+    .filter((member) => member.family && !member.isPrivate)
+    .map((member) => member.name)
+    .sort();
+  if (publishable.length === 0) {
+    return {
+      scope: null,
+      packages: [],
+      refusal:
+        `no versionable package is public among the ${String(members.length)} workspace ` +
+        'members, so this branch would publish nothing. `changeset publish` exits 0 on an ' +
+        'empty plan, which is byte-identical to a successful publish',
+    };
+  }
+
+  const unscoped = publishable.filter((name) => scopeOf(name) === null);
+  if (unscoped.length > 0) {
+    return {
+      scope: null,
+      packages: publishable,
+      refusal:
+        `${unscoped.join(', ')} is public and unscoped, so there is no scope for an \`.npmrc\` ` +
+        'line to name and no namespace path for the endpoint to resolve. Skipping it would ' +
+        'publish it to whatever the client default registry is — the `unresolvable-scope` ' +
+        'finding this check already reports, arriving here as a refusal rather than a silence',
+    };
+  }
+
+  const scopes = [...new Set(publishable.map((name) => scopeOf(name)!))].sort();
+  if (scopes.length !== 1) {
+    return {
+      scope: null,
+      packages: publishable,
+      refusal:
+        `the public packages carry ${String(scopes.length)} scopes ` +
+        `(${scopes.map((scope) => `@${scope}`).join(', ')}). One \`.npmrc\` line covers one ` +
+        'scope, so every scope after the first resolves through the default registry, which ' +
+        'serves none of them (`contracts/registry-and-scope.md` R3)',
+    };
+  }
+
+  return { scope: scopes[0]!, packages: publishable, refusal: '' };
 }
 
 /**
@@ -1459,6 +1579,40 @@ function readBranchDiff(repoRoot: string, since: string): BranchDiff | ReleaseIn
   };
 }
 
+/**
+ * The `--print-publish-scope` half of the CLI. Returns the process exit code.
+ *
+ * **Stdout carries the scope and nothing else**, spelled as `.npmrc` spells it
+ * — `@endora-commerce`, leading `@` included — because `publish:packages`
+ * captures it in a command substitution and writes it straight into a
+ * `<scope>:registry=` line.
+ * The disclosure of what was read goes to stderr for the same reason, and the
+ * read-size line — which `reportReadSize` prints on stdout — is deliberately not
+ * printed here: this mode reports no verdict, and the check's ordinary mode is
+ * what `check-read-size.test.ts` spawns.
+ */
+function reportPublishScope(repoRoot: string): number {
+  const inputs = readReleaseIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles);
+  if ('reason' in inputs) {
+    console.error(`${PREFIX} ${inputs.reason}; refusing to name a scope it did not derive.`);
+    return 2;
+  }
+
+  const resolved = publishScope(inputs.members);
+  if (resolved.scope === null) {
+    console.error(`${PREFIX} --print-publish-scope: ${resolved.refusal}.`);
+    return 2;
+  }
+
+  console.error(
+    `${PREFIX} --print-publish-scope: @${resolved.scope} ` +
+      `(${String(resolved.packages.length)} public of ${String(inputs.members.length)} ` +
+      `workspace members: ${resolved.packages.join(', ')})`,
+  );
+  console.log(`@${resolved.scope}`);
+  return 0;
+}
+
 /** The `--since` half of the CLI. Returns the process exit code. */
 function reportPublishedSurface(repoRoot: string, since: string): number {
   const diff = readBranchDiff(repoRoot, since);
@@ -1512,6 +1666,15 @@ function main(): void {
     rootFlag >= 0 && process.argv[rootFlag + 1] !== undefined
       ? process.argv[rootFlag + 1]!
       : fileURLToPath(new URL('../../', import.meta.url)).replace(/\/$/, '');
+
+  if (process.argv.includes('--print-publish-scope')) {
+    const code = reportPublishScope(repoRoot);
+    // Not `process.exit(0)`: this mode's stdout is read through a pipe, and
+    // exiting while a pipe write is still buffered truncates it. A refusal has
+    // nothing on stdout to lose.
+    if (code !== 0) process.exit(code);
+    return;
+  }
 
   const sinceFlag = process.argv.indexOf('--since');
   if (sinceFlag >= 0) {
