@@ -7,7 +7,7 @@
   "endora": {
     "type": "platform"
   },
-  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7).",
+  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). A sixth subpath, ./composition, is host composition surface that no module may name (D-160.14).",
   "exports": {
     "./kernel": {
       "types": "./dist/kernel/index.d.ts",
@@ -28,6 +28,10 @@
     "./events": {
       "types": "./dist/events/index.d.ts",
       "default": "./dist/events/index.js"
+    },
+    "./composition": {
+      "types": "./dist/composition/index.d.ts",
+      "default": "./dist/composition/index.js"
     },
     "./package.json": "./package.json"
   },

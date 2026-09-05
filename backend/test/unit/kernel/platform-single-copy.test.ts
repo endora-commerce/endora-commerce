@@ -24,12 +24,19 @@
  *
  * ## What it asserts, and what makes it two-way
  *
- * Per published subpath: every identity-bearing export the bare specifier and
+ * Per shimmed subpath: every identity-bearing export the bare specifier and
  * the application's own shims both carry is the **same object**, and none is
  * two. Both directions fail. A name that goes back to being two objects fails
- * the first assertion; a subpath that stops being measured at all, or one the
- * application reaches through no shim, is exit 2 from the probe rather than a
- * shorter list here.
+ * the first assertion; a subpath that stops being measured at all, or one whose
+ * shim directory is there and holds nothing, is exit 2 from the probe rather
+ * than a shorter list here.
+ *
+ * **A declared subpath the application does not shim is a third state and is
+ * asserted as one** (D-160.14). `./composition` is host composition surface
+ * reached only by the bare specifier — one route, so no duplication is possible
+ * and there is nothing to compare. The probe reports it as `unshimmed` and this
+ * file holds *both* lists to an expected set, so a subpath moving between them
+ * — a shim directory deleted, a sixth barrel arriving unmeasured — fails.
  *
  * The population is read off the two module namespaces by
  * `test/helpers/platform-single-copy-probe.ts`, never listed here, so a barrel
@@ -67,6 +74,15 @@ interface SubpathComparison {
   readonly distinct: readonly string[];
 }
 
+interface SingleCopyMeasurement {
+  /** Every subpath the host's `exports` map declares. */
+  readonly declared: readonly string[];
+  /** The subpaths the application also reaches through shims — the comparison. */
+  readonly comparisons: readonly SubpathComparison[];
+  /** Declared, reached by the bare specifier only: nothing to compare. */
+  readonly unshimmed: readonly string[];
+}
+
 interface CrossBoundaryResult {
   readonly packageThrowIsApplicationError: boolean;
   readonly applicationThrowIsPackageError: boolean;
@@ -86,16 +102,31 @@ function spawnProbe<T>(probe: string): T {
   return JSON.parse(line) as T;
 }
 
-function measure(): readonly SubpathComparison[] {
-  return spawnProbe<SubpathComparison[]>(PROBE);
+function measure(): SingleCopyMeasurement {
+  return spawnProbe<SingleCopyMeasurement>(PROBE);
 }
 
 describe('the platform is one copy (feature 080, the relocation)', () => {
-  const comparisons = measure();
+  const measurement = measure();
+  const comparisons = measurement.comparisons;
 
-  it('measures every subpath the host publishes', () => {
-    // Five today. Derived from the `exports` map by the probe, so a sixth
-    // published directory arrives measured rather than silently unmeasured.
+  it('accounts for every subpath the host declares', () => {
+    // Six today. Derived from the `exports` map by the probe, so a subpath
+    // arrives accounted for rather than silently unmeasured.
+    expect([...measurement.declared].sort()).toEqual([
+      'commands',
+      'composition',
+      'events',
+      'http',
+      'kernel',
+      'tenancy',
+    ]);
+    // `./composition` is reached by the bare specifier alone (D-160.14): there
+    // is no `backend/src/composition/` and there will not be one, because the
+    // host's own composition root names the package. One route is not a
+    // duplication. Asserted rather than filtered out, so a *shimmed* subpath
+    // that lost its directory lands here and fails.
+    expect(measurement.unshimmed).toEqual(['composition']);
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
       'commands',
       'events',

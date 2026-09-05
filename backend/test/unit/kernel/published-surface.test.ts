@@ -40,7 +40,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -49,6 +49,8 @@ import {
   parseBarrel,
   PUBLISHED_SUBPATHS,
 } from '../../../scripts/lib/platform-surface.js';
+import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
+import { platformSourceRootOf, platformSubpathsOf } from '../../../scripts/lib/platform-root.js';
 
 /**
  * The platform's own sources, which since the relocation are
@@ -468,6 +470,196 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
   RevertConflictReason: 'unreached — a member of `RevertConflict`.',
   shallowFieldEquals: 'unreached — the default for `RevertHandlers.equals`, applied by `applyUndo`.',
 };
+
+/**
+ * `src/composition/index.ts` — the **`./composition`** subpath (D-160.14,
+ * feature 109 T010; `host-package.md` §2.7).
+ *
+ * It is the sixth subpath the host's `exports` map declares and it is **not**
+ * public API. The 27 names below are the platform symbols a composition root
+ * needs and no public barrel carries; they were derived two independent ways
+ * that agree — a parse of the five barrels' `ExportDeclaration` nodes, and a
+ * `tsc` compile of 165 one-line consumers (33 names × 5 subpaths) against the
+ * built package's `exports` map, which answers 159 errors and six resolutions.
+ *
+ * **Written down here for the same reason the five are**: this record and the
+ * barrel are the only two statements of the subpath's contents, and the set
+ * comparison below fails in both directions. Adding a symbol to the barrel and
+ * not to this record fails; leaving a name here after its export goes fails too.
+ * Without it, T010's *"the barrel exports the 27 and only the 27"* would be a
+ * thing a reviewer looked at once.
+ *
+ * Grouped by the file each name is re-exported out of — the granularity §1.3
+ * classifies at, and the granularity the ruling's own table uses.
+ */
+const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
+  'http/server.ts': ['buildServer', 'ModulePlugin'],
+  'http/interceptors/index.ts': ['ApiInterceptorRegistry'],
+  'kernel/container.ts': [
+    'createRootContainer',
+    'registerOrm',
+    'registerValues',
+    'KernelContainer',
+  ],
+  'kernel/compose.ts': ['composeModules', 'DecorationRecord'],
+  'kernel/module-context.ts': ['createRegistrationOwnership'],
+  'kernel/request-scope-hook.ts': ['registerRequestScopeHook'],
+  'kernel/logging.ts': ['platformLogger'],
+  'kernel/lifecycle/registry-cache.ts': ['registryCache', 'publishStateChanged'],
+  'kernel/lifecycle/activation-resolver.ts': ['activationDeclarationsFrom'],
+  'kernel/lifecycle/required-modules.ts': ['requiredModulesFrom'],
+  'kernel/settings/compose.ts': ['composeSettingsKernel', 'SettingsKernel'],
+  'kernel/settings/manifest-reconciler.ts': ['ManifestReconciler'],
+  'kernel/sales-channels/compose.ts': ['composeSalesChannelsKernel', 'SalesChannelsKernel'],
+  'kernel/sales-channels/default-channel-reconciler.ts': ['DefaultChannelReconciler'],
+  'kernel/i18n/request-language.ts': ['createRequestLanguageResolver'],
+  'kernel/audit/audit-log-service.ts': ['AuditLogService'],
+  'tenancy/scoped-em.ts': ['forkScopedEm'],
+  'tenancy/resolve-tenant-context.ts': ['resolveTenantContext', 'systemTenantContext'],
+};
+
+/** The repository root, from the platform sources this file already reads. */
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+
+/**
+ * Every first-party TypeScript source in the checkout **outside the platform**,
+ * keyed by repo-relative path.
+ *
+ * The population is the workspace's own members, read off `pnpm-workspace.yaml`
+ * rather than a list of directories written here — so a member added later is a
+ * consumer this walk sees. The platform is excluded because the question is
+ * whether anything *outside* it names the subpath: the barrel re-exporting a
+ * symbol its own directory declares is not a consumer of it.
+ */
+function firstPartySourcesOutsideThePlatform(): ReadonlyMap<string, string> {
+  const members = workspaceMembers(REPO_ROOT, nodeWorkspaceFs());
+  const platformRoot = platformSourceRootOf(members);
+  const out = new Map<string, string>();
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) {
+        continue;
+      }
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.name.endsWith('.ts') && !entry.name.endsWith('.tsx')) continue;
+      if (entry.name.endsWith('.d.ts')) continue;
+      if (platformRoot !== null && full.startsWith(platformRoot)) continue;
+      out.set(full.slice(REPO_ROOT.length), readFileSync(full, 'utf8'));
+    }
+  };
+  for (const member of members) {
+    if (!existsSync(member.dir)) continue;
+    walk(member.dir);
+  }
+  return out;
+}
+
+/** Every name a file imports from `<host>/composition`, in either import shape. */
+function compositionImportsIn(text: string): string[] {
+  const names: string[] = [];
+  const pattern =
+    /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'@endora-commerce\/platform\/composition'/g;
+  for (const match of text.matchAll(pattern)) {
+    for (const raw of (match[1] ?? '').split(',')) {
+      const name = raw
+        .trim()
+        .replace(/^type\s+/, '')
+        .split(/\s+as\s+/)[0]
+        ?.trim();
+      if (name !== undefined && name !== '') names.push(name);
+    }
+  }
+  return names;
+}
+
+describe('`./composition`, the subpath no module may name (D-160.14)', () => {
+  const barrel = 'composition/index.ts';
+  const expected = [...new Set(Object.values(HOST_COMPOSITION_SURFACE).flat())].sort();
+
+  it('exports exactly the 27 symbols the ruling names, and nothing else', () => {
+    // Both directions in one comparison, which is what makes T010's "the barrel
+    // exports the 27 and only the 27" an assertion rather than a review.
+    expect([...new Set(barrelExports(barrel))].sort()).toEqual(expected);
+    expect(expected).toHaveLength(27);
+  });
+
+  it('exports each name out of the file the ruling attributes it to', () => {
+    const parsed = parseBarrel(readFileSync(join(SRC, barrel), 'utf8'), barrel);
+    const byFile: Record<string, string[]> = {};
+    for (const symbol of parsed.published) (byFile[symbol.target] ??= []).push(symbol.name);
+    for (const names of Object.values(byFile)) names.sort();
+    const sorted = Object.fromEntries(
+      Object.entries(HOST_COMPOSITION_SURFACE).map(([file, names]) => [file, [...names].sort()]),
+    );
+    expect(byFile).toEqual(sorted);
+  });
+
+  /**
+   * §2.7.5(a). `PUBLISHED_SUBPATHS` is a written-down ruling and stays at five;
+   * the `exports` map is the manifest's and now declares six. The two answering
+   * differently **is** the mechanism: `PlatformSurface.published` is keyed by
+   * target file with no subpath dimension, so a sixth entry there would publish
+   * `composeModules` out of `kernel/compose.ts` for every reach at that file —
+   * a module's relative `../../src/kernel/compose.js` included — and, because
+   * `check:platform-surface` reports `violations=0` today, would change nothing
+   * it prints. A blindness that arrives green.
+   */
+  it('is declared by the `exports` map and is not a published subpath', () => {
+    const declared = platformSubpathsOf(workspaceMembers(REPO_ROOT, nodeWorkspaceFs()));
+    expect(declared).toContain('composition');
+    expect(PUBLISHED_SUBPATHS).not.toContain('composition');
+    expect([...PUBLISHED_SUBPATHS].sort()).toEqual(
+      declared.filter((subpath) => subpath !== 'composition').sort(),
+    );
+  });
+
+  /**
+   * R3.1a — the subpath is the *whole* of a symbol's reachability. A symbol
+   * graduates to a public barrel in the merge request that first gives it a
+   * module-package production consumer, and it leaves this barrel in the same
+   * merge request. Two homes would be two answers to "is this public API?".
+   */
+  it('shares no symbol with a public barrel', () => {
+    const publicNames = new Set(PUBLISHED_SUBPATHS.flatMap((s) => barrelExports(barrelKeyOf(s))));
+    expect(expected.filter((name) => publicNames.has(name))).toEqual([]);
+  });
+
+  /**
+   * The second direction, and R3.3a is why it can exist at all: nothing outside
+   * the platform could name this subpath until T011a rewrote
+   * `backend/test/helpers/test-server.ts`'s 27 shim declarations to it. A
+   * ratchet whose population is empty on the day it lands reports green over
+   * nothing, which is issue #113's shape.
+   *
+   * So: a name on the barrel that no first-party source imports is a finding —
+   * the subpath is not a place to park surface against a future need — and a
+   * name imported from it that the barrel does not carry is one too. The second
+   * is `tsc`'s answer as well, and it is asserted here because this file is
+   * where the population is derived and a consumer outside this repository gets
+   * no `tsc` run of ours.
+   */
+  it('carries exactly the names its consumers outside the platform import', () => {
+    const sources = firstPartySourcesOutsideThePlatform();
+    expect(sources.size, 'the walk opened no first-party source').toBeGreaterThan(1000);
+
+    const imported = new Map<string, string[]>();
+    for (const [file, text] of sources) {
+      for (const name of compositionImportsIn(text)) {
+        (imported.get(name) ?? imported.set(name, []).get(name)!).push(file);
+      }
+    }
+    expect(
+      [...imported.keys()],
+      'no first-party source imports the subpath — the ratchet below would be vacuous',
+    ).not.toEqual([]);
+
+    expect([...imported.keys()].sort()).toEqual(expected);
+  });
+});
 
 describe('the platform’s published surface', () => {
   it('the kernel barrel exports exactly the classification’s P set', () => {

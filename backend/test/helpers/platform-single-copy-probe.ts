@@ -47,9 +47,27 @@
  * harmless once (the point of the exercise) and cannot be undone, so it must not
  * happen inside a fork the rest of the suite shares.
  *
+ * ## A declared subpath the application does not shim
+ *
+ * `./composition` (D-160.14) is declared by the `exports` map and reached by the
+ * application through **no** second route: there is no `backend/src/composition/`
+ * and there will not be one, because the host's own composition root will name
+ * the bare specifier when T040b drains its shims. One route is not a
+ * duplication, so there is nothing here to compare and reporting "no
+ * duplication" over it would be reporting on a comparison that never happened.
+ *
+ * The discriminator is **structural and not an empty walk**: a subpath whose
+ * `backend/src/<subpath>` directory is not there at all is recorded as
+ * `unshimmed`, while a directory that *is* there and yields no source file stays
+ * exit 2 — that second state is the #113 shape, and it is the one a deleted shim
+ * produces. Both lists are in the output and
+ * `test/unit/kernel/platform-single-copy.test.ts` holds each of them to an
+ * expected set, so a subpath moving between them fails in both directions.
+ *
  * Exit 2 on anything that would make an empty answer look like a clean one: an
- * unbuilt host package, a subpath that would not import, a subpath the
- * application reaches through no shim at all, a barrel that exported nothing.
+ * unbuilt host package, a subpath that would not import, a shim directory that
+ * is there and holds no source, a barrel that exported nothing, and a run in
+ * which no subpath was comparable at all.
  */
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -68,11 +86,11 @@ function refuse(reason: string): never {
 }
 
 /**
- * The subpaths the host publishes, read off its own `exports` map rather than
- * written here: a sixth published directory has to be measured the day it is
- * published, not the day somebody remembers this file.
+ * The subpaths the host declares, read off its own `exports` map rather than
+ * written here: a sixth subpath has to be measured — or explicitly recorded as
+ * unshimmed — the day it is declared, not the day somebody remembers this file.
  */
-async function publishedSubpaths(): Promise<string[]> {
+async function declaredSubpaths(): Promise<string[]> {
   const manifest = (await import(`${HOST_PACKAGE}/package.json`, { with: { type: 'json' } })) as {
     default: { exports?: Record<string, unknown> };
   };
@@ -125,10 +143,13 @@ async function compare(subpath: string): Promise<SubpathComparison> {
 
   const shimFiles = walk(join(SRC_ROOT, subpath));
   if (shimFiles.length === 0) {
+    // The directory is there (the caller checked) and holds no source. That is
+    // the walk coming back empty, never a subpath the application does not
+    // reach — see the header.
     refuse(
-      `the application reaches '${subpath}' through no file under ${join(SRC_ROOT, subpath)}. ` +
-        'The comparison would have one side and would report "no duplication" for a ' +
-        'subpath it never read.',
+      `the application reaches '${subpath}' through no file under ${join(SRC_ROOT, subpath)}, ` +
+        'though the directory is there. The comparison would have one side and would ' +
+        'report "no duplication" for a subpath it never read.',
     );
   }
 
@@ -169,6 +190,20 @@ async function compare(subpath: string): Promise<SubpathComparison> {
   return { subpath, shims: shimFiles.length, shared, distinct };
 }
 
+const declared = await declaredSubpaths();
 const comparisons: SubpathComparison[] = [];
-for (const subpath of await publishedSubpaths()) comparisons.push(await compare(subpath));
-process.stdout.write(`${JSON.stringify(comparisons)}\n`);
+const unshimmed: string[] = [];
+for (const subpath of declared) {
+  // Structural, not an empty walk: no directory means the application has one
+  // route to this subpath and there is no second copy for one to disagree with.
+  if (existsSync(join(SRC_ROOT, subpath))) comparisons.push(await compare(subpath));
+  else unshimmed.push(subpath);
+}
+if (comparisons.length === 0) {
+  refuse(
+    'no declared subpath is reached through a shim, so nothing was compared. The ' +
+      'application reaches the platform through `backend/src/<subpath>/`; a run that ' +
+      'found none of them read one side of every comparison.',
+  );
+}
+process.stdout.write(`${JSON.stringify({ declared, comparisons, unshimmed })}\n`);

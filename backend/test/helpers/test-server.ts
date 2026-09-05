@@ -28,43 +28,49 @@ function inertRedisSubscriber(): Redis {
   };
   return inert as unknown as Redis;
 }
-import { buildServer, type ModulePlugin } from '../../src/http/server.js';
-import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
-import { publishStateChanged, registryCache } from '../../src/kernel/lifecycle/registry-cache.js';
-import { activationDeclarationsFrom } from '../../src/kernel/lifecycle/activation-resolver.js';
-import { effectiveState } from '../../src/kernel/lifecycle/effective-state.js';
-import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
-import { type TenantContext } from '../../src/tenancy/tenant-context.js';
-import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
+import { buildServer, type ModulePlugin } from '@endora-commerce/platform/composition';
+import { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
+import { publishStateChanged, registryCache } from '@endora-commerce/platform/composition';
+import { activationDeclarationsFrom } from '@endora-commerce/platform/composition';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import { forkScopedEm } from '@endora-commerce/platform/composition';
+import { type TenantContext } from '@endora-commerce/platform/tenancy';
+import { registerRequestScopeHook } from '@endora-commerce/platform/composition';
 // Feature 072 — the generated module list, composed in one pass exactly as
 // `src/composition.ts` composes it (D-45). Issue #52 — and contributed into
 // through the same `composedModules.contribute(…)` window, which is a method
 // rather than a convention precisely because this pair kept drifting.
 import { MODULES } from '../../src/composition.generated.js';
-// The composition machinery, by relative path since T042c: it is the host's,
-// not the `./kernel` subpath's, and this is the second composition root rather
-// than a module. `harness-parity.test.ts` holds the two roots to each other.
-import { composeModules } from '../../src/kernel/compose.js';
+// The composition machinery, through `@endora-commerce/platform/composition`
+// since feature 109's T011a (D-160.14): it is the host's surface and not the
+// `./kernel` subpath's, and this is the second composition root rather than a
+// module. `harness-parity.test.ts` holds the two roots to each other.
+//
+// It was a relative specifier into the platform's re-export shims until then —
+// a path a published package does not have, which is what stopped this file
+// from becoming the test kit. The subpath is declared by the host's `exports`
+// map, carried by no public barrel, and nameable by **no module**, production
+// source or test: a module's server-bound test composes through the kit's
+// `composeTestServer`, never through `composeModules`.
 import {
+  composeModules,
   createRootContainer,
   registerOrm,
   registerValues,
-  type KernelContainer,
-} from '../../src/kernel/container.js';
-import { createRegistrationOwnership } from '../../src/kernel/module-context.js';
-import { platformLogger } from '../../src/kernel/logging.js';
-import { requiredModulesFrom } from '../../src/kernel/lifecycle/required-modules.js';
-import type { DecorationRecord } from '../../src/kernel/compose.js';
-import {
+  createRegistrationOwnership,
+  platformLogger,
+  requiredModulesFrom,
   resolveTenantContext,
   systemTenantContext,
-} from '../../src/tenancy/resolve-tenant-context.js';
+  type DecorationRecord,
+  type KernelContainer,
+} from '@endora-commerce/platform/composition';
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { assertServicesAvailable } from '../declared-services.js';
-import { EventBus } from '../../src/events/bus.js';
-import { CommandBus } from '../../src/commands/index.js';
+import { EventBus } from '@endora-commerce/platform/events';
+import { CommandBus } from '@endora-commerce/platform/commands';
 import type { SessionService } from '@endora-commerce/mod-auth/backend';
-import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { PermissionCatalogueService } from '../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 import type { AdminRoleService } from '../../../packages/modules/admin_roles/src/backend/services/admin-role-service.js';
@@ -94,7 +100,7 @@ import type {
   OrderReadPort,
   SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'node:crypto';
 import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 // D-54 — injected into the error envelope, exactly as `composition.ts` does it:
@@ -161,13 +167,11 @@ import type { DictionariesCradle } from '../../../packages/modules/dictionaries/
 import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
 import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/index.js';
 import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
-import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
-import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
+import { composeSettingsKernel, type SettingsKernel } from '@endora-commerce/platform/composition';
 import type { SettingsCradle } from '../../../packages/modules/settings/src/backend/index.js';
 import type { MfaActorBridge } from '../../../packages/modules/mfa/src/backend/index.js';
 import type { OAuthProviderPort } from '../../../packages/modules/mfa/src/backend/services/oauth-provider-service.js';
-import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
-import type { SalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
+import { composeSalesChannelsKernel, type SalesChannelsKernel } from '@endora-commerce/platform/composition';
 import type { SalesChannelsCradle } from '../../../packages/modules/sales_channels/src/backend/index.js';
 import type { SearchCradle } from '../../../packages/modules/search/src/backend/index.js';
 import type { PromptActionsCradle } from '../../../packages/modules/prompt_actions/src/backend/index.js';
@@ -199,8 +203,8 @@ import { ScriptedUnopimMediaFetcher } from './scripted-unopim-media-fetcher.js';
 import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
-import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
-import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { createRequestLanguageResolver } from '@endora-commerce/platform/composition';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
 // `catalog`'s two service types name the package's **`dist`**, unlike the other
 // packaged modules above, and the difference is not cosmetic: the values these
@@ -215,8 +219,8 @@ import type { CatalogQueryService } from '../../../packages/modules/catalog/dist
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-attribute-read.service.js';
 import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
-import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
-import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
+import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
+import { ManifestReconciler } from '@endora-commerce/platform/composition';
 import type { CartService } from '../../../packages/modules/carts/src/backend/services/cart-service.js';
 import type { Mailer } from '../../../packages/modules/email/src/backend/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
