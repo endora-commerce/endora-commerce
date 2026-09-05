@@ -867,7 +867,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` plus the two-regime guard and its helper; the whole tree
     // is this check's population. `sites` does not move — none of the four writes a
     // `.replace()` the slug predicate can read.
-    files: 5280,
+    // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
+    // test and its two analysis helpers.
+    files: 5283,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1253,7 +1255,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` Phase 4a: +2 files.** The two-regime guard
     // and its analysis helper, `test/unit/db/instance-migration-order.test.ts` and
     // `test/helpers/instance-migration-order.ts`.
-    files: 1568,
+    // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
+    // test and its two analysis helpers.
+    files: 1571,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1317,7 +1321,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` Phase 4a: +2 files.** The two-regime guard
     // and its analysis helper, `test/unit/db/instance-migration-order.test.ts` and
     // `test/helpers/instance-migration-order.ts`.
-    files: 1568,
+    // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
+    // test and its two analysis helpers.
+    files: 1571,
     sites: null,
     sources: [],
   },
@@ -2308,7 +2314,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // named here rather than absorbed. The sixth is the branch's own changeset: this
     // walk's population is the whole repository minus its declared exclusions, and
     // `.changeset/*.md` is in it.
-    files: 7730,
+    // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
+    // test and its two analysis helpers.
+    files: 7733,
     sites: null,
     sources: [],
   },
@@ -2839,7 +2847,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` Phase 4a: +2 files.** The two-regime guard
     // and its analysis helper, `test/unit/db/instance-migration-order.test.ts` and
     // `test/helpers/instance-migration-order.ts`.
-    files: 1568,
+    // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
+    // test and its two analysis helpers.
+    files: 1571,
     sites: 163,
     sources: [],
   },
@@ -2954,7 +2964,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` Phase 4a: +1 file.** The two-regime guard,
     // `test/unit/db/instance-migration-order.test.ts`; its analysis helper is not a
     // `*.test.ts` and is not in this population.
-    files: 1649,
+    // **Stacked on the CI-gate branch: +1.** That branch adds the gate-coverage
+    // test and its two analysis helpers — one of the three is a test file, which is all this walk takes.
+    files: 1650,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -3080,7 +3092,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` Phase 4a: +4 files.** The platform package's
     // new `src/migrations/` (the published baseline list and its barrel) plus the
     // two-regime guard and its helper under `backend/test`.
-    files: 4319,
+    // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
+    // test and its two analysis helpers.
+    files: 4322,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -3345,7 +3359,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` plus the two-regime guard and its helper, and the branch's
     // own changeset — this walk reads every file in the checkout to decide which are
     // module folders, and `.changeset/*.md` is one of them.
-    files: 7789,
+    // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
+    // test and its two analysis helpers.
+    files: 7792,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3464,7 +3480,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/ci/gate-coverage.test.ts`.
     // **`specs/110-instance-repository/` Phase 4a: +4 files.** The platform package's
     // new `src/migrations/` plus the two-regime guard and its helper.
-    files: 5817,
+    // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
+    // test and its two analysis helpers.
+    files: 5820,
     sites: null,
     sources: ['manifest-index'],
   },
