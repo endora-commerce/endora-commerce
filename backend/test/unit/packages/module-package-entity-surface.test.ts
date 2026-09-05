@@ -74,8 +74,9 @@ const MODULE_PACKAGES_OUTSIDE_THE_WORKSPACE: Readonly<Record<string, string>> = 
  * Module manifests that are **inputs to a check** rather than packages this
  * repository ships.
  *
- * Two-way as well. `backend/test/fixtures/installed-packages/` holds four
- * hand-written `node_modules` trees whose job is to be malformed —
+ * Two-way as well. `backend/test/fixtures/installed-packages/` holds
+ * hand-written `node_modules` trees whose job is to be malformed or to be an
+ * instance's population —
  * `mod-schema-without-entities` exists to be refused by
  * `package-declarations.ts`, and holding it to D-168 would make one check's red
  * proof another check's red. They ship hand-written `.js` and no build, so

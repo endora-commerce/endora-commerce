@@ -68,6 +68,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   absolutePathInPackage,
   discoverModulePackages,
+  installedModulePackages,
   isDeclaredEntryPoint,
   ModulePackageError,
   packageSpecifierFor,
@@ -308,7 +309,7 @@ const MANIFEST_ID_RE = /defineModuleManifest\(\{[\s\S]*?\bid:\s*'([^']+)'/;
  * under `backend/`, so the emitted specifier is correct from `backend/src` under
  * `tsx` and from `backend/dist` in production without being rewritten.
  */
-function residentModules(): HostResidentModule[] {
+export function residentModules(): HostResidentModule[] {
   const found: HostResidentModule[] = [];
   const collect = (
     root: string,
@@ -329,6 +330,77 @@ function residentModules(): HostResidentModule[] {
   const platformRoot = platformSourceRootAt(repoRoot);
   if (platformRoot !== null) collect(platformRoot, platformDistSpecifier(platformRoot));
   return found;
+}
+
+// ── the population an artefact is rendered over ─────────────────────────────
+//
+// `specs/110-instance-repository/` FR-005/FR-006 and
+// `contracts/instance-repository.md` R3.5. Two of the seven artefacts this
+// generator emits — the admin contribution registry and the two documentation
+// files — are rendered in a **client's instance** as well as here, because a
+// static build has no runtime discovery: Vite bundles a screen and Docusaurus
+// copies a page, and neither can be told at boot which modules were installed.
+//
+// The other five are **not**, and must not be: an installed package is
+// discovered at runtime (D-119, D-155), so baking one into a committed registry
+// registers it twice. `contracts/instance-repository.md` R3.3 is that rule and
+// `overlay:check`'s `foreign` verdict is what enforces it *here*.
+//
+// So what changes between the two trees is the **population**, and nothing else
+// — one generator, one derivation of how an artefact names a file inside a
+// package (R3.5). In this repository the modules are workspace members and the
+// application's own tree holds `_lifecycle`; in an instance they are the
+// packages `node_modules` holds and the application half is empty, because a
+// client's tree holds no module source at all (D-207).
+
+/**
+ * The modules the host application's own tree holds, rather than a package.
+ *
+ * `null` is an **instance**: not "none found", but "there is no application
+ * tree to look in". The distinction is the difference between a walk that came
+ * back empty and one that was never asked.
+ */
+export interface ApplicationModules {
+  /** Where a module directory of the application's own would be. */
+  readonly modulesRoot: string;
+  /** Modules the host owns outside that root — `_lifecycle` (D-160.11). */
+  readonly resident: readonly HostResidentModule[];
+}
+
+/** Which modules an artefact is rendered over, and the tree it lands in. */
+export interface ArtefactPopulation {
+  /** This repository's root, or a client instance's. */
+  readonly root: string;
+  /** Workspace members here; the packages `node_modules` holds in an instance. */
+  readonly packages: readonly ModulePackage[];
+  /** `null` in an instance — see {@link ApplicationModules}. */
+  readonly application: ApplicationModules | null;
+}
+
+/** This repository: workspace members, plus the modules the host itself owns. */
+export function workspacePopulation(
+  packages: readonly ModulePackage[] = modulePackages(),
+): ArtefactPopulation {
+  return {
+    root: repoRoot,
+    packages,
+    application: { modulesRoot, resident: residentModules() },
+  };
+}
+
+/**
+ * A client's instance: the modules it installed, and no application modules.
+ *
+ * The walk is `@endora-commerce/cli`'s, shared with the workspace half, so the
+ * two populations are named by one `exports`-map derivation and cannot come to
+ * disagree about how an artefact spells a package's admin layer or its pages.
+ */
+export function instancePopulation(instanceRoot: string): ArtefactPopulation {
+  return {
+    root: instanceRoot,
+    packages: installedModulePackages(instanceRoot),
+    application: null,
+  };
 }
 
 /**
@@ -442,6 +514,10 @@ function packageEntryPoints(pkg: ModulePackage): {
   backendSpecifier: string;
 } {
   const sources = readTree(pkg.dir, pkg);
+  if (sources.size === 0) {
+    const manifest = publishedManifestEntry(pkg);
+    return { ...manifest, backendSpecifier: publishedBackendSpecifier(pkg) };
+  }
   const declaring = (predicate: (text: string) => boolean): string[] =>
     [...sources]
       .filter(([, entry]) => predicate(entry.text))
@@ -469,6 +545,77 @@ function packageEntryPoints(pkg: ModulePackage): {
     manifestSpecifier: packageSpecifierFor(pkg, manifestFile),
     backendSpecifier: packageSpecifierFor(pkg, backendFile),
   };
+}
+
+/**
+ * A package's own root export, for a package that ships **no sources**.
+ *
+ * The two locators above search source text for a marker, because a source tree
+ * declares nowhere which of its files is the manifest. A *published* package
+ * does declare it: the `.` subpath of its `exports` map is the package's
+ * statement about its own entry point, and it is the file `import '<name>'`
+ * loads — so the marker search is not merely unavailable here (there is no
+ * `.ts` to search), it is the wrong question. A third-party author's published
+ * manifest is a plain object literal and names `defineModuleManifest` nowhere,
+ * which is what the installed-package fixtures ship.
+ *
+ * A package declaring no `.` subpath, or one whose target is not on disk, is a
+ * **refusal**: the artefact would import a specifier the package refuses with
+ * `ERR_PACKAGE_PATH_NOT_EXPORTED`, and skipping it is how a module drops out of
+ * a client's admin bundle or documentation with no error anywhere.
+ */
+function publishedManifestEntry(pkg: ModulePackage): {
+  manifestPath: string;
+  manifestSpecifier: string;
+} {
+  const target = pkg.exports.get('.');
+  if (target === undefined) {
+    const declared = [...pkg.exports.keys()].sort().join(', ') || '(none)';
+    throw new ModulePackageError(
+      `[composer] ${pkg.name} declares module '${pkg.moduleId}', ships no sources, and its ` +
+        `exports map declares no '.' subpath (declared: ${declared}). That subpath is where a ` +
+        `published package states its own entry point, and it is the only thing an artefact ` +
+        `can name it by.`,
+    );
+  }
+  const relativePath = target.replace(/^\.\//, '');
+  const manifestPath = absolutePathInPackage(pkg, relativePath);
+  if (!existsSync(manifestPath)) {
+    throw new ModulePackageError(
+      `[composer] ${pkg.name} exports '.' as ${target}, and that file is not in the package. ` +
+        `An artefact naming it would fail at its first import; a package whose own entry ` +
+        `point is missing is not one this run can register.`,
+    );
+  }
+  return { manifestPath, manifestSpecifier: packageSpecifierFor(pkg, relativePath) };
+}
+
+/**
+ * The published subpath whose target exports `registerModule`, for a package
+ * that ships no sources.
+ *
+ * Every declared subpath is read, in the same discipline as the source walk:
+ * the file that carries the marker is the composition entry, whatever the
+ * subpath is called. `./backend` is written nowhere.
+ */
+function publishedBackendSpecifier(pkg: ModulePackage): string {
+  const found: string[] = [];
+  for (const [subpath, target] of pkg.exports) {
+    if (subpath === './package.json') continue;
+    const relativePath = target.replace(/^\.\//, '');
+    const file = absolutePathInPackage(pkg, relativePath);
+    if (!existsSync(file) || !statSync(file).isFile()) continue;
+    if (declaresRegisterModule(readFileSync(file, 'utf8'))) found.push(relativePath);
+  }
+  if (found.length !== 1) {
+    throw new ModulePackageError(
+      `[composer] ${pkg.name} declares module '${pkg.moduleId}' and ${found.length} of its ` +
+        `published subpaths export registerModule (${found.join(', ') || 'none'}). Exactly ` +
+        `one is required: it is the file the platform composes, and neither zero nor two can ` +
+        `be turned into a registry entry.`,
+    );
+  }
+  return packageSpecifierFor(pkg, found[0]!);
 }
 
 /**
@@ -808,6 +955,13 @@ export function detectHookExport(name: string, source: string, moduleId: string)
  */
 function discoverManifests(
   packages: readonly ModulePackage[] = modulePackages(),
+  // `null` is an instance: there is no application tree to walk, and that is a
+  // different statement from "the walk found nothing" (see
+  // {@link ApplicationModules}).
+  application: ApplicationModules | null = {
+    modulesRoot,
+    resident: residentModules(),
+  },
 ): DiscoveredManifest[] {
   const byId = new Map<string, DiscoveredManifest>();
   const entryFrom = (
@@ -844,17 +998,24 @@ function discoverManifests(
   // The index sits at the source root (D-160.3), so every specifier it emits
   // for a file of this application is computed from the two paths rather than
   // written as a shape — the same reason `manifestLocationsSpecifier` is.
-  for (const id of directoriesIn(modulesRoot)) {
-    const manifestPath = join(modulesRoot, id, 'manifest.ts');
+  const applicationModulesRoot = application === null ? null : application.modulesRoot;
+  for (const id of applicationModulesRoot === null ? [] : directoriesIn(applicationModulesRoot)) {
+    const manifestPath = join(applicationModulesRoot!, id, 'manifest.ts');
     if (!existsSync(manifestPath)) continue;
     const source = readFileSync(manifestPath, 'utf8');
     if (!/export\s+const\s+manifest\s*=\s*defineModuleManifest\(/.test(source)) continue;
     byId.set(
       id,
-      entryFrom(id, source, srcSpecifier(manifestPath), join(modulesRoot, id), manifestPath),
+      entryFrom(
+        id,
+        source,
+        srcSpecifier(manifestPath),
+        join(applicationModulesRoot!, id),
+        manifestPath,
+      ),
     );
   }
-  for (const host of residentModules()) {
+  for (const host of application?.resident ?? []) {
     byId.set(
       host.id,
       entryFrom(
@@ -1591,8 +1752,14 @@ export function renderMigrationsRegistry(sources: SourceTree = readSourceTree())
 // consumes it, and its location is derived from the `"@/*"` alias exactly as
 // `check:admin-surface` and `check:admin-zones` derive theirs.
 
-/** The layer directory a module package publishes its admin contributions from. */
-const ADMIN_LAYER_ENTRY = 'src/admin/index.ts';
+/** The layer a module package publishes its admin contributions from. */
+const ADMIN_LAYER = 'admin';
+
+/** Where a module package that ships **sources** keeps that layer. */
+const ADMIN_LAYER_ENTRY = `src/${ADMIN_LAYER}/index.ts`;
+
+/** Where a module package that ships **sources** keeps them at all. */
+const PACKAGE_SOURCE_ROOT = 'src';
 
 /** One module package's admin contribution, as the artefact names it. */
 export interface AdminContributionEntry {
@@ -1622,10 +1789,82 @@ export function collectAdminContributions(
 ): readonly AdminContributionEntry[] {
   const found: AdminContributionEntry[] = [];
   for (const pkg of packages) {
-    if (!exists(absolutePathInPackage(pkg, ADMIN_LAYER_ENTRY))) continue;
-    found.push({ moduleId: pkg.moduleId, specifier: packageSpecifierFor(pkg, ADMIN_LAYER_ENTRY) });
+    const specifier = adminLayerSpecifierOf(pkg, exists);
+    if (specifier === null) continue;
+    found.push({ moduleId: pkg.moduleId, specifier });
   }
   return found.sort((a, b) => a.moduleId.localeCompare(b.moduleId));
+}
+
+/**
+ * The bare specifier of one package's admin layer, or `null` when it ships none.
+ *
+ * **Two shapes of package, one question, and the evidence decides which is
+ * being asked** (`specs/110-instance-repository/` FR-005). A package this
+ * repository holds ships its sources, so the layer is a source file and the
+ * specifier comes from taking that file through the package's emit layout and
+ * its `exports` map, exactly as it always has. A package an **instance**
+ * installed ships `dist` and nothing else — its `files` list carries no `src/`
+ * — so the only evidence it can offer is its own `exports` map, and the layer
+ * is the subpath whose target covers a directory named {@link ADMIN_LAYER}.
+ *
+ * **Which question is asked is decided by the package's own declaration, not by
+ * a fallback.** A package that declares a build layout — `tsconfig.build.json`,
+ * which is in no published package's `files` list — ships sources and is judged
+ * by its sources, full stop. Without that clause a member whose admin layer was
+ * **deleted** would go on contributing out of a stale `dist/admin/`, because
+ * `tsc` does not remove what it no longer emits, and the registry would name a
+ * screen whose source is gone. The `src/` probe is the same statement for a
+ * package that ships sources and declares no build at all.
+ *
+ * A source layer the `exports` map does not cover is still a refusal, and
+ * `packageSpecifierFor` is what raises it (R4): a skip is how a whole layer
+ * goes missing without a word.
+ */
+function adminLayerSpecifierOf(
+  pkg: ModulePackage,
+  exists: (path: string) => boolean,
+): string | null {
+  const shipsSources =
+    pkg.emit !== null || exists(absolutePathInPackage(pkg, PACKAGE_SOURCE_ROOT));
+  if (shipsSources) {
+    return exists(absolutePathInPackage(pkg, ADMIN_LAYER_ENTRY))
+      ? packageSpecifierFor(pkg, ADMIN_LAYER_ENTRY)
+      : null;
+  }
+  return publishedAdminLayerSpecifierOf(pkg, exists);
+}
+
+/**
+ * The declared subpath serving an installed package's admin layer, or `null`.
+ *
+ * The subpath's **name** is not read — a package may call it anything — and
+ * neither is `dist`. What is read is where its target lands: the directory a
+ * barrel covers, whose last segment is the layer's. A subpath whose target file
+ * is not in the package is a **refusal**, because the registry would import it
+ * and Vite would fail to resolve it at bundle time, which is a failure a client
+ * cannot attribute to anything.
+ */
+function publishedAdminLayerSpecifierOf(
+  pkg: ModulePackage,
+  exists: (path: string) => boolean,
+): string | null {
+  for (const [subpath, target] of pkg.exports) {
+    if (subpath === './package.json') continue;
+    const relativePath = target.replace(/^\.\//, '');
+    const directory = dirname(relativePath);
+    if (directory.split('/').pop() !== ADMIN_LAYER) continue;
+    if (!exists(absolutePathInPackage(pkg, relativePath))) {
+      throw new ModulePackageError(
+        `[composer] ${pkg.name} exports '${subpath}' as ${target}, and that file is not in ` +
+          `the package. The admin registry imports the layer by that specifier, so an entry ` +
+          `for it would break the bundle; dropping it instead is how a client loses a screen ` +
+          `they installed with no error anywhere.`,
+      );
+    }
+    return `${pkg.name}/${subpath.replace(/^\.\//, '')}`;
+  }
+  return null;
 }
 
 /** A JS identifier for one entry's import binding — `import_export` → `contributions0`. */
@@ -1702,19 +1941,26 @@ ${body}
  * declaring it is a refusal rather than a walk narrowed to whichever sorted
  * first.
  */
-function adminRegistryOutputPath(): string {
-  const members = workspaceMembers(repoRoot, nodeWorkspaceFs());
+function adminRegistryOutputPath(root: string = repoRoot): string {
+  const members = workspaceMembers(root, nodeWorkspaceFs());
   const { member, target } = findAliasMember(members);
   return join(resolve(member.dir, target), ADMIN_REGISTRY_ARTEFACT);
 }
 
-/** Pure render — the target path + expected content of the admin registry. */
+/**
+ * Pure render — the target path + expected content of the admin registry.
+ *
+ * The population is a parameter and the tree it lands in comes with it
+ * (`contracts/instance-repository.md` R3.5): workspace members and this
+ * repository's `admin/` by default, an instance's installed packages and its
+ * own admin project when a client's generator calls it.
+ */
 export function renderAdminRegistry(
-  packages: readonly ModulePackage[] = modulePackages(),
+  population: ArtefactPopulation = workspacePopulation(),
 ): { outputPath: string; content: string } {
   return {
-    outputPath: adminRegistryOutputPath(),
-    content: emitAdminRegistry(collectAdminContributions(packages)),
+    outputPath: adminRegistryOutputPath(population.root),
+    content: emitAdminRegistry(collectAdminContributions(population.packages)),
   };
 }
 
@@ -2330,7 +2576,7 @@ function collectAllDocPages(layout: DocsLayout, manifests: readonly DiscoveredMa
 }
 
 /** One read of the site's tree, the modules' layers and the index. */
-function docsRegistry(packages: readonly ModulePackage[]): {
+function docsRegistry(population: ArtefactPopulation): {
   layout: DocsLayout;
   pages: readonly DocPage[];
   entries: readonly DocsRegistryEntry[];
@@ -2340,8 +2586,8 @@ function docsRegistry(packages: readonly ModulePackage[]): {
   /** Copy target -> module source, for `overlay:check`'s containment verdict. */
   entrySources: ReadonlyMap<string, string>;
 } {
-  const layout = resolveDocsLayout(repoRoot);
-  const manifests = discoverManifests(packages);
+  const layout = resolveDocsLayout(population.root);
+  const manifests = discoverManifests(population.packages, population.application);
   const ids = manifests.map((manifest) => manifest.id);
   const pages = collectAllDocPages(layout, manifests);
   const attribution = attributeDocs(pages, ids);
@@ -2353,7 +2599,7 @@ function docsRegistry(packages: readonly ModulePackage[]): {
     pages,
     manifests,
     attribution,
-    entries: collectDocsRegistry(ids, attribution, packages, declinedDocs),
+    entries: collectDocsRegistry(ids, attribution, population.packages, declinedDocs),
     entrySources: new Map(
       pages
         .filter((page) => page.origin.kind === 'module')
@@ -2416,9 +2662,9 @@ export function referencePagePaths(
  * files is a generator whose output a reviewer has to reconstruct.
  */
 export async function renderModuleReferences(
-  packages: readonly ModulePackage[] = modulePackages(),
+  population: ArtefactPopulation = workspacePopulation(),
 ): Promise<ReadonlyArray<RenderedArtefact & { label: string }>> {
-  const { layout, manifests, entries, entrySources } = docsRegistry(packages);
+  const { layout, manifests, entries, entrySources } = docsRegistry(population);
   const paths = referencePagePaths(layout, manifests);
   const byModule = new Map(entries.map((entry) => [entry.moduleId, entry]));
 
@@ -2480,9 +2726,9 @@ export function strayReferencePages(
  * derived from the member declaring the `"@/*"` alias.
  */
 export function renderDocsSidebar(
-  packages: readonly ModulePackage[] = modulePackages(),
+  population: ArtefactPopulation = workspacePopulation(),
 ): RenderedArtefact {
-  const { layout, entries, entrySources } = docsRegistry(packages);
+  const { layout, entries, entrySources } = docsRegistry(population);
   return {
     outputPath: join(layout.member.dir, DOCS_SIDEBAR_ARTEFACT),
     content: emitDocsSidebar(entries),
@@ -2528,9 +2774,9 @@ export interface DocsCollection {
  * invisible to a reader and to an inbound link alike.
  */
 export function collectDocsIntoSite(
-  packages: readonly ModulePackage[] = modulePackages(),
+  population: ArtefactPopulation = workspacePopulation(),
 ): DocsCollection {
-  const { layout, pages } = docsRegistry(packages);
+  const { layout, pages } = docsRegistry(population);
   const stampPath = join(layout.member.dir, COPY_STAMP);
   const previous: string[] = existsSync(stampPath)
     ? (JSON.parse(readFileSync(stampPath, 'utf8')) as string[])
@@ -2560,9 +2806,9 @@ export function collectDocsIntoSite(
 
 /** Pure render — the target path + expected content of the module map. */
 export function renderModuleMap(
-  packages: readonly ModulePackage[] = modulePackages(),
+  population: ArtefactPopulation = workspacePopulation(),
 ): RenderedArtefact {
-  const { layout, entries, entrySources } = docsRegistry(packages);
+  const { layout, entries, entrySources } = docsRegistry(population);
   return {
     outputPath: join(layout.modulesRoot, MODULE_MAP_ARTEFACT),
     content: emitModuleMap(entries),
@@ -2605,18 +2851,18 @@ export interface RenderedArtefact {
 export async function renderAll(): Promise<
   ReadonlyArray<RenderedArtefact & { label: string }>
 > {
-  const packages = modulePackages();
-  const sources = readSourceTree(packages);
+  const population = workspacePopulation();
+  const sources = readSourceTree(population.packages);
   const composer = await renderComposer();
   return [
     { label: 'composition.generated', ...composer },
-    { label: 'manifest-index', ...renderManifestIndex(packages) },
+    { label: 'manifest-index', ...renderManifestIndex(population.packages) },
     { label: 'entities-registry', ...renderEntitiesRegistry(sources) },
     { label: 'migrations-registry', ...renderMigrationsRegistry(sources) },
-    { label: 'admin-registry', ...renderAdminRegistry(packages) },
-    { label: 'docs-sidebar', ...renderDocsSidebar(packages) },
-    { label: 'module-map', ...renderModuleMap(packages) },
-    ...(await renderModuleReferences(packages)),
+    { label: 'admin-registry', ...renderAdminRegistry(population) },
+    { label: 'docs-sidebar', ...renderDocsSidebar(population) },
+    { label: 'module-map', ...renderModuleMap(population) },
+    ...(await renderModuleReferences(population)),
   ];
 }
 

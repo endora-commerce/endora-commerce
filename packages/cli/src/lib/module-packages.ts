@@ -78,7 +78,8 @@
  * emit specifiers naming `.ts` files inside a package that publishes `.js`, and
  * every one of them would fail at the artefact's first import.
  */
-import { join, relative, sep } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 
 import {
   nodeWorkspaceFs,
@@ -417,4 +418,202 @@ export function packageRelativePathOf(pkg: ModulePackage, absolutePath: string):
 /** The absolute path a package-relative path names. */
 export function absolutePathInPackage(pkg: ModulePackage, packageRelativePath: string): string {
   return join(pkg.dir, ...packageRelativePath.split('/'));
+}
+
+// ── the other population: an instance's installed packages ──────────────────
+//
+// `specs/110-instance-repository/` FR-005 and `contracts/instance-repository.md`
+// R3.5. Everything above answers "which of **this repository's** workspace
+// members is a module"; a client's instance holds no workspace member and no
+// module source at all (D-207), so the same question there is "which packages
+// did this instance **install**".
+//
+// It is the same derivation with a different population, deliberately: the
+// `exports` map, the emit layout and {@link packageSpecifierFor} are shared,
+// because R3.5 asks for one generator and a second implementation of "how does
+// an artefact name a file inside a package" is two answers waiting to disagree
+// about a client's admin bundle.
+//
+// ## Its runtime twin, and why this is not that file
+//
+// `backend/src/packages/installed-packages.ts` asks the same question **at
+// boot**, and the two agree on the three rules that decide an answer: a package
+// declares itself with `endora: { type: 'module', id }`; only the top level of a
+// `node_modules` is enumerated; and a candidate whose real path leaves the
+// `node_modules` it was reached through is **not** an installed package. They
+// are separate because they run in different processes for different reasons —
+// that one composes a platform, this one renders a build artefact before any
+// platform exists — and because the platform publishes no subpath a build-time
+// tool could reach it through (`specs/110-instance-repository/` T111 is where
+// that changes). When it does, this walk is the caller that should stop having
+// its own copy of the three rules.
+
+/** The filesystem questions the installed walk asks beyond {@link WorkspaceFs}. */
+export interface InstanceFs extends WorkspaceFs {
+  /**
+   * The real path of a directory, or `null` when it cannot be resolved.
+   *
+   * Required rather than optional: without it the linked-package rule below
+   * cannot be decided, and a walk that cannot decide it would report a
+   * workspace link as an installed package — the one shape whose consequence is
+   * an admin bundle naming a module the backend never composed.
+   */
+  readonly realPath: (path: string) => string | null;
+}
+
+/** The real filesystem behind {@link InstanceFs}. Absence is `null`, never a throw. */
+export function nodeInstanceFs(): InstanceFs {
+  const base = nodeWorkspaceFs();
+  return {
+    ...base,
+    realPath(path: string): string | null {
+      try {
+        return realpathSync(path);
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+/** A candidate the installed walk read and did not accept, with the reason. */
+export type SkippedInstalledPackage =
+  | {
+      /**
+       * A **linked** package — `link:`, `file:`, or a pnpm workspace member —
+       * whose real directory is outside the `node_modules` it was reached
+       * through.
+       *
+       * It is excluded rather than refused because the running platform excludes
+       * it too, and for the same reason: the two must agree about which modules
+       * an instance has. An artefact naming it would put a screen in the admin
+       * bundle for a module the backend never composes.
+       * `specs/110-instance-repository/contracts/instance-repository.md` §8 is
+       * what a client does instead.
+       */
+      readonly kind: 'links-out-of-node-modules';
+      readonly name: string;
+      readonly at: string;
+      readonly realPath: string;
+    }
+  | { readonly kind: 'unreadable'; readonly at: string; readonly reason: string };
+
+/** What one walk of an instance's `node_modules` found. */
+export interface InstalledModulePackageScan {
+  /** Accepted packages, sorted by module id — the same order the workspace walk uses. */
+  readonly packages: readonly ModulePackage[];
+  /** Candidates that claimed to be modules and were not taken, each with a reason. */
+  readonly skipped: readonly SkippedInstalledPackage[];
+  /** The `node_modules` root that was read. Empty when there is none. */
+  readonly root: string | null;
+}
+
+/** Top-level candidate directories in one `node_modules`, `@scope/` expanded. */
+function installedCandidates(root: string, fs: WorkspaceFs): readonly string[] {
+  const found: string[] = [];
+  for (const name of [...fs.listDirectories(root)].sort()) {
+    // `.pnpm`, `.bin`: the store is reached through the top-level link, so
+    // descending would find every package a second time.
+    if (name.startsWith('.')) continue;
+    const full = join(root, name);
+    if (!name.startsWith('@')) {
+      found.push(full);
+      continue;
+    }
+    for (const inner of [...fs.listDirectories(full)].sort()) {
+      if (inner.startsWith('.')) continue;
+      found.push(join(full, inner));
+    }
+  }
+  return found;
+}
+
+/**
+ * Every module package an instance installed, with what was skipped and why.
+ *
+ * `instanceRoot` is the directory whose `node_modules` holds them — the client's
+ * repository root. A root with no `node_modules` reads as *nothing to read*
+ * (`root: null`) rather than as *no module installed*, so a caller can tell an
+ * uninstalled instance from a module-less one.
+ */
+export function scanInstalledModulePackages(
+  instanceRoot: string,
+  fs: InstanceFs = nodeInstanceFs(),
+): InstalledModulePackageScan {
+  const root = join(instanceRoot, 'node_modules');
+  const realRoot = fs.realPath(root);
+  if (realRoot === null) return { packages: [], skipped: [], root: null };
+
+  const skipped: SkippedInstalledPackage[] = [];
+  const byId = new Map<string, ModulePackage>();
+  for (const directory of installedCandidates(root, fs)) {
+    const manifestPath = join(directory, 'package.json');
+    const text = fs.readText(manifestPath);
+    if (text === null) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text) as unknown;
+    } catch (error: unknown) {
+      // Reported, never thrown: one unreadable stranger in a `node_modules`
+      // must not stop a client's build, exactly as it must not stop their boot.
+      skipped.push({ kind: 'unreadable', at: manifestPath, reason: String(error) });
+      continue;
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) continue;
+    const manifest = parsed as Record<string, unknown>;
+    const moduleId = declaredModuleId(manifest);
+    if (moduleId === null) continue;
+    const name = typeof manifest['name'] === 'string' ? manifest['name'] : basename(directory);
+
+    const real = fs.realPath(directory);
+    if (real === null) {
+      skipped.push({
+        kind: 'unreadable',
+        at: directory,
+        reason: 'its real path could not be resolved, so whether it is installed here or ' +
+          'linked from somewhere else cannot be decided',
+      });
+      continue;
+    }
+    if (!isUnderDirectory(real, realRoot)) {
+      skipped.push({ kind: 'links-out-of-node-modules', name, at: directory, realPath: real });
+      continue;
+    }
+
+    const pkg: ModulePackage = {
+      moduleId,
+      name,
+      dir: directory,
+      exports: declaredExports(manifest),
+      emit: readEmitLayout(directory, name, fs),
+    };
+    const previous = byId.get(moduleId);
+    if (previous !== undefined) {
+      throw new ModulePackageError(
+        `[composer] two installed packages claim module id '${moduleId}': ${previous.name} ` +
+          `(${previous.dir}) and ${pkg.name} (${pkg.dir}). One id is one module's tables, ` +
+          `settings and permissions; the artefacts cannot register both.`,
+      );
+    }
+    byId.set(moduleId, pkg);
+  }
+  return {
+    packages: [...byId.values()].sort((a, b) => a.moduleId.localeCompare(b.moduleId)),
+    skipped,
+    root,
+  };
+}
+
+/** {@link scanInstalledModulePackages}' accepted half. */
+export function installedModulePackages(
+  instanceRoot: string,
+  fs: InstanceFs = nodeInstanceFs(),
+): readonly ModulePackage[] {
+  return scanInstalledModulePackages(instanceRoot, fs).packages;
+}
+
+/** `true` when `child` is inside `parent` and is not `parent` itself. */
+function isUnderDirectory(child: string, parent: string): boolean {
+  const rel = relative(parent, child);
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
 }

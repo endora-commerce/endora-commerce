@@ -81,6 +81,59 @@ describe('collectAdminContributions', () => {
     );
   });
 
+  it('names an installed package by the subpath its exports map serves the layer from', () => {
+    // `specs/110-instance-repository/` FR-005. A published package ships `dist`
+    // and no `src/`, so the source-entry predicate above finds nothing — which
+    // is how an instance's admin bundled no screens at all. The evidence it can
+    // offer is its own `exports` map, and the subpath's *name* is not read: what
+    // is read is that its target lands in a directory called `admin`.
+    const installed: ModulePackage = {
+      moduleId: 'import_export',
+      name: '@acme/mod-import-export',
+      dir: '/instance/node_modules/@acme/mod-import-export',
+      exports: new Map([
+        ['.', './lib/manifest.js'],
+        ['./ui', './lib/admin/index.js'],
+      ]),
+      // No `tsconfig.build.json` in the published artefact, so no emit layout:
+      // this is the package's own statement that what is on disk is what ships.
+      emit: null,
+    };
+    const shipped = (path: string): boolean =>
+      path === '/instance/node_modules/@acme/mod-import-export/lib/admin/index.js';
+    expect(collectAdminContributions([installed], shipped)).toEqual([
+      { moduleId: 'import_export', specifier: '@acme/mod-import-export/ui' },
+    ]);
+  });
+
+  it('judges a package that declares a build by its sources, stale output and all', () => {
+    // The discrimination, and it is the package's own declaration that makes it:
+    // `tsc` does not delete what it no longer emits, so a member whose admin
+    // layer was removed keeps a `dist/admin/` until somebody cleans it. Reading
+    // that as a contribution would name a screen whose source is gone.
+    const packages = [pkg({ moduleId: 'blog' })];
+    const staleBuildOutputOnly = (path: string): boolean =>
+      path === '/repo/packages/modules/blog/dist/admin/index.js';
+    expect(collectAdminContributions(packages, staleBuildOutputOnly)).toEqual([]);
+  });
+
+  it('refuses an installed package whose declared layer is not in it', () => {
+    // The published half of R4. Skipping loses a client a screen they installed;
+    // emitting it fails the bundle with a resolution error naming a package
+    // rather than the artefact that wrote the import.
+    const installed: ModulePackage = {
+      moduleId: 'import_export',
+      name: '@acme/mod-import-export',
+      dir: '/instance/node_modules/@acme/mod-import-export',
+      exports: new Map([
+        ['.', './lib/manifest.js'],
+        ['./admin', './lib/admin/index.js'],
+      ]),
+      emit: null,
+    };
+    expect(() => collectAdminContributions([installed], () => false)).toThrow(ModulePackageError);
+  });
+
   it('orders by module id, so the artefact is a function of the tree', () => {
     const packages = [
       pkg({ moduleId: 'webhooks' }),
