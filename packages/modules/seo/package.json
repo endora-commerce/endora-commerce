@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-seo",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "SEO metadata management for catalog, CMS, and blog surfaces.",
   "endora": {
     "type": "module",
     "id": "seo"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/seo"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

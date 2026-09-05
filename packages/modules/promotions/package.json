@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-promotions",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Promotion rules engine: rule builder, actions, coupons, limits, statistics.",
   "endora": {
     "type": "module",
     "id": "promotions"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/promotions"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

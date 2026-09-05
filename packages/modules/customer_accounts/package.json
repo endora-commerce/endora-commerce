@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-customer-accounts",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Customer (B2B) account records, including organization membership and role.",
   "endora": {
     "type": "module",
     "id": "customer_accounts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/customer_accounts"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

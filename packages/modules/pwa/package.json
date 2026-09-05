@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-pwa",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin.",
   "endora": {
     "type": "module",
     "id": "pwa"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/pwa"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

@@ -1,12 +1,19 @@
 {
   "name": "@endora-commerce/page-builder-admin",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "endora": {
     "type": "admin-ui"
   },
   "description": "The admin-side page-builder chrome and the e-mail builder (feature 091, P5b; D-192). `.` is the editor chrome `cms`, `blog` and `invoices` render — header actions, asset and catalog field factories, the colour palette, the overlay bridge and the action-bar target — which named `cms` nowhere and lived there only because `cms` was the first builder written. `./email` is the e-mail builder those same primitives compose, which `newsletter` and `transactional_emails` render. A fourth member of the `page-builder` family, in D-108's one `linked` group.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/page-builder-admin"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

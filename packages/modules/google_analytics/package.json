@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-google-analytics",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "The Google Analytics module as a package (feature 080, T040b) — the third module to leave backend/src/modules, and the first with a real BullMQ consumer. Ships compiled output (D-164); the manifest id 'google_analytics' stays identity of record everywhere (D-142).",
   "endora": {
     "type": "module",
     "id": "google_analytics"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/google_analytics"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-taxes",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Tax rate configuration and order tax computation.",
   "endora": {
     "type": "module",
     "id": "taxes"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/taxes"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

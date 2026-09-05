@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-payments",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "The platform payment capability: the built-in payment adapters (bank transfer, in-person pickup, credit limit, gateway), the payment record every order carries, and the settlement lifecycle that PSP integrations plug into. Switched off, checkout offers no payment method and the shop takes no orders.",
   "endora": {
     "type": "module",
     "id": "payments"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/payments"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

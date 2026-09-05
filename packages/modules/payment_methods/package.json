@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-payment-methods",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Payment method definitions and per-channel availability.",
   "endora": {
     "type": "module",
     "id": "payment_methods"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/payment_methods"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

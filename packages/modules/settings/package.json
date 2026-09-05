@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-settings",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Per-module setting registry, admin UI, and value resolver.",
   "endora": {
     "type": "module",
     "id": "settings"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/settings"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

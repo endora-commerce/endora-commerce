@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-audit-logs",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Append-only audit log for sensitive admin and customer actions.",
   "endora": {
     "type": "module",
     "id": "audit_logs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/audit_logs"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

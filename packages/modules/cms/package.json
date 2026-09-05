@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-cms",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Pages, blocks, templates, and hooks for content management.",
   "endora": {
     "type": "module",
     "id": "cms"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/cms"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-product-feeds",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Publishes the catalogue of a sales channel as a provider-shaped feed file (Google Merchant Center, Meta, Amazon, eBay, Allegro) at a stable tokenised URL, on a per-feed schedule.",
   "endora": {
     "type": "module",
     "id": "product_feeds"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/product_feeds"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

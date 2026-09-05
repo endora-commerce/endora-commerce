@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-transactional-emails",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.",
   "endora": {
     "type": "module",
     "id": "transactional_emails"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/transactional_emails"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-sales-channels",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Multi-channel storefront resolver and channel registry.",
   "endora": {
     "type": "module",
     "id": "sales_channels"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/sales_channels"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

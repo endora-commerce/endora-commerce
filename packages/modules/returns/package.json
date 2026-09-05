@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-returns",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Return/complaint (RMA) case management, settlement, and refunds.",
   "endora": {
     "type": "module",
     "id": "returns"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/returns"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

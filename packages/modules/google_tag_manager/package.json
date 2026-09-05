@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-google-tag-manager",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Google Tag Manager integration: per-sales-channel container injection behind the storefront consent decision, a documented commerce dataLayer vocabulary, and an optional server-side tagging relay.",
   "endora": {
     "type": "module",
     "id": "google_tag_manager"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/google_tag_manager"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

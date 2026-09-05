@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-comparisons",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Customer-facing product comparison feature with shareable links and PDF export.",
   "endora": {
     "type": "module",
     "id": "comparisons"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/comparisons"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
