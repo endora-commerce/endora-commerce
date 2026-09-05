@@ -589,6 +589,35 @@ quality:
     # reaches standing today; every entry names the paragraph that classified it
     # and the event that retires it.
     - pnpm --filter backend run check:platform-surface
+    # Feature 080 (T041) — every module package's `package.json` is generated
+    # from its layer inventory, and this is the two-way gate over the 70 of them
+    # plus `admin/package.json`'s dependency block. It ran in **no job at all**
+    # until this line: `grep -c 'manifests:check' .gitlab-ci.yml` was 0, and on
+    # 2026-09-05 it was red on `master` with 70 stale manifests after a release
+    # commit set versions by hand. A developer running it locally found that; no
+    # pipeline said a word. That is issue #113's shape one level up — not a
+    # green that means "not looking", but a gate nobody runs.
+    #
+    # It belongs HERE rather than in `test:backend`. It reads files and refuses,
+    # it reaches no service, and it is not a test — but the deciding half is
+    # that `quality` has no `changes:` filter, while `.backend-test-rules` is a
+    # rung ladder and the diff that produced the defect was
+    # `packages/*/package.json` and nothing else. A gate placed where the diff
+    # that breaks it does not run it is a gate that will be silent exactly when
+    # it matters.
+    #
+    # It imports every module package's manifest, so it needs `build:packages`
+    # — which this job's `before_script` already has, and which
+    # `test/unit/ci/toolchain-supply.test.ts` holds it to. `--check` never
+    # writes: a CI job that repaired the tree it is checking would report green
+    # on a commit nobody can reproduce. Measured at 8 s on a developer machine,
+    # twice.
+    #
+    # `test/unit/ci/gate-coverage.test.ts` is what stops the next one being
+    # forgotten: it derives every script in the workspace that runs a repository
+    # script file, asks whether any job reaches it, and fails on one that is
+    # neither run nor classified.
+    - pnpm --filter backend run manifests:check
   cache:
     key:
       files:

@@ -851,7 +851,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
     // 1 of them. Measured by taking the three out of the tree and
     // re-running: without them this check reads 5275.
-    files: 5276,
+    // **CI gate reconciliation (`gate-coverage.test.ts`): 5276 -> 5279.**
+    // Three files: `backend/test/helpers/ci-jobs.ts`,
+    // `backend/test/helpers/ci-gate-coverage.ts` and
+    // `backend/test/unit/ci/gate-coverage.test.ts`.
+    files: 5279,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -917,7 +921,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // predicate can read and clears. The parked-file measurement reads 519
     // without it, so unlike this row's `files` field there is no inherited
     // drift here to absorb.
-    sites: 522,
+    // **CI gate reconciliation: 522 -> 525.** Three `.replace()` calls whose
+    // pattern the slug predicate can read, none of them folding anything: the
+    // `--filter` selector's quote strip and the regex escaper in
+    // `ci-gate-coverage.ts`, and the trailing-slash strip in the test's
+    // `readMembers`. Measured by parking the test file: the two helpers alone
+    // read 524.
+    sites: 525,
     sources: [],
   },
   'backend/scripts/check-divergence.ts': {
@@ -1208,7 +1218,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
     // 1 of them. Measured by taking the three out of the tree and
     // re-running: without them this check reads 1565.
-    files: 1566,
+    // **CI gate reconciliation (`gate-coverage.test.ts`): 1566 -> 1569.**
+    // Three files: `backend/test/helpers/ci-jobs.ts`,
+    // `backend/test/helpers/ci-gate-coverage.ts` and
+    // `backend/test/unit/ci/gate-coverage.test.ts`.
+    files: 1569,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1225,7 +1239,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is not something to reason about. It reads no database: its `.find(…)` over the
     // declared input list is in the check's read vocabulary, and it defaults nothing,
     // so `violations` and the ledger are unmoved.
-    sites: 556,
+    // **CI gate reconciliation: 556 -> 557.** One site, in the test file and not
+    // in the two helpers: a manifest read with a `?? {}` fallback in
+    // `readMembers`. Measured by parking the test file, which reads 556.
+    sites: 557,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -1262,7 +1279,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
     // 1 of them. Measured by taking the three out of the tree and
     // re-running: without them this check reads 1565.
-    files: 1566,
+    // **CI gate reconciliation (`gate-coverage.test.ts`): 1566 -> 1569.**
+    // Three files: `backend/test/helpers/ci-jobs.ts`,
+    // `backend/test/helpers/ci-gate-coverage.ts` and
+    // `backend/test/unit/ci/gate-coverage.test.ts`.
+    files: 1569,
     sites: null,
     sources: [],
   },
@@ -2234,7 +2255,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on the publication branch: +4.** That branch adds the pack gate,
     // its judgement library, its test and its changeset. This walk is the whole
     // repository, so it takes all four.
-    files: 7724,
+    // **CI gate reconciliation (`gate-coverage.test.ts`): 7724 -> 7727.**
+    // Three files: `backend/test/helpers/ci-jobs.ts`,
+    // `backend/test/helpers/ci-gate-coverage.ts` and
+    // `backend/test/unit/ci/gate-coverage.test.ts`.
+    files: 7727,
     sites: null,
     sources: [],
   },
@@ -2742,7 +2767,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
     // 1 of them. Measured by taking the three out of the tree and
     // re-running: without them this check reads 1565.
-    files: 1566,
+    // **CI gate reconciliation (`gate-coverage.test.ts`): 1566 -> 1569.**
+    // Three files: `backend/test/helpers/ci-jobs.ts`,
+    // `backend/test/helpers/ci-gate-coverage.ts` and
+    // `backend/test/unit/ci/gate-coverage.test.ts`.
+    files: 1569,
     sites: 163,
     sources: [],
   },
@@ -2847,7 +2876,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
     // 1 of them. Measured by taking the three out of the tree and
     // re-running: without them this check reads 1647.
-    files: 1648,
+    // **CI gate reconciliation (`gate-coverage.test.ts`): 1648 -> 1649.** One, not
+    // three: this walk's population is test files, and the two new files under
+    // `backend/test/helpers/` are helpers.
+    files: 1649,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -2962,7 +2994,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
     // 3 of them. Measured by taking the three out of the tree and
     // re-running: without them this check reads 4312.
-    files: 4315,
+    // **CI gate reconciliation (`gate-coverage.test.ts`): 4315 -> 4318.**
+    // Three files: `backend/test/helpers/ci-jobs.ts`,
+    // `backend/test/helpers/ci-gate-coverage.ts` and
+    // `backend/test/unit/ci/gate-coverage.test.ts`.
+    files: 4318,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -3219,7 +3255,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/` carries one, and this walk's subject is the whole tree.
     // **Stacked on the publication branch: +4.** The pack gate, its judgement
     // library, its test and its changeset — this walk is the whole repository.
-    files: 7784,
+    // **CI gate reconciliation (`gate-coverage.test.ts`): 7784 -> 7787.**
+    // Three files: `backend/test/helpers/ci-jobs.ts`,
+    // `backend/test/helpers/ci-gate-coverage.ts` and
+    // `backend/test/unit/ci/gate-coverage.test.ts`.
+    files: 7787,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3332,7 +3372,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrived with the five merges this branch was rebased onto and the record
     // was already stale on `master`. Re-recorded rather than left drifting,
     // because a census that cannot reach `0 drifted` stops being read.
-    files: 5813,
+    // **CI gate reconciliation (`gate-coverage.test.ts`): 5813 -> 5816.**
+    // Three files: `backend/test/helpers/ci-jobs.ts`,
+    // `backend/test/helpers/ci-gate-coverage.ts` and
+    // `backend/test/unit/ci/gate-coverage.test.ts`.
+    files: 5816,
     sites: null,
     sources: ['manifest-index'],
   },

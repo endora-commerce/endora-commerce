@@ -1176,6 +1176,28 @@ a module package is one of those modules, and the test refuses the contradiction
 estate's size nor the reason lists are written down anywhere — both are derived, and the size
 went stale by four inside five days the last time it was in prose (D-100).
 
+**And a job has to run it, which is a question about the *pipeline* and not about the
+script.** `check-inventory.test.ts` already holds every `check-*` entry to the `quality` and
+`quality:static` command blocks in both directions, and it is complete over **its** population
+— which is the problem, because that population is `check-*.ts` files, `check-*.sh` files and
+`check:*` package scripts. `manifests:check` is a gate called `manifests:check` running a file
+called `generate-module-manifests.ts`, so it was in none of the three, appeared in **no CI job
+at all** for its whole existence, and was found red on `master` with 70 stale module-package
+manifests by a developer running it locally. That is issue #113's shape one level up: not a
+green that means "not looking", but a gate whose green is never even claimed. A population
+keyed on a naming habit is defined by the presence of the habit — #244's finding, arriving in
+the inventory that enforces #244. So `backend/test/unit/ci/gate-coverage.test.ts` asks the
+question over a population keyed on what a script **runs**: every package script, of every
+workspace member and of the repository root, whose command runs a file under a `scripts/`
+directory. It derives whether any job reaches it — following a job through a Dockerfile a
+`docker build -f` names, through `pnpm --filter` / `-r` selectors, through a chain of package
+scripts and through `pre*` / `post*` lifecycle hooks — and fails on one that is neither run
+nor classified. A classification states a **property**: `produces` (it writes the tree, and it
+names the gate that verifies its output, **which must itself be run by a job** — that one
+assertion is the whole defect), `superseded`, `developer-tool` or `local-operation`. There is
+deliberately no "not wired yet" verdict, and no `check-*` script for any of it: parsing
+`.gitlab-ci.yml` inside a unit run is a test, in the `boot-gate` and `build:docs` precedent.
+
 **And it prints what it read** (issue #244). Exit 2 answers "the input was empty"; it does
 not answer "the input was 7% of itself", which is the case that happens — the same shape has
 now been found seven times, and every one of them was a check whose output said what it
