@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MODULES } from '../../../src/composition.generated.js';
 import { EventBus } from '../../../src/events/bus.js';
+import { ApiInterceptorRegistry } from '../../../src/http/interceptors/index.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 import { ALL_ENTITIES } from '../../../src/db/entities-registry.generated.js';
@@ -766,6 +767,30 @@ describe('T058 — a removed module contributes to no admin inventory', () => {
 describe('T055 — the remaining module set still composes', () => {
   const log = { info: (): void => {}, warn: (): void => {}, error: (): void => {} };
 
+  /**
+   * The one host seam a compose-only root still owes the generated list.
+   *
+   * `pim_unopim` registers an API interceptor from `registerModule` (feature
+   * 089, FR-003 — it refuses activating a second PIM while one is active), and
+   * `ctx.interceptors` **refuses** a root that mounts no registry rather than
+   * dropping the registration. That is the right way round and is not being
+   * worked around here: a silently dropped interceptor is a refusal that stops
+   * refusing, and nothing in `composeModules` can tell a root that will build a
+   * server from one that will not, so a gate could only key on the registry
+   * being absent — which is the fail-open shape.
+   *
+   * Both real roots build one (`src/composition.ts`, `test/helpers/test-server.ts`),
+   * so this root owes it exactly as it owes `redis` and `emFactory` below. It
+   * needs no `isModuleEnabled` predicate and no seal: composition *collects*
+   * interceptors and `buildServer` is what dispatches them, and this file builds
+   * no server.
+   *
+   * One per composition, not one shared: a registry refuses a second
+   * registration of the same `(module, id)` pair, so the two compositions below
+   * would collide on `pim_unopim`'s.
+   */
+  const newInterceptorRegistry = (): ApiInterceptorRegistry => new ApiInterceptorRegistry();
+
   function composeWithout(removed: string): ReturnType<typeof composeModules> {
     const container = createRootContainer();
     registerValues(container, {
@@ -788,7 +813,7 @@ describe('T055 — the remaining module set still composes', () => {
     });
     return composeModules(
       MODULES.filter((entry) => entry.id !== removed),
-      { container, eventBus: new EventBus(), log },
+      { container, eventBus: new EventBus(), log, interceptorRegistry: newInterceptorRegistry() },
     );
   }
 
@@ -804,7 +829,7 @@ describe('T055 — the remaining module set still composes', () => {
     registerValues(container, { redis: undefined });
     composeModules(
       MODULES.filter((entry) => entry.id !== SUBJECT),
-      { container, eventBus: new EventBus(), log },
+      { container, eventBus: new EventBus(), log, interceptorRegistry: newInterceptorRegistry() },
     );
     // Not `undefined` reaching business logic — the property `composition.ts`
     // could not offer, where a missing option-object key is simply absent.
