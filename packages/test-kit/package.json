@@ -1,0 +1,58 @@
+{
+  "name": "@endora-commerce/test-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Composes an Endora Commerce platform for a test, from a composition its caller supplies. The server seam, the per-invocation database lease and the module test-support contribution shape, none of which names a module package (feature 109).",
+  "exports": {
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "default": "./dist/server/index.js"
+    },
+    "./database": {
+      "types": "./dist/database/index.d.ts",
+      "default": "./dist/database/index.js"
+    },
+    "./support": {
+      "types": "./dist/support/index.d.ts",
+      "default": "./dist/support/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.17.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "test:services": "vitest run --config vitest.services.config.ts"
+  },
+  "peerDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6",
+    "@mikro-orm/postgresql": "^6",
+    "fastify": "^5",
+    "ioredis": "^5",
+    "pg": "^8",
+    "vitest": "^2"
+  },
+  "devDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6.6.13",
+    "@mikro-orm/postgresql": "^6.6.13",
+    "@types/node": "^22.9.0",
+    "@types/pg": "^8.20.0",
+    "fastify": "^5.8.5",
+    "ioredis": "^5.10.1",
+    "pg": "^8.20.0",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4"
+  }
+}

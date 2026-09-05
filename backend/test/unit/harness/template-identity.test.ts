@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TEMPLATE_DIGEST_LENGTH } from '../../run-isolation.js';
+import { TEMPLATE_DIGEST_LENGTH } from '@endora-commerce/test-kit/database';
 import {
   MIGRATION_SOURCE_ROOTS,
   TEMPLATE_SEED_SOURCES,

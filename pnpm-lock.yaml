@@ -670,6 +670,9 @@ importers:
       '@endora-commerce/cli':
         specifier: workspace:*
         version: link:../packages/cli
+      '@endora-commerce/test-kit':
+        specifier: workspace:*
+        version: link:../packages/test-kit
       '@mikro-orm/cli':
         specifier: ^6.6.13
         version: 6.6.13(pg@8.20.0)
@@ -4244,6 +4247,42 @@ importers:
       zod:
         specifier: ^4.2.0
         version: 4.3.6
+
+  packages/test-kit:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.13
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      pg:
+        specifier: ^8.20.0
+        version: 8.20.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
 
   storefront:
     dependencies:

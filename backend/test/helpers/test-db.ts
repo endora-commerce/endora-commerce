@@ -2,8 +2,8 @@ import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../src/db/mikro-orm.config.js';
 import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { assertServicesAvailable } from '../declared-services.js';
-import { BASE_DATABASE_URL_ENV, TEMPLATE_DATABASE_ENV } from '../run-isolation.js';
-import { cloneTemplateForCaller, dropRunDatabase } from '../run-isolation-provision.js';
+import { BASE_DATABASE_URL_ENV, TEMPLATE_DATABASE_ENV } from '@endora-commerce/test-kit/database';
+import { cloneTemplateForCaller, dropRunDatabase } from '@endora-commerce/test-kit/database';
 
 /**
  * Transaction-rollback fixture pattern (R-03):

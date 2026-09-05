@@ -4,8 +4,9 @@
  * Split from `run-isolation.ts` so the naming and selection rules — the two
  * things whose correctness protects the dev database and other people's
  * databases — are unit-testable with no service at all, and run in the fast
- * unit job. Nothing here is imported by a test file: `global-setup.ts` is the
- * only caller, and it calls it once per invocation in the parent process.
+ * unit job. Nothing here is imported by a test file: `leaseRunDatabase` in
+ * `./lease.ts` is the only caller, and a vitest `globalSetup` calls that once
+ * per invocation in the parent process.
  *
  * `pg` and `ioredis` are imported dynamically for the same reason: a run that
  * declared `BACKEND_TEST_SERVICES=none` never reaches this module, and should
@@ -153,15 +154,15 @@ export interface ProvisionInput {
   /** The DSN naming the base database, from TEST_DATABASE_URL or the default. */
   readonly baseUrl: string;
   /**
-   * Which migration set this run has, from `test/template-identity.ts`.
+   * Which migration set this run has — the caller's, because the migrations are.
    *
-   * A **value**, unlike the callback this used to be, because the identity is
-   * read from `src/db/configured-migrations.ts` — the ordering the ORM config
-   * assigns, extracted so that reading it does not mean importing the config.
-   * That import is what the callback existed to delay: **the config captures
-   * `DATABASE_URL` at import**, once per process, and the parent used to import
-   * it while that variable was unset, whose fallback is the *dev* database.
-   * `migrateTemplate` is still a callback for exactly that reason.
+   * A **value**, unlike the callback this used to be, because a caller reads its
+   * own migration order out of whatever module assigns it and hands the answer
+   * over. That reading is what the callback existed to delay: **an ORM
+   * configuration captures `DATABASE_URL` at import**, once per process, and the
+   * parent used to import it while that variable was unset, whose fallback is
+   * the caller's *dev* database. `migrateTemplate` is still a callback for
+   * exactly that reason.
    */
   readonly identity: {
     readonly digest: string;
@@ -312,7 +313,7 @@ export async function provisionRunDatabase(input: ProvisionInput): Promise<RunDa
  * A database of this run's template, for a caller that is not the invocation.
  *
  * The template is named by the caller, not re-derived here, and that is the
- * point (issue #289): `global-setup.ts` resolved which template this run's
+ * point (issue #289): the lease resolved which template this run's
  * platform is and exported the name, so a file cloning one mid-run gets the
  * database the run itself was cloned from — not whatever `<base>_tpl` has
  * become while the run has been going, which with several branches on one
@@ -495,7 +496,14 @@ export interface RedisLease {
 }
 
 async function connectRedis(url: string): Promise<Redis> {
-  const { default: IORedis } = await import('ioredis');
+  // Named, never default: `ioredis`' `built/index.js` reassigns
+  // `module.exports` to the class while its `.d.ts` writes `export { default }`,
+  // so NodeNext models the default binding as the module namespace — TS2709 as a
+  // type, TS2351 as a constructor. `default === Redis` at runtime, and
+  // `test/unit/packages/package-dist-build.test.ts` compiles this package's
+  // emitted `dist` in a NodeNext consumer, which is the only place that error
+  // can be seen. See AGENTS.md's stack note.
+  const { Redis: IORedis } = await import('ioredis');
   return new IORedis(url, { maxRetriesPerRequest: null, lazyConnect: false });
 }
 
