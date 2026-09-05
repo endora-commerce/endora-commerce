@@ -1493,6 +1493,15 @@
         }
       }
     },
+    "/api/v1/admin/cms/pages/reserved-segments": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/cms/pages/{id}": {
       "delete": {
         "responses": {
@@ -6907,6 +6916,15 @@
       }
     },
     "/api/v1/cms/hooks/by-code": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/cms/pages/by-channel": {
       "get": {
         "responses": {
           "200": {
