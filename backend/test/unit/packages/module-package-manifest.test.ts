@@ -83,6 +83,19 @@ const BASE_TSCONFIG_BUILD = JSON.stringify({
   compilerOptions: { rootDir: 'src', outDir: 'dist', noEmitOnError: true },
 });
 
+/**
+ * The number the fixture checkout's release process has already set, on the
+ * platform and on every package in it.
+ *
+ * It is one number rather than a per-package one because that is the state
+ * D-210 created and the state a module package is born into: the seed a
+ * package with no manifest yet receives is the platform's, so a fixture whose
+ * platform and packages disagreed would leave "which of the two did it read?"
+ * unanswered for every test that does not ask it directly. The tests that
+ * *are* about that question write their own disagreeing pair.
+ */
+const PLATFORM_VERSION = '0.7.0';
+
 /** The parts of a checkout every fixture needs, so each test writes only its subject. */
 function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, string> {
   return {
@@ -110,8 +123,14 @@ function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, s
     [`${ROOT}/packages/contracts/package.json`]: JSON.stringify({
       name: '@endora-commerce/contracts',
     }),
+    // The host. It is also where a module package with no manifest yet gets
+    // its first `version` from (D-210), and it is found by the `endora` block
+    // it declares about itself — the same one `lib/platform-root.ts` locates
+    // the platform's sources by — rather than by its directory or its name.
     [`${ROOT}/packages/platform/package.json`]: JSON.stringify({
       name: '@endora-commerce/platform',
+      version: PLATFORM_VERSION,
+      endora: { type: 'platform' },
     }),
     [`${ROOT}/package.json`]: JSON.stringify({
       name: 'root',
@@ -178,6 +197,11 @@ function packageFiles(
   return {
     [`${dir}/package.json`]: JSON.stringify({
       name: `@endora-commerce/mod-${id.replace(/_/g, '-')}`,
+      // Every package in a real checkout carries the number its last release
+      // gave it, so the fixture does too: the default path through this
+      // generator is the one that **preserves** a version, not the one that
+      // seeds it.
+      version: PLATFORM_VERSION,
       description: 'A module package.',
       endora: { type: 'module', id },
     }),
@@ -1205,10 +1229,94 @@ describe('module package manifests are generated (feature 080, T041)', () => {
     });
   });
 
+  /**
+   * The version is the **release process's** field, and this generator's job
+   * is to leave it alone (D-210).
+   *
+   * It was the constant `'0.0.0'` until the first release set 79 manifests to
+   * `0.7.0` by hand, whereupon regenerating wanted to undo all 70 module
+   * packages and `manifests:check` went red on `master`. That is not a bug in
+   * the number chosen: a version is not derivable from a layer inventory at
+   * all, so any constant here is a release decision this file is in no
+   * position to take, and the next release would falsify a new constant
+   * exactly as it falsified `0.0.0`.
+   *
+   * So it is preserved when the package has one, and seeded from the platform
+   * host's own version when it does not — the same
+   * preserved-or-seeded shape `description` has, for the same reason.
+   */
+  describe('the version belongs to the release process', () => {
+    it('preserves a version the release process already set', () => {
+      // Deliberately not the platform's, so the assertion discriminates
+      // between "it kept what was there" and "it wrote the seed, which happens
+      // to match".
+      const files = widgets(BACKEND_ONLY);
+      const path = `${ROOT}/packages/modules/widgets/package.json`;
+      files[path] = JSON.stringify({
+        ...(JSON.parse(files[path]!) as object),
+        version: '1.4.2',
+      });
+      expect(manifestOf(files)['version']).toBe('1.4.2');
+    });
+
+    it("seeds a package that has no manifest yet from the platform's version", () => {
+      const files = widgets(BACKEND_ONLY);
+      delete files[`${ROOT}/packages/modules/widgets/package.json`];
+      expect(manifestOf(files)['version']).toBe(PLATFORM_VERSION);
+    });
+
+    it('needs no platform at all while every package carries its own version', () => {
+      // The refusals below are asked at the point of need, never at the top of
+      // the run: a checkout whose packages are all versioned has no question
+      // for the platform, so an unanswerable one cannot fail it. The member
+      // stays in the workspace — deleting the manifest would make
+      // `@endora-commerce/platform` a third-party peer with no declared range,
+      // which is a different refusal and would prove nothing about this one.
+      const files = widgets(BACKEND_ONLY);
+      files[`${ROOT}/packages/platform/package.json`] = JSON.stringify({
+        name: '@endora-commerce/platform',
+      });
+      expect(manifestOf(files)['version']).toBe(PLATFORM_VERSION);
+    });
+
+    it('refuses to seed when no member declares itself the platform', () => {
+      const files = widgets(BACKEND_ONLY);
+      delete files[`${ROOT}/packages/modules/widgets/package.json`];
+      files[`${ROOT}/packages/platform/package.json`] = JSON.stringify({
+        name: '@endora-commerce/platform',
+        version: PLATFORM_VERSION,
+      });
+      expect(() => render(files)).toThrow(/no workspace member declares/);
+    });
+
+    it('refuses to seed when the platform declares no version', () => {
+      const files = widgets(BACKEND_ONLY);
+      delete files[`${ROOT}/packages/modules/widgets/package.json`];
+      files[`${ROOT}/packages/platform/package.json`] = JSON.stringify({
+        name: '@endora-commerce/platform',
+        endora: { type: 'platform' },
+      });
+      expect(() => render(files)).toThrow(/declares no `version`/);
+    });
+
+    it('refuses a checkout where two members declare themselves the platform', () => {
+      // Zero or two is a refusal rather than a walk narrowed to whichever
+      // sorted first — `lib/platform-root.ts`' rule, and this generator asks
+      // it through that same function rather than re-deriving the block.
+      const files = widgets(BACKEND_ONLY);
+      delete files[`${ROOT}/packages/modules/widgets/package.json`];
+      files[`${ROOT}/packages/contracts/package.json`] = JSON.stringify({
+        name: '@endora-commerce/contracts',
+        version: '9.9.9',
+        endora: { type: 'platform' },
+      });
+      expect(() => render(files)).toThrow(/declare/);
+    });
+  });
+
   describe('the constant half', () => {
-    it('stays private at 0.0.0 with no side effects (R6)', () => {
+    it('stays private, ESM and side-effect free (R6)', () => {
       const manifest = manifestOf(widgets(BACKEND_ONLY));
-      expect(manifest['version']).toBe('0.0.0');
       expect(manifest['private']).toBe(true);
       expect(manifest['type']).toBe('module');
       expect(manifest['sideEffects']).toBe(false);
