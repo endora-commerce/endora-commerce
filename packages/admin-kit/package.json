@@ -1,12 +1,12 @@
 {
   "name": "@endora-commerce/admin-kit",
-  "version": "0.0.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "endora": {
     "type": "admin-ui"
   },
-  "description": "The admin surface a module package's ./admin layer is written against (feature 091). Publishes the contribution declaration types and the host-side zone renderer and the four design-system subpaths \u2014 ./ui, ./components, ./lib and ./i18n \u2014 whose members are derived from what admin module code actually imports.",
+  "description": "The admin surface a module package's ./admin layer is written against (feature 091). Publishes the contribution declaration types and the host-side zone renderer and the four design-system subpaths — ./ui, ./components, ./lib and ./i18n — whose members are derived from what admin module code actually imports.",
   "exports": {
     "./contributions": {
       "types": "./dist/contributions/index.d.ts",
