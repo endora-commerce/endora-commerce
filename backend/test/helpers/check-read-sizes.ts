@@ -940,7 +940,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 1233,
+    files: 1239,
     sites: 12,
     sources: [],
   },
@@ -2077,7 +2077,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // oscillation `check-release-intent`'s own entry stopped tracking by taking
     // the changesets out of its population — these two walks cannot do that,
     // being whole-tree walks whose subject is every file in the repository.
-    files: 7678,
+    files: 7684,
     sites: null,
     sources: [],
   },
@@ -2917,7 +2917,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // oscillation `check-release-intent`'s own entry stopped tracking by taking
     // the changesets out of its population — these two walks cannot do that,
     // being whole-tree walks whose subject is every file in the repository.
-    files: 7738,
+    // **2026-09-05: +6, and this is the fifth time in two days.** Six markdown files
+    // from `specs/113-module-owned-demo-data/` and the D-209..D-211 rulings. The
+    // mechanism is settled and is not a defect: a documentation-only merge request
+    // moves three whole-tree walks, its author has no reason to look, and the drift
+    // census on the merged tree is the only place it surfaces. That is the census
+    // working, not failing -- the band tolerates it, `master` stays green, and the
+    // correction is one small merge request per batch. Recorded here so the sixth
+    // reader does not go looking for a cause.
+    files: 7744,
     sites: null,
     sources: ['manifest-index'],
   },
