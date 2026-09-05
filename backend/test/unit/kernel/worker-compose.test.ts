@@ -25,6 +25,16 @@ import { codeOnly } from '../../../scripts/lib/source-text.js';
  *  2. Composition itself serves nothing. Route registrars are collected as
  *     unexecuted plugins; a process that never builds a server never has them,
  *     and `worker.ts` never listens.
+ *
+ * **Why this is a unit test** (feature 112, FR-004). It sat under
+ * `test/integration/kernel/` until 2026-09-05 and was never an integration
+ * test: Constitution III *defines* that tree as the one that exercises "the
+ * real database and the real module boundary (no mocking the DB)", and this
+ * file opens no connection to Postgres, Redis or Meilisearch — it composes in
+ * memory and reads `src/worker.ts` as text. Not one assertion changed with the
+ * move; the fast, service-less job now runs it on every merge request rather
+ * than only on `master`. The criterion is
+ * `specs/112-test-tree-membership/contracts/test-tree-membership.md`.
  */
 
 const WORKER_ENTRY = join(

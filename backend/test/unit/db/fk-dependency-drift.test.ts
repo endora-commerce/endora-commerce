@@ -574,7 +574,7 @@ describe('fk drift — T057 a removed module leaves no foreign key behind (US4)'
    * removal and fails against a fresh one, which is the worst place to find it.
    *
    * `health_checks` is feature 072's removal subject (see
-   * test/integration/kernel/module-removal.test.ts): fan-out 0, no entity, no
+   * test/unit/kernel/module-removal.test.ts): fan-out 0, no entity, no
    * migration.
    */
   const REMOVED = 'health_checks';

@@ -1,8 +1,10 @@
 // The fast half of the backend suite (issue #211): every unit test the backend
-// has, minus the 16 that talk to a live Postgres or Redis. Needs no Postgres,
-// no Redis and no Meilisearch, so it runs in a CI job with no service
-// containers — 324 files in 96 s, against the better part of an hour for the
-// complete suite.
+// has, minus the 16 that talk to a live Postgres or Redis, plus the two outer
+// tests named in `test/service-free-outer-tests.ts`. Needs no Postgres, no
+// Redis and no Meilisearch, so it runs in a CI job with no service containers,
+// against the better part of an hour for the complete suite. The run prints its
+// own file and test counts, and the printed figure is the only current one —
+// this header carried "324 files in 96 s" while the run reported 349 and 436.
 //
 //   pnpm --filter backend run test:unit:fast    # this config
 //   pnpm --filter backend run test              # the complete suite
@@ -18,6 +20,7 @@ import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
 import baseConfig from '../vitest.config.base.js';
 import { backendTestOptions } from './vitest.shared.js';
 import { SERVICE_DEPENDENT_UNIT_TEST_PATHS } from './test/service-dependent-unit-tests.js';
+import { SERVICE_FREE_OUTER_TEST_PATHS } from './test/service-free-outer-tests.js';
 
 // Choosing this config *is* the declaration that the run has no services —
 // which is why it is made here and not left to whoever writes the command line.
@@ -31,10 +34,23 @@ export default mergeConfig(
   defineConfig({
     test: {
       name: 'backend-unit',
-      // `test/unit`, plus the 24 unit tests that live beside the source they
+      // `test/unit`, plus the unit tests that live beside the source they
       // cover. Those are the same kind of test and reach nothing either; they
       // were only ever in the hour-long job because no other job existed.
-      include: ['test/unit/**/*.test.ts', 'src/**/*.test.ts'],
+      //
+      // The third entry is a **declaration and not a directory** (feature 112,
+      // FR-007). A directory could not carry it: `test/contract` holds 386
+      // files, 31 of which need no service, and the tree a file sits in is a
+      // statement about its *scope* — Constitution III's (b), a public API's
+      // shape — never about what it dials. So the two files named in
+      // `test/service-free-outer-tests.ts` join this run one by one, with the
+      // reason each earns a place on every merge request, in the exact mirror
+      // of the exclusions above.
+      include: [
+        'test/unit/**/*.test.ts',
+        'src/**/*.test.ts',
+        ...SERVICE_FREE_OUTER_TEST_PATHS,
+      ],
       exclude: [...configDefaults.exclude, ...SERVICE_DEPENDENT_UNIT_TEST_PATHS],
       ...backendTestOptions(),
       // The one setting this config does NOT share with the complete suite.

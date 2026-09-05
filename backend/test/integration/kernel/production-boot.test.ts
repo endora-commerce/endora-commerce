@@ -42,7 +42,7 @@ import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifest
  * consumers against the shared Redis, so the `worker` role's own boot hooks
  * (`pim_ergonode`, `product_feeds`, both guarded on `runWorkers`) are not
  * covered here. Role-independence of the module list stays with
- * `test/integration/kernel/worker-compose.test.ts`, which asserts list parity
+ * `test/unit/kernel/worker-compose.test.ts`, which asserts list parity
  * only — it does not boot the worker role either.
  */
 

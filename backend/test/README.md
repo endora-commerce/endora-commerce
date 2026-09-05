@@ -238,8 +238,13 @@ directory used to be gated behind a globalSetup that creates and migrates a data
 
 | Command | Covers | Needs | Measured |
 | --- | --- | --- | --- |
-| `pnpm --filter backend run test:unit:fast` | `test/unit` minus those 16, plus the 24 unit tests co-located under `src/` | nothing | 324 files, 96 s, 1.5 GB peak |
+| `pnpm --filter backend run test:unit:fast` | `test/unit` minus those 16, plus the unit tests co-located under `src/`, plus the outer tests named in `test/service-free-outer-tests.ts` | nothing | 353 files, 6221 tests, 441 s (2026-09-05) |
 | `pnpm --filter backend run test` | everything, the 16 included | Postgres + Redis + Meilisearch | `test/unit` alone: 316 files, 252 s |
+
+The fast run **prints its own counts, and the printed figure is the only current one** — this
+table read "324 files, 96 s" while the run reported 349 and 436. Feature 112 moved it from
+349 files / 6164 tests / 428 s to 353 / 6221 / 441 — **+13 s, 3.0 %**, both halves measured in
+one worktree on one machine so the delta is not two machine states subtracted.
 
 The fast run uses `backend/vitest.unit.config.ts`, and choosing that config **is** the
 declaration that the run has no services: it sets `BACKEND_TEST_SERVICES=none`,
@@ -267,3 +272,35 @@ needing one — the second is the direction nothing else would notice.
 A service-dependent test that lands in the fast run does not pass quietly. Both harness
 seams call `assertServicesAvailable` before they dial anything, so the run stops with a
 sentence naming the ledger it is missing from.
+
+### Which tree a test belongs in, and which job runs it
+
+Two questions, and this repository read them as one until feature 112
+(`specs/112-test-tree-membership/contracts/test-tree-membership.md` is normative):
+
+- **Scope names the tree.** Constitution III's three: `unit/` is domain logic — one service,
+  one registry, one resolver, one composition; `contract/` is a public API's shape — a wire
+  envelope, an argv contract, a manifest schema, a permission vocabulary; `integration/`
+  "exercises the real database and the real module boundary (no mocking the DB)". A file's
+  tree is decided by which of the three it is and by nothing else: not by how long it takes,
+  not by what it happens to import, and not by which job you wanted it in.
+- **Service need names the job, and it is declared.** Two declarations, mirror images:
+  `test/service-dependent-unit-tests.ts` subtracts 16 unit-scope files that use a real
+  database, and `test/service-free-outer-tests.ts` adds the outer-tree files that need none.
+  Neither is inferred from a directory.
+- **Where the two disagree, the job's include set moves and the file does not** — with one
+  consequence rather than an exception. Principle III *defines* the integration tree by
+  exercising the real database, so a file there that opens no connection is misfiled by
+  scope, and it moves. `module-removal.test.ts` and `worker-compose.test.ts` did, in the
+  merge request that wrote this section.
+
+**Deciding "needs no service" is done by running the file** under
+`BACKEND_TEST_SERVICES=none`, never by reading its imports. A source scan may narrow the
+population to look at; it may not rule on it, and it fails **open**: of fifty
+statically-screened service-free files, two reach Postgres through
+`execFile('pnpm', ['exec', 'tsx', …])` and two more through a dynamic
+`import('../../../src/composition.js')`, none of which any import walk can follow.
+`test/unit/harness/service-dependent-ledger.test.ts` keeps the residue — including
+`SERVICE_BOUND_BEYOND_THE_SCREEN`, which holds the measured counter-examples so the claim is
+in the tree rather than only in a design document. There is deliberately **no `check-*`
+script**: an unsound predicate behind a green tick is exactly what issue #113 refuses.
