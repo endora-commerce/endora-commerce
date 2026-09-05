@@ -10468,37 +10468,46 @@ describe('the endora check estate holds every rule this inventory names', () => 
   });
 
   /**
-   * Invariant 6 — `contracts/exit-reduction.md` §5.1 and red proof 9.
+   * Invariant 6 — `contracts/exit-reduction.md` §5.1 and red proof 9, **under
+   * D-208**, which withdrew half of it.
    *
-   * The state that would make the incompleteness matter is the state the
-   * tooling refuses, rather than a requirement written down and hoped for.
-   * **The instrument is `check:release-intent`'s `unexpected-public-package`
-   * finding**, not a new one: it refuses `private: false` on every versionable
-   * member outside the publication set, and a second finding over a subset of
-   * one population is two derivations of one refusal.
+   * 089 §7 and 101 §5.1 coupled publication to completeness: while any rule was
+   * `pending`, `@endora-commerce/cli` stayed `private: true`. The reasoning was
+   * that the state which would make the incompleteness matter should be the
+   * state the tooling refuses, rather than a requirement written down and
+   * hoped for — and it was right for a package nobody outside this repository
+   * could obtain. **D-208 changes the premise**: the CLI is the product's front
+   * door and the first package a client installs, `endora check` is one of its
+   * three commands, and a deferral is no longer available to us.
    *
-   * That finding was `publishable-package` — *every* public member — until
-   * feature 104 made three packages public and the blanket predicate stopped
-   * being able to survive its own merge request. The narrowing does not weaken
-   * this coupling and the reason is derived rather than asserted: the
-   * publication set is the closure of the reference storefront's `dependencies`
-   * and `peerDependencies`, `@endora-commerce/cli` is a build-time tool that no
-   * storefront installs, and a merge request that put it *into* that closure
-   * would be adding the CLI to the storefront's runtime dependencies — which is
-   * not a drive-by either.
+   * The coupling is therefore split into what it was protecting and what it was
+   * deferring, and only the second is withdrawn.
    *
-   * So what this repository has to hold is that the coupling is *reachable*:
-   * the package is private, and it is in that check's population rather than in
-   * the `ignore` list that would silence the gate for it.
+   *   * **Deferred** — that nobody meets an incomplete estate at all. This is
+   *     what `private: true` bought and what D-208 spends.
+   *   * **Protected** — that nobody can mistake an incomplete estate for a
+   *     complete one. That is carried by two assertions of its own, neither of
+   *     which depends on publication: every `pending` entry names the phase
+   *     that retires it (*names a phase on every pending entry*, above), and
+   *     `pending` dominates the exit code so a wholly clean package still exits
+   *     2 (`packages/cli/test/check-exit-reduction.test.ts`, proof 4). A
+   *     stranger's run therefore prints the incompleteness and refuses, which
+   *     is `exit-reduction.md` §5's own design and not a consolation.
+   *
+   * What survives here is the **reachability** half, unchanged and still worth
+   * asserting: the gate that judges this package's publication is
+   * `check:release-intent`'s `unexpected-public-package`, and the one
+   * configuration that could silence it for the CLI without anybody noticing is
+   * an `ignore` pattern — glob-matched against package *names*, so one entry
+   * reading `@endora-commerce/*` would exempt it along with 78 others.
    */
-  it('keeps @endora-commerce/cli private while any rule is pending', () => {
+  it('keeps @endora-commerce/cli inside the gate that judges its publication', () => {
     const manifest = JSON.parse(read('packages/cli/package.json')) as {
       name: string;
       private?: boolean;
     };
-    if (pendingEntries().length > 0) expect(manifest.private).toBe(true);
 
-    // The gate that enforces it, and the one configuration that could switch it
+    // The gate that judges it, and the one configuration that could switch it
     // off silently — `ignore` is glob-matched against package *names*.
     expect(read('backend/scripts/check-release-intent.ts')).toContain('unexpected-public-package');
     const changesets = JSON.parse(read('.changeset/config.json')) as { ignore?: string[] };
@@ -10508,6 +10517,19 @@ describe('the endora check estate holds every rule this inventory names', () => 
       );
       expect(matcher.test(manifest.name), `\`${pattern}\` ignores ${manifest.name}`).toBe(false);
     }
+
+    // And the two facts D-208 makes it turn on: a package that is public owes a
+    // consumer the metadata `incomplete-public-package` asks for. Asserted here
+    // rather than left to the check alone because this file is where the
+    // coupling is recorded, and a coupling recorded with nothing under it is
+    // what §5.1 was written to avoid.
+    expect(manifest.private).toBeUndefined();
+    const published = JSON.parse(read('packages/cli/package.json')) as {
+      repository?: { url?: string };
+      publishConfig?: { access?: string };
+    };
+    expect(published.repository?.url).toBeTruthy();
+    expect(published.publishConfig?.access).toBe('public');
   });
 
   /**

@@ -2072,7 +2072,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7677,
+    // **2026-09-05, feature 104 (the CLI published): +1.** One changeset file.
+    // The count therefore falls again when a release consumes it, which is the
+    // oscillation `check-release-intent`'s own entry stopped tracking by taking
+    // the changesets out of its population — these two walks cannot do that,
+    // being whole-tree walks whose subject is every file in the repository.
+    files: 7678,
     sites: null,
     sources: [],
   },
@@ -2907,7 +2912,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Fourth occurrence of this class in two days -- it is now the ordinary way this
     // file goes stale, and the drift census on the merged tree is the only place it
     // shows.
-    files: 7737,
+    // **2026-09-05, feature 104 (the CLI published): +1.** One changeset file.
+    // The count therefore falls again when a release consumes it, which is the
+    // oscillation `check-release-intent`'s own entry stopped tracking by taking
+    // the changesets out of its population — these two walks cannot do that,
+    // being whole-tree walks whose subject is every file in the repository.
+    files: 7738,
     sites: null,
     sources: ['manifest-index'],
   },
