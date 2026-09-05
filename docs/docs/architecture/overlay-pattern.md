@@ -26,12 +26,24 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
   fails composition, naming every claimant's file.
 - **Deterministic resolution** — the resolver (`backend/src/overlay/`) lists the
   module directories under the overlay root with a stable sort. Identical inputs
-  produce an identical resolution and an identical **override manifest**, so a
+  produce an identical resolution and an identical **divergence report**, so a
   rebuild never drifts.
-- **Override manifest** — every build emits a committed, deterministic artifact
-  (`override-manifest.core.generated.ts` for bare core; per-deployment under
-  `apps/<name>/`) recording which deployment this is, which overlay root was read
-  and which modules the deployment adds.
+- **Divergence report** — every build emits a committed, deterministic record of
+  every way the deployment differs from core, in two renderings from one
+  derivation: `divergence.generated.ts` for a program and
+  `divergence.generated.md` for a human (`divergence.core.generated.*` for bare
+  core; per-deployment under `apps/<name>/`). Each entry names what was changed,
+  which of the deployment's modules changed it, which module owns what was
+  changed, the rung of the [customisation ladder](./customisation-ladder.md) it
+  sits on, and the sentence the deployment wrote when it did it. Its predecessor
+  recorded one fact — which overlay modules a deployment adds — which survives as
+  the report's `overlayModules` field.
+- **The deployment's own declaration** — `apps/<name>/divergence.ts`, hand-written
+  and reviewed, carrying the three things no walk can produce: the modules this
+  deployment does not ship, the wrapping order where two of its overlay modules
+  decorate one name, and one sentence per derived divergence. It is reconciled
+  against the report **both ways**: a divergence with no sentence fails the
+  build, and so does a sentence describing a divergence that is gone.
 
 ## What you may override
 
@@ -210,8 +222,8 @@ loader for a shadowed file ever written — `loadOverlayServiceClasses`, for
 `service` — and feature 072 deleted it deliberately, replacing it with
 `ctx.di.decorate` for the reason the section above gives. `route` and `config`
 never had a loader at all: the resolver's `overrides` output had exactly one
-consumer in the history of the tree, the override-manifest generator, which
-serialised it into an audit artefact. So a route override never changed what a
+consumer in the history of the tree, the divergence report's generator (then the
+override-manifest generator), which serialised it into an audit artefact. So a route override never changed what a
 running platform served, on any deployment, in any tree state.
 
 **And it had stopped even classifying.** The scan indexed core from
@@ -301,14 +313,28 @@ and pass the permission-inventory check per deployment.
 # 2. Override a core service from its registerModule, by registration name:
 #    ctx.di.decorate('pricingService', (inner) => wrap(inner))
 
-# 3. Render the deployment's override manifest and commit it:
-DEPLOYMENT=acme pnpm --filter backend run overlay:manifest
+# 3. Say why, in the deployment's own declaration:
+#    backend/src/apps/acme/divergence.ts, `reasons`, keyed by the derived entry's
+#    own key — `decoration:acme_loyalty:pricingService`
 
-# 4. Verify divergence in the emitted manifest and check determinism:
+# 4. Render the deployment's divergence report and commit both renderings:
+DEPLOYMENT=acme pnpm --filter backend run overlay:divergence
+
+# 5. Check that every divergence is derived, owned and explained, and that the
+#    committed artefacts are what this tree produces:
+pnpm --filter backend run check:divergence
 pnpm --filter backend run overlay:check
 ```
 
-See `specs/057-overlay-pattern-multideploy/` for the original feature, and
-`specs/103-overlay-shadowing-retirement/contracts/override-manifest-v2.md` for
-the current override-manifest contract, which supersedes feature 057's
-override-manifest and overlay-resolution contracts.
+**Which seam to reach for, and what each costs**, is the
+[customisation ladder](./customisation-ladder.md). Read it before writing any of
+the above: rung 3 is not available to a deployment wanting to substitute an
+implementation, and that page says so rather than sending you to a mechanism that
+will refuse you.
+
+See `specs/057-overlay-pattern-multideploy/` for the original feature,
+`specs/107-override-report-and-ladder/contracts/divergence-report.md` for the
+current report contract and `.../deployment-declaration.md` for the declaration's.
+Both supersede `specs/103-overlay-shadowing-retirement/contracts/override-manifest-v2.md`
+§1–§2, which in turn superseded feature 057's override-manifest and
+overlay-resolution contracts.

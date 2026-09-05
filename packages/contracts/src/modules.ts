@@ -357,6 +357,169 @@ export type DeploymentDivergenceDeclaration = z.infer<
 >;
 
 /**
+ * One kind of divergence a deployment's tree can hold
+ * (`specs/107-override-report-and-ladder/data-model.md` §2.3).
+ *
+ * Nine, and every one of them is one seam of `ModuleContext` — seven read off
+ * the members themselves, plus `port-consumed` (which is `lazyPort` over the
+ * cradle rather than a member) and `omission` (which comes from the declaration
+ * and from no seam at all). `routes`, `ungatedRoutes`, `onBoot` and the manifest
+ * declarations are deliberately absent for one uniform reason: each is a module
+ * acting on its **own** surface, which is not a divergence from core. They are
+ * named in {@link DivergenceBoundary.notRecorded} so a reader can tell "not a
+ * divergence" from "not looked at".
+ */
+export type DivergenceKind =
+  | 'omission'
+  | 'registration'
+  | 'port-provided'
+  | 'port-consumed'
+  | 'subscription'
+  | 'interceptor'
+  | 'decoration'
+  | 'root-plugin'
+  | 'worker';
+
+/**
+ * `<kind>:<module>:<subject>` — the three facts that identify a divergence
+ * independently of where it is written.
+ *
+ * **Never a file path and never a line.** A path-keyed ledger goes stale on
+ * every move and a line-keyed one reds on any insertion above the site; the
+ * subject is the string the platform itself uses to identify the thing — a
+ * registration name, an endpoint identity, a module id. An interceptor's key
+ * carries `#<phase>`, because one module may register a `pre` and a `post`
+ * against one endpoint and they are two divergences with two reasons.
+ */
+export type DivergenceKey = string;
+
+/** Kind-specific facts, and only the ones the derivation actually has. */
+export type DivergenceDetail =
+  | {
+      readonly kind: 'decoration';
+      /**
+       * 1-based position in the wrapping chain, innermost first — and `null` in
+       * the committed artefact, deliberately rather than by omission.
+       *
+       * **Depth is a fact about a composition, not about a tree.** A static walk
+       * knows that two overlay modules decorate one name; it does not know which
+       * wrapped which, because that is what `decorationOrder` and the composer's
+       * emission order decide together. The runtime half of the report
+       * (`contracts/divergence-report.md` §7) fills it in from
+       * `ComposedModules.decorations`; recording a guess here would be the
+       * report asserting something it cannot know.
+       */
+      readonly depth: number | null;
+    }
+  | {
+      readonly kind: 'interceptor';
+      readonly phase: 'pre' | 'post';
+      readonly order: number;
+      readonly id: string;
+      /** Does any route registration in the composition match this identity? */
+      readonly targetMatched: boolean;
+    }
+  | { readonly kind: 'subscription' }
+  | { readonly kind: 'port-provided' }
+  | { readonly kind: 'port-consumed' }
+  | { readonly kind: 'registration' }
+  | { readonly kind: 'worker' }
+  | { readonly kind: 'root-plugin'; readonly declaredReason: string }
+  | { readonly kind: 'omission' };
+
+/** One divergence: what, who wrote it, who owns it, at what cost, and why. */
+export interface DivergenceEntry {
+  readonly key: DivergenceKey;
+  readonly kind: DivergenceKind;
+  /** The overlay module that wrote it; `'core'` for an omission. */
+  readonly module: string;
+  /** Registration name, endpoint identity, event name, queue name, module id. */
+  readonly subject: string;
+  /**
+   * The module that owns `subject`; `null` when a composition root registered
+   * it. A name nobody registers is a **finding**, not an entry, so `null` here
+   * always means "root-supplied" and never "unknown".
+   */
+  readonly owner: string | null;
+  /**
+   * Which rung of the escalation ladder this seam is
+   * (`specs/107-override-report-and-ladder/contracts/escalation-ladder.md` §2),
+   * or `null` for a kind that sits on no rung.
+   *
+   * `null` is three kinds and they are the three the ladder's own table marks
+   * `—`: `registration` and `worker` are a module contributing its **own**
+   * surface, and `omission` comes from the declaration rather than from a seam.
+   * The ladder ranks ways of changing what *core* does, so a rung number on
+   * those would be a cost this repository does not claim they have. A
+   * `ModuleContext` member that the rung table classifies **not at all** is a
+   * different state and is the `unclassified-seam` finding.
+   */
+  readonly rung: number | null;
+  /** Kind-specific facts. Never free-form. */
+  readonly detail: DivergenceDetail;
+  /** The deployment's own sentence, from its declaration's `reasons` map. */
+  readonly reason: string;
+}
+
+/**
+ * What the artefact does not cover, stated rather than implied (FR-018).
+ *
+ * A report that lists nine seams and says nothing about the rest is
+ * indistinguishable from a complete one. This is the difference between a
+ * boundary statement and a silence, and it is why the two hand-written lists
+ * below are hand-written: they carry a *reason* each, which no walk can produce.
+ */
+export interface DivergenceBoundary {
+  /** Seams this artefact records. Derived — the kinds above. */
+  readonly recorded: readonly DivergenceKind[];
+  /** Seams that exist and are a module's own business, with why. */
+  readonly notRecorded: ReadonlyArray<{ readonly seam: string; readonly why: string }>;
+  /** Facts only a running process can answer, with why. */
+  readonly runtimeOnly: ReadonlyArray<{ readonly fact: string; readonly why: string }>;
+}
+
+/**
+ * The derived record of how one deployment's tree diverges from core (D-30).
+ *
+ * Committed, per deployment, in two renderings from one derivation: a `.ts` a
+ * program reads and a `.md` a human reads. Deterministic — repo-relative paths,
+ * sorted arrays, no timestamps — so identical inputs produce byte-identical
+ * output and `overlay:check` can byte-compare both.
+ *
+ * The shape is published here rather than in `backend/src/overlay/` for the
+ * reason {@link DeploymentDivergenceDeclarationSchema} is: it is a deployment's
+ * artefact, and the runtime half of the report
+ * (`specs/107-override-report-and-ladder/contracts/divergence-report.md` §7)
+ * shares it. No Zod schema, deliberately: nothing parses this at a boundary —
+ * it is generated by one program and byte-compared by another, both of which
+ * have the type.
+ */
+export interface DivergenceReport {
+  /** Deployment name, or `'core'` for the bare-core build. */
+  readonly deployment: string;
+  /**
+   * The overlay root read, repo-relative; `null` for bare core.
+   *
+   * Still an object rather than a bare `overlayRoot`, for v2's stated reason: a
+   * deployment build has one input path and recording it is what makes the
+   * artefact reproducible.
+   */
+  readonly generatedFrom: { readonly overlayRoot: string | null };
+  /**
+   * Overlay-only module ids this deployment adds, sorted. (v2's `newModules`.)
+   *
+   * A field of its own rather than entries of kind `overlay-module`, because an
+   * overlay module is the *container* of the other divergences rather than one
+   * of them — and every entry names the overlay module it came from anyway.
+   */
+  readonly overlayModules: readonly string[];
+  /** Every divergence found, sorted by key. */
+  readonly entries: readonly DivergenceEntry[];
+  /** What this artefact does not cover, stated rather than implied. FR-018. */
+  readonly boundary: DivergenceBoundary;
+}
+
+/**
  * Refusal-token grammar for {@link ModuleErrorCodeDeclarationSchema}.
  *
  * One code, several reasons — `specs/082-error-code-ownership/contracts/error-code-ownership.md`

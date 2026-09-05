@@ -189,20 +189,29 @@ export interface ComposeModulesOptions {
    * this order is the intended one, and composition fails when the two
    * disagree.
    *
-   * **No composition root passes this, and nothing an author can edit supplies
-   * it** (D-156.7). The field was written against `endora.config.ts`'s
-   * `overrides.order` (D-28) — an instance-repository artefact specified in
-   * `specs/071-modular-packaging/contracts/instance-and-distribution.md` and
-   * scheduled for F11, which **does not exist as a file anywhere in this
-   * repository**. Both roots omit the option; every other reference to it is in
-   * `test/integration/kernel/decoration.test.ts`.
+   * **Both composition roots pass it**, from the deployment's own
+   * `backend/src/apps/<deployment>/divergence.ts` (feature 107, FR-040/FR-041).
+   * The declaration is a hand-written, reviewed file in the deployment's tree;
+   * `loadDivergenceDeclaration` reads it and each root hands the field over as
+   * data, in the shape `requiredModules` and `activationDeclarations` already
+   * have — the composer is given the answer and never reads a file.
    *
-   * So today this is a seam with no supply, and the consequence is reachable
-   * without any package: a deployment shipping two overlay modules that decorate
-   * one name gets `AmbiguousDecorationError` and cannot declare its way out. That
-   * fails closed, so nothing is unsafe — and the error says what an author can do
-   * instead rather than naming this field. Keep the two in step: the day a root
-   * starts passing this, that message is what has to change with it.
+   * It was a seam with **no** supply until then (D-156.7): the field was written
+   * against `endora.config.ts`'s `overrides.order` (D-28), an instance-repository
+   * artefact scheduled for F11 that the owner has since ruled will not be built,
+   * so a deployment shipping two overlay modules that decorate one name got
+   * `AmbiguousDecorationError` and could not declare its way out. That failed
+   * closed, so nothing was unsafe; it was a dead end wearing an instruction, and
+   * this paragraph carried the coupling — *"the day a root starts passing this,
+   * that message is what has to change with it"*. It changed with it:
+   * `AmbiguousDecorationError` now names this field and that file.
+   *
+   * Three shapes the *report's* check refuses, because they describe nothing and
+   * will describe the wrong thing later: an entry for a name no two overlay
+   * modules decorate, an entry naming a module that is not one of this
+   * deployment's, and an entry naming fewer modules than decorate that name.
+   * They are `check:divergence`'s and not this composer's, because a stale
+   * ordering is a merge-request question while an ambiguity is a correctness one.
    */
   readonly decorationOrder?: Readonly<Record<string, readonly string[]>> | undefined;
   /**

@@ -166,6 +166,12 @@ import {
   type RscDisciplineFindingKind,
 } from '../../../scripts/check-rsc-discipline.js';
 import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
+import { moduleContextSeams } from '../../../scripts/lib/divergence.js';
+import {
+  FIXTURE_OVERLAY,
+  fixtureFindings,
+  MODULE_CONTEXT_SOURCE,
+} from '../../helpers/divergence-fixture.js';
 import { ESTATE, PACKAGE_HOSTS, pendingEntries } from '@endora-commerce/cli/checks';
 import * as hostNulBytes from '../../../scripts/check-nul-bytes.js';
 import * as hostBundlePairing from '../../../scripts/check-bundle-pairing.js';
@@ -4506,6 +4512,118 @@ const CHECKS: readonly CheckEntry[] = [
       // is matched, not the exact string.
       require: top(
         () => containerAnalyze("const a = require('awilix/lib/awilix.js');\n", MODULE_FILE).length,
+      ),
+    },
+  },
+  {
+    // `specs/107-override-report-and-ladder/contracts/divergence-report.md`
+    // §4–§5 (D-30) — a deployment's divergence from core is derived, owned and
+    // explained.
+    //
+    // **The acceptance instrument is the fixture deployment, not this
+    // repository's tree** (SC-008). `example` and `acceptance` carry one
+    // decoration, one interceptor and one registration between them, so a proof
+    // set over them would exercise three of the nine kinds and go quiet about
+    // the other six. Every proof below enters as **source text** — the top of
+    // the analysis — so the receiver resolution, the seam spelling, the literal
+    // resolution, the owner attribution and the rung stamp all run; a fixture
+    // handing in resolved sites would prove the reporter and leave the walk
+    // unproven (issue #130).
+    //
+    // No ledger, deliberately (FR-021): every finding is a file the deployment
+    // owns and one edit from compliance.
+    script: 'backend/scripts/check-divergence.ts',
+    npmScript: 'check:divergence',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-divergence.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // **Its population is `backend/src/apps/`, and the module walk is an input to
+    // it rather than the subject of it** — which is what this field asks
+    // (`ResidueGuard`: *"whether the check's **population** is the module
+    // tree"*). A module contributes to the **owner map** this check attributes a
+    // decoration's subject with; no module contributes a divergence, because a
+    // divergence is a deployment's.
+    //
+    // That distinction is also what makes the `endora check` verdict
+    // `repository-only` consistent rather than contradictory: invariant 3 there
+    // refuses a repository-only claim over a `derived-population` walk, on the
+    // ground that a module package is one of the modules such a walk judges. It
+    // is not one of the deployments this rule judges, and it cannot become one —
+    // a module package's divergence from core is a contradiction in terms.
+    //
+    // **The protection is not given up with the classification.** The check
+    // calls `refuseVacuousModulePopulation` first, before every other refusal,
+    // so a moved module tree is named as one rather than answered with four
+    // `unowned-subject` findings — measured over the `moved-module-tree` fixture
+    // while this entry was written, exiting 2 on the moved tree and 0 on the
+    // split one. What the classification costs is the *spawned* proof; the
+    // refusal is proven in the companion test over the same shared helper.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'computed-subject': top(() =>
+        fixtureFindings('computed-subject', {
+          sources: [
+            {
+              moduleId: 'acme_overlay',
+              file: 'backend/src/apps/acme/modules/acme_overlay/backend.ts',
+              text:
+                "import type { ModuleContext } from '../../../../kernel/index.js';\n" +
+                'export function registerModule(ctx: ModuleContext): void {\n' +
+                '  ctx.di.decorate<Pricing>(nameFrom(config), (inner) => inner);\n' +
+                '}\n',
+            },
+          ],
+        }),
+      ),
+      'unowned-subject': top(() => fixtureFindings('unowned-subject', { owners: new Map() })),
+      'unmatched-interceptor-target': top(() =>
+        fixtureFindings('unmatched-interceptor-target', { routeSources: [] }),
+      ),
+      'undeclared-divergence': top(() =>
+        fixtureFindings('undeclared-divergence', { reasons: {} }),
+      ),
+      'stale-reason': top(() =>
+        fixtureFindings('stale-reason', {
+          reasons: {
+            'decoration:acme_overlay:somethingRemoved':
+              'A wrap this deployment used to carry and no longer does — the shape that lets ' +
+              'a deployment silently reacquire a hazard it once declared.',
+          },
+        }),
+      ),
+      'unclassified-seam': top(() =>
+        fixtureFindings('unclassified-seam', {
+          seams: [...moduleContextSeams(MODULE_CONTEXT_SOURCE), 'mountEverything'],
+        }),
+      ),
+      'stale-decoration-order': top(() =>
+        fixtureFindings('stale-decoration-order', {
+          decorationOrder: { pricingService: ['acme_overlay'] },
+        }),
+      ),
+      'foreign-order-member': top(() =>
+        fixtureFindings('foreign-order-member', {
+          decorationOrder: { pricingService: ['acme_overlay', 'somebody_elses_module'] },
+        }),
+      ),
+      'incomplete-order': top(() =>
+        fixtureFindings('incomplete-order', {
+          overlayModules: ['acme_overlay', 'beta_overlay'],
+          decorationOrder: { pricingService: ['acme_overlay'] },
+          sources: [
+            {
+              moduleId: 'acme_overlay',
+              file: 'backend/src/apps/acme/modules/acme_overlay/backend.ts',
+              text: FIXTURE_OVERLAY,
+            },
+            {
+              moduleId: 'beta_overlay',
+              file: 'backend/src/apps/acme/modules/beta_overlay/backend.ts',
+              text: FIXTURE_OVERLAY.replace('acme_overlay', 'beta_overlay'),
+            },
+          ],
+        }),
       ),
     },
   },
@@ -9729,6 +9847,7 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-diacritic-folds.ts': 25,
       // Three snippet shapes, the discovery that enrols a document, and
       // T010's root floor — the population one level above the discovery.
+      'backend/scripts/check-divergence.ts': 9,
       'backend/scripts/check-doc-snippets.ts': 5,
       // The two in-tree shapes — none and more than one — plus T034's two: a
       // package's persisted entity is in the population, and a package that

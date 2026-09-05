@@ -215,6 +215,30 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     }
   });
 
+  it('both roots pass the deployment\u2019s declared decoration order', () => {
+    // Feature 107, P3. `ComposeModulesOptions.decorationOrder` existed from
+    // feature 072 and was passed by **no** root, so `AmbiguousDecorationError`
+    // told its reader there was no way to declare the order — correctly, because
+    // the file its doc block named was never built. The supply is the
+    // deployment's own `divergence.ts`, and it has to reach *both* roots or a
+    // deployment that resolves an ambiguity in production meets the refusal in
+    // every test: the composition the harness runs would not be the composition
+    // production runs, on the one axis a deployment can change.
+    for (const [root, source] of [
+      ['harness', harness],
+      ['production', production],
+    ] as const) {
+      expect(source, `${root} does not pass decorationOrder`).toContain(
+        'decorationOrder: divergenceDeclaration.decorationOrder',
+      );
+      // Read once and used twice, never loaded twice: two `import()`s of one
+      // file answering one question is how the omissions and the order come to
+      // disagree about which declaration this deployment wrote.
+      const loads = [...source.matchAll(/loadDivergenceDeclaration\(/g)].length;
+      expect(loads, `${root} loads the declaration ${loads} time(s)`).toBe(1);
+    }
+  });
+
   it('each root contributes through the window method, not by hand', () => {
     // Issue #52 — D-45's contribution slot used to be a convention: a root
     // wrote `registerValues(container, …)` and had to have written it in the
@@ -427,14 +451,6 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
       'the two axes. A divergence between the resolved set and what the lifecycle module sees ' +
       'is invisible to the suite; `test/unit/_lifecycle/registered-manifests.test.ts` covers ' +
       'the resolution over its inputs.',
-    loadDivergenceDeclaration:
-      'The input to the boot step below, and production-only for the same reason: it reads ' +
-      'the deployment’s own `divergence.ts` so that `loadModulePresence` can tell a ' +
-      'declared omission from an undeclared one. It became a call of this root’s with ' +
-      'D-160.11 — the platform may not read `src/overlay/` — so the reader itself is now ' +
-      'exercised by nothing in a test composition; `test/unit/_lifecycle/divergence-declaration.test.ts` ' +
-      'covers it over its inputs, including both deployments, which declare none. It drains ' +
-      'with the entry below, not before it.',
     loadModulePresence:
       'The harness seeds the registry cache by hand, so the reconciler, the gating-graph ' +
       'install and D-101’s two refusals never run in a test composition. Each is proved by a ' +

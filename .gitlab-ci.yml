@@ -528,12 +528,28 @@ quality:
     # `before_script`. It measures a real directory or exits 2; it never reports
     # a budget it did not measure.
     - pnpm run check:pdfmake-footprint
-    # Feature 057 (FR-006/SC-003) — the manifest index + override manifest
+    # Feature 057 (FR-006/SC-003) — the manifest index + divergence report
     # regenerate deterministically for the bare-core build; `overlay:check`
     # regenerates and fails on ANY drift (identical inputs ⇒ identical artifact).
     # Per-deployment builds add `DEPLOYMENT=<name>` and run this same check plus
     # the DB-backed suite (see the overlay matrix note above `test:backend`).
     - pnpm --filter backend run overlay:check
+    # `specs/107-override-report-and-ladder/contracts/divergence-report.md` §4–§5
+    # (D-30) — a deployment's divergence from core is derived, owned and
+    # explained. A check of its own rather than an arm of `overlay:check`,
+    # because these are not determinism questions: that gate renders each
+    # artefact and byte-compares, and **two renders of a wrong derivation
+    # agree**. A report can be perfectly deterministic and record a decoration
+    # nobody explained, name a registration no module registers, or target an
+    # endpoint no route serves. Same reasoning D-155.6 used to add the `foreign`
+    # verdict rather than trust the other three.
+    # Nine findings, four refusals of its own and three delegated to the shared
+    # helpers that own them. **No ledger, deliberately**: every finding is a file
+    # the deployment owns and one edit from compliance, so an entry could only
+    # license the thing the report exists to surface. It lands empty — the
+    # merge request that adds it writes `example`'s three reasons and
+    # `acceptance`'s one.
+    - pnpm --filter backend run check:divergence
     # Feature 080 (T043) — the release-intent gate below cannot silently stop
     # asking. `release:changeset` is the changesets CLI's own command, so there
     # is nothing of ours in it to keep correct — and that was the stated reason

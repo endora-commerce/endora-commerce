@@ -75,6 +75,7 @@ import {
   resolvedManifestEntries,
 } from '../../src/lifecycle/registered-manifests.js';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
+import { loadDivergenceDeclaration } from '../../src/lifecycle/services/divergence.js';
 import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
 import { buildStaticRegistry } from '../../src/lifecycle/services/static-registry.js';
 import type { LoadedManifestRegistry } from '../../src/lifecycle/services/manifest-loader.js';
@@ -944,6 +945,11 @@ export async function setupBackendServer(
   ) as NodeJS.ProcessEnv;
   const resolvedRegistry = await resolvedManifestEntries(overlayEnv);
   const overlayModuleEntries = await loadOverlayModuleEntries(overlayEnv);
+  // Feature 107 — mirrors `composition.ts`: this deployment's own declaration,
+  // read once. `harness-parity.test.ts` is why "both roots" is not optional —
+  // a decoration order production honours and the harness does not is a
+  // composition no test can reproduce.
+  const divergenceDeclaration = await loadDivergenceDeclaration(overlayEnv);
   // Feature 080 (T031) — mirrors `composition.ts`. Empty in every test run,
   // because a checkout installs no Endora module package; it is here so the two
   // roots compose the same list, which `harness-parity.test.ts` is the ledger
@@ -1110,6 +1116,24 @@ export async function setupBackendServer(
       // a required module meets the refusal production would meet, at the point
       // production meets it.
       requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
+      // Feature 107 (FR-040/FR-041) — mirrors `composition.ts`: the wrapping
+      // order this deployment declares, from
+      // `backend/src/apps/<deployment>/divergence.ts`.
+      //
+      // **Checked, never applied.** The composer emits in its own order and
+      // drains decorations once; this asserts that the resulting order was the
+      // intended one and refuses when the two disagree. Making the declaration
+      // authoritative would put a hand-written array in front of the composer's
+      // topological emission, which is two orderings of one thing waiting to
+      // disagree.
+      //
+      // The field has existed on `ComposeModulesOptions` since feature 072 and
+      // was passed by no composition root: `AmbiguousDecorationError` told its
+      // reader there was no way to declare the order, correctly, because the
+      // file its doc block named (`endora.config.ts`) was never built. This is
+      // the supply, and that message changes with it — the coupling
+      // `compose.ts`' doc block records.
+      decorationOrder: divergenceDeclaration.decorationOrder,
     },
   );
 

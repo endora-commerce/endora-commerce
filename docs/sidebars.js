@@ -20,6 +20,7 @@ const sidebars = {
         'architecture/command-bus',
         'architecture/custom-fields',
         'architecture/overlay-pattern',
+        'architecture/customisation-ladder',
         'architecture/permissions',
         'architecture/pim-ergonode',
         'architecture/pim-connector',

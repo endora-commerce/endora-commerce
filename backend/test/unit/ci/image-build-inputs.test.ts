@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
  *
  * `pnpm --filter backend run build` is what `backend/Dockerfile`'s final stage
  * runs, and it began — from feature 018, the day the first generator was
- * written — with `overlay:manifest` and `composer:generate`. Both of those walk
+ * written — with `overlay:divergence` and `composer:generate`. Both of those walk
  * the **whole workspace**; the image holds a strict subset of it (`packages/`,
  * `backend/`, `scripts/`, `tsconfig.base.json`, plus every member's
  * `package.json` from the `manifests` stage). For four months the subset was
@@ -72,7 +72,7 @@ function scriptTable(manifestSource: string): Readonly<Record<string, string>> {
 /**
  * A script is an **artefact generator** when its command runs a
  * `scripts/generate-*.ts` file. Derived from the command, not from the script's
- * name: `overlay:manifest`, `composer:generate`, `manifest-index:generate` and
+ * name: `overlay:divergence`, `composer:generate`, `manifest-index:generate` and
  * `manifests:generate` share no naming convention and a fifth will share none
  * either.
  */
@@ -143,10 +143,8 @@ function copiedIntoImage(path: string, sources: readonly string[]): boolean {
 
 async function committedArtefactPaths(): Promise<readonly string[]> {
   const { generatedArtifactPaths } = await import('../../../scripts/generate-composer.js');
-  const { overrideManifestOutputPath } = await import(
-    '../../../scripts/generate-override-manifest.js'
-  );
-  return [...generatedArtifactPaths(), overrideManifestOutputPath(null)].map((absolute) =>
+  const { divergenceOutputPaths } = await import('../../../scripts/generate-divergence.js');
+  return [...generatedArtifactPaths(), divergenceOutputPaths(null).module].map((absolute) =>
     absolute.slice(REPO_ROOT.length).split('\\').join('/'),
   );
 }

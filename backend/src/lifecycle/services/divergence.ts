@@ -38,8 +38,20 @@ import { selectedDeployment } from '../../overlay/overlay-roots.js';
  * module (`test/integration/kernel/module-removal.test.ts` counts exactly that).
  */
 
-/** `backend/src` — this file lives at `backend/src/lifecycle/services/`. */
-const BACKEND_SRC = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+/**
+ * `backend/src` — this file lives at `backend/src/lifecycle/services/`.
+ *
+ * Three `dirname`s, not four: the fourth reached `backend/`, so
+ * `declarationPathFor` composed `backend/apps/<d>/divergence.ts`, `existsSync`
+ * said no, and **every deployment read as declaring nothing**. D-101's declared
+ * escape from the boot refusal had therefore never worked — in production or
+ * under `tsx` — and nothing could see it while every declaration in the tree was
+ * empty, because an absent file and an empty one are deliberately the same
+ * answer. `test/unit/_lifecycle/divergence-declaration.test.ts` now compares this
+ * loader's answer against a direct import of the same file, which is the one
+ * shape that can tell the two apart.
+ */
+const BACKEND_SRC = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
 const RUNNING_FROM_DIST = import.meta.url.includes('/dist/');
 

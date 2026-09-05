@@ -798,6 +798,34 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: 520,
     sources: [],
   },
+  'backend/scripts/check-divergence.ts': {
+    prefix: '[divergence]',
+    run: { kind: 'tsx', path: 'scripts/check-divergence.ts', args: [] },
+    // Every module source the owner map and the route table are built from, plus
+    // the platform's own tree, plus the two composition roots, plus each
+    // deployment's overlay sources. It is deliberately **not** the overlay files
+    // alone: with two overlay modules in the tree that number is 2, and a walk
+    // that lost the whole module tree would print `files=2` and look exactly
+    // like a healthy run over a small deployment.
+    files: 2162,
+    // Every seam call examined across every deployment, resolved or not. This is
+    // the number that moves when a call shape stops resolving while the file
+    // count stands still (#235/#237's shape), and here the file count cannot
+    // move with the overlay tree at all — 2160 of the 2162 files are the owner
+    // map's.
+    sites: 4,
+    // Three independent authors, none of them the check's own count.
+    // `overlay-modules` is `resolveOverlay()`'s directory walk against the
+    // modules the walk actually opened a source for, so a discovered overlay
+    // module contributing no file is a short walk. `manifest-index` is issue
+    // #215's shared floor over the owner map's module walk. `seam-kinds` is
+    // `ModuleContext`'s own members, read from the platform's source: expected
+    // and covered are the same number on purpose, because a member the rung
+    // table does not classify is the `unclassified-seam` finding and never a
+    // blind run, while a platform interface this run could not read at all is
+    // `expected: 0`, which the shared reporter refuses.
+    sources: ['overlay-modules', 'manifest-index', 'seam-kinds'],
+  },
   'backend/scripts/check-doc-snippets.ts': {
     prefix: '[doc-snippets]',
     run: { kind: 'tsx', path: 'scripts/check-doc-snippets.ts', args: [] },

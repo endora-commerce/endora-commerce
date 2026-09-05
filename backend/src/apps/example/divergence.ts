@@ -30,5 +30,22 @@ import type { DeploymentDivergenceDeclaration } from '@endora-commerce/contracts
 export const divergence: DeploymentDivergenceDeclaration = {
   omittedModules: [],
   decorationOrder: {},
-  reasons: {},
+  reasons: {
+    'decoration:example_overlay:pricingService':
+      'Core resolves a line price from the price lists a customer is entitled to. This ' +
+      'deployment prefixes the resolved list id so that a reference reader can see, on a live ' +
+      'response, which layer produced the price. The wrap delegates to `price_lists` and ' +
+      'adjusts what core returned, so a core fix to `resolveLinePrice` still reaches this ' +
+      'deployment — which is the whole difference between decorating and replacing (D-28).',
+    'interceptor:example_overlay:GET /api/v1/admin/example-overlay/ping#post':
+      'Core serves nothing on this endpoint: the route is this deployment’s own, and the ' +
+      'interceptor stamps its response so that the reference deployment demonstrates the ' +
+      'rung-2 seam end to end. It runs after the handler and adds a field; it vetoes nothing ' +
+      'and writes nothing, which is what a `post` interceptor may do.',
+    'registration:example_overlay:exampleOverlayService':
+      'Core registers no service of this name — it is this deployment’s own, and it exists so ' +
+      'that the container’s ownership ledger has an overlay claimant to answer for. A core ' +
+      'module registering `exampleOverlayService` would collide loudly, which is the property ' +
+      'being demonstrated.',
+  },
 };

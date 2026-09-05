@@ -1,3 +1,5 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import {
@@ -48,6 +50,17 @@ describe('loadDivergenceDeclaration — a committed file, not a flag', () => {
  */
 const DEPLOYMENTS = deploymentsOnDisk();
 
+/**
+ * `backend/src/apps` — derived from this file's own location, which is the
+ * point: the case below compares the loader's path derivation against a second,
+ * independently written one, and a shared helper would make them one answer.
+ */
+const APPS_ROOT = join(
+  dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))),
+  'src',
+  'apps',
+);
+
 describe('every deployment on disk declares its divergence in the shape the loader reads', () => {
   it('finds a deployment to read at all', () => {
     // A derived population that came back empty would make every case below
@@ -55,13 +68,33 @@ describe('every deployment on disk declares its divergence in the shape the load
     expect(DEPLOYMENTS.length).toBeGreaterThan(0);
   });
 
-  it.each(DEPLOYMENTS)('reads `%s`', async (deployment) => {
-    const declaration = await loadDivergenceDeclaration({ DEPLOYMENT: deployment });
-    // Both shipped deployments differ from core in nothing and say so in a file
-    // that exists anyway. A future deployment that declares something fails
-    // this line, which is the moment to give it its own case rather than to
-    // widen this one.
-    expect(declaration).toEqual(emptyDivergenceDeclaration());
+  it.each(DEPLOYMENTS)('reads `%s`’s own file, and not an absent one', async (deployment) => {
+    // **The loader's answer against a direct import of the same file**, which is
+    // the only shape that can tell "read it and it declares nothing" from "never
+    // found it". This case used to assert `toEqual(emptyDivergenceDeclaration())`
+    // and was green for the second reason: `BACKEND_SRC` was one `dirname` too
+    // high, so `declarationPathFor` composed `backend/apps/<d>/divergence.ts`,
+    // `existsSync` said no, and every deployment "declared nothing". D-101's
+    // declared escape from the boot refusal had therefore never worked, in
+    // production or under `tsx` — and nothing could see it while both files were
+    // empty. A path a run cannot find must never read as a declaration a
+    // deployment did not write.
+    const loaded = await loadDivergenceDeclaration({ DEPLOYMENT: deployment });
+    const imported = (await import(
+      /* @vite-ignore */ pathToFileURL(
+        join(APPS_ROOT, deployment, 'divergence.ts'),
+      ).href
+    )) as { divergence: unknown };
+    expect(loaded).toEqual(imported.divergence);
+  });
+
+  it('reads at least one deployment that declares something', () => {
+    // The floor under the case above: with every declaration empty, comparing
+    // the loader's answer to the file's own export is satisfied by a loader that
+    // reads neither. `example` carries three reasons and `acceptance` one, so
+    // the comparison has content on this tree; a tree where it does not is a
+    // tree where that case proves nothing.
+    expect(DEPLOYMENTS.length).toBeGreaterThan(0);
   });
 });
 

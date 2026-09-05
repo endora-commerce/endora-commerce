@@ -56,16 +56,16 @@ export * from '@endora-commerce/cli/rules/platform-surface.js';
  */
 const DEPLOYMENT_FILE =
   'a per-deployment file, not a module\'s: `src/apps/<deployment>/` holds the ' +
-  'divergence declaration and the generated override manifest beside its overlay ' +
+  'divergence declaration and the generated divergence report beside its overlay ' +
   'modules, and none of them is ever packaged (D-104). Ledgered rather than filtered so a ' +
   'module file the attribution loses cannot hide among them.';
 
 export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach>> = {
   // === DEPLOYMENT_FILE (4) ===
   'backend/src/apps/acceptance/divergence.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
-  'backend/src/apps/acceptance/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
+  'backend/src/apps/acceptance/divergence.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/example/divergence.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
-  'backend/src/apps/example/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
+  'backend/src/apps/example/divergence.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
 
 };
 

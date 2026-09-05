@@ -330,6 +330,11 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // one that ran.
   const resolvedRegistry = await resolvedManifestEntries();
   const overlayModuleEntries = await loadOverlayModuleEntries();
+  // Feature 107 — read once and used twice, by `loadModulePresence` below for
+  // D-101's declared omissions and by `composeModules` for the decoration
+  // order. Two loads would be two `import()`s of one file answering one
+  // question, which is the shape this repository refuses everywhere else.
+  const divergenceDeclaration = await loadDivergenceDeclaration();
   // Feature 080 (T031, D-119/D-155) — the same shape, one axis out: every
   // Endora module package installed in this instance's `node_modules`. The
   // committed registries stay bare core for D-104's reason, so this is the only
@@ -385,9 +390,7 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       loadModulePresence({
         em,
         entries: resolvedRegistry,
-        declaredOmissions: (await loadDivergenceDeclaration()).omittedModules.map(
-          (entry) => entry.moduleId,
-        ),
+        declaredOmissions: divergenceDeclaration.omittedModules.map((entry) => entry.moduleId),
       }),
     { entryPoint: 'boot' },
   );
@@ -595,6 +598,24 @@ export async function composeApp(): Promise<ComposeAppHandle> {
       // is missing, which is what stops a first boot from dying in whichever
       // module's boot hook happened to need it first.
       requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
+      // Feature 107 (FR-040/FR-041) — the wrapping order this deployment
+      // declares for a registration more than one of its overlay modules
+      // decorates, from `backend/src/apps/<deployment>/divergence.ts`.
+      //
+      // **Checked, never applied.** The composer emits in its own order and
+      // drains decorations once; this asserts that the resulting order was the
+      // intended one and refuses when the two disagree. Making the declaration
+      // authoritative would put a hand-written array in front of the composer's
+      // topological emission, which is two orderings of one thing waiting to
+      // disagree.
+      //
+      // The field has existed on `ComposeModulesOptions` since feature 072 and
+      // was passed by no composition root: `AmbiguousDecorationError` told its
+      // reader there was no way to declare the order, correctly, because the
+      // file its doc block named (`endora.config.ts`) was never built. This is
+      // the supply, and that message changes with it — the coupling
+      // `compose.ts`' doc block records.
+      decorationOrder: divergenceDeclaration.decorationOrder,
     },
   );
 
