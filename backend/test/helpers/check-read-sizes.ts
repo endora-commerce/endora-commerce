@@ -846,7 +846,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on 113 Phase 0: +12.** That branch adds thirteen files —
     // the demo-data declaration, its runner and their tests, twelve of them
     // TypeScript and one a changeset. This walk takes the twelve TypeScript sources.
-    files: 5275,
+    // **5275 -> 5276 (this branch, +1): the pack gate's own files.** It
+    // ships `backend/scripts/pack-gate.ts`, `backend/scripts/lib/pack-assert.ts`
+    // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
+    // 1 of them. Measured by taking the three out of the tree and
+    // re-running: without them this check reads 5275.
+    files: 5276,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -974,7 +979,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/114-release-shape-gate/` landed: +4.** The release-shape gate's
     // design added five files — four markdown and one `.mjs` contract. This walk
     // takes the four markdown documents; the `.mjs` contract is not a document.
-    files: 1243,
+    // **1243 -> 1247 (not this branch's, and recorded here because the drift
+    // report named it).** Measured with this branch's three new files taken out
+    // of the tree: the walk still reads 1247, so every one of these 4
+    // arrived with the five merges this branch was rebased onto and the record
+    // was already stale on `master`. Re-recorded rather than left drifting,
+    // because a census that cannot reach `0 drifted` stops being read.
+    files: 1247,
     sites: 12,
     sources: [],
   },
@@ -1187,7 +1198,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 1561 -> 1565.**
     // Four test files — the demo plan, the demo runner, the host command and
     // the manifest declaration.
-    files: 1565,
+    // **1565 -> 1566 (this branch, +1): the pack gate's own files.** It
+    // ships `backend/scripts/pack-gate.ts`, `backend/scripts/lib/pack-assert.ts`
+    // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
+    // 1 of them. Measured by taking the three out of the tree and
+    // re-running: without them this check reads 1565.
+    files: 1566,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1236,7 +1252,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 1561 -> 1565.**
     // Four test files — the demo plan, the demo runner, the host command and
     // the manifest declaration.
-    files: 1565,
+    // **1565 -> 1566 (this branch, +1): the pack gate's own files.** It
+    // ships `backend/scripts/pack-gate.ts`, `backend/scripts/lib/pack-assert.ts`
+    // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
+    // 1 of them. Measured by taking the three out of the tree and
+    // re-running: without them this check reads 1565.
+    files: 1566,
     sites: null,
     sources: [],
   },
@@ -2186,7 +2207,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/114-release-shape-gate/` landed: +5.** The release-shape gate's
     // design added five files — four markdown and one `.mjs` contract. This walk
     // takes all five, this walk being the whole tree.
-    files: 7715,
+    // **7715 -> 7722 (this branch, +7): the pack gate's own files.** It
+    // ships `backend/scripts/pack-gate.ts`, `backend/scripts/lib/pack-assert.ts`
+    // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
+    // 3 of them. Measured by taking the three out of the tree and
+    // re-running: without them this check reads 7719.
+    files: 7722,
     sites: null,
     sources: [],
   },
@@ -2578,8 +2604,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // more decisions are taken inside them. The scope-agreement decision was
     // already counted — it is one per *set*, not one per member — so this is
     // 106 + 4 exactly, measured.
+    //
+    // **110 -> 410 (the owner's publication ruling of 2026-09-05): `sites`
+    // only, and this is the largest single move this entry will ever make.**
+    // The same 85 manifests are opened, and the whole of the change is in how
+    // many decisions are taken inside them. Two things happened at once. Every
+    // one of the 75 private packages became public, and a public versionable
+    // member was already four decisions; and the publication decision itself
+    // stopped being one of those four, because "does this package publish" is
+    // now asked of **every** versionable member rather than only of the public
+    // ones. So it is `2 + 85 members + 1 ignore pattern + 4 linked + 2 settings
+    // + 79 publication decisions + 79 x 3 fitness decisions + 1 scope
+    // agreement`, measured rather than computed from a delta.
+    //
+    // It is far outside the band and is meant to be: the band ratchets
+    // blindness, and this is the population quadrupling in one merge request
+    // because the estate went from four publishable packages to seventy-nine.
+    // The next one moves it by four per member, which is ordinary drift again.
     files: 85,
-    sites: 110,
+    sites: 410,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
@@ -2648,7 +2691,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 1561 -> 1565.**
     // Four test files — the demo plan, the demo runner, the host command and
     // the manifest declaration.
-    files: 1565,
+    // **1565 -> 1566 (this branch, +1): the pack gate's own files.** It
+    // ships `backend/scripts/pack-gate.ts`, `backend/scripts/lib/pack-assert.ts`
+    // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
+    // 1 of them. Measured by taking the three out of the tree and
+    // re-running: without them this check reads 1565.
+    files: 1566,
     sites: 163,
     sources: [],
   },
@@ -2748,7 +2796,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 1643 -> 1647.**
     // Four test files — the demo plan, the demo runner, the host command and
     // the manifest declaration.
-    files: 1647,
+    // **1647 -> 1648 (this branch, +1): the pack gate's own files.** It
+    // ships `backend/scripts/pack-gate.ts`, `backend/scripts/lib/pack-assert.ts`
+    // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
+    // 1 of them. Measured by taking the three out of the tree and
+    // re-running: without them this check reads 1647.
+    files: 1648,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -2858,7 +2911,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on 113 Phase 0: +12.** That branch adds thirteen files —
     // the demo-data declaration, its runner and their tests, twelve of them
     // TypeScript and one a changeset. This walk takes the twelve TypeScript sources.
-    files: 4312,
+    // **4312 -> 4315 (this branch, +3): the pack gate's own files.** It
+    // ships `backend/scripts/pack-gate.ts`, `backend/scripts/lib/pack-assert.ts`
+    // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
+    // 3 of them. Measured by taking the three out of the tree and
+    // re-running: without them this check reads 4312.
+    files: 4315,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -3093,7 +3151,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/114-release-shape-gate/` landed: +5.** The release-shape gate's
     // design added five files — four markdown and one `.mjs` contract. This walk
     // takes all five, this walk being the whole tree.
-    files: 7775,
+    // **7775 -> 7782 (not this branch's, and recorded here because the drift
+    // report named it).** Measured with this branch's three new files taken out
+    // of the tree: the walk still reads 7782, so every one of these 7
+    // arrived with the five merges this branch was rebased onto and the record
+    // was already stale on `master`. Re-recorded rather than left drifting,
+    // because a census that cannot reach `0 drifted` stops being read.
+    files: 7782,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3200,7 +3264,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // design added five files — four markdown and one `.mjs` contract. This walk
     // takes the `.mjs` contract alone — `specs/` is not `docs/docs`, which is the only
 // documentation tree this walk reads.
-    files: 5810,
+    // **5810 -> 5813 (not this branch's, and recorded here because the drift
+    // report named it).** Measured with this branch's three new files taken out
+    // of the tree: the walk still reads 5813, so every one of these 3
+    // arrived with the five merges this branch was rebased onto and the record
+    // was already stale on `master`. Re-recorded rather than left drifting,
+    // because a census that cannot reach `0 drifted` stops being read.
+    files: 5813,
     sites: null,
     sources: ['manifest-index'],
   },
