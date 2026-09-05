@@ -971,7 +971,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 1239,
+    // **`specs/114-release-shape-gate/` landed: +4.** The release-shape gate's
+    // design added five files — four markdown and one `.mjs` contract. This walk
+    // takes the four markdown documents; the `.mjs` contract is not a document.
+    files: 1243,
     sites: 12,
     sources: [],
   },
@@ -2180,7 +2183,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on 113 Phase 0: +13.** That branch adds thirteen files —
     // the demo-data declaration, its runner and their tests, twelve of them
     // TypeScript and one a changeset. This walk takes all thirteen.
-    files: 7710,
+    // **`specs/114-release-shape-gate/` landed: +5.** The release-shape gate's
+    // design added five files — four markdown and one `.mjs` contract. This walk
+    // takes all five, this walk being the whole tree.
+    files: 7715,
     sites: null,
     sources: [],
   },
@@ -3084,7 +3090,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on 113 Phase 0: +13.** That branch adds thirteen files —
     // the demo-data declaration, its runner and their tests, twelve of them
     // TypeScript and one a changeset. This walk takes all thirteen.
-    files: 7770,
+    // **`specs/114-release-shape-gate/` landed: +5.** The release-shape gate's
+    // design added five files — four markdown and one `.mjs` contract. This walk
+    // takes all five, this walk being the whole tree.
+    files: 7775,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3187,7 +3196,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on 113 Phase 0: +12.** That branch adds thirteen files —
     // the demo-data declaration, its runner and their tests, twelve of them
     // TypeScript and one a changeset. This walk takes the twelve TypeScript sources.
-    files: 5809,
+    // **`specs/114-release-shape-gate/` landed: +1.** The release-shape gate's
+    // design added five files — four markdown and one `.mjs` contract. This walk
+    // takes the `.mjs` contract alone — `specs/` is not `docs/docs`, which is the only
+// documentation tree this walk reads.
+    files: 5810,
     sites: null,
     sources: ['manifest-index'],
   },
