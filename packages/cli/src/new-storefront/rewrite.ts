@@ -55,6 +55,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 
+import { installedScopes, normalizeRegistry, npmrcContent, TOKEN_VARIABLE } from './npmrc.js';
 import {
   DEPENDENCY_FIELDS,
   globPrefix,
@@ -100,6 +101,19 @@ export interface StorefrontPlan {
   /** Every outward reference this run rewrote, with what it became. */
   readonly rewrites: readonly (OutwardReference & { readonly to: string })[];
   readonly omitted: readonly OmittedFile[];
+  /** The registry the copy installs from, or `null` for the public one. */
+  readonly registry: string | null;
+}
+
+/** What the caller asked for beyond the copy itself. */
+export interface PlanOptions {
+  /**
+   * The endpoint the scaffolded storefront installs `@endora-commerce/*` from.
+   *
+   * Absent is the destination and the default: no `.npmrc` at all, which is what
+   * an open-source consumer holds (`registry-and-scope.md` R3.4).
+   */
+  readonly registry?: string | undefined;
 }
 
 /**
@@ -157,12 +171,72 @@ export function workspaceScope(memberDirs: readonly string[]): string | null {
   return only.length === 1 ? only[0]! : null;
 }
 
+/** A `packageManager` value corepack accepts: `<name>@<version>`, optionally hashed. */
+const PACKAGE_MANAGER = /^[a-z]+@\d+\.\d+\.\d+(?:[-+][\w.+-]+)?$/;
+
+/**
+ * The `packageManager` the scaffolded manifest declares.
+ *
+ * **It is a fact about the client's migration cost, not a formality**
+ * (`specs/104-package-publication/` FR-023). Measured in that feature's
+ * `research.md` §4: a pnpm lockfile records integrity and no registry, an npm
+ * lockfile records a `resolved` URL per package — so a client moving between
+ * registries edits one `.npmrc` line or regenerates their whole lockfile, and
+ * which of the two applies is decided by a field nobody had written down.
+ *
+ * The value is the checkout's own: the reference storefront's if it declares
+ * one, otherwise the repository root's, because that is the manager this
+ * repository builds and tests the reference storefront with. A checkout that
+ * declares neither is a refusal — this command invents no version, for
+ * {@link rewriteManifest}'s reason one field over: a `packageManager` corepack
+ * rejects is worse than the absent field it replaced.
+ */
+export function packageManagerFor(reference: StorefrontReference): string {
+  const own = reference.manifest['packageManager'];
+  const declared =
+    typeof own === 'string' && own.length > 0 ? own : rootPackageManager(reference.repoRoot);
+  if (declared === null) {
+    throw new StorefrontInputError(
+      `neither ${reference.dir}/package.json nor ${reference.repoRoot}/package.json declares ` +
+        `\`packageManager\`, so this command has no answer to give the scaffold. What a ` +
+        `client's lockfile records about the registry it resolved from depends on which ` +
+        `package manager wrote it, and a scaffold that stayed silent would leave that to their ` +
+        `habits. Declare it in this checkout and run again.`,
+    );
+  }
+  if (!PACKAGE_MANAGER.test(declared)) {
+    throw new StorefrontInputError(
+      `\`packageManager\` reads "${declared}" in this checkout, which is not the ` +
+        `\`<name>@<version>\` corepack resolves. Copying it into the scaffold would move a ` +
+        `refusal from this command to the client's first install.`,
+    );
+  }
+  return declared;
+}
+
+function rootPackageManager(repoRoot: string): string | null {
+  const path = join(repoRoot, 'package.json');
+  if (!existsSync(path)) return null;
+  let manifest: { packageManager?: unknown };
+  try {
+    manifest = JSON.parse(readFileSync(path, 'utf8')) as typeof manifest;
+  } catch {
+    return null;
+  }
+  return typeof manifest.packageManager === 'string' && manifest.packageManager.length > 0
+    ? manifest.packageManager
+    : null;
+}
+
 /** Rule 1 — the manifest, with every `workspace:` range published. */
 export function rewriteManifest(
   reference: StorefrontReference,
   memberDirs: readonly string[],
 ): { text: string; ranges: readonly RangeRewrite[] } {
-  const manifest = JSON.parse(JSON.stringify(reference.manifest)) as Record<string, unknown>;
+  const manifest = withPackageManager(
+    JSON.parse(JSON.stringify(reference.manifest)) as Record<string, unknown>,
+    packageManagerFor(reference),
+  );
   const ranges: RangeRewrite[] = [];
   for (const range of workspaceRanges(reference.manifest)) {
     const member = memberVersion(memberDirs, range.name);
@@ -180,6 +254,31 @@ export function rewriteManifest(
     ranges.push({ field: range.field, name: range.name, from: range.declared, to });
   }
   return { text: `${JSON.stringify(manifest, null, 2)}\n`, ranges };
+}
+
+/**
+ * `packageManager` beside `version`, rather than appended.
+ *
+ * A new key lands last in JSON.stringify's order, which for the client's own
+ * manifest would put the declaration of how to install it underneath every
+ * dependency it installs. The insertion is positional and touches no value.
+ */
+function withPackageManager(
+  manifest: Record<string, unknown>,
+  packageManager: string,
+): Record<string, unknown> {
+  const ordered: Record<string, unknown> = {};
+  let placed = false;
+  for (const [key, value] of Object.entries(manifest)) {
+    if (key === 'packageManager') continue;
+    ordered[key] = value;
+    if (key === 'version') {
+      ordered['packageManager'] = packageManager;
+      placed = true;
+    }
+  }
+  if (!placed) return { packageManager, ...ordered };
+  return ordered;
 }
 
 /** What rule 2 does to one vendored configuration file. */
@@ -470,6 +569,7 @@ export function planStorefront(
   reference: StorefrontReference,
   memberDirs: readonly string[],
   scaffoldDir: string,
+  options: PlanOptions = {},
 ): StorefrontPlan {
   const references = outwardReferences(reference);
   const byFile = new Map<string, OutwardReference[]>();
@@ -558,11 +658,31 @@ export function planStorefront(
     files.push({ path, source: null, content: plan.content, note: plan.note });
   }
 
+  // The registry, when there is one. It is a file the copy gains rather than a
+  // rewrite of one it has: the reference storefront installs from the workspace
+  // and holds no `.npmrc` of its own, so there is nothing here to overwrite —
+  // and a scaffold that already carried one would be a declaration the copy
+  // population, not this option, is answerable for.
+  const registry = options.registry === undefined ? null : normalizeRegistry(options.registry);
+  if (registry !== null) {
+    const scopes = installedScopes(reference.manifest);
+    files.push({
+      path: '.npmrc',
+      source: null,
+      content: npmrcContent(registry, scopes),
+      note:
+        `installs ${scopes.join(', ')} from ${registry}, with the token as ` +
+        `\${${TOKEN_VARIABLE}} — an environment reference pnpm expands at install time, so ` +
+        `this file holds no secret`,
+    });
+  }
+
   return {
     files: files.sort((a, b) => a.path.localeCompare(b.path)),
     ranges: manifest.ranges,
     rewrites,
     omitted,
+    registry,
   };
 }
 

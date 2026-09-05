@@ -33,7 +33,7 @@ const USAGE = `endora — scaffolding and conformance tooling for Endora Commerc
 
 Usage:
   endora new module <id> --name <text> --description <text> [options]
-  endora new storefront <dir> [--dry-run]
+  endora new storefront <dir> [--registry <url>] [--dry-run]
   endora --help
 
 \`endora new module\` writes a module package that is composed by the platform,
@@ -76,6 +76,13 @@ file copied out unchanged.
 
 Options for \`new storefront\`:
   <dir>                         where to write. Required; there is no default
+  --registry <url>              the endpoint the scaffold installs \`@endora-commerce/*\`
+                                from. It writes an \`.npmrc\` naming that endpoint for the
+                                scopes the storefront declares, with the token as
+                                \`\${ENDORA_NPM_TOKEN}\` — an environment reference pnpm
+                                expands at install time, so the file holds no secret and
+                                is committable. Omitted, it writes no \`.npmrc\` at all,
+                                which is what a consumer of the public registry holds
   --dry-run                     report the copy, every rewrite and every omission;
                                 write nothing
 
@@ -140,6 +147,7 @@ function parse(argv: readonly string[]): Parsed {
       'tenant-scope': { type: 'string' },
       'activation-setting': { type: 'string' },
       'non-deactivatable': { type: 'string' },
+      registry: { type: 'string' },
       'dry-run': { type: 'boolean' },
     },
   });
@@ -238,6 +246,9 @@ async function runNewStorefrontCommand(
   try {
     const result = await runNewStorefront({
       ...(rest[0] === undefined ? {} : { dir: rest[0] }),
+      ...(asString(parsed.values['registry']) === undefined
+        ? {}
+        : { registry: asString(parsed.values['registry'])! }),
       dryRun: asFlag(parsed.values['dry-run']),
       cwd,
     });

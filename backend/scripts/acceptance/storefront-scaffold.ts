@@ -4,25 +4,37 @@
  *
  * ## What it does, and why it is not a test in `backend/test/`
  *
- * It scaffolds a storefront **outside this repository**, installs it from packed
- * tarballs with no symlink back, builds it with `next build`, and boots the
- * result. Every step exists to leave the monorepo, for `acceptance:package-schema`'s
+ * It scaffolds a storefront **outside this repository**, installs it with no
+ * symlink back, builds it with `next build`, and boots the result. Every step
+ * exists to leave the monorepo, for `acceptance:package-schema`'s
  * reason one surface over: a copy that stays inside is still inside relative-
  * specifier range, still reached by the workspace globs, and pnpm links a
  * workspace member into `node_modules` — so a rehearsal that stays inside passes
  * and proves nothing.
  *
- * ## Why tarballs, and what publication changes
+ * ## Two supply routes, and the tarball one is the default
  *
- * Nothing under `packages/` is published, so the semver ranges the scaffold
- * writes name versions no registry serves. The criterion does not wait for that:
- * it packs each package the scaffold declares and pins it through
+ * **`tarball`** packs each package the scaffold declares and pins it through
  * `pnpm.overrides`, which is publication's stand-in and reaches the transitive
  * edges too — `@endora-commerce/page-builder-core` depends on `contracts`, and
  * `pnpm pack` correctly rewrites that `workspace:*` to a version that is equally
- * unpublished. **Publication changes exactly one thing here: the overrides block
- * goes away.** The scaffold's own rewrite is already what a published consumer
- * gets.
+ * unpublished. It is the default, and it stays the default for two reasons that
+ * are not the same one: it is the only mode that works **before** the first
+ * publish, and it is what keeps the criterion green on a branch that publishes
+ * nothing.
+ *
+ * **`registry`** (feature 104, § 1.6) skips the packing entirely and installs
+ * the semver ranges the scaffold wrote, from a real registry, through the
+ * `.npmrc` `endora new storefront --registry` emits. That is the rehearsal being
+ * rehearsed rather than a publish nobody installs from: it is the only mode in
+ * which the three ranges, the `.npmrc`, the token expansion and the published
+ * tarballs are all exercised at once.
+ *
+ * The mode is chosen by the environment — `ENDORA_NPM_REGISTRY` — and never by a
+ * flag, so the CI job that has the variables takes the second route and every
+ * other run takes the first. The six assertions are identical under both; only
+ * the install differs, which is what makes the two one criterion rather than
+ * two.
  *
  * ## Exit codes
  *
@@ -43,6 +55,7 @@
 
 import { spawnSync } from 'node:child_process';
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -66,6 +79,7 @@ import {
   exitCodeForExpectation,
   formatReport,
   type AcceptanceExpectation,
+  type AcceptanceMode,
   type AssertionResult,
 } from './storefront-scaffold-assertions.js';
 
@@ -102,32 +116,67 @@ function run(
   return { code: result.status ?? -1, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
 }
 
+/**
+ * Which supply route this run measures, decided by the environment alone.
+ *
+ * A registry with no token is a **refusal**, not a fall back to the tarball
+ * mode and not an anonymous attempt. Measured in feature 104's `research.md` §6:
+ * a GitLab npm endpoint answers a missing or invalid credential with **404**,
+ * and pnpm reports it as *"is not in the npm registry, or you have no permission
+ * to fetch it"* — the same sentence it gives for a package that was never
+ * published. So an unauthenticated registry run would produce a red A3 whose
+ * cause is indistinguishable from the criterion's own subject failing, which is
+ * exactly the state exit 2 exists for.
+ */
+function resolveMode(): { mode: AcceptanceMode; registry: string | null } {
+  const registry = (process.env['ENDORA_NPM_REGISTRY'] ?? '').trim();
+  if (registry.length === 0) return { mode: 'tarball', registry: null };
+  if ((process.env['ENDORA_NPM_TOKEN'] ?? '').trim().length === 0) {
+    refuse(
+      `ENDORA_NPM_REGISTRY names ${registry} and ENDORA_NPM_TOKEN is unset. The registry ` +
+        `answers an absent credential with 404 and pnpm reports it as "is not in the npm ` +
+        `registry", which is byte-identical to the packages never having been published — so ` +
+        `this run would produce a red A3 that says nothing about the criterion. Set the token, ` +
+        `or unset the registry to measure the tarball mode.`,
+    );
+  }
+  return { mode: 'registry', registry };
+}
+
 /** The `endora` entry point, run from source so the criterion measures this branch. */
-function scaffold(target: string): void {
+function scaffold(target: string, registry: string | null): void {
   const tsx = join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx');
   if (!existsSync(tsx)) refuse(`${tsx} is missing — run \`pnpm install\` first`);
   const entry = join(REPO_ROOT, 'packages', 'cli', 'src', 'bin', 'endora.ts');
   if (!existsSync(entry)) refuse(`${entry} is not there, so there is no command to measure`);
-  const result = run(tsx, [entry, 'new', 'storefront', target], { cwd: REPO_ROOT });
+  const result = run(
+    tsx,
+    [entry, 'new', 'storefront', target, ...(registry === null ? [] : ['--registry', registry])],
+    { cwd: REPO_ROOT },
+  );
   if (result.code !== 0) {
     refuse(`\`endora new storefront\` exited ${String(result.code)}:\n${result.output}`);
   }
-  notes.push(`scaffolded into ${target}`);
+  notes.push(
+    registry === null
+      ? `scaffolded into ${target}`
+      : `scaffolded into ${target} with --registry ${registry}`,
+  );
 }
 
 /**
- * Pack every `@endora-commerce/*` package the scaffold declares, and pin it.
+ * The `@endora-commerce/*` packages the scaffold declares.
  *
- * Which packages those are is read off the **scaffold's own manifest**, never a
- * list here: the command derives what it rewrites from the reference storefront,
- * so a criterion carrying its own list would answer a different question from
- * the one the command asked.
+ * Read off the **scaffold's own manifest**, never a list here: the command
+ * derives what it rewrites from the reference storefront, so a criterion
+ * carrying its own list would answer a different question from the one the
+ * command asked. Both modes need this set — one to pack it, the other to check
+ * where it resolved — so it is derived once.
  */
-function packAndPin(target: string, tarballDir: string): readonly string[] {
+function declaredPackages(target: string): readonly string[] {
   const manifest = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
-    pnpm?: { overrides?: Record<string, string> };
   };
   const declared = [
     ...Object.keys(manifest.dependencies ?? {}),
@@ -135,10 +184,31 @@ function packAndPin(target: string, tarballDir: string): readonly string[] {
   ].filter((name) => name.startsWith('@endora-commerce/'));
   if (declared.length === 0) {
     refuse(
-      'the scaffold declares no @endora-commerce/* package, so there is nothing to pack and ' +
-        'the install would prove nothing about publication',
+      'the scaffold declares no @endora-commerce/* package, so there is nothing to install and ' +
+        'the run would prove nothing about publication',
     );
   }
+  return declared;
+}
+
+/**
+ * Pack every `@endora-commerce/*` package the scaffold declares, and pin it.
+ *
+ * The `tarball` mode's whole difference from the `registry` one, and it is
+ * skipped rather than adapted when a registry is configured: an override is a
+ * *replacement* for the semver range the scaffold wrote, so a registry run that
+ * kept one would resolve a file and report that a published version resolved.
+ */
+function packAndPin(
+  target: string,
+  tarballDir: string,
+  declared: readonly string[],
+): readonly string[] {
+  const manifest = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+    pnpm?: { overrides?: Record<string, string> };
+  };
 
   const overrides: Record<string, string> = {};
   for (const name of declared) {
@@ -177,6 +247,55 @@ function packAndPin(target: string, tarballDir: string): readonly string[] {
       `nothing else`,
   );
   return declared;
+}
+
+/**
+ * The registry mode's precondition, checked before the install rather than
+ * inferred from it.
+ *
+ * The mode's claim is *"the ranges the scaffold wrote resolved from the registry
+ * the scaffold was told about"*, and two things would make an install satisfy
+ * every assertion while proving something else: an `.npmrc` the command did not
+ * write (so the fetches go to the default registry) and an overrides block (so a
+ * file resolves and the range is never asked for). Neither is a red criterion —
+ * both are a run that cannot measure what it says it measures, which is exit 2.
+ */
+function assertRegistryNpmrc(target: string, declared: readonly string[]): void {
+  const path = join(target, '.npmrc');
+  if (!existsSync(path)) {
+    refuse(
+      `\`endora new storefront --registry\` wrote no ${path}. Without it every fetch goes to ` +
+        `the default registry, so this run would report on npmjs while claiming to measure the ` +
+        `configured one.`,
+    );
+  }
+  const text = readFileSync(path, 'utf8');
+  const scopes = [...new Set(declared.map((name) => name.slice(0, name.indexOf('/'))))].sort();
+  const unconfigured = scopes.filter((scope) => !text.includes(`${scope}:registry=`));
+  if (unconfigured.length > 0) {
+    refuse(
+      `${path} names no registry for ${unconfigured.join(', ')}, and the scaffold declares ` +
+        `${declared.length} package${declared.length === 1 ? '' : 's'} in ` +
+        `${unconfigured.length === 1 ? 'that scope' : 'those scopes'}. Those fetches would go ` +
+        `to the default registry.`,
+    );
+  }
+  const manifest = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
+    pnpm?: { overrides?: Record<string, string> };
+  };
+  const overridden = Object.keys(manifest.pnpm?.overrides ?? {});
+  if (overridden.length > 0) {
+    refuse(
+      `the scaffold declares \`pnpm.overrides\` for ${overridden.join(', ')}. An override ` +
+        `replaces the semver range this mode exists to resolve, so the install would succeed ` +
+        `without the registry answering for anything.`,
+    );
+  }
+  notes.push(
+    `installing from the registry the scaffold configured for ${scopes.join(', ')}, with no ` +
+      `overrides — the token is read from the environment by pnpm's own \`.npmrc\` expansion ` +
+      `and is never written anywhere`,
+  );
 }
 
 /** Where each declared package really resolved, for A4. */
@@ -257,6 +376,7 @@ async function boot(target: string): Promise<AssertionResult> {
 
 async function main(): Promise<void> {
   const againstExpectation = process.argv.includes('--against-expectation');
+  const { mode, registry } = resolveMode();
 
   const temp = mkdtempSync(join(tmpdir(), 'endora-storefront-acceptance-'));
   const tarballDir = join(temp, 'artefact');
@@ -272,7 +392,7 @@ async function main(): Promise<void> {
 
   const results: AssertionResult[] = [];
   try {
-    scaffold(target);
+    scaffold(target, registry);
 
     // A1/A2 read the copy, through the command's own derivation.
     const { outwardReferences } = (await import('@endora-commerce/cli')) as {
@@ -296,8 +416,22 @@ async function main(): Promise<void> {
     );
     results.push(evaluateA2(manifestText));
 
-    const declared = packAndPin(target, tarballDir);
-    writeFileSync(join(target, '.npmrc'), 'ignore-workspace=true\nstrict-peer-dependencies=false\n');
+    const declared = declaredPackages(target);
+    if (mode === 'tarball') packAndPin(target, tarballDir, declared);
+    else assertRegistryNpmrc(target, declared);
+
+    // **Appended, never written over.** In the registry mode the scaffold has
+    // already put the scope and the auth line here, and truncating the file
+    // would send every fetch to the default registry — an install that measured
+    // npmjs while reporting on ours. These two lines are the harness's own and
+    // belong to neither mode: the instance is outside the checkout and must not
+    // be adopted by any workspace above the temporary directory, and a peer
+    // range the reference storefront already tolerates is not this criterion's
+    // subject.
+    appendFileSync(
+      join(target, '.npmrc'),
+      'ignore-workspace=true\nstrict-peer-dependencies=false\n',
+    );
 
     const installed = run('pnpm', ['install', '--no-frozen-lockfile'], { cwd: target });
     results.push(
@@ -305,7 +439,10 @@ async function main(): Promise<void> {
         'A3',
         installed.code,
         installed.output,
-        `pnpm install succeeded outside the checkout, from ${String(declared.length)} packed tarballs`,
+        mode === 'tarball'
+          ? `pnpm install succeeded outside the checkout, from ${String(declared.length)} packed tarballs`
+          : `pnpm install succeeded outside the checkout, resolving ${String(declared.length)} ` +
+            `published ranges from ${String(registry)}`,
       ),
     );
     results.push(evaluateA4(resolvedPackages(target, declared), realpathSync(REPO_ROOT)));
@@ -333,14 +470,14 @@ async function main(): Promise<void> {
     } else notes.push(`kept ${temp}`);
   }
 
-  console.log(formatReport(results, notes));
+  console.log(formatReport(results, notes, mode));
 
   if (!againstExpectation) {
     process.exit(exitCodeFor(results));
   }
   if (!existsSync(EXPECTATION_FILE)) refuse(`${EXPECTATION_FILE} is not there`);
   const expectation = JSON.parse(readFileSync(EXPECTATION_FILE, 'utf8')) as AcceptanceExpectation;
-  const drift = compareToExpectation(results, expectation);
+  const drift = compareToExpectation(results, expectation, mode);
   for (const line of drift) console.error(`[storefront-acceptance] drift: ${line}`);
   if (drift.length === 0) {
     console.log('[storefront-acceptance] the run agrees with the recorded expectation.');

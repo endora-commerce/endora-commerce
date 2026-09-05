@@ -70,14 +70,22 @@ export {
   type WorkspaceRange,
 } from './new-storefront/reference.js';
 export {
+  installedScopes,
+  normalizeRegistry,
+  npmrcContent,
+  TOKEN_VARIABLE,
+} from './new-storefront/npmrc.js';
+export {
   cutForeignImports,
   cutForeignJsonPaths,
+  packageManagerFor,
   planStorefront,
   publishedRange,
   retargetPackageGlob,
   testRoots,
   UnclassifiedReferenceError,
   type PlannedFile,
+  type PlanOptions,
   type RangeRewrite,
   type StorefrontPlan,
 } from './new-storefront/rewrite.js';

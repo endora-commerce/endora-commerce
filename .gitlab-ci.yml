@@ -1450,6 +1450,24 @@ boot-gate:
 # `scripts/acceptance/storefront-scaffold-assertions.ts`, which touches no
 # process and is unit tested over fixture text.
 #
+# **Two supply routes, and this job takes the first** (feature 104, § 1.6). The
+# criterion installs either from tarballs packed out of this checkout and pinned
+# through `pnpm.overrides`, or from a real registry through the `.npmrc`
+# `endora new storefront --registry` writes. Which one is decided by
+# ENDORA_NPM_REGISTRY in the environment and by nothing else — there is no flag —
+# and that variable is protected, so a merge-request pipeline resolves it to
+# nothing and this job measures the tarball route. That is deliberate rather
+# than pending: the tarball route is the only one that works before the first
+# publish, and it is what keeps the criterion green on a branch that publishes
+# nothing. The registry route is recorded `unrun` in the expectation file until
+# a run of it measures its six states; the run that does so drifts, which is
+# what makes the record arrive from a measurement rather than from a prediction.
+#
+# A registry with no ENDORA_NPM_TOKEN is exit 2 and never an anonymous attempt:
+# the endpoint answers an absent credential with 404, in the same sentence it
+# gives for a package that was never published (feature 104 research §6), so the
+# red it would produce says nothing about the criterion.
+#
 # `stage: test`, so it fails the merge request that breaks the scaffold rather
 # than the default branch afterwards. The `changes:` list is the set of inputs
 # that can change the answer: the command, the reference storefront, the

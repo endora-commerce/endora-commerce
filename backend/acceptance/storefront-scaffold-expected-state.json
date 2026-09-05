@@ -21,21 +21,52 @@
     "PUBLIC_API_BASE_URL records `unmeasured` instead — never a pass — because a boot",
     "with no backend measures the storefront's error page rather than the storefront.",
     "If this job ever stops booting one, A6 drifts to `unmeasured` and fails, which is",
-    "the direction that keeps the headline claim honest."
+    "the direction that keeps the headline claim honest.",
+    "",
+    "SINCE 2026-09-04 THE RECORD IS PER SUPPLY ROUTE (feature 104, § 1.6). The six",
+    "assertions are the same under both; what differs is how the instance got its",
+    "`@endora-commerce/*` packages, and `A3 pass` therefore means two different things.",
+    "`tarball` packs them out of this checkout and pins them through `pnpm.overrides`;",
+    "`registry` installs the semver ranges the scaffold wrote, from a real registry,",
+    "through the `.npmrc` `endora new storefront --registry` emits. The mode is chosen",
+    "by ENDORA_NPM_REGISTRY in the environment, so a run with no registry variables —",
+    "every local run, and the CI job as it stands — takes the tarball route.",
+    "",
+    "`registry` is recorded `unrun`, and that is a state rather than a placeholder. No",
+    "version of the three packages is on the rehearsal registry: `version:packages`",
+    "(§ 1.7) has not run, every manifest still reads `0.0.0`, and the scaffold writes its",
+    "ranges from those manifests — so a run of that mode today would fail A3 for a reason",
+    "that says nothing about the criterion. Recording six predicted states instead would",
+    "be the one thing this file exists to refuse. The first real run of the mode drifts,",
+    "naming every assertion it measured, and the record arrives from that run."
   ],
-  "assertions": {
-    "A1": "pass",
-    "A2": "pass",
-    "A3": "pass",
-    "A4": "pass",
-    "A5": "pass",
-    "A6": "pass"
+  "modes": {
+    "tarball": {
+      "state": "recorded",
+      "assertions": {
+        "A1": "pass",
+        "A2": "pass",
+        "A3": "pass",
+        "A4": "pass",
+        "A5": "pass",
+        "A6": "pass"
+      }
+    },
+    "registry": {
+      "state": "unrun",
+      "why": "The three packages are unpublished at the versions the scaffold writes (all `0.0.0`), so this route cannot be measured until feature 104 § 1.7 has cut and published a version. Its states are recorded by the first run of it, never predicted here."
+    }
   },
   "history": [
     {
       "on": "2026-09-03",
       "what": "the criterion landed with the command (F7 scaffold half), all six green",
       "detail": "A1 the copy names nothing above its own directory; A2 no `workspace:` range survives; A3 `pnpm install` outside the checkout from three packed tarballs, pinned through `pnpm.overrides` because page-builder-core's own dependency on contracts is equally unpublished; A4 every @endora-commerce/* package resolves outside the checkout; A5 `next build`; A6 `next start` answered / with 200 against a running backend."
+    },
+    {
+      "on": "2026-09-04",
+      "what": "the record became per supply route; `tarball` keeps its six measured states, `registry` arrives unrun",
+      "detail": "Feature 104 § 1.6. The criterion gained a second mode that installs from a registry rather than from packed tarballs, selected by ENDORA_NPM_REGISTRY. The tarball mode is unchanged in every respect — same six assertions, same states, still the default — and its block is the previous `assertions` object moved under it. Nothing about the two-way drift rule changed; what changed is which block a run is compared against."
     }
   ]
 }
