@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EventBus } from '../../../src/events/bus.js';
+import { ApiInterceptorRegistry } from '../../../src/http/interceptors/index.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { MODULES } from '../../../src/composition.generated.js';
@@ -37,15 +38,30 @@ function log(): { info: () => void; warn: () => void; error: () => void } {
 
 /**
  * Compose the generated list into a bare container. Nothing is resolved: every
- * registration is lazy and no boot hook runs, so this needs neither the host
- * values a real root registers nor a database.
+ * registration is lazy and no boot hook runs, so this needs no database and none
+ * of the host *values* a real root registers.
+ *
+ * It does owe one host **seam**, and the sentence above used to say it owed
+ * nothing at all. `pim_unopim` registers an API interceptor from
+ * `registerModule` (feature 089, FR-003 — it refuses activating a second PIM
+ * while one is active), and `ctx.interceptors` refuses a root that mounts no
+ * registry rather than dropping the registration. That refusal is right —
+ * a silently dropped interceptor is a refusal that stops refusing — so this root
+ * mounts one, as both real roots do. It stays consistent with property 2 below:
+ * an interceptor registered into a registry is collected, exactly like a route
+ * plugin, and `buildServer` is what would dispatch it.
  */
 function composeGeneratedList(): { ids: string[]; registrations: string[] } {
   const container = createRootContainer();
   const eventBus = new EventBus();
   const entries = [...MODULES];
   const before = new Set(Object.keys(container.registrations));
-  const composed = composeModules(entries, { container, eventBus, log: log() });
+  const composed = composeModules(entries, {
+    container,
+    eventBus,
+    log: log(),
+    interceptorRegistry: new ApiInterceptorRegistry(),
+  });
   const registrations = Object.keys(container.registrations)
     .filter((name) => !before.has(name))
     .sort();
