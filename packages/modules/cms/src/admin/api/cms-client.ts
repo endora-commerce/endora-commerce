@@ -21,6 +21,7 @@ import type {
   PutCmsPageContentRequest,
   PutCmsColorPaletteRequest,
   CmsColorPaletteEntry,
+  CmsReservedSegmentsResponse,
 } from '@endora-commerce/contracts';
 
 export type {
@@ -45,6 +46,7 @@ export type {
   PutCmsPageContentRequest,
   PutCmsColorPaletteRequest,
   CmsColorPaletteEntry,
+  CmsReservedSegmentsResponse,
 };
 
 export interface ListPagesQuery {
@@ -153,6 +155,21 @@ export const cmsClient = {
 
   async deletePage(id: string): Promise<void> {
     await apiClient.delete(`/api/v1/admin/cms/pages/${encodeURIComponent(id)}`);
+  },
+
+  /**
+   * The deployment's reserved first path segments (feature 105, FR-033).
+   *
+   * The **same** value the backend's save-time refusal enforces, read through
+   * this module's own endpoint rather than the settings API, which is gated
+   * `settings:read`: a content editor who holds `cms.write` and not that would
+   * otherwise get a warning that silently never fires.
+   */
+  async getReservedSlugSegments(): Promise<string[]> {
+    const out = await apiClient.get<{ data: CmsReservedSegmentsResponse }>(
+      '/api/v1/admin/cms/pages/reserved-segments',
+    );
+    return out.data.segments;
   },
 
   async getPageBuilderConfig(): Promise<CmsPageBuilderDescriptor> {

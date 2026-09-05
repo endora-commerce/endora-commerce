@@ -24,10 +24,14 @@ import { expectModuleAbsent } from '../../helpers/off-state.js';
  *    are named because a read going 503 while a write still lands is the shape
  *    an operator would not notice;
  *  * **storefront absence** — `GET /api/v1/cms/pages/by-slug`, which is what a
- *    shop's content page is rendered from. A switched-off CMS that still
- *    serves it is the operator's withdrawal being invisible on the only
- *    surface a buyer looks at, and it is a different question from the editor
- *    going 503;
+ *    shop's content page is rendered from, and `GET /api/v1/cms/pages/by-channel`,
+ *    which is what its sitemap is built from (feature 105, FR-022). A
+ *    switched-off CMS that still serves either is the operator's withdrawal
+ *    being invisible on the only surface a buyer looks at, and both are a
+ *    different question from the editor going 503. The listing is named
+ *    separately because "the pages stop rendering" and "the shop stops
+ *    advertising them" are two withdrawals, and a sitemap that kept naming URLs
+ *    the shop now 404s would be the second one silently not happening;
  *  * **non-editable configuration** — the Page Builder's tablet breakpoint, an
  *    ordinary setting in the module's `cms_page_builder` group. `cms.enabled`
  *    is deliberately *not* written here: it is the module's activation
@@ -62,6 +66,7 @@ describe('cms off-state (Constitution XVII)', () => {
         { url: '/api/v1/admin/cms/pages', cookies: admin },
         { method: 'POST', url: '/api/v1/admin/cms/pages', cookies: admin, payload: {} },
         { url: '/api/v1/cms/pages/by-slug?slug=home', headers: channel },
+        { url: '/api/v1/cms/pages/by-channel', headers: channel },
       ],
       adminPresence: { cookies: admin },
       settingWrite: {

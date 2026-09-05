@@ -2,6 +2,8 @@ import type { MetadataRoute } from 'next';
 
 import { getBlogIndex } from '../lib/api/blog';
 import { getCategoryTree, listProducts } from '../lib/api/catalog';
+import { getCmsPageIndex, normalizeCmsUrlPath } from '../lib/api/cms';
+import { getHomepageConfig } from '../lib/api/homepage';
 import { getServerContext } from '../lib/server-context';
 import { absoluteUrl } from '../lib/seo/site-url';
 
@@ -91,6 +93,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const url of await productUrls(ctx)) entries.push({ url, lastModified: now, priority: 0.8 });
   for (const url of await categoryUrls(ctx)) entries.push({ url, lastModified: now, priority: 0.6 });
   for (const url of await blogUrls(ctx)) entries.push({ url, lastModified: now, priority: 0.5 });
+  for (const entry of await cmsPageEntries(ctx)) entries.push({ ...entry, priority: 0.5 });
 
   return entries;
 }
@@ -124,6 +127,40 @@ async function categoryUrls(ctx: Ctx): Promise<string[]> {
     };
     walk(tree);
     return urls;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The CMS pages of this channel, at the one address each of them has
+ * (`specs/105-cms-root-page-urls/` FR-020; `contracts/cms-page-url.md` §4.1).
+ *
+ * Entries rather than URLs, unlike the three sources above: a CMS page carries
+ * its own `updatedAt`, and a `lastModified` that is the moment of the build
+ * tells a crawler nothing it did not already know.
+ *
+ * **The home-page row is emitted as `/` and never as its slug address.** When
+ * an operator selects a page as the home page, that row's one address becomes
+ * `/` and `/{slug}` answers a permanent redirect to it (§1.3) — so advertising
+ * the slug would put a URL that redirects in the sitemap, which is the one
+ * thing §4.1 forbids. `/` is already in `SITEMAP_STATIC_ROUTES`, so the row is
+ * *represented* by dropping its slug entry rather than by adding a second `/`.
+ */
+async function cmsPageEntries(ctx: Ctx): Promise<MetadataRoute.Sitemap> {
+  try {
+    const [index, homepage] = await Promise.all([getCmsPageIndex(ctx), getHomepageConfig(ctx)]);
+    // A switched-off `cms` answers `null` (Principle XVII), exactly as `blog`
+    // does above: the module is absent, so the shop advertises no CMS URL.
+    if (index === null) return [];
+    const homeSlug = normalizeCmsUrlPath(homepage.cmsPageSlug ?? '');
+    return index.pages
+      .filter((page) => homeSlug === '' || normalizeCmsUrlPath(page.slug) !== homeSlug)
+      .map((page) => ({
+        url: absoluteUrl(`/${normalizeCmsUrlPath(page.slug)}`),
+        lastModified: new Date(page.updatedAt),
+        changeFrequency: 'monthly' as const,
+      }));
   } catch {
     return [];
   }

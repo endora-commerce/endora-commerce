@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@measured/puck';
-import { slugify as slugifyText, type CmsPageDetail } from '@endora-commerce/contracts';
+import { firstSlugSegment, slugify as slugifyText, type CmsPageDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup, Select, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
@@ -74,6 +74,15 @@ export function PageEditor(): ReactNode {
   // For a new page the slug is auto-derived from the name until the operator
   // edits the slug field themselves, after which it is left untouched.
   const [slugEdited, setSlugEdited] = useState(false);
+  /**
+   * The deployment's reserved first path segments (feature 105, FR-033).
+   *
+   * Read once when the editor loads, from the **same** value the backend's
+   * save-time refusal enforces — one source, two readers. Two lists would be
+   * two answers waiting to disagree, and a warning that disagrees with a
+   * refusal is worse than no warning.
+   */
+  const [reservedSegments, setReservedSegments] = useState<readonly string[]>([]);
 
   const load = useCallback(async () => {
     if (isNew || !id) return;
@@ -96,6 +105,45 @@ export function PageEditor(): ReactNode {
   useEffect(() => {
     void load().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    cmsClient
+      .getReservedSlugSegments()
+      .then((segments) => {
+        if (!cancelled) setReservedSegments(segments);
+      })
+      .catch(() => {
+        // Deliberately silent, and this is the one place in this editor where
+        // that is right: the warning is an *advance* notice of a refusal the
+        // backend performs anyway (FR-031). A deployment that reserves nothing
+        // is the ordinary case, so a failed read must not put an error banner
+        // over an editor whose page is fine — and it cannot let a bad save
+        // through, because the refusal does not read this value.
+        if (!cancelled) setReservedSegments([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /**
+   * The address this slug produces (FR-030, §5.5) — for **every** slug, not
+   * only a colliding one, because the common mistake is a slug that is
+   * perfectly legal and simply not what the operator meant.
+   *
+   * The storefront-root path rather than an origin-qualified URL: a page
+   * belongs to *n* sales channels and a storefront origin is a per-channel
+   * value another module owns, so an absolute address here would be either *n*
+   * addresses or one arbitrary pick.
+   */
+  const publicPath = form.slug.trim().length > 0 ? `/${form.slug.trim()}` : null;
+
+  /** The reserved segment this slug would lose to, or `null` (§5.1, US4.2). */
+  const reservedSegment = (() => {
+    const segment = firstSlugSegment(form.slug);
+    return segment.length > 0 && reservedSegments.includes(segment) ? segment : null;
+  })();
 
   useEffect(() => {
     if (!isNew) return;
@@ -316,6 +364,28 @@ export function PageEditor(): ReactNode {
                     setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }));
                   }}
                 />
+                <p className="text-xs text-muted-foreground">
+                  <span className="mr-1">{t('pageEditor.publicAddress')}:</span>
+                  {publicPath ? (
+                    <code className="font-mono">{publicPath}</code>
+                  ) : (
+                    <span>{t('pageEditor.publicAddressEmpty')}</span>
+                  )}
+                </p>
+                {/*
+                  A warning and not an error: nothing has failed yet, the
+                  operator is still typing, and this is what US4.2 asks for —
+                  the notice that arrives *before* Save, which is what actually
+                  prevents the mistake. The refusal that follows on Save is the
+                  backstop, and it renders in the destructive banner above.
+                */}
+                {reservedSegment ? (
+                  <Alert variant="warning">
+                    <AlertDescription>
+                      {t('pageEditor.reservedSegmentWarning', { segment: reservedSegment })}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label>{t('fields.status')}</Label>

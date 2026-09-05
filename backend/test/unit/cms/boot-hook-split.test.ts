@@ -45,6 +45,7 @@ vi.mock('../../../../packages/modules/cms/src/backend/plugin.js', () => ({
       setPageBuilderBreakpointsResolver: () => undefined,
       setColorPaletteResolver: () => undefined,
       setColorPaletteWriter: () => undefined,
+      setReservedSlugSegmentsResolver: () => undefined,
       setAssetResolver: () => undefined,
     },
     plugin: async () => undefined,

@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CmsAssetEmbedResolution,
+  CmsPageIndexEntry,
   CmsResolvedBlock,
   CmsResolvedHook,
   CmsResolvedPage,
@@ -13,6 +14,17 @@ export type CmsAssetResolver = (assetId: string) => Promise<CmsAssetEmbedResolut
 
 /** Recursion depth cap for InsertBlock/InsertTemplate inlining (per data-model.md / T082). */
 const EMBED_DEPTH_CAP = 3;
+
+/**
+ * How many published pages one channel's index answers with.
+ *
+ * A bound rather than a page size: the caller is a sitemap, Google's own
+ * ceiling is 50 000 URLs per file, and the storefront already caps its product
+ * enumeration at 5 000 for the same reason. A shop with more CMS pages than
+ * this has a sitemap-index problem rather than a listing problem, and adding a
+ * cursor before one exists would be a paging protocol with no reader.
+ */
+const PAGE_INDEX_LIMIT = 5000;
 
 type PageRow = {
   id: string;
@@ -156,6 +168,49 @@ export class StorefrontResolver {
       await this.cache.setPage(input.slug, channel.code, cacheLanguage, resolved);
     }
     return resolved;
+  }
+
+  /**
+   * Every published page of one sales channel, at the slug that channel serves
+   * it under (feature 105, FR-021; `contracts/cms-page-url.md` §4.1).
+   *
+   * The join is `resolvePageBySlug`'s, minus the slug predicate: same table,
+   * same three conditions — the channel binding, `status = 'published'` and
+   * `active = true` — so a page this answer names is a page that endpoint
+   * serves, and a page it omits is one that would 404. A sitemap built from a
+   * looser query would advertise a URL the shop refuses, which is the state §4.1
+   * exists to make unreachable.
+   *
+   * The slug comes off `cms_page_sales_channels`, never off `cms_pages`: the
+   * address is per channel (Constitution XII), and the page row's own column is
+   * one value shared by all of them.
+   *
+   * Uncached, deliberately. `CmsCache` keys a page by `(slug, channel, language)`
+   * and is invalidated per slug on write, so an index cached beside it would
+   * survive every invalidation the module performs and go stale on the first
+   * publish. The read is one indexed join per sitemap build, which Next's own
+   * route cache already sits in front of.
+   */
+  async listPublishedPages(input: {
+    resolvedChannel: ResolvedChannel;
+  }): Promise<CmsPageIndexEntry[]> {
+    const em = this.emFactory();
+    const rows = (await em.execute(
+      `select cpsc.slug as slug, p.updated_at as updated_at
+       from cms_pages p
+       join cms_page_sales_channels cpsc on cpsc.page_id = p.id
+       where cpsc.sales_channel_id = ?
+         and p.status = 'published'
+         and p.active = true
+       order by cpsc.slug asc
+       limit ${PAGE_INDEX_LIMIT}`,
+      [input.resolvedChannel.id],
+    )) as Array<{ slug: string; updated_at: Date | string }>;
+
+    return rows.map((row) => ({
+      slug: row.slug,
+      updatedAt: new Date(row.updated_at).toISOString(),
+    }));
   }
 
   async resolveBlockByCode(input: {

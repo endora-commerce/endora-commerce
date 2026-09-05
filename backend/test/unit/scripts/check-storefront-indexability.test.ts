@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   checkStorefrontIndexability,
+  readReservedSegments,
   readSitemapDeclaration,
   routePatternOf,
+  topLevelSegmentsOf,
   vacuousReason,
   readStatusDecisions,
   boundariesAbove,
@@ -49,6 +51,18 @@ function sitemapText(
     `];`,
     `export const SITEMAP_DYNAMIC_ROUTES: readonly string[] = [`,
     ...dynamicRoutes.map((route) => `  '${route}',`),
+    `];`,
+  ].join('\n');
+}
+
+/**
+ * `storefront/app/reserved-segments.ts` as the check reads it: one string array
+ * (feature 105, FR-034).
+ */
+function reservedText(segments: readonly string[]): string {
+  return [
+    `export const RESERVED_TOP_LEVEL_SEGMENTS: readonly string[] = [`,
+    ...segments.map((segment) => `  '${segment}',`),
     `];`,
   ].join('\n');
 }
@@ -123,16 +137,30 @@ function boundaries(...files: readonly string[]): SegmentWalk {
   return { boundaries: files.map((file) => `${APP_ROOT}${file}`), unreadable: [] };
 }
 
+/**
+ * A run over these routes.
+ *
+ * `reserved` defaults to exactly the segments the fixture's own routes produce,
+ * so a proof about indexability is never accidentally also a proof about
+ * feature 105's reconciliation — the two reds have to be asked for.
+ */
 function run(
   routes: readonly RouteFile[],
   staticRoutes: readonly string[] = ['/catalog'],
   dynamicRoutes: readonly string[] = [],
   segments: SegmentWalk = { boundaries: [], unreadable: [] },
+  reserved?: { readonly segments?: readonly string[]; readonly handlerPaths?: readonly string[] },
 ): StorefrontIndexabilityResult {
+  const handlerPaths = reserved?.handlerPaths ?? [];
   return checkStorefrontIndexability({
     appRoot: APP_ROOT,
     routes,
+    handlerPaths,
     sitemapText: sitemapText(staticRoutes, dynamicRoutes),
+    reservedSegmentsText: reservedText(
+      reserved?.segments ??
+        topLevelSegmentsOf([...routes.map((route) => route.path), ...handlerPaths], APP_ROOT),
+    ),
     segments,
   });
 }
@@ -490,7 +518,9 @@ describe('check-storefront-indexability — when it may not report at all', () =
     const result = checkStorefrontIndexability({
       appRoot: APP_ROOT,
       routes: [],
+      handlerPaths: [],
       sitemapText: sitemapText(['/catalog']),
+      reservedSegmentsText: reservedText(['catalog']),
       segments: { boundaries: [], unreadable: [] },
     });
     expect(vacuousReason(result)?.kind).toBe('no-page-file');
@@ -505,7 +535,9 @@ describe('check-storefront-indexability — when it may not report at all', () =
       const result = checkStorefrontIndexability({
         appRoot: APP_ROOT,
         routes: [CLEAN_CATALOG],
+        handlerPaths: [],
         sitemapText: text,
+        reservedSegmentsText: reservedText(['catalog']),
         segments: { boundaries: [], unreadable: [] },
       });
       expect(vacuousReason(result)?.kind).toBe('unreadable-sitemap');
@@ -528,7 +560,9 @@ describe('check-storefront-indexability — when it may not report at all', () =
     const result = checkStorefrontIndexability({
       appRoot: APP_ROOT,
       routes: [CLEAN_CATALOG, page('/wholesale/page.tsx', DECIDING_BODY)],
+      handlerPaths: [],
       sitemapText: sitemapText(['/catalog']),
+      reservedSegmentsText: reservedText(['catalog', 'wholesale']),
       segments: { boundaries: [], unreadable: [`${APP_ROOT}/(catalog)`] },
     });
     expect(vacuousReason(result)?.kind).toBe('unenumerable-segment');
@@ -558,6 +592,127 @@ describe('check-storefront-indexability — when it may not report at all', () =
         ],
       })?.kind,
     ).toBe('short-walk');
+  });
+});
+
+describe('check-storefront-indexability — what this storefront reserves (feature 105)', () => {
+  /**
+   * FR-034 / `contracts/cms-page-url.md` §5.3.1.
+   *
+   * A CMS page is served at the site root, so every top-level path this
+   * storefront owns is a path a page can be silently lost to. The deployment
+   * copies its `cms.reserved_slug_segments` value from
+   * `RESERVED_TOP_LEVEL_SEGMENTS`, so what these cases defend is that the
+   * published list and the route tree cannot come apart.
+   *
+   * The two directions are separate findings on purpose. They fail differently:
+   * an unreserved segment is fail-**open** — the original defect returning —
+   * and a stale entry is fail-**safe**, refusing a slug that is free.
+   */
+  it('reports a top-level path the storefront serves and does not publish', () => {
+    const result = run(
+      [CLEAN_CATALOG, page('/wholesale/page.tsx', NOINDEX_BODY)],
+      ['/catalog'],
+      [],
+      { boundaries: [], unreadable: [] },
+      { segments: ['catalog'] },
+    );
+    expect(findingsOf(result, 'unreserved-top-level-segment')).toEqual(['/wholesale']);
+    expect(findingsOf(result, 'stale-reserved-segment')).toEqual([]);
+  });
+
+  it('reports a published segment no route file serves', () => {
+    const result = run([CLEAN_CATALOG], ['/catalog'], [], { boundaries: [], unreadable: [] }, {
+      segments: ['catalog', 'wholesale'],
+    });
+    expect(findingsOf(result, 'stale-reserved-segment')).toEqual(['/wholesale']);
+    expect(findingsOf(result, 'unreserved-top-level-segment')).toEqual([]);
+  });
+
+  it('counts a `route.ts` handler, which owns a segment and emits no document', () => {
+    // `/api`, `/pwa` and `/manifest.webmanifest` are route handlers in this
+    // tree. A page slugged into one of them is shadowed exactly as it would be
+    // by a page, and a reconciliation blind to handlers would call all three
+    // stale entries — or, with them absent from the list, say nothing at all.
+    const result = run([CLEAN_CATALOG], ['/catalog'], [], { boundaries: [], unreadable: [] }, {
+      segments: ['catalog'],
+      handlerPaths: [`${APP_ROOT}/api/revalidate/route.ts`],
+    });
+    expect(findingsOf(result, 'unreserved-top-level-segment')).toEqual(['/api']);
+  });
+
+  it('does not ask a dynamic first segment to be reserved', () => {
+    // `/[...slug]` is the CMS catch-all itself: reserving it would be the
+    // storefront reserving the thing a page slug *is*. Nor does the root page,
+    // which owns no segment.
+    const result = run(
+      [CLEAN_CATALOG, page('/(content)/[...slug]/page.tsx', NOINDEX_BODY), page('/page.tsx', NOINDEX_BODY)],
+      ['/catalog'],
+      [],
+      { boundaries: [], unreadable: [] },
+      { segments: ['catalog'] },
+    );
+    expect(findingsOf(result, 'unreserved-top-level-segment')).toEqual([]);
+    expect(findingsOf(result, 'stale-reserved-segment')).toEqual([]);
+  });
+
+  it('reads route groups and nesting the way every other question here does', () => {
+    // Through `routePatternOf`, so a route group contributes no segment, a
+    // nested page contributes only its first, the root page contributes none,
+    // and a handler contributes its own. Deduplicated and sorted, because the
+    // comparison on both sides is a set.
+    expect(
+      topLevelSegmentsOf(
+        [
+          `${APP_ROOT}/(account)/account/orders/page.tsx`,
+          `${APP_ROOT}/(account)/account/page.tsx`,
+          `${APP_ROOT}/(catalog)/p/[slug]/page.tsx`,
+          `${APP_ROOT}/page.tsx`,
+          `${APP_ROOT}/pwa/config/route.ts`,
+        ],
+        APP_ROOT,
+      ),
+    ).toEqual(['account', 'p', 'pwa']);
+  });
+
+  it('refuses a run whose reserved declaration it could not read', () => {
+    for (const text of [null, 'export const RESERVED_TOP_LEVEL_SEGMENTS = SEGMENTS;']) {
+      const result = checkStorefrontIndexability({
+        appRoot: APP_ROOT,
+        routes: [CLEAN_CATALOG, page('/wholesale/page.tsx', DECIDING_BODY)],
+        handlerPaths: [],
+        sitemapText: sitemapText(['/catalog']),
+        reservedSegmentsText: text,
+        segments: { boundaries: [], unreadable: [] },
+      });
+      expect(vacuousReason(result)?.kind).toBe('unreadable-reserved-segments');
+    }
+  });
+
+  it('refuses a run that produced no top-level segment at all', () => {
+    // Both directions are set comparisons, so an empty side reports the other
+    // side's whole contents and nothing about the tree.
+    const result = checkStorefrontIndexability({
+      appRoot: APP_ROOT,
+      // A root page and nothing else: classified, deciding a status, so the
+      // three refusals above are all satisfied and this one is what is left.
+      routes: [page('/page.tsx', DECIDING_BODY)],
+      handlerPaths: [],
+      sitemapText: sitemapText(['/']),
+      reservedSegmentsText: reservedText(['cart', 'catalog']),
+      segments: { boundaries: [], unreadable: [] },
+    });
+    expect(vacuousReason(result)?.kind).toBe('no-top-level-segment');
+  });
+
+  it('reads the declared array and refuses an element it cannot resolve', () => {
+    expect(readReservedSegments(reservedText(['cart', 'catalog']))).toEqual(['cart', 'catalog']);
+    expect(
+      readReservedSegments(
+        `export const RESERVED_TOP_LEVEL_SEGMENTS: readonly string[] = ['cart', CHECKOUT];`,
+      ),
+    ).toBeNull();
+    expect(readReservedSegments('export const SOMETHING_ELSE = [];')).toBeNull();
   });
 });
 

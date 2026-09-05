@@ -9,7 +9,7 @@ import {
   type DictionaryReferenceRegistryPort,
   type ModuleManifest,
 } from '@endora-commerce/contracts';
-import { CMS_PAGE_BUILDER_SETTING_CODES } from '../manifest.js';
+import { CMS_PAGE_BUILDER_SETTING_CODES, CMS_SETTING_CODES } from '../manifest.js';
 import type { CmsPageReadPort } from '@endora-commerce/contracts';
 import { CmsBlockSeedService } from './services/cms-block-seed-port.js';
 import { CmsPageReadService } from './services/cms-page-read-port.js';
@@ -86,7 +86,12 @@ export interface CmsCradle {
   readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: {
-    get<T>(code: string, channelId: string, schema: z.ZodType<T>): Promise<T>;
+    /**
+     * `channelId` is `null` for a platform-wide read — `SettingsReadPort`'s own
+     * spelling (D-41), which the reserved-segments resolver below uses because
+     * the deployment's route table is not a per-channel fact.
+     */
+    get<T>(code: string, channelId: string | null, schema: z.ZodType<T>): Promise<T>;
   };
   readonly settingsAdminService: {
     setValueForAllChannels(
@@ -122,6 +127,18 @@ export interface CmsCradle {
 }
 
 const breakpointSchema = z.number().int().positive();
+
+/**
+ * The reserved-segments Setting as it comes off the store.
+ *
+ * Deliberately loose — `unknown[]`, not `string[]`. The value is free-form
+ * JSON an operator edits, `settingsReadPort.get` **throws**
+ * `SettingValueShapeMismatch` on a schema failure, and a stray non-string entry
+ * in the list would then take every CMS page save down rather than reserving
+ * one fewer segment. `normalizeReservedSegments` is where an entry is judged,
+ * one entry at a time, in the module that reads it.
+ */
+const reservedSegmentsSchema = z.array(z.unknown());
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
@@ -208,6 +225,31 @@ export function registerModule(ctx: ModuleContext): void {
             actor,
           );
           return entries;
+        });
+
+        /**
+         * Feature 105, FR-032 — the deployment's reserved first path segments.
+         *
+         * Read **platform-wide** (`null`), which is what D-41 gives that tier a
+         * spelling for: the value is a fact about this deployment's storefront
+         * route table, not about one channel's content, and a page is published
+         * to *n* channels while its first segment can only collide once.
+         *
+         * A failing read **propagates**, unlike the two resolvers above, and
+         * the difference is the direction each one fails in. An unset palette is
+         * legitimately empty and rendering `[]` costs nothing; an unreadable
+         * reserved set rendered as `[]` would let through exactly the save this
+         * refusal exists to stop, which is a fail-open. The unset case is not
+         * that state anyway: the manifest declares `defaultValue: []`, so the
+         * store answers the empty list without an error.
+         */
+        result.handle.setReservedSlugSegmentsResolver(async () => {
+          const { settingsReadPort } = ctx.cradle<CmsCradle>();
+          return settingsReadPort.get(
+            CMS_SETTING_CODES.RESERVED_SLUG_SEGMENTS,
+            null,
+            reservedSegmentsSchema,
+          );
         });
 
         // Installed once but *reading* the contribution per call, so a root can

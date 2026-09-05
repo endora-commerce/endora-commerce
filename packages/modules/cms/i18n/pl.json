@@ -147,6 +147,7 @@
   "errors.CMS_TEMPLATE_NOT_FOUND": "Błąd: cms template not found.",
   "errors.CMS_HOOK_NOT_FOUND": "Błąd: cms hook not found.",
   "errors.CMS_SLUG_CONFLICT": "Błąd: cms slug conflict.",
+  "errors.CMS_SLUG_RESERVED": "Ten sklep obsługuje już adres „/{segment}”, więc strona z tym slugiem nigdy nie zostałaby wyświetlona. Wybierz inny pierwszy segment sluga.",
   "errors.CMS_CODE_CONFLICT": "Błąd: cms code conflict.",
   "errors.CMS_REFERENCED": "Błąd: cms referenced.",
   "errors.CMS_HOOK_SYSTEM_PROTECTED": "Błąd: cms hook system protected.",
@@ -223,5 +224,8 @@
   "blocks.category.internal": "Wewnętrzne",
   "blocks.category.forms": "Formularze",
   "blocks.category.advanced": "Zaawansowane",
-  "blocks.category.embeds": "Osadzone"
+  "blocks.category.embeds": "Osadzone",
+  "pageEditor.publicAddress": "Adres publiczny",
+  "pageEditor.publicAddressEmpty": "Podaj slug, aby zobaczyć adres.",
+  "pageEditor.reservedSegmentWarning": "Ten sklep obsługuje już adres „/{segment}”. Zapis tego sluga zostanie odrzucony, ponieważ strona nigdy nie zostałaby wyświetlona."
 }

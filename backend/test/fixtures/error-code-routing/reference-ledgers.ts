@@ -90,6 +90,15 @@ import type {
  * author of one claim is two answers waiting to disagree.
  */
 export const MINTED_ERROR_CODES: MintedErrorCodes = {
+  CMS_SLUG_RESERVED: {
+    to: 'cms',
+    reason:
+      'Minted by feature 105 (`specs/105-cms-root-page-urls/`, FR-031) for the refusal an ' +
+      'operator meets when a page slug\'s first path segment is one the deployment reserves ' +
+      'for its storefront\'s own routes — without it the page saves, publishes and is never ' +
+      'shown, because a root catch-all is Next\'s lowest-priority match. The noun is a CMS ' +
+      'page slug, which `cms` owns along with the rest of the `CMS_*` family.',
+  },
   PAYMENT_NOT_DUE: {
     to: 'payments',
     reason:

@@ -153,6 +153,7 @@ import {
   vacuousReason as storefrontIndexabilityVacuous,
   type RouteFile as StorefrontRouteFile,
   type SegmentWalk,
+  topLevelSegmentsOf as storefrontTopLevelSegments,
   type StorefrontIndexabilityFindingKind,
 } from '../../../scripts/check-storefront-indexability.js';
 import {
@@ -3348,16 +3349,51 @@ const STOREFRONT_CLEAN_ROUTE: StorefrontRouteFile = {
  */
 const STOREFRONT_NO_BOUNDARY: SegmentWalk = { boundaries: [], unreadable: [] };
 
+/**
+ * `storefront/app/reserved-segments.ts`, as the check reads it: one string array
+ * (feature `specs/105-cms-root-page-urls/`, FR-034).
+ */
+function storefrontReserved(segments: readonly string[]): string {
+  return [
+    'export const RESERVED_TOP_LEVEL_SEGMENTS: readonly string[] = [',
+    ...segments.map((segment) => `  '${segment}',`),
+    '];',
+  ].join('\n');
+}
+
+/**
+ * The top-level segments a fixture's own routes produce.
+ *
+ * The default for every proof that is not about feature 105, so a proof about
+ * indexability is never accidentally also a red for the reserved
+ * reconciliation — each of those two has to be asked for.
+ */
+function storefrontOwnSegments(
+  routes: readonly StorefrontRouteFile[],
+  handlerPaths: readonly string[] = [],
+): readonly string[] {
+  return storefrontTopLevelSegments(
+    [...routes.map((route) => route.path), ...handlerPaths],
+    STOREFRONT_APP_ROOT,
+  );
+}
+
 function storefrontIndexabilityFindings(
   routes: readonly StorefrontRouteFile[],
   sitemap: { static: readonly string[]; dynamic?: readonly string[] },
   kind: StorefrontIndexabilityFindingKind,
   segments: SegmentWalk = STOREFRONT_NO_BOUNDARY,
+  reserved?: { readonly segments?: readonly string[]; readonly handlerPaths?: readonly string[] },
 ): number {
+  const handlerPaths = reserved?.handlerPaths ?? [];
   return checkStorefrontIndexability({
     appRoot: STOREFRONT_APP_ROOT,
     routes,
+    handlerPaths,
     sitemapText: storefrontSitemap(sitemap.static, sitemap.dynamic ?? []),
+    reservedSegmentsText: storefrontReserved(
+      reserved?.segments ?? storefrontOwnSegments(routes, handlerPaths),
+    ),
     segments,
   }).findings.filter((finding) => finding.kind === kind).length;
 }
@@ -3399,11 +3435,14 @@ function storefrontIndexabilityRefusals(
   sitemapText: string | null,
   segments: SegmentWalk = STOREFRONT_NO_BOUNDARY,
   expected?: string,
+  reservedSegmentsText: string | null = storefrontReserved(storefrontOwnSegments(routes)),
 ): number {
   const result = checkStorefrontIndexability({
     appRoot: STOREFRONT_APP_ROOT,
     routes,
+    handlerPaths: [],
     sitemapText,
+    reservedSegmentsText,
     segments,
   });
   const refusal = storefrontIndexabilityVacuous(result);
@@ -7219,6 +7258,86 @@ const CHECKS: readonly CheckEntry[] = [
           'nothing-decided',
         ),
       ),
+      // `specs/105-cms-root-page-urls/` FR-034, and the fail-**open** direction
+      // of it: a CMS page is served at the site root, so a top-level path this
+      // storefront owns and does not publish as reserved is a path a page saves
+      // into, publishes into, and is never shown at.
+      'unreserved-top-level-segment': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text: STOREFRONT_INDEXABLE_PAGE,
+              seoText: STOREFRONT_SEO_DECLARATION,
+            },
+          ],
+          { static: ['/catalog', '/wholesale'] },
+          'unreserved-top-level-segment',
+          STOREFRONT_NO_BOUNDARY,
+          { segments: ['catalog'] },
+        ),
+      ),
+      // The fail-safe direction, reported apart so that a repair in one cannot
+      // hide a hole in the other — a deployment copying the list refuses a slug
+      // that is actually free.
+      'stale-reserved-segment': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE],
+          { static: ['/catalog'] },
+          'stale-reserved-segment',
+          STOREFRONT_NO_BOUNDARY,
+          { segments: ['catalog', 'wholesale'] },
+        ),
+      ),
+      // A `route.ts` owns a segment and emits no document, so it is in this
+      // population and in none of the others. `/api`, `/pwa` and
+      // `/manifest.webmanifest` are handlers in this tree, and a page slugged
+      // into one is shadowed exactly as it would be by a page.
+      'a-route-handler-owns-a-segment': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE],
+          { static: ['/catalog'] },
+          'unreserved-top-level-segment',
+          STOREFRONT_NO_BOUNDARY,
+          {
+            segments: ['catalog'],
+            handlerPaths: [`${STOREFRONT_APP_ROOT}/api/revalidate/route.ts`],
+          },
+        ),
+      ),
+      // Exit 2: with nothing to read, both directions of the reconciliation are
+      // vacuously satisfied.
+      'unreadable-reserved-segments-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [STOREFRONT_CLEAN_ROUTE, storefrontDecidingPage()],
+          storefrontSitemap(['/catalog']),
+          STOREFRONT_NO_BOUNDARY,
+          'unreadable-reserved-segments',
+          null,
+        ),
+      ),
+      // The other side of the same set comparison: a walk that produced no
+      // segment would report every published entry as stale, which is a finding
+      // about the walk dressed as one about the tree.
+      'no-top-level-segment-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [
+            {
+              path: `${STOREFRONT_APP_ROOT}/page.tsx`,
+              text:
+                "import { notFound } from 'next/navigation';\n" +
+                'export const metadata = { robots: { index: false, follow: false } };\n' +
+                'export default async function Page() { notFound(); }\n',
+              seoText: null,
+            },
+          ],
+          storefrontSitemap(['/']),
+          STOREFRONT_NO_BOUNDARY,
+          'no-top-level-segment',
+          storefrontReserved(['catalog']),
+        ),
+      ),
     },
   },
   {
@@ -9838,7 +9957,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // where the whole population of a run can be asserted, because what it has
       // to prove is that 33 correct authentication guards stay *out* of a
       // finding list, and a proof counting findings of one kind cannot say that.
-      'backend/scripts/check-storefront-indexability.ts': 14,
+      // **14 -> 19 with `specs/105-cms-root-page-urls/`'s Phase 4c**: the two
+      // directions of the reserved-segment reconciliation, kept apart because
+      // one fails open and the other fails safe; the `route.ts` shape, which is
+      // a population this check had no reason to walk until a CMS page could be
+      // slugged into `/api`; and two more vacuous reasons, one per side of a
+      // set comparison that reports the *other* side's whole contents when its
+      // own is empty.
+      'backend/scripts/check-storefront-indexability.ts': 19,
       // Three spellings of a bare subscription, plus the two queue-consumer
       // shapes: a factory call whose value goes nowhere, and a `new Worker` the
       // module keeps to itself.

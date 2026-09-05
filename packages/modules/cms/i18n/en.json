@@ -147,6 +147,7 @@
   "errors.CMS_TEMPLATE_NOT_FOUND": "Cms Template Not Found.",
   "errors.CMS_HOOK_NOT_FOUND": "Cms Hook Not Found.",
   "errors.CMS_SLUG_CONFLICT": "Cms Slug Conflict.",
+  "errors.CMS_SLUG_RESERVED": "This storefront already serves \"/{segment}\", so a page with this slug would never be shown. Choose a different first segment for the slug.",
   "errors.CMS_CODE_CONFLICT": "Cms Code Conflict.",
   "errors.CMS_REFERENCED": "Cms Referenced.",
   "errors.CMS_HOOK_SYSTEM_PROTECTED": "Cms Hook System Protected.",
@@ -223,5 +224,8 @@
   "blocks.category.internal": "Internal",
   "blocks.category.forms": "Forms",
   "blocks.category.advanced": "Advanced",
-  "blocks.category.embeds": "Embeds"
+  "blocks.category.embeds": "Embeds",
+  "pageEditor.publicAddress": "Public address",
+  "pageEditor.publicAddressEmpty": "Enter a slug to see the address.",
+  "pageEditor.reservedSegmentWarning": "This storefront already serves \"/{segment}\". Saving this slug will be refused, because the page would never be shown."
 }
