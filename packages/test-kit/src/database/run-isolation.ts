@@ -57,7 +57,7 @@
  * **Names satisfy the existing guard.** `runDatabaseName` refuses to produce a
  * name `TEST_DATABASE_NAME_PATTERN` would not accept, so the harness's refusal
  * to truncate a non-test database is untouched — not loosened, not bypassed.
- * That predicate lives here now and `global-setup.ts` imports it, so there is
+ * That predicate lives here now and every caller imports it, so there is
  * one spelling of it rather than three.
  *
  * **Redis by logical database index, not by key prefix.** Every Redis client in
@@ -72,7 +72,7 @@
  *
  * ## Cleanup
  *
- * The run database is dropped by `global-setup.ts`'s teardown. A **crashed**
+ * The run database is dropped by the lease's own release. A **crashed**
  * run cannot run its teardown, so every invocation also sweeps: run databases
  * carry their creation instant in their name, and one older than
  * `STALE_RUN_DATABASE_MS` with no connection to it is dropped, at most
@@ -95,11 +95,11 @@ import { hostname } from 'node:os';
 /**
  * A database name that says "this database exists to be wiped".
  *
- * The one spelling of the judgement. `global-setup.ts` imports it before it
- * lets a run truncate anything, `runDatabaseName` refuses to emit a name that
- * fails it, and `src/seeds/dev-seed-guard.ts` keeps its own copy pinned to this
- * one by `test/unit/seeds/dev-seed-guard.test.ts` (it is `src/`, so it cannot
- * import from `test/`).
+ * The one spelling of the judgement. `assertTestDatabaseUrl` applies it before
+ * a run touches anything, `runDatabaseName` refuses to emit a name that fails
+ * it, and the application's own dev-seed guard keeps its copy pinned to this one
+ * by a test of its own — `backend/src/seeds/dev-seed-guard.ts` is `src/`, so it
+ * cannot import a test's module and has to re-spell the regex.
  */
 export const TEST_DATABASE_NAME_PATTERN = /(^|_)test(_|$)/;
 
@@ -143,7 +143,7 @@ export const ISOLATION_ENV = 'BACKEND_TEST_ISOLATION';
 export const KEEP_DATABASE_ENV = 'BACKEND_TEST_KEEP_DATABASE';
 
 /**
- * The base DSN, exported to the workers by `global-setup.ts` on the isolated
+ * The base DSN, exported to the workers by the lease on the isolated
  * path only.
  *
  * Its **presence is the statement** "this invocation has a migrated template,
@@ -217,7 +217,7 @@ function assertUsableDatabaseName(name: string): string {
   if (!TEST_DATABASE_NAME_PATTERN.test(name)) {
     throw new Error(
       `generated database name "${name}" is not a test database by the convention ` +
-        `test/global-setup.ts enforces before it truncates. Isolation may not widen that ` +
+        `the base DSN is judged by before a run touches anything. Isolation may not widen that ` +
         `judgement — point TEST_DATABASE_URL at a database whose name carries "test".`,
     );
   }

@@ -1280,6 +1280,62 @@ test:frontend:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
+# The test kit's **service-bound** half (feature 109, Phase 1b).
+#
+# `test:frontend` above runs every non-backend member's `test` script in an
+# image with no service containers, and the kit's own proofs need a real
+# PostgreSQL and a real Redis: it composes a platform, leases a database and
+# reads a tenant-filtered row back. That is the subject rather than the
+# background — an in-memory substitute would make the kit installable with no
+# services and would test a platform nobody runs (`plan.md` § Complexity
+# Tracking) — so the files live in a second vitest configuration and this job is
+# where they run.
+#
+# Two configurations rather than a condition inside one, for the reason issue
+# #113 gives about every check in this pipeline: a condition is a green that can
+# quietly become "not looking", and the failure would be invisible precisely
+# because the kit is what every module package's server-bound test will compose
+# through.
+#
+# No Meilisearch: the kit's fixture platform is two synthetic modules and one
+# entity, and it composes no search.
+test:kit:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
+    REDIS_URL: redis://redis:6379
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+  script:
+    - pnpm --filter @endora-commerce/test-kit run test:services
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - packages/test-kit/**/*
+        - packages/platform/**/*
+        - packages/contracts/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
 # ---------------------------------------------------------------------------
 # Performance benchmarks (issue #143, ruling D-64). Deliberately NOT on a
 # merge request.

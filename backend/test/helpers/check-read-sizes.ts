@@ -585,6 +585,48 @@ export interface RecordedReadSize {
  * against a base*, so a rebase invalidates it without touching a line anyone
  * wrote — and a census run only on the branch cannot tell the branch's growth
  * from the base's. Both runs, or neither.
+ *
+ * ## 2026-09-05 — `specs/109-backend-test-kit/` Phase 1b: the kit package
+ *
+ * Nine entries, and they are two movements in opposite directions that happen to
+ * land in one merge request. **A new workspace package arrives**
+ * (`packages/test-kit`, 14 source and test files plus its manifest, tsconfigs
+ * and two vitest configurations), and **two files leave `backend/test`** —
+ * `run-isolation.ts` and `run-isolation-provision.ts` become the kit's
+ * `./database`, which is T022.
+ *
+ *  - **whole-repository walks gain the package.** `check-nul-bytes` 7656 ->
+ *    7674 and `check-naming.sh` 7716 -> 7734 (**+18** each: every file the
+ *    package adds, the changeset among them); `check-language.sh` 5775 -> 5789
+ *    and `check-diacritic-folds` 5246 -> 5260 (**+14** each — those two walk
+ *    source rather than everything, so the manifest, the lockfile delta and the
+ *    changeset are outside them).
+ *  - **`backend/test` walks lose the two moved files.**
+ *    `check-fixture-substitution`, `check-harness-teardown` and
+ *    `check-shared-table-wipes` all read 1561 -> **1559**, which is the same
+ *    population measured by three checks and is why the three move together.
+ *    `check-singleton-identity` 4299 -> **4297** walks all of `backend/` and
+ *    sees the same two.
+ *  - **sites move where the moved code carried them.**
+ *    `check-fixture-substitution` 557 -> **555** (the `rowCount` existence probe
+ *    in `run-isolation-provision.ts`, whose ledger entry retires with it — see
+ *    that check's own note) and `check-diacritic-folds` 524 -> **522**. Both are
+ *    site counts falling while a file count elsewhere rises, which is the
+ *    #235/#237 shape and the reason both numbers are recorded.
+ *  - **`check-release-intent` +1 and +1**, as its own note predicts: a merge
+ *    request adding a changeset moves its file count by one, and the new package
+ *    moves its site count by one.
+ *  - **+1 more on the two whole-repository walks**, `check-nul-bytes` 7674 ->
+ *    **7675** and `check-naming.sh` 7734 -> **7735**, for the package's
+ *    `README.md`. It is recorded as its own line rather than folded into the +18
+ *    above because it was measured in a second census after the first: a file
+ *    added between two runs is exactly the drift this report exists to name, and
+ *    writing it as though one census had seen it would be tidying the record.
+ *
+ * `check-test-ownership` does **not** move, which is worth stating because it
+ * looks as though it should: its population is `backend/test/**` plus the module
+ * walk roots, and the kit is neither a module package nor under `backend/test`.
+ * Its `package-test-scripts` author counts module packages, so 56/56 stands.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -777,7 +819,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // only on a file that has already been committed. The observed value is
     // recorded rather than `recorded + 1`, for this row's own standing reason:
     // 5240 would describe no tree at all.
-    files: 5246,
+    files: 5260,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -843,7 +885,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // predicate can read and clears. The parked-file measurement reads 519
     // without it, so unlike this row's `files` field there is no inherited
     // drift here to absorb.
-    sites: 524,
+    sites: 522,
     sources: [],
   },
   'backend/scripts/check-divergence.ts': {
@@ -1088,7 +1130,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): sites 569 -> 555, files 1752 ->
     // 1556.** 196 harness-free single-owner test files leave `backend/test/`. `sites`
     // falls by 14, the reads those files carried.
-    files: 1561,
+    files: 1559,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1098,7 +1140,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both the walk and the finer population in the same merge request.
     // **Batch 15: 532 -> 533.** One read site in the batch's own backend
     // integration test.
-    sites: 557,
+    sites: 555,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -1125,7 +1167,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
     // harness-free single-owner test files leave `backend/test/`.
-    files: 1561,
+    files: 1559,
     sites: null,
     sources: [],
   },
@@ -2030,7 +2072,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7656,
+    files: 7675,
     sites: null,
     sources: [],
   },
@@ -2409,8 +2451,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the scope agreement across the set, which is a decision about the set
     // rather than about a member. 92 + 3x4 + 1, measured, not computed from a
     // delta.
-    files: 84,
-    sites: 105,
+    files: 85,
+    sites: 106,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
@@ -2474,7 +2516,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
     // harness-free single-owner test files leave `backend/test/`.
-    files: 1561,
+    files: 1559,
     sites: 163,
     sources: [],
   },
@@ -2656,7 +2698,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/<id>/src` from `backend/test` was a cross-package value reach
     // and the same test inside that package is not — the population this check exists
     // to judge genuinely shrank. `files` rises by the 52 new configurations.
-    files: 4299,
+    files: 4297,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2852,7 +2894,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7716,
+    files: 7735,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2944,7 +2986,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-naming.sh` move by two: the barrel plus this branch's changeset markdown.
     // Measured twice over one tree, with the new file present and withheld, so the delta
     // is the branch's own and not the base's.
-    files: 5775,
+    files: 5789,
     sites: null,
     sources: ['manifest-index'],
   },

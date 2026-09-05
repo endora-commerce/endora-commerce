@@ -89,6 +89,15 @@ one's setup. That produced `Hook timed out in 30000ms` in `beforeAll`, `Cannot r
 of undefined (reading 'app')` in a teardown that never got a handle, and a role created through
 the API reading back `null` — three signatures that are indistinguishable from real failures.
 
+**Where the mechanism lives, since feature 109's T022.** It is
+`@endora-commerce/test-kit/database` — `leaseRunDatabase`, plus the naming and selection
+rules — and `test/global-setup.ts` is its caller. Nothing about the behaviour below changed
+with the move, including both overrides; what changed is that a module package's own
+server-bound test can now lease a database without naming anything under `backend/`, which is
+the whole point of the kit. The two things this repository still supplies are the two only it
+can answer: `templateIdentity()`, which migrations exist, and `applyMigrations()`, what
+"migrated" means for its schema.
+
 So an invocation gets resources of its own, with nothing to remember:
 
 | Resource | What the run gets | Cleanup |
