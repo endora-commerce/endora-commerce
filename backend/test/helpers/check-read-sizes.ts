@@ -2231,7 +2231,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **And +1 for this merge request's own changeset**, which the guard it lands
     // does not create but the release gate does: a change to a package under
     // `packages/` carries one, and this walk's subject is the whole tree.
-    files: 7720,
+    // **Stacked on the publication branch: +4.** That branch adds the pack gate,
+    // its judgement library, its test and its changeset. This walk is the whole
+    // repository, so it takes all four.
+    files: 7724,
     sites: null,
     sources: [],
   },
@@ -2475,7 +2478,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/scripts` (179). This is the whole of the +316, and it is a
     // population that arrives rather than a tree that grew — the module half's
     // 2069 is unchanged and is what `manifest-index:71/71` still corroborates.
-    files: 2385,
+    // **Stacked on the publication branch: +2.** `backend/scripts/pack-gate.ts`
+    // and `backend/scripts/lib/pack-assert.ts`; the test and the two changesets
+    // are outside this walk's application population.
+    files: 2387,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -3211,7 +3217,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **And +1 for this merge request's own changeset**, which the guard it lands
     // does not create but the release gate does: a change to a package under
     // `packages/` carries one, and this walk's subject is the whole tree.
-    files: 7780,
+    // **Stacked on the publication branch: +4.** The pack gate, its judgement
+    // library, its test and its changeset — this walk is the whole repository.
+    files: 7784,
     sites: null,
     sources: ['manifest-index'],
   },
