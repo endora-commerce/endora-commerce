@@ -28,7 +28,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "lint": "eslint src",
+    "lint": "eslint src test",
     "test": "vitest run",
     "test:services": "vitest run --config vitest.services.config.ts"
   },
