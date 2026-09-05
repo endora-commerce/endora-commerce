@@ -24,12 +24,21 @@ import { afterEach, describe, expect, it } from 'vitest';
  *   2. **`linked` links through the *dependent-bump* machinery and not
  *      otherwise.** It raises a package that is already in a release to the
  *      group's number; it never adds one. So the documented behaviour — a
- *      release of `@endora-commerce/page-builder-core` carries all three — holds today
- *      because every package sits at `0.0.0`, where `workspace:^` resolves to
- *      `^0.0.0` and *any* bump is out of range. At `1.x` the same minor leaves
- *      the peers satisfied, so it carries neither. Both regimes are asserted,
- *      because the second one arrives with the first release and nothing else
- *      in the repository would report it.
+ *      release of `@endora-commerce/page-builder-core` carries all three — holds
+ *      while the group is at **`0.x`**, where `workspace:^` resolves to a caret
+ *      range no minor bump satisfies. At `1.x` the same minor leaves the peers
+ *      satisfied, so it carries neither. Both regimes are asserted, because the
+ *      second one arrives with the group's first major and nothing else in the
+ *      repository would report it.
+ *
+ * **Every fixture that asserts an absolute number seeds its own base version**,
+ * and that is the repair rather than a style. This file read *"holds today
+ * because every package sits at `0.0.0`"* and took the tree's numbers by
+ * default, so D-210's first release — `0.7.0` set by hand across 79 manifests —
+ * turned four of these measurements red for a reason that has nothing to do
+ * with what they measure. A regime is what is under test; which regime the
+ * repository happens to be in today is not, and reading it out of the tree
+ * makes every future release falsify this file again.
  *   3. **A release branch is the one branch the gate would refuse for doing its
  *      job**, and the diff-shaped discriminator `release:changeset` uses tells
  *      it apart from an ordinary one.
@@ -55,6 +64,21 @@ const LIBRARIES = [
   'email-components',
 ] as const;
 const APPLICATIONS = ['backend', 'admin', 'storefront', 'docs'] as const;
+
+/**
+ * The base every **absolute-number** assertion in this file is measured from.
+ *
+ * `0.0.0`, because the numbers those tests name are arithmetic from it — and a
+ * base this file fixes is the whole point. The tree's own version is a release
+ * decision that moves (D-210 moved it to `0.7.0`, and four measurements here
+ * went red for a reason that had nothing to do with the machinery they
+ * measure). What is under test is the **regime**: `0.x`, where `workspace:^`
+ * resolves to a caret range no minor bump satisfies. `0.7.0` is in that same
+ * regime, so those four tests measured the same behaviour throughout and only
+ * ever disagreed about the digits.
+ */
+const BASE = '0.0.0';
+
 const PAGE_BUILDER_GROUP = [
   '@endora-commerce/page-builder-core',
   '@endora-commerce/cms-components',
@@ -69,7 +93,14 @@ afterEach(() => {
 });
 
 interface FixtureOptions {
-  /** Seed every library at this version. Defaults to whatever the tree says. */
+  /**
+   * Seed every library at this version.
+   *
+   * Defaults to whatever the tree says, which is the right default for a test
+   * whose assertion is relative (*did this move at all?*) and the wrong one for
+   * a test that names a number: the tree's version is a release decision that
+   * moves, and D-210 moved it. Every absolute assertion below passes one.
+   */
   readonly seedVersion?: string;
   /** Applied to a copy of the real `.changeset/config.json`. */
   readonly mutateConfig?: (config: Record<string, unknown>) => void;
@@ -155,8 +186,9 @@ describe('the changesets CLI is the one this repository ships', () => {
 
 describe('privatePackages.version — the setting that silently disables everything', () => {
   /**
-   * The headline measurement. 75 of the 78 versionable packages are
-   * `"private": true`, and `@changesets/config@4` defaults `privatePackages` to
+   * The headline measurement. Every versionable package but the handful feature
+   * 104 published is `"private": true`, and `@changesets/config@4` defaults
+   * `privatePackages` to
    * `false`; with it false, `changeset version` reports success and moves
    * nothing, leaving the changeset file on disk to be consumed by a release
    * that will never come.
@@ -206,6 +238,7 @@ describe('privatePackages.version — the setting that silently disables everyth
    */
   it('bumps a public package whatever `privatePackages.version` says', () => {
     const dir = fixture({
+      seedVersion: BASE,
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
@@ -246,7 +279,10 @@ describe('privatePackages.version — the setting that silently disables everyth
    * follows its own member rather than the release that carried it in.
    */
   it('carries a dependent on a `@endora-commerce/contracts` release without sharing its number', () => {
-    const dir = fixture({ files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') } });
+    const dir = fixture({
+      seedVersion: BASE,
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+    });
 
     runChangeset(dir, ['version']);
 
@@ -257,10 +293,12 @@ describe('privatePackages.version — the setting that silently disables everyth
 
 describe('the `linked` group — what it does, and what it does not', () => {
   /**
-   * D-108's documented behaviour, at the versions the tree carries today.
+   * D-108's documented behaviour, in the regime the group is in — `0.x`, which
+   * is where it has been since it was created and where `0.7.0` leaves it.
    */
-  it('carries all three on a minor to `@endora-commerce/page-builder-core`, at 0.0.0', () => {
+  it('carries all three on a minor to `@endora-commerce/page-builder-core`, at 0.x', () => {
     const dir = fixture({
+      seedVersion: BASE,
       files: { '.changeset/a.md': changeset('@endora-commerce/page-builder-core', 'minor') },
     });
 
@@ -275,6 +313,7 @@ describe('the `linked` group — what it does, and what it does not', () => {
 
   it('moves only `@endora-commerce/cms-components` on a patch to it alone', () => {
     const dir = fixture({
+      seedVersion: BASE,
       files: { '.changeset/a.md': changeset('@endora-commerce/cms-components', 'patch') },
     });
 
@@ -293,9 +332,11 @@ describe('the `linked` group — what it does, and what it does not', () => {
    * `linked` raises a package that is **already in a release** to the group's
    * highest version; it never puts one there. What puts `cms-components` and
    * `email-components` into a `page-builder-core` release is their
-   * `peerDependencies` range going out of range — and at `0.0.0`, `workspace:^`
-   * resolves to `^0.0.0`, which *any* bump breaks. After the first real release
-   * a minor no longer does, so the three numbers diverge.
+   * `peerDependencies` range going out of range — and at `0.x`, `workspace:^`
+   * resolves to a caret range a minor bump breaks. From `1.x` a minor no longer
+   * does, so the three numbers diverge. D-210's `0.7.0` is therefore *not* the
+   * regime change: it moved the estate's digits and left this behaviour exactly
+   * where it was.
    *
    * That is correct rather than broken: the reason D-108 gives for the group is
    * that the consuming application must resolve exactly one copy of

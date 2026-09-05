@@ -59,6 +59,18 @@
  *     `workspace:*` (R5). A specifier the application declares nowhere is
  *     refused: inventing a range is how a package ships one nothing resolves.
  *
+ * ## What is not derived, and is preserved instead
+ *
+ * **`version`.** It is the release process's field, not the layer inventory's:
+ * no fact about a package's directory says which release it is. So it is read
+ * off the existing file and written back unchanged, and only a package with no
+ * `package.json` at all — one just moved into place — is seeded, from the
+ * platform host's own version (D-210). It was the constant `'0.0.0'` until the
+ * first release set 79 manifests by hand and regenerating wanted to undo all 70
+ * module packages; a constant here is a release decision recorded by hand
+ * (D-100), and the next release would falsify a new one exactly as the last one
+ * falsified that.
+ *
  * ## What is not derived, and is not emitted either
  *
  * **`peerDependenciesMeta`.** §2 marks it GENERATED "from the layer inventory"
@@ -95,6 +107,7 @@ import {
   PUBLISHED_COMPONENT_LAYER_DIRECTORY,
   UI_LAYER_DIRECTORIES,
 } from './ui-layer.js';
+import { platformPackageNameOf } from './platform-root.js';
 import {
   classifyWorkspaceMembers,
   expandWorkspaceGlob,
@@ -103,6 +116,7 @@ import {
   workspaceMembers,
   workspaceScopes,
   type WorkspaceFs,
+  type WorkspaceMember,
 } from './workspace-packages.js';
 
 /** Raised when a manifest cannot be derived. Never a partial answer. */
@@ -721,13 +735,21 @@ export function findTypesPackage(
 
 // --- rendering -------------------------------------------------------------
 
-/** The fields §2 marks HAND-WRITTEN: read from the existing file, never rewritten. */
-const PRESERVED_FIELDS: readonly string[] = ['description', 'dependencies'];
+/**
+ * The fields this generator does not author: read from the existing file, never
+ * rewritten.
+ *
+ * `description` and `dependencies` are §2's two HAND-WRITTEN fields — a human's
+ * sentence and a human's Constitution IV justification. **`version` joined them
+ * on a different ground** (D-210): nobody hand-writes it, but the release
+ * process owns it and a layer inventory cannot derive it, so the only honest
+ * thing this file can do with it is leave it alone. See {@link versionFor}.
+ */
+const PRESERVED_FIELDS: readonly string[] = ['description', 'dependencies', 'version'];
 
 /** Everything this generator writes. A field on neither list is refused. */
 const GENERATED_FIELDS: readonly string[] = [
   'name',
-  'version',
   'private',
   'type',
   'sideEffects',
@@ -936,6 +958,11 @@ export function renderModulePackageManifests(
   const workspaceNames = new Set(members.map((member) => member.name));
 
   const versions = applicationVersions(repoRoot, countingFs);
+  // The seed a package with no manifest yet is born at, derived once for the
+  // run. Tolerant here and refused at the point of need (`versionFor`): a
+  // workspace with no platform member renders perfectly well as long as every
+  // package it holds already carries a version of its own.
+  const platform = platformSeedVersion(members);
   const nodeEngine = rootNodeEngine(repoRoot, countingFs);
 
   const directories = candidateDirectories(repoRoot, fs);
@@ -1062,6 +1089,7 @@ export function renderModulePackageManifests(
       modulePackageNames,
       workspaceNames,
       versions,
+      platform,
       nodeEngine,
       existing,
       manifestSource: identity.manifestSource,
@@ -1416,6 +1444,12 @@ interface RenderInput {
   readonly modulePackageNames: ReadonlySet<string>;
   readonly workspaceNames: ReadonlySet<string>;
   readonly versions: ReadonlyMap<string, string>;
+  /**
+   * The platform host and the version it carries, for a package that has no
+   * manifest to preserve one from (D-210). `null` when this workspace has no
+   * platform member; {@link versionFor} refuses at the point it needs one.
+   */
+  readonly platform: { readonly name: string; readonly version: string | null } | null;
   readonly nodeEngine: string;
   readonly existing: Readonly<Record<string, unknown>> | null;
   readonly manifestSource: string;
@@ -1699,8 +1733,12 @@ export function renderManifest(input: RenderInput): string {
 
   const manifest = {
     name: input.packageName,
-    // R6 — `0.0.0` and `private` until full F4; `pnpm pack` still works.
-    version: '0.0.0',
+    // R6's `private` half, unchanged: every module package stays private until
+    // F10's slice 3 publishes them, and `pnpm pack` works regardless. Its
+    // `version` half — "stays `0.0.0` until full F4" — was overtaken by D-210,
+    // which set every versionable package to the first release number by hand;
+    // the field is preserved from disk now and is nothing this file decides.
+    version: versionFor(input),
     private: true,
     type: 'module',
     sideEffects: false,
@@ -1723,7 +1761,49 @@ export function renderManifest(input: RenderInput): string {
 }
 
 /**
- * The one field §2 marks HAND-WRITTEN.
+ * The release process's field, preserved (D-210).
+ *
+ * Everything else in this manifest is derived from the package's own layers,
+ * sources and declarations. A version is derived from none of them: it is the
+ * release's statement about what this code *is*, written by
+ * `changeset version` or, for the first one, by hand. So the generator reads it
+ * and writes it back, and the only run in which it has to produce a number is
+ * the one where there is no manifest to read — a module just moved into place,
+ * which gets the platform's own version ({@link platformSeedVersion}).
+ *
+ * **Both refusals below are asked here rather than at the top of the run**, so
+ * a checkout whose packages all carry a version never consults the platform at
+ * all: an input nothing needed must not be able to fail a run that had no
+ * question for it.
+ */
+function versionFor(input: RenderInput): string {
+  const existing = input.existing?.['version'];
+  if (typeof existing === 'string' && existing.length > 0) return existing;
+  const platform = input.platform;
+  if (platform === null) {
+    throw new ModulePackageManifestError(
+      `${input.packageName} has no package.json yet, so its version has to be seeded — and ` +
+        `no workspace member declares \`endora: { "type": "platform" }\`. D-210 releases ` +
+        `every versionable package under one number and \`pnpm pack\` rewrites a ` +
+        `workspace: range to the exact sibling version, so a package born below its ` +
+        `siblings pins a version that will never exist on a registry. The platform's own ` +
+        `manifest is where that number is written and this generator will not invent one.`,
+    );
+  }
+  if (platform.version === null) {
+    throw new ModulePackageManifestError(
+      `${input.packageName} has no package.json yet and ${platform.name} declares no ` +
+        `\`version\`, so there is nothing to seed one from. That number is the platform's ` +
+        `release, not a default this generator may choose: the constant it used to write ` +
+        `went stale the first time a release moved (D-210), which is the whole reason the ` +
+        `seed is derived.`,
+    );
+  }
+  return platform.version;
+}
+
+/**
+ * A sentence a human wrote, preserved (§2, HAND-WRITTEN).
  *
  * Preserved verbatim when the package has one, and seeded from the module's own
  * manifest when it does not — so a module that has just been moved into place
@@ -1933,6 +2013,61 @@ export function applicationVersions(
     );
   }
   return found;
+}
+
+/**
+ * The version a module package that has **no manifest yet** is born at: the
+ * platform host's own (D-210). `null` when this workspace has no platform
+ * member, which the caller refuses at the point a seed is actually needed.
+ *
+ * ## Why a seed exists at all, and why it is not a constant
+ *
+ * A `version` is not derivable from a layer inventory, so this generator
+ * **preserves** the one on disk — see {@link versionFor}. A package that has no
+ * `package.json` yet has nothing to preserve, and the first render is exactly
+ * the run that has to succeed (a module just `git mv`'d into place gets its
+ * manifest from this command), so a number has to come from somewhere.
+ *
+ * It came from the literal `'0.0.0'` until D-210 set 79 manifests to `0.7.0` by
+ * hand, whereupon regenerating wanted to reset all 70 module packages and
+ * `manifests:check` went red on `master`. The lesson is not that the constant
+ * was the wrong number — it is that a release decision written into a generator
+ * is a derived fact recorded by hand (D-100), and the *next* release falsifies a
+ * new constant exactly as the last one falsified `0.0.0`.
+ *
+ * ## Why the platform's number is the right seed
+ *
+ * D-210 releases the platform as one number across every versionable package,
+ * because `pnpm pack` rewrites a `workspace:*` range to the **exact** sibling
+ * version — so a package born below its siblings is one edit away from pinning a
+ * version that will never exist on a registry, and it is a hand edit at release
+ * time in a file this generator exists to stop anybody hand-editing. A new
+ * module package joins the estate where the estate is.
+ *
+ * Changesets versions packages **independently** (D-108), so this says nothing
+ * about where an *existing* package stands: the seed is a starting point for a
+ * package that has never been released, and after that its number is the release
+ * process's alone.
+ *
+ * ## Which member the platform is
+ *
+ * The one declaring `endora: { "type": "platform" }`, asked through
+ * {@link platformPackageNameOf} rather than re-read here: that function is the
+ * repository's single author for *"which member is the platform"* and it already
+ * refuses a workspace where two members claim it. Going through the name and
+ * back to the member costs a lookup and keeps the answer in one place (D-100).
+ */
+export function platformSeedVersion(
+  members: readonly WorkspaceMember[],
+): { readonly name: string; readonly version: string | null } | null {
+  const name = platformPackageNameOf(members);
+  if (name === null) return null;
+  const member = members.find((candidate) => candidate.name === name);
+  const declared = member?.manifest['version'];
+  return {
+    name,
+    version: typeof declared === 'string' && declared.length > 0 ? declared : null,
+  };
 }
 
 /** The Node engine the workspace root declares — one repository, one floor. */
