@@ -2212,7 +2212,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `backend/test/unit/ci/pack-gate.test.ts`, and this walk opens
     // 3 of them. Measured by taking the three out of the tree and
     // re-running: without them this check reads 7719.
-    files: 7722,
+    // **7722 -> 7723 (+1): this branch's own changeset file.** Both of these are
+    // whole-repository walks, and `.changeset/*.md` is in the repository. It is
+    // the ordinary per-changeset move this file already warns about one entry
+    // over, arriving in the two walks that count every file rather than in the
+    // one whose population is the changesets.
+    files: 7723,
     sites: null,
     sources: [],
   },
@@ -3157,7 +3162,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrived with the five merges this branch was rebased onto and the record
     // was already stale on `master`. Re-recorded rather than left drifting,
     // because a census that cannot reach `0 drifted` stops being read.
-    files: 7782,
+    // **7782 -> 7783 (+1): this branch's own changeset file.** Both of these are
+    // whole-repository walks, and `.changeset/*.md` is in the repository. It is
+    // the ordinary per-changeset move this file already warns about one entry
+    // over, arriving in the two walks that count every file rather than in the
+    // one whose population is the changesets.
+    files: 7783,
     sites: null,
     sources: ['manifest-index'],
   },
