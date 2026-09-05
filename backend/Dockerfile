@@ -124,6 +124,17 @@ RUN pnpm --filter "backend^..." run build
 # belongs to the compile and does not follow the application into production.
 RUN NODE_OPTIONS=--max-old-space-size=2048 pnpm --filter backend run build
 
+# The one per-instance build input the backend image takes (feature 110, FR-009).
+# It names the deployment whose overlay modules and `divergence.ts` this image
+# composes, and it is baked rather than left to runtime so that an image *is* the
+# deployment it was built for. Unset is bare core and stays byte-for-byte bare
+# core: `selectedDeployment` reads a blank value as no deployment at all, which is
+# what an unpassed `--build-arg` leaves behind. Compose may still override it at
+# runtime — an operator moving one image between deployments is their decision,
+# not something this line takes away.
+ARG DEPLOYMENT
+ENV DEPLOYMENT=$DEPLOYMENT
+
 ENV NODE_ENV=production
 ENV PORT=3001
 WORKDIR /app/backend
