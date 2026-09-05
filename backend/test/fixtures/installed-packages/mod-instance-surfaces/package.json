@@ -1,0 +1,14 @@
+{
+  "name": "@fixture/mod-instance-surfaces",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "endora": { "type": "module", "id": "fixture_instance_surfaces", "platform": "0.x" },
+  "files": ["lib", "docs"],
+  "exports": {
+    ".": "./lib/manifest.js",
+    "./backend": "./lib/backend/index.js",
+    "./admin": "./lib/admin/index.js",
+    "./package.json": "./package.json"
+  }
+}

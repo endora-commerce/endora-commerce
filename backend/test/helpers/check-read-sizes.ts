@@ -819,7 +819,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // only on a file that has already been committed. The observed value is
     // recorded rather than `recorded + 1`, for this row's own standing reason:
     // 5240 would describe no tree at all.
-    files: 5260,
+    // **Feature 110 Phase 1 (`specs/110-instance-repository/`): 5260 -> 5262.** Two of
+    // the three TypeScript files this branch adds reach this walk —
+    // `packages/cli/src/lib/instance-build-inputs.ts` and
+    // `backend/test/unit/ci/instance-build-inputs.test.ts`. The third is under
+    // `backend/test/unit/scripts/`, which this walk excludes, and the fixture package's
+    // hand-written `.js` is outside its extensions.
+    files: 5262,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1130,7 +1136,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): sites 569 -> 555, files 1752 ->
     // 1556.** 196 harness-free single-owner test files leave `backend/test/`. `sites`
     // falls by 14, the reads those files carried.
-    files: 1559,
+    // **Feature 110 Phase 1: 1559 -> 1561.** The two test files this branch adds under
+    // `backend/test/`. `sites` moves with them — see below.
+    files: 1561,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1140,7 +1148,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both the walk and the finer population in the same merge request.
     // **Batch 15: 532 -> 533.** One read site in the batch's own backend
     // integration test.
-    sites: 555,
+    // **Feature 110 Phase 1: 555 -> 556.** One, and it is
+    // `test/unit/ci/instance-build-inputs.test.ts` — measured by parking each of the
+    // branch's two new test files in turn and re-running, because this population is
+    // *files carrying a read this check recognises* and which of the two carried one
+    // is not something to reason about. It reads no database: its `.find(…)` over the
+    // declared input list is in the check's read vocabulary, and it defaults nothing,
+    // so `violations` and the ledger are unmoved.
+    sites: 556,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -1167,7 +1182,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
     // harness-free single-owner test files leave `backend/test/`.
-    files: 1559,
+    // **Feature 110 Phase 1: 1559 -> 1561.** The two test files this branch adds under
+    // `backend/test/`.
+    files: 1561,
     sites: null,
     sources: [],
   },
@@ -2077,7 +2094,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // oscillation `check-release-intent`'s own entry stopped tracking by taking
     // the changesets out of its population — these two walks cannot do that,
     // being whole-tree walks whose subject is every file in the repository.
-    files: 7684,
+    // **Feature 110 Phase 1: +9.** This is the walk that sees all nine files the
+    // branch adds: three TypeScript sources, the five of the
+    // `mod-instance-surfaces` fixture package (its manifest, three `.js` and its
+    // documentation page) and its changeset markdown. Re-measured after rebasing
+    // onto the fifteen commits that landed while the branch was open, not carried
+    // over from the pre-rebase measurement.
+    files: 7693,
     sites: null,
     sources: [],
   },
@@ -2528,7 +2551,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
     // harness-free single-owner test files leave `backend/test/`.
-    files: 1559,
+    // **Feature 110 Phase 1: 1559 -> 1561.** The two test files this branch adds under
+    // `backend/test/`.
+    files: 1561,
     sites: 163,
     sources: [],
   },
@@ -2617,7 +2642,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **1639 -> 1640**: the branch's own companion test is a `.test.ts` under
     // `backend/test`, so this check counts it. Recorded after the fact rather
     // than predicted, which is the only way this number is ever right.
-    files: 1641,
+    // **Feature 110 Phase 1: 1641 -> 1643.** The two test files this branch adds under
+    // `backend/test/`, both `.test.ts`.
+    files: 1643,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -2710,7 +2737,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/<id>/src` from `backend/test` was a cross-package value reach
     // and the same test inside that package is not — the population this check exists
     // to judge genuinely shrank. `files` rises by the 52 new configurations.
-    files: 4297,
+    // **Feature 110 Phase 1: 4297 -> 4299.** Two of the three TypeScript files this
+    // branch adds; the third is under `backend/test/unit/scripts/`, outside this walk.
+    files: 4299,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2925,7 +2954,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // working, not failing -- the band tolerates it, `master` stays green, and the
     // correction is one small merge request per batch. Recorded here so the sixth
     // reader does not go looking for a cause.
-    files: 7744,
+    // **Feature 110 Phase 1: +9.** The same nine files `check-nul-bytes` counts —
+    // three TypeScript sources, the five of the `mod-instance-surfaces` fixture
+    // package and the changeset markdown. Re-measured after the rebase.
+    files: 7753,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3017,7 +3049,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-naming.sh` move by two: the barrel plus this branch's changeset markdown.
     // Measured twice over one tree, with the new file present and withheld, so the delta
     // is the branch's own and not the base's.
-    files: 5789,
+    // **Feature 110 Phase 1: 5789 -> 5795.** Six: three TypeScript sources and the
+    // fixture package's three hand-written `.js` files. Its `package.json`, its
+    // documentation page and the changeset markdown are outside this scan.
+    files: 5795,
     sites: null,
     sources: ['manifest-index'],
   },

@@ -30,12 +30,22 @@
 # been executed, which is how a `rootDir` defect sat latent in three of them.
 #
 # Required CI/CD variables (Settings → CI/CD → Variables):
-#   Build/runtime (public, baked into the frontend bundles at build time):
+#   Per-instance build inputs (feature 110, FR-009). The set, each input's meaning,
+#   its default and the build argument each image reads are declared **once**, in
+#   `packages/cli/src/lib/instance-build-inputs.ts` — they are an instance's inputs
+#   and not this pipeline's, so a client's own pipeline is rendered from the same
+#   declaration (D-207, D-208). The `--build-arg` lines in the three build jobs
+#   below are what that declaration emits, and
+#   `backend/test/unit/ci/instance-build-inputs.test.ts` fails on a job, a
+#   Dockerfile or a mapping that has drifted from it. Do not add a fifth input here:
+#   add it there, or say why it is not derived.
+#     DEPLOYMENT              e.g. acme              (overlay modules + divergence)
 #     API_DOMAIN              e.g. api.example.com
+#     SALES_CHANNEL_CODE      e.g. pl_default
+#     DEFAULT_LOCALE          e.g. en-US             (defaults to en-US)
+#   Domains this pipeline deploys to, which are not build inputs:
 #     STOREFRONT_DOMAIN       e.g. example.com
 #     ADMIN_DOMAIN            e.g. admin.example.com
-#     SALES_CHANNEL_CODE      e.g. pl_default        (NEXT_PUBLIC_SALES_CHANNEL_CODE)
-#     DEFAULT_LOCALE          e.g. en-US             (NEXT_PUBLIC_DEFAULT_LOCALE)
 #   Deploy:
 #     SSH_PRIVATE_KEY  (type File, protected)  deploy key for the VPS user.
 #                      Masked type rejects multi-line values, so use type=File:
@@ -1956,7 +1966,13 @@ perf:storefront:
 build:backend:
   extends: .build-base
   script:
+    # `DEPLOYMENT` reaches a build for the first time here (feature 110, FR-009).
+    # It selects the deployment whose overlay modules and `divergence.ts` compose;
+    # blank is bare core, byte-for-byte, which is what `selectedDeployment` reads a
+    # whitespace value as — so an image built with the variable unset is exactly
+    # the image this job produced before.
     - docker build -f backend/Dockerfile
+      --build-arg DEPLOYMENT="${DEPLOYMENT}"
       -t "$CI_REGISTRY_IMAGE/backend:$IMAGE_TAG"
       -t "$CI_REGISTRY_IMAGE/backend:latest" .
     - docker push "$CI_REGISTRY_IMAGE/backend:$IMAGE_TAG"
@@ -1966,9 +1982,9 @@ build:storefront:
   extends: .build-base
   script:
     - docker build -f storefront/Dockerfile
-      --build-arg NEXT_PUBLIC_API_BASE_URL="https://$API_DOMAIN"
-      --build-arg NEXT_PUBLIC_SALES_CHANNEL_CODE="$SALES_CHANNEL_CODE"
-      --build-arg NEXT_PUBLIC_DEFAULT_LOCALE="$DEFAULT_LOCALE"
+      --build-arg NEXT_PUBLIC_API_BASE_URL="https://${API_DOMAIN}"
+      --build-arg NEXT_PUBLIC_SALES_CHANNEL_CODE="${SALES_CHANNEL_CODE}"
+      --build-arg NEXT_PUBLIC_DEFAULT_LOCALE="${DEFAULT_LOCALE:-en-US}"
       -t "$CI_REGISTRY_IMAGE/storefront:$IMAGE_TAG"
       -t "$CI_REGISTRY_IMAGE/storefront:latest" .
     - docker push "$CI_REGISTRY_IMAGE/storefront:$IMAGE_TAG"
@@ -1994,7 +2010,7 @@ build:admin:
   # is short".
   script:
     - docker build -f admin/Dockerfile
-      --build-arg VITE_API_BASE_URL="https://$API_DOMAIN"
+      --build-arg VITE_API_BASE_URL="https://${API_DOMAIN}"
       -t "$CI_REGISTRY_IMAGE/admin:$IMAGE_TAG"
       -t "$CI_REGISTRY_IMAGE/admin:latest" .
     - docker push "$CI_REGISTRY_IMAGE/admin:$IMAGE_TAG"
