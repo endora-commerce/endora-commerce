@@ -518,6 +518,7 @@ function platformSurfaceInput(sources: Record<string, string>): PlatformSurfaceI
     host: {
       name: '@endora-commerce/platform',
       subpathTargets: new Map([['http', 'backend/src/http/index.ts']]),
+      declaredSubpaths: new Set(['http', 'composition']),
     },
   };
 }
@@ -6722,6 +6723,21 @@ const CHECKS: readonly CheckEntry[] = [
           'unpublished-subpath',
         ),
       ),
+      // D-160.14 — the third subpath state, and the only finding here that
+      // neither `node` nor `tsc` would raise: `./composition` is declared by the
+      // host's `exports` map, so it resolves, and is carried by no barrel, so no
+      // module may name it. A proof of its own because a set sweep over
+      // published symbols cannot see it — the reach names no symbol the surface
+      // is keyed by, and the two neighbouring verdicts are both wrong for it.
+      'host-internal-subpath': top(() =>
+        platformSurfaceFindings(
+          {
+            'packages/modules/blog/src/backend.ts':
+              "import { composeModules } from '@endora-commerce/platform/composition';",
+          },
+          'host-internal-subpath',
+        ),
+      ),
       'stale-ledger-key': top(
         () =>
           checkPlatformSurface(platformSurfaceInput({}), {
@@ -10009,7 +10025,13 @@ describe('every red proof enters at the top of the analysis', () => {
       // surface come back **short**, which is the direction that reports *more*
       // findings, so neither would ever be noticed as a defect — an author would
       // read the extra finding as real and widen the barrel to clear it.
-      'backend/scripts/check-platform-surface.ts': 9,
+      //
+      // Plus D-160.14's `host-internal-subpath`, the sixth finding and a shape
+      // its two neighbours cannot stand in for: `./composition` is declared by
+      // the `exports` map, so `node` and `tsc` both resolve it and this check is
+      // the only thing that refuses a module naming it — and it names no symbol,
+      // so the published-set sweep does not see it either.
+      'backend/scripts/check-platform-surface.ts': 10,
       // Plus D-171.1's two: the condition consumer-side declaration is
       // licensed against, and the discrimination that keeps it from firing on
       // the correct case. The second is a proof of its own because a signal

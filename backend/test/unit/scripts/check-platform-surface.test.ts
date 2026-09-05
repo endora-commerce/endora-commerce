@@ -9,7 +9,9 @@ import {
   hostDependentCoverage,
   isPackageToolingConfig,
   keyOf,
+  NO_SYMBOL,
   platformSurfaceRefusal,
+  remedyOf,
   scanPlatformSurface,
   UNPUBLISHED_PLATFORM_REACHES,
   type LedgeredReach,
@@ -87,6 +89,12 @@ const HOST: HostPackage = {
     ['kernel', 'backend/src/kernel/index.ts'],
     ['http', 'backend/src/http/index.ts'],
   ]),
+  // The manifest's own `exports` keys, which are a **superset** of the published
+  // barrels (D-160.14): `composition` is declared, carried by no barrel, and
+  // nameable by no module. The two lists differing is what lets the analysis
+  // tell "the map refuses this path" from "the map resolves it and no module
+  // may write it".
+  declaredSubpaths: new Set(['kernel', 'http', 'composition']),
 };
 
 function input(
@@ -418,6 +426,76 @@ describe('a bare specifier into the host package', () => {
       {},
     );
     expect(kinds(result.violations)).toEqual(['unpublished-subpath']);
+  });
+
+  /**
+   * D-160.14 — the third state, and the only finding here that neither `node`
+   * nor `tsc` would raise. `./composition` is declared by the `exports` map, so
+   * it resolves; it is carried by no barrel, so no module may name it.
+   *
+   * The fixture enters as source text at the top of the scan, like every other
+   * proof in this file (issue #130): the classification under test is the one a
+   * real run performs on a real specifier.
+   */
+  it('reports a subpath the host declares and publishes to nobody', () => {
+    const reach = {
+      [packaged]: "import { composeModules } from '@endora-commerce/platform/composition';",
+    };
+    const result = checkPlatformSurface(input(reach), {});
+    expect(kinds(result.violations)).toEqual(['host-internal-subpath']);
+    expect(result.violations[0]).toMatchObject({
+      moduleId: 'blog',
+      target: '@endora-commerce/platform/composition',
+      specifier: '@endora-commerce/platform/composition',
+      symbol: NO_SYMBOL,
+    });
+    // Its remedy must not be the `unpublished-subpath` one: telling this author
+    // that the map "refuses the path at resolution time" is false, and the
+    // repair it implies — widen the map — is the thing D-160.8 refuses.
+    expect(remedyOf(result.violations[0]!)).toContain('publishes to nobody');
+    expect(remedyOf(result.violations[0]!)).not.toContain('names no subpath');
+    // A host reach for the coverage derivation, like every other one.
+    expect([...scanPlatformSurface(input(reach)).hostReachModules]).toEqual(['blog']);
+  });
+
+  it('tells the declared-and-unpublished subpath from the one that does not exist', () => {
+    // The two states are one branch and two verdicts, so the discrimination is
+    // asserted rather than assumed: `composition` is in `declaredSubpaths`,
+    // `testing` is in neither list.
+    expect(resolveHostSpecifier('@endora-commerce/platform/composition', HOST)).toEqual({
+      kind: 'host-internal-subpath',
+      subpath: 'composition',
+    });
+    expect(resolveHostSpecifier('@endora-commerce/platform/testing', HOST)).toEqual({
+      kind: 'undeclared-subpath',
+      subpath: 'testing',
+    });
+  });
+
+  it('does not publish a declared subpath’s symbols to a module’s relative reach', () => {
+    // §2.7.5(a), measured as a discrimination rather than asserted: the subpath
+    // is not a sixth `PUBLISHED_SUBPATHS` entry, so `composeModules` is still
+    // unpublished at `kernel/compose.ts` for a module writing the relative
+    // specifier. An entry there would have cleared this reach — silently, since
+    // the check reports `violations=0` on the real tree.
+    const source = {
+      'backend/src/modules/blog/backend.ts':
+        "import { composeModules } from '../../kernel/compose.js';",
+    };
+    const result = checkPlatformSurface(
+      input(source, {
+        // The file the specifier lands on has to exist for the reach to be
+        // *resolved* rather than unresolvable — the proof is about the verdict,
+        // so it must not pass for the wrong reason.
+        files: new Set([...FIXTURE_FILES, ...Object.keys(source), 'backend/src/kernel/compose.ts']),
+      }),
+      {},
+    );
+    expect(kinds(result.violations)).toEqual(['unpublished-symbol']);
+    expect(result.violations[0]).toMatchObject({
+      symbol: 'composeModules',
+      target: 'backend/src/kernel/compose.ts',
+    });
   });
 
   it('reads nothing as a host reach when the workspace declares no platform', () => {

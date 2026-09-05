@@ -997,12 +997,21 @@ function installedPlatform(layout: PackageLayout): {
     barrelTargets.set(subpath, barrelKeyOf(subpath));
   }
   if (barrelSources.size === 0) return null;
+  // The installed host's own `exports` map, which declares more than the five
+  // barrels: `./composition` is host composition surface no module may name
+  // (D-160.14), and telling its author that the map "refuses the path at
+  // resolution time" would be false — it resolves.
+  const declaredSubpaths = new Set(
+    Object.keys(manifest.exports ?? {})
+      .filter((key) => key.startsWith('./') && key !== './package.json')
+      .map((key) => key.slice(2)),
+  );
 
   const surface = publishedSurface(barrelSources, (fromKey, specifier) =>
     resolvePlatformTarget(fromKey, specifier, dir),
   );
   return {
-    package: { name, subpathTargets: barrelTargets },
+    package: { name, subpathTargets: barrelTargets, declaredSubpaths },
     surface,
     sourceRoot: 'src',
     barrels: barrelSources.size,

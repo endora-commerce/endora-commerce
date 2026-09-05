@@ -156,6 +156,23 @@
  *     which is not a reason to leave it unjudged: what makes it a *finding* is
  *     that widening the map is the obvious repair, and the whole of D-160.8 is
  *     that widening the map is the thing an author must not do quietly.
+ *   * `host-internal-subpath` — a bare specifier naming a subpath the `exports`
+ *     map **does** declare and no barrel carries (D-160.14, feature 109). It is
+ *     a third state and not a shade of the two above, and it is the only one of
+ *     the six that `node` and `tsc` both accept: `./composition` resolves, so
+ *     nothing but this check stands between a module and 27 composition symbols
+ *     — `composeModules`, `createRootContainer`, `registerOrm` — that no module
+ *     may name, production source or test. A module's server-bound test composes
+ *     through the test kit's `composeTestServer`.
+ *
+ *     It could not be a sixth {@link PUBLISHED_SUBPATHS} entry, measured:
+ *     {@link PlatformSurface.published} is keyed by target file with no subpath
+ *     dimension, so that entry would publish `composeModules` out of
+ *     `kernel/compose.ts` for a module's *relative* reach as well — and, this
+ *     check reporting `violations=0`, would change nothing it prints. The two
+ *     lists answering differently is the mechanism, not a drift to reconcile:
+ *     {@link HostPackage.declaredSubpaths} is the manifest's answer,
+ *     {@link PUBLISHED_SUBPATHS} is the ruling's.
  *
  * ## One key space, and it is the repository's
  *
@@ -224,7 +241,8 @@ export type PlatformSurfaceFindingKind =
   | 'whole-file-reach'
   | 'unresolvable-reach'
   | 'unattributed-source'
-  | 'unpublished-subpath';
+  | 'unpublished-subpath'
+  | 'host-internal-subpath';
 
 export interface PlatformSurfaceFinding {
   readonly kind: PlatformSurfaceFindingKind;
@@ -518,9 +536,15 @@ export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfac
       // and the two answers must not both be consulted.
       const hostReach = resolveHostSpecifier(specifier.text, host);
       if (hostReach !== null) hostReachModules.add(moduleId);
-      if (hostReach?.kind === 'undeclared-subpath') {
+      if (hostReach?.kind === 'undeclared-subpath' || hostReach?.kind === 'host-internal-subpath') {
         findings.push({
-          kind: 'unpublished-subpath',
+          // The two are one branch and two verdicts on purpose: both are about
+          // the *subpath* rather than a symbol, and only one of them names a
+          // path the host's `exports` map resolves.
+          kind:
+            hostReach.kind === 'undeclared-subpath'
+              ? 'unpublished-subpath'
+              : 'host-internal-subpath',
           file,
           line: specifier.line,
           moduleId,
@@ -765,6 +789,14 @@ export function remedyOf(finding: PlatformSurfaceFinding): string {
       return (
         `\`${finding.specifier}\` names no subpath the host publishes — its \`exports\` map ` +
         'refuses the path at resolution time'
+      );
+    case 'host-internal-subpath':
+      return (
+        `\`${finding.specifier}\` names a subpath the host declares for its own composition ` +
+        'and publishes to nobody (host-package.md §2.7). It resolves, which is why this is ' +
+        'the one finding here that neither `node` nor `tsc` would raise — and no module may ' +
+        'name it, production source or test alike. A server-bound test composes through the ' +
+        'test kit, never through `composeModules`'
       );
   }
 }

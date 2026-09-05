@@ -595,7 +595,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrives.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1883 -> 1935.** 52 module
     // packages gain a `vitest.config.ts`, and its route walk reads a package root.
-    files: 1935,
+    files: 1936,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -640,7 +640,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2059,
+    files: 2060,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -777,7 +777,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // only on a file that has already been committed. The observed value is
     // recorded rather than `recorded + 1`, for this row's own standing reason:
     // 5240 would describe no tree at all.
-    files: 5245,
+    files: 5246,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -843,7 +843,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // predicate can read and clears. The parked-file measurement reads 519
     // without it, so unlike this row's `files` field there is no inherited
     // drift here to absorb.
-    sites: 523,
+    sites: 524,
     sources: [],
   },
   'backend/scripts/check-divergence.ts': {
@@ -855,7 +855,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // alone: with two overlay modules in the tree that number is 2, and a walk
     // that lost the whole module tree would print `files=2` and look exactly
     // like a healthy run over a small deployment.
-    files: 2162,
+    files: 2163,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -927,7 +927,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2059,
+    files: 2060,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -956,7 +956,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2059,
+    files: 2060,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -985,7 +985,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2059,
+    files: 2060,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1154,7 +1154,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2059,
+    files: 2060,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1840,7 +1840,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrive in the module walk, and 52 module packages gain a `vitest.config.ts` —
     // both roots this check reads, so each file counts on both sides of its union.
     // `sites` is the specifiers and table references they carry.
-    files: 4651,
+    files: 4652,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -2030,7 +2030,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7654,
+    files: 7656,
     sites: null,
     sources: [],
   },
@@ -2208,7 +2208,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2059,
+    files: 2060,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -2548,7 +2548,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2059,
+    files: 2060,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2607,7 +2607,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2059,
+    files: 2060,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2656,7 +2656,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/<id>/src` from `backend/test` was a cross-package value reach
     // and the same test inside that package is not — the population this check exists
     // to judge genuinely shrank. `files` rises by the 52 new configurations.
-    files: 4298,
+    files: 4299,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2852,7 +2852,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7714,
+    files: 7716,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2937,7 +2937,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on the merged `master` in a clean checkout. Every branch was 0-drift on its own
     // base; the drift exists only in the union, which is what makes the merged tree the
     // only place it can be recorded.
-    files: 5774,
+    // **2026-09-05: +1 for feature 109's `packages/platform/src/composition/index.ts`.**
+    // The platform's sixth subpath (D-160.14) is one new file, reaching each walk at the
+    // size of the subtree it covers -- which is why eleven module and platform walks move
+    // by exactly one and share the value they move from. `check-nul-bytes` and
+    // `check-naming.sh` move by two: the barrel plus this branch's changeset markdown.
+    // Measured twice over one tree, with the new file present and withheld, so the delta
+    // is the branch's own and not the base's.
+    files: 5775,
     sites: null,
     sources: ['manifest-index'],
   },

@@ -264,16 +264,44 @@ export interface HostPackage {
   /** The npm name the host publishes under. */
   readonly name: string;
   /**
-   * Declared subpath (`kernel`) → the barrel's file key, in the caller's own
-   * namespace. A subpath that is not here is one the `exports` map refuses at
-   * resolution time; the caller reports it rather than resolving it.
+   * **Published** subpath (`kernel`) → the barrel's file key, in the caller's
+   * own namespace. This is {@link PUBLISHED_SUBPATHS}' population, not the
+   * `exports` map's: a subpath the map declares and no barrel carries is in
+   * {@link HostPackage.declaredSubpaths} and not here.
    */
   readonly subpathTargets: ReadonlyMap<string, string>;
+  /**
+   * Every subpath the host's own `exports` map declares, `./package.json`
+   * aside — read off the manifest, never written down (`lib/platform-root.ts`'s
+   * `platformSubpathsOf`).
+   *
+   * It exists because the two lists legitimately differ (D-160.14, feature 109;
+   * `host-package.md` §2.7.5a). `./composition` carries the 27 composition
+   * symbols the host's own root and the test kit need: **declared** by the map,
+   * so `node` and `tsc` resolve it, and **published** by no barrel, so no module
+   * may name it. Without both lists a reach into it is indistinguishable from a
+   * reach into a subpath that does not exist, and the remedy a consumer is
+   * handed — *"the map refuses this at resolution time"* — is false.
+   *
+   * It must not be folded into {@link PUBLISHED_SUBPATHS} either, which was
+   * measured: {@link PlatformSurface.published} is keyed by **target file** with
+   * no subpath dimension, so a sixth entry there publishes `composeModules` out
+   * of `kernel/compose.ts` for every reach at that file, a module's *relative*
+   * one included — and because this check reports `violations=0`, the widening
+   * would change nothing it prints. A blindness that arrives green.
+   */
+  readonly declaredSubpaths: ReadonlySet<string>;
 }
 
 /** What a bare specifier into the host package names, or nothing. */
 export type HostReach =
   | { readonly kind: 'published-subpath'; readonly subpath: string; readonly target: string }
+  /**
+   * Declared by the `exports` map, carried by no barrel — host composition
+   * surface. It resolves for `node` and `tsc`, which is exactly why a module
+   * naming it needs a finding of its own: nothing else would stop it.
+   */
+  | { readonly kind: 'host-internal-subpath'; readonly subpath: string }
   | { readonly kind: 'undeclared-subpath'; readonly subpath: string };
 
 /**
@@ -288,6 +316,12 @@ export type HostReach =
  * `null` for a relative specifier, for a third party's, and for every specifier
  * at all when the workspace declares no platform — a fixture workspace
  * legitimately has none, and "no host reach" is the only honest answer there.
+ *
+ * **Three answers, not two** (D-160.14). A subpath the `exports` map declares
+ * and no barrel carries is `host-internal-subpath`, between the published one
+ * and the one that does not exist. Collapsing it into either is wrong in a
+ * different way: as *published* it would license the reach, and as *undeclared*
+ * it would tell the author their specifier does not resolve, which it does.
  */
 export function resolveHostSpecifier(
   specifier: string,
@@ -297,9 +331,9 @@ export function resolveHostSpecifier(
   if (specifier !== host.name && !specifier.startsWith(`${host.name}/`)) return null;
   const subpath = specifier.slice(host.name.length).replace(/^\//, '');
   const target = host.subpathTargets.get(subpath);
-  return target === undefined
-    ? { kind: 'undeclared-subpath', subpath }
-    : { kind: 'published-subpath', subpath, target };
+  if (target !== undefined) return { kind: 'published-subpath', subpath, target };
+  if (host.declaredSubpaths.has(subpath)) return { kind: 'host-internal-subpath', subpath };
+  return { kind: 'undeclared-subpath', subpath };
 }
 
 /**

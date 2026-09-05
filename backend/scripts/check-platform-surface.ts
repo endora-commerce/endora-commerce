@@ -37,6 +37,7 @@ import {
   type HostPackage,
 } from './lib/platform-surface.js';
 import { requireModuleLayout } from './lib/module-roots.js';
+import { platformSubpathsAt } from './lib/platform-root.js';
 import { reportReadSize } from './lib/read-size.js';
 
 export * from '@endora-commerce/cli/rules/platform-surface.js';
@@ -143,6 +144,12 @@ async function main(): Promise<void> {
   // its own manifest, and one entry per published subpath pointing at the barrel
   // this run just read. Both derived — a scope written here would break on D-161
   // and a subpath list would break on the sixth published directory.
+  //
+  // `declaredSubpaths` is the *manifest's* own answer and deliberately a second
+  // list (D-160.14). `./composition` is declared by the `exports` map and
+  // carried by no barrel, so `node` and `tsc` both resolve it and only this
+  // check can refuse a module that names it — as `host-internal-subpath`, which
+  // is neither "published" nor "the map refuses this path".
   const hostName = layout.platformPackageName;
   if (hostName === null) {
     console.error(
@@ -160,6 +167,7 @@ async function main(): Promise<void> {
         repoKeyOf(join(platformRoot, barrelKeyOf(subpath))),
       ]),
     ),
+    declaredSubpaths: new Set(platformSubpathsAt(layout.repoRoot)),
   };
 
   // The population is the module tree, and the rest of `src/` is a small
@@ -266,7 +274,11 @@ async function main(): Promise<void> {
       '\nA module reached platform surface the host does not publish (feature 080 §1,\n' +
         'D-160.8). Take the published symbol from the directory barrel, take the port\n' +
         'where the contract says the class is `O`, or repair the call site before the\n' +
-        'module can be packaged — an `exports` map will refuse it at resolution time.\n',
+        'module can be packaged — an `exports` map will refuse it at resolution time.\n' +
+        '\nOne kind is the exception and is the reason it has a kind of its own: a\n' +
+        '`host-internal-subpath` reach *does* resolve, for `node` and for `tsc` alike\n' +
+        '(D-160.14). Nothing but this check stands between a module and the composition\n' +
+        'surface the host keeps for itself, so its remedy is never "widen the map".\n',
     );
     for (const finding of result.violations) {
       console.error(
