@@ -777,7 +777,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // only on a file that has already been committed. The observed value is
     // recorded rather than `recorded + 1`, for this row's own standing reason:
     // 5240 would describe no tree at all.
-    files: 5245,
+    files: 5244,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -843,7 +843,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // predicate can read and clears. The parked-file measurement reads 519
     // without it, so unlike this row's `files` field there is no inherited
     // drift here to absorb.
-    sites: 520,
+    sites: 522,
     sources: [],
   },
   'backend/scripts/check-divergence.ts': {
@@ -1098,7 +1098,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both the walk and the finer population in the same merge request.
     // **Batch 15: 532 -> 533.** One read site in the batch's own backend
     // integration test.
-    sites: 556,
+    sites: 557,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -1190,7 +1190,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // recorded, and stayed inside the +50% band for a day. Worth stating rather
     // than quietly bumping: a re-record can under-record, and the band cannot see
     // it in that direction either.
-    files: 297,
+    files: 298,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     sites: 15,
     sources: ['manifest-index', 'contracts-barrel'],
@@ -1410,7 +1410,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moves by one whenever anybody writes or deletes a page — which is the
     // number that has to move, because the whole defect this check exists for
     // was a page nobody's list mentioned.
-    files: 103,
+    files: 104,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -1516,7 +1516,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // observed value absorbs **+671** of it (this branch's base, 36174efa1, observed
     // 32290). Stated rather than left implicit: the number is re-recorded here because
     // this branch moved it, not because this branch grew it.
-    sites: 32508,
+    sites: 32604,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -2157,7 +2157,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // apportioned. A module added or removed now moves `files` by one, which is
     // the property that makes the number worth recording.
     sites: 814,
-    files: 81,
+    files: 84,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -2563,7 +2563,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **1639 -> 1640**: the branch's own companion test is a `.test.ts` under
     // `backend/test`, so this check counts it. Recorded after the fact rather
     // than predicted, which is the only way this number is ever right.
-    files: 1642,
+    files: 1641,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -2656,7 +2656,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/<id>/src` from `backend/test` was a cross-package value reach
     // and the same test inside that package is not — the population this check exists
     // to judge genuinely shrank. `files` rises by the 52 new configurations.
-    files: 4294,
+    files: 4297,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2924,7 +2924,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this walk does not open it — which is why the delta here is +1 where
     // `check:naming`'s, over the same two added files, is +2. The other two
     // arrived on `master`; parking this branch's reads 5707.
-    files: 5769,
+    files: 5773,
     sites: null,
     sources: ['manifest-index'],
   },
