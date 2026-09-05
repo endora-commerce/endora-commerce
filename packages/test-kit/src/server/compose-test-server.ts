@@ -171,14 +171,31 @@ export interface ComposeTestServerOptions {
    */
   readonly contribute?: (ctx: ComposedPlatformContext) => void | Promise<void>;
   /**
-   * Route plugins the caller mounts after every module's own and after the
-   * modules' root plugins.
+   * Route plugins mounted after every module's own, after the modules' root
+   * plugins, and **before** the request-scope hook.
    *
    * This is where a harness's synthetic authentication goes: it registers after
    * the platform's own auth plugin so its `onRequest` hook runs second and the
-   * synthetic actor wins, through the same decorator.
+   * synthetic actor wins, through the same decorator — and before the scope
+   * hook, which builds its {@link TenantContext} out of the actor that hook
+   * resolved.
    */
   readonly plugins?: readonly ModulePlugin[];
+  /**
+   * Route plugins mounted **after** the request-scope hook.
+   *
+   * The scope sits in the middle of the chain rather than at its end, so there
+   * are two sides to it and a caller needs both. Production's own root has the
+   * same shape: `authModulePlugin`, `tenantContextModulePlugin`, then
+   * `salesChannels.plugin` — and the sales-channel resolver is exactly why the
+   * second slot exists, because it writes the resolved channel into the open
+   * request scope and refuses when there is none.
+   *
+   * Both arrays are read after the contribution window closes, so a caller may
+   * push into either from inside `contribute`, where the value a plugin needs
+   * finally exists.
+   */
+  readonly scopedPlugins?: readonly ModulePlugin[];
   /**
    * Establish the ambient `TenantContext` for a request (Principle XI).
    *
@@ -216,6 +233,25 @@ export interface ComposeTestServerOptions {
    * cross-process invalidation path asks for it.
    */
   readonly exercisePubSub?: boolean;
+  /**
+   * The wrapping order this instance declares for a name more than one module
+   * decorates (feature 107, FR-040/FR-041).
+   *
+   * A caller's fact and not the kit's: it is read from the deployment's own
+   * `divergence.ts` in this repository, and from whatever an instance keeps it
+   * in elsewhere. It is forwarded to `composeModules` unchanged and **checked,
+   * never applied** — the composer emits in its own topological order and
+   * drains decorations once; this declaration asserts that the resulting order
+   * was the intended one and `AmbiguousDecorationError` names it when the two
+   * disagree.
+   *
+   * It is an option rather than a fifth `PlatformComposition` member because
+   * `PlatformComposition`'s four members are the things a composition cannot be
+   * built without (R2.1); an instance that declares no ambiguity resolution
+   * composes perfectly well, and every test in this repository's own suite
+   * passes an empty one.
+   */
+  readonly decorationOrder?: Readonly<Record<string, readonly string[]>> | undefined;
   /**
    * Which module ids presence reports as enabled.
    *
@@ -363,6 +399,10 @@ export async function composeTestServer(
       // from, so a caller that withdraws a required module meets the refusal
       // production would meet, at the point production meets it.
       requiredModules: requiredModulesFrom(manifests),
+      // Feature 107 — the caller's declaration, forwarded unchanged. A root
+      // that resolves an ambiguity in production and not in its tests composes
+      // a different platform on the one axis a deployment can change.
+      decorationOrder: options.decorationOrder,
     });
 
     const composedContext: ComposedPlatformContext = { ...platform, composed };
@@ -372,6 +412,20 @@ export async function composeTestServer(
       (async (request: FastifyRequest): Promise<TenantContext> =>
         systemTenantContext(`test-kit:${request.method} ${request.url}`));
 
+
+    // The module test-support substitutions, then the caller's own: a test that
+    // wants a different stub than its module's default says so at its own call
+    // site, which is where the coupling is visible.
+    const supportRegistrations = mergeTestSupportRegistrations(composition.testSupport ?? []);
+    if (Object.keys(supportRegistrations).length > 0) composed.contribute(supportRegistrations);
+    await options.contribute?.(composedContext);
+    await options.beforeBoot?.(composedContext);
+
+    // Assembled here rather than above the contribution window, and that is a
+    // guarantee rather than a placement: a caller adds to `options.plugins` or
+    // `options.scopedPlugins` from inside `contribute`, where the value a plugin
+    // needs finally exists. The reference application's harness pushes the
+    // sales-channel plugin and a test's `extraModules` exactly there.
     const modules: ModulePlugin[] = [
       // Every module's route contribution, in the composer's order, ahead of
       // the root plugins for the same reason production keeps them there.
@@ -387,15 +441,8 @@ export async function composeTestServer(
         // every tenant-scope assertion passes for the wrong reason.
         await registerRequestScopeHook(app, { buildTenantContext });
       },
+      ...(options.scopedPlugins ?? []),
     ];
-
-    // The module test-support substitutions, then the caller's own: a test that
-    // wants a different stub than its module's default says so at its own call
-    // site, which is where the coupling is visible.
-    const supportRegistrations = mergeTestSupportRegistrations(composition.testSupport ?? []);
-    if (Object.keys(supportRegistrations).length > 0) composed.contribute(supportRegistrations);
-    await options.contribute?.(composedContext);
-    await options.beforeBoot?.(composedContext);
 
     // The explicit boot phase, run **once**, after every registration and every
     // contribution and immediately before the app is built — exactly where a

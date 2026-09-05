@@ -19,6 +19,15 @@ import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 // workspace member declaring `endora.type: "platform"` rather than spelled, so
 // the seam derivation below follows the host wherever it moves.
 import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
+// Feature 109 (1c) — how a bare specifier is followed back to the source it was
+// compiled from. The harness delegates its composition to a package now, and a
+// package resolves at its build output (D-164); reading that would hold this
+// file's ledgers to the previous build rather than to this branch.
+import {
+  emittingPackages,
+  nodeFreshnessFs,
+  sourceOfEmitted,
+} from '../../../scripts/lib/emitted-freshness.js';
 
 /**
  * The two composition roots, held to each other (feature 072, US6 / T075–T076).
@@ -59,6 +68,203 @@ const harnessPath = fileURLToPath(new URL('../../helpers/test-server.ts', import
 
 const harness = readFileSync(harnessPath, 'utf8');
 const production = readFileSync(`${backendSrc}composition.ts`, 'utf8');
+
+/* -------------------------------------------------------------------------- *
+ * The harness root is two files (feature 109, Phase 1c).
+ * -------------------------------------------------------------------------- */
+
+const BACKEND_ROOT = resolve(backendSrc, '..');
+const REPO_ROOT = resolve(BACKEND_ROOT, '..');
+
+/** Directories that hold no source of ours, or hold a second copy of it. */
+const PRUNED = new Set(['node_modules', 'dist', 'build', '.turbo', 'i18n', 'docs', 'coverage']);
+
+function sourceFilesUnder(dir: string, extensions: readonly string[]): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!PRUNED.has(entry.name)) found.push(...sourceFilesUnder(full, extensions));
+    } else if (extensions.some((extension) => entry.name.endsWith(extension))) {
+      found.push(full);
+    }
+  }
+  return found;
+}
+
+function parse(path: string, source: string): ts.SourceFile {
+  return ts.createSourceFile(path, source, ts.ScriptTarget.ES2022, true);
+}
+
+/**
+ * **`setupBackendServer` no longer composes; it supplies a composition.**
+ *
+ * Since feature 109's Phase 1c the harness hands a `PlatformComposition` — which
+ * modules, which ORM, which manifest registry, which decoration order — to
+ * `@endora-commerce/test-kit/server`, and the kit calls `composeModules`, opens
+ * the two Redis clients, builds the container, runs the one boot phase and takes
+ * all of it down again. Every one of those steps still happens, once, in the
+ * same order; what changed is which file holds it.
+ *
+ * So the assertions in this file split by **subject**, and the split is the
+ * whole repair:
+ *
+ *   - what *this repository's root supplies* — the module list, the decoration
+ *     order, the contribution calls, the error envelope, the actor property, the
+ *     value imports it holds out of a module — stays asserted against
+ *     {@link harness}, the file a reader of this branch edits;
+ *   - what *the composition performs* — one `composeModules`, one boot phase, no
+ *     `registerValues` inside the contribution window, two Redis clients, an
+ *     opt-in subscription, a teardown that unsubscribes before it disconnects —
+ *     is asserted against {@link harnessComposition}, the root **plus** the
+ *     composer it delegates to.
+ *
+ * Leaving all of it on the first would have emptied ten of the properties this
+ * file exists to hold: with the composition one package away, no `Redis` is
+ * constructed anywhere in `test-server.ts`, and *"constructs the same two Redis
+ * clients production does"* would have gone on passing while measuring nothing.
+ * That is issue #113's shape arriving through a refactor instead of through a
+ * rule.
+ *
+ * The construction is spelled around rather than quoted, deliberately:
+ * `service-dependent-ledger.test.ts`' closure screen reads this file's **raw**
+ * source, comments included, and a quoted `new` plus the class name reads there
+ * as this test opening a connection. Failing closed on a mention is the right
+ * direction for that screen and the wrong sentence for this comment.
+ */
+interface DelegatedComposer {
+  /** The binding the root imports, which is how a delegated call is recognised. */
+  readonly binding: string;
+  /** The composer's own source directory, absolute — the 112 block walks it. */
+  readonly dir: string;
+  /** Every source file in it, concatenated in path order. */
+  readonly source: string;
+  /** The exported function that performs the composition. */
+  readonly compositionFunction: string;
+}
+
+/**
+ * Follow the specifier a root imports its composer from back to that composer's
+ * **source**.
+ *
+ * Derived at every step and spelled at none: the *binding* decides which import
+ * declaration is the composer's, the workspace member's own `exports` map
+ * decides where the bare specifier lands, and its `tsconfig.build.json`'s
+ * `rootDir` / `outDir` decide which source that artefact was compiled from. So
+ * `packages/test-kit`, `dist` and `src` appear in no predicate here (D-100), and
+ * a composer that moves is followed rather than lost.
+ *
+ * Reading the **source** rather than the artefact is the load-bearing half: a
+ * package resolves at its build output (D-164), so a ledger computed from the
+ * artefact would describe the previous `pnpm run build:packages` and not this
+ * branch — the false green measured three times on feature 091's admin drain.
+ *
+ * Every step refuses rather than answering emptily. A root whose composer this
+ * cannot find is a root whose composition nothing below would read, which is
+ * exactly the state that makes ten ledgers vacuously green.
+ */
+function delegatedComposerOf(
+  rootSource: string,
+  rootPath: string,
+  binding: string,
+  compositionFunction: string,
+): DelegatedComposer {
+  const sourceFile = parse(rootPath, rootSource);
+  let specifier: string | undefined;
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
+    if (bindings.elements.some((element) => element.name.text === binding)) {
+      specifier = statement.moduleSpecifier.text;
+    }
+  }
+  if (specifier === undefined) {
+    throw new Error(
+      `[harness-parity] ${relative(REPO_ROOT, rootPath)} imports no '${binding}'. Either it ` +
+        'composes for itself again, in which case the split above is wrong, or the binding was ' +
+        'renamed. An unresolved composer leaves every composition assertion below reading a ' +
+        'file that composes nothing.',
+    );
+  }
+
+  // A loop rather than `Array#find`, and the reason is one estate over:
+  // `check:fixture-substitution` counts a file as reading the database when it
+  // sees a `find(` it cannot tell from an ORM one, so the tidier spelling would
+  // enrol this file in that check's population while reading no database at all.
+  let pkg: ReturnType<typeof emittingPackages>[number] | undefined;
+  for (const candidate of emittingPackages(REPO_ROOT)) {
+    if (specifier === candidate.name || specifier.startsWith(`${candidate.name}/`)) pkg = candidate;
+  }
+  if (pkg === undefined) {
+    throw new Error(
+      `[harness-parity] no emitting workspace member owns '${specifier}'. The composer is ` +
+        'resolved through a package’s own exports map; a specifier no member claims cannot ' +
+        'be followed back to a source.',
+    );
+  }
+  const subpath = specifier === pkg.name ? '.' : `.${specifier.slice(pkg.name.length)}`;
+  const target = pkg.exports.get(subpath);
+  if (target === undefined) {
+    throw new Error(
+      `[harness-parity] ${pkg.name} declares no '${subpath}' subpath. Its exports map is what ` +
+        'says where this specifier lands.',
+    );
+  }
+  // `slice` rather than a `.replace()` over a character class: `check:diacritic-folds`
+  // reads the second as slug construction and would count this file among the
+  // sites it examines, which is a population it should not be in.
+  const relativeTarget = target.startsWith('./') ? target.slice(2) : target;
+  const emitted = join(pkg.dir, ...relativeTarget.split('/'));
+  const entry = sourceOfEmitted(pkg, emitted, nodeFreshnessFs());
+  if (entry === null) {
+    throw new Error(
+      `[harness-parity] no source under ${pkg.name}’s rootDir emits ` +
+        `${relative(REPO_ROOT, emitted)}. Reading the artefact instead would hold this branch ` +
+        'to the previous build.',
+    );
+  }
+
+  const dir = dirname(entry);
+  const files = sourceFilesUnder(dir, ['.ts']).sort();
+  if (files.length === 0) {
+    throw new Error(
+      `[harness-parity] the composer directory ${relative(REPO_ROOT, dir)} holds no source.`,
+    );
+  }
+  const source = files.map((file) => readFileSync(file, 'utf8')).join('\n');
+  if (!source.includes(`function ${compositionFunction}(`)) {
+    throw new Error(
+      `[harness-parity] ${relative(REPO_ROOT, dir)} declares no '${compositionFunction}'. The ` +
+        'boot-step ledger reads that function’s statements; an absent one reports no steps ' +
+        'at all, which agrees with every ledger.',
+    );
+  }
+  return { binding, dir, source, compositionFunction };
+}
+
+const HARNESS_COMPOSER = delegatedComposerOf(
+  harness,
+  harnessPath,
+  'composeTestServer',
+  'composeTestServer',
+);
+
+/** The composition the harness performs: what it supplies, plus what composes it. */
+const harnessComposition = `${harness}\n${HARNESS_COMPOSER.source}`;
+
+/**
+ * The two roots, each as **the whole composition it performs**.
+ *
+ * `ROOT_SOURCES` further down is the other half of the split and is deliberately
+ * not this: its subject is what a root's own file names and imports, which is a
+ * question about `test-server.ts` and not about the kit.
+ */
+const COMPOSITION_SOURCES: ReadonlyArray<readonly ['production' | 'harness', string]> = [
+  ['production', production],
+  ['harness', harnessComposition],
+];
 
 /** `new Foo(` occurrences, which is how both roots build everything hand-wired. */
 function constructedNames(source: string): Set<string> {
@@ -126,7 +332,11 @@ function importedValueNames(source: string): Set<string> {
  *     every helper either root calls from inside a route, and a ledger whose
  *     entries mostly say "not a boot step" has outgrown its predicate.
  */
-function compositionTimeCalls(source: string, functionName: string): Set<string> {
+function compositionTimeCalls(
+  source: string,
+  functionName: string,
+  delegates: ReadonlySet<string> = new Set(),
+): Set<string> {
   const sourceFile = ts.createSourceFile('root.ts', source, ts.ScriptTarget.ES2022, true);
   let composition: ts.FunctionDeclaration | undefined;
   sourceFile.forEachChild((node) => {
@@ -141,9 +351,46 @@ function compositionTimeCalls(source: string, functionName: string): Set<string>
   }
 
   const names = new Set<string>();
+  // A call to a **delegate** — a composer this root hands its composition to
+  // (feature 109, Phase 1c) — carries two extra kinds of composition step, and
+  // both are steps this root performs rather than steps it stopped performing.
+  //
+  //  - A callback in its options object *runs during composition*, by that
+  //    composer's contract. The default rule below sees only a function literal
+  //    that is a **direct** argument, so `prepareDatabase`, `contribute`,
+  //    `beforeBoot` and `afterReady` would all read as stored-for-later and
+  //    their steps would vanish from the population. That is not the same
+  //    blindness as `composedModules.contribute({ … })`, whose resolvers really
+  //    are stored for a request handler, which is why this widening is keyed on
+  //    the delegate rather than applied to every object literal.
+  //  - An imported binding *handed over as a value* is performed by the
+  //    delegate. `orm: { open: initOrm, close: closeOrm }` is the whole reason:
+  //    the harness still opens the ORM through `initOrm`, it just supplies it
+  //    instead of calling it, and a ledger that recorded that as "production
+  //    opens the ORM and the harness does not" would be stating a divergence
+  //    that is not there.
+  const delegated = (node: ts.CallExpression): void => {
+    for (const argument of node.arguments) {
+      everyNode(argument, (child) => {
+        if (ts.isIdentifier(child)) names.add(child.text);
+      });
+    }
+  };
   const visit = (node: ts.Node, composing: boolean): void => {
     if (composing && ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       names.add(node.expression.text);
+      if (delegates.has(node.expression.text)) {
+        delegated(node);
+        for (const argument of node.arguments) {
+          if (!ts.isObjectLiteralExpression(argument)) continue;
+          for (const property of argument.properties) {
+            const body = ts.isPropertyAssignment(property) ? property.initializer : undefined;
+            if (body !== undefined && ts.isFunctionLike(body)) {
+              body.forEachChild((child) => visit(child, true));
+            }
+          }
+        }
+      }
       node.forEachChild((child) => visit(child, true));
       return;
     }
@@ -164,10 +411,14 @@ function compositionTimeCalls(source: string, functionName: string): Set<string>
 }
 
 /** The boot steps one root performs — imported, and called while composing. */
-function bootSteps(source: string, functionName: string): Set<string> {
+function bootSteps(
+  source: string,
+  functionName: string,
+  delegates: ReadonlySet<string> = new Set(),
+): Set<string> {
   const imported = importedValueNames(source);
   return new Set(
-    [...compositionTimeCalls(codeOnly(source), functionName)].filter((name) =>
+    [...compositionTimeCalls(codeOnly(source), functionName, delegates)].filter((name) =>
       imported.has(name),
     ),
   );
@@ -205,13 +456,16 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     // roots; narrowing it is what this refuses, and any `MODULES.filter(` would
     // fail the exact-match below.
     //
-    // The **array literal** is pinned rather than the whole call, because the
-    // call is now long enough that the formatter wraps it and a pin including
-    // `, {` would be a pin on prettier's line-breaking rather than on the two
-    // roots agreeing.
-    for (const source of [harness, production]) {
-      expect(source).toContain(
-        'composeModules(\n    [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],',
+    // The **array literal** is pinned and nothing around it, which is what
+    // survives feature 109's Phase 1c: production still writes it as
+    // `composeModules`' first argument and the harness now writes it as the
+    // `modules` member of the `PlatformComposition` it hands the kit. The list
+    // is the property; which call receives it is not, and a pin including
+    // `composeModules(` would have been a pin on prettier's line-breaking as
+    // well as on a call site that legitimately moved.
+    for (const [root, source] of ROOT_SOURCES) {
+      expect(source, `${root} does not compose the generated list`).toContain(
+        '[...MODULES, ...overlayModuleEntries, ...packageModuleEntries]',
       );
       expect(source).not.toContain('MODULES.filter(');
       expect(source).not.toContain('MODULES.slice(');
@@ -222,9 +476,12 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     // `composeModules` is called once in each root, and never a second time
     // with a hand-picked subset, which is how a root would start choosing its
     // own module set again.
-    for (const source of [harness, production]) {
-      const calls = [...source.matchAll(/\bcomposeModules\s*\(/g)].length;
-      expect(calls).toBe(1);
+    // The harness's one call is the kit's, which is why this reads the
+    // composition rather than the root: a second `composeModules` anywhere in
+    // the pair is a root that started choosing its own module set again.
+    for (const [root, source] of COMPOSITION_SOURCES) {
+      const calls = [...codeOnly(source).matchAll(/\bcomposeModules\s*\(/g)].length;
+      expect(calls, `${root} calls composeModules ${calls} time(s)`).toBe(1);
     }
   });
 
@@ -268,10 +525,7 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     // still works after `composeModules` and silently reopens the window. It is
     // legal *above* the call — that is where a host value no module defaults is
     // registered — so this is a position check, not a ban.
-    for (const [root, source] of [
-      ['harness', harness],
-      ['production', production],
-    ] as const) {
+    for (const [root, source] of COMPOSITION_SOURCES) {
       const composeAt = source.indexOf('= composeModules(');
       expect(composeAt, `${root} composes no modules`).toBeGreaterThan(0);
       const afterCompose = source.slice(composeAt);
@@ -284,9 +538,9 @@ describe('T075 — a converted module costs no test-helper edit', () => {
     // The other half of D-45: a second `runBootHooks()` would mean a root had
     // grown a second boot phase, and with it the question of which half of the
     // root's contributions a module's hook can see.
-    for (const source of [harness, production]) {
-      const calls = [...source.matchAll(/\.runBootHooks\s*\(/g)].length;
-      expect(calls).toBe(1);
+    for (const [root, source] of COMPOSITION_SOURCES) {
+      const calls = [...codeOnly(source).matchAll(/\.runBootHooks\s*\(/g)].length;
+      expect(calls, `${root} runs ${calls} boot phase(s)`).toBe(1);
     }
   });
 });
@@ -399,7 +653,7 @@ const PRODUCTION_ONLY_MODULES: Readonly<Record<string, string>> = {};
 describe('T076 — the drift between the roots is an exact ledger', () => {
   it('lists every construct production builds and the harness does not', () => {
     const missing = [...constructedNames(production)]
-      .filter((name) => !constructedNames(harness).has(name))
+      .filter((name) => !constructedNames(harnessComposition).has(name))
       .sort();
 
     expect(missing).toEqual(Object.keys(PRODUCTION_ONLY_CONSTRUCTS).sort());
@@ -482,7 +736,16 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
     // cache instead of calling it. A population that read the mention as a call
     // would report the divergence closed by the very sentence documenting it.
     const productionSteps = bootSteps(production, COMPOSITION_FUNCTIONS.production);
-    const harnessSteps = bootSteps(harness, COMPOSITION_FUNCTIONS.harness);
+    // Two functions for the harness, because its composition is two files: what
+    // `setupBackendServer` performs itself, and what `composeTestServer`
+    // performs on its behalf. `compositionTimeCalls` walks a *function's* own
+    // statements, so a union is the honest way to ask "what does this root's
+    // composition do" — a single call over the concatenated pair would find one
+    // of the two and report the other's steps as divergences that are not there.
+    const harnessSteps = new Set([
+      ...bootSteps(harness, COMPOSITION_FUNCTIONS.harness, new Set([HARNESS_COMPOSER.binding])),
+      ...bootSteps(HARNESS_COMPOSER.source, HARNESS_COMPOSER.compositionFunction),
+    ]);
 
     // The vacuous-pass guard. Both roots compose, so both must have been read;
     // an empty population would agree with an empty ledger.
@@ -537,11 +800,12 @@ describe('T076 — what one composition costs, before the 555× multiplier', () 
     // so the pub/sub path needs its own connection (T073). Both are
     // disconnected in `teardownBackendServer` — the number that matters is
     // concurrent connections, and files run sequentially under `singleFork`.
-    const clients = [...harness.matchAll(/\bnew Redis\s*\(/g)].length;
-    expect(clients).toBe(REDIS_CLIENTS_PER_COMPOSITION);
-    expect([...production.matchAll(/\bnew Redis\s*\(/g)].length).toBe(
-      REDIS_CLIENTS_PER_COMPOSITION,
-    );
+    for (const [root, source] of COMPOSITION_SOURCES) {
+      const clients = [...codeOnly(source).matchAll(/\bnew Redis\s*\(/g)].length;
+      expect(clients, `${root} opens ${clients} Redis client(s)`).toBe(
+        REDIS_CLIENTS_PER_COMPOSITION,
+      );
+    }
   });
 
   it('arms the subscription only where a test asks for it', () => {
@@ -569,8 +833,9 @@ describe('T076 — what one composition costs, before the 555× multiplier', () 
     // exists because `unsubscribe()` on a client that never subscribed rejects
     // asynchronously from ioredis's socket close handler, where no `try` can
     // reach it.
-    const guards = [...harness.matchAll(/options\.exercisePubSub === true/g)].length;
-    const subscribes = [...harness.matchAll(/\.(subscribe|start)\(redisSubscriber|redisSubscriber\.subscribe\(/g)]
+    const composition = codeOnly(harnessComposition);
+    const guards = [...composition.matchAll(/options\.exercisePubSub === true/g)].length;
+    const subscribes = [...composition.matchAll(/\.(subscribe|start)\(redisSubscriber|redisSubscriber\.subscribe\(/g)]
       .length;
     expect(guards).toBe(2);
     expect(subscribes).toBe(0);
@@ -580,18 +845,22 @@ describe('T076 — what one composition costs, before the 555× multiplier', () 
     // Disconnecting a subscribed client keeps its subscription set, and ioredis
     // re-establishes it on any reconnect — one armed subscription per
     // composition is how ~1 GB of retention accumulated.
-    expect(harness).toContain("removeAllListeners('message')");
-    expect(harness).toContain('unsubscribe()');
+    expect(harnessComposition).toContain("removeAllListeners('message')");
+    expect(harnessComposition).toContain('unsubscribe()');
   });
 
   it('disconnects every client it opens', () => {
-    // A leaked client is not one leaked client; it is 555.
-    expect(harness).toContain('h.redis.disconnect()');
-    expect(harness).toContain('h.redisSubscriber.disconnect()');
+    // A leaked client is not one leaked client; it is 555. The receiver is not
+    // pinned — the harness's teardown delegates to the kit's, which names its
+    // own handle — because what has to be true is that both clients this
+    // composition opens are disconnected, not what the variable holding them is
+    // called.
+    expect(harnessComposition).toContain('.redis.disconnect()');
+    expect(harnessComposition).toContain('.redisSubscriber.disconnect()');
   });
 
   it('initialises one ORM per composition', () => {
-    const orms = [...harness.matchAll(/MikroORM\.init\s*\(/g)].length;
+    const orms = [...harnessComposition.matchAll(/MikroORM\.init\s*\(/g)].length;
     expect(orms).toBeLessThanOrEqual(ORM_INSTANCES_PER_COMPOSITION);
   });
 
@@ -1225,29 +1494,6 @@ describe('T143c — no root constructs a module-owned service', () => {
  * discovered per deployment and is not in the generated list.
  */
 
-const BACKEND_ROOT = resolve(backendSrc, '..');
-const REPO_ROOT = resolve(BACKEND_ROOT, '..');
-
-/** Directories that hold no source of ours, or hold a second copy of it. */
-const PRUNED = new Set(['node_modules', 'dist', 'build', '.turbo', 'i18n', 'docs', 'coverage']);
-
-function sourceFilesUnder(dir: string, extensions: readonly string[]): string[] {
-  const found: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (!PRUNED.has(entry.name)) found.push(...sourceFilesUnder(full, extensions));
-    } else if (extensions.some((extension) => entry.name.endsWith(extension))) {
-      found.push(full);
-    }
-  }
-  return found;
-}
-
-function parse(path: string, source: string): ts.SourceFile {
-  return ts.createSourceFile(path, source, ts.ScriptTarget.ES2022, true);
-}
-
 /** Every node of a source file, in no particular order. */
 function everyNode(node: ts.Node, visit: (node: ts.Node) => void): void {
   visit(node);
@@ -1272,8 +1518,21 @@ interface CompositionRoot {
  * composition. Both halves are load-bearing — a dozen unit tests call the
  * composer over two hand-written entries and owe nothing to a module they do
  * not compose.
+ *
+ * `requiresGeneratedList` is what lets the **delegated composer** into this
+ * population without letting those dozen unit tests in with it (feature 109,
+ * Phase 1c). The kit composes whichever list its caller hands it — the generated
+ * one, when the caller is this repository's harness — so it owes every seam that
+ * list uses, unconditionally and with nothing to import. It is not a general
+ * relaxation: the only directory it is applied to is the one
+ * {@link delegatedComposerOf} reached by following the harness's own import
+ * specifier, so a file becomes exempt from the second half by being the composer
+ * a root delegates to, and by nothing else.
  */
-function compositionRootsIn(directories: readonly string[]): CompositionRoot[] {
+function compositionRootsIn(
+  directories: readonly string[],
+  { requiresGeneratedList = true }: { requiresGeneratedList?: boolean } = {},
+): CompositionRoot[] {
   const roots: CompositionRoot[] = [];
   for (const directory of directories) {
     for (const file of sourceFilesUnder(directory, ['.ts'])) {
@@ -1319,7 +1578,7 @@ function compositionRootsIn(directories: readonly string[]): CompositionRoot[] {
         }
         calls.push({ supplies: readable ? supplied : null, line });
       });
-      if (importsGeneratedList && calls.length > 0) {
+      if ((importsGeneratedList || !requiresGeneratedList) && calls.length > 0) {
         roots.push({ path: relative(REPO_ROOT, file), calls });
       }
     }
@@ -1327,7 +1586,10 @@ function compositionRootsIn(directories: readonly string[]): CompositionRoot[] {
   return roots.sort((left, right) => left.path.localeCompare(right.path));
 }
 
-const COMPOSITION_ROOTS = compositionRootsIn([join(BACKEND_ROOT, 'src'), join(BACKEND_ROOT, 'test')]);
+const COMPOSITION_ROOTS = [
+  ...compositionRootsIn([join(BACKEND_ROOT, 'src'), join(BACKEND_ROOT, 'test')]),
+  ...compositionRootsIn([HARNESS_COMPOSER.dir], { requiresGeneratedList: false }),
+].sort((left, right) => left.path.localeCompare(right.path));
 
 /** The optional members of one options interface, by name. */
 function optionalFieldsOf(sourceFile: ts.SourceFile, interfaceName: string): Set<string> {
@@ -1538,9 +1800,16 @@ describe('112 — every composition root mounts every seam the composed list use
     expect(paths, 'the production root composes the generated list').toContain(
       relative(REPO_ROOT, join(backendSrc, 'composition.ts')),
     );
-    expect(paths, 'the harness composes the generated list').toContain(
-      relative(REPO_ROOT, harnessPath),
-    );
+    // The harness composes the generated list **through the kit** since feature
+    // 109's Phase 1c, so what has to be in this population is the composer it
+    // delegates to. That the list it hands over is the generated one is pinned
+    // by T075's first assertion, over `test-server.ts`' own text; what is pinned
+    // here is that the composition performing it was found and judged.
+    const composerDir = `${relative(REPO_ROOT, HARNESS_COMPOSER.dir)}/`;
+    expect(
+      paths.filter((path) => path.startsWith(composerDir)),
+      `no file under ${composerDir} composes — the harness delegates there and nothing judged it`,
+    ).not.toEqual([]);
     expect(
       paths.length,
       `only ${paths.length} composition roots found (${paths.join(', ')}). This assertion ` +

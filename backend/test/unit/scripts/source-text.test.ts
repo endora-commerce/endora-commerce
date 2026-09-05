@@ -120,12 +120,21 @@ describe('codeOnly', () => {
 
   it('reads the real harness without eating it', () => {
     // The regression the issue was opened on, measured on the artefact itself:
-    // the three probes a block-first stripper made invisible.
+    // three probes a block-first stripper makes invisible.
+    //
+    // `runBootHooks(` was one of them and has left this file: feature 109's
+    // Phase 1c moved the boot phase into `@endora-commerce/test-kit`, and
+    // `harness-parity.test.ts` asserts it against the composition rather than
+    // against this root. `beforeBoot:` replaces it — the hook the harness now
+    // runs its manifest reconcile in, code rather than comment, inside the same
+    // runaway match — because what this case needs is a token that is really
+    // there and really eaten. A probe that has left the file makes the case red
+    // for a reason that is not the stripper's, which is what it just was.
     const source = readFileSync(HARNESS, 'utf8');
     const code = codeOnly(source);
     const eaten = blockFirst(source);
     expect(code.split('\n')).toHaveLength(source.split('\n').length);
-    for (const probe of ['runBootHooks(', 'errorEnvelope', 'resolvePreferredLanguage']) {
+    for (const probe of ['beforeBoot:', 'errorEnvelope', 'resolvePreferredLanguage']) {
       expect(eaten, `${probe} was visible to the block-first stripper after all`).not.toContain(
         probe,
       );
