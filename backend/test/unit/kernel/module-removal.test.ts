@@ -47,6 +47,19 @@ import {
  * regeneration. So the generated artefacts are excluded from the residue scan
  * (they are a function of the tree and would lose the module by construction),
  * and everything else is not.
+ *
+ * **Why this is a unit test** (feature 112, FR-004). It sat under
+ * `test/integration/kernel/` until 2026-09-05 and was never an integration
+ * test: Constitution III *defines* that tree as the one that exercises "the
+ * real database and the real module boundary (no mocking the DB)", and this
+ * file opens no connection to Postgres, Redis or Meilisearch. It composes the
+ * generated list in memory and reads the tree off disk — one composition,
+ * asserted over its own registrations, which is III(a). Not one assertion
+ * changed with the move. What changed is that a reader of `test/integration/`
+ * is no longer told this file needs a database, and that the fast,
+ * service-less job runs it on every merge request rather than only on
+ * `master`. The criterion is
+ * `specs/112-test-tree-membership/contracts/test-tree-membership.md`.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));

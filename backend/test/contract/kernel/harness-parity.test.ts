@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
@@ -14,6 +15,10 @@ import { MODULES } from '../../../src/composition.generated.js';
 // `check-port-catches` read, so "which modules the platform refuses to switch
 // off" has one source in the tree rather than one per consumer.
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+// Feature 112 — where the platform's own source lives, derived from the one
+// workspace member declaring `endora.type: "platform"` rather than spelled, so
+// the seam derivation below follows the host wherever it moves.
+import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
 
 /**
  * The two composition roots, held to each other (feature 072, US6 / T075–T076).
@@ -39,6 +44,14 @@ import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
  * Source-level assertions, deliberately. Booting both roots to compare them
  * would cost two compositions per run, and the property being checked is a
  * property of the *wiring*, which is what the source is.
+ *
+ * **A third property was added in feature 112 and its population is not two.**
+ * T075 and T076 are about production and the harness *agreeing*; the block at
+ * the foot of this file is about every root that composes the generated
+ * `MODULES` list — five of them today, derived — offering every `ModuleContext`
+ * seam a module of that list uses. That is a different question with a
+ * different population, and it is kept in this file because the subject is the
+ * same one: what a composition root owes. See its own header.
  */
 
 const backendSrc = fileURLToPath(new URL('../../../src/', import.meta.url));
@@ -1155,5 +1168,464 @@ describe('T143c — no root constructs a module-owned service', () => {
       .filter((name) => !imported.has(name))
       .sort();
     expect(stale).toEqual([]);
+  });
+});
+
+/* -------------------------------------------------------------------------- *
+ * 112 — every root that composes the generated list mounts every seam a module
+ *       of that list uses (`specs/112-test-tree-membership/`, FR-009/FR-010).
+ * -------------------------------------------------------------------------- */
+
+/**
+ * The population above is **two** roots; this one is every root there is.
+ *
+ * `pim_unopim` became the first module to call `ctx.interceptors` on 2026-09-04
+ * and reddened, in one commit, every compose-only root in the tree — because
+ * `ModuleContextOptions.interceptorRegistry` is *optional in the type* and its
+ * seam **throws** when it is absent. `tsc` therefore cannot see the
+ * requirement, and it never will: the type cannot express "required iff the
+ * composed list contains a module that uses it", and making it required would
+ * refuse every hand-built context in the unit tree. **Six more fields on that
+ * options type are optional in exactly the same way**, one first user away from
+ * the identical red.
+ *
+ * So the assertion below is not about interceptors. It is the class:
+ *
+ *   for every `ModuleContext` seam whose absence the platform **throws** on,
+ *   if any module of the generated list uses that seam, then every root that
+ *   composes that list supplies the option field the seam needs.
+ *
+ * Three derivations, no list, and each of them refuses an empty answer rather
+ * than passing vacuously over it (issue #113):
+ *
+ *   1. **The roots** — a file that *calls* `composeModules` and imports the
+ *      generated composition. Parsed rather than grepped: the text predicate
+ *      the design measurement used reports **seven** files and two of them are
+ *      false, this file itself (which quotes `composeModules(` inside a
+ *      `toContain` string) and `src/packages/package-runtime.ts` (which names
+ *      both in comments). A population that includes the file asserting over it
+ *      is not a population.
+ *   2. **The guarded seams** — read off `createModuleContext`: an optional
+ *      `ModuleContextOptions` field, bound in that function, whose absence a
+ *      seam method guards with a `throw`. One today. A second one is picked up
+ *      by existing.
+ *   3. **The seam's users** — the module sources under each registered module's
+ *      own directory, anchored at `dirname(manifestPath)` exactly as the `_i18n`
+ *      boot reconciler anchors a bundle.
+ *
+ * Source-level, for the reason the whole file is: the property is a property of
+ * the wiring, and booting five roots to compare them would cost five
+ * compositions per run.
+ *
+ * **What it cannot see**, stated here rather than discovered later: a root that
+ * builds its options object elsewhere and spreads it in (reported as
+ * unreadable, not skipped); a seam reached through a helper in a file the
+ * module does not own; a module composed from an installed package, whose
+ * sources are its own; and an overlay module under `src/apps/`, which is
+ * discovered per deployment and is not in the generated list.
+ */
+
+const BACKEND_ROOT = resolve(backendSrc, '..');
+const REPO_ROOT = resolve(BACKEND_ROOT, '..');
+
+/** Directories that hold no source of ours, or hold a second copy of it. */
+const PRUNED = new Set(['node_modules', 'dist', 'build', '.turbo', 'i18n', 'docs', 'coverage']);
+
+function sourceFilesUnder(dir: string, extensions: readonly string[]): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!PRUNED.has(entry.name)) found.push(...sourceFilesUnder(full, extensions));
+    } else if (extensions.some((extension) => entry.name.endsWith(extension))) {
+      found.push(full);
+    }
+  }
+  return found;
+}
+
+function parse(path: string, source: string): ts.SourceFile {
+  return ts.createSourceFile(path, source, ts.ScriptTarget.ES2022, true);
+}
+
+/** Every node of a source file, in no particular order. */
+function everyNode(node: ts.Node, visit: (node: ts.Node) => void): void {
+  visit(node);
+  node.forEachChild((child) => everyNode(child, visit));
+}
+
+/** One `composeModules(entries, { … })` call in a root, and what it supplies. */
+interface CompositionCall {
+  /** The option fields the call names, or `null` when the object cannot be read. */
+  readonly supplies: ReadonlySet<string> | null;
+  readonly line: number;
+}
+
+interface CompositionRoot {
+  /** Repository-relative, so a failure message names the file a reader can open. */
+  readonly path: string;
+  readonly calls: readonly CompositionCall[];
+}
+
+/**
+ * A root: it *calls* `composeModules` and it imports the **generated**
+ * composition. Both halves are load-bearing — a dozen unit tests call the
+ * composer over two hand-written entries and owe nothing to a module they do
+ * not compose.
+ */
+function compositionRootsIn(directories: readonly string[]): CompositionRoot[] {
+  const roots: CompositionRoot[] = [];
+  for (const directory of directories) {
+    for (const file of sourceFilesUnder(directory, ['.ts'])) {
+      const source = readFileSync(file, 'utf8');
+      if (!source.includes('composeModules')) continue;
+      const sourceFile = parse(file, source);
+      let importsGeneratedList = false;
+      const calls: CompositionCall[] = [];
+      everyNode(sourceFile, (node) => {
+        if (
+          ts.isImportDeclaration(node) &&
+          ts.isStringLiteral(node.moduleSpecifier) &&
+          node.moduleSpecifier.text.includes('composition.generated')
+        ) {
+          importsGeneratedList = true;
+        }
+        if (
+          !ts.isCallExpression(node) ||
+          !ts.isIdentifier(node.expression) ||
+          node.expression.text !== 'composeModules'
+        ) {
+          return;
+        }
+        const options = node.arguments[1];
+        const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+        if (options === undefined || !ts.isObjectLiteralExpression(options)) {
+          calls.push({ supplies: null, line });
+          return;
+        }
+        const supplied = new Set<string>();
+        let readable = true;
+        for (const property of options.properties) {
+          if (ts.isSpreadAssignment(property)) {
+            // A spread hides what it carries. Reported rather than assumed
+            // either way: read as "supplies everything" it excuses the root,
+            // read as "supplies nothing" it accuses one that is correct.
+            readable = false;
+            continue;
+          }
+          if (property.name !== undefined && ts.isIdentifier(property.name)) {
+            supplied.add(property.name.text);
+          }
+        }
+        calls.push({ supplies: readable ? supplied : null, line });
+      });
+      if (importsGeneratedList && calls.length > 0) {
+        roots.push({ path: relative(REPO_ROOT, file), calls });
+      }
+    }
+  }
+  return roots.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+const COMPOSITION_ROOTS = compositionRootsIn([join(BACKEND_ROOT, 'src'), join(BACKEND_ROOT, 'test')]);
+
+/** The optional members of one options interface, by name. */
+function optionalFieldsOf(sourceFile: ts.SourceFile, interfaceName: string): Set<string> {
+  const fields = new Set<string>();
+  sourceFile.forEachChild((node) => {
+    if (!ts.isInterfaceDeclaration(node) || node.name.text !== interfaceName) return;
+    for (const member of node.members) {
+      if (ts.isPropertySignature(member) && member.questionToken && ts.isIdentifier(member.name)) {
+        fields.add(member.name.text);
+      }
+    }
+  });
+  return fields;
+}
+
+/** A seam of `ModuleContext` that throws when an option field is absent. */
+interface GuardedSeam {
+  /** The method a module calls — `interceptors`. */
+  readonly seam: string;
+  /** The `ModuleContextOptions` field whose absence it refuses. */
+  readonly field: string;
+}
+
+/**
+ * The seams read off the platform's own source.
+ *
+ * Three steps, each of them syntax rather than convention: the optional fields
+ * of `ModuleContextOptions`; the local names `createModuleContext` binds them
+ * to (`const { interceptorRegistry } = options`, `const x = options.y ?? …`);
+ * and, in the context object it returns, a method guarding one of those names
+ * with a `throw`.
+ */
+function guardedSeamsOf(sourceFile: ts.SourceFile, optional: ReadonlySet<string>): GuardedSeam[] {
+  let factory: ts.FunctionDeclaration | undefined;
+  sourceFile.forEachChild((node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'createModuleContext') factory = node;
+  });
+  if (factory?.body === undefined) {
+    throw new Error(
+      '[harness-parity] no `createModuleContext` in the platform source. It was renamed or ' +
+        'moved; an empty seam population would make the assertion below vacuously green.',
+    );
+  }
+
+  const boundTo = new Map<string, string>();
+  everyNode(factory.body, (node) => {
+    if (!ts.isVariableDeclaration(node)) return;
+    const initializer = node.initializer;
+    if (initializer === undefined) return;
+    if (ts.isIdentifier(initializer) && initializer.text === 'options' && ts.isObjectBindingPattern(node.name)) {
+      for (const element of node.name.elements) {
+        const field = element.propertyName ?? element.name;
+        if (ts.isIdentifier(field) && ts.isIdentifier(element.name) && optional.has(field.text)) {
+          boundTo.set(element.name.text, field.text);
+        }
+      }
+      return;
+    }
+    if (!ts.isIdentifier(node.name)) return;
+    const access = ts.isPropertyAccessExpression(initializer)
+      ? initializer
+      : ts.isBinaryExpression(initializer) && ts.isPropertyAccessExpression(initializer.left)
+        ? initializer.left
+        : undefined;
+    if (
+      access !== undefined &&
+      ts.isIdentifier(access.expression) &&
+      access.expression.text === 'options' &&
+      optional.has(access.name.text)
+    ) {
+      boundTo.set(node.name.text, access.name.text);
+    }
+  });
+
+  let context: ts.ObjectLiteralExpression | undefined;
+  everyNode(factory.body, (node) => {
+    if (context === undefined && ts.isReturnStatement(node) && node.expression !== undefined) {
+      if (ts.isObjectLiteralExpression(node.expression)) context = node.expression;
+    }
+  });
+  if (context === undefined) {
+    throw new Error(
+      '[harness-parity] `createModuleContext` returns no object literal — the seam methods ' +
+        'are not where this derivation reads them, and it would report none.',
+    );
+  }
+
+  const seams: GuardedSeam[] = [];
+  for (const property of context.properties) {
+    let name: string | undefined;
+    let body: ts.Node | undefined;
+    if (ts.isMethodDeclaration(property) && ts.isIdentifier(property.name)) {
+      name = property.name.text;
+      body = property.body;
+    } else if (
+      ts.isPropertyAssignment(property) &&
+      ts.isIdentifier(property.name) &&
+      (ts.isArrowFunction(property.initializer) || ts.isFunctionExpression(property.initializer))
+    ) {
+      name = property.name.text;
+      body = property.initializer.body;
+    }
+    if (name === undefined || body === undefined) continue;
+    everyNode(body, (node) => {
+      if (!ts.isIfStatement(node)) return;
+      const condition = node.expression;
+      let guarded: string | undefined;
+      if (
+        ts.isPrefixUnaryExpression(condition) &&
+        condition.operator === ts.SyntaxKind.ExclamationToken &&
+        ts.isIdentifier(condition.operand)
+      ) {
+        guarded = condition.operand.text;
+      } else if (
+        ts.isBinaryExpression(condition) &&
+        ts.isIdentifier(condition.left) &&
+        condition.right.kind === ts.SyntaxKind.UndefinedKeyword
+      ) {
+        guarded = condition.left.text;
+      }
+      const field = guarded === undefined ? undefined : boundTo.get(guarded);
+      if (field === undefined) return;
+      let throws = false;
+      everyNode(node.thenStatement, (statement) => {
+        if (ts.isThrowStatement(statement)) throws = true;
+      });
+      if (throws) seams.push({ seam: name as string, field });
+    });
+  }
+  return seams;
+}
+
+const platformSrc = platformSourceRootAt(REPO_ROOT);
+if (platformSrc === null) {
+  throw new Error(
+    '[harness-parity] no workspace member declares `endora.type: "platform"`. The seam ' +
+      'population is read off the platform source and would come back empty.',
+  );
+}
+const moduleContextPath = join(platformSrc, 'kernel', 'module-context.ts');
+const composePath = join(platformSrc, 'kernel', 'compose.ts');
+const moduleContextSource = parse(moduleContextPath, readFileSync(moduleContextPath, 'utf8'));
+const composeSource = parse(composePath, readFileSync(composePath, 'utf8'));
+
+const OPTIONAL_CONTEXT_FIELDS = optionalFieldsOf(moduleContextSource, 'ModuleContextOptions');
+const OPTIONAL_COMPOSE_FIELDS = optionalFieldsOf(composeSource, 'ComposeModulesOptions');
+const GUARDED_SEAMS = guardedSeamsOf(moduleContextSource, OPTIONAL_CONTEXT_FIELDS);
+
+/**
+ * The registered modules' own source directories, anchored at
+ * `dirname(manifestPath)` — the emitted location, so a module that has become a
+ * package is followed rather than guessed at (feature 080, T041a). `src` when it
+ * is there, the directory itself otherwise, which is what `_lifecycle` needs:
+ * its manifest resolves inside the platform's build output.
+ */
+function moduleSourceFiles(): Map<string, readonly string[]> {
+  const composed = new Set(MODULES.map((entry) => entry.id));
+  const perModule = new Map<string, readonly string[]>();
+  for (const entry of DISCOVERED_MANIFESTS) {
+    if (!composed.has(entry.manifest.id)) continue;
+    const root = dirname(entry.manifestPath);
+    const src = join(root, 'src');
+    const base = existsSync(src) ? src : root;
+    perModule.set(entry.manifest.id, existsSync(base) ? sourceFilesUnder(base, ['.ts', '.js']) : []);
+  }
+  return perModule;
+}
+
+const MODULE_SOURCES = moduleSourceFiles();
+
+/** Which modules call `<identifier>.<seam>(…)`, per guarded seam. */
+function seamUsers(seam: string): string[] {
+  const users: string[] = [];
+  for (const [moduleId, files] of MODULE_SOURCES) {
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      // The cheap half: 2000 files, one `includes` each. Only the survivors are
+      // parsed, so a string literal or a comment naming the seam costs a parse
+      // and is then correctly not a call.
+      if (!source.includes(`.${seam}(`)) continue;
+      let calls = false;
+      everyNode(parse(file, source), (node) => {
+        if (
+          ts.isCallExpression(node) &&
+          ts.isPropertyAccessExpression(node.expression) &&
+          node.expression.name.text === seam &&
+          ts.isIdentifier(node.expression.expression)
+        ) {
+          calls = true;
+        }
+      });
+      if (calls) {
+        users.push(`${moduleId} (${relative(REPO_ROOT, file)})`);
+        break;
+      }
+    }
+  }
+  return users.sort();
+}
+
+describe('112 — every composition root mounts every seam the composed list uses', () => {
+  it('derives the root population, and it is more than the two pinned above', () => {
+    // The floor is a broken-walk detector and it is also SC-004's second half:
+    // narrowing this population back to the two roots T075/T076 pin is the
+    // state that let three of them go red at once, so it has to fail rather
+    // than quietly assert less.
+    const paths = COMPOSITION_ROOTS.map((root) => root.path);
+    expect(paths, 'the production root composes the generated list').toContain(
+      relative(REPO_ROOT, join(backendSrc, 'composition.ts')),
+    );
+    expect(paths, 'the harness composes the generated list').toContain(
+      relative(REPO_ROOT, harnessPath),
+    );
+    expect(
+      paths.length,
+      `only ${paths.length} composition roots found (${paths.join(', ')}). This assertion ` +
+        'exists because there are more than the two held to each other above; a population ' +
+        'of two means the walk broke, not that the tree shrank.',
+    ).toBeGreaterThan(2);
+  });
+
+  it('reads every root option object — a spread would hide what it supplies', () => {
+    const unreadable = COMPOSITION_ROOTS.flatMap((root) =>
+      root.calls
+        .filter((call) => call.supplies === null)
+        .map((call) => `${root.path}:${call.line}`),
+    );
+    expect(
+      unreadable,
+      'These `composeModules(...)` calls do not pass a readable object literal, so what ' +
+        'they mount cannot be decided. Read as "supplies everything" it excuses a root that ' +
+        'mounts nothing; read as "supplies nothing" it accuses one that is correct. Spell ' +
+        'the options at the call.',
+    ).toEqual([]);
+  });
+
+  it('derives at least one guarded seam from the platform source', () => {
+    // With no seam the assertion below iterates nothing and passes over every
+    // root there is (issue #113). One stands today — `ctx.interceptors`.
+    expect(OPTIONAL_CONTEXT_FIELDS.size).toBeGreaterThan(0);
+    expect(
+      GUARDED_SEAMS.map((entry) => `${entry.seam} -> ${entry.field}`),
+      'No `ModuleContext` seam throws on an absent option field. Either the guard was ' +
+        'removed — which is a change worth noticing — or this derivation stopped reading ' +
+        `${relative(REPO_ROOT, moduleContextPath)}.`,
+    ).not.toEqual([]);
+  });
+
+  it('every guarded field is one a root can actually supply', () => {
+    // A seam guarding a field `ComposeModulesOptions` does not carry is a
+    // requirement no root can meet, and the finding below would be unactionable.
+    const unmountable = GUARDED_SEAMS.filter(
+      (entry) => !OPTIONAL_COMPOSE_FIELDS.has(entry.field),
+    ).map((entry) => `${entry.seam} needs \`${entry.field}\``);
+    expect(
+      unmountable,
+      `These seams refuse an option \`ComposeModulesOptions\` has no member for, so no root ` +
+        'can mount them. The composer is what forwards a root\'s options into a module ' +
+        'context; add the field there, or the refusal is unreachable.',
+    ).toEqual([]);
+  });
+
+  it('walks every composed module, and finds a source file for each', () => {
+    // Issue #215's shape over this population: a module whose sources moved
+    // contributes no file, is credited with using no seam, and every root goes
+    // on looking correct.
+    const empty = [...MODULE_SOURCES.entries()]
+      .filter(([, files]) => files.length === 0)
+      .map(([id]) => id);
+    expect(MODULE_SOURCES.size, 'no composed module resolved to a directory').toBeGreaterThan(0);
+    expect(
+      empty,
+      'These composed modules contributed no source file to the walk, so nothing they do ' +
+        'with a `ModuleContext` seam is visible here.',
+    ).toEqual([]);
+  });
+
+  it('every root supplies every option a seam the composed list uses needs', () => {
+    const findings: string[] = [];
+    for (const { seam, field } of GUARDED_SEAMS) {
+      const users = seamUsers(seam);
+      if (users.length === 0) continue;
+      for (const root of COMPOSITION_ROOTS) {
+        for (const call of root.calls) {
+          if (call.supplies === null || call.supplies.has(field)) continue;
+          findings.push(
+            `${root.path}:${call.line} composes the generated list without \`${field}\`, ` +
+              `and ctx.${seam}() — used by ${users.join(', ')} — throws without it`,
+          );
+        }
+      }
+    }
+    expect(
+      findings.sort(),
+      'A root composing the generated list must offer every `ModuleContext` seam a module ' +
+        'of that list uses. The option field is optional in the type — it has to be, since ' +
+        '"required iff the composed list contains a module that uses it" is not expressible ' +
+        '— so `tsc` cannot see this and only the composition can, by failing entirely.',
+    ).toEqual([]);
   });
 });

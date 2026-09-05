@@ -168,7 +168,7 @@ restoring the clause is written beside it.
 
 **The same blind spot has a second shape, and it has now produced three reds on `master` in a
 row: a ledger derived *about* the files you changed is not a file you changed.**
-`test/integration/kernel/module-removal.test.ts` holds a two-way residue ledger, so packaging a
+`test/unit/kernel/module-removal.test.ts` holds a two-way residue ledger, so packaging a
 module reds it the moment that module's last reference under `backend/src` goes. A packaging batch
 runs its targeted tests over the paths it *touched* — and this file is never one of them, because
 moving a module does not edit it. **The batch that frees an entry is structurally the batch that

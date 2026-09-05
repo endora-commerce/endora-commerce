@@ -35,7 +35,7 @@ import { selectedDeployment } from '../../overlay/overlay-roots.js';
  * The shape is {@link DeploymentDivergenceDeclaration}, declared in
  * `@endora-commerce/contracts`: the file carrying it belongs to a deployment, and a
  * deployment naming this module's internals is the coupling that outlives the
- * module (`test/integration/kernel/module-removal.test.ts` counts exactly that).
+ * module (`test/unit/kernel/module-removal.test.ts` counts exactly that).
  */
 
 /**

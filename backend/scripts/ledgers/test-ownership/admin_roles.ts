@@ -35,7 +35,7 @@ const SCHEDULED: TestOwnershipLedgerEntry = {
 
 export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
   'backend/test/contract/admin_users/permission-inventory.test.ts': SCHEDULED,
-  'backend/test/integration/kernel/module-removal.test.ts': SCHEDULED,
+  'backend/test/unit/kernel/module-removal.test.ts': SCHEDULED,
   'backend/test/overlay/us2-permissions.test.ts': SCHEDULED,
   'backend/test/unit/admin_roles/foreign-gates.test.ts': SCHEDULED,
   'backend/test/unit/admin_roles/permission-dependencies.test.ts': SCHEDULED,
