@@ -6,12 +6,13 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, posix, relative, sep } from 'node:path';
+import { dirname, isAbsolute, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DISCOVERED_MANIFESTS } from '../../src/manifest-index.generated.js';
@@ -112,8 +113,9 @@ export const KEPT_MODULE = '_lifecycle';
  * `admin_roles/permission-inventory.ts` went when batch five packaged that
  * module: `check-action-route-permissions` reaches the gate-argument resolver
  * through `@endora-commerce/mod-admin-roles/backend`, which resolves through the
- * `node_modules` this fixture borrows, so the file arrives with the package
- * rather than with a copy of one module's source.
+ * fixture's own scope directory — at the host's copy in the moved tree, which
+ * stages no module package, and at the fixture's own in the split tree — so the
+ * file arrives with the package rather than with a copy of one module's source.
  * `_i18n/services/error-translation.ts` went the same way when T040b packaged
  * `_i18n` — `check-error-translations` imports the routing table as *code* from
  * `@endora-commerce/mod-i18n/backend` now.
@@ -315,7 +317,22 @@ export function planSplitRelocation(plan: SplitRelocationPlan): readonly string[
   return relocate;
 }
 
-export interface MovedModuleTreeOptions {
+/**
+ * Restore the pre-feature-111 shape: a `node_modules` borrowed from this
+ * repository by symlink, so every **relative** first-party link inside it
+ * re-roots in the real checkout.
+ *
+ * It exists for one caller — the red proof of {@link endoraSpecifierResolutions},
+ * which cannot be written any other way: the escape is silent by construction,
+ * so a fixture that escapes has to be *built* for the guard to have something
+ * to go red over. The input enters at the top of the analysis (issue #130)
+ * rather than as a value the guard normally computes.
+ */
+export interface BorrowedNodeModulesOption {
+  readonly borrowNodeModules?: boolean;
+}
+
+export interface MovedModuleTreeOptions extends BorrowedNodeModulesOption {
   /**
    * What the stub index registers. Defaults to every real module id — the
    * moved tree. Pass the ids the fixture actually holds to get the **control**:
@@ -436,6 +453,289 @@ function stubManifestIndex(ids: readonly string[], backendRoot: string): string 
   ].join('\n');
 }
 
+// ---------------------------------------------------------------------------
+// The fixture's own `@endora-commerce` scope — feature 111, Phase 1
+// ---------------------------------------------------------------------------
+
+/** The workspace scope every first-party package in this repository carries. */
+const WORKSPACE_SCOPE = '@endora-commerce';
+
+/**
+ * The `node_modules` locations a fixture needs, `''` being the fixture root.
+ *
+ * The first is the real directory; the rest are symlinks to it, so there is one
+ * scope in a fixture rather than three that can disagree. Node resolves a bare
+ * specifier by walking up from the **importing** file, and the fixture's sources
+ * sit under three roots whose walk never meets: `backend/`, `packages/modules/…`
+ * (which reaches the fixture root) and `packages/platform/dist/…`.
+ */
+const FIXTURE_NODE_MODULES = [
+  join('backend', 'node_modules'),
+  'node_modules',
+  join('packages', 'platform', 'node_modules'),
+] as const;
+
+/** Is `candidate` inside `dir`? Both absolute, both already real. */
+function contains(dir: string, candidate: string): boolean {
+  const within = relative(dir, candidate);
+  return within !== '' && !within.startsWith('..') && !isAbsolute(within);
+}
+
+/**
+ * The fixture's own `node_modules`, so a first-party specifier cannot leave it
+ * (feature 111, FR-003; `contracts/split-fixture-package-naming.md` § 2).
+ *
+ * **The fixture used to borrow this repository's tree by symlink**, and the
+ * consequence is issue #255 arriving inside the one instrument whose job is to
+ * notice that a module is not where the registry says it is. Every link in
+ * `backend/node_modules` is **relative** — `mod-blog -> ../../../packages/modules/blog`
+ * — and a relative link is resolved against its own *real* directory, so
+ * following the borrowed symlink re-roots every one of them in the **real
+ * checkout**. Measured from `<fixture>/backend/src/`:
+ * `@endora-commerce/mod-blog/package.json` answered
+ * `<repo>/packages/modules/blog/package.json`. A fixture that claims to have
+ * moved a module while every reader still finds it at its real address cannot
+ * refuse anything: the check reads a complete package and reports clean, which
+ * is the exact state the fixture exists to catch.
+ *
+ * So the scope is re-rooted rather than borrowed, and the construction is this
+ * repository's own idiom one level finer — `scripts/setup-worktree.sh --link`
+ * symlinks the third-party tree, which is identical on every branch, and gives
+ * each workspace its own first-party links. Here:
+ *
+ *   1. one **absolute** symlink per top-level entry of the host's
+ *      `backend/node_modules`, at that entry's realpath. Absolute, so a link
+ *      that is relative in the host tree cannot re-root anywhere;
+ *   2. except an entry whose realpath is a package of this checkout that the
+ *      fixture has **staged**, which points at the fixture's copy.
+ *
+ * Both populations are `readdir`ed rather than written down (D-100), and (2) is
+ * one rule applied uniformly: it happens to be the whole `@endora-commerce`
+ * scope today because that is what this checkout's own packages are.
+ *
+ * Third-party packages stay borrowed, deliberately (FR-004). They are identical
+ * on every branch, and re-installing them costs 1.3 GB and four seconds per
+ * fixture instance against the milliseconds this takes.
+ *
+ * A package the fixture does **not** stage — the moved tree stages no module
+ * package at all, by construction — keeps the host's copy, because a spawned
+ * check that imports one as *code* would otherwise die at module resolution and
+ * its proof would fail for a reason that is not the residue. The escape guard
+ * knows the difference: {@link endoraSpecifierResolutions} judges only the
+ * packages the fixture holds.
+ */
+function installFixtureNodeModules(root: string, borrowed: boolean): void {
+  const hostModules = join(BACKEND_ROOT, 'node_modules');
+  const [primary, ...aliases] = FIXTURE_NODE_MODULES;
+  const primaryPath = join(root, primary);
+  for (const location of FIXTURE_NODE_MODULES) {
+    mkdirSync(dirname(join(root, location)), { recursive: true });
+  }
+  if (borrowed) {
+    // The red proof's shape, and its only caller is the test that asserts the
+    // guard goes red over it: the fixture exactly as it stood before Phase 1.
+    for (const location of FIXTURE_NODE_MODULES) {
+      symlinkSync(hostModules, join(root, location));
+    }
+    return;
+  }
+  const realCheckout = realpathSync(REPO_ROOT);
+  const realRoot = realpathSync(root);
+  /** Where the fixture's copy of a host package would be, or `null`. */
+  const stagedCopyOf = (real: string): string | null => {
+    if (!contains(realCheckout, real)) return null;
+    const candidate = join(realRoot, relative(realCheckout, real));
+    return existsSync(candidate) ? candidate : null;
+  };
+  const linkInto = (directory: string, from: string): void => {
+    mkdirSync(directory, { recursive: true });
+    for (const entry of readdirSync(from)) {
+      const real = realpathSync(join(from, entry));
+      symlinkSync(stagedCopyOf(real) ?? real, join(directory, entry));
+    }
+  };
+  linkInto(primaryPath, hostModules);
+  // The scope is a real directory rather than one of those links, so that its
+  // members can be re-pointed one at a time.
+  rmSync(join(primaryPath, WORKSPACE_SCOPE), { force: true });
+  linkInto(join(primaryPath, WORKSPACE_SCOPE), join(hostModules, WORKSPACE_SCOPE));
+  for (const alias of aliases) symlinkSync(primaryPath, join(root, alias));
+}
+
+/**
+ * Every `@endora-commerce/*` specifier the fixture's own sources name, resolved
+ * from inside the fixture (feature 111, FR-003; contract § 2.1).
+ *
+ * The population is derived from the files, not sampled and not listed: the
+ * failure it guards is **silent** by construction, so a guard that checked one
+ * specifier would agree with a tree in which every other one escaped.
+ *
+ * A specifier is judged only when the fixture **holds** the package it names,
+ * and "holds" is read from the fixture's own staged `package.json` files rather
+ * than from the derivation that built the links — two authors for one question,
+ * so a builder that stopped staging something cannot also stop judging it.
+ */
+export type EndoraSpecifierVerdict =
+  /** Resolved, and under the fixture root — what FR-003 asks for. */
+  | 'inside'
+  /** Resolved into another checkout. The failure this guard exists for. */
+  | 'escaped'
+  /**
+   * Did not resolve, **and this checkout's own backend can reach it** — so the
+   * fixture lost a link it should have. A failure, and reported apart from
+   * `escaped` because the repair is a different one.
+   */
+  | 'unresolvable'
+  /**
+   * Did not resolve, and this checkout's backend cannot reach it either. Not a
+   * fact about the fixture: `@endora-commerce/page-builder-admin` is named by a
+   * module package's emitted admin layer and is a dependency of the **admin**,
+   * so no `backend/node_modules` entry has ever existed for it — borrowed or
+   * re-rooted. Disclosed rather than silently dropped, because a package that
+   * stopped being reachable would otherwise leave the population quietly.
+   */
+  | 'unlinked';
+
+export interface EndoraSpecifierResolution {
+  readonly specifier: string;
+  /** The fixture file that names it, repo-relative to the fixture root. */
+  readonly from: string;
+  readonly verdict: EndoraSpecifierVerdict;
+  /** The resolved realpath, absolute; `null` when nothing resolved. */
+  readonly target: string | null;
+}
+
+/** Source files a bare specifier can be written in. */
+const SPECIFIER_BEARING_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.js', '.mjs', '.cjs'];
+
+/**
+ * Quoted `@endora-commerce/<name>[/subpath]` strings.
+ *
+ * Quoted, so a template literal's `@endora-commerce/mod-${id}` prefix — which
+ * the estate writes seven times — is out of the population by construction
+ * rather than by a filter, and a computed specifier is never resolved as if it
+ * were a literal one.
+ */
+const ENDORA_SPECIFIER = /['"](@endora-commerce\/[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._/-]*)?)['"]/g;
+
+/** Walk the fixture, skipping symlinks — a borrowed tree is not its sources. */
+function fixtureSourceFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      if (entry.name === 'node_modules' || entry.name === '.git') continue;
+      fixtureSourceFiles(join(dir, entry.name), out);
+      continue;
+    }
+    if (SPECIFIER_BEARING_EXTENSIONS.some((extension) => entry.name.endsWith(extension))) {
+      out.push(join(dir, entry.name));
+    }
+  }
+  return out;
+}
+
+/** The package names the fixture itself declares — the independent author. */
+function packagesTheFixtureHolds(root: string, dir: string, names: Set<string> = new Set()): Set<string> {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      if (entry.name === 'node_modules' || entry.name === '.git') continue;
+      packagesTheFixtureHolds(root, join(dir, entry.name), names);
+      continue;
+    }
+    if (entry.name !== 'package.json') continue;
+    try {
+      const { name } = JSON.parse(readFileSync(join(dir, entry.name), 'utf8')) as { name?: string };
+      if (typeof name === 'string' && name.startsWith(`${WORKSPACE_SCOPE}/`)) names.add(name);
+    } catch {
+      // A staged manifest that will not parse is not a package the fixture can
+      // be said to hold, and it is not this guard's finding either.
+    }
+  }
+  return names;
+}
+
+/**
+ * Where a bare specifier's **package** lands, walking up from `from` exactly as
+ * node does; `null` when no ancestor carries it.
+ *
+ * Deliberately not `createRequire(...).resolve(...)`, and the reason was
+ * measured rather than reasoned about: `tsx` patches `Module._resolveFilename`
+ * with `tsconfig.base.json`'s `paths`, so under it
+ * `@endora-commerce/contracts` answers this checkout's
+ * `packages/contracts/src/index.ts` from **inside a fixture that holds its own
+ * copy** — a false escape, and one whose colour would depend on which runner
+ * the guard happened to be spawned from. `paths` is a fact about the host's
+ * build configuration and about nothing in the fixture, and a guard whose
+ * subject is a symlink has no business consulting it.
+ *
+ * The package directory is also the honest granularity for this question. What
+ * issue #255 is about is which *checkout* a first-party link re-roots in; the
+ * subpath decides which file inside that package, which is FR-001's question
+ * and not this one's.
+ */
+function packageDirectoryFor(from: string, packageName: string): string | null {
+  let directory = from;
+  for (;;) {
+    const candidate = join(directory, 'node_modules', ...packageName.split('/'));
+    if (existsSync(candidate)) return realpathSync(candidate);
+    const parent = dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
+  }
+}
+
+export function endoraSpecifierResolutions(root: string): readonly EndoraSpecifierResolution[] {
+  const realRoot = realpathSync(root);
+  const held = packagesTheFixtureHolds(root, root);
+  const seen = new Set<string>();
+  const resolutions: EndoraSpecifierResolution[] = [];
+  // Node answers a bare specifier from the nearest ancestor carrying a
+  // `node_modules`, so two files under one such ancestor cannot disagree. That
+  // is the deduplication key — resolving once per file would compute the same
+  // answer tens of thousands of times.
+  const baseOf = new Map<string, string>();
+  const resolutionBase = (from: string): string => {
+    const cached = baseOf.get(from);
+    if (cached !== undefined) return cached;
+    let directory = from;
+    while (!existsSync(join(directory, 'node_modules')) && directory !== dirname(directory)) {
+      directory = dirname(directory);
+    }
+    baseOf.set(from, directory);
+    return directory;
+  };
+  for (const file of fixtureSourceFiles(root)) {
+    const source = readFileSync(file, 'utf8');
+    if (!source.includes(`${WORKSPACE_SCOPE}/`)) continue;
+    const base = resolutionBase(dirname(file));
+    for (const match of source.matchAll(ENDORA_SPECIFIER)) {
+      const specifier = match[1] ?? '';
+      const packageName = specifier.split('/').slice(0, 2).join('/');
+      if (!held.has(packageName)) continue;
+      const key = `${base}|${packageName}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const target = packageDirectoryFor(base, packageName);
+      const reachableFromHost = packageDirectoryFor(BACKEND_ROOT, packageName) !== null;
+      resolutions.push({
+        specifier: packageName,
+        from: relative(root, file).split(sep).join('/'),
+        verdict:
+          target !== null
+            ? contains(realRoot, target)
+              ? 'inside'
+              : 'escaped'
+            : reachableFromHost
+              ? 'unresolvable'
+              : 'unlinked',
+        target,
+      });
+    }
+  }
+  return resolutions;
+}
+
 /**
  * The platform package, copied whole — manifest, `src` and `dist`.
  *
@@ -468,13 +768,55 @@ function copyPlatformPackage(root: string): void {
   mkdirSync(destination, { recursive: true });
   // The copied `dist` imports `@mikro-orm/core`, `fastify` and `awilix` by bare
   // specifier, and node resolves those by walking up from the *importing* file —
-  // a path that never passes through `backend/`, where the fixture's other
-  // borrowed tree is. Without this the residue's shims die at module resolution
-  // and every proof under them fails for a reason that is not the residue.
-  symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(destination, 'node_modules'));
+  // a path that never passes through `backend/`. That is why
+  // `FIXTURE_NODE_MODULES` names this directory; the tree itself is installed
+  // once, at the end, when the fixture knows which packages it holds.
   cpSync(join(source, 'package.json'), join(destination, 'package.json'));
-  cpSync(join(source, 'src'), join(destination, 'src'), { recursive: true });
-  cpSync(built, join(destination, 'dist'), { recursive: true });
+  // `src` first and `dist` with the source's own timestamps, both (FR-011).
+  // `emitted-freshness.ts` calls an artefact **stale** — exit 2 — when its
+  // source is strictly newer, and `cpSync` stamps its copies with the moment it
+  // made them, in `readdir` order: `dist` sorts before `src`, so a single
+  // recursive copy of a package hands the estate a build that predates the
+  // sources it was built from. Preserving the timestamps carries the real
+  // relationship across instead of inventing one, so the fixture answers the
+  // freshness question exactly as this checkout does.
+  cpSync(join(source, 'src'), join(destination, 'src'), {
+    recursive: true,
+    preserveTimestamps: true,
+  });
+  cpSync(built, join(destination, 'dist'), { recursive: true, preserveTimestamps: true });
+}
+
+/**
+ * The contracts package — `package.json`, `src` and, since feature 111,
+ * `dist`.
+ *
+ * `src` is what `check-port-shape` walks. `dist` is what every *importer*
+ * reads: the exports map names `./dist/index.js` and nothing else, and with the
+ * scope re-rooted into the fixture the host's build is no longer reachable
+ * through it. Without this the residue's own sources — and the platform's
+ * `dist`, which imports contracts by bare specifier — die at module resolution
+ * and every proof under them fails for a reason that is not the residue.
+ */
+function copyContractsPackage(root: string): void {
+  const source = join(REPO_ROOT, 'packages', 'contracts');
+  const built = join(source, 'dist');
+  if (!existsSync(built)) {
+    throw new Error(
+      `${built} does not exist — the contracts package is not built, and this fixture's own ` +
+        'scope directory resolves `@endora-commerce/contracts` to it. Run ' +
+        '`pnpm run build:packages`; without it every proof under this fixture would fail at ' +
+        'module resolution rather than on what it measures.',
+    );
+  }
+  const destination = join(root, 'packages', 'contracts');
+  mkdirSync(destination, { recursive: true });
+  cpSync(join(source, 'package.json'), join(destination, 'package.json'));
+  cpSync(join(source, 'src'), join(destination, 'src'), {
+    recursive: true,
+    preserveTimestamps: true,
+  });
+  cpSync(built, join(destination, 'dist'), { recursive: true, preserveTimestamps: true });
 }
 
 export function createMovedModuleTreeFixture(
@@ -487,10 +829,6 @@ export function createMovedModuleTreeFixture(
   const root = mkdtempSync(join(tmpdir(), 'moved-module-tree-'));
   const backend = join(root, 'backend');
   mkdirSync(backend, { recursive: true });
-  // Bare specifiers (`typescript`, `@endora-commerce/contracts`) resolve by walking up from
-  // the importing file, so the fixture borrows the backend's installed tree
-  // rather than carrying one.
-  symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(backend, 'node_modules'));
   // Without it tsx compiles the scripts as CommonJS and the ones using
   // top-level await die at transform time — a failure that looks like a red
   // proof and proves nothing.
@@ -510,15 +848,7 @@ export function createMovedModuleTreeFixture(
     'utf8',
   );
   cpSync(join(BACKEND_ROOT, 'scripts'), join(backend, 'scripts'), { recursive: true });
-  cpSync(
-    join(REPO_ROOT, 'packages', 'contracts', 'src'),
-    join(root, 'packages', 'contracts', 'src'),
-    { recursive: true },
-  );
-  cpSync(
-    join(REPO_ROOT, 'packages', 'contracts', 'package.json'),
-    join(root, 'packages', 'contracts', 'package.json'),
-  );
+  copyContractsPackage(root);
   copyPlatformPackage(root);
   for (const directory of RESIDUE_ROOTS) {
     cpSync(join(BACKEND_ROOT, 'src', directory), join(backend, 'src', directory), {
@@ -547,6 +877,8 @@ export function createMovedModuleTreeFixture(
     ),
     'utf8',
   );
+  // Last, because which packages the fixture holds is read off what it staged.
+  installFixtureNodeModules(root, options.borrowNodeModules ?? false);
 
   return {
     root,
@@ -596,7 +928,7 @@ export function createMovedModuleTreeFixture(
  * (`check-entry-scope` derives half its population from that file's `scripts`
  * block). What it stages is only where the modules sit.
  */
-export interface SplitModuleTreeOptions {
+export interface SplitModuleTreeOptions extends BorrowedNodeModulesOption {
   /**
    * Candidates for relocation into a declared workspace package — a pool, and
    * every member of it that `backend/src/modules` still holds is relocated. One
@@ -713,12 +1045,14 @@ function splitManifestIndex(relocated: ReadonlySet<string>): string {
     '// this rewrite changes nothing about which modules are registered.',
     '//',
     '// A relocated module keeps a **relative** specifier here, where the real',
-    '// generator emits a bare one (D-149). That is deliberate and is a property',
-    '// of the fixture rather than a claim about the generator: this tree borrows',
-    '// the repository`s own `node_modules`, so no `@endora-commerce/mod-<id>`',
-    '// link exists in it and a bare specifier would resolve to nothing. What the',
-    '// fixture is staging is where the module sources sit, which is the question',
-    '// the checks below answer; the emitted specifier shape is proved instead by',
+    '// generator emits a bare one (D-149). The reason this file used to give —',
+    '// that the fixture borrows the repository`s `node_modules`, so no',
+    '// `@endora-commerce/mod-<id>` link exists in it — is **retired**: feature',
+    '// 111 Phase 1 gave the fixture its own scope, and a bare specifier here now',
+    '// resolves to the fixture`s own copy. What is left is that Phase 1',
+    '// deliberately changes no specifier: the shape is FR-001 and lands in Phase',
+    '// 2, so that the escape guard protecting it is standing first. Until then',
+    '// the emitted shape is proved by',
     '// `test/unit/scripts/generate-registries.test.ts` and by',
     '// `test/unit/scripts/module-package-artefacts.test.ts`.',
     '//',
@@ -800,7 +1134,23 @@ function copyPageBuilderPackages(root: string): void {
     const destination = join(root, 'packages', name);
     mkdirSync(destination, { recursive: true });
     cpSync(join(source, 'package.json'), join(destination, 'package.json'));
-    cpSync(join(source, 'src'), join(destination, 'src'), { recursive: true });
+    cpSync(join(source, 'src'), join(destination, 'src'), {
+      recursive: true,
+      preserveTimestamps: true,
+    });
+    // And the build, since feature 111 (FR-003). These are staged for what
+    // `check-block-names` **walks**, which is `src`; two of them are also
+    // members of the backend's `@endora-commerce` scope, and with that scope
+    // re-rooted into the fixture a package staged without its build is one the
+    // fixture holds and cannot resolve — `cms`' manifest imports
+    // `page-builder-core/dist/types/responsive.js`, and every check that reads
+    // the manifest index died there. A fixture that claims to hold a package
+    // holds a usable one. It changes no walk: `check-block-names` skips `dist`
+    // by name, as every module walk in the estate does. ~5 MB across the four.
+    const built = join(source, 'dist');
+    if (existsSync(built)) {
+      cpSync(built, join(destination, 'dist'), { recursive: true, preserveTimestamps: true });
+    }
   }
 }
 
@@ -819,12 +1169,6 @@ export function createSplitModuleTreeFixture(
   const root = mkdtempSync(join(tmpdir(), 'split-module-tree-'));
   const backend = join(root, 'backend');
   mkdirSync(backend, { recursive: true });
-  symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(backend, 'node_modules'));
-  // A second borrowed tree, at the fixture root. A relocated module resolves
-  // `@endora-commerce/contracts` by walking up from `packages/modules/<id>/src`, which never
-  // passes through `backend/`, so without this the manifest index cannot be
-  // imported and every check dies at module resolution.
-  symlinkSync(join(BACKEND_ROOT, 'node_modules'), join(root, 'node_modules'));
   writeFileSync(
     join(root, 'pnpm-workspace.yaml'),
     `packages:\n${SPLIT_WORKSPACE_GLOBS.map((glob) => `  - ${glob}`).join('\n')}\n`,
@@ -847,13 +1191,7 @@ export function createSplitModuleTreeFixture(
   cpSync(join(BACKEND_ROOT, 'package.json'), join(backend, 'package.json'));
   cpSync(join(BACKEND_ROOT, 'scripts'), join(backend, 'scripts'), { recursive: true });
   cpSync(join(BACKEND_ROOT, 'src'), join(backend, 'src'), { recursive: true });
-  cpSync(join(REPO_ROOT, 'packages', 'contracts', 'src'), join(root, 'packages', 'contracts', 'src'), {
-    recursive: true,
-  });
-  cpSync(
-    join(REPO_ROOT, 'packages', 'contracts', 'package.json'),
-    join(root, 'packages', 'contracts', 'package.json'),
-  );
+  copyContractsPackage(root);
   copyPlatformPackage(root);
   copyAdminApplication(root);
   copyDocumentationSite(root);
@@ -908,23 +1246,36 @@ export function createSplitModuleTreeFixture(
   );
   for (const pkg of alreadyPackaged) {
     const staged = join(root, packagedModulePath(pkg.moduleId));
+    // Everything but the build first, then the build, and both with the real
+    // timestamps (FR-011). `emitted-freshness.ts` calls an artefact **stale** —
+    // exit 2 — when its source is strictly newer, and a single recursive copy
+    // stamps its files with the moment it made them in `readdir` order, where
+    // `dist` sorts before `src`. That would hand the estate a build that
+    // predates the sources it was built from, intermittently, in a fixture 22
+    // proofs rest on — the one failure mode that teaches a reader to re-run
+    // rather than to read. Preserving the timestamps carries the real
+    // relationship across instead of inventing one, so a package that really is
+    // stale in this checkout is reported here too, and one that is not is not.
+    const built = join(pkg.dir, 'dist');
     cpSync(pkg.dir, staged, {
       recursive: true,
-      filter: (source) => !source.endsWith(`${sep}node_modules`),
+      preserveTimestamps: true,
+      filter: (source) =>
+        !source.endsWith(`${sep}node_modules`) && source !== built && !contains(built, source),
     });
+    if (existsSync(built)) {
+      cpSync(built, join(staged, 'dist'), { recursive: true, preserveTimestamps: true });
+    }
     // The module's `docs/` layer, staged a **second** time where this fixture's
     // own layout puts it (feature 100 Phase 2).
     //
     // A package-root asset is located by joining the manifest's declaration to
     // `dirname(manifestPath)`, and in this fixture that anchor is the package's
     // `src/`, not its root: `splitManifestIndex` emits a **relative** specifier
-    // at `<pkg>/src/manifest.js` for the reason it states in place — the fixture
-    // borrows this repository's `node_modules`, so no `@endora-commerce/mod-<id>`
-    // link exists in it and the bare specifier the real generator emits would
-    // resolve to nothing. So the anchor is a property of the fixture, and the
-    // asset is staged where the fixture's own index says to look, exactly as the
-    // kept module's i18n bundle is written to the address this fixture's layout
-    // gives it.
+    // at `<pkg>/src/manifest.js`. So the anchor is a property of the fixture,
+    // and the asset is staged where the fixture's own index says to look,
+    // exactly as the kept module's i18n bundle is written to the address this
+    // fixture's layout gives it.
     //
     // It is a copy and not a rename: the package root's `docs/` travels too, so
     // a walk rooted at the package (`module-roots.ts` places one by its
@@ -1000,6 +1351,13 @@ export function createSplitModuleTreeFixture(
     ),
     'utf8',
   );
+  // Last, and after the stranding: which packages the fixture holds is read off
+  // what it staged. A stranded module's *sources* are staged, so the scope
+  // points at them and the specifier is unresolvable for want of the
+  // `package.json` that was withheld — which is the half-moved state itself,
+  // and not the borrowed tree's answer, where it resolved to the real
+  // checkout's complete package.
+  installFixtureNodeModules(root, options.borrowNodeModules ?? false);
 
   return {
     root,

@@ -3,12 +3,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createMovedModuleTreeFixture,
   createSplitModuleTreeFixture,
+  endoraSpecifierResolutions,
   KEPT_MODULE,
   MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE,
   modulesInTheApplicationTree,
   packagedModuleIds,
   planSplitRelocation,
   routedModuleIds,
+  type EndoraSpecifierResolution,
   type MovedModuleTreeFixture,
 } from '../../helpers/moved-module-tree-fixture.js';
 import {
@@ -186,6 +188,92 @@ describe('a moved module tree is refused, not reported clean (issue #215)', () =
       );
     });
   }
+});
+
+/**
+ * Feature 111, Phase 1 — the fixture's first-party packages are the fixture's.
+ *
+ * The fixture used to borrow this repository's `node_modules` by symlink, and
+ * every `@endora-commerce/*` link inside that tree is **relative**
+ * (`mod-blog -> ../../../packages/modules/blog`), so following the borrowed
+ * symlink re-rooted all 76 of them in the **real checkout**. That is issue
+ * #255's failure arriving inside the one instrument whose job is to notice that
+ * a module is not where the registry says it is: a fixture that claims to have
+ * moved a module while every reader still finds a complete copy at its real
+ * address cannot refuse anything, and the check reports clean for exactly the
+ * reason the fixture exists to catch.
+ *
+ * The guard is written **before** the specifier shape changes (FR-001 is Phase
+ * 2), so today it is a green assertion over a tree in which every fixture-local
+ * package is reached by a relative path and nothing escapes. What makes it
+ * worth landing now is the third case below: it is the assertion that becomes
+ * load-bearing the moment the index starts emitting bare specifiers, and it is
+ * cheaper to have it standing than to add it in the same merge request as the
+ * change it protects.
+ */
+function expectNoFirstPartySpecifierEscapes(
+  label: string,
+  resolutions: readonly EndoraSpecifierResolution[],
+): void {
+  const named = (verdict: EndoraSpecifierResolution['verdict']): string =>
+    resolutions
+      .filter((resolution) => resolution.verdict === verdict)
+      .map(
+        (resolution) => `  ${resolution.specifier} (named by ${resolution.from}) -> ${resolution.target ?? 'nothing'}`,
+      )
+      .join('\n');
+  expect(
+    resolutions.filter((resolution) => resolution.verdict === 'escaped'),
+    `${label}: a first-party specifier left the fixture and answered another checkout:\n${named('escaped')}`,
+  ).toEqual([]);
+  expect(
+    resolutions.filter((resolution) => resolution.verdict === 'unresolvable'),
+    `${label}: the fixture holds these packages and this checkout's backend reaches them, ` +
+      `but the fixture resolves neither:\n${named('unresolvable')}`,
+  ).toEqual([]);
+  // Not a vacuous green: a walk that stopped finding specifiers, or a `held`
+  // set that came back empty, would satisfy both assertions above in silence.
+  expect(
+    resolutions.filter((resolution) => resolution.verdict === 'inside').length,
+    `${label}: no first-party specifier resolved at all, so the two assertions above ` +
+      'passed over nothing',
+  ).toBeGreaterThan(0);
+}
+
+describe('a fixture resolves its own packages, not the real checkout\'s (feature 111, FR-003)', () => {
+  it('resolves every first-party specifier the moved tree names inside itself', () => {
+    expectNoFirstPartySpecifierEscapes('moved', endoraSpecifierResolutions(moved.root));
+    expectNoFirstPartySpecifierEscapes('agreeing', endoraSpecifierResolutions(agreeing.root));
+  });
+
+  it('goes red over a fixture that borrows this repository\'s node_modules', () => {
+    // The red proof, and it has to be a **built** fixture: the escape is silent
+    // by construction — the borrowed tree resolves to a complete package and
+    // every reader is happy — so there is nothing to go red over until a
+    // fixture is standing that does it. The input enters at the top of the
+    // analysis (issue #130) rather than as a value the guard normally computes.
+    const borrowed = createMovedModuleTreeFixture({ borrowNodeModules: true });
+    try {
+      const resolutions = endoraSpecifierResolutions(borrowed.root);
+      const escaped = resolutions.filter((resolution) => resolution.verdict === 'escaped');
+      expect(escaped.length, JSON.stringify(resolutions, null, 2)).toBeGreaterThan(0);
+      // It names the escaping specifier and its target, because a guard that
+      // only said "something escaped" would send its reader to the wrong file.
+      for (const resolution of escaped) {
+        expect(resolution.specifier).toMatch(/^@endora-commerce\//);
+        expect(resolution.target).not.toBeNull();
+        expect(resolution.target).not.toContain(borrowed.root);
+      }
+      expect(escaped.map((resolution) => resolution.specifier)).toContain(
+        '@endora-commerce/contracts',
+      );
+      expect(() => expectNoFirstPartySpecifierEscapes('borrowed', resolutions)).toThrow(
+        /left the fixture and answered another checkout/,
+      );
+    } finally {
+      borrowed.cleanup();
+    }
+  });
 });
 
 /**
@@ -374,6 +462,15 @@ describe('a split module tree is read in full, not in half (feature 080, T040a)'
     split?.cleanup();
     halfMoved?.cleanup();
   });
+
+  it('resolves every first-party specifier both split trees name inside themselves', () => {
+    // The tree this matters most for. It holds 75 of the 76 members of this
+    // checkout's `@endora-commerce` scope, so with the borrowed tree every one
+    // of them answered the real checkout — including the module packages whose
+    // *location* is the whole subject of the proofs above.
+    expectNoFirstPartySpecifierEscapes('split', endoraSpecifierResolutions(split.root));
+    expectNoFirstPartySpecifierEscapes('half-moved', endoraSpecifierResolutions(halfMoved.root));
+  }, 120_000);
 
   for (const check of CHECKS) {
     it(`${check.script} reads both roots and passes`, () => {
