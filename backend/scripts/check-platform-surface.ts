@@ -4,27 +4,60 @@
  *
  * The rule lives in `@endora-commerce/cli/rules/platform-surface.js`
  * (`specs/101-endora-check/contracts/package-scope-layout.md` §6: one analysis,
- * two hosts) — its five findings, its two specifier spellings, its refusals and
- * its population walk. This file resolves this repository's module walk roots,
- * its platform barrels and its floors, and it holds
- * `UNPUBLISHED_PLATFORM_REACHES` below: a ledger is a statement about *this*
- * tree's debt and does not travel. The forwarding specifier is **bare**, never a
- * path into `dist`.
+ * two hosts) — its findings, its specifier spellings, its refusals and its
+ * population walks. This file resolves this repository's module walk roots, its
+ * application roots, its platform barrels and its floors, and it holds the two
+ * ledgers below: a ledger is a statement about *this* tree's debt and does not
+ * travel. The forwarding specifier is **bare**, never a path into `dist`.
+ *
+ * ## Two consumer populations, one rule (feature 115, D115-5)
+ *
+ * The rule is *a reach into the host names a published subpath or a declared
+ * host-internal one, never a file inside the package by relative path*. Until
+ * feature 115 it was asked of **modules** only, and the application — which is
+ * the consumer that writes 84 such reaches — was outside the population by
+ * construction: `layout.moduleIdOfPath` answers `null` for every one of its
+ * files, so `violations=0` was honest about a population that did not contain
+ * them. `RELATIVE_HOST_REACHES` is that half's ledger and
+ * `relative-host-reach` is its finding.
+ *
+ * It is a second population and not a second check because this file already
+ * derives all four inputs a separate script would have to re-derive — where the
+ * platform's sources are, the name it publishes under, the subpaths its
+ * `exports` map declares, and the barrels — and two derivations of one
+ * population are two answers waiting to disagree (D-100). The precedent is one
+ * package over: `check:module-boundary`'s predicate 1b walks the admin
+ * application outside the module root and attributes a reach out of it to
+ * `ADMIN_HOST_OWNER`, with a shard of its own and a coverage floor of its own.
+ *
+ * **What the application half does not read**, stated rather than discovered
+ * later: `backend/test/**`, which is a different population with a different
+ * answer and whose reaches drain as a mechanical rewrite; a bare specifier into
+ * the host, whatever the subpath, because the host is entitled to the
+ * host-internal one and the three-way answer is a *module's* question; and a
+ * relative specifier that resolves to no source file inside the platform, which
+ * is `tsc`'s question and not this one's.
+ *
+ * Normative: `specs/115-lifecycle-container-move/contracts/host-reach-check.md`.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import {
+  applicationReachRefusal,
+  checkApplicationReaches,
   checkPlatformSurface,
   collectPlatformSurfaceSources as walk,
   hostDependentCoverage,
+  hostReachCoverage,
   isPackageToolingConfig,
   keyOf,
   platformSurfaceRefusal,
   remedyOf,
   resolveTarget,
+  type LedgeredHostReach,
   type LedgeredReach,
   type ModulePackageDeclaration,
 } from '@endora-commerce/cli/rules/platform-surface.js';
@@ -68,6 +101,818 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
   'backend/src/apps/example/divergence.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/example/divergence.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
 
+};
+
+/**
+ * The application's own reaches into the platform, written as relative paths
+ * (`specs/115-lifecycle-container-move/contracts/host-reach-check.md`).
+ *
+ * Keyed `<application file>|<canonical platform source file>`. The key's second
+ * half is the file, never the specifier: re-spelling
+ * `../../packages/platform/dist/x.js` as `../../packages/platform/src/x.ts` is
+ * the same reach and must not clear an entry, which is the one way this repair
+ * could regress in silence (§4).
+ *
+ * **Two-way and expected to empty** (R4.2/R4.3). An unledgered reach fails the
+ * build and a key describing no reach fails it too. Every entry has an available
+ * remedy — a subpath the `exports` map already declares, or one this feature
+ * adds — so this is not a permanence ledger and takes no `permanent` entries. An
+ * entry saying "this reach is correct" would mean the predicate has outgrown its
+ * population: narrow the predicate, never add the entry (R4.5).
+ *
+ * `ledger-size` is printed by the run and is written down nowhere (D-100).
+ */
+export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> = {
+  // === GENERATED (3) ===
+  //
+  // The generator's reaches, not an author's (R4.4), and the sharpest thing in
+  // this ledger. `manifest-index.generated.ts` names `_lifecycle`'s manifest at
+  // `../../packages/platform/dist/lifecycle/manifest.js`, which resolves in this
+  // checkout and in **no** client instance — so the artefact whose whole job is to
+  // register the modules a build ships cannot register `_lifecycle` anywhere else,
+  // and that is precisely what stops an instance built from published packages
+  // from working. `composition.generated.ts` carries the same two reaches for the
+  // same reason. Neither is repaired by editing the file: `generate-composer.ts`
+  // has to emit the bare specifier for the one entry whose manifest the platform
+  // owns.
+  'backend/src/composition.generated.ts|packages/platform/src/lifecycle/backend.ts': {
+    reason:
+      'the generated composition imports `_lifecycle`\'s `registerModule` through the ' +
+      'platform\'s build output by relative path, for the same reason and with the same ' +
+      'consequence as the manifest index\'s',
+    retiredBy:
+      'feature 115 Phase 6 — `generate-composer.ts` emits ' +
+      '`@endora-commerce/platform/lifecycle` for the one entry whose manifest the platform ' +
+      'owns',
+  },
+  'backend/src/composition.generated.ts|packages/platform/src/lifecycle/manifest.ts': {
+    reason:
+      'the generated composition imports `_lifecycle`\'s manifest through the platform\'s build ' +
+      'output by relative path — the second half of the same emission',
+    retiredBy:
+      'feature 115 Phase 6 — `generate-composer.ts` emits ' +
+      '`@endora-commerce/platform/lifecycle` for the one entry whose manifest the platform ' +
+      'owns',
+  },
+  'backend/src/manifest-index.generated.ts|packages/platform/src/lifecycle/manifest.ts': {
+    reason:
+      'the generated manifest index reaches `_lifecycle`\'s manifest through the platform\'s ' +
+      'build output by relative path, so the index cannot register `_lifecycle` in any tree ' +
+      'that is not this checkout — the one entry in this ledger that is a live product defect ' +
+      'rather than a layout debt',
+    retiredBy:
+      'feature 115 Phase 6 — `generate-composer.ts` emits ' +
+      '`@endora-commerce/platform/lifecycle` for the one entry whose manifest the platform ' +
+      'owns',
+  },
+
+  // === LIFECYCLE_SHIM (12) ===
+  //
+  // `_lifecycle`'s twelve 20-line re-export shims, each forwarding one platform
+  // file the host half still names at its old application path. They are the half
+  // this feature drains: Phase 2 gives the operator surface a declared address
+  // (`./lifecycle`, host-internal — D115-4), and Phases 3–5 move the manifest
+  // registry, the divergence parser and the five command bodies behind it, at
+  // which point each shim's consumers name the subpath and the shim is deleted.
+  'backend/src/lifecycle/plugin.ts|packages/platform/src/lifecycle/plugin.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/plugin.ts` at its own path, and the platform ' +
+      'publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/routes.admin.ts|packages/platform/src/lifecycle/routes.admin.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/routes.admin.ts` at its own path, and the platform ' +
+      'publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/deactivation-ledger.ts|packages/platform/src/lifecycle/services/deactivation-ledger.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/deactivation-ledger.ts` at its own path, and ' +
+      'the platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/dep-graph.ts|packages/platform/src/lifecycle/services/dep-graph.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/dep-graph.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/gating-graph.ts|packages/platform/src/lifecycle/services/gating-graph.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/gating-graph.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/lock.ts|packages/platform/src/lifecycle/services/lock.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/lock.ts` at its own path, and the platform ' +
+      'publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/manifest-loader.ts|packages/platform/src/lifecycle/services/manifest-loader.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/manifest-loader.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/migration-ownership.ts|packages/platform/src/lifecycle/services/migration-ownership.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/migration-ownership.ts` at its own path, and ' +
+      'the platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/module-origin.ts|packages/platform/src/lifecycle/services/module-origin.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/module-origin.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/lifecycle/services/orchestrator.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/orchestrator.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/lifecycle/services/presence-load.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/presence-load.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/static-registry.ts|packages/platform/src/lifecycle/services/static-registry.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/static-registry.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+
+  // === PUBLISHED_SHIM (41) ===
+  //
+  // A re-export shim at `backend/src/<subpath>/…` whose target a published barrel
+  // already carries, so the address exists today and the remedy is a rewrite: the
+  // shim's consumers name `@endora-commerce/platform/<subpath>` and the shim goes.
+  // This is the bulk of the debt and it is not this feature's — 110's Phase 2 is
+  // where the application stops holding a private copy of the platform's layout.
+  'backend/src/commands/actor.ts|packages/platform/src/commands/actor.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/commands/actor.ts`, which ' +
+      '`@endora-commerce/platform/commands` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/commands/command-bus.ts|packages/platform/src/commands/command-bus.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/commands/command-bus.ts`, which ' +
+      '`@endora-commerce/platform/commands` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/commands/command.ts|packages/platform/src/commands/command.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/commands/command.ts`, which ' +
+      '`@endora-commerce/platform/commands` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/commands/reversible.ts|packages/platform/src/commands/reversible.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/commands/reversible.ts`, which ' +
+      '`@endora-commerce/platform/commands` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/events/bus.ts|packages/platform/src/events/bus.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/events/bus.ts`, which ' +
+      '`@endora-commerce/platform/events` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/http/cursor.ts|packages/platform/src/http/cursor.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/cursor.ts`, which ' +
+      '`@endora-commerce/platform/http` already carries — the reach is a rewrite away from an ' +
+      'address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/http/error-envelope.ts|packages/platform/src/http/error-envelope.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/error-envelope.ts`, which ' +
+      '`@endora-commerce/platform/http` already carries — the reach is a rewrite away from an ' +
+      'address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/http/product-audience.ts|packages/platform/src/http/product-audience.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/product-audience.ts`, which ' +
+      '`@endora-commerce/platform/http` already carries — the reach is a rewrite away from an ' +
+      'address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/http/storefront-revalidator.ts|packages/platform/src/http/storefront-revalidator.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/storefront-revalidator.ts`, which ' +
+      '`@endora-commerce/platform/http` already carries — the reach is a rewrite away from an ' +
+      'address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/audit/audit-log-entry.entity.ts|packages/platform/src/kernel/audit/audit-log-entry.entity.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/audit/audit-log-entry.entity.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/cache/in-process-cache-registry.ts|packages/platform/src/kernel/cache/in-process-cache-registry.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/cache/in-process-cache-registry.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/crypto/password-hasher.ts|packages/platform/src/kernel/crypto/password-hasher.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/crypto/password-hasher.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/lifecycle/effective-state.ts|packages/platform/src/kernel/lifecycle/effective-state.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/effective-state.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/lifecycle/plugin-helpers.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/plugin-helpers.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/logging.ts|packages/platform/src/kernel/logging.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/logging.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/module-context.ts|packages/platform/src/kernel/module-context.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/module-context.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/audit.ts|packages/platform/src/kernel/ports/audit.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/audit.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/organizations.ts|packages/platform/src/kernel/ports/organizations.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/organizations.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/require-admin.ts|packages/platform/src/kernel/ports/require-admin.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/require-admin.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/require-customer.ts|packages/platform/src/kernel/ports/require-customer.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/require-customer.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/sales-channel.ts|packages/platform/src/kernel/ports/sales-channel.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/sales-channel.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/settings.ts|packages/platform/src/kernel/ports/settings.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/settings.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/public-api-base-url.ts|packages/platform/src/kernel/public-api-base-url.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/public-api-base-url.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/no-system-default-channel.error.ts|packages/platform/src/kernel/sales-channels/no-system-default-channel.error.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/no-system-default-channel.error.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/request-channel-assortment.ts|packages/platform/src/kernel/sales-channels/request-channel-assortment.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/request-channel-assortment.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channel-membership.service.ts|packages/platform/src/kernel/sales-channels/sales-channel-membership.service.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channel-membership.service.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channel-resolver.middleware.ts|packages/platform/src/kernel/sales-channels/sales-channel-resolver.middleware.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channel-resolver.middleware.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channel-resolver.service.ts|packages/platform/src/kernel/sales-channels/sales-channel-resolver.service.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channel-resolver.service.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channel.entity.ts|packages/platform/src/kernel/sales-channels/sales-channel.entity.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channel.entity.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channels-cache.ts|packages/platform/src/kernel/sales-channels/sales-channels-cache.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channels-cache.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/scope.ts|packages/platform/src/kernel/scope.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/scope.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/secret-value-codec.ts|packages/platform/src/kernel/settings/secret-value-codec.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/secret-value-codec.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/setting-group.entity.ts|packages/platform/src/kernel/settings/setting-group.entity.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/setting-group.entity.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/setting-value.entity.ts|packages/platform/src/kernel/settings/setting-value.entity.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/setting-value.entity.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/setting.entity.ts|packages/platform/src/kernel/settings/setting.entity.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/setting.entity.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/settings-cache.ts|packages/platform/src/kernel/settings/settings-cache.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/settings-cache.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/settings.service.ts|packages/platform/src/kernel/settings/settings.service.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/settings.service.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/tenancy/derived-scope.ts|packages/platform/src/tenancy/derived-scope.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/derived-scope.ts`, which ' +
+      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/tenancy/escape-hatch.ts|packages/platform/src/tenancy/escape-hatch.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/escape-hatch.ts`, which ' +
+      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/tenancy/org-scoped.decorator.ts|packages/platform/src/tenancy/org-scoped.decorator.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/org-scoped.decorator.ts`, which ' +
+      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/tenancy/tenant-context.ts|packages/platform/src/tenancy/tenant-context.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/tenant-context.ts`, which ' +
+      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+
+  // === UNPUBLISHED_SHIM (28) ===
+  //
+  // The same shape with one difference that decides the order of the repair: no
+  // barrel carries the target, so there is no address to rewrite the reach to yet.
+  // Each needs a subpath declared first — host-internal unless a module genuinely
+  // needs the symbol, which is D-160.14's line and never a widening of
+  // `PUBLISHED_SUBPATHS` taken to make a check pass. 110's Phase 2, after the
+  // subpath question is answered for each of them.
+  'backend/src/demo/index.ts|packages/platform/src/demo/index.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/demo/index.ts`, which no barrel carries — ' +
+      'the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/dispatch.ts|packages/platform/src/http/interceptors/dispatch.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/dispatch.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/index.ts|packages/platform/src/http/interceptors/index.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/index.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/registry.ts|packages/platform/src/http/interceptors/registry.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/registry.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/route-table.ts|packages/platform/src/http/interceptors/route-table.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/route-table.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/validation.ts|packages/platform/src/http/interceptors/validation.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/validation.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/server.ts|packages/platform/src/http/server.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/server.ts`, which no barrel carries ' +
+      '— the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/test-actor-carrier.ts|packages/platform/src/http/test-actor-carrier.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/test-actor-carrier.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/trusted-proxy.ts|packages/platform/src/http/trusted-proxy.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/trusted-proxy.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/audit/audit-log-service.ts|packages/platform/src/kernel/audit/audit-log-service.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/audit/audit-log-service.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/compose.ts|packages/platform/src/kernel/compose.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/compose.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/container.ts|packages/platform/src/kernel/container.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/container.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/i18n/request-language.ts|packages/platform/src/kernel/i18n/request-language.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/i18n/request-language.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/activation-resolver.ts|packages/platform/src/kernel/lifecycle/activation-resolver.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/activation-resolver.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/module-registration.entity.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/lifecycle/module-registration.entity.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/registry-cache.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/registry-cache.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/required-modules.ts|packages/platform/src/kernel/lifecycle/required-modules.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/required-modules.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/unique-module-ids.ts|packages/platform/src/kernel/lifecycle/unique-module-ids.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/unique-module-ids.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/request-scope-hook.ts|packages/platform/src/kernel/request-scope-hook.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/request-scope-hook.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/sales-channels/compose.ts|packages/platform/src/kernel/sales-channels/compose.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/sales-channels/compose.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/sales-channels/default-channel-reconciler.ts|packages/platform/src/kernel/sales-channels/default-channel-reconciler.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/default-channel-reconciler.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/settings/compose.ts|packages/platform/src/kernel/settings/compose.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/compose.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/settings/manifest-reconciler.ts|packages/platform/src/kernel/settings/manifest-reconciler.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/manifest-reconciler.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/seeds/dev-seed-guard.ts|packages/platform/src/demo/guard.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/demo/guard.ts`, which no barrel carries — ' +
+      'the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/seeds/seed-scope.ts|packages/platform/src/demo/scope.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/demo/scope.ts`, which no barrel carries — ' +
+      'the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/tenancy/filters.ts|packages/platform/src/tenancy/filters.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/filters.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/tenancy/resolve-tenant-context.ts|packages/platform/src/tenancy/resolve-tenant-context.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/resolve-tenant-context.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/tenancy/scoped-em.ts|packages/platform/src/tenancy/scoped-em.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/scoped-em.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
 };
 
 async function main(): Promise<void> {
@@ -184,6 +1029,60 @@ async function main(): Promise<void> {
     moduleIdOf: attribute,
   });
 
+  // The **application** as a second consumer population (feature 115, D115-5).
+  //
+  // The rule is this check's own sentence one population over — *a reach into
+  // the host names a published or a declared address* — and the application is
+  // the consumer nothing was asking it of: `attribute` answers `null` for every
+  // one of its files, so `violations=0` was honest about a population that did
+  // not contain them.
+  //
+  // The two roots are the contract's (§2) and are the application's own, never
+  // the repository's: `layout.srcRoot` is where the manifest index says the
+  // application's sources are, and `scripts/` beside it is the only other tree
+  // whose files this repository executes as part of the application. The test
+  // tree is out — it is a different population with a different answer, and its
+  // reaches drain as a mechanical rewrite — and it is out *by not being walked*
+  // rather than by an exclusion, which is why `scripts` is spelled and `test`
+  // is not.
+  //
+  // Every file a module owns stays in `sources` above and is judged by the
+  // existing rules; a file inside the platform is the package reaching itself.
+  const applicationSources = new Map<string, string>();
+  for (const root of [layout.srcRoot, join(layout.applicationRoot, 'scripts')]) {
+    for (const file of walk(root)) {
+      if (layout.moduleWalkRoots.some((moduleRoot) => file.startsWith(`${moduleRoot}/`))) continue;
+      if (attribute(repoKeyOf(file)) !== null) continue;
+      if (file.startsWith(`${platformRoot}/`)) continue;
+      applicationSources.set(repoKeyOf(file), readFileSync(file, 'utf8'));
+    }
+  }
+
+  const applicationRefusal = applicationReachRefusal({
+    canonicalTargets: canonicalTargets.size,
+    applicationFiles: applicationSources.size,
+  });
+  if (applicationRefusal !== null) {
+    console.error(`${prefix} ${applicationRefusal}`);
+    process.exit(2);
+  }
+
+  const applicationReaches = checkApplicationReaches(
+    {
+      sources: applicationSources,
+      // The member's own directory — the directory holding the manifest that
+      // declares `endora.type: "platform"`. `platformSourceRootOf` builds its
+      // answer by joining `src` to it, so `dirname` is that derivation's exact
+      // inverse rather than a guess about the layout.
+      platformMemberRoot: repoKeyOf(dirname(platformRoot)),
+      platformSourceRoot: repoKeyOf(platformRoot),
+      files,
+      surface,
+      host,
+    },
+    RELATIVE_HOST_REACHES,
+  );
+
   const result = checkPlatformSurface(
     {
       sources,
@@ -229,6 +1128,10 @@ async function main(): Promise<void> {
   const hostDependents = hostDependentCoverage(declarations, result.hostReachModules);
 
   if (listMode) {
+    for (const finding of applicationReaches.findings) {
+      const tag = RELATIVE_HOST_REACHES[keyOf(finding)] === undefined ? 'HOST    ' : 'LEDGERED';
+      console.log(`${tag} ${finding.file}:${finding.line}  ${finding.target}  (${finding.kind})`);
+    }
     for (const finding of result.findings) {
       const tag =
         UNPUBLISHED_PLATFORM_REACHES[keyOf(finding)]?.symbols.includes(finding.symbol) === true
@@ -248,10 +1151,21 @@ async function main(): Promise<void> {
   // changes. The two `sources=` derivations have different authors: the module
   // count comes from the generated manifest index, and the barrel count from
   // D-160.7's subpath list reconciled against the tree.
+  //
+  // `files` and `sites` carry **both** populations (host-reach-check.md §6):
+  // `files` grows by the application files opened and `sites` by the
+  // application reaches examined. `platform-barrels` is deliberately unchanged
+  // — `PUBLISHED_SUBPATHS` is untouched by feature 115, and a token that moved
+  // would say the published surface had.
+  const hostReaches = hostReachCoverage(
+    RELATIVE_HOST_REACHES,
+    (file) => existsSync(join(layout.repoRoot, file)),
+    new Set(applicationSources.keys()),
+  );
   reportReadSize({
     prefix,
-    files: sources.size,
-    sites: result.reaches,
+    files: sources.size + applicationSources.size,
+    sites: result.reaches + applicationReaches.reaches,
     coverage: [
       coverage,
       {
@@ -260,6 +1174,7 @@ async function main(): Promise<void> {
         covered: surface.barrelsWithExports,
       },
       ...(hostDependents === null ? [] : [hostDependents]),
+      ...(hostReaches === null ? [] : [hostReaches]),
     ],
   });
   console.log(
@@ -267,6 +1182,13 @@ async function main(): Promise<void> {
       `violations=${result.violations.length} ledgered=${result.ledgered.length} ` +
       `ledger-size=${Object.keys(UNPUBLISHED_PLATFORM_REACHES).length} ` +
       `stale=${result.staleKeys.length + result.staleSymbols.length}`,
+  );
+  console.log(
+    `${prefix} application reaches into the platform by relative path=` +
+      `${applicationReaches.findings.length} violations=${applicationReaches.violations.length} ` +
+      `ledgered=${applicationReaches.ledgered.length} ` +
+      `ledger-size=${Object.keys(RELATIVE_HOST_REACHES).length} ` +
+      `stale=${applicationReaches.staleKeys.length}`,
   );
 
   if (result.violations.length > 0) {
@@ -296,10 +1218,28 @@ async function main(): Promise<void> {
     for (const key of result.staleSymbols) console.error(`  - ${key}`);
   }
 
+  if (applicationReaches.violations.length > 0) {
+    console.error(
+      '\nThe application reached inside `@endora-commerce/platform` by relative path\n' +
+        '(feature 115, D115-5). A relative path into the package resolves in this checkout\n' +
+        'and in no instance built from published packages, which is the defect D-207 names.\n' +
+        'Name a published subpath, or a host-internal one the map declares — never a file.\n',
+    );
+    for (const finding of applicationReaches.violations) {
+      console.error(`  - ${finding.file}:${finding.line}  ${remedyOf(finding)}`);
+    }
+  }
+  if (applicationReaches.staleKeys.length > 0) {
+    console.error('\nStale RELATIVE_HOST_REACHES keys (no longer describe a reach — delete them):');
+    for (const key of applicationReaches.staleKeys) console.error(`  - ${key}`);
+  }
+
   const failed =
     result.violations.length > 0 ||
     result.staleKeys.length > 0 ||
-    result.staleSymbols.length > 0;
+    result.staleSymbols.length > 0 ||
+    applicationReaches.violations.length > 0 ||
+    applicationReaches.staleKeys.length > 0;
   process.exit(failed ? 1 : 0);
 }
 

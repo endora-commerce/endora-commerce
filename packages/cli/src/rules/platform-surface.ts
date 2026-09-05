@@ -207,10 +207,27 @@
  *     plentifully, and `platform-barrels` counts barrels, which a module move
  *     does not touch.
  *
+ * ## The second consumer population (feature 115, D115-5)
+ *
+ * The rule above is *a reach into the host names a published subpath or a
+ * declared host-internal one, never a file inside the package by relative path*,
+ * and it was asked of **modules** only. The **application** writes the same
+ * reach — 84 of them, every one of which resolves in this checkout and in no
+ * instance built from published packages, which is the defect D-207 names — and
+ * was outside the population by construction: `moduleIdOf` answers `null` for
+ * every one of its files, so a green was honest about a population that did not
+ * contain them. {@link scanApplicationReaches} is that half, `relative-host-reach`
+ * is its finding, and {@link LedgeredHostReach} is its ledger's entry.
+ *
+ * It is one rule with two populations and not two rules: this analysis already
+ * derives the four inputs a second one would re-derive, and two derivations of
+ * one population are two answers waiting to disagree (D-100). Normative:
+ * `specs/115-lifecycle-container-move/contracts/host-reach-check.md`.
+ *
  * Usage: `tsx scripts/check-platform-surface.ts [--list]`
- * Exit 0 = every module reach into the platform is published or ledgered;
+ * Exit 0 = every reach into the platform is published, declared or ledgered;
  * exit 1 = at least one is not, or a ledger entry is stale;
- * exit 2 = the walk, the index or a barrel could not be read.
+ * exit 2 = the walk, the index, a barrel or the application tree could not be read.
  */
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -242,7 +259,8 @@ export type PlatformSurfaceFindingKind =
   | 'unresolvable-reach'
   | 'unattributed-source'
   | 'unpublished-subpath'
-  | 'host-internal-subpath';
+  | 'host-internal-subpath'
+  | 'relative-host-reach';
 
 export interface PlatformSurfaceFinding {
   readonly kind: PlatformSurfaceFindingKind;
@@ -261,6 +279,21 @@ export interface PlatformSurfaceFinding {
   readonly symbol: string;
   /** The specifier as written, for the failure message. */
   readonly specifier: string;
+  /**
+   * The **bare specifier** that carries {@link PlatformSurfaceFinding.target} —
+   * `@endora-commerce/platform/kernel` — or `null` when no barrel carries the
+   * file at all. A `relative-host-reach`'s remedy, and nothing else's.
+   *
+   * It is derived in the analysis rather than in {@link remedyOf} because the
+   * derivation needs the barrels and the `exports` map and a remedy sentence has
+   * neither: {@link PlatformSurface.publishedBy} says which barrel publishes the
+   * file, {@link HostPackage.subpathTargets} says which subpath that barrel is,
+   * and {@link HostPackage.name} says what a consumer writes. All three are read
+   * off the package, so a sixth published directory changes the sentence in the
+   * same run rather than when somebody remembers — which is the property
+   * host-reach-check.md §3 asks for.
+   */
+  readonly publishedAs?: string | null;
 }
 
 /**
@@ -677,6 +710,279 @@ export function checkPlatformSurface(
   };
 }
 
+
+/* ------------------------------------------------ the application's reaches */
+
+/**
+ * One ledgered application reach into the platform by relative path.
+ *
+ * Keyed `<application file>|<canonical platform file>` — the *canonical* file
+ * and never the specifier, which is the one way this repair could regress in
+ * silence: re-spelling `../../packages/platform/dist/x.js` as
+ * `../../packages/platform/src/x.ts` is the same reach and must not clear an
+ * entry (host-reach-check.md §4).
+ *
+ * `retiredBy` is a field rather than a sentence inside {@link
+ * LedgeredHostReach.reason} because R4.1 requires every entry to name the phase
+ * that retires it, and a requirement carried only by prose is one an author can
+ * satisfy by writing anything. The companion test holds both to being non-empty.
+ *
+ * **No `permanent` member, deliberately** (R4.2/R4.5). Every entry has an
+ * available remedy — a subpath the map already declares, or one this feature
+ * adds — so an entry saying "this reach is correct" would mean the predicate has
+ * outgrown its population. Narrow the predicate; never add the entry.
+ */
+export interface LedgeredHostReach {
+  /** Why it stands. */
+  readonly reason: string;
+  /** The phase or feature that retires it. */
+  readonly retiredBy: string;
+}
+
+/**
+ * The application's own reaches into the platform, and what they resolve to.
+ *
+ * A second **consumer population** on this check's own rule — *a reach into the
+ * host names a published subpath or a declared host-internal one, never a file
+ * inside the package by relative path* — and not a second rule
+ * (host-reach-check.md §1.1). The four inputs it needs are the four this check
+ * already derives: where the platform's sources are, the name it publishes
+ * under, the subpaths its `exports` map declares, and the barrels. A separate
+ * script would re-derive all four, which is two answers to one population
+ * (D-100).
+ */
+export interface ApplicationReachInput {
+  /**
+   * The application's own sources, keyed relative to the repository root: every
+   * file the layout attributes to no module and that is not inside the platform.
+   *
+   * Module-attributed files stay in {@link PlatformSurfaceInput.sources} and are
+   * judged by the existing rules; nothing about a module reach changes.
+   */
+  readonly sources: ReadonlyMap<string, string>;
+  /**
+   * The platform member's own directory, repo-relative — `packages/platform`,
+   * the directory holding its `package.json`.
+   *
+   * The target side is *anything inside the member*, which is both spellings at
+   * once: `src/**` is what a well-meaning cleanup would write and `dist/**` is
+   * what the tree writes today. Neither directory name appears in this analysis
+   * — see {@link canonicalPlatformFile}.
+   */
+  readonly platformMemberRoot: string;
+  /** The platform's source root, repo-relative — `packages/platform/src`. */
+  readonly platformSourceRoot: string;
+  /** Every source-file key the walk found, for the `.js` → `.ts` resolution. */
+  readonly files: ReadonlySet<string>;
+  /** The published surface, so a remedy can name the subpath that carries a file. */
+  readonly surface: PlatformSurface;
+  /** The host package — its `exports` map is what turns a barrel into a subpath. */
+  readonly host: HostPackage;
+}
+
+/**
+ * The platform **source** file a specifier landing inside the member names, or
+ * `null`.
+ *
+ * The canonicalisation drops the member-relative path's **first segment** —
+ * whatever it is — and re-roots the remainder at the platform's source root. So
+ * `dist/lifecycle/manifest.js` and `src/lifecycle/manifest.ts` both canonicalise
+ * to `packages/platform/src/lifecycle/manifest.ts`, and the word `dist` appears
+ * nowhere: a build directory renamed in the package's own `tsconfig.build.json`
+ * arrives here by being renamed, not by anybody remembering this file (D-100).
+ *
+ * `null` for a specifier that lands inside the member and resolves to no source
+ * file. That is deliberate and is the contract's own ruling (§3): a relative
+ * specifier resolving to nothing inside the platform is not a host reach at all,
+ * and reporting it here would be this check answering `tsc`'s question. The
+ * risk it carries — a canonicalisation bug silently resolving everything to
+ * `null` — is not silent: the ledger is two-way, so a walk that stopped
+ * resolving reports every entry it holds as stale and exits 1.
+ */
+export function canonicalPlatformFile(
+  joined: string,
+  input: Pick<ApplicationReachInput, 'platformMemberRoot' | 'platformSourceRoot' | 'files'>,
+): string | null {
+  const prefix = `${input.platformMemberRoot}/`;
+  if (!joined.startsWith(prefix)) return null;
+  const withinMember = joined.slice(prefix.length);
+  const cut = withinMember.indexOf('/');
+  if (cut <= 0) return null;
+  const rest = withinMember.slice(cut + 1);
+  if (rest.length === 0) return null;
+  for (const candidate of resolutionCandidates(`${input.platformSourceRoot}/${rest}`)) {
+    if (input.files.has(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** The bare specifier carrying a platform file, or `null` when none does. */
+function publishedSpecifierFor(target: string, input: ApplicationReachInput): string | null {
+  const carriers = input.surface.publishedBy.get(target) ?? new Set<string>();
+  for (const [subpath, barrel] of input.host.subpathTargets) {
+    // Reaching a barrel *is* reaching its subpath, whole or not.
+    if (barrel === target || carriers.has(barrel)) return `${input.host.name}/${subpath}`;
+  }
+  return null;
+}
+
+/** What the application-reach walk read, beside what it found. */
+export interface ApplicationReachScan {
+  /** Relative reaches into the platform judged — this half's `sites=` addend. */
+  readonly reaches: number;
+  readonly findings: readonly PlatformSurfaceFinding[];
+}
+
+/**
+ * Every application reach into the platform written as a relative path.
+ *
+ * Pure over source text, file keys, barrel-derived surface and the two platform
+ * roots — so a fixture enters exactly where a run does, specifier extraction and
+ * `.js` → `.ts` resolution included (issue #130, and the `check-entry-scope`
+ * fixture that entered below its own classifier is the cautionary example).
+ *
+ * **A bare specifier into the host produces no finding here, and that is the
+ * discrimination the rule turns on.** `@endora-commerce/platform/kernel` and
+ * `@endora-commerce/platform/composition` are both correct from the application:
+ * the first is published and the second is the host-internal address the host is
+ * entitled to (D-160.14). The three-way answer for a bare specifier is a
+ * *module's* — `resolveHostSpecifier` in {@link scanPlatformSurface} — and asking
+ * it twice, with two populations and two verdicts, is two answers waiting to
+ * disagree.
+ */
+export function scanApplicationReaches(input: ApplicationReachInput): ApplicationReachScan {
+  const findings: PlatformSurfaceFinding[] = [];
+  let reaches = 0;
+
+  for (const [file, text] of [...input.sources].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const specifier of namedSpecifiers(text, file)) {
+      if (!specifier.text.startsWith('.')) continue;
+      const joined = resolveRelative(file, specifier.text);
+      if (joined === null) continue;
+      const target = canonicalPlatformFile(joined, input);
+      if (target === null) continue;
+      reaches += 1;
+      findings.push({
+        kind: 'relative-host-reach',
+        file,
+        line: specifier.line,
+        moduleId: null,
+        target,
+        symbol: NO_SYMBOL,
+        specifier: specifier.text,
+        publishedAs: publishedSpecifierFor(target, input),
+      });
+    }
+  }
+
+  findings.sort((a, b) =>
+    a.file === b.file ? a.target.localeCompare(b.target) : a.file.localeCompare(b.file),
+  );
+  return { reaches, findings };
+}
+
+export interface ApplicationReachResult extends ApplicationReachScan {
+  readonly violations: readonly PlatformSurfaceFinding[];
+  readonly ledgered: readonly PlatformSurfaceFinding[];
+  /** Ledger keys that describe no reach the walk found. */
+  readonly staleKeys: readonly string[];
+}
+
+/**
+ * The application's reaches, judged against the ledger — both directions
+ * (host-reach-check.md §4 R4.3).
+ *
+ * One reach may appear twice under one key when a file names the same platform
+ * file from two specifiers; the ledger is keyed `(file, target)` and covers
+ * both, which is right: the entry's subject is the coupling, not the line.
+ */
+export function checkApplicationReaches(
+  input: ApplicationReachInput,
+  ledger: Readonly<Record<string, LedgeredHostReach>>,
+): ApplicationReachResult {
+  const scan = scanApplicationReaches(input);
+  const seen = new Set(scan.findings.map(keyOf));
+  const covers = (finding: PlatformSurfaceFinding): boolean => ledger[keyOf(finding)] !== undefined;
+  return {
+    ...scan,
+    violations: scan.findings.filter((finding) => !covers(finding)),
+    ledgered: scan.findings.filter(covers),
+    staleKeys: Object.keys(ledger)
+      .filter((key) => !seen.has(key))
+      .sort(),
+  };
+}
+
+/**
+ * The coverage floor for the application half: the ledger's own still-on-disk
+ * file set, against what the walk opened of it.
+ *
+ * host-reach-check.md §5's fourth refusal, and it is `check:module-boundary`'s
+ * admin-host floor one package over — a floor derived from *the ledger* rather
+ * than from a count, so a walk that stopped reaching the files it is ledgered
+ * over is a refusal rather than a drained ledger. The ledger is a second
+ * author's answer to "which application files reach the platform": it was
+ * written by whoever measured the debt, and it goes stale loudly rather than
+ * quietly.
+ *
+ * `null` rather than `expected: 0` once the ledger empties, which is what this
+ * ledger is for: an expectation of zero is itself a refusal in this grammar
+ * (`readSizeRefusal`'s `no-expectation`), and rightly — a floor that expects
+ * nothing is switched off.
+ */
+export function hostReachCoverage(
+  ledger: Readonly<Record<string, LedgeredHostReach>>,
+  onDisk: (file: string) => boolean,
+  opened: ReadonlySet<string>,
+): ReadCoverage | null {
+  const ledgeredFiles = new Set(Object.keys(ledger).map((key) => key.split('|')[0] ?? ''));
+  const expected = [...ledgeredFiles].filter((file) => onDisk(file));
+  if (expected.length === 0) return null;
+  return {
+    source: 'host-reaches',
+    expected: expected.length,
+    covered: expected.filter((file) => opened.has(file)).length,
+  };
+}
+
+/**
+ * Why this run may not report on the application's reaches, or `null`.
+ *
+ * Two of host-reach-check.md §5's four refusals — the two that are facts about
+ * *this* half's inputs. The first ("no platform root") is already this check's
+ * own first refusal and stays there; the fourth is the ledger-derived coverage
+ * floor and belongs to `read-size.ts`, which is the one place in the estate that
+ * owns a short walk.
+ *
+ * Both fail in the direction that produces a **clean** result, which is why they
+ * are exit 2 and not a finding. An empty canonical-target map reports every
+ * relative reach as reaching nothing; an application walk that opened no file
+ * reports no reach at all — and this check's module half would go on printing
+ * `files=2069` beside it, because 1364 of `backend/src`'s files are a module's
+ * and a broken *application* walk leaves every one of those numbers healthy
+ * (issue #215's shape over this population).
+ */
+export function applicationReachRefusal(input: {
+  readonly canonicalTargets: number;
+  readonly applicationFiles: number;
+}): string | null {
+  if (input.canonicalTargets === 0) {
+    return (
+      'the platform walk produced no source file — a relative reach into the platform is ' +
+      'canonicalised against that walk, so every one of them would resolve to nothing and ' +
+      'the application half would report clean over a population it never saw'
+    );
+  }
+  if (input.applicationFiles === 0) {
+    return (
+      'the application walk opened no file — the module half of this check reads most of ' +
+      "`backend/src` and would keep printing a healthy `files=`, so a broken application " +
+      'walk is a silence rather than a number that moved (issue #215)'
+    );
+  }
+  return null;
+}
+
 /**
  * Why this run may not judge a reach against the surface it read, or `null`.
  *
@@ -789,6 +1095,16 @@ export function remedyOf(finding: PlatformSurfaceFinding): string {
       return (
         `\`${finding.specifier}\` names no subpath the host publishes — its \`exports\` map ` +
         'refuses the path at resolution time'
+      );
+    case 'relative-host-reach':
+      return (
+        `\`${finding.specifier}\` names ${finding.target} by relative path. ` +
+        (finding.publishedAs === null || finding.publishedAs === undefined
+          ? 'the platform declares no subpath carrying this file — the remedy is to declare ' +
+            'one (host-internal unless a module needs it) or to stop reaching it'
+          : `the address is \`${finding.publishedAs}\``) +
+        '. A relative path into the package resolves in this checkout and in no instance, ' +
+        'which is what stops a build made of published packages from working'
       );
     case 'host-internal-subpath':
       return (

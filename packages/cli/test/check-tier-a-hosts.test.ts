@@ -385,11 +385,16 @@ describe('check:platform-surface over a package', () => {
     expect(result.findings).toEqual([]);
   });
 
-  it('names the half that is vacuous for a package rather than counting it zero', () => {
+  it('names the halves that are vacuous for a package rather than counting them zero', () => {
     const signals = only(fixture(), 'check:platform-surface').unevaluatedSignals.map(
       (signal) => signal.signal,
     );
     expect(signals).toContain('relative-specifier-reach');
+    // Feature 115's second consumer population. An installed module package has
+    // no application tree, so the half has no subject here — declared vacuous
+    // rather than counted zero, which is the difference between "this rule found
+    // nothing" and "this rule was not asked".
+    expect(signals).toContain('application-host-reach');
   });
 });
 
