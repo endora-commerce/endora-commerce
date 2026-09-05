@@ -813,7 +813,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-04: 1186 -> 1209.** 26 markdown files were added under `specs/`
     // and `docs/docs/` since this was set -- the 104, 106, 107 and 108 spec
     // directories, chiefly. The walk is documents, not the module tree they cite.
-    files: 1210,
+    // **2026-09-05: +14, and no branch that moved it could have known.** A nine-way
+    // merge landed `specs/109-backend-test-kit/` (5 files), `specs/110-instance-repository/`
+    // (5) and `specs/111-shared-fixture-package-naming/` (4). All fourteen arrived in two
+    // **documentation-only** merge requests, which re-recorded nothing -- correctly, from
+    // their authors' point of view: a branch that adds only markdown has no reason to
+    // suspect it moves a read size, and neither of them touched a check. But three walks
+    // in this estate count markdown, so a docs-only merge request silently drifts them.
+    // That is the gap the drift report exists to fill and the one case where nobody is at
+    // fault for not filling it in advance; it is caught on the merged tree instead.
+    files: 1224,
     sites: 12,
     sources: [],
   },
@@ -1936,7 +1945,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // other two arrived on `master`. Measured by parking this branch's two off
     // disk, which reads 7559; both are untracked, so the `--cached` caveat does
     // not apply.
-    files: 7625,
+    // **2026-09-05: +14, and no branch that moved it could have known.** A nine-way
+    // merge landed `specs/109-backend-test-kit/` (5 files), `specs/110-instance-repository/`
+    // (5) and `specs/111-shared-fixture-package-naming/` (4). All fourteen arrived in two
+    // **documentation-only** merge requests, which re-recorded nothing -- correctly, from
+    // their authors' point of view: a branch that adds only markdown has no reason to
+    // suspect it moves a read size, and neither of them touched a check. But three walks
+    // in this estate count markdown, so a docs-only merge request silently drifts them.
+    // That is the gap the drift report exists to fill and the one case where nobody is at
+    // fault for not filling it in advance; it is caught on the merged tree instead.
+    files: 7639,
     sites: null,
     sources: [],
   },
@@ -2749,7 +2767,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // untracked: `--cached` answers from the index, so the caveat recorded
     // above bites on a file that has already been committed and not on one that
     // has never been.
-    files: 7685,
+    // **2026-09-05: +14, and no branch that moved it could have known.** A nine-way
+    // merge landed `specs/109-backend-test-kit/` (5 files), `specs/110-instance-repository/`
+    // (5) and `specs/111-shared-fixture-package-naming/` (4). All fourteen arrived in two
+    // **documentation-only** merge requests, which re-recorded nothing -- correctly, from
+    // their authors' point of view: a branch that adds only markdown has no reason to
+    // suspect it moves a read size, and neither of them touched a check. But three walks
+    // in this estate count markdown, so a docs-only merge request silently drifts them.
+    // That is the gap the drift report exists to fill and the one case where nobody is at
+    // fault for not filling it in advance; it is caught on the merged tree instead.
+    files: 7699,
     sites: null,
     sources: ['manifest-index'],
   },
