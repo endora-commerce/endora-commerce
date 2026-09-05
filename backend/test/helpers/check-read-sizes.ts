@@ -2159,12 +2159,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // documentation page) and its changeset markdown. Re-measured after rebasing
     // onto the fifteen commits that landed while the branch was open, not carried
     // over from the pre-rebase measurement.
-    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 7693 -> 7706.**
-    // Thirteen: the eight new source files (`backend/src/cli/demo-command.ts`,
-    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
-    // layer), the four new test files, and — this walk being the whole
-    // repository rather than its TypeScript — the branch's changeset.
-    files: 7706,
+    // **Feature 109, Phase 1c: +1.** One file, and it is the whole delta: the
+    // branch's changeset, `.changeset/test-kit-scoped-plugins-and-decoration-order.md`.
+    // Both walks count markdown, so a merge request that adds one adds a file to
+    // each of them; the three source files it edits were already in the walk.
+    // Re-measured after rebasing onto the merges that landed while the branch was
+    // open, not carried over from the pre-rebase figure.
+    files: 7694,
     sites: null,
     sources: [],
   },
@@ -3049,12 +3050,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 110 Phase 1: +9.** The same nine files `check-nul-bytes` counts —
     // three TypeScript sources, the five of the `mod-instance-surfaces` fixture
     // package and the changeset markdown. Re-measured after the rebase.
-    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 7753 -> 7766.**
-    // Thirteen: the eight new source files (`backend/src/cli/demo-command.ts`,
-    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
-    // layer), the four new test files, and — this walk being the whole
-    // repository rather than its TypeScript — the branch's changeset.
-    files: 7766,
+    // **Feature 109, Phase 1c: +1.** One file, and it is the whole delta: the
+    // branch's changeset, `.changeset/test-kit-scoped-plugins-and-decoration-order.md`.
+    // Both walks count markdown, so a merge request that adds one adds a file to
+    // each of them; the three source files it edits were already in the walk.
+    // Re-measured after rebasing onto the merges that landed while the branch was
+    // open, not carried over from the pre-rebase figure.
+    files: 7754,
     sites: null,
     sources: ['manifest-index'],
   },
