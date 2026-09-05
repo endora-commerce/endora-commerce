@@ -538,6 +538,54 @@ export interface RecordedReadSize {
  * the moment they leave the disk — the delta is real. A branch parking a file it
  * has already committed still needs the detached baseline.
  */
+/**
+ * **Re-recorded on 2026-09-05, thirteen numbers over twelve entries, and the
+ * attribution was measured rather than assumed** (`specs/107-override-report-and-ladder/`).
+ *
+ * The drift report named twelve entries on this branch. Running it again in a
+ * **detached worktree at `origin/master`** — the baseline this branch was rebased
+ * onto — named three, at +14 files each:
+ * `check-doc-snippets`, `check-nul-bytes` and `check-naming.sh`. That +14 is
+ * `master`'s own, from the twenty-one merges that landed while this branch was
+ * open, and it is re-recorded here because the record has to describe the tree;
+ * it is not this branch's growth and nothing in it is this branch's to explain.
+ *
+ * What **is** this branch's, measured as the difference between the two runs:
+ *
+ *  - `check-overlay-determinism` **+3 files** — the three `.md` renderings of the
+ *    divergence report join `coveredArtifactPaths()`. One derivation emits two
+ *    files (FR-015), and both are byte-compared: a `.md` outside the gate would
+ *    be the one artefact of the pair free to drift, and the one a human reads.
+ *  - `check-nul-bytes` **+8**, `check-naming.sh` **+8**, `check-language.sh`
+ *    **+4**, `check-singleton-identity` **+3** — the branch's net file count
+ *    (16 added, 8 deleted) arriving in each whole-tree walk at the size of the
+ *    subtree it covers.
+ *
+ * **Measure on a clean tree, and `pnpm --filter docs run build` does not leave
+ * one.** Taken with the site built, `check-nul-bytes` read **+78**: the 77
+ * module documentation pages the build copies into `docs/docs/modules/` are
+ * git-ignored, so they are absent from a fresh checkout and from CI, and
+ * recording that number would have raised the ceiling by a population no
+ * pipeline holds. `git clean -fdX docs/` before the census.
+ *  - `check-doc-snippets` **+2** and `check-module-docs` **+1** — the
+ *    customisation-ladder page, and `specs/107-…/tasks.md` for the first of the
+ *    two.
+ *  - `check-default-language-prose` **+96 sites**, `check-diacritic-folds`
+ *    **+2 sites**, `check-fixture-substitution` **+1 site**,
+ *    `check-lock-claims` **+1 file** — the new sources being classified. The
+ *    prose check's site count is per **literal**, so a check and a generator
+ *    carrying this much English prose move it by two figures without moving any
+ *    finding.
+ *  - `check-diacritic-folds` **-1 file** and `check-test-ownership` **-1** — the
+ *    three superseded `test/overlay/` files leaving, against the one that
+ *    replaces them.
+ *
+ * The lesson, which is feature 095's own and is worth writing down where the
+ * next author meets it: a re-recorded value is a measurement of *this branch
+ * against a base*, so a rebase invalidates it without touching a line anyone
+ * wrote — and a census run only on the branch cannot tell the branch's growth
+ * from the base's. Both runs, or neither.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
@@ -850,7 +898,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 1224,
+    files: 1226,
     sites: 12,
     sources: [],
   },
@@ -1982,7 +2030,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7639,
+    files: 7647,
     sites: null,
     sources: [],
   },
@@ -2804,7 +2852,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7699,
+    files: 7707,
     sites: null,
     sources: ['manifest-index'],
   },
