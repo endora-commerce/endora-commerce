@@ -18,6 +18,11 @@ import { fileURLToPath } from 'node:url';
 import { DISCOVERED_MANIFESTS } from '../../src/manifest-index.generated.js';
 import { discoverModulePackages } from '../../scripts/lib/module-packages.js';
 import { MANIFEST_INDEX_FILENAME } from '../../scripts/lib/module-roots.js';
+import {
+  adminUiPackages,
+  nodeWorkspaceFs,
+  workspaceMembers,
+} from '../../scripts/lib/workspace-packages.js';
 
 /**
  * A backend whose module tree has moved, with the residue left behind — the
@@ -883,6 +888,7 @@ export function createMovedModuleTreeFixture(
     'utf8',
   );
   cpSync(join(BACKEND_ROOT, 'scripts'), join(backend, 'scripts'), { recursive: true });
+  copyApplicationTests(backend);
   copyContractsPackage(root);
   copyPlatformPackage(root);
   for (const directory of RESIDUE_ROOTS) {
@@ -1164,26 +1170,6 @@ function splitManifestIndex(root: string): string {
 }
 
 /**
- * The admin application, copied whole — manifest, tsconfig and `src`
- * (feature 091, FR-017).
- *
- * `check-module-boundary`'s population now includes module-owned admin code,
- * and its ledger holds 72 entries keyed on files under `admin/src/modules`. A
- * fixture that copies this repository's `backend/scripts` — which is where the
- * ledger lives — and no admin therefore stages a tree in which every one of
- * those entries describes a file the walk never opened. Measured on the split
- * fixture before this existed: one `misfiled` entry (`warehouses` is
- * `inventory`'s surface directory, and with no admin layout to say so the
- * attribution falls back to the directory name) and 71 stale ones, so the check
- * exited 1 for a reason that has nothing to do with where the *modules* are.
- *
- * Three files are what the derivation needs and all three are load-bearing:
- * `tsconfig.json` declares the `"@/*"` alias the admin source root comes from,
- * `package.json` makes the directory a workspace member the search reaches, and
- * `src` holds the route table, the nav and the surface directories. 4.8 MB,
- * about the same as the platform package this fixture already carries.
- */
-/**
  * The documentation site, as `check-module-docs` reads it (feature 100).
  *
  * Copied whole rather than stubbed, for `copyAdminApplication`'s reason: the
@@ -1218,32 +1204,145 @@ function copyDocumentationSite(root: string): void {
  * fixture already carries. `packages/*` already globs them, so the workspace
  * needs no new entry.
  */
-function copyPageBuilderPackages(root: string): void {
-  for (const name of ['cms-components', 'email-components', 'page-builder-core', 'page-builder-admin']) {
-    const source = join(REPO_ROOT, 'packages', name);
-    const destination = join(root, 'packages', name);
-    mkdirSync(destination, { recursive: true });
-    cpSync(join(source, 'package.json'), join(destination, 'package.json'));
-    cpSync(join(source, 'src'), join(destination, 'src'), {
-      recursive: true,
-      preserveTimestamps: true,
-    });
-    // And the build, since feature 111 (FR-003). These are staged for what
-    // `check-block-names` **walks**, which is `src`; two of them are also
-    // members of the backend's `@endora-commerce` scope, and with that scope
-    // re-rooted into the fixture a package staged without its build is one the
-    // fixture holds and cannot resolve — `cms`' manifest imports
-    // `page-builder-core/dist/types/responsive.js`, and every check that reads
-    // the manifest index died there. A fixture that claims to hold a package
-    // holds a usable one. It changes no walk: `check-block-names` skips `dist`
-    // by name, as every module walk in the estate does. ~5 MB across the four.
-    const built = join(source, 'dist');
-    if (existsSync(built)) {
-      cpSync(built, join(destination, 'dist'), { recursive: true, preserveTimestamps: true });
-    }
+/**
+ * One workspace package, staged as `package.json`, `src` and — where it has one
+ * — `dist`.
+ *
+ * `src` first and `dist` after it, both with the source's own timestamps
+ * (FR-011): `emitted-freshness.ts` calls an artefact **stale**, which is exit 2,
+ * when its source is strictly newer, and `cpSync` stamps its copies with the
+ * moment it made them in `readdir` order, where `dist` sorts before `src`.
+ *
+ * **Staging the build is not optional even for a package no check walks**
+ * (feature 111, FR-003). With the fixture's `@endora-commerce` scope re-rooted
+ * into itself, a package staged without its build is one the fixture *holds*
+ * and cannot *resolve*: the exports map names `./dist/...` and the host's copy
+ * is no longer reachable through it. `cms`' manifest imports
+ * `page-builder-core/dist/types/responsive.js`, and every check that reads the
+ * manifest index died there. It changes no walk — every module walk in the
+ * estate skips `dist` by name.
+ *
+ * **Staged once.** Two derivations name `@endora-commerce/page-builder-admin`
+ * (the page-builder family below, and the admin-ui family the workspace
+ * declares), and copying a package twice would re-stamp its `src` after its
+ * `dist` and hand the estate the `stale-artefact` this function's copy order
+ * exists to prevent.
+ */
+function stageWorkspacePackage(root: string, source: string): void {
+  const destination = join(root, relative(REPO_ROOT, source));
+  if (existsSync(join(destination, 'package.json'))) return;
+  mkdirSync(destination, { recursive: true });
+  cpSync(join(source, 'package.json'), join(destination, 'package.json'));
+  cpSync(join(source, 'src'), join(destination, 'src'), {
+    recursive: true,
+    preserveTimestamps: true,
+  });
+  const built = join(source, 'dist');
+  if (existsSync(built)) {
+    cpSync(built, join(destination, 'dist'), { recursive: true, preserveTimestamps: true });
   }
 }
 
+function copyPageBuilderPackages(root: string): void {
+  for (const name of ['cms-components', 'email-components', 'page-builder-core', 'page-builder-admin']) {
+    stageWorkspacePackage(root, join(REPO_ROOT, 'packages', name));
+  }
+}
+
+/**
+ * The admin-ui workspace family, as `check-admin-zones` and
+ * `check-admin-surface` read it (feature 091; feature 111, FR-007).
+ *
+ * Both checks refuse a workspace with no kit, and each refuses it in its own
+ * words: `check-admin-surface` because *"nothing in this repository publishes an
+ * admin surface and every reach would read as unpublished"*, `check-admin-zones`
+ * because its kit-namespace population — R6 of `admin-kit-surface.md`, module
+ * knowledge inside the kit — has no subject. Measured on the split fixture
+ * before this existed: both exited 2, over a tree that holds every module
+ * package's `src/admin` and the whole admin application. The refusals were
+ * correct and were about the **fixture**, which is the state
+ * `contracts/split-fixture-package-naming.md` § 6 is about: a check that cannot
+ * be spawned here records that its population is not the module tree, while its
+ * own source says it is.
+ *
+ * **The family is derived, never listed** (D-100): a member declares
+ * `endora: { type: 'admin-ui' }` about itself, and `adminUiPackages` is the same
+ * derivation both checks use, so a third member changes this answer by existing.
+ * Today it is `packages/admin-kit` and `packages/page-builder-admin`, and the
+ * second is already staged as part of the page-builder family — hence the
+ * stage-once rule above rather than a subtraction written here.
+ *
+ * The **split** fixture alone, deliberately. The moved fixture is a backend with
+ * no admin application at all, so neither check reaches its kit population, and
+ * each stops earlier in its own words — measured: `check-admin-surface` on the
+ * admin source root the `"@/*"` alias would have declared, `check-admin-zones`
+ * on a walk that found neither a zone render nor a contribution. Both are facts
+ * about that fixture's shape and not about a moved module tree, and staging the
+ * kit there would change neither answer. Whether either check *discriminates*
+ * over a moved tree is its author's question and § 7 leaves it open. ~2.9 MB.
+ */
+function copyAdminUiPackages(root: string): void {
+  const family = adminUiPackages(workspaceMembers(REPO_ROOT, nodeWorkspaceFs()));
+  if (family.length === 0) {
+    throw new Error(
+      '[moved-module-tree-fixture] no workspace member declares `endora: { type: "admin-ui" }`, ' +
+        'so the fixture cannot stage the population `check-admin-zones` and ' +
+        '`check-admin-surface` refuse without. Both would exit 2 over every tree this file ' +
+        'builds, which asserts no discrimination at all.',
+    );
+  }
+  for (const member of family) stageWorkspacePackage(root, member.dir);
+}
+
+/**
+ * The application's own test tree (feature 111, FR-006).
+ *
+ * `check-test-ownership`'s population is the union of `backend/test` and the
+ * module packages' own tests, and it floors both addends separately — a union
+ * whose addends are not separately floored reports the half that went to zero as
+ * clean. Measured on the split fixture before this existed: exit 2 on *"the walk
+ * opened no test file under `backend/test/`"*, so the check could be spawned
+ * here and could never reach a verdict.
+ *
+ * It is the second population `check-singleton-identity` reads as well — its
+ * consumer walk is the whole application member, `backend/scripts` and
+ * `backend/test` included — and that is where this staging stops being a
+ * convenience: two of `WHOLE_FILE_REACHES_ALLOWED`'s entries name
+ * `backend/test/unit/{blog,cms}/boot-hook-split.test.ts`, and staleness is
+ * judged only in the tree that holds the file. Without a test tree those two
+ * entries were *skipped* here, so the fixture agreed with a ledger it could not
+ * read; with one they are judged, and § 4.3's assertion becomes a statement
+ * about the repository rather than about the fixture's gap.
+ *
+ * Copied whole rather than filtered: a check that walks this root walks all of
+ * it, and a fixture that staged the files somebody thought were relevant would
+ * be staging a third thing that neither CI nor a developer's machine ever runs.
+ * 16 MB and ~50 ms, against the 81 MB the fixture already carries.
+ */
+function copyApplicationTests(backend: string): void {
+  cpSync(join(BACKEND_ROOT, 'test'), join(backend, 'test'), { recursive: true });
+}
+
+/**
+ * The admin application, copied whole — manifest, tsconfig and `src`
+ * (feature 091, FR-017).
+ *
+ * `check-module-boundary`'s population now includes module-owned admin code,
+ * and its ledger holds 72 entries keyed on files under `admin/src/modules`. A
+ * fixture that copies this repository's `backend/scripts` — which is where the
+ * ledger lives — and no admin therefore stages a tree in which every one of
+ * those entries describes a file the walk never opened. Measured on the split
+ * fixture before this existed: one `misfiled` entry (`warehouses` is
+ * `inventory`'s surface directory, and with no admin layout to say so the
+ * attribution falls back to the directory name) and 71 stale ones, so the check
+ * exited 1 for a reason that has nothing to do with where the *modules* are.
+ *
+ * Three files are what the derivation needs and all three are load-bearing:
+ * `tsconfig.json` declares the `"@/*"` alias the admin source root comes from,
+ * `package.json` makes the directory a workspace member the search reaches, and
+ * `src` holds the route table, the nav and the surface directories. 4.8 MB,
+ * about the same as the platform package this fixture already carries.
+ */
 function copyAdminApplication(root: string): void {
   const source = join(REPO_ROOT, 'admin');
   const destination = join(root, 'admin');
@@ -1281,11 +1380,13 @@ export function createSplitModuleTreeFixture(
   cpSync(join(BACKEND_ROOT, 'package.json'), join(backend, 'package.json'));
   cpSync(join(BACKEND_ROOT, 'scripts'), join(backend, 'scripts'), { recursive: true });
   cpSync(join(BACKEND_ROOT, 'src'), join(backend, 'src'), { recursive: true });
+  copyApplicationTests(backend);
   copyContractsPackage(root);
   copyPlatformPackage(root);
   copyAdminApplication(root);
   copyDocumentationSite(root);
   copyPageBuilderPackages(root);
+  copyAdminUiPackages(root);
 
   const relocate = (id: string, declared: boolean): void => {
     const from = join(backend, 'src', 'modules', id);

@@ -577,6 +577,78 @@ describe('a split module tree is read in full, not in half (feature 080, T040a)'
     }, 120_000);
   }
 
+  /**
+   * Feature 111, Phase 3 — the two trees the fixture was missing (FR-006,
+   * FR-007).
+   *
+   * Three checks could be spawned here and none of them could reach a verdict,
+   * each refusing — correctly — for a population this fixture had never staged:
+   * `check-test-ownership` on *"the walk opened no test file under
+   * `backend/test/`"*, and both admin checks on the absence of
+   * `@endora-commerce/admin-kit`. That is the state
+   * `contracts/split-fixture-package-naming.md` § 6 is about: a check whose
+   * population **is** the module tree, recorded in the inventory as one whose
+   * population is not, because the shared fixture could not stage it.
+   *
+   * The assertions are the observables rather than the exit codes alone. A
+   * refusal is printed *before* a `read:` line, so a token that only exists on
+   * the far side of the vacuous gate is what says the population arrived; an
+   * exit code would also be satisfied by a check that started failing for some
+   * reason of its own.
+   *
+   * Phase 4 folds `check-test-ownership` into `CHECKS` above and re-marks it
+   * `derived-population`; this block is what makes that a re-classification of a
+   * measured fact rather than a hope.
+   */
+  it('check-test-ownership reaches a verdict over the split tree (§ 3.1)', () => {
+    const result = split.run('check-test-ownership.ts');
+    expect(result.status, result.output).toBe(0);
+    // Both addends of its union, each floored separately in the check because a
+    // union whose addends are not is a half that can go to zero unnoticed. The
+    // application half is the tree this phase stages; the package half was
+    // already here.
+    const counts = /application=(\d+) packages=(\d+)/.exec(result.output);
+    expect(counts, `no test-ownership counts in: ${result.output}`).not.toBeNull();
+    expect(Number(counts?.[1])).toBeGreaterThan(0);
+    expect(Number(counts?.[2])).toBeGreaterThan(0);
+  }, 120_000);
+
+  it('check-test-ownership still refuses the moved and half-moved trees (§ 3.1)', () => {
+    // The discrimination, and it is the reason the exit code above is worth
+    // anything: a check that answered 0 over all three trees would be reporting
+    // on something other than where the modules are.
+    const overTheMovedTree = moved.run('check-test-ownership.ts');
+    expect(overTheMovedTree.status, overTheMovedTree.output).toBe(2);
+    expect(overTheMovedTree.output).toMatch(/the walk read \d+ file\(s\)/);
+    const overTheHalfMovedTree = halfMoved.run('check-test-ownership.ts');
+    expect(overTheHalfMovedTree.status, overTheHalfMovedTree.output).toBe(2);
+    expect(overTheHalfMovedTree.output).toContain(STRANDED_MODULE);
+  }, 120_000);
+
+  for (const [script, token] of [
+    // `check-admin-zones`' `admin-ui` token counts the family members **other
+    // than** the kit, so it is only printed once the kit itself is one: a
+    // workspace with no kit refuses before this line, and one with a kit and no
+    // second member prints nothing rather than `0/0`.
+    ['check-admin-zones.ts', /admin-ui:(\d+)\/(\d+)/],
+    // `check-admin-surface`'s published set: the kit's own `exports` map, read
+    // once the kit is a member of this workspace.
+    ['check-admin-surface.ts', /admin-kit-exports:(\d+)\/(\d+)/],
+  ] as const) {
+    it(`${script} no longer refuses for a population the fixture did not stage (§ 3.2)`, () => {
+      const result = split.run(script);
+      // Not an assertion that the check *passes*: what this phase owes it is a
+      // population, and its findings and ledgers are its own. Exit 2 is the one
+      // answer that says the fixture is still short.
+      expect(result.status, result.output).not.toBe(2);
+      expect(result.output).not.toContain('refusing to report a vacuous pass');
+      const read = token.exec(result.output);
+      expect(read, `${script} printed no ${String(token)} token: ${result.output}`).not.toBeNull();
+      expect(Number(read?.[2])).toBeGreaterThan(0);
+      expect(read?.[1]).toBe(read?.[2]);
+    }, 120_000);
+  }
+
   it('check-singleton-identity finds its allowances used, not stale (§ 4.3)', () => {
     // `WHOLE_FILE_REACHES_ALLOWED`'s entries say the artefact sharing the
     // process is the package's **root** export — the manifest the index
@@ -584,10 +656,23 @@ describe('a split module tree is read in full, not in half (feature 080, T040a)'
     // conjunct 1 of the rule is false, the reach is not found, and the entry
     // describing it reads stale. The entries are right about this repository;
     // the fixture was wrong about itself.
+    //
+    // **Phase 3 is what makes this assertion load-bearing rather than
+    // vacuous**, and the two halves are worth keeping apart. Staleness is
+    // judged only in the tree that holds the file (`if (!keys.has(file))
+    // continue;`), and all four allowances name a file under `backend/test` —
+    // which this fixture did not stage until FR-006. So before it, `ledger-size=4`
+    // printed over four entries none of which had been looked at, and `sites=0`
+    // said so in the run's own words. The `sites` assertion below is that
+    // reading, not a decoration: it is issue #237's shape, where a healthy file
+    // count stands beside a syntax walk that classified nothing.
     const result = split.run('check-singleton-identity.ts');
     expect(result.status, result.output).toBe(0);
     expect(result.output).toContain('violations=0');
     expect(result.output).not.toContain('stale-allowance');
+    const sites = / sites=(\d+)/.exec(result.output);
+    expect(sites, `no read-size line in: ${result.output}`).not.toBeNull();
+    expect(Number(sites?.[1])).toBeGreaterThan(0);
   }, 120_000);
 });
 
