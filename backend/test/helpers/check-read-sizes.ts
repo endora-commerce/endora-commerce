@@ -985,6 +985,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrived with the five merges this branch was rebased onto and the record
     // was already stale on `master`. Re-recorded rather than left drifting,
     // because a census that cannot reach `0 drifted` stops being read.
+    // **`specs/115-lifecycle-container-move/`'s design landed on `master`: +4.**
+    // !1450 added four markdown files — the plan, the research and the two
+    // contracts. This walk takes all four, they being documents. Re-derived on this branch's own
+    // tree rather than carried over; the guard this merge request adds creates no
+    // file, so the whole of the +4 is that merge's.
     files: 1247,
     sites: 12,
     sources: [],
@@ -2217,7 +2222,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the ordinary per-changeset move this file already warns about one entry
     // over, arriving in the two walks that count every file rather than in the
     // one whose population is the changesets.
-    files: 7723,
+    // **`specs/115-lifecycle-container-move/`'s design landed on `master`: +4.**
+    // !1450 added four markdown files — the plan, the research and the two
+    // contracts. This walk takes all four, its subject
+    // being the whole tree. Re-derived on this branch's own
+    // tree rather than carried over; the guard this merge request adds creates no
+    // file, so the whole of the +4 is that merge's.
+    // **And +1 for this merge request's own changeset**, which the guard it lands
+    // does not create but the release gate does: a change to a package under
+    // `packages/` carries one, and this walk's subject is the whole tree.
+    files: 7720,
     sites: null,
     sources: [],
   },
@@ -2455,7 +2469,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `admin/index.ts` was added: twenty-four net. They reach no platform
     // symbol, so `ledger-size` does not move — this is the population growing,
     // which is exactly what this number is recorded to notice.
-    files: 2069,
+    // **Feature 115 Phase 1 (`specs/115-lifecycle-container-move/`): 2069 -> 2385.**
+    // The application joins the population as a second consumer (D115-5): 316
+    // files, being `backend/src` minus its module walk roots (137) plus
+    // `backend/scripts` (179). This is the whole of the +316, and it is a
+    // population that arrives rather than a tree that grew — the module half's
+    // 2069 is unchanged and is what `manifest-index:71/71` still corroborates.
+    files: 2385,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -2488,7 +2508,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population either — `host-dependents` below is, per package and derived on
     // every run, so a walk that stopped reading those specifiers is exit 2
     // rather than a band nobody re-recorded.
-    sites: 1744,
+    //
+    // **Feature 115 Phase 1: 1744 -> 1828.** +84, and every one of them a reach
+    // this check could not see: an application file naming a file inside
+    // `packages/platform` by relative path. It is the population the guard adds
+    // and not a tree that grew, so it moves once and then drains — each of the
+    // 84 is a `RELATIVE_HOST_REACHES` key with a retiring phase, and this number
+    // falls as they go. The module half's 1744 is untouched.
+    sites: 1828,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -2496,7 +2523,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // a walk that stopped reading those specifiers makes them disagree in the
     // same run. It appears only while a module package declares the host, which
     // is every tree since !910 — `expected: 0` is itself a refusal.
-    sources: ['manifest-index', 'platform-barrels', 'host-dependents'],
+    //
+    // The fourth is feature 115's, and it is derived from the ledger rather than
+    // from a count: `expected` is the still-on-disk files
+    // `RELATIVE_HOST_REACHES` names — 83 files over 84 keys, one file reaching
+    // two platform files — and `covered` is what the application walk opened of
+    // them. It disappears entirely when that ledger empties, which is what R4.2
+    // expects, and `expected: 0` is a refusal rather than a silent floor of
+    // nothing.
+    sources: ['manifest-index', 'platform-barrels', 'host-dependents', 'host-reaches'],
   },
   // Re-recorded by D-171.1, which widened the published-port population from
   // `packages/contracts/src` alone to include a module package's declared
@@ -3167,7 +3202,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the ordinary per-changeset move this file already warns about one entry
     // over, arriving in the two walks that count every file rather than in the
     // one whose population is the changesets.
-    files: 7783,
+    // **`specs/115-lifecycle-container-move/`'s design landed on `master`: +4.**
+    // !1450 added four markdown files — the plan, the research and the two
+    // contracts. This walk takes all four, its subject
+    // being the whole tree. Re-derived on this branch's own
+    // tree rather than carried over; the guard this merge request adds creates no
+    // file, so the whole of the +4 is that merge's.
+    // **And +1 for this merge request's own changeset**, which the guard it lands
+    // does not create but the release gate does: a change to a package under
+    // `packages/` carries one, and this walk's subject is the whole tree.
+    files: 7780,
     sites: null,
     sources: ['manifest-index'],
   },

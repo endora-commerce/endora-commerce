@@ -364,6 +364,19 @@ export function resolutionCandidates(joined: string): readonly string[] {
 export interface PlatformSurface {
   /** `<target file>` → the names the barrels publish out of it. */
   readonly published: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * `<target file>` → the barrels that publish it — {@link PlatformSurface.published}'s
+   * provenance, which the merge above otherwise drops.
+   *
+   * It exists for one question {@link PlatformSurface.published} cannot answer:
+   * *which subpath carries this file*. A caller holding the `exports` map knows
+   * subpath → barrel, so barrel → target closes the chain and a remedy can name
+   * the address a reach should have used. Deriving it here rather than in the
+   * caller keeps it the same parse the verdict rests on: a second walk of the
+   * barrels would be a second answer to "what does this barrel re-export", which
+   * is the duplication this file's own header exists to refuse.
+   */
+  readonly publishedBy: ReadonlyMap<string, ReadonlySet<string>>;
   /** The barrel files themselves — reaching one is reaching the published surface. */
   readonly barrels: ReadonlySet<string>;
   /** Everything the parse could not read. A caller turns a non-empty list into exit 2. */
@@ -385,6 +398,7 @@ export function publishedSurface(
   resolve: TargetResolver = firstCandidate,
 ): PlatformSurface {
   const published = new Map<string, Set<string>>();
+  const publishedBy = new Map<string, Set<string>>();
   const unreadable: BarrelUnreadable[] = [];
   let barrelsWithExports = 0;
 
@@ -396,11 +410,15 @@ export function publishedSurface(
       const names = published.get(symbol.target) ?? new Set<string>();
       names.add(symbol.name);
       published.set(symbol.target, names);
+      const carriers = publishedBy.get(symbol.target) ?? new Set<string>();
+      carriers.add(barrel);
+      publishedBy.set(symbol.target, carriers);
     }
   }
 
   return {
     published,
+    publishedBy,
     barrels: new Set(barrels.keys()),
     unreadable,
     barrelsWithExports,

@@ -598,6 +598,12 @@ export const ESTATE: readonly EstateEntry[] = [
           'a module in a package reaches the host by **bare** specifier only; the relative ' +
           'half is vacuous here and is declared vacuous rather than counted zero',
       },
+      {
+        signal: 'application-host-reach',
+        reason:
+          'an installed module package has no application tree, so the application-reach ' +
+          'half has no subject here; declared vacuous rather than counted zero',
+      },
     ],
     subjectDeclaration: {
       kind: 'exports-subpath',

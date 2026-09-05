@@ -5,19 +5,26 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
+  applicationReachRefusal,
+  checkApplicationReaches,
   checkPlatformSurface,
   hostDependentCoverage,
+  hostReachCoverage,
   isPackageToolingConfig,
   keyOf,
   NO_SYMBOL,
   platformSurfaceRefusal,
+  RELATIVE_HOST_REACHES,
   remedyOf,
+  scanApplicationReaches,
   scanPlatformSurface,
   UNPUBLISHED_PLATFORM_REACHES,
+  type ApplicationReachInput,
   type LedgeredReach,
   type PlatformSurfaceFinding,
   type PlatformSurfaceInput,
 } from '../../../scripts/check-platform-surface.js';
+import { platformSourceRootOf } from '../../../scripts/lib/platform-root.js';
 import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
 import {
   barrelKeyOf,
@@ -661,6 +668,275 @@ describe('a package configuration is out of the module source population', () =>
   });
 });
 
+/* ------------------------------------------ the application's own reaches */
+
+/**
+ * The platform as the application actually reaches it (feature 115, D115-5).
+ *
+ * A second fixture rather than a reuse of {@link FIXTURE_FILES}, and the reason
+ * is the subject: that one spells the platform at `backend/src/<subpath>/…`,
+ * which is where the *shims* are, and this half's whole predicate is a specifier
+ * that lands inside the **package**. Both spellings of the reach — `dist/`, what
+ * the tree writes today, and `src/`, what a well-meaning cleanup would write
+ * next — canonicalise onto the same source file, so the two fixtures below share
+ * a ledger key.
+ */
+const PLATFORM_MEMBER = 'packages/platform';
+const PLATFORM_SRC = 'packages/platform/src';
+
+const APPLICATION_FILES = new Set([
+  'packages/platform/src/kernel/index.ts',
+  'packages/platform/src/kernel/settings/settings-cache.ts',
+  'packages/platform/src/kernel/compose.ts',
+  'packages/platform/src/lifecycle/manifest.ts',
+  'backend/src/kernel/settings/settings-cache.ts',
+  'backend/src/db/index.ts',
+]);
+
+const APPLICATION_HOST: HostPackage = {
+  name: '@endora-commerce/platform',
+  subpathTargets: new Map([['kernel', 'packages/platform/src/kernel/index.ts']]),
+  declaredSubpaths: new Set(['kernel', 'composition']),
+};
+
+function applicationInput(
+  sources: Record<string, string>,
+  overrides: Partial<ApplicationReachInput> = {},
+): ApplicationReachInput {
+  return {
+    sources: new Map(Object.entries(sources)),
+    platformMemberRoot: PLATFORM_MEMBER,
+    platformSourceRoot: PLATFORM_SRC,
+    files: new Set([...APPLICATION_FILES, ...Object.keys(sources)]),
+    surface: publishedSurface(
+      new Map([
+        [
+          'packages/platform/src/kernel/index.ts',
+          "export { SettingsCache } from './settings/settings-cache.js';\n",
+        ],
+      ]),
+    ),
+    host: APPLICATION_HOST,
+    ...overrides,
+  };
+}
+
+describe('the application as a second consumer population (feature 115)', () => {
+  it('reports a relative reach into the platform build output', () => {
+    const scan = scanApplicationReaches(
+      applicationInput({
+        'backend/src/kernel/index.ts':
+          "export * from '../../../packages/platform/dist/kernel/index.js';",
+      }),
+    );
+
+    expect(kinds(scan.findings)).toEqual(['relative-host-reach']);
+    expect(scan.reaches).toBe(1);
+    expect(scan.findings[0]!.target).toBe('packages/platform/src/kernel/index.ts');
+  });
+
+  it('gives the `src` spelling of the same reach the same key as the `dist` one', () => {
+    // The one way this repair could regress in silence: re-spelling a `dist`
+    // path as a `src` path is the same reach, and a specifier-keyed ledger
+    // would report the entry stale and the reach unledgered in one run — two
+    // findings that say "you moved it", and a green one edit away.
+    const dist = scanApplicationReaches(
+      applicationInput({
+        'backend/src/kernel/index.ts':
+          "export * from '../../../packages/platform/dist/kernel/index.js';",
+      }),
+    );
+    const source = scanApplicationReaches(
+      applicationInput({
+        'backend/src/kernel/index.ts':
+          "export * from '../../../packages/platform/src/kernel/index.ts';",
+      }),
+    );
+
+    expect(keyOf(source.findings[0]!)).toBe(keyOf(dist.findings[0]!));
+    expect(keyOf(dist.findings[0]!)).toBe(
+      'backend/src/kernel/index.ts|packages/platform/src/kernel/index.ts',
+    );
+  });
+
+  it('names the address when a barrel carries the file, and says so when none does', () => {
+    const carried = scanApplicationReaches(
+      applicationInput({
+        'backend/src/kernel/settings/settings-cache.ts':
+          "export * from '../../../../packages/platform/dist/kernel/settings/settings-cache.js';",
+      }),
+    );
+    const uncarried = scanApplicationReaches(
+      applicationInput({
+        'backend/src/kernel/compose.ts':
+          "export * from '../../../packages/platform/dist/kernel/compose.js';",
+      }),
+    );
+
+    // The remedy is derived from the barrels and the `exports` map, so a sixth
+    // published directory changes the sentence in the same run.
+    expect(remedyOf(carried.findings[0]!)).toContain('`@endora-commerce/platform/kernel`');
+    expect(remedyOf(uncarried.findings[0]!)).toContain('declares no subpath carrying this file');
+  });
+
+  it('says nothing about a bare specifier into the host, published or host-internal', () => {
+    // The discrimination the rule turns on. The application is *entitled* to
+    // `./composition` (D-160.14) — that three-way answer is a module's question,
+    // and asking it twice with two verdicts is two answers waiting to disagree.
+    const scan = scanApplicationReaches(
+      applicationInput({
+        'backend/src/composition.ts': [
+          "import { SettingsCache } from '@endora-commerce/platform/kernel';",
+          "import { composeModules } from '@endora-commerce/platform/composition';",
+        ].join('\n'),
+      }),
+    );
+
+    expect(scan.findings).toEqual([]);
+    expect(scan.reaches).toBe(0);
+  });
+
+  it('says nothing about a module reaching the shim, which is the other rule', () => {
+    // A module's relative specifier lands on `backend/src/<subpath>/…` — a shim,
+    // not the package — so it is not this predicate's subject at all, and the
+    // module half goes on judging it against the published surface.
+    const specifier = "import { SettingsCache } from '../../kernel/settings/settings-cache.js';";
+
+    expect(
+      scanApplicationReaches(
+        applicationInput({ 'backend/src/modules/blog/backend.ts': specifier }),
+      ).findings,
+    ).toEqual([]);
+    expect(
+      kinds(checkPlatformSurface(input({ 'backend/src/modules/blog/backend.ts': specifier }), {}).findings),
+    ).toEqual(['unpublished-symbol']);
+  });
+
+  it('says nothing about a comment or a string that spells the path', () => {
+    // The AST-node property, asserted rather than assumed. It is load-bearing
+    // here rather than decorative: seven files under `backend/scripts` name a
+    // `packages/platform/…` path in prose or in a string argument, and a text
+    // scan would report every one of them.
+    const scan = scanApplicationReaches(
+      applicationInput({
+        'backend/src/manifest-index.generated.ts': [
+          "// forwarded from '../../packages/platform/dist/kernel/index.js'",
+          "const path = resolveManifestPath(import.meta.url, '../../packages/platform/dist/kernel/index.js');",
+        ].join('\n'),
+      }),
+    );
+
+    expect(scan.findings).toEqual([]);
+  });
+
+  it('says nothing about a relative specifier that lands outside the platform member', () => {
+    expect(
+      scanApplicationReaches(
+        applicationInput({ 'backend/src/composition.ts': "import { initOrm } from './db/index.js';" }),
+      ).findings,
+    ).toEqual([]);
+  });
+});
+
+describe('the RELATIVE_HOST_REACHES ledger, in both directions', () => {
+  const REACH = {
+    'backend/src/kernel/index.ts': "export * from '../../../packages/platform/dist/kernel/index.js';",
+  };
+  const KEY = 'backend/src/kernel/index.ts|packages/platform/src/kernel/index.ts';
+
+  it('clears a reach the ledger names', () => {
+    const result = checkApplicationReaches(applicationInput(REACH), {
+      [KEY]: { reason: 'a shim', retiredBy: '110 Phase 2' },
+    });
+
+    expect(result.violations).toEqual([]);
+    expect(result.ledgered).toHaveLength(1);
+    expect(result.staleKeys).toEqual([]);
+  });
+
+  it('fails a reach the ledger does not name', () => {
+    const result = checkApplicationReaches(applicationInput(REACH), {});
+    expect(result.violations).toHaveLength(1);
+  });
+
+  it('fails a key that describes no reach the walk found', () => {
+    const result = checkApplicationReaches(applicationInput({}), {
+      [KEY]: { reason: 'gone', retiredBy: '110 Phase 2' },
+    });
+    expect(result.staleKeys).toEqual([KEY]);
+  });
+
+  it('gives every entry this repository ships a reason and a retiring phase', () => {
+    // R4.1: an entry is debt with a due date, not a permission. R4.2: this is
+    // not a permanence ledger, so there is no `permanent` member to check —
+    // an entry saying "this reach is correct" would mean the predicate has
+    // outgrown its population (R4.5).
+    const thin = Object.entries(RELATIVE_HOST_REACHES).filter(
+      ([, entry]) => entry.reason.trim().length < 40 || entry.retiredBy.trim().length < 10,
+    );
+    expect(thin.map(([key]) => key)).toEqual([]);
+  });
+
+  it('keys every entry on a file that is on disk and a platform source file', () => {
+    for (const key of Object.keys(RELATIVE_HOST_REACHES)) {
+      const [file, target] = key.split('|');
+      expect(existsSync(join(BACKEND_ROOT, '..', file ?? '')), `${file} is gone`).toBe(true);
+      expect(target, key).toMatch(/^packages\/platform\/src\//);
+    }
+  });
+});
+
+describe('the application half refuses rather than reporting clean', () => {
+  it('refuses a platform walk that produced no canonical target', () => {
+    const refusal = applicationReachRefusal({ canonicalTargets: 0, applicationFiles: 12 });
+    expect(refusal).toContain('canonicalised against that walk');
+  });
+
+  it('refuses an application walk that opened no file', () => {
+    const refusal = applicationReachRefusal({ canonicalTargets: 900, applicationFiles: 0 });
+    expect(refusal).toContain('opened no file');
+  });
+
+  it('does not refuse a run that read both', () => {
+    expect(applicationReachRefusal({ canonicalTargets: 900, applicationFiles: 137 })).toBeNull();
+  });
+
+  it('refuses a walk short of the files its own ledger names', () => {
+    // The floor is derived from the ledger — a second author's answer to "which
+    // application files reach the platform" — exactly as
+    // `check:module-boundary`'s admin-host floor is. A walk that stopped
+    // reaching them is a refusal, never a drained ledger.
+    const ledger = {
+      'backend/src/a.ts|packages/platform/src/kernel/index.ts': { reason: 'x', retiredBy: 'y' },
+      'backend/src/b.ts|packages/platform/src/kernel/index.ts': { reason: 'x', retiredBy: 'y' },
+    };
+    const coverage = hostReachCoverage(ledger, () => true, new Set(['backend/src/a.ts']));
+
+    expect(coverage).toEqual({ source: 'host-reaches', expected: 2, covered: 1 });
+    const refusal = readSizeRefusal({ prefix: '[t]', files: 1, coverage: [coverage!] });
+    expect(refusal?.kind).toBe('short-walk');
+    expect(refusal?.message).toContain('host-reaches');
+  });
+
+  it('reports no floor at all once the ledger empties, rather than expecting zero', () => {
+    // `expected: 0` is itself a refusal in this grammar, and rightly: a floor
+    // that expects nothing is switched off. R4.2 expects this ledger to empty.
+    expect(hostReachCoverage({}, () => true, new Set())).toBeNull();
+  });
+
+  it('drops a ledgered file that has left the tree from the expectation', () => {
+    const ledger = { 'backend/src/gone.ts|packages/platform/src/kernel/index.ts': { reason: 'x', retiredBy: 'y' } };
+    expect(hostReachCoverage(ledger, () => false, new Set())).toBeNull();
+  });
+
+  it('refuses a workspace whose members declare no platform', () => {
+    // §5's first refusal, restated for this population because it depends on it
+    // too: with no platform there is no member directory to canonicalise
+    // against, and every relative reach would read as reaching nothing.
+    expect(platformSourceRootOf([])).toBeNull();
+  });
+});
+
 describe('the vacuous-pass guards', () => {
   it('every published subpath has a barrel with exports on this tree', () => {
     for (const subpath of PUBLISHED_SUBPATHS) {
@@ -720,8 +996,16 @@ describe('the vacuous-pass guards', () => {
     // is the derivation that goes red when the next batch of modules moves and
     // their bare specifiers stop being read — the failure that stood here for
     // two batches with nothing but a recorded number between it and a green.
+    // The fourth is feature 115's: the ledger's own still-on-disk file set,
+    // against what the application walk opened of it. Its `covered` and
+    // `expected` are the same number on purpose — a shortfall is the refusal,
+    // not a finding — and it disappears entirely when the ledger empties, which
+    // is what R4.2 expects to happen.
     expect(run.stdout).toMatch(
-      /\[platform-surface\] read: files=\d+ sites=\d+ sources=manifest-index:(\d+)\/\1,platform-barrels:5\/5,host-dependents:(\d+)\/\2/,
+      /\[platform-surface\] read: files=\d+ sites=\d+ sources=manifest-index:(\d+)\/\1,platform-barrels:5\/5,host-dependents:(\d+)\/\2,host-reaches:(\d+)\/\3/,
+    );
+    expect(run.stdout).toMatch(
+      /application reaches into the platform by relative path=(\d+) violations=0 ledgered=\1 ledger-size=\d+ stale=0/,
     );
   });
 });

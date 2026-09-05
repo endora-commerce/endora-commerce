@@ -257,8 +257,11 @@ import {
 import { buildDeactivationLedger } from '../../../src/lifecycle/services/deactivation-ledger.js';
 import { nonBindingPortEdgesFrom } from '../../../src/lifecycle/services/gating-graph.js';
 import {
+  applicationReachRefusal,
+  checkApplicationReaches,
   checkPlatformSurface,
   platformSurfaceRefusal,
+  type ApplicationReachInput,
   type PlatformSurfaceFindingKind,
   type PlatformSurfaceInput,
 } from '../../../scripts/check-platform-surface.js';
@@ -561,6 +564,33 @@ function platformSurfaceFindings(
   return checkPlatformSurface(platformSurfaceInput(sources), {}).violations.filter(
     (finding) => finding.kind === kind,
   ).length;
+}
+
+/**
+ * The **application** half of the same check (feature 115, D115-5), over source
+ * text, a file list and the two platform roots — every input a real run has.
+ *
+ * A fixture of its own rather than a widening of {@link platformSurfaceInput},
+ * because the two populations differ in exactly the thing the new predicate
+ * turns on: that one spells the platform at `backend/src/<subpath>/…`, which is
+ * where the *shims* are, and this one at `packages/platform/…`, which is where
+ * the package is.
+ */
+function applicationReachInput(sources: Record<string, string>): ApplicationReachInput {
+  return {
+    sources: new Map(Object.entries(sources)),
+    platformMemberRoot: 'packages/platform',
+    platformSourceRoot: 'packages/platform/src',
+    files: new Set([...Object.keys(sources), 'packages/platform/src/kernel/index.ts']),
+    surface: publishedSurface(
+      new Map([['packages/platform/src/kernel/index.ts', "export { compose } from './compose.js';"]]),
+    ),
+    host: {
+      name: '@endora-commerce/platform',
+      subpathTargets: new Map([['kernel', 'packages/platform/src/kernel/index.ts']]),
+      declaredSubpaths: new Set(['kernel', 'composition']),
+    },
+  };
 }
 
 /** The fixture enters the check where a real run does: source text in, findings out. */
@@ -6801,6 +6831,40 @@ const CHECKS: readonly CheckEntry[] = [
             },
           ).staleSymbols.length,
       ),
+      // Feature 115's second consumer population: the **application** reaching
+      // inside the package by relative path. It is a finding of its own because
+      // no other one here can stand in for it — the reach names no symbol the
+      // published set is keyed by, and its file is attributed to no module, so
+      // the module half answers `unattributed-source` if it answers at all.
+      'relative-host-reach': top(
+        () =>
+          checkApplicationReaches(
+            applicationReachInput({
+              'backend/src/kernel/index.ts':
+                "export * from '../../../packages/platform/dist/kernel/index.js';",
+            }),
+            {},
+          ).violations.length,
+      ),
+      'stale-host-reach-key': top(
+        () =>
+          checkApplicationReaches(applicationReachInput({}), {
+            'backend/src/kernel/index.ts|packages/platform/src/kernel/index.ts': {
+              reason: 'gone',
+              retiredBy: 'feature 115 Phase 6',
+            },
+          }).staleKeys.length,
+      ),
+      // The two refusals the application half owns. Both fail in the direction
+      // that produces a **clean** result, which is why each is exit 2 and not a
+      // finding: the module half goes on printing a healthy `files=` beside a
+      // silence (issue #215 over this population).
+      'no-canonical-target': top(() =>
+        applicationReachRefusal({ canonicalTargets: 0, applicationFiles: 137 }) === null ? 0 : 1,
+      ),
+      'empty-application-walk': top(() =>
+        applicationReachRefusal({ canonicalTargets: 900, applicationFiles: 0 }) === null ? 0 : 1,
+      ),
       'unreadable-barrel': top(() =>
         platformSurfaceRefusal({
           missingBarrels: [],
@@ -10051,7 +10115,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // the `exports` map, so `node` and `tsc` both resolve it and this check is
       // the only thing that refuses a module naming it — and it names no symbol,
       // so the published-set sweep does not see it either.
-      'backend/scripts/check-platform-surface.ts': 10,
+      //
+      // Plus feature 115's four: the application as a second consumer population
+      // (`relative-host-reach` and its ledger's stale direction), and the two
+      // refusals that half owns. Neither refusal could be a violation — an
+      // empty canonical-target map reports every relative reach as reaching
+      // nothing, and an application walk that opened no file reports no reach
+      // at all, while the module half keeps printing a healthy `files=`.
+      'backend/scripts/check-platform-surface.ts': 14,
       // Plus D-171.1's two: the condition consumer-side declaration is
       // licensed against, and the discrimination that keeps it from firing on
       // the correct case. The second is a proof of its own because a signal
@@ -10707,6 +10778,31 @@ describe('the endora check estate holds every rule this inventory names', () => 
         .map((signal) => `${entry.id}: ${signal.signal}`),
     );
     expect(thin).toEqual([]);
+  });
+
+  /**
+   * `host-reach-check.md` §8, both directions.
+   *
+   * The estate says the application-reach half is vacuous when the subject is
+   * one installed module package — a package has no application tree, so the
+   * half has no subject there and must be **declared** vacuous rather than
+   * counted zero. The reconciliation is a biconditional against the analysis's
+   * own export, so the entry cannot arrive without the population and cannot
+   * outlive it: delete `scanApplicationReaches` and this fails; delete the
+   * signal and it fails too.
+   */
+  it('declares the application-reach half vacuous exactly while the analysis has one', () => {
+    // The binding is named for its subject rather than `entry`, deliberately:
+    // `check:fixture-substitution` follows a read **through the value**, and a
+    // file-scope `entry` bound to a `find` makes every unrelated
+    // `(entry.reason ?? '')` in this file a defaulted fixture read. Measured.
+    const platformSurface = ESTATE.filter((row) => row.id === 'check:platform-surface');
+    expect(platformSurface).toHaveLength(1);
+    const signals = platformSurface.flatMap((row) => row.partial ?? []).map((one) => one.signal);
+
+    expect(signals.includes('application-host-reach')).toBe(
+      typeof rulePlatformSurface.scanApplicationReaches === 'function',
+    );
   });
 
   it('names a declaration on every subject declaration', () => {
