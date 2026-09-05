@@ -4,6 +4,7 @@ import type { MigrationObject } from '@mikro-orm/core';
 // be the member list reported here. One implementation is what makes that true.
 import {
   moduleDependencyCycles,
+  sortComponentsTopologically,
   stronglyConnectedComponents,
 } from '../lifecycle/services/dep-graph.js';
 
@@ -268,58 +269,24 @@ function isBaseline(migration: ParsedMigration, baselineThrough: string): boolea
 }
 
 /**
- * Step 4 — a stable topological sort of the condensation. Kahn's algorithm,
- * the ready set drained by the smallest module id in the component — except
- * that the component holding `'core'` is drained first whenever it is ready
- * (`''` sorts below every module id). `'core'` declares nothing and nothing
- * declares it, so it is always ready at the start; every module's tables sit
- * downstream of the bootstrap tables, and saying so beats relying on an
- * accident of alphabetical ordering. It always succeeds: the condensation is
- * acyclic, so the ready set cannot empty early, and there is no unresolvable
- * order.
+ * Step 4 — a stable topological sort of the condensation.
+ *
+ * **The walk is the platform's** (`sortComponentsTopologically`), for the reason
+ * `stronglyConnectedComponents` is: feature 113's demo runner orders modules by
+ * the same manifest graph, and its contract says it *"MUST NOT maintain an order
+ * of its own"* (§4.1). Two implementations of one order would disagree silently,
+ * because nothing compares a demo run's order to a migration run's.
+ *
+ * What stays here is the `'core'` argument, which is this file's alone: `'core'`
+ * declares nothing and nothing declares it, so it is always ready at the start,
+ * every module's tables sit downstream of the bootstrap tables, and saying so
+ * beats relying on an accident of alphabetical ordering.
  */
 function sortComponents(
   components: readonly string[][],
   neighboursOf: (id: string) => readonly string[],
 ): string[][] {
-  const componentOf = new Map<string, number>();
-  components.forEach((members, position) => {
-    for (const member of members) componentOf.set(member, position);
-  });
-
-  const successors: number[][] = components.map(() => []);
-  const indegree = components.map(() => 0);
-  components.forEach((members, position) => {
-    for (const member of members) {
-      for (const dependency of neighboursOf(member)) {
-        // The edge means "my migrations follow theirs", so the dependency's
-        // component is emitted first: the arrow in the sort points at us. A
-        // repeated edge is counted twice on both sides and cancels out.
-        const target = componentOf.get(dependency);
-        if (target === undefined || target === position) continue;
-        successors[target]!.push(position);
-        indegree[position]! += 1;
-      }
-    }
-  });
-
-  const coreComponent = componentOf.get(CORE_MODULE_ID);
-  const sortKey = (position: number): string =>
-    position === coreComponent ? '' : components[position]![0]!;
-
-  const ready = components.map((_, position) => position).filter((p) => indegree[p] === 0);
-  const ordered: string[][] = [];
-  while (ready.length > 0) {
-    ready.sort((left, right) => (sortKey(left) < sortKey(right) ? -1 : 1));
-    const next = ready.shift()!;
-    ordered.push(components[next]!);
-    for (const successor of successors[next]!) {
-      indegree[successor]! -= 1;
-      if (indegree[successor] === 0) ready.push(successor);
-    }
-  }
-
-  return ordered;
+  return sortComponentsTopologically(components, neighboursOf, CORE_MODULE_ID);
 }
 
 /** Step 3 — the ordering graph of a module dependency map, and its components. */
