@@ -511,13 +511,17 @@ export type ArtifactEntrySource =
 
 /** The entry source an artefact declares, defaulting to the pre-feature-100 one. */
 export function entrySourceOf(artefact: {
-  entryKind?: 'specifier' | 'doc-id';
+  entryKind?: 'specifier' | 'doc-id' | 'none';
   entryRoot?: string;
   entrySources?: ReadonlyMap<string, string>;
 }): ArtifactEntrySource {
   if (artefact.entryKind === 'doc-id' && artefact.entryRoot !== undefined) {
     return { kind: 'doc-id', root: artefact.entryRoot, sources: artefact.entrySources ?? new Map() };
   }
+  // An artefact whose entries are not files — the published baseline list names
+  // migration classes — declares that here rather than being skipped, which is
+  // the same statement the divergence report's markdown rendering makes below.
+  if (artefact.entryKind === 'none') return { kind: 'none' };
   return { kind: 'specifier' };
 }
 

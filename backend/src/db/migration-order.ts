@@ -14,9 +14,9 @@ import {
  * Pure by design: no I/O, no clock read, no environment read, and no import
  * from `src/modules/`. It is importable and testable without booting the ORM.
  *
- * The rule is two blocks. A **baseline block** — everything the committed core
- * registry contributed at or before `BASELINE_THROUGH` — is emitted first, in
- * plain timestamp order, exactly as history applied it. Everything else is the
+ * The rule is two blocks. A **baseline block** — the migrations named by the
+ * platform's published baseline list — is emitted first, in the order that list
+ * holds them, exactly as history applied them. Everything else is the
  * **open block**, emitted module by module in a topological order of the
  * module dependency graph, each module's migrations contiguous and ascending
  * by timestamp. So a timestamp orders migrations only **within** their own
@@ -26,7 +26,13 @@ import {
  *
  * Specified by specs/081-per-module-migration-order/contracts/ — the ordering
  * in `ordering-algorithm.md` (which supersedes the feature-065 contract in
- * whole), the class-name rule it enforces in `migration-identity.md`.
+ * whole), the class-name rule it enforces in `migration-identity.md`. The
+ * baseline block's membership rule is amended by
+ * `specs/110-instance-repository/contracts/instance-migration-order.md`: it is
+ * an **identity**, not a stamp and not an origin, so that the same corpus
+ * installed from packages orders identically. That contract's §1 is where every
+ * obvious alternative — squash, re-stamp, declare a dependency, drop the
+ * boundary — is refused with the reason.
  */
 
 /** A migration class as MikroORM instantiates it. */
@@ -45,9 +51,16 @@ export interface MigrationRegistryEntry {
   cls: MigrationClass;
   /**
    * Absent means `'core'`, so the committed generated registry is untouched. A
-   * producer outside it must set `'external'`: the baseline block is a claim
-   * about *our* history, and an entry that lies about its origin joins a
-   * prefix it has no business in.
+   * producer outside it must set `'external'`.
+   *
+   * **No ordering decision is taken on it** (R1.6). It survives because the
+   * acceptance criterion's per-origin template digest reads it and
+   * `configured-migrations.ts` reports it — but it once decided membership of
+   * the frozen prefix, and that is exactly what made the prefix empty when the
+   * modules became packages: `origin` answers *"did this come out of our
+   * build"*, which is not the question *"is this one of the migrations whose
+   * order is history"*. The second question is answered by
+   * {@link OrderMigrationsInput.baseline}, which names them.
    */
   origin?: MigrationOrigin;
 }
@@ -87,9 +100,14 @@ export class MigrationOrderError extends Error {
  * either: `scripts/new-migration.ts` clamps every scaffolded core stamp past
  * the boundary.
  *
- * It is a **position** boundary only — renaming a class changes nothing here —
- * and membership takes two conditions, `origin === 'core'` and the stamp. See
- * `isBaseline` for why the stamp alone is not enough.
+ * **It is a generation-time rule, and no longer a runtime membership test**
+ * (`specs/110-instance-repository/contracts/instance-migration-order.md` R1.2).
+ * `scripts/new-migration.ts` clamps a scaffolded stamp past it, and
+ * `composer:generate` renders the published baseline list out of what the
+ * committed core registry contributes at or below it. Nothing asks it at run
+ * time, because a stamp is a claim an arriving package can make and a name is
+ * not: an entry stamped `20250101T000000` reaches this platform from a registry
+ * with the same authority as one of ours, and history is a list of names.
  */
 export const BASELINE_THROUGH = '20260801T000000';
 
@@ -102,8 +120,20 @@ export interface OrderMigrationsInput {
    * is read: nothing else orders one module's migrations against another's.
    */
   moduleDependencies: ReadonlyMap<string, readonly string[]>;
-  /** The frozen historical prefix boundary — normally `BASELINE_THROUGH`. */
-  baselineThrough: string;
+  /**
+   * The frozen historical prefix, **by identity**: the migration class names
+   * whose order is history, in the order history applied them.
+   *
+   * Normally `BASELINE_MIGRATIONS`, the list `@endora-commerce/platform`
+   * publishes — data about this platform's history, carried to a client by the
+   * package that carries the history (R1.5), and generated rather than
+   * hand-written (R1.3). A name here that this composition does not supply is
+   * simply not emitted, which is what an instance installing a subset of the
+   * modules is; the two-way reconciliation that would catch a *wrong* list is a
+   * guard over this repository's committed artefacts
+   * (`test/unit/db/instance-migration-order.test.ts`), never a throw here.
+   */
+  baseline: readonly string[];
 }
 
 /** What the computation observed and did not refuse. */
@@ -251,21 +281,48 @@ function parseEntries(
  * keeps the output a pure function of its inputs now that two modules may
  * legally share a stamp.
  */
-function chronologically(left: ParsedMigration, right: ParsedMigration): number {
+function chronologically(
+  left: { readonly timestamp: string; readonly name: string },
+  right: { readonly timestamp: string; readonly name: string },
+): number {
   if (left.timestamp !== right.timestamp) return left.timestamp < right.timestamp ? -1 : 1;
   return left.name < right.name ? -1 : 1;
 }
 
 /**
- * Step 2 — baseline membership. **Both conditions are required.** The stamp
- * alone lets an entry produced outside the committed registry join a prefix
- * whose order is historical fact: measured, a package migration stamped
- * `20250101T000000` is emitted at index 0, ahead of the platform's own
- * foundation migration. The origin alone would freeze nothing, since it is
- * `'core'` for every committed entry.
+ * The frozen prefix as history recorded it, over migration **names**.
+ *
+ * This is the one derivation of that order in the repository: `composer:generate`
+ * renders the published baseline list with it, and the fixtures that drive
+ * `orderMigrations` build their own frozen block with it. A second
+ * implementation would be free to disagree with the first, and nothing compares
+ * two orders that are never computed together.
+ *
+ * It is a **generation-time** answer and takes the watermark for that reason
+ * (R1.2). The result is what {@link orderMigrations} then emits verbatim: the
+ * ordering itself asks no question about a stamp.
  */
-function isBaseline(migration: ParsedMigration, baselineThrough: string): boolean {
-  return migration.origin === CORE_MODULE_ID && migration.timestamp <= baselineThrough;
+export function historicalBaselineOrder(
+  names: readonly string[],
+  baselineThrough: string = BASELINE_THROUGH,
+): string[] {
+  return names
+    .map((name) => {
+      const match = MIGRATION_CLASS_RE.exec(name);
+      if (!match) {
+        throw new MigrationOrderError(
+          'unparsable-name',
+          `[migration-order] migration class "${name}" does not match the naming ` +
+            `convention Migration<YYYYMMDDTHHmmss><PascalCaseTail>, so the frozen ` +
+            `historical prefix cannot be derived from it. See ` +
+            `specs/081-per-module-migration-order/contracts/migration-identity.md.`,
+        );
+      }
+      return { name, timestamp: match[1]! };
+    })
+    .filter((migration) => migration.timestamp <= baselineThrough)
+    .sort(chronologically)
+    .map((migration) => migration.name);
 }
 
 /**
@@ -342,7 +399,7 @@ export function findModuleCycles(
 }
 
 export function orderMigrations(input: OrderMigrationsInput): MigrationOrderResult {
-  const { entries, moduleDependencies, baselineThrough } = input;
+  const { entries, moduleDependencies, baseline: baselineNames } = input;
   const parsed = parseEntries(entries, moduleDependencies);
 
   const { components, neighboursOf } = orderingGraph(moduleDependencies);
@@ -355,10 +412,17 @@ export function orderMigrations(input: OrderMigrationsInput): MigrationOrderResu
   // in a pure function.
   const diagnostics = cycleDiagnostics(components);
 
+  // Step 2 — baseline membership, by **identity**. The published list is
+  // ordered and that order is history's, so the block is emitted as the list
+  // holds it rather than as a comparator recomputes it: a comparator that ever
+  // disagreed with the list would make the artefact a lie, and this way there
+  // is nothing for it to disagree with. A listed name this composition does not
+  // supply is simply absent — that is an instance installing a subset.
+  const baselinePosition = new Map(baselineNames.map((name, index) => [name, index] as const));
   const baseline: ParsedMigration[] = [];
   const openByModule = new Map<string, ParsedMigration[]>();
   for (const migration of parsed) {
-    if (isBaseline(migration, baselineThrough)) {
+    if (baselinePosition.has(migration.name)) {
       baseline.push(migration);
       continue;
     }
@@ -366,7 +430,7 @@ export function orderMigrations(input: OrderMigrationsInput): MigrationOrderResu
     if (bucket) bucket.push(migration);
     else openByModule.set(migration.moduleId, [migration]);
   }
-  baseline.sort(chronologically);
+  baseline.sort((left, right) => baselinePosition.get(left.name)! - baselinePosition.get(right.name)!);
 
   // Step 5 — the open block, component by component, contiguous. A
   // multi-module component has no internal order to respect, so its members'

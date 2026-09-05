@@ -80,6 +80,10 @@ import {
   PlatformRootUnresolvableError,
 } from './lib/platform-root.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
+// The order the published baseline list is rendered in is `orderMigrations`'
+// own (R1.3): one derivation, so the artefact cannot come to disagree with the
+// algorithm that reads it.
+import { BASELINE_THROUGH, historicalBaselineOrder } from '../src/db/migration-order.js';
 import { ADMIN_REGISTRY_ARTEFACT, findAliasMember } from './lib/admin-surfaces.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 import {
@@ -168,6 +172,7 @@ export function generatedArtifactPaths(): readonly string[] {
     manifestIndexOutputPath,
     entitiesRegistryOutputPath,
     migrationsRegistryOutputPath,
+    baselineListOutputPath(),
     adminRegistryOutputPath(),
     ...docsArtefactPaths(),
   ];
@@ -1744,6 +1749,93 @@ export function renderMigrationsRegistry(sources: SourceTree = readSourceTree())
 }
 
 
+// ── the published baseline list ─────────────────────────────────────────────
+//
+// The eighth artefact (`specs/110-instance-repository/`, T161). It is the only
+// one that does not land under `backend/`: the frozen historical prefix is data
+// about *this platform's* history, a client receives it by installing the
+// platform, and a client receives a correction to it by `pnpm update` (R1.5).
+//
+// It exists because membership of that prefix used to be decided on
+// `origin === 'core'`, which answers *"came out of this repository's build"* —
+// true of every module while the modules are compiled in, false of every module
+// the moment one is installed. Measured over the real registry: the prefix falls
+// from 112 entries to 11 and 181 of 182 positions move, so an instance
+// installing the same modules cannot migrate a fresh database. Membership is now
+// by identity, and this is the identity list.
+
+/**
+ * Where the published baseline list lands, inside the platform package.
+ *
+ * The host's source root is derived from the workspace member declaring
+ * `endora.type: "platform"` — `platformSourceRootAt`, the same resolution the
+ * manifest walk above uses — so `packages/platform` is spelled nowhere (D-100).
+ * A workspace with no such member is a **refusal** rather than a skip: an
+ * artefact written to a guessed location, or quietly not written at all, is one
+ * no determinism gate would ever compare.
+ */
+function baselineListOutputPath(): string {
+  const platformRoot = platformSourceRootAt(repoRoot);
+  if (platformRoot === null) {
+    throw new PlatformRootUnresolvableError(
+      '[composer] no workspace member declares `endora.type: "platform"`, so the published ' +
+        'baseline list has no home. It is the host package\'s (R1.5): a client receives the ' +
+        'frozen historical prefix by installing the platform, and a correction to it by ' +
+        '`pnpm update`.',
+    );
+  }
+  return join(platformRoot, 'migrations', 'baseline-migrations.generated.ts');
+}
+
+/**
+ * Pure emit — the published baseline list for a given set of migration names.
+ *
+ * The order is {@link historicalBaselineOrder}'s, which is `orderMigrations`'
+ * own: one derivation, so the artefact cannot come to disagree with the
+ * algorithm that reads it. R1.4 — the list is closed and cannot grow, because
+ * `migration:new` clamps every scaffolded stamp past the watermark, so a name
+ * below it that is not already here cannot be produced.
+ */
+export function emitBaselineList(names: readonly string[]): string {
+  const baseline = historicalBaselineOrder(names, BASELINE_THROUGH);
+  return `${HEADER('generate-composer.ts')}//
+// The frozen historical prefix, by identity — every migration whose position is
+// history rather than a consequence of the manifest graph, in the order history
+// applied it.
+//
+// Normative: specs/110-instance-repository/contracts/instance-migration-order.md.
+// The reason it is the platform's, and the reason membership is a name rather
+// than an origin, are in ./index.ts. The reason it may not be recomputed from
+// the manifest graph is BASELINE_THROUGH's own doc block: that block predates
+// feature 065, its modules' \`dependencies\` arrays contradict the order it was
+// applied in in 37 places, and re-deriving it produces an order a fresh database
+// cannot apply.
+//
+// **Closed. It never grows** (R1.4): it holds what the committed core registry
+// contributes at or below BASELINE_THROUGH (${BASELINE_THROUGH}), and
+// \`migration:new\` clamps every scaffolded stamp past that watermark. A name
+// here that no registry entry supplies, and a registry entry below the watermark
+// that is not named here, are both refused by
+// backend/test/unit/db/instance-migration-order.test.ts.
+
+export const BASELINE_MIGRATIONS: readonly string[] = [
+${baseline.map((name) => `  '${name}',`).join('\n')}
+];
+`;
+}
+
+/** Pure render — the target path + expected content of the published baseline list. */
+export function renderBaselineList(sources: SourceTree = readSourceTree()): {
+  outputPath: string;
+  content: string;
+} {
+  return {
+    outputPath: baselineListOutputPath(),
+    content: emitBaselineList(collectMigrations(sources).map((entry) => entry.className)),
+  };
+}
+
+
 // ── the admin contribution registry ─────────────────────────────────────────
 //
 // The fifth artefact (feature 091, Phase 2). Its three siblings under
@@ -2832,8 +2924,16 @@ export function renderModuleMap(
 export interface RenderedArtefact {
   readonly outputPath: string;
   readonly content: string;
-  /** Defaults to `'specifier'` — every artefact that came before feature 100. */
-  readonly entryKind?: 'specifier' | 'doc-id';
+  /**
+   * Defaults to `'specifier'` — every artefact that came before feature 100.
+   *
+   * `'none'` is an artefact that names no entry **by construction**: the
+   * published baseline list names migration *classes*, which are not files and
+   * have no containment question. It is declared rather than omitted, because
+   * `overlay:check`'s per-artefact floor otherwise reads an empty population as
+   * a walk that came back short (D-155.6).
+   */
+  readonly entryKind?: 'specifier' | 'doc-id' | 'none';
   /** The root a bare `doc-id` entry resolves against. Absent for a specifier. */
   readonly entryRoot?: string;
   /**
@@ -2859,6 +2959,12 @@ export async function renderAll(): Promise<
     { label: 'manifest-index', ...renderManifestIndex(population.packages) },
     { label: 'entities-registry', ...renderEntitiesRegistry(sources) },
     { label: 'migrations-registry', ...renderMigrationsRegistry(sources) },
+    // The published baseline list names migration **classes**, not files, so it
+    // has no containment population — it is the `kind: 'none'` case D-155.6
+    // added for the divergence report's markdown sibling. That the list and the
+    // registry agree is R1.7, and it is asserted where it can be: over both
+    // committed artefacts, in test/unit/db/instance-migration-order.test.ts.
+    { label: 'baseline-migrations', ...renderBaselineList(sources), entryKind: 'none' as const },
     { label: 'admin-registry', ...renderAdminRegistry(population) },
     { label: 'docs-sidebar', ...renderDocsSidebar(population) },
     { label: 'module-map', ...renderModuleMap(population) },

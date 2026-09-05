@@ -111,7 +111,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
   const comparisons = measurement.comparisons;
 
   it('accounts for every subpath the host declares', () => {
-    // Six today. Derived from the `exports` map by the probe, so a subpath
+    // Seven today. Derived from the `exports` map by the probe, so a subpath
     // arrives accounted for rather than silently unmeasured.
     expect([...measurement.declared].sort()).toEqual([
       'commands',
@@ -119,14 +119,18 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
       'events',
       'http',
       'kernel',
+      'migrations',
       'tenancy',
     ]);
-    // `./composition` is reached by the bare specifier alone (D-160.14): there
-    // is no `backend/src/composition/` and there will not be one, because the
-    // host's own composition root names the package. One route is not a
-    // duplication. Asserted rather than filtered out, so a *shimmed* subpath
-    // that lost its directory lands here and fails.
-    expect(measurement.unshimmed).toEqual(['composition']);
+    // Both host-internal subpaths are reached by the bare specifier alone
+    // (D-160.14): there is no `backend/src/composition/` and no
+    // `backend/src/migrations/`, and there will not be — the host's own
+    // composition root names the package, and the published baseline list
+    // (`specs/110-instance-repository/` R1.5) is data the platform carries with
+    // no second copy in the application. One route is not a duplication.
+    // Asserted rather than filtered out, so a *shimmed* subpath that lost its
+    // directory lands here and fails.
+    expect(measurement.unshimmed).toEqual(['composition', 'migrations']);
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
       'commands',
       'events',

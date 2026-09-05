@@ -65,10 +65,15 @@ const PUBLISHED_SUBPATHS = ['./kernel', './http', './tenancy', './commands', './
  *
  * `./composition` is host composition surface: the 27 symbols a composition
  * root needs, reachable by a package that is not a module and nameable by no
- * module at all. It is held to the same `exports`-map shape as the five —
- * declared, `./dist`-targeted, no wildcard — and to a different rule about who
- * may name it, which is `check:platform-surface`'s `host-internal-subpath`
- * finding and not this file's.
+ * module at all. `./migrations` is the frozen historical prefix an execution
+ * order is computed from — the platform's own claim about its schema history,
+ * which a client receives by installing the platform and a correction to which
+ * arrives by `pnpm update` (`specs/110-instance-repository/`
+ * `contracts/instance-migration-order.md` R1.5). Both are held to the same
+ * `exports`-map shape as the five — declared, `./dist`-targeted, no wildcard —
+ * and to a different rule about who may name them, which is
+ * `check:platform-surface`'s `host-internal-subpath` finding and not this
+ * file's.
  *
  * It is kept apart from {@link PUBLISHED_SUBPATHS} rather than appended to it
  * because the two lists answer different questions, and §2.7.5(a) is that
@@ -77,7 +82,7 @@ const PUBLISHED_SUBPATHS = ['./kernel', './http', './tenancy', './commands', './
  * `kernel/compose.ts` for every reach at that file, a module's relative one
  * included.
  */
-const HOST_INTERNAL_SUBPATHS = ['./composition'];
+const HOST_INTERNAL_SUBPATHS = ['./composition', './migrations'];
 
 /** Every subpath the `exports` map is required to declare, published or not. */
 const DECLARED_SUBPATHS = [...PUBLISHED_SUBPATHS, ...HOST_INTERNAL_SUBPATHS];
@@ -204,13 +209,18 @@ describe('the host package `exports` map', () => {
     // The same refusal over the half of the map that is *not* public API. A
     // `./composition` that quietly disappeared would leave the test kit and the
     // host's own composition root with no supported specifier and this file
-    // reporting a sound map (D-160.14).
-    it('refuses the host-internal subpath being gone', () => {
-      const exports = { ...sound.exports };
-      delete (exports as Record<string, unknown>)['./composition'];
-      expect(exportMapFindings({ ...sound, exports })).toEqual([
-        { kind: 'missing-subpath', detail: './composition' },
-      ]);
+    // reporting a sound map (D-160.14); a `./migrations` that did would leave
+    // the ORM configuration computing an execution order with an empty frozen
+    // prefix, which is the state `specs/110-instance-repository/` Phase 4a
+    // exists to end.
+    it('refuses a host-internal subpath being gone', () => {
+      for (const subpath of HOST_INTERNAL_SUBPATHS) {
+        const exports = { ...sound.exports };
+        delete (exports as Record<string, unknown>)[subpath];
+        expect(exportMapFindings({ ...sound, exports }), subpath).toEqual([
+          { kind: 'missing-subpath', detail: subpath },
+        ]);
+      }
     });
 
     it('refuses a subpath pointing at source', () => {
@@ -225,7 +235,7 @@ describe('the host package `exports` map', () => {
     });
   });
 
-  it('declares the five published subpaths, `./composition`, the manifest, and nothing else', () => {
+  it('declares the five published subpaths, the two host-internal ones, the manifest, and nothing else', () => {
     expect(exportMapFindings(MANIFEST)).toEqual([]);
   });
 

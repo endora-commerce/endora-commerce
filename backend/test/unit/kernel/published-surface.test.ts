@@ -522,6 +522,22 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 /**
+ * The subpaths the `exports` map declares and no barrel carries — D-160.14's
+ * third state, where `node` and `tsc` resolve the specifier and
+ * `check:platform-surface` refuses a *module* that names it.
+ *
+ * Two, and they are two answers to one question rather than one list growing:
+ * `./composition` is the host's composition surface (§2.7), and `./migrations`
+ * is the frozen historical prefix an execution order is computed from
+ * (`specs/110-instance-repository/contracts/instance-migration-order.md` R1.5).
+ * Neither may be folded into {@link PUBLISHED_SUBPATHS} — that list is keyed by
+ * target *file* with no subpath dimension, so an entry there publishes every
+ * symbol of the file for a module's relative reach as well, and, this check
+ * reporting `violations=0`, would change nothing it prints.
+ */
+const HOST_INTERNAL_SUBPATHS: ReadonlySet<string> = new Set(['composition', 'migrations']);
+
+/**
  * Every first-party TypeScript source in the checkout **outside the platform**,
  * keyed by repo-relative path.
  *
@@ -610,10 +626,12 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
    */
   it('is declared by the `exports` map and is not a published subpath', () => {
     const declared = platformSubpathsOf(workspaceMembers(REPO_ROOT, nodeWorkspaceFs()));
-    expect(declared).toContain('composition');
-    expect(PUBLISHED_SUBPATHS).not.toContain('composition');
+    for (const subpath of HOST_INTERNAL_SUBPATHS) {
+      expect(declared, subpath).toContain(subpath);
+      expect(PUBLISHED_SUBPATHS, subpath).not.toContain(subpath);
+    }
     expect([...PUBLISHED_SUBPATHS].sort()).toEqual(
-      declared.filter((subpath) => subpath !== 'composition').sort(),
+      declared.filter((subpath) => !HOST_INTERNAL_SUBPATHS.has(subpath)).sort(),
     );
   });
 

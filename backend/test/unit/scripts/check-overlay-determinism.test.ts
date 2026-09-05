@@ -19,6 +19,7 @@ import {
   type SourceTree,
 } from '../../../scripts/generate-composer.js';
 import { findAliasMember } from '../../../scripts/lib/admin-surfaces.js';
+import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
 import { MODULE_REFERENCE_CATEGORY, resolveDocsLayout } from '../../../scripts/lib/module-docs.js';
 import {
   nodeWorkspaceFs,
@@ -127,6 +128,31 @@ describe('coveredArtifactPaths', () => {
    * here: a page for a module that has gone is on disk, named by no render, and
    * is exactly what this comparison reports.
    */
+  /**
+   * The platform package's own source root, derived the way the generator
+   * derives it: the workspace member declaring `endora.type: "platform"`.
+   *
+   * A **fourth** root, because the published baseline list
+   * (`specs/110-instance-repository/` R1.5) is the first artefact that lands
+   * inside a package rather than in an application's tree — the frozen
+   * historical prefix is data about this platform's history, and a client
+   * receives it by installing the platform. Without it this sweep would agree
+   * with itself perfectly while that artefact drifted with nothing watching,
+   * which is the state it exists to refuse. A workspace with no such member is a
+   * refusal rather than a walk quietly narrowed.
+   */
+  const platformSourceRoot = ((): string => {
+    const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+    const root = platformSourceRootAt(repoRoot);
+    if (root === null) {
+      throw new Error(
+        'no workspace member declares `endora.type: "platform"`, so the sweep below would ' +
+          'not look at the published baseline list at all',
+      );
+    }
+    return root;
+  })();
+
   const referenceRoot = ((): string => {
     const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
     return join(resolveDocsLayout(repoRoot).contentRoot, MODULE_REFERENCE_CATEGORY);
@@ -173,6 +199,7 @@ describe('coveredArtifactPaths', () => {
     const onDisk = [
       ...generatedFilesUnder(srcRoot),
       ...generatedFilesUnder(adminSourceRoot),
+      ...generatedFilesUnder(platformSourceRoot),
       ...generatedFilesUnder(docsRoot),
       ...referencePagesOnDisk(),
     ].sort();

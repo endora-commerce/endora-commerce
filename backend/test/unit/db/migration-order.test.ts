@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
 import {
   BASELINE_THROUGH as REAL_BASELINE_THROUGH,
+  historicalBaselineOrder,
   orderMigrations,
   type MigrationClass,
   type MigrationOrderError,
@@ -64,18 +66,37 @@ function names(entries: readonly MigrationRegistryEntry[]): string[] {
   return entries.map((e) => e.cls.name);
 }
 
+/**
+ * A fixture's own frozen prefix: every entry stamped at or below the watermark,
+ * in the order the baseline block emits them.
+ *
+ * `historicalBaselineOrder` is the derivation `composer:generate` renders the
+ * published list with, so these fixtures and the real artefact cannot come to
+ * disagree about what "history" means. Membership itself is an **identity**
+ * since `specs/110-instance-repository/` — J1's second case is what asserts
+ * that — and this is how a synthetic corpus declares which of its names are
+ * historical.
+ */
+function frozen(entries: readonly MigrationRegistryEntry[]): string[] {
+  return historicalBaselineOrder(names(entries), BASELINE_THROUGH);
+}
+
 function result(
   entries: readonly MigrationRegistryEntry[],
   moduleDependencies: ReadonlyMap<string, readonly string[]>,
+  baseline: readonly string[] = frozen(entries),
 ): MigrationOrderResult {
-  return orderMigrations({ entries, moduleDependencies, baselineThrough: BASELINE_THROUGH });
+  return orderMigrations({ entries, moduleDependencies, baseline });
 }
 
 function run(
   entries: readonly MigrationRegistryEntry[],
   moduleDependencies: ReadonlyMap<string, readonly string[]>,
+  baseline?: readonly string[],
 ): string[] {
-  return result(entries, moduleDependencies).migrations.map((m) => m.name);
+  return result(entries, moduleDependencies, baseline ?? frozen(entries)).migrations.map(
+    (m) => m.name,
+  );
 }
 
 /** invoices → orders → catalog; catalog is a root. */
@@ -141,6 +162,12 @@ describe('migration-order module purity', () => {
       'unresolvable-order',
       'buildClosures',
       'assertAcyclic',
+      // `specs/110-instance-repository/` R1.6: no ordering decision is taken on
+      // `origin` any more, and `isBaseline` was the one that was. Its removal is
+      // asserted here because the alternative — a second membership predicate
+      // living beside the identity one — is how an instance would come to order
+      // a corpus differently from the repository that shipped it.
+      'isBaseline',
     ]) {
       expect(source, `${gone} is still in migration-order.ts`).not.toContain(gone);
     }
@@ -169,20 +196,34 @@ describe('orderMigrations — J1 baseline prefix', () => {
     expect(run([oldCatalog, oldOrders], CHAIN)).toEqual(prefix);
   });
 
-  it('splits on the stamp alone — renaming a class changes nothing', () => {
-    // The prefix is a position, not a set of names. Moving a migration between
-    // groups renames its class and must stay a pure no-op for the order.
+  it('splits on identity — a name the list does not hold is open, whatever its stamp', () => {
+    // `specs/110-instance-repository/contracts/instance-migration-order.md` R1.1
+    // and R1.2, and the inversion of what this case used to assert. The prefix
+    // was a *position* — a stamp below the watermark and an origin of `core` —
+    // and it emptied the moment those modules became installed packages,
+    // because `origin` answers "did this come out of our build" and not "is this
+    // one of the migrations whose order is history".
+    //
+    // So the frozen block is now a list of names, and a stamp is a claim an
+    // arriving package can make: `oldCatalog` is stamped inside the watermark
+    // and is emitted in the **open** block, after the module its owner depends
+    // on, because history does not name it.
     const openCatalog = entry('catalog', '20260901T090000', 'open_a');
-    const before = run([openCatalog, oldCatalog, oldOrders], CHAIN);
+    const emitted = run([openCatalog, oldCatalog, oldOrders], CHAIN, [oldOrders.cls.name]);
 
-    const renamed: MigrationRegistryEntry = {
-      moduleId: 'core',
-      cls: migrationClass('Migration20260701T090000CoreLegacyA'),
-    };
-    const after = run([openCatalog, oldCatalog, renamed], CHAIN);
+    expect(emitted[0]).toBe(oldOrders.cls.name);
+    expect(emitted.indexOf(oldCatalog.cls.name)).toBeGreaterThan(0);
+    expect(emitted.indexOf(oldCatalog.cls.name)).toBeLessThan(
+      emitted.indexOf(openCatalog.cls.name),
+    );
+  });
 
-    expect(after[0]).toBe(renamed.cls.name);
-    expect(after.slice(1)).toEqual(before.slice(1));
+  it('emits the block in the list\'s order, not a comparator\'s', () => {
+    // The list is ordered and that order is history's (R1.1). A comparator that
+    // ever disagreed with it would make the published artefact a lie; emitting
+    // the list's own order means there is nothing for one to disagree with.
+    const reversed = [oldCatalog.cls.name, oldOrders.cls.name];
+    expect(run([oldOrders, oldCatalog], CHAIN, reversed)).toEqual(reversed);
   });
 });
 
@@ -502,7 +543,7 @@ function runReal(entries: readonly MigrationRegistryEntry[]): MigrationOrderResu
   return orderMigrations({
     entries,
     moduleDependencies: REAL_MODULE_DEPENDENCIES,
-    baselineThrough: REAL_BASELINE_THROUGH,
+    baseline: BASELINE_MIGRATIONS,
   });
 }
 
@@ -515,10 +556,18 @@ function realBaselinePrefix(): string[] {
     .sort();
 }
 
-describe('orderMigrations — J11 origin', () => {
-  // The measured defect of the old rule: with the baseline split on the stamp
-  // alone, this entry was emitted at index 0 — before the platform's own
+describe('orderMigrations — J11 a back-dated arrival', () => {
+  // The measured defect of the 065-era rule: with the baseline split on the
+  // stamp alone, this entry was emitted at index 0 — before the platform's own
   // foundation migration — because its author picked a stamp from 2025.
+  //
+  // It was closed by adding `origin === 'core'`, and **that** repair is retired:
+  // an origin answers "did this come out of our build", which is not the
+  // question "is this one of the migrations whose order is history", and using
+  // it as one emptied the frozen prefix for every instance that installs its
+  // modules (`specs/110-instance-repository/`, R1.1). The property survives, and
+  // the last case below is what says it is now stronger rather than merely
+  // different.
   const backDated = entry('acme_gateway', '20250101T000000', 'init', 'external');
   const graph = new Map(REAL_MODULE_DEPENDENCIES).set('acme_gateway', ['orders']);
 
@@ -526,7 +575,7 @@ describe('orderMigrations — J11 origin', () => {
     return orderMigrations({
       entries: [...MIGRATION_REGISTRY, backDated],
       moduleDependencies: graph,
-      baselineThrough: REAL_BASELINE_THROUGH,
+      baseline: BASELINE_MIGRATIONS,
     }).migrations.map((m) => m.name);
   }
 
@@ -553,18 +602,22 @@ describe('orderMigrations — J11 origin', () => {
     expect(ordersLast).toBeLessThan(emitted.indexOf(backDated.cls.name));
   });
 
-  it('would join the baseline without the origin condition', () => {
-    // The control that makes the three assertions above mean something: the
-    // same entry declared as core-origin lands in the frozen prefix, which is
-    // exactly the defect FR-003 exists to close.
+  it('keeps it out of the baseline even when it claims to be core', () => {
+    // The control that makes the three assertions above mean something, and the
+    // one place the identity rule is measurably *stronger* than the origin rule
+    // it replaced. Under `origin === 'core' && stamp <= watermark` this entry
+    // was emitted at index 0, ahead of the platform's own foundation migration:
+    // the conjunction rested on a claim the arriving package makes about itself.
+    // A name is not a claim — the published list either holds it or does not.
     const asCore = entry('acme_gateway', '20250101T000000', 'init');
     const emitted = orderMigrations({
       entries: [...MIGRATION_REGISTRY, asCore],
       moduleDependencies: graph,
-      baselineThrough: REAL_BASELINE_THROUGH,
+      baseline: BASELINE_MIGRATIONS,
     }).migrations.map((m) => m.name);
 
-    expect(emitted[0]).toBe(asCore.cls.name);
+    expect(emitted[0]).toBe('Migration20260424T165847CoreFoundationInit');
+    expect(emitted.indexOf(asCore.cls.name)).toBeGreaterThanOrEqual(BASELINE_MIGRATIONS.length);
   });
 });
 
@@ -577,7 +630,7 @@ describe('orderMigrations — J12 leaf-package neutrality', () => {
     const after = orderMigrations({
       entries: [...MIGRATION_REGISTRY, leaf],
       moduleDependencies: graph,
-      baselineThrough: REAL_BASELINE_THROUGH,
+      baseline: BASELINE_MIGRATIONS,
     }).migrations.map((m) => m.name);
 
     expect(after).toContain(leaf.cls.name);

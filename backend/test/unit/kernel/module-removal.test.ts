@@ -9,11 +9,8 @@ import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 import { ALL_ENTITIES } from '../../../src/db/entities-registry.generated.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
-import {
-  orderMigrations,
-  BASELINE_THROUGH,
-  type MigrationRegistryEntry,
-} from '../../../src/db/migration-order.js';
+import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
+import { orderMigrations, type MigrationRegistryEntry } from '../../../src/db/migration-order.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { platformResidentModuleRoots } from '../../../scripts/lib/module-roots.js';
 import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
@@ -714,7 +711,7 @@ describe('T055 — the removed module contributes no schema', () => {
       orderMigrations({
         entries,
         moduleDependencies,
-        baselineThrough: BASELINE_THROUGH,
+        baseline: BASELINE_MIGRATIONS,
       }).migrations.map((migration) => migration.name);
 
     const owned = MIGRATION_REGISTRY.filter((entry) => entry.moduleId === SUBJECT);
