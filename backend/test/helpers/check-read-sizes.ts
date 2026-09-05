@@ -777,7 +777,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // only on a file that has already been committed. The observed value is
     // recorded rather than `recorded + 1`, for this row's own standing reason:
     // 5240 would describe no tree at all.
-    files: 5244,
+    files: 5245,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -843,7 +843,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // predicate can read and clears. The parked-file measurement reads 519
     // without it, so unlike this row's `files` field there is no inherited
     // drift here to absorb.
-    sites: 522,
+    sites: 523,
     sources: [],
   },
   'backend/scripts/check-divergence.ts': {
@@ -898,7 +898,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 1226,
+    files: 1231,
     sites: 12,
     sources: [],
   },
@@ -1088,7 +1088,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): sites 569 -> 555, files 1752 ->
     // 1556.** 196 harness-free single-owner test files leave `backend/test/`. `sites`
     // falls by 14, the reads those files carried.
-    files: 1560,
+    files: 1561,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1125,7 +1125,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
     // harness-free single-owner test files leave `backend/test/`.
-    files: 1560,
+    files: 1561,
     sites: null,
     sources: [],
   },
@@ -2030,7 +2030,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7648,
+    files: 7654,
     sites: null,
     sources: [],
   },
@@ -2474,7 +2474,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **F7: +1**, `test/unit/acceptance/storefront-scaffold-assertions.test.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1752 -> 1556.** 196
     // harness-free single-owner test files leave `backend/test/`.
-    files: 1560,
+    files: 1561,
     sites: 163,
     sources: [],
   },
@@ -2656,7 +2656,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/<id>/src` from `backend/test` was a cross-package value reach
     // and the same test inside that package is not — the population this check exists
     // to judge genuinely shrank. `files` rises by the 52 new configurations.
-    files: 4297,
+    files: 4298,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2852,7 +2852,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7708,
+    files: 7714,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2924,7 +2924,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this walk does not open it — which is why the delta here is +1 where
     // `check:naming`'s, over the same two added files, is +2. The other two
     // arrived on `master`; parking this branch's reads 5707.
-    files: 5773,
+    // **2026-09-05: the ten-way merge, and the split is measured.** A queue of ten
+    // branches landed together. The **+1** on the narrow walks is feature 112's one new
+    // file, `test/service-free-outer-tests.ts`, reaching each walk at the size of the
+    // subtree it covers. The **+5 / +6** on the whole-tree walks is four spec files from
+    // `specs/112-test-tree-membership/` plus one from the platform-subpath ruling --
+    // documentation-only merge requests, which re-record nothing because their authors
+    // have no reason to think markdown moves a read size, and three walks here count it.
+    // 
+    // Predicted before the merge and confirmed after: the same nine entries, with the
+    // same deltas, measured first on a locally built merge of the ten branches and then
+    // on the merged `master` in a clean checkout. Every branch was 0-drift on its own
+    // base; the drift exists only in the union, which is what makes the merged tree the
+    // only place it can be recorded.
+    files: 5774,
     sites: null,
     sources: ['manifest-index'],
   },
