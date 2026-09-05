@@ -556,10 +556,10 @@ export interface RecordedReadSize {
  *    divergence report join `coveredArtifactPaths()`. One derivation emits two
  *    files (FR-015), and both are byte-compared: a `.md` outside the gate would
  *    be the one artefact of the pair free to drift, and the one a human reads.
- *  - `check-nul-bytes` **+8**, `check-naming.sh` **+8**, `check-language.sh`
+ *  - `check-nul-bytes` **+9**, `check-naming.sh` **+9**, `check-language.sh`
  *    **+4**, `check-singleton-identity` **+3** — the branch's net file count
- *    (16 added, 8 deleted) arriving in each whole-tree walk at the size of the
- *    subtree it covers.
+ *    (17 added, 8 deleted, the changeset among them) arriving in each whole-tree
+ *    walk at the size of the subtree it covers.
  *
  * **Measure on a clean tree, and `pnpm --filter docs run build` does not leave
  * one.** Taken with the site built, `check-nul-bytes` read **+78**: the 77
@@ -2030,7 +2030,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7647,
+    files: 7648,
     sites: null,
     sources: [],
   },
@@ -2852,7 +2852,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7707,
+    files: 7708,
     sites: null,
     sources: ['manifest-index'],
   },
