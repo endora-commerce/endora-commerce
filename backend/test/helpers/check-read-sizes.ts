@@ -643,7 +643,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/` layer — the guard and the scope reason relocated out of
     // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
     // and the barrel, which are new.
-    files: 1944,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 1946,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -694,7 +698,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/` layer — the guard and the scope reason relocated out of
     // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
     // and the barrel, which are new.
-    files: 2068,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 2070,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -855,7 +863,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three files: `backend/test/helpers/ci-jobs.ts`,
     // `backend/test/helpers/ci-gate-coverage.ts` and
     // `backend/test/unit/ci/gate-coverage.test.ts`.
-    files: 5279,
+    // **`specs/110-instance-repository/` Phase 4a: +4 files.** The platform package's
+    // new `src/migrations/` plus the two-regime guard and its helper; the whole tree
+    // is this check's population. `sites` does not move — none of the four writes a
+    // `.replace()` the slug predicate can read.
+    files: 5280,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -943,7 +955,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Six, because this walk is the module-manifest generator's over the
     // workspace packages: it sees the platform's new six-file `src/demo/` layer
     // and neither of the two files the branch adds under `backend/src`.
-    files: 2169,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 2171,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1035,7 +1051,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/` layer — the guard and the scope reason relocated out of
     // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
     // and the barrel, which are new.
-    files: 2068,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 2070,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1070,7 +1090,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/` layer — the guard and the scope reason relocated out of
     // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
     // and the barrel, which are new.
-    files: 2068,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 2070,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1105,7 +1129,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/` layer — the guard and the scope reason relocated out of
     // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
     // and the barrel, which are new.
-    files: 2068,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 2070,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1222,7 +1250,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three files: `backend/test/helpers/ci-jobs.ts`,
     // `backend/test/helpers/ci-gate-coverage.ts` and
     // `backend/test/unit/ci/gate-coverage.test.ts`.
-    files: 1569,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The two-regime guard
+    // and its analysis helper, `test/unit/db/instance-migration-order.test.ts` and
+    // `test/helpers/instance-migration-order.ts`.
+    files: 1568,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1283,7 +1314,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three files: `backend/test/helpers/ci-jobs.ts`,
     // `backend/test/helpers/ci-gate-coverage.ts` and
     // `backend/test/unit/ci/gate-coverage.test.ts`.
-    files: 1569,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The two-regime guard
+    // and its analysis helper, `test/unit/db/instance-migration-order.test.ts` and
+    // `test/helpers/instance-migration-order.ts`.
+    files: 1568,
     sites: null,
     sources: [],
   },
@@ -1318,7 +1352,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/` layer — the guard and the scope reason relocated out of
     // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
     // and the barrel, which are new.
-    files: 2068,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 2070,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -2013,7 +2051,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Seven of the branch's eight new source files. The one this walk does not
     // count is `backend/src/demo/index.ts`, measured: the number was already
     // 4659 before that shim existed and did not move when it landed.
-    files: 4659,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 4661,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -2259,7 +2301,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three files: `backend/test/helpers/ci-jobs.ts`,
     // `backend/test/helpers/ci-gate-coverage.ts` and
     // `backend/test/unit/ci/gate-coverage.test.ts`.
-    files: 7727,
+    // **`specs/110-instance-repository/` Phase 4a: 7724 -> 7729.** Four are this
+    // branch's — the platform package's new `src/migrations/` plus the two-regime
+    // guard and its helper — and the fifth is `origin/master`'s own growth between the
+    // last recording and this run, measured with the branch's own files held back and
+    // named here rather than absorbed. The sixth is the branch's own changeset: this
+    // walk's population is the whole repository minus its declared exclusions, and
+    // `.changeset/*.md` is in it.
+    files: 7730,
     sites: null,
     sources: [],
   },
@@ -2385,8 +2434,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // side and named here rather than absorbed. Measured on this tree, not
     // apportioned. A module added or removed now moves `files` by one, which is
     // the property that makes the number worth recording.
+    //
+    // **`specs/110-instance-repository/` Phase 4a: files 84 -> 85, sites
+    // unchanged.** The eighth artefact — the published baseline list, the frozen
+    // historical prefix as a list of migration class names, which is the first
+    // artefact to land inside a *package* rather than in an application's tree
+    // (R1.5: it is data about this platform's history and a client receives it
+    // by installing the platform). `sites` does not move because its entries are
+    // migration **classes**, not files: it declares `entryKind: 'none'`, the
+    // state D-155.6 added so that an artefact with no containment population by
+    // construction is not read as a walk that came back short. That the list and
+    // the registry agree is asserted where it can be, over both committed
+    // artefacts, in `test/unit/db/instance-migration-order.test.ts`.
     sites: 814,
-    files: 84,
+    files: 85,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -2443,7 +2504,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/` layer — the guard and the scope reason relocated out of
     // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
     // and the barrel, which are new.
-    files: 2068,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 2070,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -2771,7 +2836,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three files: `backend/test/helpers/ci-jobs.ts`,
     // `backend/test/helpers/ci-gate-coverage.ts` and
     // `backend/test/unit/ci/gate-coverage.test.ts`.
-    files: 1569,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The two-regime guard
+    // and its analysis helper, `test/unit/db/instance-migration-order.test.ts` and
+    // `test/helpers/instance-migration-order.ts`.
+    files: 1568,
     sites: 163,
     sources: [],
   },
@@ -2851,7 +2919,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/` layer — the guard and the scope reason relocated out of
     // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
     // and the barrel, which are new.
-    files: 2068,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 2070,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2879,6 +2951,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **CI gate reconciliation (`gate-coverage.test.ts`): 1648 -> 1649.** One, not
     // three: this walk's population is test files, and the two new files under
     // `backend/test/helpers/` are helpers.
+    // **`specs/110-instance-repository/` Phase 4a: +1 file.** The two-regime guard,
+    // `test/unit/db/instance-migration-order.test.ts`; its analysis helper is not a
+    // `*.test.ts` and is not in this population.
     files: 1649,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
@@ -2929,7 +3004,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/` layer — the guard and the scope reason relocated out of
     // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
     // and the barrel, which are new.
-    files: 2068,
+    // **`specs/110-instance-repository/` Phase 4a: +2 files.** The platform package's
+    // new `src/migrations/` — the published baseline list and its barrel — which this
+    // walk reads because its population is the source roots, the platform's among
+    // them.
+    files: 2070,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2998,7 +3077,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three files: `backend/test/helpers/ci-jobs.ts`,
     // `backend/test/helpers/ci-gate-coverage.ts` and
     // `backend/test/unit/ci/gate-coverage.test.ts`.
-    files: 4318,
+    // **`specs/110-instance-repository/` Phase 4a: +4 files.** The platform package's
+    // new `src/migrations/` (the published baseline list and its barrel) plus the
+    // two-regime guard and its helper under `backend/test`.
+    files: 4319,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -3259,7 +3341,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three files: `backend/test/helpers/ci-jobs.ts`,
     // `backend/test/helpers/ci-gate-coverage.ts` and
     // `backend/test/unit/ci/gate-coverage.test.ts`.
-    files: 7787,
+    // **`specs/110-instance-repository/` Phase 4a: +5 files.** The platform package's
+    // new `src/migrations/` plus the two-regime guard and its helper, and the branch's
+    // own changeset — this walk reads every file in the checkout to decide which are
+    // module folders, and `.changeset/*.md` is one of them.
+    files: 7789,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3376,7 +3462,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three files: `backend/test/helpers/ci-jobs.ts`,
     // `backend/test/helpers/ci-gate-coverage.ts` and
     // `backend/test/unit/ci/gate-coverage.test.ts`.
-    files: 5816,
+    // **`specs/110-instance-repository/` Phase 4a: +4 files.** The platform package's
+    // new `src/migrations/` plus the two-regime guard and its helper.
+    files: 5817,
     sites: null,
     sources: ['manifest-index'],
   },
