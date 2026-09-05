@@ -414,8 +414,9 @@ interface RedProof {
 }
 
 /**
- * Whether the check's population is the module tree, and how it proves it read
- * that tree rather than the residue left when the tree moves (issue #215).
+ * Whether the check carries the shared module-population floor, and how it
+ * proves it read the module tree rather than the residue left when that tree
+ * moves (issue #215).
  *
  * `derived-population` means it compares its walk against the module ids the
  * generated manifest index registers, and refuses when a registered module
@@ -423,8 +424,36 @@ interface RedProof {
  * `test/unit/scripts/moved-module-tree.test.ts` spawns over a moved tree, and
  * the link below is two-way: a check marked here and missing from that file
  * fails, and so does one proven there and unmarked.
+ *
+ * **`deferred-shared-proof` is the third value, and it exists because two
+ * states were being recorded under one word** (feature 111, FR-010;
+ * `specs/111-shared-fixture-package-naming/contracts/split-fixture-package-naming.md`
+ * § 6). *"This rule's subject is not the module tree"* is a permanent fact.
+ * *"This rule carries the floor and the shared fixture cannot yet reach a
+ * verdict over it"* is a **debt with a retiring condition**, and a ledger that
+ * cannot tell the two apart is a ledger nobody drains. Measured over the 19
+ * entries carrying `not-a-module-walk` before this value existed, three
+ * scripts matched this file's own `DELEGATED` regex — `check-admin-zones`,
+ * `check-divergence` and `check-test-ownership` — so each recorded that it does
+ * not carry the floor while its own source called it.
+ *
+ * The three values therefore **partition on `DELEGATED`**, which is what makes
+ * the reconciliation below definitional rather than a heuristic: the first two
+ * must match it, `not-a-module-walk` must not. Every
+ * `deferred-shared-proof` entry carries its reason and the condition that
+ * retires it in {@link DEFERRED_SHARED_PROOFS}, and that ledger is two-way like
+ * every other in the estate — an entry whose check the proof file now spawns
+ * fails.
+ *
+ * **It says nothing about the rule's *subject*, deliberately**, and that is why
+ * `endora check`'s invariant 3 stays keyed on `derived-population` alone.
+ * `check:divergence` is the standing case where the two questions come apart:
+ * its subject is a **deployment**, so `repository-only` is right for it and a
+ * module package cannot become one, while the module tree is its owner map's
+ * input and a residue of that tree would have it report four `unowned-subject`
+ * findings. It carries the floor for that reason and judges no module.
  */
-type ResidueGuard = 'derived-population' | 'not-a-module-walk';
+type ResidueGuard = 'derived-population' | 'deferred-shared-proof' | 'not-a-module-walk';
 
 /**
  * Whether the check prints the size of what it read (issue #244).
@@ -3567,19 +3596,29 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/scripts/check-admin-zones.test.ts',
     vacuousGuard: 'exit-2',
     readSize: 'reported',
-    // Its module walk **does** carry issue #215's shared floor — the
-    // `manifest-index` coverage token, refused as `short-walk` — and it still
-    // cannot join `moved-module-tree.test.ts`, for the reason
-    // `check:admin-surface` records one entry down: that fixture is a
-    // *backend* tree with no admin application and no kit, and this check
-    // refuses both of those populations before it reaches the module one. Over
-    // the moved tree and the split tree alike it would exit 2 on the kit, which
-    // is the correct answer and asserts no discrimination at all — the two
-    // trees have to differ for that file's proof to mean anything. So the
-    // classification is honest rather than convenient: the floor is in the
-    // check, and the thing that would exercise it is a fixture with a
-    // frontend, which nothing in this estate has.
-    residueGuard: 'not-a-module-walk',
+    // Its module walk carries issue #215's shared floor — the `manifest-index`
+    // and `module-admin` coverage tokens, refused as a short walk — and since
+    // feature 111 it is **spawned over the shared fixture**, which is what this
+    // value asserts.
+    //
+    // This entry read `not-a-module-walk` until then, on a reason that was
+    // measured true when it was written and stopped being true one phase later:
+    // *"that fixture is a backend tree with no admin application and no kit …
+    // over the moved tree and the split tree alike it would exit 2 on the kit,
+    // which asserts no discrimination at all"*. FR-007 staged the admin-ui
+    // family, and the discrimination is now real — measured on this tree: exit
+    // **2** over the moved tree, **0** over the split one, **2** over the
+    // half-moved one, naming the stranded module.
+    //
+    // It is proven in a **block of its own** in that file rather than in its
+    // `CHECKS` list, and the reason is worth stating because it is not a
+    // weakening: over a tree with no admin render at all this check's *own*
+    // vacuous refusal fires before the module floor, so its moved-tree message
+    // is the zone one and carries no walk size — which is exactly what the
+    // shared list asserts of every member. The floor itself is exercised by the
+    // half-moved tree, which is the sharper of the two anyway: a partial move is
+    // what a package split actually performs.
+    residueGuard: 'derived-population',
     red: {
       'unrendered-zone': top(() =>
         adminZoneFindingCount(
@@ -4553,14 +4592,17 @@ const CHECKS: readonly CheckEntry[] = [
     // is not one of the deployments this rule judges, and it cannot become one —
     // a module package's divergence from core is a contradiction in terms.
     //
-    // **The protection is not given up with the classification.** The check
-    // calls `refuseVacuousModulePopulation` first, before every other refusal,
-    // so a moved module tree is named as one rather than answered with four
-    // `unowned-subject` findings — measured over the `moved-module-tree` fixture
-    // while this entry was written, exiting 2 on the moved tree and 0 on the
-    // split one. What the classification costs is the *spawned* proof; the
-    // refusal is proven in the companion test over the same shared helper.
-    residueGuard: 'not-a-module-walk',
+    // **What this field asks is narrower than that, though, and the two answers
+    // came apart here** (feature 111, FR-009/FR-010). The check calls
+    // `refuseVacuousModulePopulation` first, before every other refusal, so a
+    // moved module tree is named as one rather than answered with four
+    // `unowned-subject` findings — it carries the floor, and
+    // `not-a-module-walk` said it does not. The value below says it carries it
+    // and the shared fixture cannot yet reach a verdict over it;
+    // `DEFERRED_SHARED_PROOFS` holds the measurement and the condition that
+    // retires the entry. The `endora check` verdict above is unaffected: that
+    // question is about the rule's subject, and this one is about its floor.
+    residueGuard: 'deferred-shared-proof',
     red: {
       'computed-subject': top(() =>
         fixtureFindings('computed-subject', {
@@ -9530,37 +9572,28 @@ const CHECKS: readonly CheckEntry[] = [
     vacuousGuard: 'exit-2',
     readSize: 'reported',
     /**
-     * **`not-a-module-walk` is this field's "not spawned in the proof file", and
-     * the reason is measured rather than claimed.**
+     * **The condition this entry named has been met, so the value changed.**
      *
-     * The check *does* floor its module half per module, on the module's own
-     * directory — `check:bundle-pairing`'s conjunction, because 14 of the 70
-     * packages ship no test and a floor over test files would refuse every clean
-     * run — and it *does* delegate to `refuseVacuousModulePopulation`, asked
-     * before either addend of the union, so a moved tree is refused by name. The
-     * assertion below that a `derived-population` check names that delegation is
-     * therefore satisfied here too; what it cannot join is the shared fixture,
-     * for the same kind of reason the two shell checks carry (they reconcile
-     * against the index and need a git work tree).
+     * It read `not-a-module-walk` when the check landed, on a reason that was
+     * measured and that ended with its own retiring condition: *"it retires when
+     * that stub can name a packaged module the way the generator does
+     * (D-149)"*. Feature 111 is that — Phase 2 gave the split fixture's
+     * generated index the generator's bare specifier, which put the anchor back
+     * at the package root and took `check-singleton-identity`'s two
+     * `stale-allowance` findings with it, and Phase 3 staged `backend/test`,
+     * which was this check's first vacuous condition rather than its module one.
      *
-     * `moved-module-tree.test.ts`' backends carry **no `backend/test`**, which
-     * is this check's first vacuous condition rather than its module one — so
-     * the split half, which asserts exit 0, is unreachable without giving the
-     * fixture one. Giving it one was tried and measured: the split tree then
-     * reds `check-singleton-identity`, whose staleness rule skips an entry whose
-     * file the walk did not open *precisely because these fixtures have no test
-     * tree*, and whose remaining two allowances read stale there because the
-     * fixture's stub manifest index imports a packaged module's **source**
-     * rather than its published artefact — a bare specifier cannot be used,
-     * since the fixture borrows this checkout's `node_modules` and would resolve
-     * into the real tree (#255). Two correct allowances, one red, for the
-     * fixture's shape and not the repository's.
-     *
-     * It retires when that stub can name a packaged module the way the generator
-     * does (D-149); until then the module floor is proven directly, over the
-     * floor's own inputs, in the companion test.
+     * The floor itself never moved: the check floors its module half per module
+     * on the module's own directory — `check:bundle-pairing`'s conjunction,
+     * because 14 of the 70 packages ship no test and a floor over test files
+     * would refuse every clean run — and delegates to
+     * `refuseVacuousModulePopulation` before either addend of the union. What
+     * changed is that the shared fixture can now put its population in front of
+     * it: measured over the three trees, exit **2** / **0** / **2**, with both
+     * addends of its union non-zero over the split one and the stranded module
+     * named over the half-moved one.
      */
-    residueGuard: 'not-a-module-walk',
+    residueGuard: 'derived-population',
     red: {
       // §4's five findings, each over source text and a file map. Nothing here
       // hands the check an owner list or a verdict, so the specifier walk, the
@@ -10162,7 +10195,7 @@ describe('every check refuses a vacuous pass', () => {
           new RegExp(`exit\\(2\\)|exit 2|${DELEGATED.source}`),
         );
       }
-      if (check.residueGuard === 'derived-population') {
+      if (check.residueGuard !== 'not-a-module-walk') {
         expect(
           source,
           `${check.script} walks the module tree, so it must derive its expected ` +
@@ -10171,6 +10204,118 @@ describe('every check refuses a vacuous pass', () => {
       }
     });
   }
+
+  /**
+   * The other direction, and it is the one nothing asserted (feature 111,
+   * FR-009).
+   *
+   * `derived-population` was reconciled two ways — the script must delegate, and
+   * the proof file must spawn it — and `not-a-module-walk` **no** ways. So a
+   * check could record that its population is not the module tree while its own
+   * source called the shared module-population guard, which is a claim
+   * contradicted by the file it is written in. Three did, and the value was
+   * doing duty for a state it cannot express: `check-admin-zones` and
+   * `check-test-ownership` were waiting for a fixture that could stage their
+   * populations, and `check-divergence` carries the floor over the owner map's
+   * input. `deferred-shared-proof` is that state, with a reason and a retiring
+   * condition; this assertion is what stops the next one being filed here
+   * instead.
+   *
+   * It is stated over `CHECKS` as a whole rather than per check so the failure
+   * names the whole set at once — a reader repairing one of three wants to see
+   * the other two.
+   */
+  it('records no module-population floor as "not a module walk" (SC-004)', () => {
+    const delegating = CHECKS.filter(
+      (check) => check.residueGuard === 'not-a-module-walk' && DELEGATED.test(read(check.script)),
+    ).map((check) => check.script);
+    expect(
+      delegating,
+      'these call the shared module-population guard while recording that their population ' +
+        'is not the module tree — mark them `derived-population` if the shared proof can ' +
+        `spawn them, or \`deferred-shared-proof\` with a reason if it cannot: ${delegating.join(', ')}`,
+    ).toEqual([]);
+  });
+});
+
+/**
+ * Checks whose module-population floor the shared fixture cannot yet exercise,
+ * with the measurement and the condition that retires the entry.
+ *
+ * **Two-way**, in the idiom of every other ledger in this estate: a check
+ * marked `deferred-shared-proof` with no entry fails, an entry over a check
+ * that is not so marked fails, and — the direction that makes it a debt rather
+ * than an exemption — an entry whose check `moved-module-tree.test.ts` now
+ * spawns fails.
+ *
+ * It is expected to empty. It lands holding one.
+ */
+const DEFERRED_SHARED_PROOFS: Readonly<
+  Record<string, { readonly reason: string; readonly retiredBy: string }>
+> = {
+  'backend/scripts/check-divergence.ts': {
+    reason:
+      'its owner map is built from the module tree and from the **repository-resident package ' +
+      'roots** under the application root, and the shared fixture stages the first and not the ' +
+      'second. `backend/acceptance/fixture-package` is what registers `acceptanceProbeGreeter`, ' +
+      "which the `acceptance` deployment's overlay module decorates, so over the split tree the " +
+      'name is owned by nobody and the run answers `unowned-subject` plus the `stale-reason` ' +
+      'that follows from it — exit 1, two findings about the fixture rather than about the ' +
+      'tree, against findings=0 over this checkout. Measured on 2026-09-05: exit 2 / 1 / 2 over ' +
+      'the moved, split and half-moved trees, the two 2s being this check\'s own delegation ' +
+      'naming the missing modules, so both refusals are real and only the passing tree is out ' +
+      'of reach.',
+    retiredBy:
+      'the shared fixture stages the application root\'s repository-resident package roots, at ' +
+      'which point the split tree answers 0 and the check joins `CHECKS` in ' +
+      '`moved-module-tree.test.ts` as `derived-population`.',
+  },
+};
+
+describe('a floor the shared fixture cannot exercise is a debt, not an exemption (FR-010)', () => {
+  const PROOF_FILE = 'backend/test/unit/scripts/moved-module-tree.test.ts';
+  const proof = read(PROOF_FILE);
+
+  it('has a reason and a retiring condition for every deferred floor', () => {
+    const undeclared = CHECKS.filter((check) => check.residueGuard === 'deferred-shared-proof')
+      .map((check) => check.script)
+      .filter((script) => DEFERRED_SHARED_PROOFS[script] === undefined);
+    expect(undeclared, `no entry in DEFERRED_SHARED_PROOFS for: ${undeclared.join(', ')}`).toEqual(
+      [],
+    );
+    // A sentence, not a word. The estate's own floor for a `repository-only`
+    // reason, applied to both halves, because "the fixture" is what an entry
+    // written to make this pass would say.
+    const thin = Object.entries(DEFERRED_SHARED_PROOFS)
+      .filter(([, entry]) => entry.reason.trim().length < 80 || entry.retiredBy.trim().length < 40)
+      .map(([script]) => script);
+    expect(thin, `these say too little to be read: ${thin.join(', ')}`).toEqual([]);
+  });
+
+  it('holds no entry for a check that is not deferred', () => {
+    const deferred = new Set(
+      CHECKS.filter((check) => check.residueGuard === 'deferred-shared-proof').map(
+        (check) => check.script,
+      ),
+    );
+    const stale = Object.keys(DEFERRED_SHARED_PROOFS).filter((script) => !deferred.has(script));
+    expect(stale, `DEFERRED_SHARED_PROOFS names these and the inventory does not: ${stale.join(', ')}`).toEqual(
+      [],
+    );
+  });
+
+  it('holds no entry for a check the shared proof already spawns', () => {
+    // The draining direction. `derived-population`'s two-way link reads the
+    // proof file for the checks it names; this reads it for the checks it must
+    // not, so an entry outlives its debt by exactly one merge request.
+    const drained = Object.keys(DEFERRED_SHARED_PROOFS).filter((script) =>
+      proof.includes(`'${script.slice(script.lastIndexOf('/') + 1)}'`),
+    );
+    expect(
+      drained,
+      `${PROOF_FILE} now spawns these, so their entries are stale: ${drained.join(', ')}`,
+    ).toEqual([]);
+  });
 });
 
 describe('a check whose population is the module tree proves it read the tree', () => {
@@ -10180,6 +10325,10 @@ describe('a check whose population is the module tree proves it read the tree', 
   // future edit would delete without noticing. Both directions therefore fail
   // here: a check marked `derived-population` and absent from the proof file,
   // and a script the proof file names that the inventory does not mark.
+  //
+  // The third value is the escape's other side and is reconciled just above: a
+  // `deferred-shared-proof` entry the proof file *does* spawn is stale, so a
+  // check cannot sit in the ledger and in the proof at once.
   const PROOF_FILE = 'backend/test/unit/scripts/moved-module-tree.test.ts';
   const proof = read(PROOF_FILE);
   const basenameOf = (script: string): string => script.slice(script.lastIndexOf('/') + 1);
@@ -10260,7 +10409,11 @@ describe('every check says how much it read (issue #244)', () => {
     // the two shell checks reconcile against the same index while staying
     // `not-a-module-walk` here, because `moved-module-tree.test.ts` spawns tsx
     // scripts over a fixture backend and a shell check needs a git work tree.
-    const unreconciled = CHECKS.filter((check) => check.residueGuard === 'derived-population')
+    //
+    // `deferred-shared-proof` is held to it too: what that value defers is the
+    // *spawned* proof, not the floor, and a floor that does not print its
+    // coverage is a floor nobody can see going short.
+    const unreconciled = CHECKS.filter((check) => check.residueGuard !== 'not-a-module-walk')
       .filter((check) => !(RECORDED_READ_SIZES[check.script]?.sources ?? []).includes('manifest-index'))
       .map((check) => check.script);
     expect(unreconciled).toEqual([]);
@@ -10424,6 +10577,18 @@ describe('the endora check estate holds every rule this inventory names', () => 
    * those modules. Claiming it is repository-only therefore contradicts the
    * population, and the contradiction is derived from the inventory's own
    * `residueGuard` field rather than from a reader's judgement.
+   *
+   * **`deferred-shared-proof` is deliberately not read here** (feature 111).
+   * That value's claim is about the check's *floor* — it calls the shared
+   * module-population guard — and this invariant's is about the rule's
+   * **subject**. `check:divergence` is where the two come apart: it carries the
+   * floor because a residue of the module tree would leave its owner map short,
+   * and it judges deployments, of which a module package is not one and cannot
+   * become one. Reading the third value here would refuse that entry for a
+   * contradiction it does not hold. The value is not thereby an escape from this
+   * invariant: it is a two-way ledger with a retiring condition, and the entry
+   * that retires becomes `derived-population`, at which point this test asks its
+   * question.
    */
   it('refuses a repository-only claim over a module walk', () => {
     const byId = new Map(CHECKS.map((check) => [check.npmScript ?? stemOf(check.script), check]));

@@ -148,6 +148,15 @@ const CHECKS: readonly MovedTreeCheck[] = [
   // a `short-walk` refusal — which is #215 arriving through a door no module-id
   // floor covers, since both trees still hand it thousands of files.
   { script: 'check-singleton-identity.ts', args: [], prefix: '[singleton-identity]' },
+  // Feature 111, Phase 4. Its floor was never in doubt — it delegates to
+  // `refuseVacuousModulePopulation` before either addend of its union — and what
+  // kept it out of this list was this fixture: its first vacuous condition is
+  // *"the walk opened no test file under `backend/test/`"*, which every backend
+  // here satisfied until FR-006 staged that tree, and giving it one used to red
+  // `check-singleton-identity` for the anchor FR-001 has since corrected. Both
+  // are gone, so it joins the list rather than keeping a block of its own: what
+  // it was waiting for is exactly what the two phases added.
+  { script: 'check-test-ownership.ts', args: [], prefix: '[test-ownership]' },
 ];
 
 let moved: MovedModuleTreeFixture;
@@ -596,58 +605,111 @@ describe('a split module tree is read in full, not in half (feature 080, T040a)'
    * exit code would also be satisfied by a check that started failing for some
    * reason of its own.
    *
-   * Phase 4 folds `check-test-ownership` into `CHECKS` above and re-marks it
-   * `derived-population`; this block is what makes that a re-classification of a
-   * measured fact rather than a hope.
+   * **Phase 4 has since taken all three answers out of this block**, and what is
+   * left below is what `CHECKS` cannot say. `check-test-ownership` is a member
+   * of that list now, so its exit codes over all three trees, its prefix and its
+   * agreeing-registry control are asserted there; the one thing the shared list
+   * does not read is the two addends of its union, which is what stays here.
+   * `check-admin-zones` gets a block of its own further down, for a reason that
+   * is stated there. `check-admin-surface` keeps this block's original
+   * assertion, because it does **not** discriminate — measured, exit 0 over the
+   * half-moved tree — and staging its population is all this feature owes it.
    */
-  it('check-test-ownership reaches a verdict over the split tree (§ 3.1)', () => {
+  it('check-test-ownership reads both addends of its union over the split tree (§ 3.1)', () => {
     const result = split.run('check-test-ownership.ts');
     expect(result.status, result.output).toBe(0);
-    // Both addends of its union, each floored separately in the check because a
-    // union whose addends are not is a half that can go to zero unnoticed. The
-    // application half is the tree this phase stages; the package half was
-    // already here.
+    // Each addend is floored separately in the check, because a union whose
+    // addends are not is a half that can go to zero unnoticed — and an exit code
+    // cannot carry that. The application half is the tree Phase 3 stages; the
+    // package half was already here.
     const counts = /application=(\d+) packages=(\d+)/.exec(result.output);
     expect(counts, `no test-ownership counts in: ${result.output}`).not.toBeNull();
     expect(Number(counts?.[1])).toBeGreaterThan(0);
     expect(Number(counts?.[2])).toBeGreaterThan(0);
   }, 120_000);
 
-  it('check-test-ownership still refuses the moved and half-moved trees (§ 3.1)', () => {
-    // The discrimination, and it is the reason the exit code above is worth
-    // anything: a check that answered 0 over all three trees would be reporting
-    // on something other than where the modules are.
-    const overTheMovedTree = moved.run('check-test-ownership.ts');
-    expect(overTheMovedTree.status, overTheMovedTree.output).toBe(2);
-    expect(overTheMovedTree.output).toMatch(/the walk read \d+ file\(s\)/);
-    const overTheHalfMovedTree = halfMoved.run('check-test-ownership.ts');
-    expect(overTheHalfMovedTree.status, overTheHalfMovedTree.output).toBe(2);
-    expect(overTheHalfMovedTree.output).toContain(STRANDED_MODULE);
+  it('check-admin-surface no longer refuses for a population the fixture did not stage (§ 3.2)', () => {
+    // Its published set: the kit's own `exports` map, read once the kit is a
+    // member of this workspace. Not an assertion that the check *passes* — what
+    // this feature owes it is a population, and its findings and ledgers are its
+    // own. Exit 2 is the one answer that says the fixture is still short.
+    //
+    // It stays out of `CHECKS` on a measurement rather than on a shortfall: over
+    // the half-moved tree it exits **0**, its `manifest-index` expectation
+    // shrinking with the module the fixture strands (55/55 -> 54/54), so the
+    // shared list would assert no discrimination for it. Its source matches
+    // neither spelling of the shared guard, and its `not-a-module-walk` is
+    // correct.
+    const result = split.run('check-admin-surface.ts');
+    expect(result.status, result.output).not.toBe(2);
+    expect(result.output).not.toContain('refusing to report a vacuous pass');
+    const read = /admin-kit-exports:(\d+)\/(\d+)/.exec(result.output);
+    expect(read, `check-admin-surface printed no admin-kit-exports token: ${result.output}`).not.toBeNull();
+    expect(Number(read?.[2])).toBeGreaterThan(0);
+    expect(read?.[1]).toBe(read?.[2]);
   }, 120_000);
 
-  for (const [script, token] of [
-    // `check-admin-zones`' `admin-ui` token counts the family members **other
-    // than** the kit, so it is only printed once the kit itself is one: a
-    // workspace with no kit refuses before this line, and one with a kit and no
-    // second member prints nothing rather than `0/0`.
-    ['check-admin-zones.ts', /admin-ui:(\d+)\/(\d+)/],
-    // `check-admin-surface`'s published set: the kit's own `exports` map, read
-    // once the kit is a member of this workspace.
-    ['check-admin-surface.ts', /admin-kit-exports:(\d+)\/(\d+)/],
-  ] as const) {
-    it(`${script} no longer refuses for a population the fixture did not stage (§ 3.2)`, () => {
-      const result = split.run(script);
-      // Not an assertion that the check *passes*: what this phase owes it is a
-      // population, and its findings and ledgers are its own. Exit 2 is the one
-      // answer that says the fixture is still short.
-      expect(result.status, result.output).not.toBe(2);
-      expect(result.output).not.toContain('refusing to report a vacuous pass');
-      const read = token.exec(result.output);
-      expect(read, `${script} printed no ${String(token)} token: ${result.output}`).not.toBeNull();
-      expect(Number(read?.[2])).toBeGreaterThan(0);
-      expect(read?.[1]).toBe(read?.[2]);
-    }, 120_000);
-  }
+  /**
+   * Feature 111, Phase 4 — `check-admin-zones` discriminates, in a block of its
+   * own (FR-008).
+   *
+   * It is marked `derived-population` in `check-inventory.test.ts` on the
+   * measurement below, and it is **not** in `CHECKS` for one reason worth
+   * stating rather than working around: over a tree with no admin render at all
+   * this check's *own* vacuous refusal fires before the module floor, so its
+   * moved-tree message is the zone one — *"the enum declares zone names and the
+   * walk found neither a render nor a contribution"* — and carries no walk size,
+   * which is what every member of that list is held to. Both refusals are
+   * correct and only one of them is the floor's, so the floor is exercised where
+   * it can be: over the half-moved tree, which is the sharper case anyway, since
+   * a partial move is what a package split actually performs.
+   *
+   * Its entry read `not-a-module-walk` until this phase, on the ground that
+   * *"over the moved tree and the split tree alike it would exit 2 on the kit,
+   * which asserts no discrimination at all"*. That was true and FR-007 ended it.
+   */
+  it('check-admin-zones reads both roots and passes over the split tree', () => {
+    const result = split.run('check-admin-zones.ts');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toContain('[admin-zones]');
+    expect(result.output, 'refused a population it should have covered').not.toMatch(
+      /produced none for/,
+    );
+    // The `admin-ui` token counts the family members **other than** the kit, so
+    // it is only printed once the kit itself is one: a workspace with no kit
+    // refuses before this line, and one with a kit and no second member prints
+    // nothing rather than `0/0`. It is the observable that FR-007's staging
+    // arrived, and an exit code would not carry it.
+    const admin = /admin-ui:(\d+)\/(\d+)/.exec(result.output);
+    expect(admin, `no admin-ui token in: ${result.output}`).not.toBeNull();
+    expect(Number(admin?.[2])).toBeGreaterThan(0);
+    expect(admin?.[1]).toBe(admin?.[2]);
+    // And the module half, which is the one this block is about: both floors
+    // covered, neither short.
+    const modules = /module-admin:(\d+)\/(\d+)/.exec(result.output);
+    expect(modules, `no module-admin token in: ${result.output}`).not.toBeNull();
+    expect(modules?.[1]).toBe(modules?.[2]);
+  }, 120_000);
+
+  it('check-admin-zones refuses a moved tree, for its own reason rather than the floor\'s', () => {
+    const result = moved.run('check-admin-zones.ts');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('[admin-zones]');
+    // Named rather than merely counted, because this is the discrimination the
+    // block above is worth nothing without — and because which refusal fires is
+    // the fact that keeps it out of `CHECKS`.
+    expect(result.output).toContain('neither a render nor a contribution');
+  }, 120_000);
+
+  it('check-admin-zones exits 2 on its module floor when one module is in neither root', () => {
+    // The floor itself, and the tree that can reach it: the half-moved tree
+    // holds every admin render the passing one holds, so the zone refusal is
+    // satisfied and the module population is what is short.
+    const result = halfMoved.run('check-admin-zones.ts');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain(STRANDED_MODULE);
+    expect(result.output).toMatch(/the walk read \d+ file\(s\)/);
+  }, 120_000);
 
   it('check-singleton-identity finds its allowances used, not stale (§ 4.3)', () => {
     // `WHOLE_FILE_REACHES_ALLOWED`'s entries say the artefact sharing the
