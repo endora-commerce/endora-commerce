@@ -148,21 +148,34 @@
  *
  * The subject is **which packages may be public**, and feature 104's FR-001
  * answers it by derivation: the transitive closure, over `dependencies` and
- * `peerDependencies`, of the `@endora-commerce/*` entries the reference
- * storefront declares. `devDependencies` are excluded and the exclusion is
- * load-bearing — `page-builder-admin` dev-depends on five siblings and a
- * consumer installs none of them.
+ * `peerDependencies`, of the members a client obtains **directly**.
+ * `devDependencies` are excluded and the exclusion is load-bearing —
+ * `page-builder-admin` dev-depends on five siblings and a consumer installs
+ * none of them.
+ *
+ * **A client obtains one in two ways, so the closure has two roots** (R1.2,
+ * D-208). It *compiles* a package into a storefront it then owns — the
+ * reference storefront's dependencies — and it *installs a package in order to
+ * run it*, which is an executable: a member declaring a `bin`. The second root
+ * is not a widening of convenience. `@endora-commerce/cli` is in no
+ * application's dependency closure and never will be, because a tool is not
+ * something an application depends on; under D-208 it is nonetheless the first
+ * package a client installs. With one root the check reports it as a package
+ * nobody decided to publish, forever — the state `publishable-package` was
+ * narrowed out of, arriving a second time through the narrowing.
  *
  * Two properties of that derivation are the whole point. It is written down
- * nowhere (D-100): a fourth package entering the storefront's dependencies
- * changes the answer by being added to that manifest and by nothing else. And
- * the reference storefront is itself derived — **the one workspace member that
- * declares `next` and a `build` script that runs it**, which is
- * `new-storefront/reference.ts`' own predicate, imported rather than copied, so
- * the check and the scaffold cannot come to disagree about which application
- * they are talking about. Zero such members, or two, is exit 2 while any
- * versionable member is public: the population is then undecidable, and a check
- * that guessed would license exactly the drive-by publication D-160.5 refuses.
+ * nowhere (D-100): a fourth package entering the storefront's dependencies, or
+ * a member growing a `bin`, changes the answer by that edit and by nothing
+ * else. And both roots are themselves derived — the reference storefront is
+ * **the one workspace member that declares `next` and a `build` script that
+ * runs it**, which is `new-storefront/reference.ts`' own predicate, imported
+ * rather than copied, so the check and the scaffold cannot come to disagree
+ * about which application they are talking about; and an executable is npm's
+ * own `bin` field, in either spelling npm accepts. Zero Next applications, or
+ * two, is exit 2 while any versionable member is public: the population is then
+ * undecidable, and a check that guessed would license exactly the drive-by
+ * publication D-160.5 refuses.
  *
  * ## The scope, and the failure that is silent
  *
@@ -332,6 +345,13 @@ export interface ClassifiedMember {
    * they mean.
    */
   readonly nextApplication: boolean;
+  /**
+   * Whether the manifest declares a `bin` — a package a consumer installs in
+   * order to **run** it, which is the second root of the publication set
+   * (D-208). Read off the field in both the spellings npm accepts; see
+   * {@link declaresExecutable}.
+   */
+  readonly executable: boolean;
 }
 
 /**
@@ -503,6 +523,23 @@ export function publishConfigAccess(
   return typeof access === 'string' ? access : null;
 }
 
+/**
+ * Does this manifest declare a `bin` — is it installed to be **run**?
+ *
+ * npm reads two spellings and so does this: an object of command names, and a
+ * bare string that takes the package's own name. It is deliberately not
+ * "declares a `bin` *and* something else": the field is npm's own statement
+ * that a consumer gets an executable out of this package, which is exactly the
+ * question the publication set is asking, and every extra clause would be a
+ * second author for it.
+ */
+export function declaresExecutable(manifest: Readonly<Record<string, unknown>>): boolean {
+  const bin = manifest['bin'];
+  if (typeof bin === 'string') return bin.trim().length > 0;
+  return typeof bin === 'object' && bin !== null && !Array.isArray(bin)
+    && Object.keys(bin as Record<string, unknown>).length > 0;
+}
+
 /** The package names one dependency field of a manifest declares. */
 function dependencyNames(
   manifest: Readonly<Record<string, unknown>>,
@@ -514,16 +551,36 @@ function dependencyNames(
 }
 
 /**
- * Which packages may be public — the closure of {@link ClassifiedMember} names
- * reachable from the reference storefront over `dependencies` and
- * `peerDependencies` (feature 104, FR-001).
+ * Which packages may be public — the closure, over `dependencies` and
+ * `peerDependencies`, of the members a client obtains **directly**
+ * (feature 104, FR-001; `contracts/registry-and-scope.md` R1).
  *
- * Nothing here names a package, a scope or a directory: the reference storefront
- * is *the* Next application among the members, and the set is what its manifest
- * reaches. A fourth package entering the storefront's dependencies changes the
- * answer by being added to that manifest and by nothing else (R1.1), and a
- * repository with no such application — or two of them — gets no answer at all
- * rather than a guess.
+ * There are two ways to obtain one and therefore two roots, and both are read
+ * off the members' own manifests rather than written down (R1.1, D-100):
+ *
+ *   * the **reference storefront** — *the* Next application among the members.
+ *     A client compiles its `@endora-commerce/*` dependencies into a storefront
+ *     they then own, so the closure of that manifest is a set of packages a
+ *     client installs. A fourth package entering it changes the answer by being
+ *     added to that manifest and by nothing else.
+ *   * every **versionable executable** — a member declaring a `bin`, which is
+ *     npm's own statement that a consumer installs this package in order to run
+ *     it. Under D-208 the CLI is the *first* package a client installs, and it
+ *     is in no application's dependency closure by construction: a tool is not
+ *     something an application depends on. A one-root derivation therefore
+ *     reports it as a package nobody decided to publish, forever — which is the
+ *     state `unexpected-public-package` was narrowed out of once already, and
+ *     the reason this is a second root rather than an exemption.
+ *
+ * Applications are excluded from the second root, and the exclusion is
+ * load-bearing rather than tidy: they are `ignore`d and not versionable, nobody
+ * installs one by version, and taking every `bin` in the workspace would let an
+ * application's dependency closure license publishing whatever it reaches.
+ *
+ * A repository with no Next application — or two of them — gets no answer at
+ * all rather than a guess. The refusal is the *storefront*'s: the executable
+ * root needs nothing resolved and could stand alone, but half a closure
+ * reported as the whole one is a verdict this run did not measure.
  */
 export function publicationSet(members: readonly ClassifiedMember[]): PublicationSet {
   const applications = members.filter((member) => member.nextApplication);
@@ -550,7 +607,11 @@ export function publicationSet(members: readonly ClassifiedMember[]): Publicatio
 
   const byName = new Map(members.map((member) => [member.name, member] as const));
   const reached = new Set<string>();
-  const queue = [...applications[0]!.runtimeDependencies];
+  const executables = members.filter((member) => member.family && member.executable);
+  const queue = [
+    ...applications[0]!.runtimeDependencies,
+    ...executables.map((member) => member.name),
+  ];
   while (queue.length > 0) {
     const name = queue.shift()!;
     const member = byName.get(name);
@@ -622,6 +683,7 @@ export function readReleaseIntent(
       ...dependencyNames(member.manifest, 'peerDependencies'),
     ],
     nextApplication: isNextApplication(member.manifest),
+    executable: declaresExecutable(member.manifest),
   }));
 
   const changesetDir = join(repoRoot, '.changeset');
@@ -894,9 +956,11 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
         subject: member.name,
         message:
           `(${member.dir}) is not \`"private": true\` and is outside the publication set. That ` +
-          'set is derived, never listed (feature 104, FR-001): it is the closure of the ' +
-          'reference storefront\'s `dependencies` and `peerDependencies` over the workspace, ' +
-          `which today reaches ${publishable.length > 0 ? publishable.join(', ') : 'nothing'}. ` +
+          'set is derived, never listed (feature 104, FR-001): it is the closure, over ' +
+          '`dependencies` and `peerDependencies`, of what a client obtains directly — the ' +
+          'reference storefront\'s dependencies, and every versionable member that declares a ' +
+          '`bin`, which is a package installed in order to be run (D-208). It today reaches ' +
+          `${publishable.length > 0 ? publishable.join(', ') : 'nothing'}. ` +
           'Publishing something else is its own decision — the registry, the credential, the ' +
           'support obligation and whether a per-package tag now anchors anything — so make it ' +
           'in a merge request that says so, and change this check in the same commit.',

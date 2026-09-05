@@ -2451,8 +2451,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the scope agreement across the set, which is a decision about the set
     // rather than about a member. 92 + 3x4 + 1, measured, not computed from a
     // delta.
+    //
+    // **106 -> 110 (feature 104, the CLI published): `sites` only again, and
+    // for the same arithmetic.** `@endora-commerce/cli` becomes the fourth
+    // public versionable member, so the same 85 manifests are opened and four
+    // more decisions are taken inside them. The scope-agreement decision was
+    // already counted — it is one per *set*, not one per member — so this is
+    // 106 + 4 exactly, measured.
     files: 85,
-    sites: 106,
+    sites: 110,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {

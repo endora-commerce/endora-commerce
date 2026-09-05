@@ -18,8 +18,9 @@
  * It reads no configuration file. There is no `.endorarc` and no environment
  * variable that changes a verdict.
  */
+import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { estateIds, runCheck } from '../check/index.js';
@@ -418,7 +419,39 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
   }
 }
 
-const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+/**
+ * Is this module the program the process was started to run?
+ *
+ * The comparison is between **realpaths**, and that is the whole content of the
+ * function. A package manager does not invoke `dist/bin/endora.js` directly: it
+ * links the `bin`, so `process.argv[1]` names the link — pnpm's shim execs
+ * `node "$basedir/../@endora-commerce/cli/dist/bin/endora.js"`, a path running
+ * through the `node_modules/@endora-commerce/cli` symlink into the
+ * content-addressed store — while Node's ESM loader resolves a module URL to
+ * its real location before evaluating it, so `import.meta.url` is the store
+ * path. Comparing the two as written is therefore false for **every** consumer
+ * who installed this package and true only in the checkout that developed it,
+ * where nothing is linked. Measured on a `pnpm pack`ed tarball installed into a
+ * scratch directory: `endora --help` printed nothing at all and exited 0.
+ *
+ * Both failure directions are worth naming. Answering *no* wrongly is the
+ * silence above. Answering *yes* wrongly would run the program on `import
+ * { main }`, which is what the `./` export exists for, so the negative case is
+ * asserted as well.
+ *
+ * An `argv[1]` naming nothing on disk answers `false` rather than throwing:
+ * `realpathSync` raises `ENOENT`, and an uncaught one here would turn a wrong
+ * guess about the invocation into a crash before any command is dispatched.
+ */
+export function isDirectEntry(entry: string | undefined, moduleUrl: string): boolean {
+  if (entry === undefined) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectEntry(process.argv[1], import.meta.url)) {
   process.exitCode = await main(process.argv.slice(2), process.cwd());
 }

@@ -207,3 +207,51 @@ export const NESTED_FAMILY_PACKAGE: FileMap = {
   'packages/modules/gamma/tsconfig.build.json':
     '{ "compilerOptions": { "rootDir": "./src" }, "include": ["src/**/*"] }',
 };
+
+/**
+ * `@fx/tool` published: a versionable member the reference storefront does not
+ * reach, which a client installs anyway because it is the **executable**
+ * (D-208; `contracts/registry-and-scope.md` R1.2).
+ *
+ * The fixture carries three facts for the same reason {@link PUBLISHED_ALPHA}
+ * does — it declares a `bin`, so it is a root of the publication set; it is
+ * public; and it is fit, so `incomplete-public-package` and
+ * `restricted-public-package` are out of the way while the root itself is under
+ * test. `@fx/beta` is public and fit too and is reached from **the executable
+ * alone**: the storefront depends on nothing, so a derivation that added the
+ * executable and stopped there would report `@fx/beta` as a package nobody
+ * decided to publish, which is the half a one-root closure gets wrong.
+ *
+ * `bin` as a **string** is the other legal spelling of the field and is what the
+ * discrimination in the companion test removes, so the predicate under proof is
+ * *the field*, not the directory the package sits in.
+ */
+export const PUBLISHED_EXECUTABLE: FileMap = {
+  'packages/tool/package.json': JSON.stringify({
+    name: '@fx/tool',
+    version: '1.0.0',
+    bin: { fx: './dist/bin/fx.js' },
+    repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/tool' },
+    publishConfig: { access: 'public' },
+    dependencies: { '@fx/beta': 'workspace:*' },
+  }),
+  'packages/tool/tsconfig.build.json':
+    '{ "compilerOptions": { "rootDir": "./src" }, "include": ["src/**/*"] }',
+  'packages/beta/package.json': JSON.stringify({
+    name: '@fx/beta',
+    version: '1.0.0',
+    repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/beta' },
+    publishConfig: { access: 'public' },
+  }),
+};
+
+/** {@link PUBLISHED_EXECUTABLE}'s manifest, with `mutate` applied to it. */
+export function publishedExecutableAs(
+  mutate: (manifest: Record<string, unknown>) => void,
+): FileMap {
+  const manifest = JSON.parse(
+    PUBLISHED_EXECUTABLE['packages/tool/package.json'] as string,
+  ) as Record<string, unknown>;
+  mutate(manifest);
+  return { ...PUBLISHED_EXECUTABLE, 'packages/tool/package.json': JSON.stringify(manifest) };
+}

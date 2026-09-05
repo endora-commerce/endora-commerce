@@ -30,7 +30,9 @@ import {
   HOST_SOURCED_PACKAGE,
   NESTED_FAMILY_PACKAGE,
   PUBLISHED_ALPHA,
+  PUBLISHED_EXECUTABLE,
   publishedAlphaAs,
+  publishedExecutableAs,
   type FileMap,
 } from '../../helpers/release-intent-check-fixture.js';
 
@@ -250,6 +252,103 @@ describe('check-release-intent — publication, and which packages may be public
       }),
     });
     expect(kinds(found)).not.toContain('unexpected-public-package');
+  });
+
+  /**
+   * The second root, and the reason the closure has two (D-208;
+   * `contracts/registry-and-scope.md` R1.2). A client obtains a package in
+   * exactly two ways: by *compiling* it into their storefront, which is the
+   * reference application's closure, and by *installing it to run*, which is an
+   * executable. `@endora-commerce/cli` is the second — under D-208 it is the
+   * first package a client installs — and a one-root derivation reports it as
+   * a package nobody decided to publish, forever, which is the state
+   * `unexpected-public-package` was narrowed out of once already.
+   */
+  it('reports nothing for a public package that declares a `bin`', () => {
+    expect(findings(PUBLISHED_EXECUTABLE)).toEqual([]);
+  });
+
+  /**
+   * The executable is a *root*, not a member: its own `dependencies` and
+   * `peerDependencies` are in the set as well, because a consumer who installs
+   * it installs them. Here the reference storefront depends on nothing at all,
+   * so `@fx/beta` is reachable only through `@fx/tool` — a derivation that added
+   * the executable and stopped there passes the proof above and fails this one.
+   */
+  it('follows the executable\'s own dependencies into the publication set', () => {
+    expect(
+      findings(PUBLISHED_EXECUTABLE)
+        .filter((finding) => finding.kind === 'unexpected-public-package')
+        .map((finding) => finding.subject),
+    ).toEqual([]);
+    expect(
+      findings(
+        publishedExecutableAs((manifest) => {
+          delete manifest['dependencies'];
+        }),
+      )
+        .filter((finding) => finding.kind === 'unexpected-public-package')
+        .map((finding) => finding.subject),
+    ).toEqual(['@fx/beta']);
+  });
+
+  /**
+   * The discrimination: the predicate is the **`bin` field**, not the package's
+   * name or the directory it sits in. Take the field away and the same
+   * manifest, in the same place, with the same dependency, is a package nobody
+   * decided to publish again — which is what stops "the executable" from being
+   * a name written down (D-100).
+   */
+  it('reports the same package once it declares no `bin`', () => {
+    const found = findings(
+      publishedExecutableAs((manifest) => {
+        delete manifest['bin'];
+      }),
+    );
+    expect(
+      found.filter((finding) => finding.kind === 'unexpected-public-package').map((f) => f.subject),
+    ).toEqual(['@fx/beta', '@fx/tool']);
+  });
+
+  /**
+   * `bin` has two legal spellings and npm reads both — an object of names, and
+   * a bare string taking the package's own name. A predicate that saw only the
+   * object would classify a correct executable as unexpected, which is a
+   * refusal nobody could act on except by rewriting a field npm is happy with.
+   */
+  it('reads `bin` written as a string', () => {
+    expect(
+      findings(
+        publishedExecutableAs((manifest) => {
+          manifest['bin'] = './dist/bin/fx.js';
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * And an **application** that declares a `bin` is not a root. Applications are
+   * `ignore`d and are not versionable, so nobody installs them by version; a
+   * derivation that took every `bin` in the workspace would let an application's
+   * dependency closure license publishing whatever it happens to reach.
+   */
+  it('does not take an ignored application as an executable root', () => {
+    const found = findings({
+      ...PUBLISHED_EXECUTABLE,
+      'packages/tool/package.json': null,
+      'packages/tool/tsconfig.build.json': null,
+      'apps/host/package.json': JSON.stringify({
+        name: 'host',
+        version: '0.0.0',
+        private: true,
+        bin: { host: './bin/host.js' },
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0' },
+      }),
+    });
+    expect(
+      found.filter((finding) => finding.kind === 'unexpected-public-package').map((f) => f.subject),
+    ).toEqual(['@fx/beta']);
   });
 });
 
