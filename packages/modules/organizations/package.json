@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-organizations",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "B2B organization records, members, addresses, sales-rep assignment, moderation lifecycle, and per-org commercial scoping.",
   "endora": {
     "type": "module",
     "id": "organizations"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/organizations"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

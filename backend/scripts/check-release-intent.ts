@@ -40,13 +40,9 @@
  *
  *   * `version-disabled` — a versionable member is `"private": true` while
  *     `privatePackages.version` is not `true`. The measurement above.
- *   * `unexpected-public-package` — a versionable member that is not
- *     `"private": true` and is **outside the publication set**. It is the
- *     narrowed survivor of `publishable-package`, which refused every public
- *     member and therefore could not survive the merge request it exists to
- *     force: with three packages published it would fire three times, forever.
- *     The set is derived (feature 104, FR-001) and written down nowhere — see
- *     *The publication set* below.
+ *   * `unpublished-package` — a versionable member that **is**
+ *     `"private": true`. The third spelling of one question, and the direction
+ *     the question now has a subject in — see *The publication set* below.
  *   * `incomplete-public-package` — a public versionable member that declares
  *     no `repository` or no `publishConfig.access`. Fitness to be published,
  *     which is the question `publishable-package` was standing in for.
@@ -137,45 +133,61 @@
  * That is the failing-safe direction: a versionable package demands a changeset,
  * and an ignored one demands nothing.
  *
- * ## The publication set — derived, and the reason `publishable-package` had to
- * be narrowed rather than deleted
+ * ## The publication set — and why it stopped being a closure
  *
- * D-203 publishes three packages to a private registry for a deployment. Before
- * that, *any* public versionable member was a finding, which is what forced the
- * publication merge request to be a merge request. After it, the same predicate
- * fires three times on a correct tree, forever — so it has to become a question
- * with a different subject rather than be suppressed (feature 104, FR-010).
+ * This question has had three subjects, and each one was retired by the ruling
+ * that made its answer constant.
  *
- * The subject is **which packages may be public**, and feature 104's FR-001
- * answers it by derivation: the transitive closure, over `dependencies` and
- * `peerDependencies`, of the members a client obtains **directly**.
- * `devDependencies` are excluded and the exclusion is load-bearing —
- * `page-builder-admin` dev-depends on five siblings and a consumer installs
- * none of them.
+ * `publishable-package` refused **every** public versionable member, which is
+ * what forced the first publication to be a merge request (D-160.5). D-203
+ * published four, so the predicate fired four times on a correct tree, forever.
  *
- * **A client obtains one in two ways, so the closure has two roots** (R1.2,
- * D-208). It *compiles* a package into a storefront it then owns — the
- * reference storefront's dependencies — and it *installs a package in order to
- * run it*, which is an executable: a member declaring a `bin`. The second root
- * is not a widening of convenience. `@endora-commerce/cli` is in no
- * application's dependency closure and never will be, because a tool is not
- * something an application depends on; under D-208 it is nonetheless the first
- * package a client installs. With one root the check reports it as a package
- * nobody decided to publish, forever — the state `publishable-package` was
- * narrowed out of, arriving a second time through the narrowing.
+ * `unexpected-public-package` replaced it with *may this package be public*,
+ * answered by the transitive closure, over `dependencies` and
+ * `peerDependencies`, of what a client obtains directly: the reference
+ * storefront's dependencies, and every versionable member declaring a `bin`
+ * (feature 104, FR-001; D-208's second root).
  *
- * Two properties of that derivation are the whole point. It is written down
- * nowhere (D-100): a fourth package entering the storefront's dependencies, or
- * a member growing a `bin`, changes the answer by that edit and by nothing
- * else. And both roots are themselves derived — the reference storefront is
- * **the one workspace member that declares `next` and a `build` script that
- * runs it**, which is `new-storefront/reference.ts`' own predicate, imported
- * rather than copied, so the check and the scaffold cannot come to disagree
- * about which application they are talking about; and an executable is npm's
- * own `bin` field, in either spelling npm accepts. Zero Next applications, or
- * two, is exit 2 while any versionable member is public: the population is then
- * undecidable, and a check that guessed would license exactly the drive-by
- * publication D-160.5 refuses.
+ * **The owner's publication ruling of 2026-09-05 retires that one too, and the
+ * arithmetic is the argument.** Every `@endora-commerce` package publishes,
+ * because a deployment builds its own instance (D-208) and an instance takes the
+ * platform, the admin kit and all 70 module packages as dependencies while
+ * holding a copy of none. Measured on this tree, the honest closure — the two
+ * roots above, plus the module packages an instance composes, read off the
+ * `endora.type` each package declares about itself — reaches **78 of the 79**
+ * versionable members. The 79th is `@endora-commerce/test-kit`, which
+ * `specs/109-backend-test-kit/` FR-001 independently requires to be published
+ * ("A published package MUST exist that composes a backend server for a test")
+ * and which **no** closure can reach: a test kit is a `devDependency` by
+ * construction, and excluding `devDependencies` is load-bearing — the one
+ * package that dev-depends on five siblings a consumer installs none of is
+ * `page-builder-admin`.
+ *
+ * A derivation that answers *all of them but one, and the one is mandated
+ * elsewhere* discriminates nothing. It is an expensive way to compute the whole
+ * set, with a hand-written exception waiting to be added to it — which is this
+ * estate's own retiring condition for a predicate that has outgrown its
+ * population: narrow it, never add the entry.
+ *
+ * So the population is now every versionable member, and the question inverts
+ * to the direction that has a subject: **`unpublished-package`**, a versionable
+ * member that is `"private": true`.
+ *
+ * That is not the old rule with its sign flipped for tidiness. It is a
+ * strictly better finding, because it guards a hazard the old one could not see
+ * and the generator's own default used to produce. `pnpm pack` rewrites a
+ * `workspace:*` range to the sibling's **exact** version, so one package left
+ * behind is every dependent's packed manifest pinning `0.7.0` of something the
+ * registry never receives — `ERR_PNPM_NO_MATCHING_VERSION` at the first
+ * consumer's install, from a `changeset publish` that reported success. Nothing
+ * else in the flow says so: `changeset publish` skips a private package in
+ * silence, which is the same silence `version-disabled` is about, one field
+ * over.
+ *
+ * The escape is unchanged and symmetric. A package that genuinely must not
+ * publish declares `private` and this check goes red, so *not* publishing
+ * something is its own decision made in a merge request that says so — exactly
+ * as publishing something used to be.
  *
  * ## The scope, and the failure that is silent
  *
@@ -232,13 +244,13 @@
  * does not, and a pattern it cannot read must not be reported as matching
  * nothing; and a `.changeset/` directory this check could not list.
  *
- * Feature 104 adds the two that make the publication set answerable, and both
- * are conditional on a versionable member actually being public — an all-private
- * checkout asks no such question, and refusing there would be a refusal about a
- * population nothing consults. A checkout declaring **no** reference storefront,
- * and one declaring more than one: either way *which packages may be public* has
- * no answer, and reporting a public package as expected — or as unexpected —
- * would be a verdict this run did not measure.
+ * Feature 104 added two more, and the owner's ruling of 2026-09-05 retires
+ * them with the closure they guarded: a checkout with no reference storefront,
+ * or with two, made *which packages may be public* undecidable. The population
+ * is now every versionable member, which the glob refusal above already covers
+ * — a workspace that produced no member, and a non-negated glob that produced
+ * none, are the two ways this check can stop seeing packages, and neither the
+ * storefront nor its dependency graph is consulted any more.
  *
  * `--since` adds four of its own, for the same reason: a versionable package
  * with no readable `tsconfig.build.json`, a build configuration with no
@@ -298,7 +310,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readSizeRefusal, reportReadSize, type ReadCoverage } from './lib/read-size.js';
 import {
   classifyWorkspaceMembers,
-  isNextApplication,
   nodeWorkspaceFs,
   workspaceGlobs,
   type WorkspaceFs,
@@ -330,42 +341,6 @@ export interface ClassifiedMember {
   readonly repository: boolean;
   /** `publishConfig.access`, verbatim, or `null` when it declares none. */
   readonly access: string | null;
-  /**
-   * The workspace-internal packages this member declares in `dependencies` and
-   * `peerDependencies` — the two fields a consumer installs. `devDependencies`
-   * are deliberately absent: `page-builder-admin` dev-depends on five siblings
-   * and a consumer receives none of them, which is what keeps the publication
-   * set at three packages rather than eight.
-   */
-  readonly runtimeDependencies: readonly string[];
-  /**
-   * Whether this member is a Next application — the shape the reference
-   * storefront has. The predicate is `lib/workspace-packages.ts`', shared with
-   * `endora new storefront`, so the two cannot disagree about which application
-   * they mean.
-   */
-  readonly nextApplication: boolean;
-  /**
-   * Whether the manifest declares a `bin` — a package a consumer installs in
-   * order to **run** it, which is the second root of the publication set
-   * (D-208). Read off the field in both the spellings npm accepts; see
-   * {@link declaresExecutable}.
-   */
-  readonly executable: boolean;
-}
-
-/**
- * Which packages may be public, and how that was decided.
- *
- * `members` is the transitive closure described in *The publication set* above,
- * or `null` when the reference storefront could not be resolved — in which case
- * `unresolved` says why, and {@link checkReleaseIntent} turns it into a refusal
- * **only** if some versionable member is actually public. An all-private
- * checkout asks no question this answers.
- */
-export interface PublicationSet {
-  readonly members: readonly string[] | null;
-  readonly unresolved: string;
 }
 
 /** One `<name>: <bump>` line in the front matter of a `.changeset/*.md`. */
@@ -383,15 +358,13 @@ export interface ReleaseIntentInputs {
   readonly changesets: readonly ChangesetRelease[];
   /** Non-negated workspace entries, and how many members each produced. */
   readonly globCoverage: ReadonlyMap<string, number>;
-  /** Which packages may be public (feature 104, FR-001), or why that is undecidable. */
-  readonly publication: PublicationSet;
   /** Files opened, for the read line. */
   readonly files: number;
 }
 
 export type ReleaseIntentFindingKind =
   | 'version-disabled'
-  | 'unexpected-public-package'
+  | 'unpublished-package'
   | 'incomplete-public-package'
   | 'restricted-public-package'
   | 'unresolvable-scope'
@@ -524,107 +497,6 @@ export function publishConfigAccess(
 }
 
 /**
- * Does this manifest declare a `bin` — is it installed to be **run**?
- *
- * npm reads two spellings and so does this: an object of command names, and a
- * bare string that takes the package's own name. It is deliberately not
- * "declares a `bin` *and* something else": the field is npm's own statement
- * that a consumer gets an executable out of this package, which is exactly the
- * question the publication set is asking, and every extra clause would be a
- * second author for it.
- */
-export function declaresExecutable(manifest: Readonly<Record<string, unknown>>): boolean {
-  const bin = manifest['bin'];
-  if (typeof bin === 'string') return bin.trim().length > 0;
-  return typeof bin === 'object' && bin !== null && !Array.isArray(bin)
-    && Object.keys(bin as Record<string, unknown>).length > 0;
-}
-
-/** The package names one dependency field of a manifest declares. */
-function dependencyNames(
-  manifest: Readonly<Record<string, unknown>>,
-  field: string,
-): readonly string[] {
-  const declared = manifest[field];
-  if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) return [];
-  return Object.keys(declared as Record<string, unknown>);
-}
-
-/**
- * Which packages may be public — the closure, over `dependencies` and
- * `peerDependencies`, of the members a client obtains **directly**
- * (feature 104, FR-001; `contracts/registry-and-scope.md` R1).
- *
- * There are two ways to obtain one and therefore two roots, and both are read
- * off the members' own manifests rather than written down (R1.1, D-100):
- *
- *   * the **reference storefront** — *the* Next application among the members.
- *     A client compiles its `@endora-commerce/*` dependencies into a storefront
- *     they then own, so the closure of that manifest is a set of packages a
- *     client installs. A fourth package entering it changes the answer by being
- *     added to that manifest and by nothing else.
- *   * every **versionable executable** — a member declaring a `bin`, which is
- *     npm's own statement that a consumer installs this package in order to run
- *     it. Under D-208 the CLI is the *first* package a client installs, and it
- *     is in no application's dependency closure by construction: a tool is not
- *     something an application depends on. A one-root derivation therefore
- *     reports it as a package nobody decided to publish, forever — which is the
- *     state `unexpected-public-package` was narrowed out of once already, and
- *     the reason this is a second root rather than an exemption.
- *
- * Applications are excluded from the second root, and the exclusion is
- * load-bearing rather than tidy: they are `ignore`d and not versionable, nobody
- * installs one by version, and taking every `bin` in the workspace would let an
- * application's dependency closure license publishing whatever it reaches.
- *
- * A repository with no Next application — or two of them — gets no answer at
- * all rather than a guess. The refusal is the *storefront*'s: the executable
- * root needs nothing resolved and could stand alone, but half a closure
- * reported as the whole one is a verdict this run did not measure.
- */
-export function publicationSet(members: readonly ClassifiedMember[]): PublicationSet {
-  const applications = members.filter((member) => member.nextApplication);
-  if (applications.length === 0) {
-    return {
-      members: null,
-      unresolved:
-        'no workspace member is a Next application, so this checkout declares no reference ' +
-        'storefront and there is nothing to derive the publication set from (feature 104, ' +
-        'FR-001: the set is the closure of that application\'s workspace dependencies, and is ' +
-        'written down nowhere)',
-    };
-  }
-  if (applications.length > 1) {
-    return {
-      members: null,
-      unresolved:
-        `${String(applications.length)} workspace members are Next applications ` +
-        `(${applications.map((member) => member.dir).join(', ')}), so which one is the ` +
-        'reference storefront — and therefore which packages may be public — is a question ' +
-        'this run cannot answer. Taking whichever sorted first would be a population nobody chose',
-    };
-  }
-
-  const byName = new Map(members.map((member) => [member.name, member] as const));
-  const reached = new Set<string>();
-  const executables = members.filter((member) => member.family && member.executable);
-  const queue = [
-    ...applications[0]!.runtimeDependencies,
-    ...executables.map((member) => member.name),
-  ];
-  while (queue.length > 0) {
-    const name = queue.shift()!;
-    const member = byName.get(name);
-    // Third-party dependencies are not workspace members and end the walk;
-    // the closure is over packages this repository could publish.
-    if (member === undefined || reached.has(name)) continue;
-    reached.add(name);
-    queue.push(...member.runtimeDependencies);
-  }
-  return { members: [...reached].sort(), unresolved: '' };
-}
-
-/**
  * Read the whole release-intent configuration off a checkout.
  *
  * Takes a {@link WorkspaceFs} so a red proof can hand in a synthetic repository
@@ -678,12 +550,6 @@ export function readReleaseIntent(
     globs: member.globs,
     repository: declaresRepository(member.manifest),
     access: publishConfigAccess(member.manifest),
-    runtimeDependencies: [
-      ...dependencyNames(member.manifest, 'dependencies'),
-      ...dependencyNames(member.manifest, 'peerDependencies'),
-    ],
-    nextApplication: isNextApplication(member.manifest),
-    executable: declaresExecutable(member.manifest),
   }));
 
   const changesetDir = join(repoRoot, '.changeset');
@@ -703,7 +569,6 @@ export function readReleaseIntent(
     members: classified,
     changesets,
     globCoverage,
-    publication: publicationSet(classified),
     // config.json + pnpm-workspace.yaml + one manifest per member. What the
     // walk *opened*, never what it found in.
     //
@@ -944,29 +809,32 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
 
   // 2 — publication, and whether each public package is fit for it (feature 104).
   const publicVersionable = versionable.filter((member) => !member.isPrivate);
-  const publishable = inputs.publication.members;
   const configAccess = typeof inputs.config['access'] === 'string' ? inputs.config['access'] : null;
 
-  for (const member of publicVersionable) {
-    // 2a — D-160.5, narrowed: the question is no longer "is it public" (which
-    // three correct packages now answer yes to, forever) but "may it be".
-    if (publishable !== null && !publishable.includes(member.name)) {
-      findings.push({
-        kind: 'unexpected-public-package',
-        subject: member.name,
-        message:
-          `(${member.dir}) is not \`"private": true\` and is outside the publication set. That ` +
-          'set is derived, never listed (feature 104, FR-001): it is the closure, over ' +
-          '`dependencies` and `peerDependencies`, of what a client obtains directly — the ' +
-          'reference storefront\'s dependencies, and every versionable member that declares a ' +
-          '`bin`, which is a package installed in order to be run (D-208). It today reaches ' +
-          `${publishable.length > 0 ? publishable.join(', ') : 'nothing'}. ` +
-          'Publishing something else is its own decision — the registry, the credential, the ' +
-          'support obligation and whether a per-package tag now anchors anything — so make it ' +
-          'in a merge request that says so, and change this check in the same commit.',
-      });
-    }
+  // 2a — the ruling of 2026-09-05, in the direction that now has a subject.
+  // `changeset publish` skips a private package in silence, and `pnpm pack`
+  // has already rewritten every sibling's `workspace:*` to its exact version,
+  // so one package left behind is every dependent pinning a version the
+  // registry never receives.
+  for (const member of versionable.filter((candidate) => candidate.isPrivate)) {
+    findings.push({
+      kind: 'unpublished-package',
+      subject: member.name,
+      message:
+        `(${member.dir}) is \`"private": true\`, so \`changeset publish\` skips it without a ` +
+        "word. Every `@endora-commerce` package publishes (D-208, and the owner's publication " +
+        'ruling of 2026-09-05): a deployment builds its own instance, and an instance takes the ' +
+        'platform, the admin kit and every module package as a dependency while holding a copy ' +
+        "of none. `pnpm pack` rewrites a `workspace:*` range to the sibling's exact version, so " +
+        "a package left behind is every dependent's packed manifest pinning a version the " +
+        "registry does not have — `ERR_PNPM_NO_MATCHING_VERSION` at the first consumer's " +
+        'install, from a publish that reported success. Not publishing something is its own ' +
+        'decision — so make it in a merge request that says so, and change this check in the ' +
+        'same commit.',
+    });
+  }
 
+  for (const member of publicVersionable) {
     // 2b — fitness. What a published package owes a consumer, and what npm's
     // own provenance prerequisite needs. `license` is deliberately not judged:
     // the owner deferred the licence to the merge request that makes a package
@@ -1167,28 +1035,24 @@ export function checkReleaseIntent(
     };
   }
 
-  // Feature 104's two refusals, and both are conditional: which packages *may*
-  // be public is a question an all-private checkout never asks, so a repository
-  // with no reference storefront is refused only once one is. Answered before
-  // the findings, because reporting a public package as expected — or as
-  // unexpected — off an undecidable population is the verdict issue #113 is
-  // about.
+  // Feature 104's two refusals went with the closure they guarded (the ruling
+  // of 2026-09-05): with the population every versionable member, no reference
+  // storefront is consulted and there is nothing about it left to be
+  // undecidable. What replaced them is the glob floor above — the two ways this
+  // check can stop seeing packages at all.
   const publicVersionable = inputs.members.filter((member) => member.family && !member.isPrivate);
-  if (publicVersionable.length > 0 && inputs.publication.members === null) {
-    return {
-      reason:
-        `${String(publicVersionable.length)} versionable package(s) are public and ` +
-        `${inputs.publication.unresolved}`,
-    };
-  }
 
   const ignorePatterns = stringList(inputs.config['ignore']);
   // One per decision taken inside the files read: each member classified, each
   // ignore pattern resolved, each group member looked up, plus the two
-  // `privatePackages` settings. Feature 104 adds four per public versionable
-  // member — may it be public, is it complete, what does its access resolve to,
-  // can the registry serve its scope — and one for the scope agreement across
-  // the set, which is a decision about the set rather than about a member.
+  // `privatePackages` settings. Feature 104 added four per public versionable
+  // member; the ruling of 2026-09-05 splits them, because the publication
+  // decision is no longer asked only of the public ones. It is asked of **every
+  // versionable member** — does this package publish — and the three fitness
+  // decisions (is it complete, what does its access resolve to, can the
+  // registry serve its scope) stay per public member, with one more for the
+  // scope agreement across the set, which is a decision about the set rather
+  // than about a member.
   //
   // **The changeset reconciliations are decisions and are deliberately not
   // counted here**, for the reason given at `files` above: their number follows
@@ -1200,7 +1064,8 @@ export function checkReleaseIntent(
     ignorePatterns.length +
     groupMembers(inputs.config).length +
     2 +
-    publicVersionable.length * 4 +
+    inputs.members.filter((member) => member.family).length +
+    publicVersionable.length * 3 +
     (publicVersionable.length > 0 ? 1 : 0);
   const globs = [...inputs.globCoverage.keys()];
   // The independent derivation: `pnpm-workspace.yaml` says how many entries

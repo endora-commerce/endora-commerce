@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-quote-requests",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "The Quote Requests (RFQ) module as a package (feature 080, T040b) — the second module to leave backend/src/modules, and the first with a migration chain and an event subscriber. Ships compiled output (D-164); the manifest id 'quote_requests' stays identity of record everywhere (D-142).",
   "endora": {
     "type": "module",
     "id": "quote_requests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/quote_requests"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

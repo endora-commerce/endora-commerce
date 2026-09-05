@@ -44,6 +44,7 @@
     "check:port-dependencies": "tsx scripts/check-port-dependencies.ts",
     "check:port-shape": "tsx scripts/check-port-shape.ts",
     "check:release-intent": "tsx scripts/check-release-intent.ts",
+    "pack-gate": "tsx scripts/pack-gate.ts",
     "check:rsc-discipline": "tsx scripts/check-rsc-discipline.ts",
     "check:shared-table-wipes": "tsx scripts/check-shared-table-wipes.ts",
     "check:singleton-identity": "tsx scripts/check-singleton-identity.ts",

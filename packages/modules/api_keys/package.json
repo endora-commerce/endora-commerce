@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-api-keys",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Programmatic API keys (Bearer tokens) used by integrations and webhooks.",
   "endora": {
     "type": "module",
     "id": "api_keys"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/api_keys"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

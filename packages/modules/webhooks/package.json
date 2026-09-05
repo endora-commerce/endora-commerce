@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-webhooks",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Outbound webhook subscription registry and dispatcher.",
   "endora": {
     "type": "module",
     "id": "webhooks"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/webhooks"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

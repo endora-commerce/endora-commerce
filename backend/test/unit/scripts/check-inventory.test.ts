@@ -318,6 +318,7 @@ import {
   configuredAs as releaseIntentConfiguredAs,
   FIXTURE_ROOT as RELEASE_INTENT_ROOT,
   HOST_SOURCED_PACKAGE,
+  PRIVATE_BETA,
   PUBLISHED_ALPHA,
   publishedAlphaAs,
   type FileMap as ReleaseIntentFiles,
@@ -9323,30 +9324,36 @@ const CHECKS: readonly CheckEntry[] = [
     residueGuard: 'not-a-module-walk',
     red: {
       // The headline, and the one shape whose absence is worth the whole file.
+      // `PRIVATE_BETA` is the precondition, not scenery: the rule asks its
+      // question *while a versionable package is private*, and the fixture's
+      // default became the compliant shape with the ruling of 2026-09-05.
       'version-disabled': top(() => releaseIntentFindings(
-        releaseIntentConfiguredAs((config) => {
-          config['privatePackages'] = { version: false, tag: false };
-        }),
+        {
+          ...PRIVATE_BETA,
+          ...releaseIntentConfiguredAs((config) => {
+            config['privatePackages'] = { version: false, tag: false };
+          }),
+        },
         'version-disabled',
       )),
       // The same value written the way it actually arrives — by deletion.
       'version-disabled-by-omission': top(() => releaseIntentFindings(
-        releaseIntentConfiguredAs((config) => {
-          delete config['privatePackages'];
-        }),
+        {
+          ...PRIVATE_BETA,
+          ...releaseIntentConfiguredAs((config) => {
+            delete config['privatePackages'];
+          }),
+        },
         'version-disabled',
       )),
-      // D-160.5, narrowed by feature 104 (FR-001/FR-010): the question is no
-      // longer "is this package public" — three correct packages answer yes to
-      // that, forever — but "may it be", against the closure of the reference
-      // storefront's dependencies. The fixture's application declares no `@fx/*`
-      // dependency, so `@fx/alpha` going public is a package nobody decided to
-      // publish.
-      'unexpected-public-package': top(() =>
-        releaseIntentFindings(
-          { 'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0" }' },
-          'unexpected-public-package',
-        ),
+      // D-160.5, narrowed by feature 104 and then inverted by the owner's
+      // publication ruling of 2026-09-05. "May this package be public" had a
+      // constant answer once every `@endora-commerce` package publishes, so the
+      // question is now the one that still has a subject: a versionable member
+      // `changeset publish` would skip in silence, while `pnpm pack` has
+      // already rewritten every sibling's `workspace:*` to its exact version.
+      'unpublished-package': top(() =>
+        releaseIntentFindings(PRIVATE_BETA, 'unpublished-package'),
       ),
       // Fitness, which is what replaces the blanket refusal. `license` is
       // deliberately not among the fields — D-203's amendment defers it to the
@@ -9400,6 +9407,11 @@ const CHECKS: readonly CheckEntry[] = [
       'tag-policy-unstated': top(() => releaseIntentFindings(
         {
           ...PUBLISHED_ALPHA,
+          // The precondition, explicit since the fixture's default became the
+          // compliant shape: this half of the rule asks its question *while a
+          // versionable package is private*, so a checkout with none answers it
+          // green for the wrong reason.
+          ...PRIVATE_BETA,
           ...releaseIntentConfiguredAs((config) => {
             config['privatePackages'] = { version: true, tag: true };
           }),
@@ -9412,37 +9424,12 @@ const CHECKS: readonly CheckEntry[] = [
       'tag-policy-unstated-once-nothing-is-private': top(() => releaseIntentFindings(
         {
           ...PUBLISHED_ALPHA,
-          'packages/beta/package.json': JSON.stringify({
-            name: '@fx/beta',
-            version: '1.0.0',
-            repository: { url: 'https://example.invalid/fx.git' },
-            publishConfig: { access: 'public' },
-          }),
-          'apps/host/package.json': JSON.stringify({
-            name: 'host',
-            version: '0.0.0',
-            private: true,
-            scripts: { build: 'next build' },
-            dependencies: { next: '^15.0.0', '@fx/alpha': 'workspace:*', '@fx/beta': 'workspace:*' },
-          }),
           ...releaseIntentConfiguredAs((config) => {
             config['privatePackages'] = { version: true };
           }),
         },
         'tag-policy-unstated',
       )),
-      // The publication set has to have an answer before a public package can
-      // be judged against it. A checkout with no reference storefront is exit 2
-      // — never "expected" and never "unexpected" (issue #113).
-      'undecidable-publication-set': top(() =>
-        releaseIntentRefusal(
-          {
-            ...PUBLISHED_ALPHA,
-            'apps/host/package.json': '{ "name": "host", "version": "0.0.0", "private": true }',
-          },
-          'no workspace member is a Next application',
-        ),
-      ),
       // The 67-package failure mode, written as it would arrive: one `ignore`
       // entry under the new scope, and every module package stops needing a
       // changeset while the gate goes on exiting 0.
@@ -10092,7 +10079,15 @@ describe('every red proof enters at the top of the analysis', () => {
       // says something in *both* states, so a single proof would be satisfied by
       // a rule that is total in one of them, which is what the finding it
       // replaces was.
-      'backend/scripts/check-release-intent.ts': 19,
+      //
+      // **19 -> 18 (the owner's publication ruling of 2026-09-05).**
+      // `unexpected-public-package` becomes `unpublished-package`, one shape for
+      // one shape, and the `undecidable-publication-set` refusal leaves with the
+      // closure it guarded: with every versionable member publishable there is
+      // no reference storefront to be missing and no dependency graph to walk.
+      // A count that stood still through that would be a proof set describing a
+      // check that no longer exists.
+      'backend/scripts/check-release-intent.ts': 18,
       // Two findings — the centre and the undecidable gate — plus the ledger's
       // three directions and the three refusals `vacuousReason` answers. The
       // fourth refusal is `readSizeRefusal`'s `short-walk` over the
@@ -10661,10 +10656,12 @@ describe('the endora check estate holds every rule this inventory names', () => 
    *
    * What survives here is the **reachability** half, unchanged and still worth
    * asserting: the gate that judges this package's publication is
-   * `check:release-intent`'s `unexpected-public-package`, and the one
-   * configuration that could silence it for the CLI without anybody noticing is
-   * an `ignore` pattern — glob-matched against package *names*, so one entry
-   * reading `@endora-commerce/*` would exempt it along with 78 others.
+   * `check:release-intent`'s `unpublished-package` — the same gate under the
+   * ruling of 2026-09-05, asking the question in the direction that still has a
+   * subject — and the one configuration that could silence it for the CLI
+   * without anybody noticing is an `ignore` pattern, glob-matched against
+   * package *names*, so one entry reading `@endora-commerce/*` would exempt it
+   * along with 78 others.
    */
   it('keeps @endora-commerce/cli inside the gate that judges its publication', () => {
     const manifest = JSON.parse(read('packages/cli/package.json')) as {
@@ -10674,7 +10671,7 @@ describe('the endora check estate holds every rule this inventory names', () => 
 
     // The gate that judges it, and the one configuration that could switch it
     // off silently — `ignore` is glob-matched against package *names*.
-    expect(read('backend/scripts/check-release-intent.ts')).toContain('unexpected-public-package');
+    expect(read('backend/scripts/check-release-intent.ts')).toContain('unpublished-package');
     const changesets = JSON.parse(read('.changeset/config.json')) as { ignore?: string[] };
     for (const pattern of changesets.ignore ?? []) {
       const matcher = new RegExp(

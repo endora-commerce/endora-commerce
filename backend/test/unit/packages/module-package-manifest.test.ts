@@ -132,8 +132,13 @@ function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, s
       version: PLATFORM_VERSION,
       endora: { type: 'platform' },
     }),
+    // The workspace root declares the two facts every module package's
+    // manifest is derived from and neither of which is a property of the
+    // package: the Node engine floor, and — since D-208 published all 79 — the
+    // `repository.url` a consumer follows back to the code. One home each.
     [`${ROOT}/package.json`]: JSON.stringify({
       name: 'root',
+      repository: { type: 'git', url: 'git+https://example.invalid/fx.git' },
       engines: { node: '>=22.17.0' },
     }),
     [`${ROOT}/backend/package.json`]: JSON.stringify({
@@ -1315,11 +1320,53 @@ describe('module package manifests are generated (feature 080, T041)', () => {
   });
 
   describe('the constant half', () => {
-    it('stays private, ESM and side-effect free (R6)', () => {
+    /**
+     * R6's `private` half is gone (D-208, the owner's publication ruling of
+     * 2026-09-05): every module package publishes, so the field is **absent**
+     * rather than `false`. Absent is npm's own default, and `false` would be
+     * the same fact stated twice — `check:release-intent`'s
+     * `unpublished-package` reads the field and a written `false` says nothing
+     * it does not already read from its absence.
+     */
+    it('is ESM, side-effect free and no longer private (R6, D-208)', () => {
       const manifest = manifestOf(widgets(BACKEND_ONLY));
-      expect(manifest['private']).toBe(true);
+      expect(manifest['private']).toBeUndefined();
       expect(manifest['type']).toBe('module');
       expect(manifest['sideEffects']).toBe(false);
+    });
+
+    /**
+     * The two fields a published package owes a consumer and a private one does
+     * not (`check:release-intent`'s `incomplete-public-package`), and both are
+     * derived rather than written into the generator: the `url` is the
+     * workspace root's — one repository, one URL, so the remote moving does not
+     * leave 70 manifests pointing at nothing — and the `directory` is where the
+     * package actually sits, so a package that moves a directory does not need
+     * anybody to remember.
+     */
+    it('declares `repository` and `publishConfig.access`, both derived', () => {
+      const manifest = manifestOf(widgets(BACKEND_ONLY));
+      expect(manifest['repository']).toEqual({
+        type: 'git',
+        url: 'git+https://example.invalid/fx.git',
+        directory: 'packages/modules/widgets',
+      });
+      expect(manifest['publishConfig']).toEqual({ access: 'public' });
+    });
+
+    /**
+     * And the refusal at the point of need, like the Node engine's: a workspace
+     * root with no `repository` has no source for the field. Inventing one
+     * publishes 70 links to somebody else's repository, which is worse than not
+     * rendering — a consumer following it would arrive somewhere plausible.
+     */
+    it('refuses a workspace root that declares no `repository.url`', () => {
+      const files = widgets(BACKEND_ONLY);
+      files[`${ROOT}/package.json`] = JSON.stringify({
+        name: 'root',
+        engines: { node: '>=22.17.0' },
+      });
+      expect(() => render(files)).toThrow(/declares no repository\.url/);
     });
 
     it('ships the emitted directory, plus the asset directories that exist', () => {

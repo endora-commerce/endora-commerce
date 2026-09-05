@@ -30,15 +30,26 @@ export type FileMap = Readonly<Record<string, string | null>>;
  * rule under test is about the shape of the workspace rather than about
  * `@endora-commerce/*`. The scope is a second one on purpose: `@fx/` is what
  * `@endora-commerce/` will be.
+ *
+ * **Both library packages are public and fit**, and that changed with the
+ * owner's publication ruling of 2026-09-05. It is not cosmetic: a fixture whose
+ * *default* state is a violation makes every other proof read against noise,
+ * and under `unpublished-package` two `private: true` members are two findings
+ * in every run of every case. The two states that genuinely need a private
+ * member — `version-disabled` and the first half of `tag-policy-unstated` —
+ * ask for one explicitly through {@link PRIVATE_BETA}, which is the direction
+ * that keeps each proof's precondition visible in the proof.
  */
 export const DEFAULT_CHECKOUT: FileMap = {
   'pnpm-workspace.yaml': 'packages:\n  - apps/host\n  - packages/*\n',
   'package.json': '{ "name": "root", "version": "0.0.0", "private": true }',
-  // The application is a **Next** application, because that is how the check
-  // finds the reference storefront whose dependency closure is the publication
-  // set (feature 104, FR-001). It declares no `@fx/*` dependency, so that set is
-  // empty by default and any public package is one nobody decided to publish —
-  // `PUBLISHED_ALPHA` is the override that puts one in it.
+  // The application is a **Next** application. That was how the check found the
+  // reference storefront whose dependency closure was the publication set
+  // (feature 104, FR-001); the ruling of 2026-09-05 retired that closure, and
+  // the shape stays because `ignore` and `unignored-application` are about an
+  // application and this is the only one in the fixture. It declares no `@fx/*`
+  // dependency — `PUBLISHED_ALPHA` is the override that adds one, which several
+  // proofs still want for reasons of their own.
   'apps/host/package.json': JSON.stringify({
     name: 'host',
     version: '0.0.0',
@@ -46,8 +57,18 @@ export const DEFAULT_CHECKOUT: FileMap = {
     scripts: { build: 'next build' },
     dependencies: { next: '^15.0.0' },
   }),
-  'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0", "private": true }',
-  'packages/beta/package.json': '{ "name": "@fx/beta", "version": "1.0.0", "private": true }',
+  'packages/alpha/package.json': JSON.stringify({
+    name: '@fx/alpha',
+    version: '1.0.0',
+    repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/alpha' },
+    publishConfig: { access: 'public' },
+  }),
+  'packages/beta/package.json': JSON.stringify({
+    name: '@fx/beta',
+    version: '1.0.0',
+    repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/beta' },
+    publishConfig: { access: 'public' },
+  }),
   // The emit configuration of each versionable package. `--since` reads it to
   // answer "which files does this package publish", and both defaults are the
   // ordinary shape: sources inside the package, which is the shape
@@ -149,6 +170,21 @@ export const PUBLISHED_ALPHA: FileMap = {
   }),
 };
 
+/**
+ * `@fx/beta` back to `private: true` — the one state three findings are
+ * conditional on.
+ *
+ * `version-disabled` and the first half of `tag-policy-unstated` both ask their
+ * question *while a versionable package is private*, so a checkout with none
+ * answers neither: their red proofs would go green for the wrong reason, which
+ * is the silence this whole check is about. It is also `unpublished-package`'s
+ * own subject. One override, because it is one fact — this workspace has a
+ * package `changeset publish` would skip.
+ */
+export const PRIVATE_BETA: FileMap = {
+  'packages/beta/package.json': '{ "name": "@fx/beta", "version": "1.0.0", "private": true }',
+};
+
 /** {@link PUBLISHED_ALPHA}'s manifest, with `mutate` applied to it. */
 export function publishedAlphaAs(mutate: (manifest: Record<string, unknown>) => void): FileMap {
   const manifest = JSON.parse(PUBLISHED_ALPHA['packages/alpha/package.json'] as string) as Record<
@@ -181,12 +217,17 @@ export function configuredAs(mutate: (config: Record<string, unknown>) => void):
  * member. That is the directory whose absent `package.json` the retired
  * `readdir` threw on.
  *
- * `@fx/alpha` and `@fx/beta` stay private, so the nested member is the **only**
- * public package: a derivation that cannot reach it resolves no scope at all
- * rather than a subtly narrower one, which is what makes the proof discriminate.
+ * `@fx/alpha` and `@fx/beta` are put **back** to private here, so the nested
+ * member is the **only** public package: a derivation that cannot reach it
+ * resolves no scope at all rather than a subtly narrower one, which is what
+ * makes the proof discriminate. They are private by override rather than by
+ * default since the ruling of 2026-09-05 — the discrimination is this
+ * fixture's, so it says so itself instead of inheriting it.
  */
 export const NESTED_FAMILY_PACKAGE: FileMap = {
   'pnpm-workspace.yaml': 'packages:\n  - apps/host\n  - packages/*\n  - packages/modules/*\n',
+  'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0", "private": true }',
+  'packages/beta/package.json': '{ "name": "@fx/beta", "version": "1.0.0", "private": true }',
   'apps/host/package.json': JSON.stringify({
     name: 'host',
     version: '0.0.0',
@@ -207,51 +248,3 @@ export const NESTED_FAMILY_PACKAGE: FileMap = {
   'packages/modules/gamma/tsconfig.build.json':
     '{ "compilerOptions": { "rootDir": "./src" }, "include": ["src/**/*"] }',
 };
-
-/**
- * `@fx/tool` published: a versionable member the reference storefront does not
- * reach, which a client installs anyway because it is the **executable**
- * (D-208; `contracts/registry-and-scope.md` R1.2).
- *
- * The fixture carries three facts for the same reason {@link PUBLISHED_ALPHA}
- * does — it declares a `bin`, so it is a root of the publication set; it is
- * public; and it is fit, so `incomplete-public-package` and
- * `restricted-public-package` are out of the way while the root itself is under
- * test. `@fx/beta` is public and fit too and is reached from **the executable
- * alone**: the storefront depends on nothing, so a derivation that added the
- * executable and stopped there would report `@fx/beta` as a package nobody
- * decided to publish, which is the half a one-root closure gets wrong.
- *
- * `bin` as a **string** is the other legal spelling of the field and is what the
- * discrimination in the companion test removes, so the predicate under proof is
- * *the field*, not the directory the package sits in.
- */
-export const PUBLISHED_EXECUTABLE: FileMap = {
-  'packages/tool/package.json': JSON.stringify({
-    name: '@fx/tool',
-    version: '1.0.0',
-    bin: { fx: './dist/bin/fx.js' },
-    repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/tool' },
-    publishConfig: { access: 'public' },
-    dependencies: { '@fx/beta': 'workspace:*' },
-  }),
-  'packages/tool/tsconfig.build.json':
-    '{ "compilerOptions": { "rootDir": "./src" }, "include": ["src/**/*"] }',
-  'packages/beta/package.json': JSON.stringify({
-    name: '@fx/beta',
-    version: '1.0.0',
-    repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/beta' },
-    publishConfig: { access: 'public' },
-  }),
-};
-
-/** {@link PUBLISHED_EXECUTABLE}'s manifest, with `mutate` applied to it. */
-export function publishedExecutableAs(
-  mutate: (manifest: Record<string, unknown>) => void,
-): FileMap {
-  const manifest = JSON.parse(
-    PUBLISHED_EXECUTABLE['packages/tool/package.json'] as string,
-  ) as Record<string, unknown>;
-  mutate(manifest);
-  return { ...PUBLISHED_EXECUTABLE, 'packages/tool/package.json': JSON.stringify(manifest) };
-}

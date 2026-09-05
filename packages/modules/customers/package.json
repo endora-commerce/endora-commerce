@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-customers",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Customer lifecycle business logic: registration, self-service, blocking, impersonation, groups, deletion, and presence.",
   "endora": {
     "type": "module",
     "id": "customers"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/customers"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

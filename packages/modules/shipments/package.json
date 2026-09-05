@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-shipments",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Shipment record and the order_created / shipment_created / receive_shipment lifecycle.",
   "endora": {
     "type": "module",
     "id": "shipments"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/shipments"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

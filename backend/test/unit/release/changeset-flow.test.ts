@@ -104,6 +104,19 @@ interface FixtureOptions {
   readonly seedVersion?: string;
   /** Applied to a copy of the real `.changeset/config.json`. */
   readonly mutateConfig?: (config: Record<string, unknown>) => void;
+  /**
+   * Libraries to mark `"private": true` in the fixture.
+   *
+   * `privatePackages.version` governs **private** packages, so the two
+   * measurements below are only available over one — and since the owner's
+   * publication ruling of 2026-09-05 there is no private versionable package
+   * left in this repository to borrow. The precondition therefore belongs in
+   * the fixture rather than in the tree, which is also the more honest place
+   * for it: those tests measure what changesets does to a private package, and
+   * a fixture that got that state by accident of the day it ran is a test
+   * measuring the calendar.
+   */
+  readonly privateLibraries?: readonly string[];
   /** Extra files, repository-relative. */
   readonly files?: Readonly<Record<string, string>>;
 }
@@ -132,6 +145,7 @@ function fixture(options: FixtureOptions = {}): string {
       readFileSync(join(REPO_ROOT, 'packages', name, 'package.json'), 'utf8'),
     ) as Record<string, unknown>;
     if (options.seedVersion !== undefined) manifest['version'] = options.seedVersion;
+    if (options.privateLibraries?.includes(name) === true) manifest['private'] = true;
     write(`packages/${name}/package.json`, JSON.stringify(manifest, null, 2));
     write(`packages/${name}/src/index.ts`, 'export const marker = 1;\n');
   }
@@ -193,14 +207,18 @@ describe('privatePackages.version — the setting that silently disables everyth
    * nothing, leaving the changeset file on disk to be consumed by a release
    * that will never come.
    *
-   * The subject is `email-components` and was `contracts` until feature 104
-   * published the latter. That is not a fixture detail: `privatePackages`
-   * governs **private** packages, so the measurement is only available over one
-   * — and the case below is the other half, which nothing asserted while every
-   * package was private because there was no tree in which to see it.
+   * The subject is `email-components`, and it is made private **by the
+   * fixture**. It was `contracts` until feature 104 published that, then
+   * `email-components` until the publication ruling of 2026-09-05 published
+   * every versionable package — at which point there was no private one left to
+   * borrow and both cases went green for the wrong reason, reporting a `minor`
+   * bump that had happened rather than a silence that had not. `privatePackages`
+   * governs **private** packages, so the precondition is now declared where the
+   * measurement is.
    */
   it('bumps nothing, exits 0 and keeps the changeset when it is `false`', () => {
     const dir = fixture({
+      privateLibraries: ['email-components'],
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
@@ -217,6 +235,7 @@ describe('privatePackages.version — the setting that silently disables everyth
 
   it('does the same when the block is omitted, which is the literal default', () => {
     const dir = fixture({
+      privateLibraries: ['email-components'],
       mutateConfig: (config) => {
         delete config['privatePackages'];
       },

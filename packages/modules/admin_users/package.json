@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-admin-users",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Admin user accounts, sessions, and impersonation flows.",
   "endora": {
     "type": "module",
     "id": "admin_users"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/admin_users"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

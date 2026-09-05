@@ -1515,6 +1515,55 @@ boot-gate:
         - .gitlab-ci.yml
 
 # ---------------------------------------------------------------------------
+# Pack gate (feature 104) — every publishable package packs into a tarball a
+# consumer can actually use.
+#
+# The only gate in this pipeline whose subject is a **tarball**. `quality`
+# type-checks sources, `test:backend` runs vitest against sources,
+# `overlay:check` renders generated files from sources — and every defect this
+# gate refuses is invisible in a checkout by construction, because a workspace
+# link resolves an `exports` subpath against the source directory and a
+# `workspace:` range resolves against the workspace. It runs in `test` rather
+# than `build` for the same reason `build:docs` does: a package that cannot be
+# consumed has to fail the merge request that writes it, not the release that
+# publishes it.
+#
+# It needs no registry credential and makes no network request: the packed
+# binary is run with its declared dependencies **symlinked** out of this
+# checkout, which is also what makes an undeclared runtime dependency a finding
+# rather than an invisible one. See `backend/scripts/pack-gate.ts`.
+pack-gate:
+  stage: test
+  image: node:22.17-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends tar
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    # Every `@endora-commerce/*` specifier resolves at its built `./dist`, this
+    # gate's own `tsx` entry point included — and `pnpm pack` packs what is on
+    # disk, so an unbuilt workspace would produce 79 tarballs with no code in
+    # them and the gate would report the run rather than the tree.
+    - pnpm run build:packages
+  script:
+    # `--no-build` because `before_script` has already built: the gate builds
+    # for itself when a developer runs it, and must not do it twice here.
+    - pnpm --filter backend run pack-gate -- --no-build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        # What gets packed, and what decides how.
+        - packages/**/*
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - tsconfig.base.json
+        # The gate itself and its judgement.
+        - backend/scripts/pack-gate.ts
+        - backend/scripts/lib/pack-assert.ts
+        - .gitlab-ci.yml
+
+# ---------------------------------------------------------------------------
 # The acceptance criterion for `endora new storefront`
 # (specs/071-modular-packaging/roadmap.md § F7 — Storefront scaffold).
 #

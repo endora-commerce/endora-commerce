@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-dictionaries",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Cross-module registry of countries, languages, and currencies — backs every dropdown, validator, and address-form picker on the storefront and admin.",
   "endora": {
     "type": "module",
     "id": "dictionaries"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/dictionaries"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

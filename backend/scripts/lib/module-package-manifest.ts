@@ -71,6 +71,22 @@
  * (D-100), and the next release would falsify a new one exactly as the last one
  * falsified that.
  *
+ * ## Publication (F10 slice 3, D-208)
+ *
+ * A module package is **not** `private`, and this generator stopped emitting
+ * the field rather than emitting `false`: absent is npm's own default and
+ * `false` is the same fact stated twice. R6 wrote `private: true` while the
+ * estate was pre-publication; D-208 ends that state — an instance takes the
+ * platform and every module package as dependencies and holds a copy of none,
+ * so a module package a client cannot install is a module a client cannot use.
+ *
+ * With it go the two fields a published package owes a consumer and a private
+ * one does not: **`repository`**, whose `url` is the workspace root's and whose
+ * `directory` is where this package sits in it, and **`publishConfig.access`**,
+ * which is a property of the package rather than of the registry it happens to
+ * reach. Both are `check:release-intent`'s `incomplete-public-package`, and
+ * both are derived — see {@link rootRepositoryUrl}.
+ *
  * ## What is not derived, and is not emitted either
  *
  * **`peerDependenciesMeta`.** §2 marks it GENERATED "from the layer inventory"
@@ -88,7 +104,7 @@
 import { readdirSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 import ts from 'typescript';
 
@@ -750,10 +766,11 @@ const PRESERVED_FIELDS: readonly string[] = ['description', 'dependencies', 'ver
 /** Everything this generator writes. A field on neither list is refused. */
 const GENERATED_FIELDS: readonly string[] = [
   'name',
-  'private',
   'type',
   'sideEffects',
   'endora',
+  'repository',
+  'publishConfig',
   'exports',
   'files',
   'engines',
@@ -964,6 +981,7 @@ export function renderModulePackageManifests(
   // package it holds already carries a version of its own.
   const platform = platformSeedVersion(members);
   const nodeEngine = rootNodeEngine(repoRoot, countingFs);
+  const repositoryUrl = rootRepositoryUrl(repoRoot, countingFs);
 
   const directories = candidateDirectories(repoRoot, fs);
   // Two passes: every module package's npm name has to be known before any one
@@ -1095,6 +1113,8 @@ export function renderModulePackageManifests(
       manifestSource: identity.manifestSource,
       manifestFile: join(identity.dir, ROOT_ENTRY),
       repoRootPrefix: repoRootPrefixFor(repoRoot, identity.dir),
+      repositoryUrl,
+      packageDirFromRoot: relative(repoRoot, identity.dir).split(sep).join('/'),
     });
     return {
       packageName: identity.name,
@@ -1462,6 +1482,23 @@ interface RenderInput {
    * build script that resolves to nothing.
    */
   readonly repoRootPrefix: string;
+  /**
+   * The `repository.url` the workspace root declares, verbatim.
+   *
+   * One repository, one URL. It is read from the root manifest rather than
+   * written here because a published package's `repository` is what gives a
+   * consumer a path back to the code, and a constant in this file would be that
+   * URL recorded a seventy-first time (D-100) — the remote moves and every
+   * package points at nothing until somebody regenerates.
+   */
+  readonly repositoryUrl: string;
+  /**
+   * This package's own directory, relative to the repository root, POSIX —
+   * `repository.directory`, which is what tells a consumer *where in* the
+   * monorepo the package lives. Derived from where the package is, like
+   * {@link RenderInput.repoRootPrefix} and for the same reason.
+   */
+  readonly packageDirFromRoot: string;
 }
 
 /**
@@ -1733,17 +1770,23 @@ export function renderManifest(input: RenderInput): string {
 
   const manifest = {
     name: input.packageName,
-    // R6's `private` half, unchanged: every module package stays private until
-    // F10's slice 3 publishes them, and `pnpm pack` works regardless. Its
-    // `version` half — "stays `0.0.0` until full F4" — was overtaken by D-210,
-    // which set every versionable package to the first release number by hand;
-    // the field is preserved from disk now and is nothing this file decides.
+    // R6's `private` half is gone with F10 slice 3 (D-208): every module
+    // package publishes, so the field is dropped rather than emitted `false`
+    // — absent is npm's own default. Its `version` half was overtaken by
+    // D-210, which set every versionable package to the first release number
+    // by hand; the field is preserved from disk now and is nothing this file
+    // decides.
     version: versionFor(input),
-    private: true,
     type: 'module',
     sideEffects: false,
     description: descriptionFor(input),
     endora: { type: 'module', id: input.moduleId },
+    repository: {
+      type: 'git',
+      url: input.repositoryUrl,
+      directory: input.packageDirFromRoot,
+    },
+    publishConfig: { access: 'public' },
     exports: exportsMap,
     files,
     engines: { node: input.nodeEngine },
@@ -2068,6 +2111,45 @@ export function platformSeedVersion(
     name,
     version: typeof declared === 'string' && declared.length > 0 ? declared : null,
   };
+}
+
+/**
+ * The `repository.url` the workspace root declares — one repository, one URL.
+ *
+ * A published package's `repository` is what gives a consumer a path from the
+ * package page back to the code, and npm makes provenance conditional on it
+ * (`check:release-intent`'s `incomplete-public-package`). It is read here rather
+ * than written into this generator because the URL is a fact about the remote:
+ * a constant would be it recorded a seventy-first time (D-100), and the remote
+ * moving would leave every module package pointing at nothing until somebody
+ * happened to regenerate.
+ *
+ * The refusal is at the point of need, like {@link rootNodeEngine}'s: a
+ * workspace root that declares no `repository` has no source for the field, and
+ * inventing one publishes a link that resolves to somebody else's repository.
+ */
+export function rootRepositoryUrl(repoRoot: string, fs: ManifestFs): string {
+  const path = join(repoRoot, 'package.json');
+  const text = fs.readText(path);
+  if (text === null) {
+    throw new ModulePackageManifestError(
+      `${path} could not be read, so the repository a module package points a consumer at ` +
+        `has no source.`,
+    );
+  }
+  const manifest = JSON.parse(text) as Record<string, unknown>;
+  const repository = manifest['repository'];
+  const url =
+    typeof repository === 'object' && repository !== null
+      ? (repository as Record<string, unknown>)['url']
+      : undefined;
+  if (typeof url !== 'string' || url.length === 0) {
+    throw new ModulePackageManifestError(
+      `${path} declares no repository.url, so a module package's \`repository\` would be a ` +
+        `URL written down once per package (D-100). Declare it once at the workspace root.`,
+    );
+  }
+  return url;
 }
 
 /** The Node engine the workspace root declares — one repository, one floor. */

@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-linkedin-ads",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "LinkedIn Ads integration: per-sales-channel Insight Tag, consent-gated tracking, configurable conversion mappings, and optional server-side reporting through the Conversions API.",
   "endora": {
     "type": "module",
     "id": "linkedin_ads"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/linkedin_ads"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

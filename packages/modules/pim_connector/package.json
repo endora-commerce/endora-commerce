@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-pim-connector",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Shared operator behaviours for PIM connectors: mutual exclusion, run/issue vocabulary and field-protection path grammar.",
   "endora": {
     "type": "module",
     "id": "pim_connector"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/pim_connector"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

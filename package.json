@@ -2,6 +2,10 @@
   "name": "endora-commerce",
   "version": "0.0.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git"
+  },
   "description": "Endora Commerce — catalog, Quote Requests, cart, checkout, orders, organizations, admin panel, and integration-ready API. See specs/001-b2b-platform-foundation/ for the spec, plan, and tasks.",
   "license": "MIT",
   "packageManager": "pnpm@9.15.0",

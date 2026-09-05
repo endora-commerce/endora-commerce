@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-addresses",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Reusable address entities used by organizations, customers, and order fulfilment.",
   "endora": {
     "type": "module",
     "id": "addresses"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/addresses"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

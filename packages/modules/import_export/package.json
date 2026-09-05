@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-import-export",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Bulk product import and export wizard.",
   "endora": {
     "type": "module",
     "id": "import_export"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/import_export"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-search",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Per-channel Meilisearch indexes, suggest popup, and optional LLM-augmented search.",
   "endora": {
     "type": "module",
     "id": "search"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/search"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

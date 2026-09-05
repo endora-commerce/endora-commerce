@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-quick-order",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Bulk Cart / Quote Request import (CSV + Excel, with variants), quick product search, reorder, default ordering preferences, and one-click buy.",
   "endora": {
     "type": "module",
     "id": "quick_order"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/quick_order"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

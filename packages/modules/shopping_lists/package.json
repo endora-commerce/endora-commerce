@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-shopping-lists",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Customer-owned saved shopping lists.",
   "endora": {
     "type": "module",
     "id": "shopping_lists"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/shopping_lists"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

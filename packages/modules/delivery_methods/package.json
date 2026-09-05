@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-delivery-methods",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Shipping/delivery method definitions and per-channel availability.",
   "endora": {
     "type": "module",
     "id": "delivery_methods"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/delivery_methods"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

@@ -1,13 +1,20 @@
 {
   "name": "@endora-commerce/mod-custom-fields",
   "version": "0.7.0",
-  "private": true,
   "type": "module",
   "sideEffects": false,
   "description": "Entity-agnostic runtime custom fields for core entities.",
   "endora": {
     "type": "module",
     "id": "custom_fields"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/custom_fields"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
