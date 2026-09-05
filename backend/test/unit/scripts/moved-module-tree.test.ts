@@ -5,11 +5,13 @@ import {
   createSplitModuleTreeFixture,
   endoraSpecifierResolutions,
   KEPT_MODULE,
+  manifestIndexSpecifiers,
   MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE,
   modulesInTheApplicationTree,
   packagedModuleIds,
   planSplitRelocation,
   routedModuleIds,
+  runCheckInThisCheckout,
   type EndoraSpecifierResolution,
   type MovedModuleTreeFixture,
 } from '../../helpers/moved-module-tree-fixture.js';
@@ -493,6 +495,100 @@ describe('a split module tree is read in full, not in half (feature 080, T040a)'
       expect(result.output).toContain(STRANDED_MODULE);
     }, 120_000);
   }
+
+  /**
+   * Feature 111, Phase 2 — the fixture names a packaged module the way the
+   * generator does (FR-001, FR-005; `contracts/split-fixture-package-naming.md`
+   * § 1 and § 4).
+   *
+   * The specifier decides the **anchor**, not the address: `resolveManifestPath`
+   * answers a bare specifier with the resolved `package.json` and a relative one
+   * with the manifest module file, and every package-root asset is found by
+   * joining a manifest declaration to `dirname(manifestPath)`. So a fixture that
+   * spells it relatively puts the anchor at `<pkg>/src` and hands the estate a
+   * layout no client instance and no generator ever produces.
+   *
+   * The four assertions below are § 4's, and each is written because an **exit
+   * code cannot carry it**: three of the four checks exited 0 over this tree
+   * while reading the wrong file, which is the shape issue #113 is about one
+   * level up. They are the observable that the anchor is the package root, so a
+   * change that quietly reverts § 1 is red here rather than merely different.
+   */
+  it('names a staged package bare and a stranded module relatively (§ 1)', () => {
+    const bare = (specifier: string): boolean => !specifier.startsWith('.');
+    const splitSpecifiers = manifestIndexSpecifiers(split.root);
+    const halfMovedSpecifiers = manifestIndexSpecifiers(halfMoved.root);
+    // The mixed result is the design, not a transitional state: the tree this
+    // fixture models was mixed for the whole of F4, and a fixture emitting one
+    // spelling for everything would be modelling a tree that never existed.
+    expect(splitSpecifiers.filter(bare).length).toBeGreaterThan(0);
+    expect(splitSpecifiers.filter((specifier) => !bare(specifier))).toContain(
+      // `_lifecycle` lives inside the platform package and is imported at that
+      // package's built file, exactly as the real index imports it (D-160.11).
+      '../../packages/platform/dist/lifecycle/manifest.js',
+    );
+    // The stranded module is the refusal, not a preference: it has no
+    // `package.json`, so `createRequire(...).resolve('<pkg>/package.json')`
+    // throws inside `resolveManifestPath` at the index's first import, and every
+    // spawned check would die at module resolution — a crash where the half-moved
+    // proof above asserts an exit 2.
+    const strandedSpecifiers = halfMovedSpecifiers.filter((specifier) =>
+      specifier.includes(`/${STRANDED_MODULE}/`),
+    );
+    expect(strandedSpecifiers, `no specifier for ${STRANDED_MODULE}`).toHaveLength(1);
+    expect(strandedSpecifiers.filter(bare)).toEqual([]);
+    // And it is the *only* difference between the two trees' spellings, so the
+    // stranding is what the half-moved proofs measure rather than a second
+    // change riding along with it.
+    expect(halfMovedSpecifiers.filter(bare).length).toBe(splitSpecifiers.filter(bare).length - 1);
+  });
+
+  it('reads every module\'s bundles, rather than one module\'s (§ 4.1)', () => {
+    // A conditional predicate — the obligation attaches to a module's *first*
+    // bundle — is vacuously clean over a tree whose packages ship nothing
+    // findable, so this check's exit code is not evidence and its counts are.
+    // Measured before Phase 2: `files=2`, 1 module shipping bundles and 70
+    // shipping none, `findings=0`, exit 0. None of its four refusals fires,
+    // because a bundle *was* read and the module walk *is* complete.
+    const counts = /modules shipping bundles=(\d+) shipping none=(\d+)/;
+    const overTheFixture = counts.exec(split.run('check-bundle-pairing.ts').output);
+    const overThisCheckout = counts.exec(
+      runCheckInThisCheckout('check-bundle-pairing.ts').output,
+    );
+    expect(overThisCheckout, 'this checkout reported no bundle counts').not.toBeNull();
+    expect(overTheFixture?.[0]).toBe(overThisCheckout?.[0]);
+    // Not a vacuous agreement: two trees that both found nothing would satisfy
+    // the equality above.
+    expect(Number(overThisCheckout?.[1])).toBeGreaterThan(1);
+  }, 120_000);
+
+  for (const script of ['check-action-route-permissions.ts', 'check-module-docs.ts']) {
+    it(`${script} has an emitted artefact to judge for staleness (§ 4.2)`, () => {
+      // `emitted-freshness.ts`' subject is *the file whose bytes the run read*,
+      // and a registry naming a package's **source** has no staleness question —
+      // correctly, and with the consequence that these two checks exercised
+      // `stale-artefact` / `unpairable-artefact` only in their own companion
+      // tests. The token is the observable that the anchor moved; an exit-code
+      // assertion would not notice it going away.
+      const token = /emitted-manifests:(\d+)\/(\d+)/.exec(split.run(script).output);
+      expect(token, `${script} printed no emitted-manifests token`).not.toBeNull();
+      expect(Number(token?.[2])).toBeGreaterThan(0);
+      expect(token?.[1]).toBe(token?.[2]);
+    }, 120_000);
+  }
+
+  it('check-singleton-identity finds its allowances used, not stale (§ 4.3)', () => {
+    // `WHOLE_FILE_REACHES_ALLOWED`'s entries say the artefact sharing the
+    // process is the package's **root** export — the manifest the index
+    // imports. With a source-naming index no artefact is in the process,
+    // conjunct 1 of the rule is false, the reach is not found, and the entry
+    // describing it reads stale. The entries are right about this repository;
+    // the fixture was wrong about itself.
+    const result = split.run('check-singleton-identity.ts');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toContain('violations=0');
+    expect(result.output).not.toContain('stale-allowance');
+  }, 120_000);
 });
 
 describe('the split fixture selects its modules rather than naming them', () => {

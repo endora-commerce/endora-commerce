@@ -350,6 +350,41 @@ export interface MovedModuleTreeFixture {
   cleanup: () => void;
 }
 
+/**
+ * The same check, spawned the same way, over **this checkout**.
+ *
+ * The comparison contract § 4.1 asks for: a conditional predicate is vacuously
+ * clean over a tree whose packages ship nothing findable, so an exit code is not
+ * evidence for `check-bundle-pairing` and a **count** is — and the count worth
+ * comparing against is the one the same script reports here, rather than a
+ * re-derivation of it in a test, which would be a second author for a number
+ * that has one.
+ */
+export function runCheckInThisCheckout(
+  script: string,
+  args: readonly string[] = [],
+): { status: number | null; output: string } {
+  const result = spawnSync(TSX, [join(BACKEND_ROOT, 'scripts', script), ...args], {
+    encoding: 'utf8',
+    cwd: BACKEND_ROOT,
+  });
+  return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+}
+
+/**
+ * The manifest specifiers a fixture's generated index really emits, in order.
+ *
+ * Read out of the file the fixture wrote — the artefact the spawned checks
+ * import — so the mixed-shape assertion in `moved-module-tree.test.ts` is about
+ * what is on disk and not about the branch that decided it.
+ */
+export function manifestIndexSpecifiers(root: string): readonly string[] {
+  const source = readFileSync(join(root, 'backend', 'src', MANIFEST_INDEX_FILENAME), 'utf8');
+  return [...source.matchAll(/^import \{ manifest as manifest\d+.*? \} from '([^']+)';$/gm)].map(
+    (match) => match[1]!,
+  );
+}
+
 /** The real `activation` block of a registered module, or `undefined`. */
 function realActivation(id: string): unknown {
   const entry = DISCOVERED_MANIFESTS.find((candidate) => candidate.id === id);
@@ -1017,25 +1052,70 @@ function repointEscapingSpecifiers(root: string, id: string): void {
   }
 }
 
+/**
+ * The bare specifier the fixture's index names a module by, or `null` when the
+ * fixture staged no package it could name (feature 111, FR-001; contract § 1).
+ *
+ * **Derived from what the fixture staged, never from a list.** The question the
+ * table in § 1 asks is *"did the fixture put a package with an `exports` map
+ * here?"*, and the answer is on disk by the time the index is written — the
+ * relocation, the stranding and the copy of every real module package have all
+ * run. So a module that becomes a package for real changes this answer by
+ * existing, and nothing here has to be edited (D-100).
+ *
+ * The two subpaths are the ones the specifier depends on and both are required:
+ * `"."` is where `import { manifest }` lands, and `"./package.json"` is what
+ * `resolveManifestPath` resolves to get the module's own directory — R1 makes it
+ * mandatory for exactly that reason, and a package without it would throw at the
+ * index's first import.
+ *
+ * A **relocated** module fails this test because the fixture writes it a
+ * `package.json` with no `exports` at all, and a **stranded** one because the
+ * fixture withheld the file. Both then keep a relative specifier, which is what
+ * § 1 asks for and what a half-finished `git mv` really leaves.
+ */
+function stagedPackageSpecifier(root: string, id: string): string | null {
+  const manifestFile = join(root, packagedModulePath(id), 'package.json');
+  if (!existsSync(manifestFile)) return null;
+  let declared: { name?: unknown; exports?: unknown };
+  try {
+    declared = JSON.parse(readFileSync(manifestFile, 'utf8')) as { name?: unknown; exports?: unknown };
+  } catch {
+    return null;
+  }
+  const { name, exports } = declared;
+  if (typeof name !== 'string' || typeof exports !== 'object' || exports === null) return null;
+  const subpaths = exports as Record<string, unknown>;
+  if (subpaths['.'] === undefined || subpaths['./package.json'] === undefined) return null;
+  return name;
+}
+
 /** The index, rewritten so a relocated module's manifest still resolves. */
-function splitManifestIndex(relocated: ReadonlySet<string>): string {
+function splitManifestIndex(root: string): string {
   const ids = DISCOVERED_MANIFESTS.map((entry) => entry.id);
   // Computed from the two paths rather than written as a shape, because the
   // index moved out of the module tree with T040b (D-160.3) and every one of
   // these specifiers is relative to wherever it sits.
   const indexDirectory = posix.join('backend', 'src');
+  const relativeTo = (target: string): string => {
+    const specifier = posix.relative(indexDirectory, target);
+    return specifier.startsWith('.') ? specifier : `./${specifier}`;
+  };
   const specifierOf = (id: string): string => {
+    const bare = stagedPackageSpecifier(root, id);
+    if (bare !== null) return bare;
     // The kept module is neither: it lives inside the platform package and its
     // manifest is imported at that package's built file, exactly as the real
     // index imports it (D-160.11). The address is the real one, rebased on the
     // fixture root by being repository-relative already.
-    const target = relocated.has(id)
-      ? posix.join(packagedModulePath(id).split(sep).join('/'), 'src', 'manifest.js')
-      : id === KEPT_MODULE
-        ? KEPT_MODULE_MANIFEST_RELATIVE
-        : posix.join(indexDirectory, 'modules', id, 'manifest.js');
-    const specifier = posix.relative(indexDirectory, target);
-    return specifier.startsWith('.') ? specifier : `./${specifier}`;
+    if (id === KEPT_MODULE) return relativeTo(KEPT_MODULE_MANIFEST_RELATIVE);
+    const packageAddress = packagedModulePath(id).split(sep).join('/');
+    // Sources at a package address that the test above did not name: a
+    // relocated module, or a stranded one whose `package.json` was withheld.
+    if (existsSync(join(root, packagedModulePath(id), 'src', 'manifest.ts'))) {
+      return relativeTo(posix.join(packageAddress, 'src', 'manifest.js'));
+    }
+    return relativeTo(posix.join(indexDirectory, 'modules', id, 'manifest.js'));
   };
   return [
     '// Fixture stand-in for the generated manifest index, over a split tree.',
@@ -1044,17 +1124,27 @@ function splitManifestIndex(relocated: ReadonlySet<string>): string {
     '// read off the entries rather than off the specifiers precisely so that',
     '// this rewrite changes nothing about which modules are registered.',
     '//',
-    '// A relocated module keeps a **relative** specifier here, where the real',
-    '// generator emits a bare one (D-149). The reason this file used to give —',
-    '// that the fixture borrows the repository`s `node_modules`, so no',
-    '// `@endora-commerce/mod-<id>` link exists in it — is **retired**: feature',
-    '// 111 Phase 1 gave the fixture its own scope, and a bare specifier here now',
-    '// resolves to the fixture`s own copy. What is left is that Phase 1',
-    '// deliberately changes no specifier: the shape is FR-001 and lands in Phase',
-    '// 2, so that the escape guard protecting it is standing first. Until then',
-    '// the emitted shape is proved by',
-    '// `test/unit/scripts/generate-registries.test.ts` and by',
-    '// `test/unit/scripts/module-package-artefacts.test.ts`.',
+    '// A module the fixture staged as a **package with an `exports` map** is',
+    '// named by a **bare** specifier, exactly as the real generator names it',
+    '// (D-149); a **relocated** or **stranded** module keeps a relative one',
+    '// (feature 111, FR-001; `contracts/split-fixture-package-naming.md` § 1).',
+    '// The mixed result is the design and not a transitional state — the tree',
+    '// this fixture models was mixed for the whole of F4.',
+    '//',
+    '// What the spelling decides is the **anchor**, not the address:',
+    '// `resolveManifestPath` answers a bare specifier with the resolved',
+    '// `package.json` and a relative one with the manifest module file, and every',
+    '// package-root asset — `i18n/`, `docs/` — is found by joining a manifest',
+    '// declaration to `dirname(manifestPath)`. With a relative specifier that',
+    '// anchor was `<pkg>/src`, so this fixture staged `docs/` a second time',
+    '// underneath it and `check-bundle-pairing` read one module as shipping',
+    '// bundles and 70 as shipping none — a conditional predicate reporting a tree',
+    '// it could not see as clean.',
+    '//',
+    '// The bare spelling is safe here only because the fixture owns its',
+    '// `@endora-commerce` scope (Phase 1): borrowed, the same specifier answered',
+    '// the **real checkout**, and every reader would have found a complete module',
+    '// at the address this fixture claims it has moved away from.',
     '//',
     '// `manifestPath` is resolved by the real helper (feature 080, T041a), so',
     '// this stub answers the location question the way the artefact does — and',
@@ -1266,31 +1356,22 @@ export function createSplitModuleTreeFixture(
     if (existsSync(built)) {
       cpSync(built, join(staged, 'dist'), { recursive: true, preserveTimestamps: true });
     }
-    // The module's `docs/` layer, staged a **second** time where this fixture's
-    // own layout puts it (feature 100 Phase 2).
+    // **`i18n/` and `docs/` need no staging of their own**, and that is feature
+    // 111 Phase 2's result rather than an omission. Both are package-root assets
+    // — located by joining a manifest declaration to `dirname(manifestPath)` —
+    // and the copy above brings them across with the rest of the package, so a
+    // reader anchored at the package root finds them where the real tree has
+    // them.
     //
-    // A package-root asset is located by joining the manifest's declaration to
-    // `dirname(manifestPath)`, and in this fixture that anchor is the package's
-    // `src/`, not its root: `splitManifestIndex` emits a **relative** specifier
-    // at `<pkg>/src/manifest.js`. So the anchor is a property of the fixture,
-    // and the asset is staged where the fixture's own index says to look,
-    // exactly as the kept module's i18n bundle is written to the address this
-    // fixture's layout gives it.
-    //
-    // It is a copy and not a rename: the package root's `docs/` travels too, so
-    // a walk rooted at the package (`module-roots.ts` places one by its
-    // `package.json`) still finds it where the real tree has it.
-    //
-    // **`i18n/` is deliberately not staged the same way**, and the consequence
-    // is measured rather than assumed: with the anchor at `src/`,
-    // `check-bundle-pairing` sees 1 module shipping bundles and 70 shipping
-    // none over this tree, which its conditional predicate reports as clean. It
-    // is a blind spot of this fixture and not of that check, it predates this
-    // change, and repairing it belongs with whoever gives the fixture bare
-    // specifiers — doing it here would silently widen a proof nobody asked to
-    // move.
-    const docs = join(pkg.dir, 'docs');
-    if (existsSync(docs)) cpSync(docs, join(staged, 'src', 'docs'), { recursive: true });
+    // This block used to stage `docs/` a **second** time at `<pkg>/src/docs`,
+    // because a relative specifier put the anchor at the package's `src/`. That
+    // was the fixture compensating for its own spelling, and the compensation
+    // only ever covered one of the two assets: `check-bundle-pairing` read 1
+    // module as shipping bundles and 70 as shipping none over this tree, which
+    // its conditional predicate reported as clean. The anchor is the package
+    // root now (`splitManifestIndex`), so both assets are found at one address
+    // and a fixture holding a package's pages at two of them — which can agree
+    // with a check that looks at either — is gone with the workaround.
   }
 
   // `options.packaged` is a **pool**, not a roster: a candidate this repository
@@ -1344,11 +1425,12 @@ export function createSplitModuleTreeFixture(
     relocate(id, false);
   }
 
+  // After the relocation and the stranding, because which spelling each module
+  // takes is read off what the fixture staged for it and not off the sets that
+  // drove the staging (feature 111, FR-001).
   writeFileSync(
     join(backend, 'src', MANIFEST_INDEX_FILENAME),
-    splitManifestIndex(
-      new Set([...alreadyPackaged.map((pkg) => pkg.moduleId), ...toRelocate, ...toStrand]),
-    ),
+    splitManifestIndex(root),
     'utf8',
   );
   // Last, and after the stranding: which packages the fixture holds is read off
