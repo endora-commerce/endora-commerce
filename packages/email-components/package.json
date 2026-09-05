@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/email-components",
-  "version": "0.0.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Shared transactional-email building blocks (feature 047). Pure, React-free render/* + directives/* + tree/* + schema/* + defaults/* are imported by the backend to render email-client-safe HTML and plain text; the React components/* + config.ts power the admin's email-safe Puck editor. The split keeps React out of the backend send path (Principle I/IV).",
