@@ -5,6 +5,7 @@ import {
   moduleContextSeams,
   routeIdentities,
   SEAM_CLASSIFICATION,
+  type DivergenceRefusalInput,
   type DivergenceRefusalKind,
 } from '../../../scripts/lib/divergence.js';
 import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
@@ -210,20 +211,20 @@ describe('the findings — one red proof per shape it refuses', () => {
 });
 
 describe('the refusals — one red proof per input whose absence is a vacuous pass', () => {
-  const SOUND = {
+  const SOUND: DivergenceRefusalInput = {
     deployments: ['acme'],
     committedDeploymentArtefacts: ['backend/src/apps/acme/divergence.generated.ts'],
     sites: 9,
     overlaySpellsASeamCall: true,
     ownersResolved: 4,
     seamsClassified: Object.keys(SEAM_CLASSIFICATION).length,
-  } as const;
+  };
 
   it('reports nothing over a sound run — the discrimination the four turn on', () => {
     expect(divergenceRefusal(SOUND)).toBeNull();
   });
 
-  const cases: ReadonlyArray<[DivergenceRefusalKind, Partial<typeof SOUND>]> = [
+  const cases: ReadonlyArray<[DivergenceRefusalKind, Partial<DivergenceRefusalInput>]> = [
     // §5.6 — asked first, because with nothing classified every other predicate
     // is answering a question the ladder has not been asked.
     ['no-seam-classified', { seamsClassified: 0 }],
