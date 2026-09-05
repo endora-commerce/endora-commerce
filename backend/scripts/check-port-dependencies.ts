@@ -102,6 +102,10 @@ import {
   packageCoverage,
   refuseUnreadablePackages,
 } from './lib/package-declarations.js';
+import {
+  mergeRegistrationOwners,
+  type OwnerClaim,
+} from './lib/registration-owners.js';
 import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 import {
   calleeTail,
@@ -1783,7 +1787,13 @@ async function main(): Promise<void> {
   });
   refuseUnreadablePackages('[port-deps]', packages);
 
-  const owners = new Map<string, string>(Object.entries(HOST_REGISTERED_PORTS));
+  // The tree's claims, in walk order, merged below by
+  // `scripts/lib/registration-owners.ts` — the one statement of the precedence
+  // this map has (host table, then the tree, then an installed package only for
+  // a name nothing above claimed). The divergence report reads the same map for
+  // its `owner` field, and a merge rule written twice is two answers waiting to
+  // disagree.
+  const treeClaims: OwnerClaim[] = [];
   const resolutions: PortResolution[] = [];
   const seams: ImportedContributionSeam[] = [];
   /**
@@ -1820,17 +1830,21 @@ async function main(): Promise<void> {
     ) {
       moduleEntryPoints.set(moduleId, file);
     }
-    for (const name of registeredNames(source, file)) owners.set(name, moduleId);
+    for (const name of registeredNames(source, file)) treeClaims.push({ name, moduleId });
     resolutions.push(...resolvedNames(source, file, layout.hostResidentModules));
     seams.push(...importedContributionSeams(source, file, layout.hostResidentModules));
   }
   // The tree wins a collision, as it does in `check-module-boundary`'s table
   // map: two registrations of one name is a `DuplicateRegistrationError` the
   // container raises for itself, and until it does, a stranger must not take a
-  // core module's name away from it in the diagnosis.
-  for (const claimed of packages.containerNames) {
-    if (!owners.has(claimed.name)) owners.set(claimed.name, claimed.moduleId);
-  }
+  // core module's name away from it in the diagnosis. The precedence is
+  // `mergeRegistrationOwners`', so this check and the divergence report cannot
+  // answer "who owns this name" differently.
+  const owners = mergeRegistrationOwners({
+    hostRegistered: HOST_REGISTERED_PORTS,
+    treeClaims,
+    packageClaims: packages.containerNames,
+  });
 
   const { DISCOVERED_MANIFESTS } = (await import(
     pathToFileURL(layout.manifestIndexPath).href

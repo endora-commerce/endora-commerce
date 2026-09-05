@@ -98,7 +98,7 @@ RUN pnpm --filter "backend^..." run build
 # registered manifests and fails the build.
 #
 # **It compiles the committed tree; it does not re-derive it.** `build` used to run
-# `overlay:manifest` and `composer:generate` first, from the day feature 018 wrote the first
+# `overlay:divergence` and `composer:generate` first, from the day feature 018 wrote the first
 # generator — and both of them read the *whole* workspace, while this stage holds a strict
 # subset of it. That went unnoticed for four months and then stopped the image dead: feature
 # 091's fifth artefact is `admin/src/modules.generated.ts`, whose path is derived from the

@@ -349,6 +349,20 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'A',
   },
   {
+    id: 'check:divergence',
+    script: 'backend/scripts/check-divergence.ts',
+    scope: 'repository-only',
+    reason:
+      'its subject is a **deployment** — the overlay tree under ' +
+      '`backend/src/apps/<name>/` and that deployment’s own declaration beside it. A module ' +
+      'package is not one and cannot become one: a package’s divergence from core is a ' +
+      'contradiction in terms, because from the instance’s point of view the package *is* ' +
+      'core. Nothing an author can put in a package would give this rule a subject.',
+    subjectDeclaration: null,
+    readsArtefact: false,
+    tier: 'C',
+  },
+  {
     id: 'check:doc-snippets',
     script: 'backend/scripts/check-doc-snippets.ts',
     scope: 'repository-only',

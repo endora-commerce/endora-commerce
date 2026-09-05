@@ -12,24 +12,30 @@
 // An overlay module owns every file it ships; nothing shadows a core unit, so
 // there is no unit to key, group or classify.
 
-/** The committed, per-deployment override-manifest artifact (v2). */
-export interface OverrideManifest {
-  /** Deployment name, or `'core'` for the bare-core build. */
-  deployment: string;
-  /**
-   * The overlay root read, repo-relative; `null` for a bare-core build.
-   *
-   * Still an object rather than a bare `overlayRoot: string | null`, because a
-   * deployment build genuinely has one input path and recording it is what
-   * makes the artefact reproducible. Its sibling `coreRoot` recorded
-   * `backend/src/modules`, which has held no module since 2026-08-28: the path
-   * a scan read is worth recording only while the scan classifies against it,
-   * and v2 has no core scan.
-   */
-  generatedFrom: { overlayRoot: string | null };
-  /** Overlay-only module ids this deployment adds, sorted. */
-  newModules: string[];
-}
+/**
+ * The committed, per-deployment divergence report — re-exported from
+ * `@endora-commerce/contracts`, where the shape is published.
+ *
+ * It is re-exported here rather than imported at each site because the emitted
+ * artefact names *this* module by a relative path: a generated file under
+ * `src/apps/<deployment>/` that reached for a bare specifier would be the one
+ * committed artefact whose import depends on the deployment's own dependency
+ * graph rather than on the tree it sits in.
+ *
+ * The shape supersedes v2's `OverrideManifest`
+ * (`specs/107-override-report-and-ladder/contracts/divergence-report.md`, which
+ * supersedes `specs/103-…/contracts/override-manifest-v2.md` §1–§2). That one
+ * recorded one fact — which overlay modules a deployment adds — and the field
+ * survives as `overlayModules`.
+ */
+export type {
+  DivergenceBoundary,
+  DivergenceDetail,
+  DivergenceEntry,
+  DivergenceKey,
+  DivergenceKind,
+  DivergenceReport,
+} from '@endora-commerce/contracts';
 
 /** Result of resolving a deployment overlay. */
 export interface OverlayResolution {

@@ -92,9 +92,13 @@ export class DuplicateRegistrationError extends Error {
       `[kernel] modules '${owner}' and '${claimant}' both register '${registrationName}'. ` +
         `A registration name is owned by exactly one module — otherwise which ` +
         `implementation the platform runs depends on registration order. One of them ` +
-        `owns it and the other resolves it; a deployment that needs to change what ` +
-        `'${owner}' registers wraps it from its own overlay module, with ` +
-        `ctx.di.decorate('${registrationName}', …).`,
+        `owns it and the other resolves it. If '${claimant}' meant to supply an ` +
+        `implementation behind a name '${owner}' published, note that rung 3 is the ` +
+        `**owner's to publish, not the claimant's to take**: ctx.di.providePort claims the ` +
+        `name, and there is no overlay exemption on the claim. A deployment that needs to ` +
+        `change what '${owner}' registers has rung 4a instead — wrap it from its own overlay ` +
+        `module with ctx.di.decorate('${registrationName}', …), which keeps '${owner}' ` +
+        `delegating through it. See docs/docs/architecture/customisation-ladder.md.`,
     );
     this.name = 'DuplicateRegistrationError';
   }
@@ -198,16 +202,22 @@ export interface DecorationRecord {
  * A module decorating the same name twice is *not* ambiguous — it wrote both
  * wraps, in the order it wrote them — so this fires only across modules.
  *
- * **The remedy is the one that exists today, not the one that is designed**
- * (D-156.7, D-156.11 item 2). This message used to send its reader to
- * `decorationOrder`, which is a real field on `ComposeModulesOptions` and is
- * passed by no composition root — its declared source, `endora.config.ts`, is
- * an F11 artefact and no file of that name exists anywhere in the repository.
- * So the instruction was unfollowable: an author could satisfy it only by
- * editing core's own `composition.ts`, which is the one thing an overlay is
- * built to avoid. What an author can actually do is make both wraps one
- * module's — which is exactly the case this error already exempts, for the
- * reason the paragraph above gives.
+ * **The remedy is the one that exists today** (D-156.7, D-156.11 item 2;
+ * feature 107 FR-042), and as of feature 107's P3 that is the field. This
+ * message sent its reader to `decorationOrder` once before and was corrected,
+ * because the field was passed by no composition root and its declared source
+ * — `endora.config.ts` — was an F11 artefact that never existed: an author
+ * could satisfy the instruction only by editing core's own `composition.ts`,
+ * which is the one thing an overlay is built to avoid.
+ *
+ * Both roots now read it from the deployment's own
+ * `backend/src/apps/<deployment>/divergence.ts`, which is a file in the
+ * deployment's own tree. That is the coupling `compose.ts`'
+ * `decorationOrder` doc block recorded — *"the day a root starts passing this,
+ * that message is what has to change with it"* — and this is that change. The
+ * old workaround (merge the two wraps into one overlay module) is withdrawn
+ * rather than kept beside it: two remedies for one refusal is an author
+ * choosing, and the declaration is the one that keeps the two modules apart.
  */
 export class AmbiguousDecorationError extends Error {
   constructor(
@@ -219,15 +229,18 @@ export class AmbiguousDecorationError extends Error {
       `[kernel] modules ${modules.map((m) => `'${m}'`).join(' and ')} both decorate ` +
         `'${registrationName}', and ${detail} Which override wraps which decides what the ` +
         `platform runs, so it cannot be left to the order the modules happen to compose in. ` +
-        `There is no way to declare that order today: no composition root passes ` +
-        `\`decorationOrder\`, and the instance-owned configuration that would supply one is ` +
-        `planned (F11) rather than built — so this composition refuses, deliberately. ` +
-        `What works now: make both wraps one module's. A module decorating the same name ` +
-        `more than once is not ambiguous — it wraps in the order it writes the calls — so ` +
-        `merge the two decorations of '${registrationName}' into a single overlay module ` +
-        `under backend/src/apps/<deployment>/modules/, which puts the order in the code that ` +
-        `depends on it. If the two wraps genuinely belong to different owners, one of them ` +
-        `is asking for a seam rather than a wrap: ask that owner for a strategy port.`,
+        `Declare it in this deployment's own file — backend/src/apps/<deployment>/` +
+        `divergence.ts, the \`decorationOrder\` field, innermost first:\n` +
+        `    decorationOrder: { '${registrationName}': [` +
+        `${modules.map((m) => `'${m}'`).join(', ')}] }\n` +
+        `It is checked, never applied: the composer keeps emitting in its own order and this ` +
+        `asserts that order was the intended one, so a declaration that stops matching ` +
+        `refuses here rather than silently reordering anything. ` +
+        `This is rung 4a — decoration — and it is the most invasive seam short of a fork. ` +
+        `If the two wraps genuinely belong to different owners, one of them is asking for a ` +
+        `seam rather than a wrap: rung 3, ask that owner to publish a strategy port ` +
+        `(ctx.di.providePort) you resolve with lazyPort. See ` +
+        `docs/docs/architecture/customisation-ladder.md.`,
     );
     this.name = 'AmbiguousDecorationError';
   }
@@ -302,14 +315,21 @@ export class ForeignDecorationError extends Error {
         : `'${owner}' registers it`;
     super(
       `[kernel] module '${moduleId}' cannot decorate '${registrationName}': ${owned}. ` +
-        `Decoration rewrites what every consumer of that name resolves, so it is the ` +
-        `owner's to do — reaching into another module's registration is a coupling ` +
-        `nothing declares and nothing reports. Ask ` +
-        `${owner === undefined ? 'the composition root' : `'${owner}'`} for the seam you ` +
-        `need (a port, a contribution point, an event), or, if this is a per-deployment ` +
-        `customisation, write it as an overlay module under ` +
-        `backend/src/apps/<deployment>/modules/ — that is the one decoration across ` +
-        `owners the platform sanctions.`,
+        `That is rung 4a — decoration — and it is not offered to a core module: it ` +
+        `rewrites what every consumer of that name resolves, so it is the owner's to do, ` +
+        `and reaching into another module's registration is a coupling nothing declares ` +
+        `and nothing reports. Drop to the highest rung that works for you, in order:\n` +
+        `  rung 3 — ask ${owner === undefined ? 'the composition root' : `'${owner}'`} to ` +
+        `publish a strategy port (ctx.di.providePort) and resolve it with ` +
+        `lazyPort<T>(ctx, '<name>'), declaring the edge in your manifest;\n` +
+        `  rung 2 — if what you need is around an endpoint that module already serves, ` +
+        `ctx.interceptors([{ target: '<METHOD> <route>', phase, handler }]);\n` +
+        `  rung 1 — if the work is additive and something already happened, ` +
+        `ctx.subscribe('<event>', handler).\n` +
+        `If this is a per-deployment customisation, rung 4a is yours: write it as an ` +
+        `overlay module under backend/src/apps/<deployment>/modules/ — that is the one ` +
+        `decoration across owners the platform sanctions. See ` +
+        `docs/docs/architecture/customisation-ladder.md.`,
     );
     this.name = 'ForeignDecorationError';
   }
@@ -375,8 +395,11 @@ export class PackageDecorationNotOfferedError extends Error {
         `offered and may rename in a patch release. The way this opens is for the package to ` +
         `declare which of its registrations are decoratable, './ports' being the natural home ` +
         `for it, where changing the shape costs a major version bump: ask its author for that ` +
-        `declaration. Until then, ask for the seam that already exists — a port, an event, or ` +
-        `an interceptor (ctx.interceptors) around the route.`,
+        `declaration. Until then, drop to the highest rung that works, in order: ` +
+        `rung 3, a strategy port '${owner}' publishes and you resolve with ` +
+        `lazyPort<T>(ctx, '<name>'); rung 2, ctx.interceptors around an endpoint it already ` +
+        `serves; rung 1, ctx.subscribe on an event it already emits. See ` +
+        `docs/docs/architecture/customisation-ladder.md.`,
     );
     this.name = 'PackageDecorationNotOfferedError';
   }

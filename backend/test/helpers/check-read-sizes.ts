@@ -538,6 +538,54 @@ export interface RecordedReadSize {
  * the moment they leave the disk — the delta is real. A branch parking a file it
  * has already committed still needs the detached baseline.
  */
+/**
+ * **Re-recorded on 2026-09-05, thirteen numbers over twelve entries, and the
+ * attribution was measured rather than assumed** (`specs/107-override-report-and-ladder/`).
+ *
+ * The drift report named twelve entries on this branch. Running it again in a
+ * **detached worktree at `origin/master`** — the baseline this branch was rebased
+ * onto — named three, at +14 files each:
+ * `check-doc-snippets`, `check-nul-bytes` and `check-naming.sh`. That +14 is
+ * `master`'s own, from the twenty-one merges that landed while this branch was
+ * open, and it is re-recorded here because the record has to describe the tree;
+ * it is not this branch's growth and nothing in it is this branch's to explain.
+ *
+ * What **is** this branch's, measured as the difference between the two runs:
+ *
+ *  - `check-overlay-determinism` **+3 files** — the three `.md` renderings of the
+ *    divergence report join `coveredArtifactPaths()`. One derivation emits two
+ *    files (FR-015), and both are byte-compared: a `.md` outside the gate would
+ *    be the one artefact of the pair free to drift, and the one a human reads.
+ *  - `check-nul-bytes` **+9**, `check-naming.sh` **+9**, `check-language.sh`
+ *    **+4**, `check-singleton-identity` **+3** — the branch's net file count
+ *    (17 added, 8 deleted, the changeset among them) arriving in each whole-tree
+ *    walk at the size of the subtree it covers.
+ *
+ * **Measure on a clean tree, and `pnpm --filter docs run build` does not leave
+ * one.** Taken with the site built, `check-nul-bytes` read **+78**: the 77
+ * module documentation pages the build copies into `docs/docs/modules/` are
+ * git-ignored, so they are absent from a fresh checkout and from CI, and
+ * recording that number would have raised the ceiling by a population no
+ * pipeline holds. `git clean -fdX docs/` before the census.
+ *  - `check-doc-snippets` **+2** and `check-module-docs` **+1** — the
+ *    customisation-ladder page, and `specs/107-…/tasks.md` for the first of the
+ *    two.
+ *  - `check-default-language-prose` **+96 sites**, `check-diacritic-folds`
+ *    **+2 sites**, `check-fixture-substitution` **+1 site**,
+ *    `check-lock-claims` **+1 file** — the new sources being classified. The
+ *    prose check's site count is per **literal**, so a check and a generator
+ *    carrying this much English prose move it by two figures without moving any
+ *    finding.
+ *  - `check-diacritic-folds` **-1 file** and `check-test-ownership` **-1** — the
+ *    three superseded `test/overlay/` files leaving, against the one that
+ *    replaces them.
+ *
+ * The lesson, which is feature 095's own and is worth writing down where the
+ * next author meets it: a re-recorded value is a measurement of *this branch
+ * against a base*, so a rebase invalidates it without touching a line anyone
+ * wrote — and a census run only on the branch cannot tell the branch's growth
+ * from the base's. Both runs, or neither.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
@@ -729,7 +777,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // only on a file that has already been committed. The observed value is
     // recorded rather than `recorded + 1`, for this row's own standing reason:
     // 5240 would describe no tree at all.
-    files: 5245,
+    files: 5244,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -795,8 +843,36 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // predicate can read and clears. The parked-file measurement reads 519
     // without it, so unlike this row's `files` field there is no inherited
     // drift here to absorb.
-    sites: 520,
+    sites: 522,
     sources: [],
+  },
+  'backend/scripts/check-divergence.ts': {
+    prefix: '[divergence]',
+    run: { kind: 'tsx', path: 'scripts/check-divergence.ts', args: [] },
+    // Every module source the owner map and the route table are built from, plus
+    // the platform's own tree, plus the two composition roots, plus each
+    // deployment's overlay sources. It is deliberately **not** the overlay files
+    // alone: with two overlay modules in the tree that number is 2, and a walk
+    // that lost the whole module tree would print `files=2` and look exactly
+    // like a healthy run over a small deployment.
+    files: 2162,
+    // Every seam call examined across every deployment, resolved or not. This is
+    // the number that moves when a call shape stops resolving while the file
+    // count stands still (#235/#237's shape), and here the file count cannot
+    // move with the overlay tree at all — 2160 of the 2162 files are the owner
+    // map's.
+    sites: 4,
+    // Three independent authors, none of them the check's own count.
+    // `overlay-modules` is `resolveOverlay()`'s directory walk against the
+    // modules the walk actually opened a source for, so a discovered overlay
+    // module contributing no file is a short walk. `manifest-index` is issue
+    // #215's shared floor over the owner map's module walk. `seam-kinds` is
+    // `ModuleContext`'s own members, read from the platform's source: expected
+    // and covered are the same number on purpose, because a member the rung
+    // table does not classify is the `unclassified-seam` finding and never a
+    // blind run, while a platform interface this run could not read at all is
+    // `expected: 0`, which the shared reporter refuses.
+    sources: ['overlay-modules', 'manifest-index', 'seam-kinds'],
   },
   'backend/scripts/check-doc-snippets.ts': {
     prefix: '[doc-snippets]',
@@ -822,7 +898,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 1224,
+    files: 1226,
     sites: 12,
     sources: [],
   },
@@ -1022,7 +1098,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both the walk and the finer population in the same merge request.
     // **Batch 15: 532 -> 533.** One read site in the batch's own backend
     // integration test.
-    sites: 556,
+    sites: 557,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -1114,7 +1190,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // recorded, and stayed inside the +50% band for a day. Worth stating rather
     // than quietly bumping: a re-record can under-record, and the band cannot see
     // it in that direction either.
-    files: 297,
+    files: 298,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     sites: 15,
     sources: ['manifest-index', 'contracts-barrel'],
@@ -1334,7 +1410,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // moves by one whenever anybody writes or deletes a page — which is the
     // number that has to move, because the whole defect this check exists for
     // was a page nobody's list mentioned.
-    files: 103,
+    files: 104,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -1440,7 +1516,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // observed value absorbs **+671** of it (this branch's base, 36174efa1, observed
     // 32290). Stated rather than left implicit: the number is re-recorded here because
     // this branch moved it, not because this branch grew it.
-    sites: 32508,
+    sites: 32604,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -1954,7 +2030,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7639,
+    files: 7648,
     sites: null,
     sources: [],
   },
@@ -2081,7 +2157,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // apportioned. A module added or removed now moves `files` by one, which is
     // the property that makes the number worth recording.
     sites: 814,
-    files: 81,
+    files: 84,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -2487,7 +2563,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **1639 -> 1640**: the branch's own companion test is a `.test.ts` under
     // `backend/test`, so this check counts it. Recorded after the fact rather
     // than predicted, which is the only way this number is ever right.
-    files: 1642,
+    files: 1641,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -2580,7 +2656,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/<id>/src` from `backend/test` was a cross-package value reach
     // and the same test inside that package is not — the population this check exists
     // to judge genuinely shrank. `files` rises by the 52 new configurations.
-    files: 4294,
+    files: 4297,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2776,7 +2852,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7699,
+    files: 7708,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2848,7 +2924,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this walk does not open it — which is why the delta here is +1 where
     // `check:naming`'s, over the same two added files, is +2. The other two
     // arrived on `master`; parking this branch's reads 5707.
-    files: 5769,
+    files: 5773,
     sites: null,
     sources: ['manifest-index'],
   },

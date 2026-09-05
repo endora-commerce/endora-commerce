@@ -79,9 +79,9 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { deploymentsOnDisk } from '../src/overlay/overlay-roots.js';
 import {
-  overrideManifestOutputPath,
-  renderOverrideManifest,
-} from './generate-override-manifest.js';
+  divergenceOutputPaths,
+  renderDivergence,
+} from './generate-divergence.js';
 import { generatedArtifactPaths, renderAll } from './generate-composer.js';
 import { reportReadSize } from './lib/read-size.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
@@ -172,6 +172,12 @@ export interface ArtifactExamination {
    * why it refuses instead of reporting a pass.
    */
   readonly unreadable: readonly string[];
+  /**
+   * How this artefact names its entries, kept so the per-artefact floor can tell
+   * "no entry to classify" from "no entry *at all*" — the two look identical in
+   * `sites` and only one of them is a short walk.
+   */
+  readonly entryKind: ArtifactEntrySource['kind'];
 }
 
 function isUnder(child: string, parent: string): boolean {
@@ -467,6 +473,7 @@ export function containmentSites(
   roots: PermittedRoots,
   entries: ArtifactEntrySource = { kind: 'specifier' },
 ): ContainmentSite[] {
+  if (entries.kind === 'none') return [];
   if (entries.kind === 'doc-id') {
     return docEntries(content).map((entry) =>
       classifyDocEntry(outputPath, entry, entries.root, roots, entries.sources),
@@ -482,6 +489,19 @@ export function containmentSites(
 /** How one artefact names its entries, and what a bare one resolves against. */
 export type ArtifactEntrySource =
   | { readonly kind: 'specifier' }
+  /**
+   * The artefact names **no** entries at all — a rendering that is prose.
+   *
+   * It is a declaration rather than an omission, and the difference is the whole
+   * of D-155.6: an artefact whose containment population is empty *by
+   * construction* has to say so, or {@link vacuousContainmentPopulation}'s
+   * per-artefact floor reads it as a walk that came back short. The divergence
+   * report's `.md` sibling is the case — one derivation, two renderings, and one
+   * of them imports nothing (FR-015). The byte comparison still covers it, which
+   * is what the determinism gate is for; only the containment verdict has no
+   * subject.
+   */
+  | { readonly kind: 'none' }
   | {
       readonly kind: 'doc-id';
       readonly root: string;
@@ -523,7 +543,8 @@ export function examineArtifact(
   // could not read a specifier out of" question is not one it has. Asking it
   // anyway would report every prose line that begins with the word `import` as
   // an entry this run cannot answer for, which is a refusal about the parser.
-  const unreadable = entries.kind === 'doc-id' ? [] : unreadableEntryLines(expected);
+  const unreadable =
+    entries.kind === 'doc-id' || entries.kind === 'none' ? [] : unreadableEntryLines(expected);
   const foreign = sites.filter((site) => site.verdict === 'foreign');
   const emptyRender = !bytes.ok && bytes.reason === 'empty';
   const verdict: ArtifactVerdict =
@@ -538,7 +559,7 @@ export function examineArtifact(
             foreign.map((site) => `    ${site.specifier} — ${site.detail}`).join('\n'),
         }
       : bytes;
-  return { outputPath, verdict, sites, unreadable };
+  return { outputPath, verdict, sites, unreadable, entryKind: entries.kind };
 }
 
 /**
@@ -577,6 +598,11 @@ export function vacuousContainmentPopulation(
     }
   }
   for (const artifact of examined) {
+    // An artefact that declares `kind: 'none'` has no containment population by
+    // construction and is not a short walk. Every other one that contributed
+    // nothing is: it holds no entry this check could see, so "contained" over it
+    // means nothing.
+    if (artifact.entryKind === 'none') continue;
     if (artifact.sites.length === 0) {
       return (
         `${artifact.outputPath} contributed no entry to the containment population — the ` +
@@ -621,36 +647,32 @@ function check(
       ? FOREIGN_REMEDY
       : `  Regenerate and commit:\n` +
           (regenerate ??
-            `    pnpm --filter backend run overlay:manifest\n` +
+            `    pnpm --filter backend run overlay:divergence\n` +
               `    pnpm --filter backend run composer:generate\n`),
   );
   return examined;
 }
 
 /**
- * The override manifests this check compares: bare core, plus one per deployment
+ * The divergence reports this check compares: bare core, plus one per deployment
  * shipped under `src/apps/`.
  *
- * Env-independent on purpose. The manifest is the committed audit record of a
- * deployment's divergence from core (feature 057, FR-005 — reviewers read it in
- * the MR diff), and every deployment's lives at its own path, so there is no
- * reason for `DEPLOYMENT` to decide which of them the gate looks at. It used to,
- * and the consequence was `example`'s artefact being uncommitted and its line
- * reporting `missing` on every run that set the variable while no run that left
- * it unset looked at the artefact at all (issue #120).
+ * Env-independent on purpose. The report is the committed record of a
+ * deployment's divergence from core (D-30 — reviewers read it in the MR diff),
+ * and every deployment's lives at its own path, so there is no reason for
+ * `DEPLOYMENT` to decide which of them the gate looks at. It used to, and the
+ * consequence was `example`'s artefact being uncommitted and its line reporting
+ * `missing` on every run that set the variable while no run that left it unset
+ * looked at the artefact at all (issue #120).
  */
-function overrideManifestTargets(): ReadonlyArray<string | null> {
+function divergenceTargets(): ReadonlyArray<string | null> {
   return [null, ...deploymentsOnDisk()];
 }
 
-function overrideManifestLabel(deployment: string | null): string {
-  return `override-manifest (${deployment ?? 'core'})`;
-}
-
-function overrideManifestRegenerateHint(deployment: string | null): string {
+function divergenceRegenerateHint(deployment: string | null): string {
   return deployment === null
-    ? '    pnpm --filter backend run overlay:manifest\n'
-    : `    DEPLOYMENT=${deployment} pnpm --filter backend run overlay:manifest\n`;
+    ? '    pnpm --filter backend run overlay:divergence\n'
+    : `    DEPLOYMENT=${deployment} pnpm --filter backend run overlay:divergence\n`;
 }
 
 /**
@@ -664,7 +686,13 @@ function overrideManifestRegenerateHint(deployment: string | null): string {
 export function coveredArtifactPaths(): readonly string[] {
   return [
     ...generatedArtifactPaths(),
-    ...overrideManifestTargets().map(overrideManifestOutputPath),
+    // Both renderings (FR-015). One derivation produces them, and the gate
+    // byte-compares both: a `.md` outside this list would be the one artefact of
+    // the pair that could drift, and it is the one a human reads.
+    ...divergenceTargets().flatMap((deployment) => {
+      const paths = divergenceOutputPaths(deployment);
+      return [paths.module, paths.markdown];
+    }),
   ];
 }
 
@@ -685,18 +713,31 @@ async function main(): Promise<void> {
         entrySourceOf(artifact),
       ),
     ),
-    ...overrideManifestTargets().map((deployment) => {
-      const rendered = renderOverrideManifest(
-        deployment === null ? {} : ({ DEPLOYMENT: deployment } as NodeJS.ProcessEnv),
-      );
-      return check(
-        overrideManifestLabel(deployment),
-        rendered.outputPath,
-        rendered.content,
-        roots,
-        overrideManifestRegenerateHint(deployment),
-      );
-    }),
+    ...(
+      await Promise.all(
+        divergenceTargets().map(async (deployment) => {
+          const rendered = await renderDivergence(
+            deployment === null ? {} : ({ DEPLOYMENT: deployment } as NodeJS.ProcessEnv),
+          );
+          return rendered.renderings.map((rendering) =>
+            check(
+              rendering.label,
+              rendering.outputPath,
+              rendering.content,
+              roots,
+              divergenceRegenerateHint(deployment),
+              // The markdown rendering imports nothing, so the containment
+              // verdict has no specifier to classify. It declares that rather
+              // than being skipped: an artefact no verdict looks at is the state
+              // the `foreign` verdict was added for (D-155.6).
+              rendering.outputPath.endsWith('.md')
+                ? { kind: 'none' as const }
+                : { kind: 'specifier' as const },
+            ),
+          );
+        }),
+      )
+    ).flat(),
   ];
   // The containment floor before the read line, because both exit 2 and this
   // one names the artefact (issue #113, and #215's short-walk half).

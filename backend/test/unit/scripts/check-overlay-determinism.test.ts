@@ -179,22 +179,30 @@ describe('coveredArtifactPaths', () => {
     expect(onDisk).toEqual([...coveredArtifactPaths()].sort());
   });
 
-  it('names one override manifest per deployment on disk, plus bare core', () => {
+  it('names both renderings of one divergence report per deployment, plus bare core', () => {
     // The half the sweep above cannot show on its own: it compares two lists
     // that would agree just as well if both had lost the same deployment.
-    const manifests = [...coveredArtifactPaths()].filter((p) =>
-      p.includes('override-manifest'),
-    );
-    expect(manifests.some((p) => p.endsWith('overlay/override-manifest.core.generated.ts'))).toBe(
-      true,
-    );
-    for (const deployment of deploymentsOnDisk()) {
+    //
+    // **Both** renderings, because one derivation emits two (feature 107,
+    // FR-015) and the `.md` is the one a human reads: a gate covering only the
+    // `.ts` would leave the human rendering free to drift, which is the one
+    // artefact whose drift nobody would catch by reading it.
+    const reports = [...coveredArtifactPaths()].filter((p) => p.includes('divergence.'));
+    for (const extension of ['ts', 'md']) {
       expect(
-        manifests.some((p) => p.endsWith(join('apps', deployment, 'override-manifest.generated.ts'))),
-        `no override manifest covered for deployment '${deployment}'`,
+        reports.some((p) => p.endsWith(`overlay/divergence.core.generated.${extension}`)),
+        `bare core's .${extension} rendering is covered by no determinism gate`,
       ).toBe(true);
+      for (const deployment of deploymentsOnDisk()) {
+        expect(
+          reports.some((p) =>
+            p.endsWith(join('apps', deployment, `divergence.generated.${extension}`)),
+          ),
+          `no .${extension} divergence rendering covered for deployment '${deployment}'`,
+        ).toBe(true);
+      }
     }
-    expect(manifests).toHaveLength(deploymentsOnDisk().length + 1);
+    expect(reports).toHaveLength((deploymentsOnDisk().length + 1) * 2);
   });
 });
 

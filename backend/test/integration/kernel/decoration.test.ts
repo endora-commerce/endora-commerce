@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   DisplayMode,
@@ -266,6 +269,13 @@ describe('T062 — a client wraps core instead of replacing it', () => {
   });
 });
 
+/** `backend/src/apps` — this file lives at `backend/test/integration/kernel/`. */
+const APPS_ROOT = join(
+  dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))),
+  'src',
+  'apps',
+);
+
 describe('T064 — two modules decorating one name must declare their order', () => {
   it('fails when two modules decorate the same name with no declared order', () => {
     let thrown: unknown;
@@ -285,15 +295,27 @@ describe('T064 — two modules decorating one name must declare their order', ()
     expect((thrown as Error).message).toContain('acme_pricing');
     expect((thrown as Error).message).toContain('beta_pricing');
     expect((thrown as Error).message).toContain('pricingService');
-    // And the remedy it names has to be reachable. It used to say "declare it
-    // as `decorationOrder['pricingService']` in the composer" — a field no
-    // composition root passes, sourced from an `endora.config.ts` that exists
-    // in no checkout of this repository (D-156.7/D-156.11). The one thing an
-    // author can do today is make both wraps one module's, which the case
-    // below proves is legal.
+    // And the remedy it names has to be reachable — FR-034, and this assertion
+    // is why the message has now been rewritten twice. It first said "declare
+    // it as `decorationOrder['pricingService']` in the composer": a field no
+    // composition root passed, sourced from an `endora.config.ts` that exists
+    // in no checkout of this repository (D-156.7/D-156.11). D-156.11 replaced
+    // that with the only thing an author could then do — merge both wraps into
+    // one module. Feature 107's P3 gave the field its supply from the
+    // deployment's own declaration, so the message names the field again, and
+    // the workaround is withdrawn rather than kept beside it: two remedies for
+    // one refusal is an author choosing, and the declaration is the one that
+    // keeps the two modules apart.
     expect((thrown as Error).message).not.toContain('endora.config');
-    expect((thrown as Error).message).not.toContain("decorationOrder['pricingService']");
-    expect((thrown as Error).message).toContain('one module');
+    expect((thrown as Error).message).toContain('divergence.ts');
+    expect((thrown as Error).message).toContain('decorationOrder');
+    // The order it suggests is the one composition would apply, innermost
+    // first — an author who pastes it gets a declaration that composes, not one
+    // that trades this refusal for the "declared order contradicts" refusal.
+    expect((thrown as Error).message).toContain("['acme_pricing', 'beta_pricing']");
+    // SC-005 — resolve the mechanism the refusal names, rather than trusting
+    // that it reads well. The file is a real per-deployment path in this tree.
+    expect(existsSync(join(APPS_ROOT, 'example', 'divergence.ts'))).toBe(true);
   });
 
   it('one module decorating the same name twice is not ambiguous', () => {

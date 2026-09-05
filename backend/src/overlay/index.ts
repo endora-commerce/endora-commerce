@@ -15,5 +15,5 @@
 export * from './types.js';
 export * from './overlay-roots.js';
 export * from './resolve-overlay.js';
-export * from './override-manifest.js';
+export * from './divergence-report.js';
 export * from './overlay-runtime.js';
