@@ -940,7 +940,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 1231,
+    files: 1233,
     sites: 12,
     sources: [],
   },
@@ -2072,7 +2072,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7675,
+    files: 7677,
     sites: null,
     sources: [],
   },
@@ -2894,7 +2894,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in this estate count markdown, so a docs-only merge request silently drifts them.
     // That is the gap the drift report exists to fill and the one case where nobody is at
     // fault for not filling it in advance; it is caught on the merged tree instead.
-    files: 7735,
+    // **2026-09-05: +2, two markdown files from a documentation-only merge.** The F11
+    // re-plan landed `specs/110-instance-repository/`'s draft rows and a register entry;
+    // three walks here count markdown and no branch that added it had reason to look.
+    // Fourth occurrence of this class in two days -- it is now the ordinary way this
+    // file goes stale, and the drift census on the merged tree is the only place it
+    // shows.
+    files: 7737,
     sites: null,
     sources: ['manifest-index'],
   },
