@@ -837,11 +837,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/ci/instance-build-inputs.test.ts`. The third is under
     // `backend/test/unit/scripts/`, which this walk excludes, and the fixture package's
     // hand-written `.js` is outside its extensions.
-    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 5262 -> 5274.**
-    // Twelve: the eight new source files (`backend/src/cli/demo-command.ts`,
-    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
-    // layer) plus the four new test files.
-    files: 5274,
+    // **Feature 109, Phase 1c, follow-up: +1.** One file:
+    // `packages/cli/src/lib/delegated-composer.ts`. The `backend/scripts/lib/` shim
+    // is under this check's own `EXCLUDED_SUBTREES`.
+    // `check-port-dependencies` follows a delegating root to its composer now,
+    // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
+    // with a re-export shim beside the other shared analyses.
+    files: 5263,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2165,7 +2167,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // each of them; the three source files it edits were already in the walk.
     // Re-measured after rebasing onto the merges that landed while the branch was
     // open, not carried over from the pre-rebase figure.
-    files: 7694,
+    // **Feature 109, Phase 1c, follow-up: +3.** Two sources and one changeset:
+    // `packages/cli/src/lib/delegated-composer.ts`, its `backend/scripts/lib/` shim
+    // and `.changeset/cli-follows-a-delegated-composition.md` — this walk counts
+    // markdown as well as source.
+    // `check-port-dependencies` follows a delegating root to its composer now,
+    // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
+    // with a re-export shim beside the other shared analyses.
+    files: 7697,
     sites: null,
     sources: [],
   },
@@ -2828,11 +2837,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // to judge genuinely shrank. `files` rises by the 52 new configurations.
     // **Feature 110 Phase 1: 4297 -> 4299.** Two of the three TypeScript files this
     // branch adds; the third is under `backend/test/unit/scripts/`, outside this walk.
-    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 4299 -> 4311.**
-    // Twelve: the eight new source files (`backend/src/cli/demo-command.ts`,
-    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
-    // layer) plus the four new test files.
-    files: 4311,
+    // **Feature 109, Phase 1c, follow-up: +1.** One file, for the same
+    // reason `check-diacritic-folds` moves by one: the package source counts and
+    // the `backend/scripts` shim does not.
+    // `check-port-dependencies` follows a delegating root to its composer now,
+    // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
+    // with a re-export shim beside the other shared analyses.
+    files: 4300,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -3056,7 +3067,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // each of them; the three source files it edits were already in the walk.
     // Re-measured after rebasing onto the merges that landed while the branch was
     // open, not carried over from the pre-rebase figure.
-    files: 7754,
+    // **Feature 109, Phase 1c, follow-up: +3.** The same three files
+    // `check-nul-bytes` counts, this walk having the same whole-repository subject.
+    // `check-port-dependencies` follows a delegating root to its composer now,
+    // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
+    // with a re-export shim beside the other shared analyses.
+    files: 7757,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3151,11 +3167,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 110 Phase 1: 5789 -> 5795.** Six: three TypeScript sources and the
     // fixture package's three hand-written `.js` files. Its `package.json`, its
     // documentation page and the changeset markdown are outside this scan.
-    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 5795 -> 5807.**
-    // Twelve: the eight new source files (`backend/src/cli/demo-command.ts`,
-    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
-    // layer) plus the four new test files.
-    files: 5807,
+    // **Feature 109, Phase 1c, follow-up: +2.** The two new sources; this walk
+    // reads comments and does not count the changeset markdown.
+    // `check-port-dependencies` follows a delegating root to its composer now,
+    // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
+    // with a re-export shim beside the other shared analyses.
+    files: 5797,
     sites: null,
     sources: ['manifest-index'],
   },

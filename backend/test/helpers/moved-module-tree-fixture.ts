@@ -828,6 +828,37 @@ function copyPlatformPackage(root: string): void {
 }
 
 /**
+ * The test kit — `package.json`, both tsconfigs and `src` (feature 109, Phase 1c).
+ *
+ * `backend/test/helpers/test-server.ts` no longer composes: it supplies a
+ * `PlatformComposition` and `@endora-commerce/test-kit/server` performs the
+ * composition. `check-port-dependencies` therefore **follows that delegation** —
+ * a root's registrations are now spread over its own file and its composer's —
+ * and a fixture that does not hold the kit gives it a specifier no workspace
+ * member owns. That is a correct exit 2 for a defect the fixture introduced,
+ * which is the shape this file exists to avoid.
+ *
+ * No `dist`, deliberately, and it is what the delegation's own design buys: the
+ * composer is read at its **source**, through the package's `exports` map and
+ * its `tsconfig.build.json` emit layout, so both tsconfigs come and the build
+ * does not. That also keeps the fixture honest about a second thing — a
+ * derivation that needed the artefact would be one that could hold a branch to
+ * the previous build (D-164).
+ */
+function copyTestKitPackage(root: string): void {
+  const source = join(REPO_ROOT, 'packages', 'test-kit');
+  const destination = join(root, 'packages', 'test-kit');
+  mkdirSync(destination, { recursive: true });
+  for (const file of ['package.json', 'tsconfig.json', 'tsconfig.build.json']) {
+    cpSync(join(source, file), join(destination, file));
+  }
+  cpSync(join(source, 'src'), join(destination, 'src'), {
+    recursive: true,
+    preserveTimestamps: true,
+  });
+}
+
+/**
  * The contracts package — `package.json`, `src` and, since feature 111,
  * `dist`.
  *
@@ -891,6 +922,7 @@ export function createMovedModuleTreeFixture(
   copyApplicationTests(backend);
   copyContractsPackage(root);
   copyPlatformPackage(root);
+  copyTestKitPackage(root);
   for (const directory of RESIDUE_ROOTS) {
     cpSync(join(BACKEND_ROOT, 'src', directory), join(backend, 'src', directory), {
       recursive: true,
@@ -1383,6 +1415,7 @@ export function createSplitModuleTreeFixture(
   copyApplicationTests(backend);
   copyContractsPackage(root);
   copyPlatformPackage(root);
+  copyTestKitPackage(root);
   copyAdminApplication(root);
   copyDocumentationSite(root);
   copyPageBuilderPackages(root);

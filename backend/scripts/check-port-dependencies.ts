@@ -96,6 +96,12 @@ import {
   NO_HOST_RESIDENT_MODULES,
   type HostResidentModules,
 } from './lib/module-population.js';
+import {
+  delegatedComposerOf,
+  delegatedSuppliedNames,
+  delegatedSupplyFields,
+  delegationRefusalMessage,
+} from './lib/delegated-composer.js';
 import { declaresRegisterModule, requireModuleLayout } from './lib/module-roots.js';
 import {
   loadPackageDeclarations,
@@ -1305,6 +1311,32 @@ export const ROOT_FILES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * **A root's file is no longer the whole of what it registers.**
+ *
+ * Since feature 109's Phase 1c the harness supplies a `PlatformComposition` and
+ * `@endora-commerce/test-kit/server` performs the composition: `registerValues`,
+ * `composeModules`, the two Redis clients, the contribution window, the boot
+ * phase. Reading `test-server.ts` alone therefore reports the harness as
+ * registering **none** of the platform's own names — measured on the merge
+ * request that made it the kit's first caller, that is 16 root issues, every one
+ * of them a name the harness composition does register, one directory away.
+ *
+ * The remedies this check would have printed were both wrong, which is the
+ * argument for following the delegation rather than ledgering it: a
+ * `ROOT_DIVERGENCE_ALLOWED` entry states that *the two compositions genuinely
+ * differ on that name*, and they do not.
+ *
+ * A root enrols by importing a composer binding. The value is the binding, and
+ * the composer's source is found from it — through the workspace member's own
+ * `exports` map and emit layout, so no package name and no `dist` is written
+ * down here (D-100). A root that composes for itself has no entry and is read as
+ * it always was.
+ */
+export const ROOT_DELEGATES_TO: Readonly<Record<string, string>> = {
+  harness: 'composeTestServer',
+};
+
+/**
  * `HOST_REGISTERED_PORTS` names a root may legitimately register in only one
  * composition, with the reason. Keep it short: an entry is a statement that the
  * two compositions genuinely differ on that name, not that nobody has looked.
@@ -2029,7 +2061,56 @@ async function main(): Promise<void> {
   for (const [label, relative] of Object.entries(ROOT_FILES)) {
     const full = join(layout.applicationRoot, relative);
     if (!existsSync(full)) continue;
-    rootNames.set(label, new Set(rootRegisteredNames(readFileSync(full, 'utf8'), full)));
+    const rootSource = readFileSync(full, 'utf8');
+    const names = new Set(rootRegisteredNames(rootSource, full));
+    // What this root delegates its composition to, if anything (feature 109,
+    // Phase 1c). Followed to the composer's **source**: a package resolves at
+    // its build output (D-164), so reading the artefact would hold this run to
+    // the previous `pnpm run build:packages`.
+    const binding = ROOT_DELEGATES_TO[label];
+    if (binding !== undefined) {
+      const delegation = delegatedComposerOf(rootSource, full, layout.repoRoot, binding);
+      if (!delegation.ok) {
+        // Exit 2 and never 1. The tree is not in violation — this run could not
+        // see half of one composition, and every finding below is computed from
+        // the difference between the two (issue #113).
+        console.error(delegationRefusalMessage('[port-deps]', delegation.refusal.kind === 'no-import'
+          ? { ...delegation.refusal, binding }
+          : delegation.refusal));
+        console.error(
+          `[port-deps] '${label}' (${relative}) declares it delegates to '${binding}', and the ` +
+            'composer could not be followed. Reading the root alone would report every platform ' +
+            'name it registers as supplied by the other composition only.',
+        );
+        process.exit(2);
+      }
+      // The names the composer itself registers — `redis`, `eventBus`, the audit
+      // writer — read out of its own `registerValues` and `contribute` calls.
+      const supplyFields = new Set<string>();
+      for (const file of delegation.composer.files) {
+        const composerSource = readFileSync(file, 'utf8');
+        for (const name of rootRegisteredNames(composerSource, file)) names.add(name);
+        for (const field of delegatedSupplyFields(composerSource, file)) supplyFields.add(field);
+      }
+      // And the names this root hands the composer **as data**, through whichever
+      // option field the composer spreads into its own registration. Derived from
+      // the composer rather than spelled here: the alternative reads eight
+      // correctly-registered names as production-only and prints, for each, a
+      // remedy that has already been followed.
+      if (supplyFields.size === 0) {
+        console.error(
+          `[port-deps] '${label}' delegates to '${binding}', and that composer spreads no ` +
+            'option field into a container registration. A delegating root supplies its host ' +
+            'values as data, so with no field to read them from every one of them would be ' +
+            'reported as registered by the other composition only.',
+        );
+        process.exit(2);
+      }
+      for (const name of delegatedSuppliedNames(rootSource, full, binding, [...supplyFields])) {
+        names.add(name);
+      }
+    }
+    rootNames.set(label, names);
   }
   const rootIssues = findRootIssues({
     moduleRegistered,
