@@ -843,7 +843,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-port-dependencies` follows a delegating root to its composer now,
     // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
     // with a re-export shim beside the other shared analyses.
-    files: 5263,
+    // **Stacked on 113 Phase 0: +12.** That branch adds thirteen files —
+    // the demo-data declaration, its runner and their tests, twelve of them
+    // TypeScript and one a changeset. This walk takes the twelve TypeScript sources.
+    files: 5275,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2174,7 +2177,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-port-dependencies` follows a delegating root to its composer now,
     // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
     // with a re-export shim beside the other shared analyses.
-    files: 7697,
+    // **Stacked on 113 Phase 0: +13.** That branch adds thirteen files —
+    // the demo-data declaration, its runner and their tests, twelve of them
+    // TypeScript and one a changeset. This walk takes all thirteen.
+    files: 7710,
     sites: null,
     sources: [],
   },
@@ -2843,7 +2849,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-port-dependencies` follows a delegating root to its composer now,
     // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
     // with a re-export shim beside the other shared analyses.
-    files: 4300,
+    // **Stacked on 113 Phase 0: +12.** That branch adds thirteen files —
+    // the demo-data declaration, its runner and their tests, twelve of them
+    // TypeScript and one a changeset. This walk takes the twelve TypeScript sources.
+    files: 4312,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -3072,7 +3081,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-port-dependencies` follows a delegating root to its composer now,
     // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
     // with a re-export shim beside the other shared analyses.
-    files: 7757,
+    // **Stacked on 113 Phase 0: +13.** That branch adds thirteen files —
+    // the demo-data declaration, its runner and their tests, twelve of them
+    // TypeScript and one a changeset. This walk takes all thirteen.
+    files: 7770,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3172,7 +3184,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-port-dependencies` follows a delegating root to its composer now,
     // so the derivation lives in `@endora-commerce/cli/lib/delegated-composer.ts`
     // with a re-export shim beside the other shared analyses.
-    files: 5797,
+    // **Stacked on 113 Phase 0: +12.** That branch adds thirteen files —
+    // the demo-data declaration, its runner and their tests, twelve of them
+    // TypeScript and one a changeset. This walk takes the twelve TypeScript sources.
+    files: 5809,
     sites: null,
     sources: ['manifest-index'],
   },
