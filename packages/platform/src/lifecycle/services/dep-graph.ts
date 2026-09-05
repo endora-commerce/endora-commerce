@@ -245,6 +245,102 @@ export function stronglyConnectedComponents(
 }
 
 /**
+ * A stable topological sort of a condensation — Kahn's algorithm, the ready set
+ * drained by the smallest module id in the component.
+ *
+ * **The platform owns this walk for the reason it owns
+ * {@link stronglyConnectedComponents}** (D-160.11), and feature 113 is what made
+ * the reason bite: the migration order and the demo runner both order modules by
+ * the manifest `dependencies` graph, and `contracts/module-demo-data-layer.md`
+ * §4.1 says the runner *"MUST NOT maintain an order of its own"*. Two
+ * implementations of one order are two answers waiting to disagree — and they
+ * would disagree silently, because nothing compares a demo run's order to a
+ * migration run's.
+ *
+ * It was `backend/src/db/migration-order.ts`' private `sortComponents`, moved
+ * here unchanged. The `first` parameter is that file's `'core'` rule made a
+ * parameter rather than a constant: `'core'` declares nothing and nothing
+ * declares it, so it is always ready at the start, and saying "it goes first"
+ * beats relying on an accident of alphabetical ordering. A caller with no such
+ * node passes nothing and gets the plain smallest-id-first drain.
+ *
+ * It always succeeds: the condensation is acyclic, so the ready set cannot
+ * empty early and there is no unresolvable order.
+ *
+ * `neighboursOf` is the caller's, exactly as above, and an edge into a node no
+ * component holds is skipped — the caller decided what its graph contains.
+ */
+export function sortComponentsTopologically(
+  components: readonly string[][],
+  neighboursOf: (id: string) => readonly string[],
+  first?: string,
+): string[][] {
+  const componentOf = new Map<string, number>();
+  components.forEach((members, position) => {
+    for (const member of members) componentOf.set(member, position);
+  });
+
+  const successors: number[][] = components.map(() => []);
+  const indegree = components.map(() => 0);
+  components.forEach((members, position) => {
+    for (const member of members) {
+      for (const dependency of neighboursOf(member)) {
+        // The edge means "mine follow theirs", so the dependency's component is
+        // emitted first: the arrow in the sort points at us. A repeated edge is
+        // counted twice on both sides and cancels out.
+        const target = componentOf.get(dependency);
+        if (target === undefined || target === position) continue;
+        successors[target]!.push(position);
+        indegree[position]! += 1;
+      }
+    }
+  });
+
+  const firstComponent = first === undefined ? undefined : componentOf.get(first);
+  const sortKey = (position: number): string =>
+    position === firstComponent ? '' : components[position]![0]!;
+
+  const ready = components.map((_, position) => position).filter((p) => indegree[p] === 0);
+  const ordered: string[][] = [];
+  while (ready.length > 0) {
+    ready.sort((left, right) => (sortKey(left) < sortKey(right) ? -1 : 1));
+    const next = ready.shift()!;
+    ordered.push(components[next]!);
+    for (const successor of successors[next]!) {
+      indegree[successor]! -= 1;
+      if (indegree[successor] === 0) ready.push(successor);
+    }
+  }
+
+  return ordered;
+}
+
+/**
+ * The modules of a dependency map, dependencies before dependents, ties broken
+ * by module id.
+ *
+ * The one order two readers share: the migration order builds it through the
+ * two functions above with its own `'core'` node, and the demo runner takes it
+ * whole (feature 113, §4.1). A dependency **cycle** is not an error here — its
+ * members come out as one contiguous block in id order, and reporting it is the
+ * caller's ({@link moduleDependencyCycles}), for the reason feature 081 gives: a
+ * manifest can arrive from an installed package, and one stranger's declaration
+ * must not stop a shop's own work.
+ *
+ * An edge naming a module the map does not hold is skipped, which is §4.4's
+ * *"an entry naming a module that is not installed orders nothing"*.
+ */
+export function orderModulesByDependencies(
+  moduleDependencies: ReadonlyMap<string, readonly string[]>,
+): string[] {
+  const nodes = [...moduleDependencies.keys()];
+  const neighboursOf = (id: string): readonly string[] =>
+    (moduleDependencies.get(id) ?? []).filter((dependency) => moduleDependencies.has(dependency));
+  const components = stronglyConnectedComponents(nodes, neighboursOf);
+  return sortComponentsTopologically(components, neighboursOf).flat();
+}
+
+/**
  * Every dependency cycle in a module dependency map — one strongly connected
  * component of more than one module per entry, members sorted.
  *

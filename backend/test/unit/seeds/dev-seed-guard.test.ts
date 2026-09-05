@@ -57,10 +57,10 @@ describe('mustBeNonProduction — the database the seed is pointed at', () => {
 
   it('refuses a remote host', () => {
     expect(() => mustBeNonProduction(env({ DATABASE_URL: PROD_HOSTNAME }))).toThrow(
-      /refusing to run dev-catalog-seed/,
+      /refusing to run the demo seed/,
     );
     expect(() => mustBeNonProduction(env({ DATABASE_URL: PROD_IP }))).toThrow(
-      /refusing to run dev-catalog-seed/,
+      /refusing to run the demo seed/,
     );
   });
 
@@ -68,7 +68,7 @@ describe('mustBeNonProduction — the database the seed is pointed at', () => {
     // `postgres` is the service name in BOTH docker-compose.yml and
     // deploy/compose.prod.yml, so the host alone cannot separate them.
     expect(() => mustBeNonProduction(env({ DATABASE_URL: DEV_COMPOSE }))).toThrow(
-      /refusing to run dev-catalog-seed/,
+      /refusing to run the demo seed/,
     );
   });
 
@@ -86,14 +86,14 @@ describe('mustBeNonProduction — the database the seed is pointed at', () => {
       thrown = error;
     }
     expect(thrown).toBeInstanceOf(Error);
-    expect((thrown as Error).message).toMatch(/refusing to run dev-catalog-seed/);
+    expect((thrown as Error).message).toMatch(/refusing to run the demo seed/);
     expect((thrown as Error).message).not.toMatch(/Invalid URL/);
   });
 
   it('refuses a DSN with no host (unix socket) unless the database name says test', () => {
     expect(() =>
       mustBeNonProduction(env({ DATABASE_URL: 'postgresql:///b2b?host=/var/run/postgresql' })),
-    ).toThrow(/refusing to run dev-catalog-seed/);
+    ).toThrow(/refusing to run the demo seed/);
     expect(() =>
       mustBeNonProduction(env({ DATABASE_URL: 'postgresql:///b2b_test?host=/var/run/postgresql' })),
     ).not.toThrow();
@@ -154,7 +154,7 @@ describe('mustBeNonProduction — NODE_ENV', () => {
           DATABASE_URL: DEV_COMPOSE,
         }),
       ),
-    ).toThrow(/refusing to run dev-catalog-seed/);
+    ).toThrow(/refusing to run the demo seed/);
   });
 });
 

@@ -637,7 +637,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrives.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1883 -> 1935.** 52 module
     // packages gain a `vitest.config.ts`, and its route walk reads a package root.
-    files: 1936,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 1936 -> 1944.**
+    // Eight source files: `backend/src/cli/demo-command.ts`, the
+    // `backend/src/demo/` re-export shim, and the platform's new six-file
+    // `src/demo/` layer — the guard and the scope reason relocated out of
+    // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
+    // and the barrel, which are new.
+    files: 1944,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -682,7 +688,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2060,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 2060 -> 2068.**
+    // Eight source files: `backend/src/cli/demo-command.ts`, the
+    // `backend/src/demo/` re-export shim, and the platform's new six-file
+    // `src/demo/` layer — the guard and the scope reason relocated out of
+    // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
+    // and the barrel, which are new.
+    files: 2068,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -825,7 +837,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/ci/instance-build-inputs.test.ts`. The third is under
     // `backend/test/unit/scripts/`, which this walk excludes, and the fixture package's
     // hand-written `.js` is outside its extensions.
-    files: 5262,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 5262 -> 5274.**
+    // Twelve: the eight new source files (`backend/src/cli/demo-command.ts`,
+    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
+    // layer) plus the four new test files.
+    files: 5274,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -903,7 +919,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // alone: with two overlay modules in the tree that number is 2, and a walk
     // that lost the whole module tree would print `files=2` and look exactly
     // like a healthy run over a small deployment.
-    files: 2163,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 2163 -> 2169.**
+    // Six, because this walk is the module-manifest generator's over the
+    // workspace packages: it sees the platform's new six-file `src/demo/` layer
+    // and neither of the two files the branch adds under `backend/src`.
+    files: 2169,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -975,7 +995,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2060,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 2060 -> 2068.**
+    // Eight source files: `backend/src/cli/demo-command.ts`, the
+    // `backend/src/demo/` re-export shim, and the platform's new six-file
+    // `src/demo/` layer — the guard and the scope reason relocated out of
+    // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
+    // and the barrel, which are new.
+    files: 2068,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1004,7 +1030,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2060,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 2060 -> 2068.**
+    // Eight source files: `backend/src/cli/demo-command.ts`, the
+    // `backend/src/demo/` re-export shim, and the platform's new six-file
+    // `src/demo/` layer — the guard and the scope reason relocated out of
+    // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
+    // and the barrel, which are new.
+    files: 2068,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1033,7 +1065,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2060,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 2060 -> 2068.**
+    // Eight source files: `backend/src/cli/demo-command.ts`, the
+    // `backend/src/demo/` re-export shim, and the platform's new six-file
+    // `src/demo/` layer — the guard and the scope reason relocated out of
+    // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
+    // and the barrel, which are new.
+    files: 2068,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1138,7 +1176,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // falls by 14, the reads those files carried.
     // **Feature 110 Phase 1: 1559 -> 1561.** The two test files this branch adds under
     // `backend/test/`. `sites` moves with them — see below.
-    files: 1561,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 1561 -> 1565.**
+    // Four test files — the demo plan, the demo runner, the host command and
+    // the manifest declaration.
+    files: 1565,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1184,7 +1225,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // harness-free single-owner test files leave `backend/test/`.
     // **Feature 110 Phase 1: 1559 -> 1561.** The two test files this branch adds under
     // `backend/test/`.
-    files: 1561,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 1561 -> 1565.**
+    // Four test files — the demo plan, the demo runner, the host command and
+    // the manifest declaration.
+    files: 1565,
     sites: null,
     sources: [],
   },
@@ -1213,7 +1257,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2060,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 2060 -> 2068.**
+    // Eight source files: `backend/src/cli/demo-command.ts`, the
+    // `backend/src/demo/` re-export shim, and the platform's new six-file
+    // `src/demo/` layer — the guard and the scope reason relocated out of
+    // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
+    // and the barrel, which are new.
+    files: 2068,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1575,7 +1625,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // observed value absorbs **+671** of it (this branch's base, 36174efa1, observed
     // 32290). Stated rather than left implicit: the number is re-recorded here because
     // this branch moved it, not because this branch grew it.
-    sites: 32604,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 32604 -> 32605.**
+    // One literal, and the file count does not move because the file already
+    // existed: `packages/platform/src/lifecycle/services/dep-graph.ts` is inside
+    // `_lifecycle`'s module walk root, and the module-level topological sort that
+    // moved into it from `backend/src/db/migration-order.ts` carries one `''`.
+    sites: 32605,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -1899,7 +1954,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrive in the module walk, and 52 module packages gain a `vitest.config.ts` —
     // both roots this check reads, so each file counts on both sides of its union.
     // `sites` is the specifiers and table references they carry.
-    files: 4652,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 4652 -> 4659.**
+    // Seven of the branch's eight new source files. The one this walk does not
+    // count is `backend/src/demo/index.ts`, measured: the number was already
+    // 4659 before that shim existed and did not move when it landed.
+    files: 4659,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -2100,7 +2159,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // documentation page) and its changeset markdown. Re-measured after rebasing
     // onto the fifteen commits that landed while the branch was open, not carried
     // over from the pre-rebase measurement.
-    files: 7693,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 7693 -> 7706.**
+    // Thirteen: the eight new source files (`backend/src/cli/demo-command.ts`,
+    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
+    // layer), the four new test files, and — this walk being the whole
+    // repository rather than its TypeScript — the branch's changeset.
+    files: 7706,
     sites: null,
     sources: [],
   },
@@ -2278,7 +2342,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2060,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 2060 -> 2068.**
+    // Eight source files: `backend/src/cli/demo-command.ts`, the
+    // `backend/src/demo/` re-export shim, and the platform's new six-file
+    // `src/demo/` layer — the guard and the scope reason relocated out of
+    // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
+    // and the barrel, which are new.
+    files: 2068,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -2553,7 +2623,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // harness-free single-owner test files leave `backend/test/`.
     // **Feature 110 Phase 1: 1559 -> 1561.** The two test files this branch adds under
     // `backend/test/`.
-    files: 1561,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 1561 -> 1565.**
+    // Four test files — the demo plan, the demo runner, the host command and
+    // the manifest declaration.
+    files: 1565,
     sites: 163,
     sources: [],
   },
@@ -2627,7 +2700,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2060,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 2060 -> 2068.**
+    // Eight source files: `backend/src/cli/demo-command.ts`, the
+    // `backend/src/demo/` re-export shim, and the platform's new six-file
+    // `src/demo/` layer — the guard and the scope reason relocated out of
+    // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
+    // and the barrel, which are new.
+    files: 2068,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2644,7 +2723,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // than predicted, which is the only way this number is ever right.
     // **Feature 110 Phase 1: 1641 -> 1643.** The two test files this branch adds under
     // `backend/test/`, both `.test.ts`.
-    files: 1643,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 1643 -> 1647.**
+    // Four test files — the demo plan, the demo runner, the host command and
+    // the manifest declaration.
+    files: 1647,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -2688,7 +2770,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // collision rule.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2007 -> 2059.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 2060,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 2060 -> 2068.**
+    // Eight source files: `backend/src/cli/demo-command.ts`, the
+    // `backend/src/demo/` re-export shim, and the platform's new six-file
+    // `src/demo/` layer — the guard and the scope reason relocated out of
+    // `backend/src/seeds/` (spec §7), plus the plan, the runner, the report
+    // and the barrel, which are new.
+    files: 2068,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2739,7 +2827,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // to judge genuinely shrank. `files` rises by the 52 new configurations.
     // **Feature 110 Phase 1: 4297 -> 4299.** Two of the three TypeScript files this
     // branch adds; the third is under `backend/test/unit/scripts/`, outside this walk.
-    files: 4299,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 4299 -> 4311.**
+    // Twelve: the eight new source files (`backend/src/cli/demo-command.ts`,
+    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
+    // layer) plus the four new test files.
+    files: 4311,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -2957,7 +3049,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 110 Phase 1: +9.** The same nine files `check-nul-bytes` counts —
     // three TypeScript sources, the five of the `mod-instance-surfaces` fixture
     // package and the changeset markdown. Re-measured after the rebase.
-    files: 7753,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 7753 -> 7766.**
+    // Thirteen: the eight new source files (`backend/src/cli/demo-command.ts`,
+    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
+    // layer), the four new test files, and — this walk being the whole
+    // repository rather than its TypeScript — the branch's changeset.
+    files: 7766,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3052,7 +3149,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 110 Phase 1: 5789 -> 5795.** Six: three TypeScript sources and the
     // fixture package's three hand-written `.js` files. Its `package.json`, its
     // documentation page and the changeset markdown are outside this scan.
-    files: 5795,
+    // **Feature 113 Phase 0 (`specs/113-module-owned-demo-data/`): 5795 -> 5807.**
+    // Twelve: the eight new source files (`backend/src/cli/demo-command.ts`,
+    // the `backend/src/demo/` shim and the platform's six-file `src/demo/`
+    // layer) plus the four new test files.
+    files: 5807,
     sites: null,
     sources: ['manifest-index'],
   },

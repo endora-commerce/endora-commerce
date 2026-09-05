@@ -101,6 +101,178 @@ export type ModuleDocsManifest = z.infer<typeof ModuleDocsManifestSchema>;
 export const ModuleDocsDeclarationSchema = z.union([ModuleDocsManifestSchema, z.literal(false)]);
 export type ModuleDocsDeclaration = z.infer<typeof ModuleDocsDeclarationSchema>;
 
+// ---------------------------------------------------------------------------
+// Per-module demo data (feature 113, `contracts/module-demo-data-layer.md` §1)
+// ---------------------------------------------------------------------------
+
+/**
+ * What a module's demo body is handed.
+ *
+ * One field, deliberately. The body gets its module's own composed
+ * `ModuleContext` and nothing else: everything it wants an operator to read
+ * comes back in {@link DemoSeedResult}, which the runner formats once (§3.7),
+ * so there is no `out`/`err` pair here and a body must not reach for
+ * `process.stdout`. That is the difference from {@link ModuleCliCommandContext},
+ * which injects both because a command's output *is* its result.
+ *
+ * `Ctx` is a type parameter for the reason {@link ModuleCliCommand}'s is: a
+ * module names `ModuleContext` from `@endora-commerce/platform/kernel`, and the
+ * contracts package may not. A declaration reaching the host is typed
+ * `ModuleDemoManifest<never>` — the schema's inference — and every module's
+ * `ModuleDemoManifest<ModuleContext>` is assignable to it, so the host casts
+ * once at the invocation, exactly as `collectModuleCommands` does.
+ */
+export interface ModuleDemoContext<Ctx = unknown> {
+  /** The module's own composed `ModuleContext`. */
+  ctx: Ctx;
+}
+
+/**
+ * One line of a module's per-module accounting.
+ *
+ * `entity` is the class name the module wrote, in the module's own words; the
+ * runner neither derives nor validates it. Structured rather than free text
+ * because it is the only way SC-007's idempotence is assertable without
+ * diffing a database: seeding twice must report the same counts.
+ */
+export interface DemoEntityCount {
+  readonly entity: string;
+  readonly count: number;
+}
+
+/**
+ * A sign-in detail the demo created, printed by the runner at the end of a run.
+ *
+ * Structured rather than a sentence in `notes` so the runner formats it once
+ * and a client's scaffolded composition does not have to know how the platform
+ * lays credentials out.
+ */
+export interface DemoCredential {
+  readonly label: string;
+  readonly value: string;
+}
+
+/** What a module's `seed` reports. Never a throw-or-succeed (§3.7). */
+export interface DemoSeedResult {
+  readonly created: readonly DemoEntityCount[];
+  readonly credentials?: readonly DemoCredential[];
+  /** What this module chose not to do, and why. */
+  readonly notes?: readonly string[];
+}
+
+/** What a module's `reset` reports. */
+export interface DemoResetResult {
+  readonly removed: readonly DemoEntityCount[];
+  readonly notes?: readonly string[];
+}
+
+/**
+ * The demo declaration a module carries in its `manifest.ts` (§1.3).
+ *
+ * ## The body is reached by a relative `await import()`, never a top-level one
+ *
+ * §1.4, and it is `cliCommands`' rule for `cliCommands`' reason: a manifest is
+ * loaded by every process that composes the platform — and by the check scripts
+ * and `src/db/configured-migrations.ts`, which import the generated index — so a
+ * demo body imported at the top of `manifest.ts` is a service graph pulled into
+ * all of them. Write it as
+ *
+ * ```ts
+ * const demo: ModuleDemoManifest<ModuleContext> = {
+ *   summary: 'A demo warehouse and stock for the seeded products.',
+ *   seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
+ *   reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
+ * };
+ * ```
+ *
+ * and pass it to `defineModuleManifest`. The typed `const` is what gives the
+ * author `context.ctx: ModuleContext`; declared inline the parameter infers
+ * from the schema and is `never`.
+ *
+ * A relative import inside the package lands in `dist` through the existing
+ * emit, so this declaration needs **no `exports` subpath, no `files` entry and
+ * no change to the manifest generator** (§1.5).
+ *
+ * ## What a body may do
+ *
+ * §2.1–§2.2: write only tables its own module owns, read no other module's
+ * table, resolve no other module's port, import from no other module's package.
+ * Wiring that spans modules is a composition and belongs to the instance
+ * (§5, D-209) — `megamenu`'s demo menu mirroring `catalog`'s demo categories is
+ * the measured case, and `megamenu` does not declare `catalog`.
+ */
+export interface ModuleDemoManifest<Ctx = unknown> {
+  /**
+   * One line of English prose: what this module contributes to the demo. The
+   * runner prints it per module (§3.7).
+   */
+  summary: string;
+  /** Create this module's demo rows. Idempotent by contract (§2.4). */
+  seed(context: ModuleDemoContext<Ctx>): Promise<DemoSeedResult>;
+  /**
+   * Withdraw exactly what {@link ModuleDemoManifest.seed} created, and nothing
+   * an operator created (§2.5).
+   *
+   * Separate from `seed` rather than a flag on it, because FR-007's guarantee
+   * is per module and a flag makes one function answer two questions.
+   */
+  reset(context: ModuleDemoContext<Ctx>): Promise<DemoResetResult>;
+  /**
+   * Module ids this module's demo prefers to run after — **advisory** (§4.3).
+   *
+   * `permissions[].requires`' shape under D-175, chosen for the same reason:
+   * the field carries a coupling the dependency graph cannot express and the
+   * graph must not be widened to express it. Nothing else reads it, it puts no
+   * module in `dependencies`, it creates no lifecycle edge, it does not stand
+   * in the way of an operator switching the named module off, and it changes no
+   * migration order. An entry naming a module that is not installed orders
+   * nothing and is not a finding (§4.4).
+   *
+   * It is deliberately not spelled `dependsOn`, `requires` or `dependencies`:
+   * the name has to be unmistakably not the lifecycle one.
+   */
+  after?: readonly string[] | undefined;
+}
+
+/**
+ * A function value the schema accepts by kind.
+ *
+ * `z.custom` rather than `z.function()`: Zod v4's function schema builds a
+ * validating *wrapper*, and this field must pass the author's own closure
+ * through by reference — the runner calls it, and a copy would be a second
+ * function nothing else in the tree holds.
+ */
+function demoBodySchema<T>(field: 'seed' | 'reset'): z.ZodType<T> {
+  return z.custom<T>((value) => typeof value === 'function', {
+    message:
+      `demo.${field} must be a function. The body is reached by a relative ` +
+      `\`await import()\` from the declaration (contract §1.4), never by a path ` +
+      'the platform is expected to guess.',
+  });
+}
+
+export const ModuleDemoManifestSchema = z.object({
+  summary: z.string().min(1).max(200),
+  seed: demoBodySchema<ModuleDemoManifest<never>['seed']>('seed'),
+  reset: demoBodySchema<ModuleDemoManifest<never>['reset']>('reset'),
+  after: z.array(z.string().regex(moduleIdRe)).readonly().optional(),
+});
+
+/**
+ * `demo: false` — this module has nothing to demonstrate, deliberately.
+ *
+ * **Absent and `false` are not the same state** (§1.2). It is
+ * {@link ModuleDocsDeclarationSchema}'s rule and it exists for the same reason:
+ * a universal obligation over a population where some members legitimately owe
+ * nothing is repaired by empty files whose only effect is to make a check pass.
+ * `health_checks`, `pim_connector` and `email` genuinely have nothing to show.
+ */
+export const ModuleDemoDeclarationSchema = z.union([
+  ModuleDemoManifestSchema,
+  z.literal(false),
+]);
+export type ModuleDemoDeclaration = z.infer<typeof ModuleDemoDeclarationSchema>;
+
 /**
  * Operator-activation declaration — feature 073, Constitution XVII.
  *
@@ -610,6 +782,20 @@ export const ModuleManifestSchema = z.object({
    */
   docs: ModuleDocsDeclarationSchema.optional(),
   /**
+   * Per-module demo data declaration (feature 113, D-209).
+   *
+   * `{ summary, seed, reset, after? }` — the module ships demo rows for its own
+   * tables; `false` — it has nothing to demonstrate, deliberately; **absent** —
+   * nobody has decided. See {@link ModuleDemoDeclarationSchema} for why the last
+   * two are not one state, and {@link ModuleDemoManifest} for what a body may
+   * do.
+   *
+   * Declaring it creates **no** lifecycle edge: it puts no module in
+   * `dependencies`, changes no migration order and does not stand in the way of
+   * an operator switching another module off (§2.3, FR-005).
+   */
+  demo: ModuleDemoDeclarationSchema.optional(),
+  /**
    * Per-module Admin Command Palette action declarations (feature 020).
    * Each entry becomes a row in `module_actions` at install time and is
    * surfaced in the admin's command palette under the Actions group.
@@ -979,6 +1165,44 @@ function assertBlockRules(m: ModuleManifest): void {
 }
 
 /**
+ * The two `demo.after` refusals (feature 113,
+ * `contracts/module-demo-data-layer.md` §4.3–§4.4).
+ *
+ * They sit beside the rules above for the reason those give: both are
+ * cross-field — one reads an entry against the outer `id`, one reads the
+ * entries against each other — and the message has to name the module the
+ * author is looking at. The element regex applies per element and can see
+ * neither.
+ *
+ * What this layer deliberately does **not** refuse is an `after` naming a
+ * module that is not installed. §4.4 rules that such an entry orders nothing
+ * and is not a finding, and this layer sees one manifest, so a rule keyed on
+ * "is that module here" would be a green that means "not looking" in a client's
+ * instance and a false red in a partial one.
+ */
+function assertDemoRules(m: ModuleManifest): void {
+  if (m.demo === undefined || m.demo === false) return;
+  const seen = new Set<string>();
+  for (const after of m.demo.after ?? []) {
+    if (after === m.id) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares \`demo.after\` on itself ` +
+          `(forbidden) — the list orders this module's demo against *other* modules', ` +
+          'and a self-entry orders nothing.',
+      );
+    }
+    if (seen.has(after)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares \`demo.after\` "${after}" ` +
+          'twice — one ordering preference is stated once, so the second entry can ' +
+          'only agree with the first.',
+      );
+    }
+    seen.add(after);
+  }
+}
+
+/**
  * Identity-with-validation helper for module authors. Modules export a
  * single `manifest` constant via this helper so TypeScript inference is
  * preserved and the loader can ingest the validated payload directly.
@@ -1023,6 +1247,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   assertNonBindingRules(m);
   assertErrorCodeRules(m);
   assertBlockRules(m);
+  assertDemoRules(m);
   return ModuleManifestSchema.parse(m);
 }
 

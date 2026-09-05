@@ -53,19 +53,41 @@ import {
   helpFor,
   runModuleCommand,
 } from './cli/module-commands.js';
+import {
+  DEMO_HOST_COMMANDS,
+  demoEntriesFrom,
+  demoHelpFor,
+  formatHostCommandList,
+  isDemoInvocation,
+  parseDemoVerb,
+} from './cli/demo-command.js';
 import { composeApp } from './composition.js';
 import { ModuleDisabledError } from './kernel/lifecycle/plugin-helpers.js';
+import { effectiveState } from './kernel/lifecycle/effective-state.js';
 import { resolvedManifestEntries } from './lifecycle/registered-manifests.js';
 import { enterSystemScope } from './kernel/scope.js';
+import {
+  DEMO_RESET_SCOPE_REASON,
+  DEMO_SEED_SCOPE_REASON,
+  formatDemoReport,
+  mustBeNonProduction,
+  runDemo,
+  unwrapDemoFailure,
+} from './demo/index.js';
 
 const USAGE = `usage: endora <module id> <command> [args…]
        endora <module id> <command> --help
+       endora demo seed | endora demo reset
        endora --list
 
 Runs an operator command a module declares in its \`manifest.ts\`. The host
 composes the platform once and hands the command its module's own context, so
 it resolves the same services — and the same deployment decorations — the
 running server does.
+
+\`demo\` is the host's own command rather than any module's: it fans out over
+every module that declares demo data in its manifest, in the order the
+dependency graph gives, and then applies this instance's composition.
 
   --list        every command this instance offers, including an overlay
                 module's and an installed package's
@@ -90,6 +112,63 @@ running server does.
  * bodies that run only at Fastify registration, and this process never builds a
  * server (D-157.2, measured three ways).
  */
+/**
+ * `endora demo seed` / `endora demo reset` (feature 113 Phase 0, §3.3–§3.4).
+ *
+ * The order of the first three statements **is** the contract, and nothing else
+ * in this file has this property:
+ *
+ *  1. **The guard, first** — before anything is composed, before a scope is
+ *     opened, and outside every `try` (§3.3). A refusal here writes nothing,
+ *     which is the whole of FR-012, and it cannot be reached through a `catch`
+ *     that decided to continue because there is no `catch` above it.
+ *  2. **One composition**, exactly as a module-declared command gets, so a demo
+ *     body resolves the same services — and the same deployment decorations —
+ *     the running server does.
+ *  3. **One system scope for the whole run** (§3.4), so no module's demo body is
+ *     its own entry point. That is stricter than `seed:dev`, which is a declared
+ *     program in `check:entry-scope`'s population and has to remember
+ *     `enterSystemScope` itself.
+ *
+ * Presence is decided inside `runDemo`, from the declaration and before a
+ * context is built (§3.5) — the rule `runModuleCommand` already applies one
+ * command at a time, applied here once per declaring module.
+ *
+ * There is no composition passed yet: Phase 1 replaces `dev-catalog-seed.ts`
+ * with one and hands it in here. Until then the run is every declaring module
+ * and nothing else, which over zero declaring modules is the state Phase 0 is
+ * measured against — it completes and says so.
+ */
+async function runDemoCommand(
+  verb: 'seed' | 'reset',
+  resolved: Awaited<ReturnType<typeof resolvedManifestEntries>>,
+): Promise<number> {
+  mustBeNonProduction();
+
+  const entries = demoEntriesFrom(resolved);
+
+  process.env['BACKEND_ROLE'] = 'api';
+  const composition = await composeApp();
+  try {
+    return await enterSystemScope(
+      verb === 'seed' ? DEMO_SEED_SCOPE_REASON : DEMO_RESET_SCOPE_REASON,
+      async () => {
+        const result = await runDemo({
+          mode: verb,
+          entries,
+          isPresent: (id) => effectiveState.isPresent(id),
+          contextFor: composition.contextFor,
+        });
+        process.stdout.write(formatDemoReport(result));
+        return 0;
+      },
+      { entryPoint: 'cli', container: composition.container },
+    );
+  } finally {
+    await composition.dispose();
+  }
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
@@ -105,12 +184,27 @@ async function main(): Promise<number> {
   // string, so it has to be able to say what it does before it can do it. It is
   // also the property D-157.8 rejected path-convention dispatch for, since
   // nothing can list a convention.
-  const declared = collectModuleCommands(await resolvedManifestEntries());
+  const resolved = await resolvedManifestEntries();
+  const declared = collectModuleCommands(resolved);
   if (argv[0] === '--list') {
+    process.stdout.write(formatHostCommandList(DEMO_HOST_COMMANDS));
     process.stdout.write(formatCommandList(declared));
     return 0;
   }
   const [moduleId, name, ...rest] = argv;
+  if (isDemoInvocation(moduleId)) {
+    if (name === undefined || name === '--help' || name === '-h') {
+      process.stdout.write(DEMO_HOST_COMMANDS.map((c) => `${c.address} — ${c.summary}`).join('\n'));
+      process.stdout.write('\n');
+      return name === undefined ? 1 : 0;
+    }
+    const verb = parseDemoVerb(name);
+    if (rest.includes('--help') || rest.includes('-h')) {
+      process.stdout.write(demoHelpFor(verb));
+      return 0;
+    }
+    return await runDemoCommand(verb, resolved);
+  }
   if (moduleId === undefined || name === undefined) {
     process.stderr.write(`${USAGE}\nerror: a command is addressed as '<module id> <command>'.\n`);
     return 1;
@@ -175,7 +269,12 @@ async function main(): Promise<number> {
 // there is no container to open it against until `composeApp()` has returned.
 void main()
   .then((code) => process.exit(code))
-  .catch((err: unknown) => {
+  .catch((thrown: unknown) => {
+    // `unwrapDemoFailure` is not a `catch` and decides nothing: it takes one
+    // known wrapper off so the discrimination below sees what it saw before the
+    // demo layer existed. `DemoRunFailedError`'s own message — which names the
+    // module — is printed by the fallback branch.
+    const err = unwrapDemoFailure(thrown);
     if (err instanceof ModuleDisabledError) {
       process.stderr.write(
         `error: module '${err.moduleId}' is switched off in this instance, so its commands ` +
@@ -185,7 +284,7 @@ void main()
       process.exit(3);
     }
     process.stderr.write(
-      `${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`,
+      `${thrown instanceof Error ? (thrown.stack ?? thrown.message) : String(thrown)}\n`,
     );
     process.exit(1);
   });
