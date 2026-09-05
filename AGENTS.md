@@ -154,6 +154,18 @@ and a suite deleted with the two scripts it existed to exercise. All three were 
 fast suite by construction, and CI's own red did not stop a single merge because
 `only_allow_merge_if_pipeline_succeeds` is off.
 
+**That last clause was true on the day it was measured and the mechanism has since changed, which
+matters because it moves the lever.** Owner ruling **D-198** (2026-09-03) took the
+`|| $CI_PIPELINE_SOURCE == "merge_request_event"` clause off every rung of `.backend-test-rules`,
+so `test:backend` is now **not created** for a merge-request pipeline at all. The job no longer
+runs and gets ignored; it does not run. Turning `only_allow_merge_if_pipeline_succeeds` on would
+therefore have caught none of the three reds this repository hit on 2026-09-04 — two contract, one
+integration — and the setting is not the thing to reach for. D-198's own comment block states the
+trade in place and calls itself a suspension rather than a design: *"An integration or contract
+regression is now found on `master`, after the merge, by whoever runs next."* It bought back a
+five-shard serialised suite on a shared runner, at fifteen merges a day. The condition for
+restoring the clause is written beside it.
+
 **The same blind spot has a second shape, and it has now produced three reds on `master` in a
 row: a ledger derived *about* the files you changed is not a file you changed.**
 `test/integration/kernel/module-removal.test.ts` holds a two-way residue ledger, so packaging a
