@@ -288,12 +288,24 @@ describe('the seam population is the platform’s, not the rung table’s', () =
 });
 
 describe('the module-population floor, which this check delegates rather than owns', () => {
-  // `check-divergence.ts` is deliberately **not** in `moved-module-tree.test.ts`
-  // and is classified `not-a-module-walk`, because its population is
-  // `backend/src/apps/` and the module tree is the **owner map's** input rather
-  // than the subject it judges. That classification costs the spawned proof, so
-  // the refusal is proven here instead, over the same shared helper the check
-  // calls — first, before every other refusal.
+  // `check-divergence.ts` is not in `moved-module-tree.test.ts`, so the refusal
+  // is proven here instead, over the same shared helper the check calls —
+  // first, before every other refusal.
+  //
+  // **Why it is not there changed under it** (feature 111, Phase 4). This
+  // comment read *"and is classified `not-a-module-walk`, because its population
+  // is `backend/src/apps/` and the module tree is the owner map's input rather
+  // than the subject it judges"*. The second half is still true and is why
+  // `endora check` records the rule `repository-only`; what it does not answer
+  // is `residueGuard`, which asks whether the check carries the shared
+  // module-population floor — and this one calls
+  // `refuseVacuousModulePopulation` before anything else, so it does. It is
+  // therefore `deferred-shared-proof`, with the measurement and the retiring
+  // condition in `check-inventory.test.ts`' `DEFERRED_SHARED_PROOFS`: over the
+  // split fixture it exits 1, because that fixture stages the module tree and
+  // not the application root's repository-resident package roots, so
+  // `acceptanceProbeGreeter`'s owner — `backend/acceptance/fixture-package` — is
+  // not there and the deployment that decorates it reads as decorating nobody.
   //
   // What it protects against is issue #215 one field over: a short owner map
   // does not report fewer entries, it reports every decoration as owned by
