@@ -94,15 +94,22 @@ describe('defineModuleManifest', () => {
     expect(m.settings?.groups[0]?.code).toBe('demo');
   });
 
-  it('accepts a license tier from the enum', () => {
-    const m = defineModuleManifest({
+  it('carries no licence tier — D-194 removed the edition meta-packages it existed for', () => {
+    // The field was `license: 'core' | 'pro' | 'enterprise'`, validated and
+    // audited and read by nothing: no gate consulted it, no admin screen
+    // rendered it, and the tier meta-packages it was reserved for do not exist.
+    // A Zod object is non-strict, so a manifest that still declares one is not
+    // refused — the key is dropped. This asserts the drop rather than a refusal,
+    // because the drop is what a client on an older manifest actually gets.
+    const declared = {
       id: 'paid_module',
       name: 'Paid',
       version: '1.0.0',
       dependencies: [],
       license: 'pro',
-    });
-    expect(m.license).toBe('pro');
+    };
+    const m = defineModuleManifest(declared as unknown as Parameters<typeof defineModuleManifest>[0]);
+    expect(m).not.toHaveProperty('license');
   });
 });
 

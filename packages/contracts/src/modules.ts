@@ -4,8 +4,8 @@
 // the registry-record shape persisted in `module_registrations`. The settings
 // portion (per-module groups + settings) is delegated to feature 004's
 // existing `ModuleSettingsManifestSchema`; this module wraps it with the
-// outer module-level metadata (id, name, version, dependencies, optional
-// license tier) and the lifecycle-hook type aliases.
+// outer module-level metadata (id, name, version, dependencies) and the
+// lifecycle-hook type aliases.
 //
 // Hooks themselves are NOT validated by Zod (functions don't serialise
 // through schemas); the loader attaches them from the manifest module's
@@ -42,14 +42,6 @@ export const moduleVersionRe = /^\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/;
 // ---------------------------------------------------------------------------
 // Module manifest
 // ---------------------------------------------------------------------------
-
-/**
- * License tier reserved for future edition-gating (per `research.md` R-10).
- * v1 only validates and audits this field; enforcement is the
- * release-pipeline's responsibility.
- */
-export const ModuleLicenseTierSchema = z.enum(['core', 'pro', 'enterprise']);
-export type ModuleLicenseTier = z.infer<typeof ModuleLicenseTierSchema>;
 
 /**
  * Per-module Admin UI translation declaration (feature 019).
@@ -281,9 +273,11 @@ export type ModuleDemoDeclaration = z.infer<typeof ModuleDemoDeclarationSchema>;
  * this block declares the *business* operator's control, which is an ordinary
  * `Setting` row reconciled from the manifest.
  *
- * It sits beside `license`, never inside it: `license` is the build-time
- * entitlement axis and is inert by design, and conflating the two would make a
- * runtime toggle look like a licensing decision.
+ * It used to sit beside a `license` tier, and the two were kept apart because
+ * conflating a build-time entitlement with a runtime toggle would make an
+ * operator's switch look like a licensing decision. That tier is gone (D-194
+ * removed the edition meta-packages it existed for), so activation is now the
+ * only presence declaration a manifest carries.
  *
  * Exactly one of the two forms is valid — enforced in `defineModuleManifest`
  * rather than by the schema, because a Zod union of two non-strict objects
@@ -751,7 +745,6 @@ export const ModuleManifestSchema = z.object({
    * no graph and by no ordering. See {@link ModuleNonBindingDependencySchema}.
    */
   nonBindingDependencies: z.array(ModuleNonBindingDependencySchema).optional(),
-  license: ModuleLicenseTierSchema.optional(),
   /**
    * Operator-activation control (feature 073). Optional only while the
    * conversion sweep is in flight: `check-module-gating` requires it as soon
@@ -1797,7 +1790,6 @@ export const ModuleListItemSchema = z.object({
   state: ModuleListItemStateSchema,
   dependencies: z.array(z.string()),
   flags: z.array(ModuleListItemFlagSchema),
-  license: ModuleLicenseTierSchema.nullable(),
   installedAt: z.iso.datetime().nullable(),
   lastStateChangeAt: z.iso.datetime().nullable(),
 });

@@ -2564,7 +2564,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // ignores as an application.
     // **+4 for this branch** — the three storefront sources and their test. This
     // walk is the whole repository and takes all four.
-    files: 7756,
+    // **The licence-tier deletion: 7756 -> 7757 (+1).** The branch's own changeset
+    // and nothing else — it deletes lines from six existing files and adds no
+    // source file. This walk is the whole repository, so `.changeset/` is in it.
+    files: 7757,
     sites: null,
     sources: [],
   },
@@ -3754,7 +3757,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files the neighbouring whole-repository walk takes.
     // **+4 for this branch**, the same four files the neighbouring whole-repository
     // walk takes.
-    files: 7816,
+    // **The licence-tier deletion: 7816 -> 7817 (+1)**, the branch's own changeset,
+    // the same one file the neighbouring whole-repository walk takes.
+    files: 7817,
     sites: null,
     sources: ['manifest-index'],
   },
