@@ -18,6 +18,24 @@ export function repoRoot(): string {
 }
 
 /**
+ * `backend/src` under `tsx`, `backend/dist` under a compiled run — the root
+ * every `apps/<deployment>/…` path in this application is composed from.
+ *
+ * Exported because it is the application's **one** derivation of that root
+ * (`specs/115-lifecycle-container-move/`, D115-3; `contracts/operator-half.md`
+ * R4.3). `divergence.ts` carried a second copy of the two lines above,
+ * byte-identical, which is how a second came to be written at all — and that
+ * copy was one `dirname` too high for its own location once, so every
+ * deployment read as declaring nothing and nothing could see it. Two
+ * `import.meta.url` root derivations in one application are two answers waiting
+ * to disagree; there is now one, and `divergence-loader.ts` takes it as a
+ * parameter defaulting to this.
+ */
+export function applicationSourceRoot(): string {
+  return BACKEND_SRC;
+}
+
+/**
  * The active deployment name, or `null` for a bare-core build.
  * Read from `DEPLOYMENT`; blank/whitespace is treated as unset.
  */

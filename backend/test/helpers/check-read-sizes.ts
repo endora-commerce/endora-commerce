@@ -689,7 +689,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 1949,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 1949 -> 1950 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 1949 again.
+    files: 1950,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -754,7 +762,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2073,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2073 -> 2074 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2073 again.
+    files: 2074,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -789,7 +805,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 1607,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 1607 -> 1608 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 1607 again.
+    files: 1608,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -827,7 +851,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2060,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2060 -> 2061 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2060 again.
+    files: 2061,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -959,7 +991,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the two new test files. The seam itself, `storefront/lib/env.mjs`, is
     // **not** among them — this walk reads `.ts`/`.tsx`/`.js` and `.mjs` is outside
     // it, which is why this moves by three where `check-nul-bytes` moves by four.
-    files: 5294,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 5294 -> 5295 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 5294 again.
+    files: 5295,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1087,7 +1127,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // deployments, entries, owners, rungs and `sites=4` — because
     // `routeIdentities` already resolved a route it saw twice the same way this
     // guard now resolves the file.
-    files: 2158,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2158 -> 2159 (+1).** The
+    // divergence split (D115-3) adds `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // — the parser and the empty default — and that directory is a module walk
+    // root, so it moves this number by exactly one, which is what the block above
+    // measured a platform-lifecycle file to be worth after the double-counting was
+    // fixed. The other two files the split touches move it by **zero**, and that is
+    // the same measurement read the other way: `backend/src/lifecycle/services/divergence.ts`
+    // is deleted and `backend/src/overlay/divergence-loader.ts` is added, and
+    // neither is in this walk — `_lifecycle` is **platform**-resident, so
+    // `backend/src/lifecycle/` is not a module walk root and no path under
+    // `backend/src` is in the owner map's population at all.
+    files: 2159,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1227,7 +1278,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2073,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2073 -> 2074 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2073 again.
+    files: 2074,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1276,7 +1335,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2073,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2073 -> 2074 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2073 again.
+    files: 2074,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1325,7 +1392,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2073,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2073 -> 2074 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2073 again.
+    files: 2074,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1570,7 +1645,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2073,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2073 -> 2074 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2073 again.
+    files: 2074,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1750,7 +1833,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2580,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2580 -> 2581 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2580 again.
+    files: 2581,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -1792,7 +1883,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 1992,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 1992 -> 1993 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 1992 again.
+    files: 1993,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -1937,7 +2036,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 1619,
+    // **`specs/115-lifecycle-container-move/` Phase 4: files 1619 -> 1620, sites 32643 ->
+    // 32653.** One file and the ten literals in it:
+    // `packages/platform/src/lifecycle/divergence-declaration.ts`, the divergence split's
+    // platform half (D115-3), whose two refusal sentences are each built from a run of
+    // concatenated fragments — which is what makes a one-file move worth ten sites here
+    // and one everywhere else. The two `backend/src` files the split moves are outside
+    // this walk, whose population is the module tree. Measured rather than reasoned
+    // about: with that one file taken out of the tree it reads 1619 and 32643 again.
+    files: 1620,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -1973,7 +2080,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which relocated with the rule, and the manifest registry's own refusal. Every
     // one of them is English and none is a finding; the population grew, the debt
     // did not.
-    sites: 32643,
+    sites: 32653,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -2328,7 +2435,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which overlap on every module file by construction and are summed rather
     // than unioned because their floors are separable. So there is nothing here to
     // deduplicate, and the entry is corrected rather than re-recorded.
-    files: 4667,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 4667 -> 4669 (+2).** One file,
+    // counted twice — this check's `files` is a **sum** over populations that overlap
+    // (the import scan's and the owner map's), so the divergence split's platform half
+    // (D115-3), `packages/platform/src/lifecycle/divergence-declaration.ts`, enters each
+    // of them once. The two `backend/src` files the split moves are in neither: this
+    // walk's population is the module tree, and `_lifecycle` is platform-resident.
+    // Measured rather than reasoned about: with that one file taken out of the tree and
+    // the check re-run it reads 4667, `sites` unmoved at 11889.
+    files: 4669,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -2666,7 +2781,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it takes the `.mjs` too — which is why one moves by four and the other three.
     // **+4 for this branch** — `instrumentation.ts`, the `env.mjs` seam and its two
     // tests. This walk is the whole repository and takes all four.
-    files: 7771,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 7771 -> 7772 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 7771 again.
+    files: 7772,
     sites: null,
     sources: [],
   },
@@ -2876,7 +2999,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2073,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2073 -> 2074 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2073 again.
+    files: 2074,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -2911,7 +3042,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 1849,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 1849 -> 1850 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 1849 again.
+    files: 1850,
     sites: 1471,
     sources: ['manifest-index'],
   },
@@ -2959,7 +3098,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2390,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2390 -> 2391 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2390 again.
+    files: 2391,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -3060,7 +3207,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 1945,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 1945 -> 1946 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 1945 again.
+    files: 1946,
     sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -3358,7 +3513,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2073,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2073 -> 2074 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2073 again.
+    files: 2074,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3459,7 +3622,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assembly is part of the merge and a platform file may not name an application
     // one. `backend/src` does not move at all — the binding and the claims
     // re-export both keep their paths, which is the whole shape of the phase.
-    files: 2073,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 2073 -> 2074 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 2073 again.
+    files: 2074,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3541,7 +3712,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
     // plus `test/unit/_lifecycle/manifest-registry.test.ts`. `backend/src` does not
     // move: the binding and the claims re-export both keep their paths.
-    files: 4326,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 4326 -> 4327 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 4326 again.
+    files: 4327,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -3881,7 +4060,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this one — the reverse of the asymmetry recorded immediately above.
     // **+4 for this branch**, the same four files the neighbouring whole-repository
     // walk takes.
-    files: 7831,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 7831 -> 7832 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 7831 again.
+    files: 7832,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4028,7 +4215,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-naming.sh` twin — the two are one job and one pair of modes — this walk
     // does not read `storefront/`, so the four new files are invisible to it and the
     // +4 is `master`'s.
-    files: 5833,
+    // **`specs/115-lifecycle-container-move/` Phase 4: 5833 -> 5834 (+1).** The divergence
+    // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
+    // is new — the parser and the empty default, which are pure over
+    // `DeploymentDivergenceDeclarationSchema` and name no path — while under `backend/src`
+    // one file goes and one arrives: `lifecycle/services/divergence.ts` is deleted and
+    // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
+    // pair cancels here whether or not this walk reads it. Measured rather than reasoned
+    // about: with the platform file alone taken out of the tree this walk reads 5833 again.
+    files: 5834,
     sites: null,
     sources: ['manifest-index'],
   },

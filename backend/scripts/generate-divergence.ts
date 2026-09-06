@@ -386,7 +386,7 @@ async function loadDeclaration(deployment: string | null): Promise<{
 }> {
   const empty = { omittedModules: [], decorationOrder: {}, reasons: {} };
   if (deployment === null) return empty;
-  const { loadDivergenceDeclaration } = await import('../src/lifecycle/services/divergence.js');
+  const { loadDivergenceDeclaration } = await import('../src/overlay/divergence-loader.js');
   return loadDivergenceDeclaration({ DEPLOYMENT: deployment } as NodeJS.ProcessEnv);
 }
 

@@ -193,6 +193,16 @@ export {
 export { buildStaticRegistry, type StaticRegistryEntry } from './services/static-registry.js';
 export { type MigrationOwnership } from './services/migration-ownership.js';
 
+// --- what a deployment declares about differing from core -----------------
+// The shape half only. The locator is `backend/src/overlay/divergence-loader.ts`
+// and may not follow it here (D115-3): it composes a path in the tree that
+// installs the platform, and the platform receives the parsed value as a field
+// of `ComposeModulesOptions`, which is the seam it already had.
+export {
+  emptyDivergenceDeclaration,
+  parseDivergenceDeclaration,
+} from './divergence-declaration.js';
+
 // --- reading presence out of the registry at boot -------------------------
 export {
   assertLockedModulesPresent,

@@ -4,10 +4,13 @@ import { describe, expect, it } from 'vitest';
 import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import {
   emptyDivergenceDeclaration,
-  loadDivergenceDeclaration,
   parseDivergenceDeclaration,
-} from '../../../src/lifecycle/services/divergence.js';
-import { deploymentsOnDisk } from '../../../src/overlay/overlay-roots.js';
+} from '@endora-commerce/platform/lifecycle';
+import { loadDivergenceDeclaration } from '../../../src/overlay/divergence-loader.js';
+import {
+  applicationSourceRoot,
+  deploymentsOnDisk,
+} from '../../../src/overlay/overlay-roots.js';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import {
   ReducedDeploymentError,
@@ -87,6 +90,34 @@ describe('every deployment on disk declares its divergence in the shape the load
     )) as { divergence: unknown };
     expect(loaded).toEqual(imported.divergence);
   });
+
+  it.each(DEPLOYMENTS)(
+    'composes `%s`\u2019s path under the root it is given, not under its own',
+    async (deployment) => {
+      // The proof that the second parameter is *used* (D115-3, R4.3). The root
+      // is given rather than derived because the derivation was one `dirname`
+      // wrong once and every deployment then read as declaring nothing — a
+      // parameter this function accepted and ignored would restore exactly that
+      // failure, silently, since an absent file and an empty declaration are
+      // deliberately the same answer.
+      //
+      // So: the real root reads the deployment's own file, and a root with no
+      // `apps/` under it reads nothing. A loader that still derived its own root
+      // would answer the first correctly and the second wrongly, which is the
+      // one shape that tells the two apart.
+      const declared = await loadDivergenceDeclaration(
+        { DEPLOYMENT: deployment },
+        applicationSourceRoot(),
+      );
+      expect(declared).toEqual(await loadDivergenceDeclaration({ DEPLOYMENT: deployment }));
+      await expect(
+        loadDivergenceDeclaration(
+          { DEPLOYMENT: deployment },
+          join(applicationSourceRoot(), 'no_such_application_root'),
+        ),
+      ).resolves.toEqual(emptyDivergenceDeclaration());
+    },
+  );
 
   it('reads at least one deployment that declares something', () => {
     // The floor under the case above: with every declaration empty, comparing

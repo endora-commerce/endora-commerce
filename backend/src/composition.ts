@@ -140,7 +140,7 @@ import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
 import { lifecycleModuleFromStaticEntries } from './lifecycle/plugin.js';
 import { loadModulePresence } from './lifecycle/services/presence-load.js';
-import { loadDivergenceDeclaration } from './lifecycle/services/divergence.js';
+import { loadDivergenceDeclaration } from './overlay/divergence-loader.js';
 import {
   deploymentShippedEntries,
   resolvedManifestEntries,

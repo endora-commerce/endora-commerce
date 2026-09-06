@@ -15,5 +15,6 @@
 export * from './types.js';
 export * from './overlay-roots.js';
 export * from './resolve-overlay.js';
+export * from './divergence-loader.js';
 export * from './divergence-report.js';
 export * from './overlay-runtime.js';

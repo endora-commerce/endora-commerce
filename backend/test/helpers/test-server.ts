@@ -60,7 +60,7 @@ import {
   resolvedManifestEntries,
 } from '../../src/lifecycle/registered-manifests.js';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
-import { loadDivergenceDeclaration } from '../../src/lifecycle/services/divergence.js';
+import { loadDivergenceDeclaration } from '../../src/overlay/divergence-loader.js';
 import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
 import { buildStaticRegistry } from '../../src/lifecycle/services/static-registry.js';
 import type { LoadedManifestRegistry } from '../../src/lifecycle/services/manifest-loader.js';
