@@ -81,7 +81,6 @@ function moduleItem(patch: Partial<ModuleListItem> & { id: string }): ModuleList
     state: 'installed',
     dependencies: [],
     flags: [],
-    license: null,
     installedAt: '2026-08-01T00:00:00.000Z',
     lastStateChangeAt: '2026-08-01T00:00:00.000Z',
     ...patch,

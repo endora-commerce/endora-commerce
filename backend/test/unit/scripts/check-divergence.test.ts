@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  claimFileOnce,
   divergenceBoundary,
   divergenceRefusal,
   moduleContextSeams,
@@ -360,5 +361,57 @@ describe('the route table', () => {
       },
     ]);
     expect(routes.has('GET /api/v1/storefront/products')).toBe(true);
+  });
+});
+
+describe('the route population is a union, so a file two roots both reach enters once', () => {
+  /**
+   * The number this protects is `files`, and it is the estate's one instrument
+   * for spotting a walk that has gone blind — so a number that is wrong for a
+   * reason nobody knows is worse than one that is missing.
+   *
+   * The environment is built from several walks and two of them legitimately
+   * overlap: a module walk root can sit **inside** the platform's source root,
+   * which is what `packages/platform/src/lifecycle` is today. Measured on the
+   * tree before this guard existed: a file added under that directory moved
+   * `[divergence] read: files=` by **two**, against one for a file added
+   * anywhere else the walk reaches, and zero for a file the walk does not
+   * reach at all. Every one of the 19 files there was counted twice.
+   */
+  it('collapses two reaches of one file to one entry', () => {
+    const claim = claimFileOnce((file) => file);
+    expect(claim('/repo/packages/platform/src/lifecycle/routes.ts')).toBe(true);
+    expect(claim('/repo/packages/platform/src/lifecycle/routes.ts')).toBe(false);
+  });
+
+  it('keeps two different files', () => {
+    // The guard that collapses everything is indistinguishable from a walk that
+    // read one file, and it would print a `files` far more wrong than the one
+    // this replaces.
+    const claim = claimFileOnce((file) => file);
+    expect(claim('/repo/a.ts')).toBe(true);
+    expect(claim('/repo/b.ts')).toBe(true);
+  });
+
+  it('is keyed on the real path and not on the spelling', () => {
+    // Two roots reaching one file reach it under two path strings whenever
+    // either root is a symlink — which is what a `git worktree` and a linked
+    // `node_modules` both produce. A string comparison lets both through.
+    const real = (file: string): string =>
+      file.replace('/repo/link/', '/repo/packages/platform/src/');
+    const claim = claimFileOnce(real);
+    expect(claim('/repo/packages/platform/src/lifecycle/routes.ts')).toBe(true);
+    expect(claim('/repo/link/lifecycle/routes.ts')).toBe(false);
+  });
+
+  it('falls back to the spelling for a path it cannot resolve', () => {
+    // A file deleted between the walk and the read. Collapsing a duplicate is
+    // this guard's job; refusing a run is the caller's decision to take, and a
+    // throw here would turn a vanished file into an exit nobody asked for.
+    const claim = claimFileOnce(() => {
+      throw new Error('ENOENT');
+    });
+    expect(claim('/repo/gone.ts')).toBe(true);
+    expect(claim('/repo/gone.ts')).toBe(false);
   });
 });
