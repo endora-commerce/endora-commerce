@@ -6,6 +6,8 @@
  * computes (issue #130). That is what lets these run in the fast suite while the
  * criterion itself needs an install, a build and a backend.
  */
+import { join, resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -18,6 +20,8 @@ import {
   exitCodeFor,
   exitCodeForExpectation,
   formatReport,
+  planScaffoldInputs,
+  SCAFFOLD_INPUT_STAND_INS,
 } from '../../../scripts/acceptance/storefront-scaffold-assertions.js';
 
 describe('A1 — the copy names nothing above its own directory', () => {
@@ -300,5 +304,151 @@ describe('A6 — the boot, and its discrimination probe', () => {
       probeAddress,
     });
     expect(result.state).toBe('unmeasured');
+  });
+});
+
+describe('the inputs the criterion supplies to `endora new storefront`', () => {
+  const envExample = new Map([
+    ['BACKEND_BASE_URL', 'http://localhost:3001'],
+    ['NEXT_PUBLIC_API_BASE_URL', 'http://localhost:3001'],
+    ['NEXT_PUBLIC_SALES_CHANNEL_CODE', 'pl_default'],
+    ['REVALIDATE_SECRET', 'change-me-shared-with-backend'],
+  ]);
+
+  it('points every backend-address variable at the backend this run booted', () => {
+    const plan = planScaffoldInputs({
+      required: ['BACKEND_BASE_URL', 'NEXT_PUBLIC_API_BASE_URL'],
+      backendAddressVariables: ['BACKEND_BASE_URL', 'NEXT_PUBLIC_API_BASE_URL'],
+      backend: 'http://127.0.0.1:3001',
+      envExample,
+      standIns: {},
+    });
+    expect(plan.unanswerable).toEqual([]);
+    expect(plan.values.get('BACKEND_BASE_URL')).toBe('http://127.0.0.1:3001');
+    expect(plan.values.get('NEXT_PUBLIC_API_BASE_URL')).toBe('http://127.0.0.1:3001');
+  });
+
+  it('falls back to the copy\'s own example address when this run booted no backend', () => {
+    const plan = planScaffoldInputs({
+      required: ['BACKEND_BASE_URL'],
+      backendAddressVariables: ['BACKEND_BASE_URL'],
+      backend: null,
+      envExample,
+      standIns: {},
+    });
+    expect(plan.values.get('BACKEND_BASE_URL')).toBe('http://localhost:3001');
+    expect(plan.unanswerable).toEqual([]);
+  });
+
+  it('takes every other required input from the copy\'s own `.env.example`', () => {
+    const plan = planScaffoldInputs({
+      required: ['NEXT_PUBLIC_SALES_CHANNEL_CODE', 'REVALIDATE_SECRET'],
+      backendAddressVariables: [],
+      backend: null,
+      envExample,
+      standIns: {},
+    });
+    expect(plan.values.get('NEXT_PUBLIC_SALES_CHANNEL_CODE')).toBe('pl_default');
+    expect(plan.values.get('REVALIDATE_SECRET')).toBe('change-me-shared-with-backend');
+  });
+
+  it('reports a required input no derivation reaches, rather than inventing one', () => {
+    const plan = planScaffoldInputs({
+      required: ['NEXT_PUBLIC_SITE_URL'],
+      backendAddressVariables: [],
+      backend: null,
+      envExample,
+      standIns: {},
+    });
+    expect(plan.unanswerable).toEqual(['NEXT_PUBLIC_SITE_URL']);
+    expect(plan.values.has('NEXT_PUBLIC_SITE_URL')).toBe(false);
+  });
+
+  it('answers one from the stand-in table, which carries its own reason', () => {
+    const plan = planScaffoldInputs({
+      required: ['NEXT_PUBLIC_SITE_URL'],
+      backendAddressVariables: [],
+      backend: null,
+      envExample,
+      standIns: { NEXT_PUBLIC_SITE_URL: 'http://127.0.0.1:3000' },
+    });
+    expect(plan.unanswerable).toEqual([]);
+    expect(plan.values.get('NEXT_PUBLIC_SITE_URL')).toBe('http://127.0.0.1:3000');
+    expect(plan.staleStandIns).toEqual([]);
+  });
+
+  it('reports a stand-in a derivation has caught up with, so the table drains', () => {
+    const plan = planScaffoldInputs({
+      required: ['REVALIDATE_SECRET'],
+      backendAddressVariables: [],
+      backend: null,
+      envExample,
+      standIns: { REVALIDATE_SECRET: 'a-stand-in-nobody-needs-now' },
+    });
+    expect(plan.values.get('REVALIDATE_SECRET')).toBe('change-me-shared-with-backend');
+    expect(plan.staleStandIns).toEqual(['REVALIDATE_SECRET']);
+  });
+
+  it('reports a stand-in for an input the storefront no longer declares required', () => {
+    const plan = planScaffoldInputs({
+      required: [],
+      backendAddressVariables: [],
+      backend: null,
+      envExample,
+      standIns: { GONE_FROM_THE_DECLARATION: 'x' },
+    });
+    expect(plan.staleStandIns).toEqual(['GONE_FROM_THE_DECLARATION']);
+  });
+});
+
+/**
+ * The guard that would have caught this branch's own defect in seconds.
+ *
+ * The criterion runs the real command against a real backend, which is what
+ * makes it valuable and what makes it slow: an install, a `next build` and two
+ * boots, outside the checkout. So for as long as nobody ran it, the removal of
+ * the storefront's invented defaults (feature 117, Phases 1–2) left it exiting
+ * **2** — neither a pass nor a failure, every assertion unrun — and nothing in
+ * `test:unit:fast` could say so.
+ *
+ * This is the cheap half of that measurement, and it is cheap only because the
+ * repair extracted the criterion's input plan as a pure function: it reads the
+ * two files the plan is derived from and asks whether the plan answers every
+ * input the command will demand. It runs in the fast suite, needs no service and
+ * no network, and it fails the moment a new required input is declared without a
+ * value the criterion can reach.
+ *
+ * What it does **not** claim: that the criterion passes. A6 needs a backend and
+ * `next build` needs an install. This answers one question — *would the command
+ * refuse this invocation* — which is the question the branch got wrong.
+ */
+describe('the criterion supplies every input the reference storefront declares required', () => {
+  it('answers all of them, from the two derivations and the stand-in table', async () => {
+    const repoRoot = resolve(__dirname, '..', '..', '..', '..');
+    const storefrontDir = join(repoRoot, 'storefront');
+    const { backendAddressVariablesOf, envExampleDeclarationsOf, storefrontDeclaredInputs } =
+      await import('@endora-commerce/cli');
+    const { isRequiredGiven } = await import('@endora-commerce/contracts');
+
+    const declared = await storefrontDeclaredInputs(repoRoot);
+    expect(declared.length).toBeGreaterThan(0);
+    const required = declared
+      .filter((input) => isRequiredGiven(input, {}))
+      .map((input) => input.name);
+    // A declaration with no required input would make every assertion below
+    // vacuously true, which is the one state this must not report as clean.
+    expect(required.length).toBeGreaterThan(0);
+
+    const plan = planScaffoldInputs({
+      required,
+      backendAddressVariables: backendAddressVariablesOf(storefrontDir),
+      backend: 'http://127.0.0.1:3001',
+      envExample: envExampleDeclarationsOf(storefrontDir),
+      standIns: SCAFFOLD_INPUT_STAND_INS,
+    });
+
+    expect(plan.unanswerable).toEqual([]);
+    expect(plan.staleStandIns).toEqual([]);
+    expect([...plan.values.keys()].sort()).toEqual([...required].sort());
   });
 });

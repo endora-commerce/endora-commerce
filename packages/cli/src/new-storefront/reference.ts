@@ -345,14 +345,49 @@ export const ENV_EXAMPLE_FILE = '.env.example';
  * Nothing is invented when the file declares no URL at all: the answer is empty
  * and each caller says so in its own words.
  */
-export function backendAddressVariables(envExampleText: string): readonly string[] {
-  const found: string[] = [];
+/**
+ * Every declaration the file makes, in file order — the copy's own worked
+ * example of its environment.
+ *
+ * One parser, because there are two questions asked of this file and they must
+ * not come to disagree about what it says: *which of these names a backend*
+ * (below) and *what value does this file give for a name* — the second being how
+ * the acceptance criterion configures the instance it boots without carrying a
+ * list of variables of its own. A key repeated in the file keeps its last
+ * assignment, which is what every reader of a `.env` does.
+ *
+ * A blank value is **not** a declaration. `NEXT_PUBLIC_SITE_URL=` and no line at
+ * all are the same state for whoever has to supply it, and reading the first as
+ * an answer would let a consumer pass an empty string to a command whose whole
+ * subject is that nothing is invented — `inputs/env-file.ts` makes the same call
+ * for the same reason, one directory over.
+ */
+export function envExampleDeclarations(envExampleText: string): ReadonlyMap<string, string> {
+  const declared = new Map<string, string>();
   for (const line of envExampleText.split('\n')) {
     const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
     if (match === null) continue;
     const value = match[2]!.trim().replace(/^(['"])(.*)\1$/, '$2');
-    if (!/^https?:\/\/\S+$/.test(value)) continue;
-    if (!found.includes(match[1]!)) found.push(match[1]!);
+    if (value.length === 0) {
+      declared.delete(match[1]!);
+      continue;
+    }
+    declared.set(match[1]!, value);
+  }
+  return declared;
+}
+
+/** The same answer, read off a storefront directory. */
+export function envExampleDeclarationsOf(storefrontDir: string): ReadonlyMap<string, string> {
+  const path = join(storefrontDir, ENV_EXAMPLE_FILE);
+  if (!existsSync(path)) return new Map();
+  return envExampleDeclarations(readFileSync(path, 'utf8'));
+}
+
+export function backendAddressVariables(envExampleText: string): readonly string[] {
+  const found: string[] = [];
+  for (const [name, value] of envExampleDeclarations(envExampleText)) {
+    if (/^https?:\/\/\S+$/.test(value)) found.push(name);
   }
   return found;
 }

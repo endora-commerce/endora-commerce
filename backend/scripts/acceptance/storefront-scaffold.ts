@@ -36,6 +36,23 @@
  * the install differs, which is what makes the two one criterion rather than
  * two.
  *
+ * ## It supplies the inputs the command requires, and derives which those are
+ *
+ * `specs/117-instance-bring-up/` removed the storefront's invented defaults and
+ * gave `endora new storefront` a four-tier resolution ending in a refusal. This
+ * criterion had been invoking it with no inputs at all, which worked only while
+ * the defaults existed — so from the moment they went, the command refused, the
+ * run exited **2**, and all six assertions were unrun. That is the state this
+ * file exists to refuse, arriving in the file itself.
+ *
+ * It supplies them as **flags** — tier 1 — and the reason is in
+ * {@link resolveScaffoldInputs}: the copy's `.env` is what the command now
+ * writes and what `next build` and `next start` read, so a harness that placed
+ * that file instead would be supplying an artefact whose production is part of
+ * what it measures. Which inputs and which values are derived, from the
+ * storefront's own declaration and its own `.env.example`; a required input no
+ * derivation reaches is a refusal rather than a value this run makes up.
+ *
  * ## Exit codes
  *
  *   0 — the criterion is met.
@@ -69,6 +86,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { isRequiredGiven, type EnvironmentInput } from '@endora-commerce/contracts';
+
 import {
   compareToExpectation,
   evaluateA1,
@@ -79,6 +98,8 @@ import {
   exitCodeFor,
   exitCodeForExpectation,
   formatReport,
+  planScaffoldInputs,
+  SCAFFOLD_INPUT_STAND_INS,
   type AcceptanceExpectation,
   type AcceptanceMode,
   type AssertionResult,
@@ -144,25 +165,146 @@ function resolveMode(): { mode: AcceptanceMode; registry: string | null } {
   return { mode: 'registry', registry };
 }
 
+/**
+ * The inputs this run puts on the command line — tier 1 of the four
+ * (`specs/117-instance-bring-up/contracts/input-resolution.md` §1).
+ *
+ * **Tier 1 rather than tier 2, and the choice is about who authors the
+ * instance's `.env`.** The other route is to place that file in the target
+ * directory before the command runs, which the command supports and whose
+ * single-`.env` exception to its empty-directory rule exists for. It is the
+ * wrong route *here*: `.env` is what the command now writes, and `next build`
+ * and `next start` read it, so a harness that placed it would be supplying an
+ * artefact whose production is part of what it is measuring — A5 and A6 would
+ * stay green over a command that wrote nothing at all. A flag cannot do that: it
+ * reaches the instance only by the command having resolved it and written it
+ * down. Tier 2 is not thereby unexercised — `packages/cli/test/non-interactive-
+ * guarantee.test.ts` spawns the built command against a pre-placed `.env` and
+ * asserts `env-file=5` and that the operator's own comment survived the merge.
+ *
+ * Which inputs, and which value each gets, is {@link planScaffoldInputs}': the
+ * population is the storefront's own declaration and the values are the copy's
+ * own `.env.example`, so nothing here is a list of variable names. The flag
+ * spelling is `flagFor`'s, the command's own derivation, for the same reason.
+ */
+async function resolveScaffoldInputs(): Promise<readonly string[]> {
+  const {
+    backendAddressVariablesOf,
+    envExampleDeclarationsOf,
+    flagFor,
+    resolveReference,
+    storefrontDeclaredInputs,
+  } = (await import('@endora-commerce/cli')) as {
+    backendAddressVariablesOf: (storefrontDir: string) => readonly string[];
+    envExampleDeclarationsOf: (storefrontDir: string) => ReadonlyMap<string, string>;
+    flagFor: (name: string) => string;
+    resolveReference: (cwd: string) => { dir: string };
+    storefrontDeclaredInputs: (cwd: string) => Promise<readonly EnvironmentInput[]>;
+  };
+
+  // The **reference** storefront's, not the copy's: the copy does not exist yet,
+  // and these values are what brings it into existence. Everything downstream of
+  // the scaffold reads the copy's own file instead, which is the same bytes and
+  // the honest source once there is one.
+  const referenceDir = resolveReference(REPO_ROOT).dir;
+  const declared = await storefrontDeclaredInputs(REPO_ROOT);
+  if (declared.length === 0) {
+    refuse(
+      `${referenceDir} declares no environment input scoped to the storefront, so this run ` +
+        `cannot know what the command will demand of it`,
+    );
+  }
+  const required = declared
+    .filter((input) => isRequiredGiven(input, {}))
+    .map((input) => input.name);
+  const backend = process.env['PUBLIC_API_BASE_URL'] ?? null;
+  const plan = planScaffoldInputs({
+    required,
+    backendAddressVariables: backendAddressVariablesOf(referenceDir),
+    backend,
+    envExample: envExampleDeclarationsOf(referenceDir),
+    standIns: SCAFFOLD_INPUT_STAND_INS,
+  });
+
+  if (plan.unanswerable.length > 0) {
+    refuse(
+      `the storefront declares ${plan.unanswerable.join(', ')} required and nothing in this ` +
+        `checkout supplies a value: it is not a backend address, ` +
+        `${join(referenceDir, '.env.example')} does not declare it, and it is not in the ` +
+        `stand-in table. \`endora new storefront\` would refuse this invocation, so every ` +
+        `assertion below would be unrun — which is what happened when feature 117 removed the ` +
+        `storefront's invented defaults. Declare it in that file, or add a stand-in with the ` +
+        `reason and the condition that retires it.`,
+    );
+  }
+  if (plan.staleStandIns.length > 0) {
+    refuse(
+      `SCAFFOLD_INPUT_STAND_INS holds ${plan.staleStandIns.join(', ')}, which the tree now ` +
+        `answers for itself or no longer declares required. A stand-in that outlives its reason ` +
+        `is a value this run invents while reporting that it derived one — delete the entry.`,
+    );
+  }
+
+  // Names, never values: one of these is declared `secret` and the criterion has
+  // no business printing it, even when the value is a placeholder committed in
+  // this repository.
+  notes.push(
+    `supplied ${String(plan.values.size)} required input${plan.values.size === 1 ? '' : 's'} ` +
+      `on the command line — ${[...plan.values.keys()].join(', ')} — the population is ` +
+      `\`storefront/environment-inputs.mjs\`'s and the values are ` +
+      `\`storefront/.env.example\`'s, with the backend addresses pointed at ` +
+      `${backend ?? 'the copy\'s own example address, this run having booted no backend'}`,
+  );
+
+  return [...plan.values].flatMap(([name, value]) => [flagFor(name), value]);
+}
+
 /** The `endora` entry point, run from source so the criterion measures this branch. */
-function scaffold(target: string, registry: string | null): void {
+function scaffold(target: string, registry: string | null, inputs: readonly string[]): void {
   const tsx = join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx');
   if (!existsSync(tsx)) refuse(`${tsx} is missing — run \`pnpm install\` first`);
   const entry = join(REPO_ROOT, 'packages', 'cli', 'src', 'bin', 'endora.ts');
   if (!existsSync(entry)) refuse(`${entry} is not there, so there is no command to measure`);
   const result = run(
     tsx,
-    [entry, 'new', 'storefront', target, ...(registry === null ? [] : ['--registry', registry])],
+    [
+      entry,
+      'new',
+      'storefront',
+      target,
+      ...(registry === null ? [] : ['--registry', registry]),
+      // Explicit, though `spawnSync` gives the child pipes on both descriptors
+      // and the command would refuse to prompt anyway: the guarantee this run
+      // depends on is *"it never blocks on a question"*, and depending on it by
+      // accident of how the harness spawns is depending on it by accident.
+      '--non-interactive',
+      ...inputs,
+    ],
     { cwd: REPO_ROOT },
   );
   if (result.code !== 0) {
     refuse(`\`endora new storefront\` exited ${String(result.code)}:\n${result.output}`);
   }
+  // The command's own account of where each value came from (R2.1). Recorded
+  // rather than asserted — its `defaulted=0` is `packages/cli`'s own subject —
+  // but recorded, because a report that did not carry it would leave a reader of
+  // this run unable to tell a scaffold configured by five flags from one
+  // configured by a `.env` somebody left behind.
+  const provenance = result.output
+    .split('\n')
+    .find((line) => line.startsWith('[inputs] resolved:'));
   notes.push(
     registry === null
       ? `scaffolded into ${target}`
       : `scaffolded into ${target} with --registry ${registry}`,
   );
+  if (provenance === undefined) {
+    refuse(
+      `\`endora new storefront\` printed no \`[inputs] resolved:\` line, so this run cannot ` +
+        `say where the instance's configuration came from`,
+    );
+  }
+  notes.push(`the command reported ${provenance}`);
 }
 
 /**
@@ -451,7 +593,7 @@ async function main(): Promise<void> {
 
   const results: AssertionResult[] = [];
   try {
-    scaffold(target, registry);
+    scaffold(target, registry, await resolveScaffoldInputs());
 
     // A1/A2 read the copy, through the command's own derivation.
     const { outwardReferences, backendAddressVariablesOf } = (await import(

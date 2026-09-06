@@ -23,6 +23,27 @@
     "If this job ever stops booting one, A6 drifts to `unmeasured` and fails, which is",
     "the direction that keeps the headline claim honest.",
     "",
+    "SINCE 2026-09-06 THE RUN SUPPLIES THE INPUTS THE COMMAND REQUIRES, AND THE SIX",
+    "STATES BELOW ARE UNCHANGED BECAUSE OF IT RATHER THAN IN SPITE OF IT. Feature 117",
+    "removed the storefront's invented defaults and gave `endora new storefront` a",
+    "four-tier input resolution ending in a refusal. This criterion had been invoking",
+    "it with no inputs at all — correct only while the defaults existed — so from the",
+    "moment they went the command refused, the run exited 2, and all six assertions",
+    "were unrun. That is the state this record exists to refuse, and no comparison",
+    "against it could see it: a run that cannot measure never reaches the comparison.",
+    "It supplies them as flags, which is tier 1, and the choice is deliberate: the",
+    "copy's `.env` is what the command now writes and what `next build` and `next",
+    "start` read, so a harness that pre-placed that file — tier 2, which the command",
+    "also supports — would be supplying an artefact whose production is part of what",
+    "A5 and A6 measure. Which inputs, and what value each gets, is derived: the",
+    "population is `storefront/environment-inputs.mjs`, the values are",
+    "`storefront/.env.example`, and a required input neither reaches is a refusal",
+    "rather than a value the harness makes up. One is: `NEXT_PUBLIC_SITE_URL` is",
+    "declared required and is supplied by nothing in this tree — not `.env.example`,",
+    "not the Dockerfile's build arguments, not `build:storefront`, not",
+    "`compose.prod.yml` — so it carries a stand-in whose value is the storefront's own",
+    "fallback, and the entry retires the day any derivation reaches it.",
+    "",
     "SINCE 2026-09-06 A6 IS TWO BOOTS AND ITS `pass` MEANS MORE THAN IT DID. The state",
     "is unchanged and the claim behind it is not: the run now points the instance at the",
     "backend through the variables the instance's own `.env.example` declares, and then",
@@ -86,6 +107,11 @@
       "on": "2026-09-04",
       "what": "the record became per supply route; `tarball` keeps its six measured states, `registry` arrives unrun",
       "detail": "Feature 104 § 1.6. The criterion gained a second mode that installs from a registry rather than from packed tarballs, selected by ENDORA_NPM_REGISTRY. The tarball mode is unchanged in every respect — same six assertions, same states, still the default — and its block is the previous `assertions` object moved under it. Nothing about the two-way drift rule changed; what changed is which block a run is compared against."
+    },
+    {
+      "on": "2026-09-06",
+      "what": "the run supplies the five inputs the command requires; the six states are unchanged",
+      "detail": "Measured on this branch against a backend at http://127.0.0.1:3101: `mode=tarball pass=6 fail=0 unmeasured=0 of 6`, with the command reporting `[inputs] resolved: total=5 flags=5 env-file=0 prompted=0 generated=0 defaulted=0`. On master the same invocation exited 2 — `endora: 5 required inputs are not set, and this run cannot ask for them` — with every assertion unrun. Nothing about the six assertions changed and nothing about the two-way drift rule changed; what changed is that the criterion now hands the command the inputs it declares required, deriving both the population and the values from the storefront's own files. `backend/test/unit/acceptance/storefront-scaffold-assertions.test.ts` holds the derivation to that declaration in the fast suite, so the next required input added without a value the criterion can reach fails in seconds rather than after an install, a build and two boots."
     }
   ]
 }

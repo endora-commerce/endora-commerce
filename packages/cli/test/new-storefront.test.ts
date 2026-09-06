@@ -27,6 +27,7 @@ import { DECLARATION_FILE } from '../src/inputs/declaration.js';
 import { runNewStorefront } from '../src/new-storefront/index.js';
 import {
   backendAddressVariables,
+  envExampleDeclarations,
   memberDirectories,
   outwardReferences,
   resolveReference,
@@ -711,6 +712,41 @@ describe('the backend address variables are derived from the copy\'s own .env.ex
   it('answers with nothing when no declaration names a URL, rather than inventing a name', () => {
     expect(backendAddressVariables('PORT=3000\nLOCALE=en-US\n')).toEqual([]);
     expect(backendAddressVariables('')).toEqual([]);
+  });
+
+  /**
+   * The same file answers a second question — *what value does it give for a
+   * name* — which is how the `endora new storefront` acceptance criterion
+   * configures the instance it boots without carrying a list of variables of its
+   * own. One parser answers both, so the two cannot come to disagree about what
+   * the file says.
+   */
+  it('reads every declaration it makes, not only the ones naming a URL', () => {
+    expect([
+      ...envExampleDeclarations(
+        [
+          '# a comment',
+          'PORT=3000',
+          'export API_URL="http://host:3001"',
+          'REVALIDATE_SECRET=change-me',
+          'not an assignment',
+        ].join('\n'),
+      ),
+    ]).toEqual([
+      ['PORT', '3000'],
+      ['API_URL', 'http://host:3001'],
+      ['REVALIDATE_SECRET', 'change-me'],
+    ]);
+  });
+
+  it('reads a blank value as no declaration, in both questions', () => {
+    // `NEXT_PUBLIC_SITE_URL=` and no line at all are the same state for whoever
+    // has to supply it, so a consumer must not be handed an empty string by a
+    // command whose whole subject is that nothing is invented.
+    const text = 'BACKEND_BASE_URL=http://localhost:3001\nBACKEND_BASE_URL=\nCHANNEL=\n';
+    expect(envExampleDeclarations(text).has('BACKEND_BASE_URL')).toBe(false);
+    expect(envExampleDeclarations(text).has('CHANNEL')).toBe(false);
+    expect(backendAddressVariables(text)).toEqual([]);
   });
 
   it('names those variables in the next steps, and never one nothing reads', async () => {
