@@ -6,7 +6,7 @@
   "endora": {
     "type": "platform"
   },
-  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). Two further subpaths are host-internal and no module may name either (D-160.14): ./composition, the host composition surface, and ./migrations, the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5).",
+  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). Three further subpaths are host-internal and no module may name any of them (D-160.14): ./composition, the host composition surface; ./migrations, the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5); and ./lifecycle, the operator surface that drives the platform presence axis (specs/115-lifecycle-container-move/, D115-4).",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -44,6 +44,10 @@
     "./migrations": {
       "types": "./dist/migrations/index.d.ts",
       "default": "./dist/migrations/index.js"
+    },
+    "./lifecycle": {
+      "types": "./dist/lifecycle/index.d.ts",
+      "default": "./dist/lifecycle/index.js"
     },
     "./package.json": "./package.json"
   },

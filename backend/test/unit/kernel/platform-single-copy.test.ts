@@ -31,12 +31,22 @@
  * shim directory is there and holds nothing, is exit 2 from the probe rather
  * than a shorter list here.
  *
- * **A declared subpath the application does not shim is a third state and is
- * asserted as one** (D-160.14). `./composition` is host composition surface
- * reached only by the bare specifier — one route, so no duplication is possible
- * and there is nothing to compare. The probe reports it as `unshimmed` and this
- * file holds *both* lists to an expected set, so a subpath moving between them
- * — a shim directory deleted, a sixth barrel arriving unmeasured — fails.
+ * **A declared subpath the application does not reach is a third state and is
+ * asserted as one** (D-160.14). `./migrations` is one: the frozen historical
+ * prefix is data the platform carries with no second copy in the application, so
+ * there is one route and nothing to compare. The probe reports it as `unshimmed`
+ * and this file holds *both* lists to an expected set, so a subpath moving
+ * between them — a shim deleted, a new barrel arriving unmeasured — fails.
+ *
+ * `./composition` was in that third state until
+ * `specs/115-lifecycle-container-move/` Phase 2, and wrongly: the probe's
+ * application side was a walk of `backend/src/<subpath>/`, and that barrel
+ * re-exports out of `http/`, `kernel/` and `tenancy/` because a composition root
+ * does. So `registryCache` — reachable at
+ * `backend/src/kernel/lifecycle/registry-cache.ts` and at
+ * `@endora-commerce/platform/composition` — was two spellings compared by
+ * nothing. The probe's side two is now the union of the directory walk and the
+ * barrel's own targets, and the five published subpaths' 57 is unchanged by it.
  *
  * The population is read off the two module namespaces by
  * `test/helpers/platform-single-copy-probe.ts`, never listed here, so a barrel
@@ -111,31 +121,41 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
   const comparisons = measurement.comparisons;
 
   it('accounts for every subpath the host declares', () => {
-    // Seven today. Derived from the `exports` map by the probe, so a subpath
-    // arrives accounted for rather than silently unmeasured.
+    // Derived from the `exports` map by the probe, so a subpath arrives
+    // accounted for rather than silently unmeasured. The count is deliberately
+    // not written in prose beside the list: it moves with the map, and a derived
+    // number copied into a sentence is what goes stale (D-100).
     expect([...measurement.declared].sort()).toEqual([
       'commands',
       'composition',
       'events',
       'http',
       'kernel',
+      'lifecycle',
       'migrations',
       'tenancy',
     ]);
-    // Both host-internal subpaths are reached by the bare specifier alone
-    // (D-160.14): there is no `backend/src/composition/` and no
-    // `backend/src/migrations/`, and there will not be — the host's own
-    // composition root names the package, and the published baseline list
-    // (`specs/110-instance-repository/` R1.5) is data the platform carries with
-    // no second copy in the application. One route is not a duplication.
-    // Asserted rather than filtered out, so a *shimmed* subpath that lost its
-    // directory lands here and fails.
-    expect(measurement.unshimmed).toEqual(['composition', 'migrations']);
+    // `./migrations` is reached by the bare specifier alone: the frozen
+    // historical prefix (`specs/110-instance-repository/` R1.5) is data the
+    // platform carries with no second copy in the application, and one route is
+    // not a duplication. Asserted rather than filtered out, so a subpath that
+    // lost its application reach lands here and fails.
+    //
+    // `./composition` was in this list until `specs/115-lifecycle-container-move/`
+    // Phase 2, and it described the walk rather than the tree: that barrel
+    // re-exports out of `http/`, `kernel/` and `tenancy/`, so its application
+    // spelling is a shim under one of *those* directories and the old
+    // per-directory walk could not see it. `registryCache` — the module-scoped
+    // singleton whose second copy no `state-changed` message reaches — was
+    // reachable both ways throughout and compared by nothing.
+    expect(measurement.unshimmed).toEqual(['migrations']);
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
       'commands',
+      'composition',
       'events',
       'http',
       'kernel',
+      'lifecycle',
       'tenancy',
     ]);
     for (const entry of comparisons) {
@@ -202,14 +222,77 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
   // than the assertion relaxed: it is the whole point of this file that the
   // count is exact, and a `toBeGreaterThan` here would make the next real
   // duplication invisible.
-  it('shares 57 values, which is every one the duplication used to hold apart', () => {
+  it('shares 57 values across the five published subpaths, which is every one the duplication used to hold apart', () => {
     // Not a target and not a floor somebody chose: it is the number the
     // superseded `host-package-copy.test.ts` measured as *distinct*, over this
     // same population, and it is here so that the inversion is visible as one
     // rather than as a new test that happens to pass. It moves when a barrel
     // does — update it with the barrel, never to make a run green.
-    const total = comparisons.reduce((sum, entry) => sum + entry.shared.length, 0);
+    //
+    // It is summed over the **five published** subpaths and not over every
+    // comparison, which is what preserves that provenance: no host-internal
+    // subpath was in the superseded measurement at all, so folding one in would
+    // leave a number whose only remaining meaning is "whatever the tree adds up
+    // to today". Their coverage is asserted below, by name.
+    const published = new Set(['kernel', 'http', 'tenancy', 'commands', 'events']);
+    const total = comparisons
+      .filter((entry) => published.has(entry.subpath))
+      .reduce((sum, entry) => sum + entry.shared.length, 0);
     expect(total).toBe(57);
+  });
+
+  /**
+   * The host-internal half, and the reason it is asserted **before** anything
+   * moves (`specs/115-lifecycle-container-move/` Phase 2 step 4; R5.6).
+   *
+   * `./lifecycle` exists so that Phases 3–5 can move the manifest registry, the
+   * divergence parser and the five command bodies behind it. Each of those moves
+   * gives a value a second potential spelling, and a duplicated module-scope
+   * value fails **silently** — the second copy is simply empty. That has happened
+   * twice in this repository's packaging batches; the second time an off-state
+   * test registered a synthetic carrier into a second, empty
+   * `ShippingAdapterRegistry`, the shipment path took its "no carrier
+   * configured" branch, reported success, and a switched-off module read as
+   * present in the very file that exists to refuse that.
+   *
+   * `check:singleton-identity` does not reach any of this — its subject is
+   * *module* packages, and its first conjunct is false for the application by
+   * construction — so this is the whole guard. Proving the two spellings are one
+   * object now is what makes the later phases safe to do at all.
+   *
+   * Named rather than counted, for the reason the `blog` six are: a count passes
+   * just as happily over a population that has quietly shrunk to the harmless
+   * members.
+   */
+  it('shares the identity-bearing values the operator half is built on', () => {
+    const shared = new Set(
+      comparisons.flatMap((entry) => entry.shared.map((name) => `${entry.subpath}: ${name}`)),
+    );
+    for (const symbol of [
+      // Thrown by the orchestrator and caught by all five `module:*` commands,
+      // which map its `kind` to `contracts/cli-commands.md` §C-1's exit codes. A
+      // second class makes every `instanceof LifecycleError` false and every
+      // refusal an undifferentiated internal failure — exit 70 for a missing
+      // dependency, a lock already held, a cycle.
+      'lifecycle: LifecycleError',
+      // The one writer of `module_registrations`, and the holder of the
+      // lifecycle lock. Two of it is two locks.
+      'lifecycle: ModuleLifecycleOrchestrator',
+      // Holds the manifest graph a presence decision is computed over, and is
+      // installed once per process by `installGatingGraph`. A second copy is
+      // never installed, so it answers over an empty graph.
+      'lifecycle: ModuleGatingGraph',
+      // Module-scoped, in `kernel/lifecycle/`, and published on `./composition`
+      // rather than here — which is why the plan named it in this list and why
+      // it took the probe's second derivation to reach it: nothing compared it
+      // before. Its second copy subscribes to no `b2b:module:state-changed`
+      // message, so every gate reading it answers from a cache that never
+      // refreshes — the shape that let a deactivated module keep consuming its
+      // queue.
+      'composition: registryCache',
+    ]) {
+      expect(shared.has(symbol), `${symbol} is not shared`).toBe(true);
+    }
   });
 });
 

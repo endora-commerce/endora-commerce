@@ -647,7 +647,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 1946,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 1946 -> 1947.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 1947,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -702,7 +705,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 2070,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2071,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -727,7 +733,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `orders/src/admin/lib/paymentStatus.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1553 -> 1604.** 52 module
     // packages gain a `vitest.config.ts`, less the one module it excludes by argument.
-    files: 1604,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 1604 -> 1605.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 1605,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -755,7 +764,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1809 -> 2057.** +248 = 196
     // harness-free single-owner test files leave `backend/test/` and land inside the
     // module walk this check reads, plus the 52 new configurations.
-    files: 2057,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2057 -> 2058.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2058,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -869,7 +881,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.replace()` the slug predicate can read.
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
-    files: 5283,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 5283 -> 5284.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 5284,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -961,7 +976,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 2171,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2171 -> 2173.** The same one
+    // file — `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel
+    // (D115-4) — counted twice, this walk taking `layout.sourceRoots`, which lists
+    // the platform both as `platformRoot` and as a workspace package root.
+    files: 2173,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1077,7 +1096,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 2070,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2071,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1116,7 +1138,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 2070,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2071,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1155,7 +1180,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 2070,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2071,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1382,7 +1410,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 2070,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2071,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1552,7 +1583,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): files 2329 -> 2577.** +248 = 196
     // harness-free single-owner test files leave `backend/test/` into the module walk
     // roots this check reads, plus the 52 new configurations.
-    files: 2577,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2577 -> 2578.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2578,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -1584,7 +1618,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // a test.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1937 -> 1989.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 1989,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 1989 -> 1990.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 1990,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -1719,7 +1756,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 106 (`specs/106-module-owned-tests/`): sites 32288 -> 32496, files 1564
     // -> 1616.** 52 module packages gain a `vitest.config.ts`; `sites` is the literals
     // in them.
-    files: 1616,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 1616 -> 1617.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 1617,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -2081,7 +2121,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 4661,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 4661 -> 4663.** The same one
+    // file — `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel
+    // (D115-4) — counted twice, this walk taking `layout.sourceRoots`, which lists
+    // the platform both as `platformRoot` and as a workspace package root.
+    files: 4663,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -2380,6 +2424,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // that measures the generated `.npmrc`'s effect rather than its text.
     // Measured **without** `backend/.env`, which this walk counts and neither CI
     // nor a fresh worktree has: 7746 with it, 7745 without, in the same tree.
+    // **`specs/115-lifecycle-container-move/` Phase 2: 7744 -> 7745.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
     files: 7745,
     sites: null,
     sources: [],
@@ -2580,7 +2627,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 2070,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2071,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -2605,7 +2655,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `orders/src/admin/lib/paymentStatus.ts`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1794 -> 1846.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 1846,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 1846 -> 1847.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 1847,
     sites: 1471,
     sources: ['manifest-index'],
   },
@@ -2643,7 +2696,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on the publication branch: +2.** `backend/scripts/pack-gate.ts`
     // and `backend/scripts/lib/pack-assert.ts`; the test and the two changesets
     // are outside this walk's application population.
-    files: 2387,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2387 -> 2388.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2388,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -2734,7 +2790,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is unmoved: it declared no port, no registration and no `lazyPort`.
     // **Feature 106 (`specs/106-module-owned-tests/`): files 1890 -> 1942.** 52 module
     // packages gain a `vitest.config.ts`.
-    files: 1942,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 1942 -> 1943.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 1943,
     sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -3007,7 +3066,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 2070,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2071,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3094,7 +3156,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` — the published baseline list and its barrel — which this
     // walk reads because its population is the source roots, the platform's among
     // them.
-    files: 2070,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 2071,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3168,7 +3233,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // two-regime guard and its helper under `backend/test`.
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
-    files: 4322,
+    // **`specs/115-lifecycle-container-move/` Phase 2: 4322 -> 4323.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
+    files: 4323,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -3464,6 +3532,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // that measures the generated `.npmrc`'s effect rather than its text. This
     // walk is `git`'s listing of the whole checkout, so it takes a test file like
     // any other.
+    // **`specs/115-lifecycle-container-move/` Phase 2: 7804 -> 7805.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
     files: 7805,
     sites: null,
     sources: ['manifest-index'],
@@ -3590,6 +3661,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // that measures the generated `.npmrc`'s effect rather than its text. Its
     // changeset and its contract edit are outside this walk, whose population is
     // source-code comments and `docs/`.
+    // **`specs/115-lifecycle-container-move/` Phase 2: 5820 -> 5821.** One file:
+    // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
+    // host-internal address D115-4 gives `_lifecycle`'s operator surface.
     files: 5821,
     sites: null,
     sources: ['manifest-index'],

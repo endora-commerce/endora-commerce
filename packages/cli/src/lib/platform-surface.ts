@@ -77,6 +77,52 @@ export const PUBLISHED_SUBPATHS: readonly string[] = [
   'events',
 ];
 
+/**
+ * The subpaths the `exports` map declares and **no published barrel carries**
+ * (D-160.14), each with the reason it is on this side of the line.
+ *
+ * A subpath here is declared, so `node` and `tsc` resolve it for the host, the
+ * test kit and the composition root — and it is not public API, so
+ * {@link resolveHostSpecifier} answers a module's reach into one with
+ * `host-internal-subpath` rather than with a pass. **The reason is the member**:
+ * a set of bare names is a list somebody grows, and this whole class is a
+ * judgement about who may name a surface, which no name records.
+ *
+ * It is kept apart from {@link PUBLISHED_SUBPATHS} rather than appended to it
+ * because the two answer different questions, and `host-package.md` §2.7.5(a) is
+ * that merging them is the mistake: the published list is what a **symbol** is
+ * judged against, and an entry there would publish `composeModules` out of
+ * `kernel/compose.ts` for every reach at that file — a module's relative one
+ * included — while changing nothing `check:platform-surface` prints.
+ *
+ * It lives here rather than in a test because by the time it had two members it
+ * had two copies, in two test files, neither carrying a per-member reason. Two
+ * independently written answers to "which subpaths are host-internal" are two
+ * answers waiting to disagree, in the estate whose own rule that is (D-100).
+ */
+export const HOST_INTERNAL_SUBPATHS: Readonly<Record<string, string>> = {
+  composition:
+    'the host composition surface (D-160.14, feature 109 T010): the symbols a composition ' +
+    'root needs — build the server, open the container, register the ORM, compose the ' +
+    'sub-kernels, prime the registry cache, establish a tenant context. Reachable by a ' +
+    'package that is not a module and nameable by no module at all, because a module that ' +
+    'could name it could compose the platform that composes it.',
+  migrations:
+    'the frozen historical prefix an execution order is computed from ' +
+    '(`specs/110-instance-repository/contracts/instance-migration-order.md` R1.5). It is the ' +
+    "platform's own claim about its schema history, which a client receives by installing " +
+    'the platform and corrects by `pnpm update` — never by writing a migration into it.',
+  lifecycle:
+    "`_lifecycle`'s operator surface (D115-4, `specs/115-lifecycle-container-move/`): the " +
+    'orchestrator, the dependency and gating graphs, the lifecycle lock, the manifest loader ' +
+    "and the module plugin. Host-internal for `./composition`'s own reason — this surface " +
+    '*drives* the presence axis, so a module that could name it could install, uninstall, ' +
+    'enable or disable its siblings. D-160.11 refused to **publish** `_lifecycle`, and that ' +
+    'is an argument against publishing a surface rather than against giving it an address: ' +
+    'without one the application reaches it by relative path into ' +
+    "`packages/platform/dist/`, which resolves in this checkout and in no client's.",
+};
+
 /** The file a published directory's surface is written in. */
 export function barrelKeyOf(subpath: string): string {
   return posix.join(subpath, 'index.ts');
