@@ -79,12 +79,30 @@ describe('the test kit declares no module package', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('is private, and publishes the subpaths the contract declares', () => {
+  /**
+   * R1.1's other half — the name and the subpath set.
+   *
+   * It asserted `private: true` as well until the owner's publication ruling of
+   * 2026-09-05 (D-208) made every package in this repository publishable, which
+   * is what FR-001 asks for: the kit's whole value is that a module package
+   * *outside* this checkout can install it, and a private kit cannot be. The
+   * clause is not replaced by its inverse here, and deliberately —
+   * `check:release-intent` already judges every versionable member's
+   * publication state (`unpublished-package` for a private one,
+   * `incomplete-public-package` and `restricted-public-package` for one that is
+   * public and unfit), so an assertion here would be a second derivation of one
+   * fact, waiting to disagree with the first.
+   *
+   * What publication makes load-bearing instead is the map below. Once a
+   * consumer installs the tarball, the `exports` map is the **whole** of what
+   * it can reach, so the absent root export is a decision that consumer feels
+   * rather than a house style. Nothing else in the estate asserts it:
+   * `pack-gate` asks whether each declared subpath's target is *in* the
+   * tarball, never which subpaths ought to be declared.
+   */
+  it('names the kit, and publishes the subpaths the contract declares', () => {
     const manifest = kitManifest();
     expect(manifest.name).toBe('@endora-commerce/test-kit');
-    // Nothing here is published (D-160.5); the acceptance criterion uses
-    // tarballs.
-    expect(manifest.private).toBe(true);
     const subpaths = Object.keys(manifest.exports ?? {});
     // R1.1 — and **no root export**: a caller names the seam it wants, so that
     // `./server` and `./database` can be resolved by tests that need only one.

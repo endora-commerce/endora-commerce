@@ -1018,7 +1018,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // contracts. This walk takes all four, they being documents. Re-derived on this branch's own
     // tree rather than carried over; the guard this merge request adds creates no
     // file, so the whole of the +4 is that merge's.
-    files: 1247,
+    // **`specs/110-instance-repository/`'s two contracts landed on `master`: +2.**
+    // !1456 added `contracts/instance-migration-order.md` and
+    // `contracts/instance-tree.md`, and re-recorded nothing. Neither is this
+    // branch's: it changes two existing test files and creates none, so the whole
+    // of the +2 is that merge's, and the record was already stale on `master`
+    // before this branch existed. Re-recorded here because this is the first run
+    // of the census since, and a census that cannot reach `0 drifted` stops being
+    // read.
+    files: 1249,
     sites: 12,
     sources: [],
   },
@@ -2316,7 +2324,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.changeset/*.md` is in it.
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
-    files: 7733,
+    // **`specs/110-instance-repository/`'s two contracts landed on `master`: +2.**
+    // !1456 added `contracts/instance-migration-order.md` and
+    // `contracts/instance-tree.md` and re-recorded nothing; this walk is the whole
+    // tree, so it takes both. None of it is this branch's — it edits three existing
+    // files and creates none — so the record was already stale on `master` before
+    // this branch existed, and this is the first run of the census since.
+    // **A worktree needs its own `backend/.env`, and this walk counts it.** The
+    // observed number in such a tree is 7736, one above what is recorded here:
+    // `.env` is git-ignored and is not in `SKIPPED_DIRECTORIES`, so a checkout that
+    // has one reads one more file than a CI job's does. Measured both ways in the
+    // same tree by moving the file aside — 7736 with it, 7735 without — and the
+    // recorded value is the clean-checkout one, because that is what the pipeline
+    // reads and baking a local file into the record would drift it for everybody
+    // else.
+    // **And +1 for this merge request's own changeset**, which it carries because
+    // it edits a file under `packages/`: this walk's population is the whole
+    // repository and `.changeset/*.md` is in it. That is the ordinary per-changeset
+    // move, arriving in the two walks that count every file.
+    files: 7736,
     sites: null,
     sources: [],
   },
@@ -3361,7 +3387,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // module folders, and `.changeset/*.md` is one of them.
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
-    files: 7792,
+    // **`specs/110-instance-repository/`'s two contracts landed on `master`: +2.**
+    // !1456 added `contracts/instance-migration-order.md` and
+    // `contracts/instance-tree.md` and re-recorded nothing. None of it is this
+    // branch's, which edits three existing files and creates none, so the record
+    // was already stale on `master`. Unlike `check-nul-bytes` above, this walk is
+    // tracked source rather than every file on disk, so a worktree's own
+    // `backend/.env` does not move it — measured both ways, 7794 either way.
+    // **And +1 for this merge request's own changeset.** This walk reads every
+    // file in the checkout to decide which are module folders, and `.changeset/*.md`
+    // is one of them; `check-doc-snippets` above does not move, its population being
+    // `docs/docs` and `specs` rather than the tree.
+    files: 7795,
     sites: null,
     sources: ['manifest-index'],
   },
