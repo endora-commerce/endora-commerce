@@ -1032,6 +1032,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+6 from `master`, none of it this branch's.** `specs/116-zero-series-versioning/`
     // landed with six files — spec, plan, research, data model and two contracts —
     // and re-recorded nothing.
+    // **+2, none of it this branch's.** `specs/110-instance-repository/`'s two
+    // contracts landed on `master` without re-recording this walk; measured by
+    // taking this branch's two files away and re-running, which left the +2.
+    // **+6, none of it this branch's.** `specs/116-zero-series-versioning/`'s six
+    // files landed on `master`; the two root licence files this branch adds are
+    // under neither declared documentation root, so this walk does not see them.
     files: 1255,
     sites: 12,
     sources: [],
@@ -2362,7 +2368,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+7 from `master`.** The six zero-series specification files plus the
     // public-flip fix's changeset. This walk is the whole repository, so it takes
     // the changeset the document walk does not.
-    files: 7742,
+    // **+3: two files from this branch, one already on `master`.** The branch adds
+    // `LICENSE` and `LICENSE-COMMERCIAL.md` at the repository root. Separated by
+    // measuring twice, with and without them.
+    // **+8: six specification files and two changesets from beneath, plus this
+    // branch's own two.** The recorded value predates two merges and the stacking
+    // on the licence-and-peers branch; measured on the combined tree, not resolved
+    // from either side.
+    files: 7744,
     sites: null,
     sources: [],
   },
@@ -3437,7 +3450,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // nine the neighbouring whole-repository walk takes.
     // **+7 from `master`**, the same six specification files and one changeset the
     // neighbouring whole-repository walk takes.
-    files: 7802,
+    // **+4: two files from this branch, two already on `master`.** Same two root
+    // licence files; this walk and `check-nul-bytes` disagree on the residue
+    // because their declared exclusions differ, not because the tree does.
+    // **+8**, the same eight the neighbouring whole-repository walk takes.
+    files: 7804,
     sites: null,
     sources: ['manifest-index'],
   },
