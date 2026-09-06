@@ -134,6 +134,107 @@ export function evaluateA4(
       };
 }
 
+/** What one A6 boot answered: a status line, or `null` where it never answered. */
+export interface BootObservation {
+  /** The backend the run configured, or `null` where it configured none. */
+  readonly backend: string | null;
+  /** The status `/` answered with under that configuration. */
+  readonly status: number | null;
+  /** The status `/` answered with while pointed at an address nothing listens on. */
+  readonly probeStatus: number | null;
+  /** That address, so the report names what was probed. */
+  readonly probeAddress: string;
+  /** The server's own output, for a boot that never answered. */
+  readonly output?: string;
+}
+
+/**
+ * A6 — the built storefront boots, **and the run can tell what it booted
+ * against**.
+ *
+ * The second half is not decoration. The storefront's fetchers read their
+ * backend out of the environment and fall back to a compiled-in
+ * `http://localhost:3001` when nothing names one, so a criterion that only reads
+ * the status line answers *"something served a page"* while claiming *"it served
+ * against the backend this run booted"*. Those came apart on `master`: the
+ * harness configured `PUBLIC_API_BASE_URL`, a variable no file in the storefront
+ * has ever read, and A6 was therefore green whenever the run's backend happened
+ * to sit on the fallback address and red whenever it sat anywhere else — for a
+ * reason that is the harness's and not the criterion's. It cost one whole
+ * investigation before anybody looked at which variable the subject reads.
+ *
+ * So a pass takes two boots. The configured one has to answer below 500, and a
+ * **probe** with the same variables pointed at an address nothing listens on has
+ * to answer 5xx. A probe that answers anything else is `unmeasured` — never a
+ * pass, never a red criterion — because the run has just demonstrated that its
+ * configuration reaches nothing, which is exit 2's whole subject (issue #113).
+ *
+ * Its bound, stated rather than discovered: the probe reads a storefront whose
+ * `/` fails when its backend is unreachable. A home page made resilient to that
+ * would make this assertion refuse rather than pass, which is the correct
+ * direction — at that point `/`'s status no longer says which backend was
+ * reached, and the criterion needs a different observation rather than a
+ * cheerful one.
+ */
+export function evaluateA6(observed: BootObservation): AssertionResult {
+  const id = 'A6';
+  if (observed.backend === null || observed.backend.length === 0) {
+    return {
+      id,
+      state: 'unmeasured',
+      detail:
+        'no backend was configured, so a boot would measure the storefront\'s error page rather ' +
+        'than the storefront',
+    };
+  }
+  if (observed.status === null) {
+    return {
+      id,
+      state: 'fail',
+      detail: `next start did not answer in time: ${(observed.output ?? '').slice(-400)}`,
+    };
+  }
+  if (observed.status >= 500) {
+    return {
+      id,
+      state: 'fail',
+      detail:
+        `next start answered / with ${String(observed.status)} against ${observed.backend}` +
+        (observed.output === undefined ? '' : `: ${observed.output.slice(-400)}`),
+    };
+  }
+  if (observed.probeStatus === null) {
+    return {
+      id,
+      state: 'unmeasured',
+      detail:
+        `next start answered / with ${String(observed.status)} against ${observed.backend}, and ` +
+        `the discrimination probe never answered at all — so nothing here distinguishes that ` +
+        `answer from the storefront's compiled-in fallback address`,
+    };
+  }
+  if (observed.probeStatus < 500) {
+    return {
+      id,
+      state: 'unmeasured',
+      detail:
+        `next start answered / with ${String(observed.status)} against ${observed.backend}, and ` +
+        `also with ${String(observed.probeStatus)} while configured for ${observed.probeAddress}, ` +
+        `where nothing listens. The configuration this run wrote therefore reaches nothing, and ` +
+        `the first answer is the storefront's compiled-in fallback rather than a measurement of ` +
+        `the backend`,
+    };
+  }
+  return {
+    id,
+    state: 'pass',
+    detail:
+      `next start answered / with ${String(observed.status)} against ${observed.backend}, and ` +
+      `with ${String(observed.probeStatus)} against ${observed.probeAddress} where nothing ` +
+      `listens — so the answer is the configured backend's and not a fallback's`,
+  };
+}
+
 /** A build, an install or a boot: exit 0 is a pass, anything else the tail of its output. */
 export function evaluateProcess(
   id: string,
