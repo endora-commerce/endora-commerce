@@ -23,7 +23,7 @@
 import {
   buildErrorTranslationTargets,
   type ErrorTranslationTarget,
-} from '@endora-commerce/mod-i18n/backend';
+} from '../../src/kernel/i18n/error-translation.js';
 
 import { DISCOVERED_MANIFESTS } from '../../src/manifest-index.generated.js';
 

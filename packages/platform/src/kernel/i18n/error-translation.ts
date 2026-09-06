@@ -1,3 +1,43 @@
+/**
+ * Which bundle holds which error code's sentence — the **routing**, derived
+ * from the modules' own `errorCodes` declarations.
+ *
+ * **This file is the platform's and was `_i18n`'s until
+ * `specs/117-instance-bring-up/` FR-030.** The line it moved across is the one
+ * that matters and is worth stating in place: *the routing is derived from
+ * manifests, the translation is a service*. `translateErrorMessage` — the other
+ * half of the error envelope's i18n injection — resolves a key against a bundle
+ * and stays `_i18n`'s, correctly, reached through that module's own registration.
+ * Nothing here translates anything. It reads `manifest.errorCodes` and answers
+ * with `{ moduleId, key }` pairs, and its input is the **resolved manifest set**,
+ * which is a composition-root input rather than anything `_i18n` owns.
+ *
+ * Four measured facts put it here rather than in the module (T040b's criterion
+ * 8, the test `absolutizePublicUrl` moved out of `email` under):
+ *
+ *   1. `_i18n` had **no consumer of it inside its own module** — its barrel
+ *      re-exported it and nothing else in the package called it.
+ *   2. Its callers are the two composition roots and one host check script.
+ *   3. Its input type restates `RegisteredManifestEntry`, a host type, and says
+ *      so — it was restated because a module may not name another module's file.
+ *   4. Its output feeds `ErrorEnvelopeOptions.errorTranslationTargets`, whose
+ *      type the platform already declares in `http/error-envelope.ts`.
+ *
+ * A **port** was the alternative and is structurally unavailable, not merely
+ * unattractive: the production root calls this *before* `composeModules`, so
+ * there is no container to resolve one from, and moving the call after
+ * composition would move the collision warning with it — a diagnostic that is
+ * logged where it is precisely so an operator reads it before the first request
+ * that renders wrong. Gating a derivation over a root's own input on a module's
+ * effective state would also be an answer to a question nobody asked.
+ *
+ * It sits beside `request-language.ts` because that file is the same kind of
+ * thing: the producer of another `ErrorEnvelopeOptions` member, platform-owned,
+ * injected by a root. It is on **no barrel** — no module calls it, so
+ * `specs/080-f4-real-scope/contracts/host-package.md` §1.3 classifies it
+ * *unreached* and publishing it would put a host-only name into the platform's
+ * module-facing contract.
+ */
 export interface ErrorTranslationTarget {
   moduleId: string;
   /**
@@ -16,12 +56,17 @@ export interface ErrorTranslationTarget {
 /**
  * One manifest, and the file it was declared in.
  *
- * Structurally what `RegisteredManifestEntry` already is, restated here rather
- * than imported: `_lifecycle` owns that type and a module may not name a file in
- * another module's directory. The `filePath` is not decoration — it is what
- * §3.1 rule 3 requires a collision report to name for **every** claimant, and
- * with 67 modules a module id alone does not tell an operator which package on
- * their disk to look at.
+ * Structurally what `RegisteredManifestEntry` already is, and still restated
+ * rather than imported. The original reason — *"`_lifecycle` owns that type and
+ * a module may not name a file in another module's directory"* — retired with
+ * the move; the restatement stays for a second reason that did not, and that is
+ * now the load-bearing one: this function's callers include a **check script**
+ * that builds its declarations from source text rather than from a composed
+ * registry, so the parameter has to be the narrowest shape the answer needs and
+ * not whatever `RegisteredManifestEntry` happens to carry. The `filePath` is
+ * not decoration — it is what §3.1 rule 3 requires a collision report to name
+ * for **every** claimant, and a module id alone does not tell an operator which
+ * package on their disk to look at.
  */
 export interface ErrorCodeDeclarationSource {
   readonly manifest: {
@@ -47,7 +92,17 @@ export interface ErrorCodeCollision {
   readonly claims: readonly ErrorCodeClaim[];
 }
 
-export interface ErrorTranslationTargets {
+/**
+ * The whole answer: the routing, and the codes it refuses to route.
+ *
+ * Named `Routing` rather than `Targets` since the move, and the rename is not
+ * cosmetic: `http/error-envelope.ts` declares an `ErrorTranslationTargets` of
+ * its own — the record this one's `targets` member is assigned to — and two
+ * types of one name inside one package, one being the input to the other's
+ * consumer, is a confusion with a real cost. Nothing outside this package ever
+ * named the aggregate, so the rename cost one file.
+ */
+export interface ErrorTranslationRouting {
   readonly targets: Readonly<Record<string, ErrorTranslationTarget>>;
   readonly collisions: readonly ErrorCodeCollision[];
 }
@@ -97,7 +152,7 @@ export interface ErrorTranslationTargets {
  */
 export function buildErrorTranslationTargets(
   manifests: readonly ErrorCodeDeclarationSource[],
-): ErrorTranslationTargets {
+): ErrorTranslationRouting {
   const claimsByCode = new Map<string, ErrorCodeClaim[]>();
   for (const entry of manifests) {
     for (const declaration of entry.manifest.errorCodes ?? []) {

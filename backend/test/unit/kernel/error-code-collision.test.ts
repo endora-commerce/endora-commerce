@@ -6,7 +6,7 @@ import {
   buildErrorTranslationTargets,
   describeErrorCodeCollisions,
   type ErrorCodeDeclarationSource,
-} from '@endora-commerce/mod-i18n/backend';
+} from '../../../src/kernel/i18n/error-translation.js';
 import { packageModuleManifestsUnder } from '../../../src/packages/package-runtime.js';
 
 /**

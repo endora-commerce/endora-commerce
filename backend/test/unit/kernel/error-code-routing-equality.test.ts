@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { buildErrorTranslationTargets } from '@endora-commerce/mod-i18n/backend';
+import { buildErrorTranslationTargets } from '../../../src/kernel/i18n/error-translation.js';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import {
   CHAIN_ANSWERS_AS_MODULE_IDS,

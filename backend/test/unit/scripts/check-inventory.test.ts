@@ -65,7 +65,7 @@ import {
   reconcileEnumeration,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
-import { buildErrorTranslationTargets } from '@endora-commerce/mod-i18n/backend';
+import { buildErrorTranslationTargets } from '../../../src/kernel/i18n/error-translation.js';
 import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
 import { checkFixtureSubstitution } from '../../../scripts/check-fixture-substitution.js';
 import {
