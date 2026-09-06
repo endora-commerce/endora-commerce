@@ -23,6 +23,8 @@ import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { TOKEN_VARIABLE } from './npmrc.js';
 import {
+  backendAddressVariablesOf,
+  ENV_EXAMPLE_FILE,
   memberDirectories,
   resolveReference,
   StorefrontHostError,
@@ -84,7 +86,7 @@ export async function runNewStorefront(
   });
 
   if (options.dryRun === true) {
-    return { reference, targetDir, plan, dryRun: true, nextSteps: nextSteps(targetDir, plan) };
+    return { reference, targetDir, plan, dryRun: true, nextSteps: nextSteps(targetDir, plan, reference) };
   }
 
   for (const file of plan.files) {
@@ -99,7 +101,7 @@ export async function runNewStorefront(
     targetDir,
     plan,
     dryRun: false,
-    nextSteps: nextSteps(targetDir, plan),
+    nextSteps: nextSteps(targetDir, plan, reference),
   };
 }
 
@@ -127,7 +129,11 @@ function refuseOccupiedDirectory(targetDir: string): void {
  * published and became wrong the moment something was — instructions in a copy a
  * client owns outright are not something anybody comes back to correct.
  */
-function nextSteps(targetDir: string, plan: StorefrontPlan): readonly string[] {
+function nextSteps(
+  targetDir: string,
+  plan: StorefrontPlan,
+  reference: StorefrontReference,
+): readonly string[] {
   const published = plan.ranges.length;
   const ranges = `the ${String(published)} \`@endora-commerce/*\` ${
     published === 1 ? 'range' : 'ranges'
@@ -146,10 +152,33 @@ function nextSteps(targetDir: string, plan: StorefrontPlan): readonly string[] {
         `registry", read the last line of pnpm's output before believing it — the registry ` +
         `answers an expired credential with 404, in the same words it uses for a package that ` +
         `genuinely does not exist.`;
+  // The names are the copy's own declaration, never a pair written here: this
+  // step used to name `PUBLIC_API_BASE_URL`, which nothing in the storefront
+  // reads, and the fetchers fall back to `http://localhost:3001` in silence — so
+  // an author who followed it had a storefront talking to nothing in particular
+  // and no error anywhere to say so.
+  const backendVariables = backendAddressVariablesOf(reference.dir);
+  // Next's own convention, not ours: a `NEXT_PUBLIC_` variable is inlined into
+  // the client bundle by `next build`, so setting it afterwards changes nothing
+  // a browser sees. Saying which of the copy's variables that is costs a prefix
+  // test and saves the author a rebuild they would otherwise discover.
+  const baked = backendVariables.filter((name) => name.startsWith('NEXT_PUBLIC_'));
+  const backendStep = (): string =>
+    backendVariables.length === 0
+      ? `point the copy at your backend. Its fetchers fall back to a compiled-in address when ` +
+        `the environment names none, so an instance that sets nothing talks to that address ` +
+        `rather than refusing.`
+      : `set ${backendVariables.join(' and ')} (and the rest of ${ENV_EXAMPLE_FILE}) to the ` +
+        `backend this storefront talks to. Its fetchers fall back to a compiled-in address when ` +
+        `the environment names none, so an instance that sets none of them talks to that ` +
+        `address rather than refusing.${baked.length === 0 ? '' : ` Next inlines ${baked.join(
+          ' and ',
+        )} into the browser bundle at build time, so set ${
+          baked.length === 1 ? 'it' : 'them'
+        } before \`pnpm run build\` rather than after.`}`;
   return [
     install,
-    `set PUBLIC_API_BASE_URL (and the rest of .env.example) to the backend this storefront ` +
-      `talks to. Nothing in the copy points at a backend.`,
+    backendStep(),
     `pnpm run build — it runs \`themes:generate\`, \`next build\` and \`check:themes\`.`,
     `this storefront is yours now. There is no kit to upgrade and no shell to keep in step: a ` +
       `fix to the platform reaches you through \`@endora-commerce/contracts\`, where a wire ` +

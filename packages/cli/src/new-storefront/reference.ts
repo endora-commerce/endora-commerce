@@ -314,3 +314,58 @@ function referencesIn(text: string): readonly RawReference[] {
   }
   return found;
 }
+
+/** The file a storefront declares its environment in, and the copy carries verbatim. */
+export const ENV_EXAMPLE_FILE = '.env.example';
+
+/**
+ * The variables an instance sets to name the backend it talks to.
+ *
+ * **Derived from the storefront's own `.env.example`, never written down here.**
+ * The reference storefront reads two of them — `BACKEND_BASE_URL` server-side
+ * and `NEXT_PUBLIC_API_BASE_URL` baked into the browser bundle — and both are
+ * declared in that file, beside a port, a sales channel, a locale and a shared
+ * secret. A sentence carrying the two names would be a copy of a fact the
+ * storefront already states, going stale the first time one is renamed (D-100),
+ * and the guidance this replaces is what that costs: it named
+ * `PUBLIC_API_BASE_URL`, which no file in the copy has ever read, so an operator
+ * who followed it got a storefront quietly talking to the fallback its fetchers
+ * compile in.
+ *
+ * The predicate is *a declaration whose value is an absolute `http(s)` URL*,
+ * which is what a backend address is and what none of the file's other keys is.
+ * Its bound is worth stating: a future URL-valued key that is **not** a backend
+ * — a CDN, an object store — would be swept in with them. That direction is the
+ * safe one for both readers. The scaffold's next step tells its author to set
+ * them and the author is looking at the file; the acceptance criterion sets them
+ * all to its backend and then *proves* the setting was load-bearing with a probe
+ * against an address nothing listens on, so a wrongly-included name cannot turn
+ * into a green.
+ *
+ * Nothing is invented when the file declares no URL at all: the answer is empty
+ * and each caller says so in its own words.
+ */
+export function backendAddressVariables(envExampleText: string): readonly string[] {
+  const found: string[] = [];
+  for (const line of envExampleText.split('\n')) {
+    const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (match === null) continue;
+    const value = match[2]!.trim().replace(/^(['"])(.*)\1$/, '$2');
+    if (!/^https?:\/\/\S+$/.test(value)) continue;
+    if (!found.includes(match[1]!)) found.push(match[1]!);
+  }
+  return found;
+}
+
+/**
+ * The same answer, read off a storefront directory.
+ *
+ * A storefront with no `.env.example` declares no environment, which is an empty
+ * answer rather than a refusal — `resolveReference` has already established that
+ * the directory is a Next application, and this file is not what makes it one.
+ */
+export function backendAddressVariablesOf(storefrontDir: string): readonly string[] {
+  const path = join(storefrontDir, ENV_EXAMPLE_FILE);
+  if (!existsSync(path)) return [];
+  return backendAddressVariables(readFileSync(path, 'utf8'));
+}
