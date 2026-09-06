@@ -16,6 +16,7 @@ import { SocialLoginButtons } from '../../../components/SocialLoginButtons';
 import { getServerContext } from '../../../lib/server-context';
 import { getFederatedSignInProviders } from '../../../lib/api/federated-sign-in';
 import type { Metadata } from 'next';
+import { backendBaseUrl } from '../../../lib/env.mjs';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -86,7 +87,7 @@ export default async function LoginPage({
           </div>
         </form>
         <SocialLoginButtons
-          backendBaseUrl={process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001'}
+          backendBaseUrl={backendBaseUrl()}
           next={nextPath}
           locale={locale}
           modulePresent={mfaPresent}

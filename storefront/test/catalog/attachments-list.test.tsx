@@ -70,7 +70,7 @@ describe('AttachmentsList — SSR contract', () => {
     );
     expect(html).toContain('Certificate');
     expect(html).toContain('CE Marking');
-    expect(html).toContain('href="http://localhost:3001/files/ce.pdf"');
+    expect(html).toContain('href="http://api.test/files/ce.pdf"');
   });
 
   it('rebases a host-relative Assets Library URL onto the API origin', () => {
@@ -90,7 +90,7 @@ describe('AttachmentsList — SSR contract', () => {
       />,
     );
     expect(html).toContain(
-      'href="http://localhost:3001/assets/file/dd02c65e-6d1c-454d-bae4-1bf016c2e47e"',
+      'href="http://api.test/assets/file/dd02c65e-6d1c-454d-bae4-1bf016c2e47e"',
     );
     expect(html).not.toContain('href="/assets/file/');
   });

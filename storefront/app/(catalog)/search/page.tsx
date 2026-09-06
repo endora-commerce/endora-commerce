@@ -6,6 +6,7 @@ import { recordPhrase } from '../../../lib/api/search';
 import { getServerContext } from '../../../lib/server-context';
 import { Hook } from '../../../components/Hook';
 import { seo } from './seo';
+import { backendBaseUrl } from '../../../lib/env.mjs';
 
 /**
  * Indexable (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010/FR-012). The
@@ -42,8 +43,7 @@ export default async function SearchPage(props: PageProps): Promise<ReactNode> {
   const q = typeof params['q'] === 'string' ? params['q'].trim() : '';
 
   if (q.length > 0) {
-    const apiBaseUrl =
-      process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
+    const apiBaseUrl = backendBaseUrl();
     const { ctx } = await getServerContext();
     try {
       const result = await listProducts({ q }, ctx);

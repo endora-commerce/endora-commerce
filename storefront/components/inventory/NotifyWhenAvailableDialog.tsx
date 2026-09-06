@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { publicApiBaseUrl } from '../../lib/env.mjs';
 
 /**
  * NotifyWhenAvailableDialog — feature 010 / US6.
@@ -16,7 +17,7 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react';
  * so the backend can attach the row to the customer account.
  */
 
-const apiBase = process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
+const apiBase = publicApiBaseUrl();
 
 interface Labels {
   cta: string;

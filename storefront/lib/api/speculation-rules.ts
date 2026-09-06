@@ -3,6 +3,8 @@
  * module (`storefront.speculation_rules.*`). Read server-side in the root
  * layout to decide whether to emit the Speculation Rules script.
  */
+
+import { backendBaseUrl } from '../env.mjs';
 export interface SpeculationRulesConfig {
   enabled: boolean;
   /** conservative | moderate | eager */
@@ -11,7 +13,7 @@ export interface SpeculationRulesConfig {
 
 export async function getSpeculationRulesConfig(): Promise<SpeculationRulesConfig> {
   const fallback: SpeculationRulesConfig = { enabled: true, eagerness: 'moderate' };
-  const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
+  const baseUrl = backendBaseUrl();
   try {
     const res = await fetch(`${baseUrl}/api/v1/storefront/speculation-rules`, {
       cache: 'no-store',

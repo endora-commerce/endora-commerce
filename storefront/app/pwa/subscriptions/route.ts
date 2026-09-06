@@ -7,9 +7,11 @@
  * sales-channel header.
  */
 
+import { backendBaseUrl } from '../../../lib/env.mjs';
+
 export const dynamic = 'force-dynamic';
 
-const baseUrl = (): string => process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
+const baseUrl = (): string => backendBaseUrl();
 
 function forwardHeaders(request: Request): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };

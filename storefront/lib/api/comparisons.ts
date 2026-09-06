@@ -5,6 +5,7 @@ import type {
   ComparisonSharedView,
   ComparisonDisplayMode,
 } from '@endora-commerce/contracts';
+import { publicApiBaseUrl } from '../env.mjs';
 
 /**
  * Client-side fetch helpers for the comparisons backend module
@@ -17,8 +18,7 @@ import type {
  * already rely on.
  */
 
-const apiBase =
-  process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
+const apiBase = publicApiBaseUrl();
 
 export class ComparisonApiError extends Error {
   constructor(

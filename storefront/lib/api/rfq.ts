@@ -1,4 +1,5 @@
 import { apiGetAuthed, apiMutate } from './mutations';
+import { backendBaseUrl } from '../env.mjs';
 
 /**
  * Storefront Quote Requests bindings — feature 008 workflow.
@@ -246,7 +247,7 @@ export async function getStorefrontQuoteRequestSettings(): Promise<{
   showAddToQuoteOnCard: boolean;
   showAddToQuoteOnPdp: boolean;
 }> {
-  const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
+  const baseUrl = backendBaseUrl();
   try {
     const res = await fetch(`${baseUrl}/api/v1/storefront/settings/quote-requests`, {
       cache: 'no-store',

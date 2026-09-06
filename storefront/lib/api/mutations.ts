@@ -14,8 +14,23 @@
 
 import type { RequestContext } from './client';
 import { StorefrontApiError } from './client';
+import { backendBaseUrl } from '../env.mjs';
 
-const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
+/**
+ * The backend's origin, read per call.
+ *
+ * **Not a module-scope constant, and that is measured rather than stylistic.**
+ * `BACKEND_BASE_URL` is a *run-time* value — `deploy/compose.prod.yml` sets it
+ * on the container and `storefront/Dockerfile` deliberately does not pass it as
+ * a build arg — but `next build`'s collect-page-data phase evaluates every
+ * route's module scope, so a `const baseUrl = backendBaseUrl()` here made the
+ * image build fail on `/sitemap.xml` and `/manifest.webmanifest` for a variable
+ * that is correctly absent at that moment. Reading it inside the call is also
+ * what `lib/api/backend-reachability.ts` does, for its own half of the same
+ * reason: a container configured at start-up is only honoured by a read that
+ * happens then.
+ */
+
 
 function throwFromErrorEnvelope(status: number, envelope: unknown): never {
   const err = (envelope as { error?: {
@@ -82,7 +97,7 @@ export async function apiMutate<T>(opts: MutateOptions): Promise<MutateResult<T>
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
   };
 
-  const response = await fetch(`${baseUrl}${opts.path}`, init);
+  const response = await fetch(`${backendBaseUrl()}${opts.path}`, init);
   const setCookie = collectSetCookie(response.headers);
 
   if (response.status === 204) {
@@ -116,7 +131,7 @@ export async function apiGetAuthed<T>(opts: {
   if (opts.ctx?.salesChannelCode) headers['X-Sales-Channel'] = opts.ctx.salesChannelCode;
   if (opts.ctx?.locale) headers['Accept-Language'] = opts.ctx.locale;
 
-  const response = await fetch(`${baseUrl}${opts.path}`, {
+  const response = await fetch(`${backendBaseUrl()}${opts.path}`, {
     method: 'GET',
     headers,
     cache: 'no-store',

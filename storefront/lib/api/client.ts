@@ -3,8 +3,9 @@
  *
  * Themes inherit this layer untouched and only customise `components/*`.
  * The wrapper:
- *   - reads `BACKEND_BASE_URL` from the environment, defaulting to
- *     http://localhost:3001 in dev.
+ *   - reads `BACKEND_BASE_URL` through `lib/env.mjs`, which **refuses** rather
+ *     than defaulting: see that module for why an invented address is worse
+ *     than a refusal here.
  *   - threads the active Sales Channel + locale through every request via
  *     the `X-Sales-Channel` and `Accept-Language` headers, so server-side
  *     tenancy + i18n resolution stays in one place.
@@ -14,6 +15,23 @@
  * `apiGet` forwards **no credential**, deliberately: its answers are public and
  * shared. A read whose answer depends on the buyer goes through
  * `apiGetForViewer`, which is the only function here that sends one.
+ */
+
+import { backendBaseUrl } from '../env.mjs';
+
+/**
+ * The backend's origin, read per call.
+ *
+ * **Not a module-scope constant, and that is measured rather than stylistic.**
+ * `BACKEND_BASE_URL` is a *run-time* value — `deploy/compose.prod.yml` sets it
+ * on the container and `storefront/Dockerfile` deliberately does not pass it as
+ * a build arg — but `next build`'s collect-page-data phase evaluates every
+ * route's module scope, so a `const baseUrl = backendBaseUrl()` here made the
+ * image build fail on `/sitemap.xml` and `/manifest.webmanifest` for a variable
+ * that is correctly absent at that moment. Reading it inside the call is also
+ * what `lib/api/backend-reachability.ts` does, for its own half of the same
+ * reason: a container configured at start-up is only honoured by a read that
+ * happens then.
  */
 
 export interface RequestContext {
@@ -42,7 +60,6 @@ export interface FetchOptions {
   tags?: string[];
 }
 
-const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
 
 export class StorefrontApiError extends Error {
   readonly status: number;
@@ -147,7 +164,7 @@ async function send<T>(
   path: string,
   init: RequestInit & { next?: { revalidate?: number | false; tags?: string[] } },
 ): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, init);
+  const response = await fetch(`${backendBaseUrl()}${path}`, init);
   if (!response.ok) {
     const envelope = (await response.json().catch(() => null)) as
       | { error: { code: string; message: string; requestId?: string } }
