@@ -1132,7 +1132,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // spec, plan, research and three contracts — and re-recorded nothing. All six
     // are documents under a declared root, so this walk and the two
     // whole-repository ones move by the same amount.
-    files: 1261,
+    // **+4 for this branch.** `specs/118-instance-member-selection/` — spec, plan,
+    // research and one contract. All four are documents under a declared root, so
+    // the document walk and the two whole-repository walks move by the same four.
+    files: 1265,
     sites: 12,
     sources: [],
   },
@@ -2609,7 +2612,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // spec, plan, research and three contracts — and re-recorded nothing. All six
     // are documents under a declared root, so this walk and the two
     // whole-repository ones move by the same amount.
-    files: 7763,
+    // **+4 for this branch.** `specs/118-instance-member-selection/` — spec, plan,
+    // research and one contract. All four are documents under a declared root, so
+    // the document walk and the two whole-repository walks move by the same four.
+    files: 7767,
     sites: null,
     sources: [],
   },
@@ -3805,7 +3811,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // spec, plan, research and three contracts — and re-recorded nothing. All six
     // are documents under a declared root, so this walk and the two
     // whole-repository ones move by the same amount.
-    files: 7823,
+    // **+4 for this branch.** `specs/118-instance-member-selection/` — spec, plan,
+    // research and one contract. All four are documents under a declared root, so
+    // the document walk and the two whole-repository walks move by the same four.
+    files: 7827,
     sites: null,
     sources: ['manifest-index'],
   },
