@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import {
-  errorCodes,
+  errorSignals,
   isFresh,
   isUnreachableFailure,
   isUnreachableStatus,
@@ -41,7 +41,7 @@ describe('classifying a transport failure', () => {
         code: 'ECONNREFUSED',
       }),
     });
-    expect(errorCodes(refused)).toContain('ECONNREFUSED');
+    expect(errorSignals(refused)).toContain('ECONNREFUSED');
     expect(isUnreachableFailure(refused)).toBe(true);
   });
 
@@ -81,17 +81,34 @@ describe('classifying a transport failure', () => {
     // The discrimination this whole feature turns on: a backend that is merely
     // slow must not take the shop to 503.
     expect(isUnreachableFailure(slow)).toBe(false);
+    // The probe's own budget expiring is that same state, and it is the one that
+    // carries no `code` at all — `AbortSignal.timeout` rejects with a
+    // `DOMException` whose only signal is its name.
+    const aborted = Object.assign(new Error('The operation was aborted'), {
+      name: 'TimeoutError',
+    });
+    expect(isUnreachableFailure(aborted)).toBe(false);
   });
 
-  it('reads an application defect as nothing of its own', () => {
-    // The shapes constraint 2 is about. None of them may look like an outage,
-    // because a `503` here is a defect nobody investigates.
-    expect(isUnreachableFailure(new TypeError('x.map is not a function'))).toBe(false);
-    expect(isUnreachableFailure(new Error('Invalid input: expected string'))).toBe(false);
-    expect(isUnreachableFailure(new TypeError("Cannot read properties of null"))).toBe(false);
-    expect(isUnreachableFailure(null)).toBe(false);
-    expect(isUnreachableFailure(undefined)).toBe(false);
-    expect(isUnreachableFailure('ECONNREFUSED')).toBe(false);
+  it('reads a rejection that carries no code at all as unreachable', () => {
+    // The defect the storefront-scaffold criterion's discrimination probe found.
+    // `http://127.0.0.1:1` is on the WHATWG blocked-port list, so undici refuses
+    // it before opening a socket: `TypeError: fetch failed` caused by a bare
+    // `Error: bad port`, no `code` anywhere. An allow-list of transport codes
+    // read that as reachable and the whole shop answered 500.
+    const badPort = new TypeError('fetch failed', { cause: new Error('bad port') });
+    expect(errorSignals(badPort)).not.toContain('ECONNREFUSED');
+    expect(isUnreachableFailure(badPort)).toBe(true);
+  });
+
+  it('is a classifier for a probe rejection and not for an arbitrary error', () => {
+    // Stated as a test because the inversion makes it worth stating: everything
+    // that is not a slow answer reads as unreachable, so handing this an
+    // application error would be a category error. Nothing can — an application
+    // error is never caught (constraint 2), and this function's only caller is
+    // the probe's own `catch`. The proof of that separation is the end-to-end
+    // measurement in the merge request, not this unit.
+    expect(isUnreachableFailure(new TypeError('x.map is not a function'))).toBe(true);
   });
 
   it('survives a cyclic cause chain rather than hanging on it', () => {
@@ -99,8 +116,10 @@ describe('classifying a transport failure', () => {
     const b = new Error('b') as Error & { cause?: unknown };
     a.cause = b;
     b.cause = a;
-    expect(() => errorCodes(a)).not.toThrow();
-    expect(isUnreachableFailure(a)).toBe(false);
+    // The property under test is that the walk terminates. The verdict for a
+    // rejection carrying no slow-answer signal is `unreachable`, cycle or not.
+    expect(() => errorSignals(a)).not.toThrow();
+    expect(isUnreachableFailure(a)).toBe(true);
   });
 });
 
@@ -123,7 +142,8 @@ describe('classifying an answered status', () => {
   it('turns either outcome into one verdict', () => {
     expect(verdictFor({ status: 200 })).toBe('reachable');
     expect(verdictFor({ status: 503 })).toBe('unreachable');
-    expect(verdictFor({ error: new Error('boom') })).toBe('reachable');
+    // A rejection is an answer: the probe got nothing back from the address.
+    expect(verdictFor({ error: new Error('boom') })).toBe('unreachable');
     expect(
       verdictFor({
         error: new TypeError('fetch failed', {
@@ -131,6 +151,14 @@ describe('classifying an answered status', () => {
         }),
       }),
     ).toBe('unreachable');
+    // Except the one kind that means the backend is alive and slow.
+    expect(
+      verdictFor({
+        error: new TypeError('fetch failed', {
+          cause: Object.assign(new Error('slow'), { code: 'UND_ERR_HEADERS_TIMEOUT' }),
+        }),
+      }),
+    ).toBe('reachable');
   });
 });
 

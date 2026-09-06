@@ -35,9 +35,14 @@
  *
  * What is asked instead is a question **only the network can answer** — can a
  * connection to `BACKEND_BASE_URL` be established — and an application defect
- * cannot make that question fail. The classification is therefore a property of
- * the transport, taken from the error's own `code` chain at the moment the
- * transport reports it, and never a string match on a message.
+ * cannot make that question fail. The probe is one `fetch` in middleware and
+ * runs no application code at all, which is what lets its *rejection* be read as
+ * an answer rather than classified as one: see {@link SLOW_BUT_ALIVE_CODES}.
+ *
+ * So the two questions never share a code path, and `isUnreachableFailure` is
+ * not a classifier for arbitrary errors — its domain is a probe rejection and
+ * nothing else. Handing it a `TypeError` from a component would be a category
+ * error, and there is no caller that can.
  *
  * ## What this cannot see, stated rather than discovered
  *
@@ -46,10 +51,15 @@
  *   answers `500`. Only the gateway trio (`502`, `503`, `504`) is read as the
  *   origin saying the backend is not behind it.
  * - **A slow backend.** A response that never arrives inside {@link PROBE_TIMEOUT_MS}
- *   is `reachable` — deliberately fail-open. A short budget applied to a merely
- *   slow backend would take the whole shop to `503`, which is a worse outage than
- *   the one being repaired. A *connect* timeout is unambiguous and is read as
- *   unreachable; a headers or body timeout is not.
+ *   is `reachable` — deliberately fail-open, and the *only* rejection that is. A
+ *   short budget applied to a merely slow backend would take the whole shop to
+ *   `503`, which is a worse outage than the one being repaired. A *connect*
+ *   timeout is unambiguous and is read as unreachable; a headers or body timeout
+ *   is not.
+ * - **Whether an unreachable backend will ever come back.** A misconfigured
+ *   `BACKEND_BASE_URL` and a restarting container are the same answer here, and
+ *   `Retry-After` promises the second. The alternative is telling a buyer their
+ *   shop is permanently gone, which is not a storefront's call to make.
  * - **The window between the probe and the render.** A backend that dies inside
  *   it renders and answers `500`. That is today's behaviour, not a regression.
  * - **A backend reachable from the middleware runtime and not from the render.**
@@ -100,23 +110,39 @@ export const REACHABLE_TTL_MS = 5_000;
 export const UNREACHABLE_TTL_MS = 1_000;
 
 /**
- * Transport-level failures that mean "nothing is listening, or nothing is
- * routable".
+ * The failures that mean the backend answered, only slowly.
  *
- * `UND_ERR_CONNECT_TIMEOUT` is undici's *connect* timeout and belongs here;
- * `UND_ERR_HEADERS_TIMEOUT` and `UND_ERR_BODY_TIMEOUT` are a backend that
- * answered too slowly and deliberately do not.
+ * **This is a deny-list, and it used to be an allow-list of transport codes.**
+ * The allow-list named the eight `ECONNREFUSED`-family codes and read every
+ * other rejection as reachable, which is the fail-*open* direction and it was
+ * measured failing: `http://127.0.0.1:1` rejects with `TypeError: fetch failed`
+ * caused by a bare `Error: bad port` — undici refuses the WHATWG blocked-port
+ * list before it opens a socket, so there is no `code` anywhere in the chain —
+ * and the whole storefront answered `500` while claiming to have asked whether
+ * its backend was reachable. Found by the storefront-scaffold criterion's own
+ * discrimination probe, which boots against exactly that address.
+ *
+ * The inversion is sound rather than convenient: this probe runs no application
+ * code — it is one `fetch` in middleware, before the render — so a rejection of
+ * it can only ever mean *"no answer from the backend's address"*. That is the
+ * question this module claims to ask, and an allow-list answers it for the
+ * failures somebody enumerated instead. It also fails in the useful direction:
+ * the render is about to fail for the same reason, so the choice is between
+ * `503` with a page and `500` with none.
+ *
+ * The one discrimination worth keeping is the opposite one, and it stays: a
+ * backend that is **alive and slow** must not take the shop to `503`. So
+ * undici's *headers* and *body* timeouts, and this module's own abort, read as
+ * reachable. `UND_ERR_CONNECT_TIMEOUT` is not among them — a connect timeout is
+ * a backend that is not there.
  */
-const UNREACHABLE_CAUSE_CODES: ReadonlySet<string> = new Set([
-  'ECONNREFUSED',
-  'ECONNRESET',
-  'EAI_AGAIN',
-  'EHOSTUNREACH',
-  'ENETUNREACH',
-  'ENOTFOUND',
-  'UND_ERR_CONNECT_TIMEOUT',
-  'UND_ERR_SOCKET',
+const SLOW_BUT_ALIVE_CODES: ReadonlySet<string> = new Set([
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
 ]);
+
+/** `AbortSignal.timeout` rejects with one of these by `name`, carrying no code. */
+const SLOW_BUT_ALIVE_NAMES: ReadonlySet<string> = new Set(['TimeoutError', 'AbortError']);
 
 /**
  * Statuses that mean the thing in front of the backend says the backend is not
@@ -125,8 +151,13 @@ const UNREACHABLE_CAUSE_CODES: ReadonlySet<string> = new Set([
 const UNREACHABLE_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
 
 /**
- * Every `code` reachable from a thrown value, following `cause` and
- * `AggregateError.errors`.
+ * Every `code` **and `name`** reachable from a thrown value, following `cause`
+ * and `AggregateError.errors`.
+ *
+ * Both, because the two states this has to tell apart are not both spelled as a
+ * code: undici's slow-answer failures carry `UND_ERR_HEADERS_TIMEOUT`, while an
+ * `AbortSignal.timeout` rejects with a `DOMException` whose only signal is
+ * `name: 'TimeoutError'`.
  *
  * Node reports a refused connection as `TypeError: fetch failed` whose `cause`
  * carries the code, and reports a host with several addresses as an
@@ -134,7 +165,7 @@ const UNREACHABLE_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
  * `cause` sees nothing for the second shape. Cycle-safe, because `cause` chains
  * are not guaranteed to be acyclic.
  */
-export function errorCodes(error: unknown): readonly string[] {
+export function errorSignals(error: unknown): readonly string[] {
   const codes: string[] = [];
   const seen = new Set<unknown>();
   const pending: unknown[] = [error];
@@ -142,8 +173,9 @@ export function errorCodes(error: unknown): readonly string[] {
     const current = pending.pop();
     if (current === null || typeof current !== 'object' || seen.has(current)) continue;
     seen.add(current);
-    const record = current as { code?: unknown; cause?: unknown; errors?: unknown };
+    const record = current as { code?: unknown; name?: unknown; cause?: unknown; errors?: unknown };
     if (typeof record.code === 'string') codes.push(record.code);
+    if (typeof record.name === 'string') codes.push(record.name);
     if (record.cause !== undefined) pending.push(record.cause);
     if (Array.isArray(record.errors)) pending.push(...(record.errors as unknown[]));
   }
@@ -151,12 +183,17 @@ export function errorCodes(error: unknown): readonly string[] {
 }
 
 /**
- * Did this thrown value mean the backend could not be reached?
+ * Did this probe rejection mean the backend could not be reached?
  *
- * Pure, and the only definition of the word in this storefront.
+ * Pure, and the only definition of the word in this storefront. Every rejection
+ * counts except the ones {@link SLOW_BUT_ALIVE_CODES} names — see its doc block
+ * for why the test is a deny-list and what measured the allow-list wrong.
  */
 export function isUnreachableFailure(error: unknown): boolean {
-  return errorCodes(error).some((code) => UNREACHABLE_CAUSE_CODES.has(code));
+  const signals = errorSignals(error);
+  if (signals.some((signal) => SLOW_BUT_ALIVE_CODES.has(signal))) return false;
+  if (signals.some((signal) => SLOW_BUT_ALIVE_NAMES.has(signal))) return false;
+  return true;
 }
 
 /** Did this answered status mean the backend is not behind its origin? */

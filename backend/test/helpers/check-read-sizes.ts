@@ -921,7 +921,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the storefront's `503` answer adds — the notice's `page.tsx`, the
     // reachability classifier, the shared names module and the test. `sites` is
     // unmoved: none of them folds a diacritic or builds a slug.
-    files: 5288,
+    // **+3 for this branch.** The service-unavailable page, its reachability probe
+    // and its shared constants; the test file is outside this walk.
+    files: 5291,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2560,7 +2562,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files. This walk is the whole repository and carries no changeset for
     // them, because the notice lives in `storefront`, which `.changeset`
     // ignores as an application.
-    files: 7752,
+    // **+4 for this branch** — the three storefront sources and their test. This
+    // walk is the whole repository and takes all four.
+    files: 7756,
     sites: null,
     sources: [],
   },
@@ -3748,7 +3752,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export both keep their paths.
     // **The service-unavailable notice: 7808 -> 7812.** The same four source
     // files the neighbouring whole-repository walk takes.
-    files: 7812,
+    // **+4 for this branch**, the same four files the neighbouring whole-repository
+    // walk takes.
+    files: 7816,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3888,7 +3894,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files. All four carry English comments; the notice's Polish copy is in
     // `messages.ts`, which this walk already opened and which holds string
     // literals rather than comments — outside Principle VIII by design.
-    files: 5826,
+    // **+3 for this branch**, the three storefront sources; the test file is not in
+    // this walk's population.
+    files: 5829,
     sites: null,
     sources: ['manifest-index'],
   },
