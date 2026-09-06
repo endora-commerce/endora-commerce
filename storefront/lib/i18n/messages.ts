@@ -338,7 +338,18 @@ export type MessageKey =
   // The remedy both of those sentences name. Keyed because a sentence telling
   // the buyer to press a button has to be readable in the same language as the
   // button; the rest of this screen's copy is Polish-only and stays so.
-  | 'quoteRequests.resubmit';
+  | 'quoteRequests.resubmit'
+  // The service-unavailable notice. It is served at `503` by the reachability
+  // gate in `middleware.ts` when the backend cannot be reached, which is also
+  // the one screen in this storefront whose copy has to be resolvable with the
+  // backend down — hence keys here rather than anything editorial.
+  | 'serviceUnavailable.documentTitle'
+  | 'serviceUnavailable.status'
+  | 'serviceUnavailable.heading'
+  | 'serviceUnavailable.body'
+  | 'serviceUnavailable.reassurance'
+  | 'serviceUnavailable.retry'
+  | 'serviceUnavailable.retryHint';
 
 const MESSAGES: Record<string, Record<MessageKey, string>> = {
   'en-US': {
@@ -677,6 +688,15 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'quoteRequests.validity.convertBlocked':
       'The quote you accepted is no longer valid, so it can no longer be turned into an order. Once a quote has been approved its deadline can no longer be moved \u2014 submit the request again to get a current quote.',
     'quoteRequests.resubmit': 'Submit again',
+    'serviceUnavailable.documentTitle': 'Service unavailable',
+    'serviceUnavailable.status': 'Temporary outage',
+    'serviceUnavailable.heading': 'The shop is temporarily unavailable.',
+    'serviceUnavailable.body':
+      'We cannot reach the systems this page is built from, so it cannot be shown right now. This is on our side, not yours, and we are already on it.',
+    'serviceUnavailable.reassurance':
+      'Nothing has been lost. Your cart, your account and any order you have already placed are untouched.',
+    'serviceUnavailable.retry': 'Try again',
+    'serviceUnavailable.retryHint': 'It is usually worth trying again in about a minute.',
   },
   'pl-PL': {
     'a11y.skipToContent': 'Przejdz do tresci',
@@ -1014,8 +1034,26 @@ const MESSAGES: Record<string, Record<MessageKey, string>> = {
     'quoteRequests.validity.convertBlocked':
       'Zaakceptowana oferta straciła ważność, więc nie można już złożyć z niej zamówienia. Terminu zatwierdzonej oferty nie da się już przesunąć — złóż zapytanie ponownie, aby otrzymać aktualną ofertę.',
     'quoteRequests.resubmit': 'Złóż ponownie',
+    'serviceUnavailable.documentTitle': 'Serwis niedostępny',
+    'serviceUnavailable.status': 'Chwilowa przerwa',
+    'serviceUnavailable.heading': 'Serwis jest chwilowo niedostępny.',
+    'serviceUnavailable.body':
+      'Nie możemy połączyć się z systemami, z których powstaje ta strona, więc nie da się jej teraz wyświetlić. To problem po naszej stronie, nie po Twojej — już się nim zajmujemy.',
+    'serviceUnavailable.reassurance':
+      'Nic nie zginęło. Twój koszyk, konto i wszystkie złożone wcześniej zamówienia są nienaruszone.',
+    'serviceUnavailable.retry': 'Spróbuj ponownie',
+    'serviceUnavailable.retryHint': 'Zwykle warto spróbować ponownie za około minutę.',
   },
 };
+
+/**
+ * The locales this catalogue carries.
+ *
+ * Derived from the catalogue rather than written beside it, so a third language
+ * is reachable by the outage notice the moment its block exists and there is no
+ * second list to keep in step.
+ */
+export const CATALOGUE_LOCALES: readonly string[] = Object.keys(MESSAGES);
 
 export function tForLocale(locale: string): (key: MessageKey) => string {
   const dictionary = MESSAGES[locale] ?? MESSAGES['en-US']!;
