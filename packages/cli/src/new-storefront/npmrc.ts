@@ -27,6 +27,26 @@
  * for. A checkout that grows a second scope gets a second registry line in the
  * same run, and a storefront that declares no scoped workspace dependency is a
  * refusal — an `.npmrc` naming no scope configures nothing.
+ *
+ * ## A registry does not have to serve its tarballs under its metadata path
+ *
+ * That premise is what this file held until the acceptance criterion's registry
+ * mode was first run. It wrote **one** auth line, keyed on the configured
+ * endpoint, on the reasoning that *a credential is a property of the endpoint
+ * rather than of a scope*. The second half of that sentence is still true and the
+ * first no longer follows from it: the endpoint serves the **packument**, and the
+ * `dist.tarball` URL inside that document is the **server's** to choose. GitLab
+ * chooses the owning project's path, so an instance- or group-level endpoint
+ * answers with a tarball on `/api/v4/projects/<id>/packages/npm/…` — a path whose
+ * project id varies per package and is unknowable at the moment this file is
+ * written. The endpoint key does not cover it, that one fetch goes out
+ * unauthenticated, and GitLab answers an absent credential with **404**, the same
+ * sentence it gives for a package that was never published (`research.md` §6). So
+ * the install fails with *the package is not there*, immediately after a metadata
+ * request for that same package succeeded.
+ *
+ * `authKeys` below is the repair, and it is where the reasoning for the shape
+ * that was chosen — and for the two that were not — is written down.
  */
 import { StorefrontInputError, workspaceRanges } from './reference.js';
 
@@ -109,12 +129,82 @@ export function installedScopes(manifest: Record<string, unknown>): readonly str
 }
 
 /**
- * The file's text: one registry line per scope, one auth line for the endpoint.
+ * The keys the auth lines are written under: the endpoint, and the host it is on.
  *
- * The auth line is keyed on the host and path with the scheme removed, which is
- * npm's own spelling for a per-registry credential and the one GitLab documents.
- * There is one of it however many scopes there are, because a credential is a
- * property of the endpoint rather than of a scope.
+ * Both are npm's own spelling for a credential — the request URL with its scheme
+ * removed — and both matter, for two different fetches.
+ *
+ * **The endpoint key** is the narrowest key covering the one address the operator
+ * actually named, and it is what GitLab's own documentation writes. It is kept
+ * rather than replaced by the broader one below: pnpm was measured walking a
+ * request path upward — a key on `//host/api/v4/` authenticates a tarball under
+ * `/api/v4/projects/…` — so for pnpm the endpoint key is redundant, and a client
+ * matching these keys **exactly** would still authenticate the packument with it.
+ * No such client was measured here, so the honest reason to keep the line is the
+ * smaller one: dropping it would make the file say less than it knows about the
+ * one address the operator gave.
+ *
+ * **The host key** is the one that covers a tarball. It is broad on purpose: the
+ * tarball URL is chosen by the server and appears for the first time inside a
+ * packument this file will never see, so the only statically derivable key
+ * guaranteed to cover it is the whole host. Measured with a local registry
+ * standing in for GitLab's shape — a packument served on the endpoint whose
+ * `dist.tarball` names `/api/v4/projects/302/packages/npm/…` on the same host —
+ * under pnpm 9.15.0, the version CI pins, and under pnpm 10:
+ *
+ *   endpoint key alone   ERR_PNPM_FETCH_404 … Not Found - 404
+ *                        "No authorization header was set for the request."
+ *   endpoint + host key  the tarball request carries the header; the install
+ *                        completes.
+ *
+ * ### Why not a narrower prefix
+ *
+ * Not because a narrower one would fail — measured, `//host/api/v4/` and
+ * `//host/api/v4/projects/` both authenticate that same tarball, because pnpm
+ * walks a request's path upward looking for a key. The mechanism is not the
+ * obstacle; the **derivation** is. Getting `/api/v4/` out of
+ * `/api/v4/packages/npm/` means knowing GitLab's URL layout, which is trading one
+ * unexamined premise about the server for a narrower one — and `--registry` names
+ * *a registry*, not *a GitLab*: the flag is documented as the endpoint the
+ * storefront installs from, and a Verdaccio or an Artifactory behind it has its
+ * own layout. `ENDORA_NPM_REGISTRY` is masked and may be the instance endpoint or
+ * a group one, so the file cannot even be written against one observed shape.
+ *
+ * ### What is given up, stated rather than glossed
+ *
+ * The credential is offered to **every** request pnpm makes to this host and
+ * port, not only to the endpoint's own subtree. That is broader than the single
+ * line this file used to write. It is accepted because the host is the one the
+ * operator named on the command line, the credential a client is handed is a
+ * deploy token scoped `read_package_registry` (R3.3) whose whole authority on
+ * that host is reading packages, and the alternative — the credential not
+ * reaching the address the registry itself directed the client to — is an install
+ * that cannot work.
+ *
+ * And what it does **not** cover, so nobody reads it as more than it is: a
+ * registry that serves tarballs from a **different host** (a CDN, a storage
+ * bucket) is not reached by this key or by any other one derivable here, because
+ * that host appears nowhere in the input. Such a registry needs a line naming it,
+ * and the symptom would be this same 404 on the tarball alone.
+ *
+ * A registry configured at the root of its host makes the two keys identical, and
+ * then there is one line rather than two: a duplicate would not be wrong, it
+ * would read as though it said something.
+ */
+export function authKeys(registry: string): readonly string[] {
+  const endpoint = normalizeRegistry(registry);
+  const endpointKey = endpoint.replace(/^https?:/, '');
+  const hostKey = `//${new URL(endpoint).host}/`;
+  return endpointKey === hostKey ? [endpointKey] : [endpointKey, hostKey];
+}
+
+/**
+ * The file's text: one registry line per scope, and the auth lines `authKeys`
+ * derives.
+ *
+ * There is one set of auth lines however many scopes there are, because a
+ * credential is a property of the endpoint rather than of a scope — the half of
+ * this file's original reasoning that survived the measurement above.
  */
 export function npmrcContent(registry: string, scopes: readonly string[]): string {
   if (scopes.length === 0) {
@@ -126,13 +216,18 @@ export function npmrcContent(registry: string, scopes: readonly string[]): strin
     );
   }
   const endpoint = normalizeRegistry(registry);
-  const authKey = endpoint.replace(/^https?:/, '');
   const lines = [
     '# Written by `endora new storefront --registry`. It holds no secret: the token below is',
     `# an environment reference that pnpm expands at install time, so set ${TOKEN_VARIABLE} in`,
     '# your environment (a CI variable, a keyring) and commit this file as it is.',
   ];
   for (const scope of scopes) lines.push(`${scope}:registry=${endpoint}`);
-  lines.push(`${authKey}:_authToken=\${${TOKEN_VARIABLE}}`);
+  lines.push(
+    '# The endpoint serves the metadata; the tarball it names in that metadata can be on any',
+    '# path of this host (GitLab serves it from the owning project), so the credential is',
+    '# declared for the host as well. Without the second line that one fetch goes out',
+    '# unauthenticated and the registry answers 404.',
+  );
+  for (const key of authKeys(endpoint)) lines.push(`${key}:_authToken=\${${TOKEN_VARIABLE}}`);
   return `${lines.join('\n')}\n`;
 }
