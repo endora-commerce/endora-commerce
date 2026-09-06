@@ -45,6 +45,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findCheckoutRoot } from '../../../../scripts/workspace-resolution.js';
+import {
+  HOST_INTERNAL_SUBPATHS as HOST_INTERNAL_SUBPATH_REASONS,
+  PUBLISHED_SUBPATHS as PUBLISHED_SUBPATH_NAMES,
+} from '../../../scripts/lib/platform-surface.js';
 
 const ROOT = findCheckoutRoot(dirname(fileURLToPath(import.meta.url)));
 const HOST_DIR = join(ROOT ?? '.', 'packages', 'platform');
@@ -57,32 +61,31 @@ interface HostManifest {
   readonly dependencies?: Readonly<Record<string, string>>;
 }
 
-const PUBLISHED_SUBPATHS = ['./kernel', './http', './tenancy', './commands', './events'];
-
 /**
- * The subpaths the map declares and no public barrel carries (D-160.14, feature
- * 109 T010; `host-package.md` §2.7).
+ * The two classes of subpath, as the `exports` map spells them.
  *
- * `./composition` is host composition surface: the 27 symbols a composition
- * root needs, reachable by a package that is not a module and nameable by no
- * module at all. `./migrations` is the frozen historical prefix an execution
- * order is computed from — the platform's own claim about its schema history,
- * which a client receives by installing the platform and a correction to which
- * arrives by `pnpm update` (`specs/110-instance-repository/`
- * `contracts/instance-migration-order.md` R1.5). Both are held to the same
- * `exports`-map shape as the five — declared, `./dist`-targeted, no wildcard —
- * and to a different rule about who may name them, which is
- * `check:platform-surface`'s `host-internal-subpath` finding and not this
- * file's.
+ * Both come from `scripts/lib/platform-surface.ts` and neither is written here.
+ * They were two literals in this file until `specs/115-lifecycle-container-move/`
+ * Phase 2, and the host-internal one was a *second* copy of a list
+ * `published-surface.test.ts` also held — so "which subpaths are host-internal"
+ * had two independently maintained answers in one test tree, in the estate whose
+ * own rule that is (D-100). One home, and the reason for each member travels
+ * with it (`HOST_INTERNAL_SUBPATHS` is keyed by subpath, valued by the sentence
+ * that says why it is not public API).
  *
- * It is kept apart from {@link PUBLISHED_SUBPATHS} rather than appended to it
- * because the two lists answer different questions, and §2.7.5(a) is that
- * merging them is the mistake: the published list is what a *symbol* is judged
- * against, and a sixth entry there would publish `composeModules` out of
- * `kernel/compose.ts` for every reach at that file, a module's relative one
- * included.
+ * The two are kept apart from each other rather than merged, and §2.7.5(a) is
+ * why: the published list is what a **symbol** is judged against, and an entry
+ * there would publish `composeModules` out of `kernel/compose.ts` for every
+ * reach at that file, a module's relative one included. Here they differ only in
+ * that this file asks the same `exports`-map shape of both — declared,
+ * `./dist`-targeted, no wildcard — and asks who may name them not at all, that
+ * being `check:platform-surface`'s `host-internal-subpath` finding.
  */
-const HOST_INTERNAL_SUBPATHS = ['./composition', './migrations'];
+const PUBLISHED_SUBPATHS = PUBLISHED_SUBPATH_NAMES.map((subpath) => `./${subpath}`);
+
+const HOST_INTERNAL_SUBPATHS = Object.keys(HOST_INTERNAL_SUBPATH_REASONS).map(
+  (subpath) => `./${subpath}`,
+);
 
 /** Every subpath the `exports` map is required to declare, published or not. */
 const DECLARED_SUBPATHS = [...PUBLISHED_SUBPATHS, ...HOST_INTERNAL_SUBPATHS];
@@ -235,7 +238,10 @@ describe('the host package `exports` map', () => {
     });
   });
 
-  it('declares the five published subpaths, the two host-internal ones, the manifest, and nothing else', () => {
+  // The two populations are named rather than counted: "the two host-internal
+  // ones" stood here while there were three, which is a derived number copied
+  // into prose in the file that derives it (D-100).
+  it('declares every published and host-internal subpath, the manifest, and nothing else', () => {
     expect(exportMapFindings(MANIFEST)).toEqual([]);
   });
 

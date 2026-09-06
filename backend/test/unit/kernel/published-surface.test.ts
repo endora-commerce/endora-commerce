@@ -46,11 +46,13 @@ import { fileURLToPath } from 'node:url';
 
 import {
   barrelKeyOf,
+  HOST_INTERNAL_SUBPATHS as HOST_INTERNAL_SUBPATH_REASONS,
   parseBarrel,
   PUBLISHED_SUBPATHS,
 } from '../../../scripts/lib/platform-surface.js';
 import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
 import { platformSourceRootOf, platformSubpathsOf } from '../../../scripts/lib/platform-root.js';
+import { RELATIVE_HOST_REACHES } from '../../../scripts/check-platform-surface.js';
 
 /**
  * The platform's own sources, which since the relocation are
@@ -526,16 +528,27 @@ const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
  * third state, where `node` and `tsc` resolve the specifier and
  * `check:platform-surface` refuses a *module* that names it.
  *
- * Two, and they are two answers to one question rather than one list growing:
- * `./composition` is the host's composition surface (§2.7), and `./migrations`
- * is the frozen historical prefix an execution order is computed from
- * (`specs/110-instance-repository/contracts/instance-migration-order.md` R1.5).
- * Neither may be folded into {@link PUBLISHED_SUBPATHS} — that list is keyed by
+ * **Not written here.** It was a `Set` of bare names in this file and a second,
+ * `./`-prefixed one in `test/unit/packages/host-package.test.ts`, and the
+ * reasons — the load-bearing part, the class being a judgement about who may
+ * name a surface — were prose in one of the two. `specs/115-lifecycle-container-move/`
+ * Phase 2 moved the answer to `scripts/lib/platform-surface.ts`, keyed by
+ * subpath and valued by its reason, so there is one home and a member cannot
+ * arrive without one.
+ *
+ * The generalisation matters more than the deduplication. This file's
+ * reconciliation read `subpath !== 'composition'` while there was one exception.
+ * `contracts/operator-half.md` R5.3: *"the literal is written for exactly one
+ * exception and must be generalised before a second can exist; leaving it and
+ * special-casing `lifecycle` beside it would be the same mistake twice."* None
+ * of them may be folded into {@link PUBLISHED_SUBPATHS} — that list is keyed by
  * target *file* with no subpath dimension, so an entry there publishes every
- * symbol of the file for a module's relative reach as well, and, this check
+ * symbol of the file for a module's relative reach as well, and, the check
  * reporting `violations=0`, would change nothing it prints.
  */
-const HOST_INTERNAL_SUBPATHS: ReadonlySet<string> = new Set(['composition', 'migrations']);
+const HOST_INTERNAL_SUBPATHS: ReadonlySet<string> = new Set(
+  Object.keys(HOST_INTERNAL_SUBPATH_REASONS),
+);
 
 /**
  * Every first-party TypeScript source in the checkout **outside the platform**,
@@ -574,11 +587,13 @@ function firstPartySourcesOutsideThePlatform(): ReadonlyMap<string, string> {
   return out;
 }
 
-/** Every name a file imports from `<host>/composition`, in either import shape. */
-function compositionImportsIn(text: string): string[] {
+/** Every name a file imports from `<host>/<subpath>`, in either import shape. */
+function subpathImportsIn(text: string, subpath: string): string[] {
   const names: string[] = [];
-  const pattern =
-    /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'@endora-commerce\/platform\/composition'/g;
+  const pattern = new RegExp(
+    String.raw`import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'@endora-commerce/platform/${subpath}'`,
+    'g',
+  );
   for (const match of text.matchAll(pattern)) {
     for (const raw of (match[1] ?? '').split(',')) {
       const name = raw
@@ -591,6 +606,64 @@ function compositionImportsIn(text: string): string[] {
   }
   return names;
 }
+
+/**
+ * The two classes of declared subpath, reconciled against the manifest in both
+ * directions (D-160.14; `specs/115-lifecycle-container-move/contracts/operator-half.md`
+ * R5.3).
+ *
+ * This lived inside the `./composition` block and asked one question — *is
+ * `composition` declared and unpublished?* — with the exception written into the
+ * filter as a literal. That shape answers for the member somebody remembered,
+ * which is how a subpath in **neither** class could be declared with nothing to
+ * say so, and why the generalisation had to precede a third member rather than
+ * accompany it.
+ *
+ * §2.7.5(a) is why the two lists stay two: `PlatformSurface.published` is keyed
+ * by target file with no subpath dimension, so an entry there would publish
+ * `composeModules` out of `kernel/compose.ts` for every reach at that file — a
+ * module's relative `../../src/kernel/compose.js` included — and, the check
+ * reporting `violations=0`, would change nothing it prints. A blindness that
+ * arrives green.
+ */
+describe('the `exports` map is published ∪ host-internal, and nothing else', () => {
+  const declared = (): readonly string[] =>
+    platformSubpathsOf(workspaceMembers(REPO_ROOT, nodeWorkspaceFs()));
+
+  it('declares every host-internal subpath, and publishes none of them', () => {
+    // Direction one: a member of the class the map does not declare. It would
+    // resolve for nobody — the host's own reach included — while every list in
+    // the estate agreed it was fine.
+    for (const subpath of HOST_INTERNAL_SUBPATHS) {
+      expect(declared(), subpath).toContain(subpath);
+      expect(PUBLISHED_SUBPATHS, subpath).not.toContain(subpath);
+    }
+    expect(HOST_INTERNAL_SUBPATHS.size, 'the class is empty — the reconciliation below is vacuous')
+      .toBeGreaterThan(0);
+  });
+
+  it('declares no subpath that is neither published nor host-internal', () => {
+    // Direction two, and the one the literal could not ask. A subpath added to
+    // the manifest and to neither class is public API by resolution and by no
+    // decision — which is the state `./lifecycle` was in for the length of one
+    // commit while this feature's red proof was being taken.
+    expect([...PUBLISHED_SUBPATHS].sort()).toEqual(
+      declared()
+        .filter((subpath) => !HOST_INTERNAL_SUBPATHS.has(subpath))
+        .sort(),
+    );
+  });
+
+  it('records why each host-internal subpath is not public API', () => {
+    // The reason is the member. A set of bare names is a list somebody grows,
+    // and the whole of this class is a judgement about who may name a surface,
+    // which no name records. Held to a sentence rather than to a string so that
+    // `''` and a placeholder are both failures.
+    for (const [subpath, reason] of Object.entries(HOST_INTERNAL_SUBPATH_REASONS)) {
+      expect(reason.length, subpath).toBeGreaterThan(80);
+    }
+  });
+});
 
 describe('`./composition`, the subpath no module may name (D-160.14)', () => {
   const barrel = 'composition/index.ts';
@@ -614,26 +687,6 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
     expect(byFile).toEqual(sorted);
   });
 
-  /**
-   * §2.7.5(a). `PUBLISHED_SUBPATHS` is a written-down ruling and stays at five;
-   * the `exports` map is the manifest's and now declares six. The two answering
-   * differently **is** the mechanism: `PlatformSurface.published` is keyed by
-   * target file with no subpath dimension, so a sixth entry there would publish
-   * `composeModules` out of `kernel/compose.ts` for every reach at that file —
-   * a module's relative `../../src/kernel/compose.js` included — and, because
-   * `check:platform-surface` reports `violations=0` today, would change nothing
-   * it prints. A blindness that arrives green.
-   */
-  it('is declared by the `exports` map and is not a published subpath', () => {
-    const declared = platformSubpathsOf(workspaceMembers(REPO_ROOT, nodeWorkspaceFs()));
-    for (const subpath of HOST_INTERNAL_SUBPATHS) {
-      expect(declared, subpath).toContain(subpath);
-      expect(PUBLISHED_SUBPATHS, subpath).not.toContain(subpath);
-    }
-    expect([...PUBLISHED_SUBPATHS].sort()).toEqual(
-      declared.filter((subpath) => !HOST_INTERNAL_SUBPATHS.has(subpath)).sort(),
-    );
-  });
 
   /**
    * R3.1a — the subpath is the *whole* of a symbol's reachability. A symbol
@@ -666,7 +719,7 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
 
     const imported = new Map<string, string[]>();
     for (const [file, text] of sources) {
-      for (const name of compositionImportsIn(text)) {
+      for (const name of subpathImportsIn(text, 'composition')) {
         (imported.get(name) ?? imported.set(name, []).get(name)!).push(file);
       }
     }
@@ -676,6 +729,125 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
     ).not.toEqual([]);
 
     expect([...imported.keys()].sort()).toEqual(expected);
+  });
+});
+
+/**
+ * `./lifecycle`, the third host-internal subpath (`specs/115-lifecycle-container-move/`,
+ * D115-4; `contracts/operator-half.md` §5).
+ *
+ * ## Why its ledger is derived where `HOST_COMPOSITION_SURFACE` is written down
+ *
+ * R5.4 asks for `HOST_COMPOSITION_SURFACE`'s instrument: a per-file symbol map,
+ * both directions asserted. The map is written by hand there because the 27
+ * symbols were **ruled on** — D-160.14 names each one, and a written list is
+ * what makes a twenty-eighth a review event.
+ *
+ * Here the barrel's contents are not a ruling, they are a **consequence**, and
+ * writing the consequence down would be the shape D-100 is about. The subpath
+ * exists to give the application's fifteen ledgered relative reaches into
+ * `packages/platform/dist/lifecycle/` an address (`RELATIVE_HOST_REACHES`, Phase
+ * 1). Each of those reaches is a shim spelling `export * from '<target>'`, so
+ * the application holds the target's **whole namespace** — and a reach can be
+ * retired onto this subpath only if every name it currently yields is here. That
+ * makes the expected set a function of the ledger and of the fourteen files it
+ * names, and a second, hand-written copy of it would be a second answer waiting
+ * to disagree with the first.
+ *
+ * ## What the two directions are, and what each one catches
+ *
+ *  - **A name on the barrel out of a file no ledgered reach names** is surface
+ *    parked against a future need, which is precisely what R5.4 forbids.
+ *    `routes.storefront.ts` and `commands/activation.commands.ts` are the live
+ *    proof that the population is narrower than "the lifecycle directory": no
+ *    application file reaches either, and neither is here.
+ *  - **A name a reached file exports and the barrel does not carry** is a shim
+ *    that cannot retire. It would fail silently in the worst way available — the
+ *    reach stays, the ledger entry stays, and the phase that was supposed to
+ *    drain it reports success over the names it happened to move.
+ *
+ * The second direction is what makes this ratchet non-vacuous on the day it
+ * lands, which the *consumer* population cannot be: nothing outside the platform
+ * names this subpath yet, by design (Phase 2 moves no file), so the assertion
+ * `./composition` uses would be green over nothing — issue #113's shape. It
+ * becomes the right assertion in Phase 7, when the shims are gone and the
+ * consumers are import sites; until then the shims **are** the host's reach and
+ * are the honest population.
+ */
+describe('`./lifecycle`, the operator surface no module may name (D115-4)', () => {
+  const barrel = 'lifecycle/index.ts';
+  const PLATFORM_LIFECYCLE = 'packages/platform/src/lifecycle/';
+
+  /**
+   * The platform-lifecycle files the application reaches today, off Phase 1's
+   * ledger rather than a list here. The key's second half is the canonical
+   * platform source file, which is the whole reason that ledger is keyed by file
+   * and not by specifier.
+   */
+  const reachedFiles = (): string[] =>
+    [
+      ...new Set(
+        Object.keys(RELATIVE_HOST_REACHES)
+          .map((key) => key.split('|')[1] ?? '')
+          .filter((target) => target.startsWith(PLATFORM_LIFECYCLE)),
+      ),
+    ].sort();
+
+  /** `barrel key → names`, for a lifecycle source file. */
+  const exportsOf = (key: string): string[] =>
+    [
+      ...new Set(
+        parseBarrel(readFileSync(join(SRC, key), 'utf8'), key).published.map((s) => s.name),
+      ),
+    ].sort();
+
+  const parsed = (): ReturnType<typeof parseBarrel> =>
+    parseBarrel(readFileSync(join(SRC, barrel), 'utf8'), barrel);
+
+  it('carries exactly the files the host reaches, and every name each of them exports', () => {
+    const files = reachedFiles();
+    // The vacuous-pass guard, and it is the one that matters here: the whole
+    // expected set is derived from this ledger, so a ledger that stopped naming
+    // lifecycle targets would make both directions compare nothing to nothing.
+    expect(files.length, 'no ledgered reach names a platform lifecycle file').toBeGreaterThan(5);
+
+    const byFile: Record<string, string[]> = {};
+    for (const symbol of parsed().published) (byFile[symbol.target] ??= []).push(symbol.name);
+    for (const names of Object.values(byFile)) names.sort();
+
+    const expected: Record<string, string[]> = {};
+    for (const file of files) {
+      const key = `lifecycle/${file.slice(PLATFORM_LIFECYCLE.length)}`;
+      expected[key] = exportsOf(key);
+      expect(expected[key]?.length, `${key} exports nothing — it cannot be a reach`).toBeGreaterThan(
+        0,
+      );
+    }
+
+    // One comparison, both directions: a barrel name out of an unreached file
+    // and a reached file's export the barrel drops both land here.
+    expect(byFile).toEqual(expected);
+  });
+
+  it('is read in full, so a name is never dropped by the parse', () => {
+    // `export *` is how a shim is written, and it is exactly what this barrel
+    // may not be: `parseBarrel` reports it as unreadable, and a barrel whose
+    // names cannot be enumerated is one no `exports` map can be judged against.
+    expect(parsed().unreadable).toEqual([]);
+  });
+
+  it('shares no symbol with a published barrel or with `./composition`', () => {
+    // R5.5 — a symbol has one home, and graduates to a public barrel in the
+    // merge request that first gives it a module-package production consumer,
+    // leaving this one in the same merge request. Two homes would be two answers
+    // to "is this public API?", and between two host-internal barrels it would
+    // also be two answers to "which of them owns this".
+    const mine = new Set(barrelExports(barrel));
+    const elsewhere = new Set([
+      ...PUBLISHED_SUBPATHS.flatMap((s) => barrelExports(barrelKeyOf(s))),
+      ...barrelExports('composition/index.ts'),
+    ]);
+    expect([...mine].filter((name) => elsewhere.has(name)).sort()).toEqual([]);
   });
 });
 
