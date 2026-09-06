@@ -650,7 +650,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 1946 -> 1947.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 1947,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1947 -> 1949 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 1949,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -708,7 +715,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2071,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2071 -> 2073 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2073,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -736,7 +750,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 1604 -> 1605.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 1605,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1605 -> 1607 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 1607,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -767,7 +788,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2057 -> 2058.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2058,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2058 -> 2060 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2060,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -884,7 +912,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 5283 -> 5284.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 5284,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 5284 -> 5287 (+3).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
+    // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
+    // plus `test/unit/_lifecycle/manifest-registry.test.ts`. `backend/src` does not
+    // move: the binding and the claims re-export both keep their paths.
+    files: 5287,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -987,7 +1020,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // file — `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel
     // (D115-4) — counted twice, this walk taking `layout.sourceRoots`, which lists
     // the platform both as `platformRoot` and as a workspace package root.
-    files: 2173,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2173 -> 2177 (+4).** The same
+    // two files the move adds under `packages/platform/src/lifecycle/`, counted
+    // twice each because this check reads the platform's sources in two passes.
+    // Measured rather than reasoned about: with both files taken out of the tree
+    // and the check re-run it reads 2173.
+    files: 2177,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1106,7 +1144,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2071,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2071 -> 2073 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2073,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1148,7 +1193,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2071,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2071 -> 2073 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2073,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1190,7 +1242,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2071,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2071 -> 2073 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2073,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1312,7 +1371,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/helpers/instance-migration-order.ts`.
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
-    files: 1571,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1571 -> 1572 (+1).** One file,
+    // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
+    // driven over three suppliers it builds, at the package specifier an instance
+    // would write.
+    files: 1572,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1378,7 +1441,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/helpers/instance-migration-order.ts`.
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
-    files: 1571,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1571 -> 1572 (+1).** One file,
+    // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
+    // driven over three suppliers it builds, at the package specifier an instance
+    // would write.
+    files: 1572,
     sites: null,
     sources: [],
   },
@@ -1420,7 +1487,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2071,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2071 -> 2073 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2073,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1593,7 +1667,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2577 -> 2578.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2578,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2578 -> 2580 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2580,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -1628,7 +1709,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 1989 -> 1990.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 1990,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1990 -> 1992 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 1992,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -1766,7 +1854,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 1616 -> 1617.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 1617,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1617 -> 1619 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 1619,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -1796,7 +1891,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // existed: `packages/platform/src/lifecycle/services/dep-graph.ts` is inside
     // `_lifecycle`'s module walk root, and the module-level topological sort that
     // moved into it from `backend/src/db/migration-order.ts` carries one `''`.
-    sites: 32605,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 32605 -> 32643 (+38).** The
+    // literals in the two files the move adds under
+    // `packages/platform/src/lifecycle/` — the id-collision refusal's operator text,
+    // which relocated with the rule, and the manifest registry's own refusal. Every
+    // one of them is English and none is a finding; the population grew, the debt
+    // did not.
+    sites: 32643,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -2132,7 +2233,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // file — `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel
     // (D115-4) — counted twice, this walk taking `layout.sourceRoots`, which lists
     // the platform both as `platformRoot` and as a workspace package root.
-    files: 4663,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 4663 -> 4667 (+4).** The same
+    // two files the move adds under `packages/platform/src/lifecycle/`, counted
+    // twice each because this check reads the platform's sources in two passes.
+    // Measured rather than reasoned about: with both files taken out of the tree
+    // and the check re-run it reads 4663.
+    files: 4667,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -2439,7 +2545,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1 for this branch** — its changeset, the only file it adds. This walk is
     // the whole repository; `check:language` does not move, a changeset being
     // neither a source file nor a `docs/docs` page.
-    files: 7748,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 7748 -> 7752 (+4).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
+    // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
+    // plus `test/unit/_lifecycle/manifest-registry.test.ts` and this branch's own
+    // changeset, which this walk takes because its population is the whole
+    // repository. `backend/src` does not move: the binding and the claims
+    // re-export both keep their paths.
+    files: 7752,
     sites: null,
     sources: [],
   },
@@ -2642,7 +2755,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2071,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2071 -> 2073 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2073,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -2670,7 +2790,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 1846 -> 1847.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 1847,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1847 -> 1849 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 1849,
     sites: 1471,
     sources: ['manifest-index'],
   },
@@ -2711,7 +2838,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2387 -> 2388.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2388,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2388 -> 2390 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2390,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -2805,7 +2939,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 1942 -> 1943.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 1943,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1943 -> 1945 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 1945,
     sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -2994,7 +3135,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/helpers/instance-migration-order.ts`.
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
-    files: 1571,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1571 -> 1572 (+1).** One file,
+    // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
+    // driven over three suppliers it builds, at the package specifier an instance
+    // would write.
+    files: 1572,
     sites: 163,
     sources: [],
   },
@@ -3081,7 +3226,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2071,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2071 -> 2073 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2073,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3114,7 +3266,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `*.test.ts` and is not in this population.
     // **Stacked on the CI-gate branch: +1.** That branch adds the gate-coverage
     // test and its two analysis helpers — one of the three is a test file, which is all this walk takes.
-    files: 1650,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 1650 -> 1651 (+1).** One file,
+    // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
+    // driven over three suppliers it builds, at the package specifier an instance
+    // would write.
+    files: 1651,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -3171,7 +3327,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 2070 -> 2071.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 2071,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 2071 -> 2073 (+2).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`:
+    // `manifest-registry.ts`, which is the derivation itself, and
+    // `services/module-id-claims.ts`, which moved with it because the collision
+    // assembly is part of the merge and a platform file may not name an application
+    // one. `backend/src` does not move at all — the binding and the claims
+    // re-export both keep their paths, which is the whole shape of the phase.
+    files: 2073,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3248,7 +3411,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 4322 -> 4323.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 4323,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 4323 -> 4326 (+3).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
+    // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
+    // plus `test/unit/_lifecycle/manifest-registry.test.ts`. `backend/src` does not
+    // move: the binding and the claims re-export both keep their paths.
+    files: 4326,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -3552,7 +3720,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1 for this branch** — its changeset, the only file it adds. This walk is
     // the whole repository; `check:language` does not move, a changeset being
     // neither a source file nor a `docs/docs` page.
-    files: 7808,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 7808 -> 7812 (+4).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
+    // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
+    // plus `test/unit/_lifecycle/manifest-registry.test.ts` and this branch's own
+    // changeset, which this walk takes because its population is the whole
+    // repository. `backend/src` does not move: the binding and the claims
+    // re-export both keep their paths.
+    files: 7812,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3683,7 +3858,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
     // **+1 for this branch** — the `./lifecycle` barrel alone. A changeset is not a
     // source file and not a `docs/docs` page, so this walk does not see it.
-    files: 5822,
+    // **`specs/115-lifecycle-container-move/` Phase 3: 5822 -> 5825 (+3).** The two
+    // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
+    // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
+    // plus `test/unit/_lifecycle/manifest-registry.test.ts`. `backend/src` does not
+    // move: the binding and the claims re-export both keep their paths.
+    files: 5825,
     sites: null,
     sources: ['manifest-index'],
   },

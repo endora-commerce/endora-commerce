@@ -587,11 +587,18 @@ function firstPartySourcesOutsideThePlatform(): ReadonlyMap<string, string> {
   return out;
 }
 
-/** Every name a file imports from `<host>/<subpath>`, in either import shape. */
-function subpathImportsIn(text: string, subpath: string): string[] {
+/**
+ * Every name a file **names** through `<host>/<subpath>` — imported, or
+ * re-exported with `export … from`, which is the shape a binding at a kept path
+ * writes (`specs/115-lifecycle-container-move/` Phase 3). Reading only the first
+ * shape would report a consumer that forwards a symbol under its own path as
+ * naming nothing, which is exactly what a host-internal subpath's first
+ * consumers do.
+ */
+function subpathNamesIn(text: string, subpath: string): string[] {
   const names: string[] = [];
   const pattern = new RegExp(
-    String.raw`import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'@endora-commerce/platform/${subpath}'`,
+    String.raw`(?:import|export)\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'@endora-commerce/platform/${subpath}'`,
     'g',
   );
   for (const match of text.matchAll(pattern)) {
@@ -719,7 +726,7 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
 
     const imported = new Map<string, string[]>();
     for (const [file, text] of sources) {
-      for (const name of subpathImportsIn(text, 'composition')) {
+      for (const name of subpathNamesIn(text, 'composition')) {
         (imported.get(name) ?? imported.set(name, []).get(name)!).push(file);
       }
     }
@@ -804,29 +811,76 @@ describe('`./lifecycle`, the operator surface no module may name (D115-4)', () =
   const parsed = (): ReturnType<typeof parseBarrel> =>
     parseBarrel(readFileSync(join(SRC, barrel), 'utf8'), barrel);
 
-  it('carries exactly the files the host reaches, and every name each of them exports', () => {
+  /** Every name a first-party source outside the platform imports from `./lifecycle`. */
+  const consumed = (): ReadonlySet<string> => {
+    const sources = firstPartySourcesOutsideThePlatform();
+    expect(sources.size, 'the walk opened no first-party source').toBeGreaterThan(1000);
+    const names = new Set<string>();
+    for (const [, text] of sources) {
+      for (const name of subpathNamesIn(text, 'lifecycle')) names.add(name);
+    }
+    return names;
+  };
+
+  it('carries every name a file the host reaches by relative path exports', () => {
     const files = reachedFiles();
-    // The vacuous-pass guard, and it is the one that matters here: the whole
-    // expected set is derived from this ledger, so a ledger that stopped naming
-    // lifecycle targets would make both directions compare nothing to nothing.
+    // The vacuous-pass guard, and it is the one that matters here: this half of
+    // the expected set is derived from that ledger, so a ledger that stopped
+    // naming lifecycle targets would compare nothing to nothing.
     expect(files.length, 'no ledgered reach names a platform lifecycle file').toBeGreaterThan(5);
 
     const byFile: Record<string, string[]> = {};
     for (const symbol of parsed().published) (byFile[symbol.target] ??= []).push(symbol.name);
     for (const names of Object.values(byFile)) names.sort();
 
-    const expected: Record<string, string[]> = {};
     for (const file of files) {
       const key = `lifecycle/${file.slice(PLATFORM_LIFECYCLE.length)}`;
-      expected[key] = exportsOf(key);
-      expect(expected[key]?.length, `${key} exports nothing — it cannot be a reach`).toBeGreaterThan(
-        0,
-      );
+      const exported = exportsOf(key);
+      expect(exported.length, `${key} exports nothing — it cannot be a reach`).toBeGreaterThan(0);
+      // A name a reached file exports and the barrel drops is a shim that
+      // cannot retire, and it would fail in the worst way available: the reach
+      // stays, its ledger entry stays, and the phase that was to drain it
+      // reports success over the names it happened to move.
+      expect(byFile[key], key).toEqual(exported);
     }
+  });
 
-    // One comparison, both directions: a barrel name out of an unreached file
-    // and a reached file's export the barrel drops both land here.
-    expect(byFile).toEqual(expected);
+  /**
+   * The other direction, and Phase 3 is what split it out of the comparison
+   * above.
+   *
+   * Until the manifest registry moved, every file on this barrel was one the
+   * application reached by relative path, so *"a name out of a file no ledgered
+   * reach names"* and *"a name nobody asked for"* were the same finding and one
+   * `toEqual` asked both. Phase 3 gives the subpath its first consumers —
+   * `registered-manifests.ts` and `packages/module-id-claims.ts` name it by the
+   * bare specifier — and their targets are correctly named by no reach at all,
+   * because a binding over a bare specifier is not a reach to be drained.
+   *
+   * So the rule that survives is R5.4's own words rather than its proxy: the
+   * subpath is not a place to park surface against a future need. A name here
+   * out of an unreached file is one a first-party source outside the platform
+   * actually imports, or it is a finding. That is `./composition`'s ratchet, and
+   * it stops being vacuous here in the same merge request that gives this
+   * subpath a consumer.
+   */
+  it('parks nothing: a name out of an unreached file is one a consumer imports', () => {
+    const reached = new Set(
+      reachedFiles().map((file) => `lifecycle/${file.slice(PLATFORM_LIFECYCLE.length)}`),
+    );
+    const imported = consumed();
+    expect(
+      [...imported],
+      'no first-party source imports the subpath — this ratchet would be vacuous',
+    ).not.toEqual([]);
+
+    const parked = parsed()
+      .published.filter((symbol) => !reached.has(symbol.target))
+      .filter((symbol) => !imported.has(symbol.name))
+      .map((symbol) => `${symbol.target}: ${symbol.name}`)
+      .sort();
+
+    expect(parked).toEqual([]);
   });
 
   it('is read in full, so a name is never dropped by the parse', () => {

@@ -1,0 +1,181 @@
+// Module id collisions (T030c, D-155.7; widened to the overlay by feature 103).
+//
+// A module id is the platform's identity for a module: migrations are ordered
+// and reverted by it, permissions and settings are namespaced by it, and the
+// lifecycle registry is keyed on it. Nothing refused a second claimant on the
+// path a package takes, and the consequences were not theoretical:
+//
+//   - `composeModules` had no id-uniqueness assertion, so both entries
+//     composed. What surfaced — if anything did — was a
+//     `DuplicateRegistrationError` naming the registration key and the module
+//     id twice, and neither vendor. Two claimants registering disjoint names
+//     collided on nothing at all.
+//   - `resolvedManifestEntries` is a `Map` keyed by id: core won silently and
+//     among the rest the last writer won, silently. So the manifest set carried
+//     one module while the container ran two.
+//   - `buildStaticRegistry` does throw the right refusal, and was reached only
+//     by the `module:*` CLI scripts, each of which fed bare-core
+//     `REGISTERED_MANIFESTS`. The right refusal, wired where a package could not
+//     reach it. Since T036 those five read the resolved set — but they reach
+//     *this* file's refusal, not that one, because the resolver keys a `Map` by
+//     id and no duplicate survives to `buildStaticRegistry`. That is the better
+//     of the two: this one still holds both vendors and can name them.
+//
+// Two vendors' `blog` packages therefore produced correctly-scoped,
+// differently-stamped migration class names — no `duplicate-name`, no
+// `unscoped-name` — and `orderMigrations` merged two strangers' chains into one
+// contiguous block under one id. A hard uninstall of `blog` reverted both,
+// because `revertMigrationsFor` filters on `moduleId` and nothing downstream
+// can tell the two apart.
+//
+// `specs/081-per-module-migration-order/contracts/migration-identity.md` §2
+// already argues its sufficiency from *"the lifecycle refuses a second module
+// claiming an id"*. This file, and `kernel/lifecycle/unique-module-ids.ts`, are
+// what make that sentence true.
+//
+// **Why the refusal is placed twice.** Discovery is the only layer that still
+// holds both vendors — by `composeModules` an entry is an id, a version and a
+// function — so this is where the message that names both `package.json` paths
+// can be written. The composition seam is where the guarantee becomes
+// structural for *any* entry source rather than a property of one loader.
+//
+// **The population is every claimant, not only a package's** (feature 103,
+// FR-004). It used to be "at least one claimant is an installed package",
+// because an overlay claiming a core id had a different, shipped answer: the
+// overlay was dropped, on the reading that a deployment shadowing a module it
+// authored is what the overlay mechanism is for. File shadowing is retired
+// (D-201), so that reading has no referent left — and the drop was never the
+// whole answer anyway. `resolvedManifestEntries` dropped the manifest while
+// `overlayModuleEntriesUnder` composed the module, so a deployment could run a
+// module the resolved registry did not know about: no `module_registrations`
+// row, no permission-catalogue entry, and routes gated on the effective state
+// of somebody else's module of the same id. One rule, reached by both readers,
+// is what replaces it.
+
+// **Why it is in the platform** (`specs/115-lifecycle-container-move/` Phase 3). It sat at
+// `backend/src/packages/module-id-claims.ts`, which kept it in the tree that *installs* the
+// platform rather than in the one that *is* it — and `operator-half.md` §1's rule is that a
+// file belongs to the platform unless it names a path in the installing tree. This one names
+// none: no disk, no environment, no layout, only claims and the refusal over them. It had to
+// move with the derivation rather than after it, because the three-way merge
+// (`manifest-registry.ts`) *is* the site that assembles the claim set from core, the overlay
+// and the installed packages at once, and a platform file may not name an application one
+// (D-52/D-53). `backend/src/packages/module-id-claims.ts` stays at its path as a re-export
+// over the bare specifier, so its eight consumers change nothing.
+//
+// Where a claim came from is the **platform's** vocabulary since D-160.11: the presence
+// load types `ShippedModuleEntry.origin` on it and narrows the first-boot insert with it.
+// Re-exported here because this file is where a *claim* is built, and a claim carries an
+// origin.
+export type { ModuleIdClaimOrigin } from './module-origin.js';
+import type { ModuleIdClaimOrigin } from './module-origin.js';
+
+export interface ModuleIdClaim {
+  readonly id: string;
+  readonly origin: ModuleIdClaimOrigin;
+  /**
+   * The file that claims the id: `manifest.ts` for a core or overlay module,
+   * the resolved `package.json` for an installed package. It is the whole
+   * remedy — an operator can only act on a path.
+   */
+  readonly claimedBy: string;
+  /** The npm package name, where there is one. */
+  readonly name?: string;
+}
+
+export interface ModuleIdCollision {
+  readonly id: string;
+  /** Every claimant, in the order they were offered. */
+  readonly claims: readonly ModuleIdClaim[];
+}
+
+/**
+ * Every module id claimed by more than one source, whatever those sources are.
+ *
+ * There is no qualifier. There used to be one — *"where at least one of them is
+ * an installed package"* — and it excluded exactly the pair feature 103 is
+ * about: a core id and an overlay id, which had a shipped answer of its own
+ * (drop the overlay) resting on a shadowing reading D-201 retires. A module id
+ * is one identity with one owner, and which two sources happen to claim it says
+ * nothing about whether the platform can run.
+ */
+export function moduleIdCollisions(claims: readonly ModuleIdClaim[]): ModuleIdCollision[] {
+  const byId = new Map<string, ModuleIdClaim[]>();
+  for (const claim of claims) {
+    const existing = byId.get(claim.id);
+    if (existing) existing.push(claim);
+    else byId.set(claim.id, [claim]);
+  }
+
+  const collisions: ModuleIdCollision[] = [];
+  for (const [id, claimants] of byId) {
+    if (claimants.length < 2) continue;
+    collisions.push({ id, claims: claimants });
+  }
+  return collisions;
+}
+
+/** The refusal. A distinct type, per D-101's rule that absence refusals stay distinct. */
+export class ModuleIdCollisionError extends Error {
+  readonly collisions: readonly ModuleIdCollision[];
+
+  constructor(collisions: readonly ModuleIdCollision[]) {
+    super(refusalMessage(collisions));
+    this.name = 'ModuleIdCollisionError';
+    this.collisions = collisions;
+  }
+}
+
+const ORIGIN_LABEL: Record<ModuleIdClaimOrigin, string> = {
+  core: 'a core module',
+  overlay: "this deployment's overlay",
+  package: 'an installed package',
+};
+
+function refusalMessage(collisions: readonly ModuleIdCollision[]): string {
+  const lines: string[] = [
+    'This instance will not start: more than one module claims the same module id.',
+    '',
+  ];
+  for (const collision of collisions) {
+    lines.push(`  ${collision.id} — claimed by ${collision.claims.length}:`);
+    for (const claim of collision.claims) {
+      lines.push(
+        `      ${ORIGIN_LABEL[claim.origin]}${claim.name ? ` (${claim.name})` : ''}`,
+        `          ${claim.claimedBy}`,
+      );
+    }
+    lines.push('');
+  }
+  lines.push(
+    'A module id is the platform\'s identity for a module: migrations are ordered and reverted',
+    'by it, settings and permissions are namespaced by it, and the lifecycle registry is keyed',
+    'on it. Two claimants cannot be told apart afterwards — a hard uninstall of the id would',
+    'revert both vendors\' migrations — so this is refused rather than resolved by picking one.',
+    '',
+  );
+  const origins = new Set(
+    collisions.flatMap((collision) => collision.claims.map((claim) => claim.origin)),
+  );
+  if (origins.has('package')) {
+    lines.push(
+      'remedy: `pnpm remove` one of the packages above, or ask its author to change `endora.id`.',
+      'The npm package name is not the identity (D-142) and renaming it changes nothing here.',
+    );
+  }
+  if (origins.has('overlay')) {
+    lines.push(
+      "remedy: give the overlay module above an id of this deployment's own. An overlay module",
+      'is an additive, client-only module (D-103); it does not replace, extend or shadow the',
+      'module whose id it took — file shadowing is retired (D-201) — so sharing an id buys it',
+      'nothing and costs it its registry row, its settings and its permissions.',
+    );
+  }
+  return lines.join('\n');
+}
+
+/** {@link moduleIdCollisions}, as the refusal a composition root makes. */
+export function assertNoModuleIdCollisions(claims: readonly ModuleIdClaim[]): void {
+  const collisions = moduleIdCollisions(claims);
+  if (collisions.length > 0) throw new ModuleIdCollisionError(collisions);
+}

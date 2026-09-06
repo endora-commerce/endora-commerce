@@ -66,6 +66,22 @@
  * gives it a module-package production consumer, and leaves this one in the same
  * merge request (§5, R5.5). Two homes would be two answers to "is this public
  * API?". There is no such consumer today and none is anticipated.
+ *
+ * ## The second population, from Phase 3 on
+ *
+ * That derivation was the whole of it for exactly as long as the host reached
+ * this surface only by relative path. Phase 3 moves the manifest registry's
+ * derivation here (`manifest-registry.ts`, D115-2) and the module-id collision
+ * rule with it (`services/module-id-claims.ts`), and the host names both through
+ * **this specifier** — so their files are on the barrel and are named by no
+ * ledgered reach, correctly. `published-surface.test.ts` therefore asks two
+ * questions rather than one: every name a ledger-reached file exports is here,
+ * so a shim can still retire onto it; and every other name here is one a
+ * first-party source outside the platform actually imports from
+ * `@endora-commerce/platform/lifecycle`, so the subpath is still not a place to
+ * park surface against a future need. The second question is `./composition`'s
+ * own ratchet, and it became non-vacuous in the same merge request that gave
+ * this subpath its first consumer.
  */
 
 // --- the module itself, as the generated artefacts name it ----------------
@@ -157,6 +173,23 @@ export {
   type ModuleIdClaimOrigin,
   type OriginatedManifestEntry,
 } from './services/module-origin.js';
+export {
+  assertNoModuleIdCollisions,
+  moduleIdCollisions,
+  ModuleIdCollisionError,
+  type ModuleIdClaim,
+  type ModuleIdCollision,
+} from './services/module-id-claims.js';
+export {
+  coreManifestEntries,
+  ManifestPathMissingError,
+  resolveManifestEntries,
+  type DiscoveredManifestEntry,
+  type ManifestSources,
+  type OverlayModuleFound,
+  type PackageModuleFound,
+  type RegisteredManifestEntry,
+} from './manifest-registry.js';
 export { buildStaticRegistry, type StaticRegistryEntry } from './services/static-registry.js';
 export { type MigrationOwnership } from './services/migration-ownership.js';
 
