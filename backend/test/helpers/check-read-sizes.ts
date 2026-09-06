@@ -1026,7 +1026,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // before this branch existed. Re-recorded here because this is the first run
     // of the census since, and a census that cannot reach `0 drifted` stops being
     // read.
-    files: 1249,
+    // **`specs/110-instance-repository/`'s two new contracts: +2.** They landed on
+    // `master` with the instance-scaffold design and were not re-recorded there;
+    // this branch is the next run of the census, which is who the report addresses.
+    // **+6 from `master`, none of it this branch's.** `specs/116-zero-series-versioning/`
+    // landed with six files — spec, plan, research, data model and two contracts —
+    // and re-recorded nothing.
+    files: 1255,
     sites: 12,
     sources: [],
   },
@@ -2350,7 +2356,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // who copies one in from the main checkout is scanned for it — `.env` is a
     // scannable path — and reading 7726 off such a run would record a local file
     // into a shared band. Taking it out and re-running is what produced 7725.
-    files: 7725,
+    // **Nine files from `master` plus this branch's changeset: +10.** The
+    // instance-scaffold contracts, the CI-gate reconciliation and the migration
+    // baseline landed without re-recording the two whole-repository walks.
+    // **+7 from `master`.** The six zero-series specification files plus the
+    // public-flip fix's changeset. This walk is the whole repository, so it takes
+    // the changeset the document walk does not.
+    files: 7742,
     sites: null,
     sources: [],
   },
@@ -3421,7 +3433,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/.env`, which is why the two whole-tree numbers moved by different
     // amounts on the run that produced them and only one of them needed the
     // local file taken out before it could be recorded.
-    files: 7785,
+    // **Nine files from `master` plus this branch's changeset: +10**, the same
+    // nine the neighbouring whole-repository walk takes.
+    // **+7 from `master`**, the same six specification files and one changeset the
+    // neighbouring whole-repository walk takes.
+    files: 7802,
     sites: null,
     sources: ['manifest-index'],
   },
