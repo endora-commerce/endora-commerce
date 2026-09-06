@@ -12,6 +12,7 @@ import { RfqDraftBadge } from './rfq/RfqDraftBadge';
 import { ShoppingListHeartBadge } from './ShoppingListHeartBadge';
 import { SearchAutocomplete } from './SearchAutocomplete';
 import { CurrencySwitcher, LocaleSwitcher } from './HeaderPreferenceSwitchers';
+import { publicApiBaseUrl } from '../lib/env.mjs';
 
 /**
  * Industria-themed storefront header. Three rows:
@@ -43,8 +44,7 @@ export function Header(props: {
   // public, build-time-baked `NEXT_PUBLIC_API_BASE_URL` — never the
   // server-only `BACKEND_BASE_URL` (internal `http://backend:3001`) that
   // triggers a Mixed Content block over HTTPS.
-  const apiBaseUrl =
-    process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
+  const apiBaseUrl = publicApiBaseUrl();
 
   // Category/brand shortcut pills for the mobile search overlay (top departments).
   const mobileSearchQuickLinks = (props.megamenu?.items ?? [])

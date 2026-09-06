@@ -1,6 +1,22 @@
 import { apiMutate, extractSessionCookieValue } from './mutations';
 import { StorefrontApiError, type RequestContext } from './client';
 import { withModuleAbsence } from './module-absence';
+import { backendBaseUrl } from '../env.mjs';
+
+/**
+ * The backend's origin, read per call.
+ *
+ * **Not a module-scope constant, and that is measured rather than stylistic.**
+ * `BACKEND_BASE_URL` is a *run-time* value — `deploy/compose.prod.yml` sets it
+ * on the container and `storefront/Dockerfile` deliberately does not pass it as
+ * a build arg — but `next build`'s collect-page-data phase evaluates every
+ * route's module scope, so a `const baseUrl = backendBaseUrl()` here made the
+ * image build fail on `/sitemap.xml` and `/manifest.webmanifest` for a variable
+ * that is correctly absent at that moment. Reading it inside the call is also
+ * what `lib/api/backend-reachability.ts` does, for its own half of the same
+ * reason: a container configured at start-up is only honoured by a read that
+ * happens then.
+ */
 
 /**
  * Cart API bindings (T156). The backend cart accepts either an
@@ -91,7 +107,6 @@ export interface CartResult {
   newAnonCookie: string | null;
 }
 
-const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
 
 /**
  * Cheap mini-cart fetch for the header badge — uses the backend's
@@ -109,7 +124,7 @@ export async function getCartItemCount(
     if (ctx?.locale) headers['Accept-Language'] = ctx.locale;
     const cookie = combineCookies(jar);
     if (cookie) headers['Cookie'] = cookie;
-    const response = await fetch(`${baseUrl}/api/v1/cart?view=mini`, {
+    const response = await fetch(`${backendBaseUrl()}/api/v1/cart?view=mini`, {
       method: 'GET',
       headers,
       cache: 'no-store',
@@ -148,7 +163,7 @@ async function fetchCart(jar: CartCookieJar, ctx?: RequestContext): Promise<Cart
   if (ctx?.locale) headers['Accept-Language'] = ctx.locale;
   const cookie = combineCookies(jar);
   if (cookie) headers['Cookie'] = cookie;
-  let response = await fetch(`${baseUrl}/api/v1/cart`, {
+  let response = await fetch(`${backendBaseUrl()}/api/v1/cart`, {
     method: 'GET',
     headers,
     cache: 'no-store',
@@ -161,7 +176,7 @@ async function fetchCart(jar: CartCookieJar, ctx?: RequestContext): Promise<Cart
     const retryAfter = Number(response.headers.get('retry-after') ?? '1');
     const waitMs = Math.min(Math.max(Number.isFinite(retryAfter) ? retryAfter : 1, 1), 5) * 1000;
     await new Promise((r) => setTimeout(r, waitMs));
-    response = await fetch(`${baseUrl}/api/v1/cart`, {
+    response = await fetch(`${backendBaseUrl()}/api/v1/cart`, {
       method: 'GET',
       headers,
       cache: 'no-store',
@@ -384,7 +399,7 @@ export async function getCartUpsells(
   if (ctx?.locale) headers['Accept-Language'] = ctx.locale;
   const cookie = combineCookies(jar);
   if (cookie) headers['Cookie'] = cookie;
-  const res = await fetch(`${baseUrl}/api/v1/cart/upsells`, {
+  const res = await fetch(`${backendBaseUrl()}/api/v1/cart/upsells`, {
     method: 'GET',
     headers,
     cache: 'no-store',
@@ -483,7 +498,7 @@ export async function listOrganizationCarts(
   const cookie = combineCookies(jar);
   if (cookie) headers['Cookie'] = cookie;
   const res = await fetch(
-    `${baseUrl}/api/v1/organization/carts${qs ? `?${qs}` : ''}`,
+    `${backendBaseUrl()}/api/v1/organization/carts${qs ? `?${qs}` : ''}`,
     { headers, credentials: 'include' as RequestCredentials },
   );
   if (!res.ok) {

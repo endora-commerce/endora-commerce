@@ -4,6 +4,7 @@
 // website even without PWA config (graceful degradation, US1 scenario 3).
 
 import type { PwaPublicConfig } from '@endora-commerce/contracts';
+import { backendBaseUrl } from '../env.mjs';
 
 const DEFAULT_CONFIG: PwaPublicConfig = {
   appName: process.env['NEXT_PUBLIC_APP_NAME'] ?? 'B2B Platform',
@@ -22,7 +23,7 @@ const DEFAULT_CONFIG: PwaPublicConfig = {
 };
 
 export async function fetchPwaConfig(channelCode?: string): Promise<PwaPublicConfig> {
-  const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
+  const baseUrl = backendBaseUrl();
   try {
     const res = await fetch(`${baseUrl}/api/v1/storefront/pwa/config`, {
       headers: channelCode ? { 'X-Sales-Channel': channelCode } : {},

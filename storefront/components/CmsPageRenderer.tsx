@@ -6,8 +6,9 @@ import type { CmsResolvedPage, CmsResolvedBlock, CmsResolvedTemplate } from '@en
 import { toAbsoluteAssetUrl } from '../lib/asset-url';
 import { Hook } from './Hook';
 import { PageBuilderRender } from './PageBuilderRender';
+import { publicApiBaseUrl } from '../lib/env.mjs';
 
-const mediaBaseUrl = (process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001').replace(
+const mediaBaseUrl = publicApiBaseUrl().replace(
   /\/+$/,
   '',
 );

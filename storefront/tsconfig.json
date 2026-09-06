@@ -21,6 +21,8 @@
     "incremental": true
   },
   "include": [
+    "middleware.ts",
+    "instrumentation.ts",
     "app/**/*",
     "components/**/*",
     "lib/**/*",

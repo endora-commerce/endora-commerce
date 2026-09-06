@@ -1,3 +1,5 @@
+import { publicApiBaseUrl } from './env.mjs';
+
 /**
  * Rebase host-relative asset URLs (e.g. `/assets/file/<assetId>`) onto the
  * public API origin so gallery/thumbnail images resolve against the backend
@@ -14,7 +16,7 @@
  * internal `BACKEND_BASE_URL` (`http://backend:3001`), which would break in the
  * browser (Mixed Content / unresolvable host).
  */
-const apiBaseUrl = process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
+const apiBaseUrl = publicApiBaseUrl();
 
 export function toAbsoluteAssetUrl(url: string | null | undefined): string {
   if (!url) return '';

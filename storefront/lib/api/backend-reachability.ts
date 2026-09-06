@@ -74,6 +74,8 @@
  * is the only caller that acts on it.
  */
 
+import { backendBaseUrl } from '../env.mjs';
+
 /** What the probe concluded about the transport. */
 export type ReachabilityVerdict = 'reachable' | 'unreachable';
 
@@ -264,7 +266,7 @@ export async function backendReachability(now: number = Date.now()): Promise<Rea
   if (isFresh(cached, now)) return cached!.verdict;
   if (inFlight !== null) return await inFlight;
 
-  const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
+  const baseUrl = backendBaseUrl();
   inFlight = probe(baseUrl)
     .then((verdict) => {
       cached = { verdict, at: Date.now() };

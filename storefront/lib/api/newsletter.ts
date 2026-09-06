@@ -4,8 +4,23 @@ import type {
   SelfNewsletterStatus,
 } from '@endora-commerce/contracts';
 import { apiMutate, apiGetAuthed } from './mutations';
+import { backendBaseUrl } from '../env.mjs';
 
-const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
+/**
+ * The backend's origin, read per call.
+ *
+ * **Not a module-scope constant, and that is measured rather than stylistic.**
+ * `BACKEND_BASE_URL` is a *run-time* value — `deploy/compose.prod.yml` sets it
+ * on the container and `storefront/Dockerfile` deliberately does not pass it as
+ * a build arg — but `next build`'s collect-page-data phase evaluates every
+ * route's module scope, so a `const baseUrl = backendBaseUrl()` here made the
+ * image build fail on `/sitemap.xml` and `/manifest.webmanifest` for a variable
+ * that is correctly absent at that moment. Reading it inside the call is also
+ * what `lib/api/backend-reachability.ts` does, for its own half of the same
+ * reason: a container configured at start-up is only honoured by a read that
+ * happens then.
+ */
+
 
 /**
  * Newsletter storefront API (feature 048). Public subscribe/unsubscribe plus the
@@ -20,7 +35,7 @@ const baseUrl = process.env['BACKEND_BASE_URL'] ?? 'http://localhost:3001';
 export async function getNewsletterStatus(channelCode: string): Promise<NewsletterStatusResponse> {
   try {
     const res = await fetch(
-      `${baseUrl}/api/v1/newsletter/status?channel=${encodeURIComponent(channelCode)}`,
+      `${backendBaseUrl()}/api/v1/newsletter/status?channel=${encodeURIComponent(channelCode)}`,
       { cache: 'no-store' },
     );
     if (!res.ok) return { enabled: false, optInMode: 'double' };

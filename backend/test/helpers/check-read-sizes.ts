@@ -627,6 +627,38 @@ export interface RecordedReadSize {
  * looks as though it should: its population is `backend/test/**` plus the module
  * walk roots, and the kit is neither a module package nor under `backend/test`.
  * Its `package-test-scripts` author counts module packages, so 56/56 stands.
+ *
+ * ## 2026-09-06 — the storefront stops inventing `http://localhost:3001`
+ *
+ * Five entries, and **only two of them are this branch's** — which is the whole
+ * reason the drift report exists and is why the split is written down rather
+ * than folded into one number. The branch adds four files
+ * (`storefront/lib/env.mjs`, `storefront/instrumentation.ts` and two tests) and
+ * deletes none; every other change it makes is to a file that already existed.
+ * The attribution was **measured, not inferred**: each of the five checks was run
+ * twice in one tree, once with the four files in place and once with them moved
+ * aside.
+ *
+ *  - **`check-nul-bytes` 7757 -> 7767**, of which **+4** is this branch's (7763
+ *    without the four files, 7767 with) and **+6** is `master`'s.
+ *  - **`check-diacritic-folds` 5291 -> 5294**, all **+3** this branch's. Three and
+ *    not four because this walk reads `.ts`/`.tsx`/`.js` and the seam is `.mjs`.
+ *    That asymmetry against its whole-repository neighbour is the useful part of
+ *    the record.
+ *  - **`check-doc-snippets` 1255 -> 1261**, **`check-naming.sh` 7817 -> 7827** and
+ *    **`check-language.sh` 5829 -> 5833** — **none of it this branch's**, and each
+ *    measured as unchanged by parking the four files. `check-naming.sh` and
+ *    `check-language.sh` exclude `storefront/`; `check-doc-snippets` reads
+ *    `docs/docs` and `specs`. They are re-recorded here anyway, because the census
+ *    prints on a green run precisely so that staleness is repaired by whoever sees
+ *    it rather than inherited by whoever comes next.
+ *
+ * The seam being `.mjs` is itself a measurement and not a preference:
+ * `storefront/next.config.js` is loaded by Node, which cannot import TypeScript,
+ * and `next.config.ts` was tried and reverted — Next's TS-config loader resolves
+ * `typescript` from the instance, which a scaffolded client storefront does not
+ * have, so the `endora new storefront` criterion went red on A5 with
+ * `MODULE_NOT_FOUND` and A6 had no build to boot.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -923,7 +955,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // unmoved: none of them folds a diacritic or builds a slug.
     // **+3 for this branch.** The service-unavailable page, its reachability probe
     // and its shared constants; the test file is outside this walk.
-    files: 5291,
+    // **The storefront environment refusal: 5291 -> 5294 (+3).** `instrumentation.ts`
+    // and the two new test files. The seam itself, `storefront/lib/env.mjs`, is
+    // **not** among them — this walk reads `.ts`/`.tsx`/`.js` and `.mjs` is outside
+    // it, which is why this moves by three where `check-nul-bytes` moves by four.
+    files: 5294,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1135,6 +1171,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+4 for this branch.** `specs/118-instance-member-selection/` — spec, plan,
     // research and one contract. All four are documents under a declared root, so
     // the document walk and the two whole-repository walks move by the same four.
+    // **The storefront environment refusal adds nothing here.** Its four new files
+    // are storefront sources and this walk reads `docs/docs` and `specs`; measured
+    // by parking them, which left this number where `master` had already put it.
+    // **+4, none of it this branch's.** The four documents belong to the design this
+    // branch is stacked on; the four files added here are source and a test, which
+    // this walk does not read. The conflict resolution had reverted this entry to a
+    // value measured before that stack; the number here is measured on the union.
     files: 1265,
     sites: 12,
     sources: [],
@@ -2615,7 +2658,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+4 for this branch.** `specs/118-instance-member-selection/` — spec, plan,
     // research and one contract. All four are documents under a declared root, so
     // the document walk and the two whole-repository walks move by the same four.
-    files: 7767,
+    // **The storefront environment refusal: 7763 -> 7767 (+4).**
+    // `storefront/lib/env.mjs`, `storefront/instrumentation.ts` and two test files.
+    // Measured by parking the four and re-running, which is also how the `master`
+    // half above was told apart from this branch's before that half landed. This
+    // walk is the whole repository, so unlike its `check-diacritic-folds` neighbour
+    // it takes the `.mjs` too — which is why one moves by four and the other three.
+    // **+4 for this branch** — `instrumentation.ts`, the `env.mjs` seam and its two
+    // tests. This walk is the whole repository and takes all four.
+    files: 7771,
     sites: null,
     sources: [],
   },
@@ -3814,7 +3865,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+4 for this branch.** `specs/118-instance-member-selection/` — spec, plan,
     // research and one contract. All four are documents under a declared root, so
     // the document walk and the two whole-repository walks move by the same four.
-    files: 7827,
+    // **The storefront environment refusal adds nothing here**, and it is the one
+    // number on this branch that does *not* track its `check-nul-bytes` neighbour
+    // file for file: this walk excludes `storefront/`, so it sees none of the four
+    // new files while the whole-repository walk sees all of them. Measured by
+    // parking them — 7827 either way.
+    // **7823 -> 7827 (+4), still none of it this branch's**, and the four are worth
+    // a line because of *how* they were found. The `+6 from master` note above was
+    // measured against a base this branch was then rebased past, which is the
+    // failure the header's own lesson names: a re-recorded value is a measurement
+    // of a branch against a base, so a rebase invalidates it without touching a
+    // line anyone wrote. The census caught it on the rebased tree, and parking this
+    // branch's four files left the number where it is. Its `check-nul-bytes` twin
+    // did not move, so the four are outside the whole-repository walk and inside
+    // this one — the reverse of the asymmetry recorded immediately above.
+    // **+4 for this branch**, the same four files the neighbouring whole-repository
+    // walk takes.
+    files: 7831,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3956,7 +4023,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // literals rather than comments — outside Principle VIII by design.
     // **+3 for this branch**, the three storefront sources; the test file is not in
     // this walk's population.
-    files: 5829,
+    // **The storefront environment refusal: 5829 -> 5833 (+4), none of it this
+    // branch's.** Parking the four files leaves 5833 unchanged. Like its
+    // `check-naming.sh` twin — the two are one job and one pair of modes — this walk
+    // does not read `storefront/`, so the four new files are invisible to it and the
+    // +4 is `master`'s.
+    files: 5833,
     sites: null,
     sources: ['manifest-index'],
   },
