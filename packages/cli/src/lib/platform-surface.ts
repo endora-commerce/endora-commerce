@@ -121,6 +121,15 @@ export const HOST_INTERNAL_SUBPATHS: Readonly<Record<string, string>> = {
     'is an argument against publishing a surface rather than against giving it an address: ' +
     'without one the application reaches it by relative path into ' +
     "`packages/platform/dist/`, which resolves in this checkout and in no client's.",
+  env:
+    'the environment-input declaration (feature 117, FR-001): the inputs the host and the ' +
+    'platform read, with what each configures, whether it is required and what is lost ' +
+    'without it. Its readers are the scaffolding commands, `endora doctor` and the ' +
+    "reconciliation check \u2014 none of them a module. Host-internal for `./composition`'s own " +
+    'reason, one surface over: a module declares its **own** inputs in its manifest, so a ' +
+    'module that could name this one could read, and would eventually copy, a population it ' +
+    'does not own. The shape it is written in is public API and lives in ' +
+    '`@endora-commerce/contracts`, which is where a module takes it from.',
 };
 
 /** The file a published directory's surface is written in. */

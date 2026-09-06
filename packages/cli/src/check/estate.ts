@@ -399,6 +399,35 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'A',
   },
   {
+    // `specs/117-instance-bring-up/` FR-003. **`package`, not
+    // `repository-only`, and the distinction is a claim about the rule's
+    // *subject*.** The repository host reconciles the three trees a running
+    // Endora is made of; a module package is none of them **today**, and that
+    // is a fact about this build rather than about the rule — a module declares
+    // its own environment inputs in `manifest.ts` beside its permissions and
+    // its actions, on identical terms with an installed package, and that is
+    // what Phase 3 lands. Filing it `repository-only` would write "a module can
+    // never have inputs to declare" into an artefact three programs read, which
+    // is the opposite of the design. So it is `pending`, which is the verdict
+    // for a rule whose host this build has not got, and it names the phase.
+    id: 'check:env-inputs',
+    script: 'backend/scripts/check-env-inputs.ts',
+    scope: 'package',
+    host: pending('specs/117-instance-bring-up/ Phase 3 — the module manifest `env` field'),
+    subjectDeclaration: {
+      kind: 'manifest-block',
+      declaration: '`env` in the module manifest',
+    },
+    // The declarations are read out of their own **source text**, never out of
+    // an emitted module: an imported one would answer about the previous build
+    // (D-164), which is the `stale-artefact` class
+    // `check:action-route-permissions` grew a refusal for after three measured
+    // false greens. Reading the text removes the question rather than guarding
+    // it, and the run needs no build at all.
+    readsArtefact: false,
+    tier: 'A',
+  },
+  {
     id: 'check:error-translations',
     script: 'backend/scripts/check-error-translations.ts',
     scope: 'package',

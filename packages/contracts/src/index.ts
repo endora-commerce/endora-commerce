@@ -211,3 +211,8 @@ export * from './text-normalization.js';
 // stored and compared in one form, reachable by both modules that key a row on
 // one.
 export * from './email-address.js';
+// The environment-input declaration (feature 117, FR-001). Not an API shape: it
+// is the one machine-readable statement of what a running platform needs, read
+// by the scaffolding commands, by `endora doctor` and by the reconciliation
+// check — three readers, one declaration, no second list (D-100).
+export * from './environment-inputs.js';
