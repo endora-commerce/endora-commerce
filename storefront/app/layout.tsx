@@ -36,7 +36,22 @@ import { AnalyticsProvider } from '../components/analytics/AnalyticsProvider';
 import { ConsentBanner } from '../components/analytics/ConsentBanner';
 import { CookieConsentMessage } from '../components/analytics/CookieConsentMessage';
 import { getAnonCartCookie, getSessionCookie } from '../lib/session';
+import { headers } from 'next/headers';
+import { DEFAULT_STOREFRONT_THEME_CODE } from '../lib/theme/instance-themes';
+import { UNAVAILABLE_HEADER } from '../lib/service-unavailable';
+import { outageLocale } from './service-unavailable/page';
 import './globals.css';
+
+/**
+ * Did the reachability gate rewrite this request to the unavailable notice?
+ *
+ * A request header rather than the pathname: the rewrite deliberately leaves
+ * the buyer's own URL in place, so `x-pathname` still names the page they asked
+ * for and there is nothing in the path to branch on.
+ */
+async function isUnreachableBackendRender(): Promise<boolean> {
+  return (await headers()).get(UNAVAILABLE_HEADER) === '1';
+}
 
 /**
  * `metadataBase` is what makes every route's `alternates.canonical` a **path**
@@ -83,6 +98,31 @@ export default async function RootLayout({
 }: {
   children: ReactNode;
 }): Promise<ReactNode> {
+  // The reachability gate in `middleware.ts` rewrote this request to the
+  // service-unavailable notice because the backend cannot be reached. Every
+  // read below would fail — `getServerContext()` first, on `getI18nConfig()`,
+  // which is the throw this whole feature exists to replace — so the layout
+  // returns the document shell and nothing else.
+  //
+  // It is not only a necessity. The header's megamenu, cart badge and user pill
+  // have no data during an outage, and the footer's links point at pages that
+  // are equally unreachable; chrome rendered from defaults would be chrome that
+  // lies. See `app/service-unavailable/page.tsx`.
+  if (await isUnreachableBackendRender()) {
+    return (
+      <StorefrontDocument
+        lang={await outageLocale()}
+        theme={{ code: DEFAULT_STOREFRONT_THEME_CODE, unknownRequest: null }}
+      >
+        <div className="flex min-h-screen flex-col bg-bg">
+          <main id="main-content" tabIndex={-1} className="flex-1">
+            {children}
+          </main>
+        </div>
+      </StorefrontDocument>
+    );
+  }
+
   const { config, locale, currency, ctx, theme } = await getServerContext();
   const t = tForLocale(locale);
   // Handed to the <MobileTabBar> client component, which fetches the mini-cart

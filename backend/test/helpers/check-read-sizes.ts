@@ -917,7 +917,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
     // plus `test/unit/_lifecycle/manifest-registry.test.ts`. `backend/src` does not
     // move: the binding and the claims re-export both keep their paths.
-    files: 5287,
+    // **The service-unavailable notice: 5284 -> 5288.** The four source files
+    // the storefront's `503` answer adds — the notice's `page.tsx`, the
+    // reachability classifier, the shared names module and the test. `sites` is
+    // unmoved: none of them folds a diacritic or builds a slug.
+    // **+3 for this branch.** The service-unavailable page, its reachability probe
+    // and its shared constants; the test file is outside this walk.
+    files: 5291,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2552,7 +2558,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset, which this walk takes because its population is the whole
     // repository. `backend/src` does not move: the binding and the claims
     // re-export both keep their paths.
-    files: 7752,
+    // **The service-unavailable notice: 7748 -> 7752.** The same four source
+    // files. This walk is the whole repository and carries no changeset for
+    // them, because the notice lives in `storefront`, which `.changeset`
+    // ignores as an application.
+    // **+4 for this branch** — the three storefront sources and their test. This
+    // walk is the whole repository and takes all four.
+    files: 7756,
     sites: null,
     sources: [],
   },
@@ -3070,7 +3082,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `/{slug}` and `/cms/{path}` is a permanent redirect in `next.config.js`,
     // which is configuration and not a `.tsx`. `sites` is unmoved — that file
     // is a Server Component and classified no `useEffect`.
-    files: 332,
+    // **The service-unavailable notice: 332 -> 334.** Two `.tsx` files — the
+    // notice's `page.tsx` and its test. `sites` is unmoved and that is the
+    // point of this page: it is a Server Component that fetches nothing, so it
+    // classifies no `useEffect` and could not be a candidate if it tried.
+    files: 334,
     // The `useEffect` callbacks classified inside those client components, and
     // this is the number that matters. #237's shape for this check is a syntax
     // walk that stops recognising an effect while the file count stands still:
@@ -3163,7 +3179,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // then 68 -> 66 as `app/loading.tsx` and `app/(catalog)/p/[slug]/loading.tsx`
     // go. `app/(catalog)/catalog/loading.tsx` stays, because `/catalog` decides
     // no status, and it is the one boundary file this number now counts.
-    files: 67,
+    // **The service-unavailable notice: 67 -> 68.** One `page.tsx`, and one
+    // only: the notice is `noindex`, so it declares no `seo.ts` for the walk to
+    // open beside it. The pair moving by one each — see `sites` — is what says
+    // a page arrived rather than a declaration.
+    files: 68,
     // Routes classified either way: 8 indexable + 48 `noindex`. It moves only
     // when a page is added or removed, so a run whose `sites` fell while `files`
     // held is a route file that left the tree rather than a declaration that
@@ -3171,7 +3191,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 105: 57 -> 56.** One `page.tsx`, and the pair is the point —
     // `files` fell by two and `sites` by one, which is a route file and its
     // declaration leaving together rather than either alone.
-    sites: 56,
+    // **The service-unavailable notice: 56 -> 57.** The `noindex` count goes
+    // 48 -> 49 and the indexable eight do not move: a page nobody may index is
+    // still a page this check classifies, and silence would have been a finding.
+    sites: 57,
     // `sitemap` is `storefront/app/sitemap.ts`'s own declared route set — the
     // five static URLs plus the three dynamic patterns — against how many of
     // them the route walk could match to a page file. It is #215's predicate for
@@ -3727,7 +3750,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset, which this walk takes because its population is the whole
     // repository. `backend/src` does not move: the binding and the claims
     // re-export both keep their paths.
-    files: 7812,
+    // **The service-unavailable notice: 7808 -> 7812.** The same four source
+    // files the neighbouring whole-repository walk takes.
+    // **+4 for this branch**, the same four files the neighbouring whole-repository
+    // walk takes.
+    files: 7816,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3863,7 +3890,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
     // plus `test/unit/_lifecycle/manifest-registry.test.ts`. `backend/src` does not
     // move: the binding and the claims re-export both keep their paths.
-    files: 5825,
+    // **The service-unavailable notice: 5822 -> 5826.** The same four source
+    // files. All four carry English comments; the notice's Polish copy is in
+    // `messages.ts`, which this walk already opened and which holds string
+    // literals rather than comments — outside Principle VIII by design.
+    // **+3 for this branch**, the three storefront sources; the test file is not in
+    // this walk's population.
+    files: 5829,
     sites: null,
     sources: ['manifest-index'],
   },

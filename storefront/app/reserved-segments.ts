@@ -74,6 +74,7 @@ export const RESERVED_TOP_LEVEL_SEGMENTS: readonly string[] = [
   'register-customer',
   'returns',
   'search',
+  'service-unavailable',
   'session-expired',
   'shopping-lists',
   'verify',
