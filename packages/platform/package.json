@@ -7,6 +7,7 @@
     "type": "platform"
   },
   "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). Two further subpaths are host-internal and no module may name either (D-160.14): ./composition, the host composition surface, and ./migrations, the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5).",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",

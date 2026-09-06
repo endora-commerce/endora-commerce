@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Pages, blocks, templates, and hooks for content management.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "cms"
@@ -70,8 +71,33 @@
     "react": "^19",
     "react-dom": "^19",
     "react-router-dom": "^7",
-    "vitest": "^2",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "@endora-commerce/cms-components": {
+      "optional": true
+    },
+    "@endora-commerce/page-builder-admin": {
+      "optional": true
+    },
+    "@measured/puck": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

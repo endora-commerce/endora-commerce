@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Invoice generation, numbering, PDF templates, corrections, and email delivery.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "invoices"
@@ -60,7 +61,6 @@
     "@endora-commerce/page-builder-admin": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
-    "@fastify/type-provider-zod": "^1",
     "@measured/puck": "^0",
     "@mikro-orm/core": "^6",
     "@mikro-orm/migrations": "^6",
@@ -71,8 +71,27 @@
     "pdfmake": "^0",
     "react": "^19",
     "react-router-dom": "^7",
-    "vitest": "^2",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "@endora-commerce/page-builder-admin": {
+      "optional": true
+    },
+    "@measured/puck": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

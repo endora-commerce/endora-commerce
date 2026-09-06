@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Per-user Admin UI language preference and module-scoped translation bundles. English is the platform-wide fallback (FR-013 / FR-016).",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "_i18n"

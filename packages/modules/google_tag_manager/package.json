@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Google Tag Manager integration: per-sales-channel container injection behind the storefront consent decision, a documented commerce dataLayer vocabulary, and an optional server-side tagging relay.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "google_tag_manager"
@@ -47,7 +48,6 @@
     "bullmq": "^5",
     "fastify": "^5",
     "ioredis": "^5",
-    "vitest": "^2",
     "zod": "^4"
   },
   "devDependencies": {

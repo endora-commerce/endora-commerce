@@ -3,6 +3,7 @@
   "version": "0.7.0",
   "type": "module",
   "description": "The `endora` command line: scaffolding and conformance tooling for Endora Commerce modules and integrations.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",

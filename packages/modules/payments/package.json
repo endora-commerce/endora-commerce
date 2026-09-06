@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "The platform payment capability: the built-in payment adapters (bank transfer, in-person pickup, credit limit, gateway), the payment record every order carries, and the settlement lifecycle that PSP integrations plug into. Switched off, checkout offers no payment method and the shop takes no orders.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "payments"
@@ -55,8 +56,18 @@
     "@mikro-orm/postgresql": "^6",
     "fastify": "^5",
     "lucide-react": "^1",
-    "react": "^19",
-    "vitest": "^2"
+    "react": "^19"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

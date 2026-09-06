@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Publishes the catalogue of a sales channel as a provider-shaped feed file (Google Merchant Center, Meta, Amazon, eBay, Allegro) at a stable tokenised URL, on a per-feed schedule.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "product_feeds"
@@ -67,8 +68,21 @@
     "react": "^19",
     "react-router-dom": "^7",
     "ssh2-sftp-client": "^12",
-    "vitest": "^2",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

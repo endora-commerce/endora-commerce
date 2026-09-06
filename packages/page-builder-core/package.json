@@ -3,6 +3,7 @@
   "version": "0.7.0",
   "type": "module",
   "description": "Shared Page Builder primitives — responsive props, context filtering, and component definition helpers for CMS, email, and invoice builders.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",

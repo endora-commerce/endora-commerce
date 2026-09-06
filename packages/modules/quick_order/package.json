@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Bulk Cart / Quote Request import (CSV + Excel, with variants), quick product search, reorder, default ordering preferences, and one-click buy.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "quick_order"
@@ -59,8 +60,15 @@
     "exceljs": "^4",
     "fastify": "^5",
     "react": "^19",
-    "vitest": "^2",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

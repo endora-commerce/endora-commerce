@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Liveness/readiness HTTP endpoints consumed by orchestrators.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "health_checks"

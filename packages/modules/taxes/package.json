@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Tax rate configuration and order tax computation.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "taxes"
@@ -58,6 +59,17 @@
     "fastify": "^5",
     "lucide-react": "^1",
     "react": "^19"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

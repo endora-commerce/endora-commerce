@@ -2342,7 +2342,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it edits a file under `packages/`: this walk's population is the whole
     // repository and `.changeset/*.md` is in it. That is the ordinary per-changeset
     // move, arriving in the two walks that count every file.
-    files: 7736,
+    // **7724 -> 7725 (+1): the licence-and-peers branch's own changeset file.**
+    // Its two subjects are a generator and a check, so it creates one file and
+    // edits the rest — and this walk is the whole tree, so the changeset the
+    // release gate requires is the whole of the move. Measured **without**
+    // `backend/.env`: a fresh worktree has none and CI has none, but a developer
+    // who copies one in from the main checkout is scanned for it — `.env` is a
+    // scannable path — and reading 7726 off such a run would record a local file
+    // into a shared band. Taking it out and re-running is what produced 7725.
+    files: 7725,
     sites: null,
     sources: [],
   },
@@ -2791,8 +2799,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // blindness, and this is the population quadrupling in one merge request
     // because the estate went from four publishable packages to seventy-nine.
     // The next one moves it by four per member, which is ordinary drift again.
+    //
+    // **410 -> 489 (the owner's licensing ruling of 2026-09-06): `sites` only,
+    // and it is the "four per member" the note above predicted.** The same 85
+    // manifests are opened and a public versionable member is now a fourth
+    // fitness decision — is this package licensed, and, for the one licence
+    // form that names a file, is that file there. 410 + 79, measured, not
+    // computed from a delta. `files` deliberately does not move: the licence
+    // **file** is opened only for a `SEE LICENSE IN` licence, of which this
+    // estate has none, so the count follows the tree rather than the ruling and
+    // moves on the day a paid package arrives.
     files: 85,
-    sites: 410,
+    sites: 489,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
@@ -3398,7 +3416,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // file in the checkout to decide which are module folders, and `.changeset/*.md`
     // is one of them; `check-doc-snippets` above does not move, its population being
     // `docs/docs` and `specs` rather than the tree.
-    files: 7795,
+    // **7784 -> 7785 (+1): the licence-and-peers branch's own changeset file**,
+    // the same one file the entry above takes. This walk does **not** take
+    // `backend/.env`, which is why the two whole-tree numbers moved by different
+    // amounts on the run that produced them and only one of them needed the
+    // local file taken out before it could be recorded.
+    files: 7785,
     sites: null,
     sources: ['manifest-index'],
   },

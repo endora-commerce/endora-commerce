@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Per-channel Meilisearch indexes, suggest popup, and optional LLM-augmented search.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "search"
@@ -53,7 +54,6 @@
     "@mikro-orm/postgresql": "^6",
     "fastify": "^5",
     "meilisearch": "^0",
-    "vitest": "^2",
     "zod": "^4"
   },
   "devDependencies": {

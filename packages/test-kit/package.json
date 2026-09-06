@@ -3,6 +3,7 @@
   "version": "0.7.0",
   "type": "module",
   "description": "Composes an Endora Commerce platform for a test, from a composition its caller supplies. The server seam, the per-invocation database lease and the module test-support contribution shape, none of which names a module package (feature 109).",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
