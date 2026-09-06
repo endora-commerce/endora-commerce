@@ -72,6 +72,21 @@ afterEach(() => {
 interface FixtureOptions {
   /** Applied to a copy of the real `.changeset/config.json`. */
   readonly mutateConfig?: (config: Record<string, unknown>) => void;
+  /**
+   * Libraries to mark `"private": true` in the fixture.
+   *
+   * `privatePackages.version` governs **private** packages, so the two
+   * measurements below that need one are only available over a private
+   * package — and since the owner's publication ruling of 2026-09-05 there is
+   * none left in this repository to borrow. The precondition therefore belongs
+   * in the fixture rather than in the tree, which is also the more honest place
+   * for it: those tests measure what changesets does to a private package, and
+   * a fixture that got that state by accident of the day it ran is a test
+   * measuring the calendar. `changeset-flow.test.ts` took this shape in the
+   * publication branch itself; this file was not repaired with it, because
+   * nothing on a merge request runs it.
+   */
+  readonly privateLibraries?: readonly string[];
   /** Extra files, repository-relative. */
   readonly files?: Readonly<Record<string, string>>;
 }
@@ -89,10 +104,11 @@ function fixture(options: FixtureOptions = {}): string {
   write('pnpm-workspace.yaml', readFileSync(join(REPO_ROOT, 'pnpm-workspace.yaml'), 'utf8'));
   write('package.json', '{ "name": "b2b-platform", "version": "0.0.0", "private": true }');
   for (const name of LIBRARIES) {
-    write(
-      `packages/${name}/package.json`,
+    const manifest = JSON.parse(
       readFileSync(join(REPO_ROOT, 'packages', name, 'package.json'), 'utf8'),
-    );
+    ) as Record<string, unknown>;
+    if (options.privateLibraries?.includes(name) === true) manifest['private'] = true;
+    write(`packages/${name}/package.json`, JSON.stringify(manifest, null, 2));
     // The real emit configuration, because `--since` derives what a package
     // publishes from it. Copied rather than invented: the property under test
     // is that these five publish only their own directories today, which is
@@ -194,13 +210,17 @@ describe('`changeset status --since` — the merge-request gate', () => {
    * `privatePackages.version` at the config default, and the output is a
    * cheerful "Packages to be bumped:" with nothing under it.
    *
-   * It used to edit `packages/contracts` and is now `email-components`, because
-   * feature 104 made the first of those public and `privatePackages` governs
-   * private packages only — which is the discrimination below, and the reason
-   * this pair is worth two tests rather than one.
+   * It used to edit `packages/contracts` and is now `email-components` made
+   * private **by the fixture**: feature 104 published every package in the
+   * tree, and `privatePackages` governs private packages only — which is the
+   * discrimination below, and the reason this pair is worth two tests rather
+   * than one. Borrowing the state from whichever package happened to be
+   * private was what made this case go stale; declaring it here is what stops
+   * it going stale again.
    */
   it('passes a branch changing a private package when `privatePackages.version` is `false`', () => {
     const dir = fixture({
+      privateLibraries: ['email-components'],
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
@@ -344,8 +364,11 @@ describe('a release branch is the one branch the gate would refuse for doing its
     // false` is what makes this run vacuous, and it governs private packages
     // only, so naming a public one would produce a real release rather than the
     // no-op under test — which is exactly what it did once feature 104 made
-    // `contracts` public.
+    // `contracts` public, and again once it published `email-components` too.
+    // The fixture declares the privacy rather than borrowing it, so the case
+    // states its own precondition instead of resting on the day's tree.
     const vacuous = fixture({
+      privateLibraries: ['email-components'],
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
