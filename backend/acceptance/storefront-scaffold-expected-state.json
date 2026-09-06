@@ -23,6 +23,20 @@
     "If this job ever stops booting one, A6 drifts to `unmeasured` and fails, which is",
     "the direction that keeps the headline claim honest.",
     "",
+    "SINCE 2026-09-06 A6 IS TWO BOOTS AND ITS `pass` MEANS MORE THAN IT DID. The state",
+    "is unchanged and the claim behind it is not: the run now points the instance at the",
+    "backend through the variables the instance's own `.env.example` declares, and then",
+    "boots it a second time with those same variables aimed at an address nothing listens",
+    "on. A pass needs the first boot below 500 and the second at or above it. Until this",
+    "landed the harness exported `PUBLIC_API_BASE_URL` — the *backend's* variable, for the",
+    "public origin its gateway callbacks need, and one no file in the storefront has ever",
+    "read — so the instance fell back to the `http://localhost:3001` its fetchers compile",
+    "in. A6 was therefore green whenever the run's backend happened to sit on that address",
+    "and red whenever it sat anywhere else, in both cases for a reason belonging to the",
+    "harness rather than to the criterion. The probe is what stops the green meaning `the",
+    "fallback answered`: a second boot whose configuration reaches nothing has to fail, or",
+    "the first answer proves nothing and the assertion is `unmeasured`.",
+    "",
     "SINCE 2026-09-04 THE RECORD IS PER SUPPLY ROUTE (feature 104, § 1.6). The six",
     "assertions are the same under both; what differs is how the instance got its",
     "`@endora-commerce/*` packages, and `A3 pass` therefore means two different things.",
@@ -58,6 +72,11 @@
     }
   },
   "history": [
+    {
+      "on": "2026-09-06",
+      "what": "A6 gained a discrimination probe, and the harness started configuring the instance with the variables the instance declares",
+      "detail": "The six states are unchanged. `boot()` set PUBLIC_API_BASE_URL, which is the backend's own variable and which the storefront reads nowhere, so every A6 measured the compiled-in `http://localhost:3001` fallback: 200 when the run's backend sat there, 500 when it sat anywhere else. Measured on master at http://127.0.0.1:3101 — `A6 FAIL ... answered / with 500` — against a scaffolded instance that serves 200 the moment BACKEND_BASE_URL names the same backend. The names now come off the instance's own `.env.example` through the derivation `endora new storefront` prints in its next steps, they reach `next build` as well as `next start` because Next inlines a NEXT_PUBLIC_ variable at build time, and a second boot against an address nothing listens on has to fail before the first is read as a pass."
+    },
     {
       "on": "2026-09-03",
       "what": "the criterion landed with the command (F7 scaffold half), all six green",

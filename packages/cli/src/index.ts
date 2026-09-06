@@ -59,6 +59,9 @@ export {
   type NewStorefrontResult,
 } from './new-storefront/index.js';
 export {
+  backendAddressVariables,
+  backendAddressVariablesOf,
+  ENV_EXAMPLE_FILE,
   outwardReferences,
   resolveReference,
   StorefrontHostError,

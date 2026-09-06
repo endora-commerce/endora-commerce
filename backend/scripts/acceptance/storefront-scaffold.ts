@@ -74,6 +74,7 @@ import {
   evaluateA1,
   evaluateA2,
   evaluateA4,
+  evaluateA6,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -313,31 +314,57 @@ function resolvedPackages(
 }
 
 /**
- * A6 — the built storefront boots and answers.
+ * The environment that points the instance at a backend.
  *
- * `next start` over the build A5 produced, with the health of the answer read
- * off the status line rather than off the page: a storefront with no backend
- * reachable still has to *serve*, and what it serves is `PUBLIC_API_BASE_URL`'s
- * business. When no backend is configured the assertion is `unmeasured` rather
- * than green — a boot that renders an error page is not a boot this criterion
- * should call a pass.
+ * **`PUBLIC_API_BASE_URL` is this harness's input and is not a variable the
+ * storefront reads** — that was the whole of the defect this function exists to
+ * close. The scaffolded storefront's fetchers read the names its own
+ * `.env.example` declares and fall back to a compiled-in `http://localhost:3001`
+ * when none is set, so a run that exported only the harness's name configured
+ * nothing: A6 was green whenever the run's backend happened to sit on the
+ * fallback address and red whenever it sat anywhere else, in both cases for a
+ * reason that says nothing about the criterion.
+ *
+ * The names come off the instance's own copy of that file, through the same
+ * derivation `endora new storefront` prints in its next steps, so the criterion
+ * and the command cannot come to disagree about what an instance reads. A copy
+ * that declares none is a **refusal**: with no name to set, every later
+ * observation would be the fallback's.
  */
-async function boot(target: string): Promise<AssertionResult> {
-  const backend = process.env['PUBLIC_API_BASE_URL'];
-  if (backend === undefined || backend.length === 0) {
-    return {
-      id: 'A6',
-      state: 'unmeasured',
-      detail:
-        'PUBLIC_API_BASE_URL names no backend, so a boot would measure the storefront\'s ' +
-        'error page rather than the storefront',
-    };
+function backendEnvironment(
+  target: string,
+  backend: string,
+  names: readonly string[],
+): NodeJS.ProcessEnv {
+  if (names.length === 0) {
+    refuse(
+      `${join(target, '.env.example')} declares no variable naming a backend, so this run has ` +
+        `no way to point the instance at ${backend}. Every boot would reach the storefront's ` +
+        `compiled-in fallback instead, and report on it as though it were the backend.`,
+    );
   }
+  return Object.fromEntries(names.map((name) => [name, backend]));
+}
+
+/** An address nothing listens on, for A6's discrimination probe. */
+const CLOSED_ADDRESS = 'http://127.0.0.1:1';
+
+/**
+ * One boot of the built instance: `next start`, then `/`, then stop.
+ *
+ * The status line is the observation, not the page — a storefront whose backend
+ * is unreachable still has to *serve*, and which of those two happened is what
+ * the caller compares across the two boots.
+ */
+async function serveOnce(
+  target: string,
+  environment: NodeJS.ProcessEnv,
+): Promise<{ status: number | null; output: string }> {
   const port = 3200 + Math.floor(Math.random() * 300);
   const { spawn } = await import('node:child_process');
   const child = spawn('pnpm', ['exec', 'next', 'start', '--port', String(port)], {
     cwd: target,
-    env: { ...process.env, PORT: String(port) },
+    env: { ...process.env, ...environment, PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -346,25 +373,13 @@ async function boot(target: string): Promise<AssertionResult> {
   try {
     const deadline = Date.now() + 90_000;
     for (;;) {
-      if (Date.now() > deadline) {
-        return { id: 'A6', state: 'fail', detail: `next start did not answer in 90 s: ${output.slice(-400)}` };
-      }
+      if (Date.now() > deadline) return { status: null, output };
       await new Promise((wait) => setTimeout(wait, 1_000));
       try {
         const response = await fetch(`http://127.0.0.1:${String(port)}/`, {
           signal: AbortSignal.timeout(10_000),
         });
-        return response.status < 500
-          ? {
-              id: 'A6',
-              state: 'pass',
-              detail: `next start answered / with ${String(response.status)} against ${backend}`,
-            }
-          : {
-              id: 'A6',
-              state: 'fail',
-              detail: `next start answered / with ${String(response.status)} against ${backend}`,
-            };
+        return { status: response.status, output };
       } catch {
         // not listening yet
       }
@@ -372,6 +387,50 @@ async function boot(target: string): Promise<AssertionResult> {
   } finally {
     child.kill('SIGTERM');
   }
+}
+
+/**
+ * A6 — the built storefront boots, and the run can tell what it booted against.
+ *
+ * Two boots: the configured one, and a probe with the same variables pointed at
+ * {@link CLOSED_ADDRESS}. The judgement is `evaluateA6`'s; everything here is
+ * the observation. The probe is skipped when the first boot already failed —
+ * there is nothing left to discriminate — and its absence is then irrelevant,
+ * because a 5xx from the configured boot is a red criterion whatever the
+ * fallback would have done.
+ */
+async function boot(
+  target: string,
+  backendNames: readonly string[],
+): Promise<AssertionResult> {
+  const backend = process.env['PUBLIC_API_BASE_URL'];
+  if (backend === undefined || backend.length === 0) {
+    return evaluateA6({ backend: null, status: null, probeStatus: null, probeAddress: CLOSED_ADDRESS });
+  }
+  const configured = await serveOnce(target, backendEnvironment(target, backend, backendNames));
+  if (configured.status === null || configured.status >= 500) {
+    // No fabricated probe value here: `evaluateA6` decides a failed boot before
+    // it looks at the probe, so `null` is the honest reading of a probe that was
+    // never run (`check:fixture-substitution`'s rule, one directory over).
+    return evaluateA6({
+      backend,
+      status: configured.status,
+      probeStatus: null,
+      probeAddress: CLOSED_ADDRESS,
+      output: configured.output,
+    });
+  }
+  const probe = await serveOnce(
+    target,
+    backendEnvironment(target, CLOSED_ADDRESS, backendNames),
+  );
+  return evaluateA6({
+    backend,
+    status: configured.status,
+    probeStatus: probe.status,
+    probeAddress: CLOSED_ADDRESS,
+    output: configured.output,
+  });
 }
 
 async function main(): Promise<void> {
@@ -395,13 +454,16 @@ async function main(): Promise<void> {
     scaffold(target, registry);
 
     // A1/A2 read the copy, through the command's own derivation.
-    const { outwardReferences } = (await import('@endora-commerce/cli')) as {
+    const { outwardReferences, backendAddressVariablesOf } = (await import(
+      '@endora-commerce/cli'
+    )) as {
       outwardReferences: (reference: {
         repoRoot: string;
         dir: string;
         files: readonly string[];
         manifest: Record<string, unknown>;
       }) => readonly { file: string; specifier: string }[];
+      backendAddressVariablesOf: (storefrontDir: string) => readonly string[];
     };
     const manifestText = readFileSync(join(target, 'package.json'), 'utf8');
     results.push(
@@ -448,11 +510,29 @@ async function main(): Promise<void> {
     results.push(evaluateA4(resolvedPackages(target, declared), realpathSync(REPO_ROOT)));
 
     if (installed.code === 0) {
-      const built = run('pnpm', ['run', 'build'], { cwd: target });
+      // The build reads the backend address too: Next inlines a `NEXT_PUBLIC_`
+      // variable into the browser bundle, so a build run without it bakes the
+      // storefront's compiled-in fallback and no later `next start` can change
+      // it. The names are the instance's own declaration, through the same
+      // derivation the command prints.
+      const backendNames = backendAddressVariablesOf(target);
+      const backend = process.env['PUBLIC_API_BASE_URL'];
+      const buildEnvironment =
+        backend === undefined || backend.length === 0
+          ? {}
+          : backendEnvironment(target, backend, backendNames);
+      notes.push(
+        backendNames.length === 0
+          ? 'the instance declares no backend variable'
+          : `pointed ${backendNames.join(', ')} at the backend — the names are the instance's ` +
+            `own \`.env.example\`, not this harness's \`PUBLIC_API_BASE_URL\`, which no file ` +
+            `in the storefront reads`,
+      );
+      const built = run('pnpm', ['run', 'build'], { cwd: target, env: buildEnvironment });
       results.push(
         evaluateProcess('A5', built.code, built.output, 'next build succeeded outside the checkout'),
       );
-      if (built.code === 0) results.push(await boot(target));
+      if (built.code === 0) results.push(await boot(target, backendNames));
       else {
         results.push({
           id: 'A6',

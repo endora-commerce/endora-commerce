@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { main } from '../src/bin/endora.js';
 import { runNewStorefront } from '../src/new-storefront/index.js';
 import {
+  backendAddressVariables,
   memberDirectories,
   outwardReferences,
   resolveReference,
@@ -594,4 +595,74 @@ describe('the argv layer', () => {
     expect(out.join('')).toContain('dry run, nothing written');
     expect(out.join('')).toMatch(/workspace:\S* -> /);
   }, 120_000);
+});
+
+/**
+ * The backend address, which the scaffold's own guidance named wrongly.
+ *
+ * The reference storefront reads two variables — one server-side, one baked
+ * into the browser bundle — and both are declared in its `.env.example`. The
+ * next step told its reader to set `PUBLIC_API_BASE_URL`, which no file in the
+ * copy reads: an operator who followed it got a storefront quietly talking to
+ * the compiled-in fallback rather than one that refused. So the names are
+ * derived from the copy's own declaration rather than written into a sentence,
+ * which is what keeps them true when the storefront renames one.
+ */
+describe('the backend address variables are derived from the copy\'s own .env.example', () => {
+  it('takes every key whose declared value is an absolute http(s) URL, in declaration order', () => {
+    expect(
+      backendAddressVariables(
+        [
+          '# Storefront development environment.',
+          '',
+          '# PORT — auto-loaded by Next.',
+          'PORT=3000',
+          '',
+          '# Server-side fetcher (lib/api/*) reads BACKEND_BASE_URL.',
+          'BACKEND_BASE_URL=http://localhost:3001',
+          'NEXT_PUBLIC_API_BASE_URL=https://api.example.com',
+          'NEXT_PUBLIC_SALES_CHANNEL_CODE=pl_default',
+          'REVALIDATE_SECRET=change-me-shared-with-backend',
+          '',
+        ].join('\n'),
+      ),
+    ).toEqual(['BACKEND_BASE_URL', 'NEXT_PUBLIC_API_BASE_URL']);
+  });
+
+  it('reads `export KEY=` and a quoted value, and ignores a commented-out declaration', () => {
+    expect(
+      backendAddressVariables(
+        ['# BACKEND_BASE_URL=http://commented.example', 'export API_URL="http://host:3001"'].join(
+          '\n',
+        ),
+      ),
+    ).toEqual(['API_URL']);
+  });
+
+  it('answers with nothing when no declaration names a URL, rather than inventing a name', () => {
+    expect(backendAddressVariables('PORT=3000\nLOCALE=en-US\n')).toEqual([]);
+    expect(backendAddressVariables('')).toEqual([]);
+  });
+
+  it('names those variables in the next steps, and never one nothing reads', async () => {
+    const root = fixtureRepo({
+      storefrontFiles: {
+        'package.json': MANIFEST,
+        'app/page.tsx': 'export default () => null;\n',
+        '.env.example': 'PORT=3000\nBACKEND_BASE_URL=http://localhost:3001\n',
+      },
+    });
+    const target = join(temp('endora-sf-backend-step-'), 'shop');
+    try {
+      const result = await runNewStorefront({ dir: target, cwd: root, dryRun: true });
+      const steps = result.nextSteps.join('\n');
+      expect(steps).toContain('BACKEND_BASE_URL');
+      // The name the guidance used to carry. Nothing in the copy reads it, so
+      // an operator who set it got the fallback and no error anywhere.
+      expect(steps).not.toMatch(/(?<![A-Z_])PUBLIC_API_BASE_URL/);
+      expect(steps).not.toContain('Nothing in the copy points at a backend');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

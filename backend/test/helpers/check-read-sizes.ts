@@ -956,7 +956,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `ci-gate-coverage.ts`, and the trailing-slash strip in the test's
     // `readMembers`. Measured by parking the test file: the two helpers alone
     // read 524.
-    sites: 525,
+    // **The storefront-scaffold backend variables: 525 -> 526.** One
+    // `.replace()`, in `backendAddressVariables` — the quote strip that reads
+    // `KEY="http://host:3001"` as it reads `KEY=http://host:3001`. Its pattern
+    // is anchored on a matching quote pair, so the slug predicate reads it and
+    // clears it; the `files` field does not move, that function landing in
+    // `packages/cli/src/new-storefront/reference.ts`, which this walk already
+    // opened.
+    sites: 526,
     sources: [],
   },
   'backend/scripts/check-divergence.ts': {
@@ -2429,7 +2436,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
     // **+2 for this branch.** The `./lifecycle` barrel and this branch's changeset;
     // this walk is the whole repository and takes both.
-    files: 7747,
+    // **+1 for this branch** — its changeset, the only file it adds. This walk is
+    // the whole repository; `check:language` does not move, a changeset being
+    // neither a source file nor a `docs/docs` page.
+    files: 7748,
     sites: null,
     sources: [],
   },
@@ -3539,7 +3549,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
     // **+2 for this branch**, the same barrel and changeset the neighbouring
     // whole-repository walk takes.
-    files: 7807,
+    // **+1 for this branch** — its changeset, the only file it adds. This walk is
+    // the whole repository; `check:language` does not move, a changeset being
+    // neither a source file nor a `docs/docs` page.
+    files: 7808,
     sites: null,
     sources: ['manifest-index'],
   },

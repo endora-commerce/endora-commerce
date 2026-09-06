@@ -13,6 +13,7 @@ import {
   evaluateA1,
   evaluateA2,
   evaluateA4,
+  evaluateA6,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -211,5 +212,93 @@ describe('the report', () => {
     const results = [{ id: 'A3', state: 'pass', detail: 'installed' }] as const;
     expect(formatReport(results, [], 'registry')).toContain('mode=registry');
     expect(formatReport(results, [], 'tarball')).toContain('mode=tarball');
+  });
+});
+
+/**
+ * A6 — the built storefront boots, and the run can tell what it booted against.
+ *
+ * The assertion used to be the status line alone, and that made it blind in the
+ * one direction that mattered: the storefront's fetchers fall back to a
+ * compiled-in `http://localhost:3001` when no backend variable is set, so a run
+ * whose configured backend happened to sit there answered 200 whether or not a
+ * single variable had reached the process. Measured on `master`: booting the
+ * scaffolded instance with the backend named in a variable nothing reads
+ * answered 200 with the backend at the fallback address and 500 with it
+ * anywhere else — a green that was the fallback's and not the criterion's.
+ *
+ * So a pass now needs two boots: the configured one answering, and a probe
+ * against an address nothing listens on answering 5xx. A probe that answers
+ * anything else is `unmeasured` — never a pass and never a failure of the
+ * criterion — because at that point the run cannot tell a reached backend from
+ * the fallback (issue #113).
+ */
+describe('A6 — the boot, and its discrimination probe', () => {
+  const probeAddress = 'http://127.0.0.1:1';
+
+  it('passes when the configured boot answered and the probe refused', () => {
+    const result = evaluateA6({
+      backend: 'http://127.0.0.1:3001',
+      status: 200,
+      probeStatus: 500,
+      probeAddress,
+    });
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('200');
+    expect(result.detail).toContain('http://127.0.0.1:3001');
+  });
+
+  it('fails on a 5xx from the configured boot, naming the backend it was pointed at', () => {
+    const result = evaluateA6({
+      backend: 'http://127.0.0.1:3001',
+      status: 500,
+      probeStatus: 500,
+      probeAddress,
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('500');
+  });
+
+  it('fails when the boot never answered', () => {
+    const result = evaluateA6({
+      backend: 'http://127.0.0.1:3001',
+      status: null,
+      probeStatus: 500,
+      probeAddress,
+      output: 'Error: listen EADDRINUSE',
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('EADDRINUSE');
+  });
+
+  it('is unmeasured when the probe answered as though the backend were reachable', () => {
+    const result = evaluateA6({
+      backend: 'http://127.0.0.1:3001',
+      status: 200,
+      probeStatus: 200,
+      probeAddress,
+    });
+    expect(result.state).toBe('unmeasured');
+    expect(result.detail).toContain(probeAddress);
+  });
+
+  it('is unmeasured when the probe never answered, which proves nothing either', () => {
+    const result = evaluateA6({
+      backend: 'http://127.0.0.1:3001',
+      status: 200,
+      probeStatus: null,
+      probeAddress,
+    });
+    expect(result.state).toBe('unmeasured');
+  });
+
+  it('is unmeasured when no backend was configured at all', () => {
+    const result = evaluateA6({
+      backend: null,
+      status: null,
+      probeStatus: null,
+      probeAddress,
+    });
+    expect(result.state).toBe('unmeasured');
   });
 });
