@@ -1031,7 +1031,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // twice each because this check reads the platform's sources in two passes.
     // Measured rather than reasoned about: with both files taken out of the tree
     // and the check re-run it reads 2173.
-    files: 2177,
+    // **2177 -> 2158, and the fall is the correction rather than a regression.**
+    // The walk stopped double-counting: the route population is a **union** of
+    // several walks, two of which overlap — `packages/platform/src/lifecycle` is a
+    // module walk root sitting *inside* the platform's source root, so each of its
+    // 19 files entered once as `_lifecycle`'s and once as the platform's. `files`
+    // was therefore the size of a multiset, and −19 is exactly that tree.
+    // The two comments above it are kept and are **wrong about the mechanism**,
+    // which is worth leaving visible: they say the platform is listed "both as
+    // `platformRoot` and as a workspace package root", and it is not — measured,
+    // `layout.sourceRoots` holds no duplicate and no nested pair, and this check
+    // does not read `sourceRoots` at all. The overlap was one directory deep, in a
+    // walk nobody had looked at.
+    // Measured three ways rather than reasoned about. Before: a file added under
+    // `packages/platform/src/lifecycle/` moved this number by **2**, one added
+    // under `packages/platform/src/kernel/` or under a module package by **1**,
+    // one added under `backend/src` by **0**. After: **1**, uniformly, for all
+    // three of the first kind. And the report itself is byte-identical — same
+    // deployments, entries, owners, rungs and `sites=4` — because
+    // `routeIdentities` already resolved a route it saw twice the same way this
+    // guard now resolves the file.
+    files: 2158,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2244,6 +2264,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // twice each because this check reads the platform's sources in two passes.
     // Measured rather than reasoned about: with both files taken out of the tree
     // and the check re-run it reads 4663.
+    // **Both of those two are right about the arithmetic and wrong about the
+    // reason, and the number stands.** They read as though the platform were a
+    // duplicated root and this a double count to be repaired. It is not, measured
+    // three ways: `layout.sourceRoots` holds no duplicate and no nested pair; and
+    // a file added under `packages/platform/src/lifecycle/` moves this number by
+    // **2** — but so does one added under `packages/modules/blog/src/backend/`,
+    // while one added under `backend/src` outside a module moves it by **1**. The
+    // +2 is uniform for *any* module file and has nothing to do with the platform.
+    // It is what the `files` comment below already says this number is: the sum of
+    // two deliberately separate populations, `sources` (the module surface walk,
+    // over `moduleWalkRoots`) and `schema` (the owner map, over `sourceRoots`),
+    // which overlap on every module file by construction and are summed rather
+    // than unioned because their floors are separable. So there is nothing here to
+    // deduplicate, and the entry is corrected rather than re-recorded.
     files: 4667,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:

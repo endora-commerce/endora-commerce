@@ -44,6 +44,8 @@
  *    `new Worker('<literal>', …)` the call wraps, directly or through a
  *    file-local binding. Anything else is `computed-subject`.
  */
+import { realpathSync } from 'node:fs';
+
 import ts from 'typescript';
 
 import type {
@@ -496,6 +498,56 @@ export interface RouteSource {
   readonly text: string;
   /** The module that registers what this file registers, or `null`. */
   readonly moduleId: string | null;
+}
+
+/**
+ * "Has this population already got this file?" — the guard that keeps a file two
+ * roots both reach from entering the population twice.
+ *
+ * The environment this check builds is a **union** of several walks, and two of
+ * them legitimately overlap: a module walk root can sit *inside* the platform's
+ * source root, in which case that module's files are reached once as the
+ * module's and once as the platform's. `files` is then the size of a multiset
+ * rather than of a population, and it is the one instrument this estate has for
+ * spotting a walk that has gone blind — a number wrong for a reason nobody knows
+ * is worse than a number that is missing.
+ *
+ * Three properties, each of them the design and not a detail.
+ *
+ *  - **By real path, never by the spelling.** Two roots reaching one file reach
+ *    it under two path strings whenever either root is a symlink, and a string
+ *    comparison would let both through — which is the case a `git worktree` and
+ *    a linked `node_modules` both produce.
+ *  - **First claim wins**, so the *narrower* walk's attribution survives: the
+ *    passes run most-specific first, and a file inside a module is that module's
+ *    however wide a root also covers it. `routeIdentities` already resolves the
+ *    same contest the same way for a route it sees twice.
+ *  - **It is not keyed on any package, root or name.** The next pair of roots
+ *    that overlaps for some other reason is handled by this same guard, because
+ *    what it knows about is a file it has already been given.
+ *
+ * A path `realPathOf` cannot resolve — a file deleted between the walk and the
+ * read — falls back to the spelling rather than throwing: this guard's job is to
+ * collapse a duplicate, and refusing a run is the caller's decision to take.
+ */
+export function claimFileOnce(
+  realPathOf: (file: string) => string = (file) => realpathSync.native(file),
+): (file: string) => boolean {
+  const claimed = new Set<string>();
+  return (file: string): boolean => {
+    // The fallback lives here rather than inside the default resolver so that it
+    // holds for an injected one too: the guarantee is the guard's, and a resolver
+    // that throws must not take out a walk that has already read the file.
+    let key: string;
+    try {
+      key = realPathOf(file);
+    } catch {
+      key = file;
+    }
+    if (claimed.has(key)) return false;
+    claimed.add(key);
+    return true;
+  };
 }
 
 /**

@@ -43,6 +43,7 @@ import {
   serializeDivergenceModule,
 } from '../src/overlay/divergence-report.js';
 import {
+  claimFileOnce,
   deriveDivergence,
   moduleContextSeams,
   routeIdentities,
@@ -223,11 +224,20 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
   const treeClaims: OwnerClaim[] = [];
   const residentClaims: OwnerClaim[] = [];
   const routeSources: RouteSource[] = [];
+  // The route population is a **union** of the walks below, and two of them
+  // overlap: a module walk root can sit inside the platform's source root, so
+  // that module's files are reached once as the module's and once as the
+  // platform's. Without this guard `filesRead` is the size of a multiset — every
+  // such file counted twice — which falsifies the one number that says whether
+  // this walk has gone blind. The guard is applied to *every* pass rather than
+  // to the pair that overlaps today, so the next two roots that overlap for some
+  // other reason are handled by the same line and no root is named anywhere.
+  const claimFile = claimFileOnce();
 
   for (const file of moduleFiles) {
     const source = readFileSync(file, 'utf8');
     const moduleId = moduleOf(file, layout.hostResidentModules);
-    routeSources.push({ file, text: source, moduleId });
+    if (claimFile(file)) routeSources.push({ file, text: source, moduleId });
     if (moduleId === null) continue;
     for (const name of registeredNames(source, file)) treeClaims.push({ name, moduleId });
   }
@@ -235,7 +245,7 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
   for (const resident of repositoryResidentPackageRoots(layout.applicationRoot)) {
     for (const file of walkTypeScript(resident.directory)) {
       const source = readFileSync(file, 'utf8');
-      routeSources.push({ file, text: source, moduleId: resident.moduleId });
+      if (claimFile(file)) routeSources.push({ file, text: source, moduleId: resident.moduleId });
       for (const name of registeredNames(source, file)) {
         residentClaims.push({ name, moduleId: resident.moduleId });
       }
@@ -247,11 +257,19 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
 
   // The platform's own sources: the kernel registers names no module owns, and
   // it serves routes an interceptor may legitimately target.
+  //
+  // The name collection deliberately stays over the **whole** platform walk while
+  // the route population is deduplicated: `kernelNames` answers "what does the
+  // platform register", and narrowing it here would be a second, quieter change
+  // to the owner map riding along on a read-size repair. A name a module inside
+  // the platform registers is already the owner map's — `rootSuppliedNames` drops
+  // every name `owners` holds — so the two answers agree today, and where they
+  // would stop agreeing is a question for whoever asks it, not for this guard.
   const kernelNames = new Set<string>();
   if (layout.platformRoot !== null) {
     for (const file of walkTypeScript(layout.platformRoot)) {
       const source = readFileSync(file, 'utf8');
-      routeSources.push({ file, text: source, moduleId: null });
+      if (claimFile(file)) routeSources.push({ file, text: source, moduleId: null });
       for (const name of registeredNames(source, file)) kernelNames.add(name);
       for (const name of providedPortNames(source, file)) kernelNames.add(name);
     }
@@ -287,7 +305,7 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
     } catch {
       continue;
     }
-    routeSources.push({ file: full, text: source, moduleId: null });
+    if (claimFile(full)) routeSources.push({ file: full, text: source, moduleId: null });
     for (const name of rootRegisteredNames(source, full)) rootNames.add(name);
   }
 
