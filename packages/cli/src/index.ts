@@ -70,6 +70,7 @@ export {
   type WorkspaceRange,
 } from './new-storefront/reference.js';
 export {
+  authKeys,
   installedScopes,
   normalizeRegistry,
   npmrcContent,

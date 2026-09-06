@@ -2375,7 +2375,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch's own two.** The recorded value predates two merges and the stacking
     // on the licence-and-peers branch; measured on the combined tree, not resolved
     // from either side.
-    files: 7744,
+    // **`specs/104-package-publication/`'s registry auth repair: +1.** This branch
+    // adds one file, `packages/cli/test/npmrc-auth-effect.test.ts` — the install
+    // that measures the generated `.npmrc`'s effect rather than its text.
+    // Measured **without** `backend/.env`, which this walk counts and neither CI
+    // nor a fresh worktree has: 7746 with it, 7745 without, in the same tree.
+    files: 7745,
     sites: null,
     sources: [],
   },
@@ -3454,7 +3459,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // licence files; this walk and `check-nul-bytes` disagree on the residue
     // because their declared exclusions differ, not because the tree does.
     // **+8**, the same eight the neighbouring whole-repository walk takes.
-    files: 7804,
+    // **`specs/104-package-publication/`'s registry auth repair: +1.** This branch
+    // adds one file, `packages/cli/test/npmrc-auth-effect.test.ts` — the install
+    // that measures the generated `.npmrc`'s effect rather than its text. This
+    // walk is `git`'s listing of the whole checkout, so it takes a test file like
+    // any other.
+    files: 7805,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3575,7 +3585,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // new `src/migrations/` plus the two-regime guard and its helper.
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
-    files: 5820,
+    // **`specs/104-package-publication/`'s registry auth repair: +1.** This branch
+    // adds one file, `packages/cli/test/npmrc-auth-effect.test.ts` — the install
+    // that measures the generated `.npmrc`'s effect rather than its text. Its
+    // changeset and its contract edit are outside this walk, whose population is
+    // source-code comments and `docs/`.
+    files: 5821,
     sites: null,
     sources: ['manifest-index'],
   },

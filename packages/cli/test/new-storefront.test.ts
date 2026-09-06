@@ -33,6 +33,7 @@ import {
   workspaceRanges,
 } from '../src/new-storefront/reference.js';
 import {
+  authKeys,
   installedScopes,
   normalizeRegistry,
   npmrcContent,
@@ -326,7 +327,7 @@ describe('the registry — an `.npmrc` the scaffold writes only when it is asked
     );
   });
 
-  it('names one registry line per scope and one auth line, with the token as a reference', () => {
+  it('names one registry line per scope, and the auth lines the endpoint and its host need', () => {
     const text = npmrcContent('https://gitlab.example.com/api/v4/packages/npm', [
       '@acme',
       '@other',
@@ -336,8 +337,36 @@ describe('the registry — an `.npmrc` the scaffold writes only when it is asked
     expect(text).toContain(
       `//gitlab.example.com/api/v4/packages/npm/:_authToken=\${${TOKEN_VARIABLE}}`,
     );
-    // One credential per endpoint, not per scope.
-    expect(text.match(/_authToken/g)).toHaveLength(1);
+    // The tarball a packument names is on the owning project's path, which the
+    // endpoint key does not cover — `npmrc-auth-effect.test.ts` measures the
+    // install this is the shape of.
+    expect(text).toContain(`//gitlab.example.com/:_authToken=\${${TOKEN_VARIABLE}}`);
+    // Two keys, not two per scope: a credential is a property of the endpoint.
+    expect(text.match(/_authToken/g)).toHaveLength(2);
+  });
+
+  it('derives both keys from the endpoint, and writes one line when they are the same', () => {
+    expect(authKeys('https://gitlab.example.com/api/v4/packages/npm')).toEqual([
+      '//gitlab.example.com/api/v4/packages/npm/',
+      '//gitlab.example.com/',
+    ]);
+    // A group endpoint is a different path and the same host.
+    expect(authKeys('https://gitlab.example.com/api/v4/groups/7/-/packages/npm/')).toEqual([
+      '//gitlab.example.com/api/v4/groups/7/-/packages/npm/',
+      '//gitlab.example.com/',
+    ]);
+    // The port is part of the key, so a registry on one is not authenticated by
+    // a line naming the bare host.
+    expect(authKeys('https://npm.example.com:8443/api/v4/packages/npm/')).toEqual([
+      '//npm.example.com:8443/api/v4/packages/npm/',
+      '//npm.example.com:8443/',
+    ]);
+    // A registry at the root of its host: the two keys coincide, and a
+    // duplicated line would read as though it said something.
+    expect(authKeys('https://npm.example.com/')).toEqual(['//npm.example.com/']);
+    expect(
+      npmrcContent('https://npm.example.com/', ['@acme']).match(/_authToken/g),
+    ).toHaveLength(1);
   });
 
   it('refuses a registry for a storefront that declares no scoped workspace dependency', () => {
