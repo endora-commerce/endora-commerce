@@ -695,7 +695,11 @@ export const ESTATE: readonly EstateEntry[] = [
       'its subject is `.changeset/config.json`, `pnpm-workspace.yaml` and this repository’s ' +
       'own release gate. A package is one member of that workspace, not the workspace, and ' +
       'the question it answers — "does this branch carry a changeset" — is about a branch of ' +
-      'this repository.',
+      'this repository. Its per-member questions — is this package published, is it fit, is ' +
+      'it licensed — are asked of a member **of this publication set**, which a package ' +
+      'outside a workspace does not belong to and cannot be given one of: there is no ' +
+      '`ignore` list to be exempted by, no scope to agree with, and no configuration deciding ' +
+      'whether changesets can see it at all.',
     subjectDeclaration: null,
     readsArtefact: false,
     tier: 'C',

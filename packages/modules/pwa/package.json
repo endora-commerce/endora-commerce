@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "pwa"
@@ -63,9 +64,19 @@
     "lucide-react": "^1",
     "react": "^19",
     "sharp": "^0",
-    "vitest": "^2",
     "web-push": "^3",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

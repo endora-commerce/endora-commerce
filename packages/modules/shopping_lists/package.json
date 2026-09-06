@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Customer-owned saved shopping lists.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "shopping_lists"

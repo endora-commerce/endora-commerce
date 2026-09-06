@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Server-side analytics aggregation and dashboard data feeds.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "analytics"
@@ -58,8 +59,18 @@
     "@mikro-orm/postgresql": "^6",
     "fastify": "^5",
     "lucide-react": "^1",
-    "react": "^19",
-    "vitest": "^2"
+    "react": "^19"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

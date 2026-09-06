@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Natural-language prompt mode for the admin command palette: interpret an operator instruction with an LLM, preview the plan, execute it through existing module services after explicit confirmation.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "prompt_actions"
@@ -52,7 +53,6 @@
     "@mikro-orm/migrations": "^6",
     "@mikro-orm/postgresql": "^6",
     "fastify": "^5",
-    "vitest": "^2",
     "zod": "^4"
   },
   "devDependencies": {

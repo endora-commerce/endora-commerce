@@ -31,7 +31,12 @@
  *
  * ## What it refuses
  *
- * Eight findings, each a way the flow goes quiet rather than red. Every one is
+ * The findings below, each a way the flow goes quiet rather than red. This line
+ * read *"Eight findings"* against a list that already held eleven, and the two
+ * were never going to be corrected together — a count of a derived fact,
+ * written down (D-100), in the header of the check whose whole population is
+ * derived. `ReleaseIntentFindingKind` is the list, and it is the one that
+ * cannot go stale. Every finding is
  * derived from the tree on every run — the workspace globs, the manifests, the
  * changeset files — because a rule of the form "these four names are the
  * applications" is a derived fact written down (D-100), and the 67-package
@@ -46,6 +51,19 @@
  *   * `incomplete-public-package` — a public versionable member that declares
  *     no `repository` or no `publishConfig.access`. Fitness to be published,
  *     which is the question `publishable-package` was standing in for.
+ *   * `unlicensed-package` — a public versionable member that declares no
+ *     `license`. D-203's amendment deferred this to *"the merge request that
+ *     makes a package public on npmjs"*; the owner's ruling of 2026-09-06 is
+ *     that one — open core `MIT`, a paid package `SEE LICENSE IN LICENSE.md`,
+ *     the split by **package**, entitlement contractual. Its own kind rather
+ *     than a third field on `incomplete-public-package`, because the remedy is
+ *     a decision rather than a value and because one number over three fields
+ *     cannot say which of them is missing.
+ *   * `unresolvable-license-file` — a member whose licence is the
+ *     `SEE LICENSE IN <file>` form while that file is not in the package
+ *     directory. The only licence value that makes a second claim, and the only
+ *     part of the vocabulary this check judges: an SPDX identifier list is a
+ *     derived fact written down (D-100) that moves without this repository.
  *   * `restricted-public-package` — a public versionable member whose effective
  *     access resolves to `restricted`. On npmjs a scoped package is private by
  *     default and a private package needs a paid account, so this is a publish
@@ -341,6 +359,22 @@ export interface ClassifiedMember {
   readonly repository: boolean;
   /** `publishConfig.access`, verbatim, or `null` when it declares none. */
   readonly access: string | null;
+  /**
+   * The SPDX expression the manifest declares, trimmed, or `null` when it
+   * declares none or declares an empty one. The two are one state on purpose:
+   * npm treats `""` exactly as it treats an absent field, and a package whose
+   * licence is a blank string has said nothing about its terms while looking as
+   * though it has.
+   */
+  readonly license: string | null;
+  /**
+   * For a `SEE LICENSE IN <file>` licence, whether that file is in the package
+   * directory. `null` when the licence is not of that form and there is nothing
+   * to resolve — never `false`, which would read as "the file is missing".
+   */
+  readonly licenseFileFound: boolean | null;
+  /** The path {@link licenseFileFound} answered about, for the message. */
+  readonly licenseFile: string | null;
 }
 
 /** One `<name>: <bump>` line in the front matter of a `.changeset/*.md`. */
@@ -366,6 +400,8 @@ export type ReleaseIntentFindingKind =
   | 'version-disabled'
   | 'unpublished-package'
   | 'incomplete-public-package'
+  | 'unlicensed-package'
+  | 'unresolvable-license-file'
   | 'restricted-public-package'
   | 'unresolvable-scope'
   | 'tag-policy-unstated'
@@ -484,6 +520,36 @@ export function declaresRepository(manifest: Readonly<Record<string, unknown>>):
   return typeof url === 'string' && url.trim().length > 0;
 }
 
+/**
+ * npm's `SEE LICENSE IN <filename>` form, which is the SPDX spelling for a
+ * licence that is not one of the standard identifiers.
+ *
+ * It is the whole of what this check understands about the *vocabulary* of a
+ * licence, and deliberately so: judging the rest would mean carrying the SPDX
+ * identifier list, which is a derived fact written down (D-100) and one that
+ * moves without this repository. What the form buys is the one licence value
+ * that makes a **second** claim — that a file exists — and a claim about a file
+ * is a claim a check can settle.
+ */
+const SEE_LICENSE_IN = /^SEE LICENSE IN\s+(\S.*)$/;
+
+/** The trimmed `license` a manifest declares, or `null` for absent or empty. */
+export function declaredLicense(
+  manifest: Readonly<Record<string, unknown>>,
+): string | null {
+  const license = manifest['license'];
+  if (typeof license !== 'string') return null;
+  const trimmed = license.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+/** The file a `SEE LICENSE IN <file>` licence names, or `null` for any other form. */
+export function licenseFileNamedBy(license: string | null): string | null {
+  if (license === null) return null;
+  const match = SEE_LICENSE_IN.exec(license);
+  return match === null ? null : match[1]!.trim();
+}
+
 /** `publishConfig.access` as the manifest writes it, or `null`. */
 export function publishConfigAccess(
   manifest: Readonly<Record<string, unknown>>,
@@ -542,15 +608,32 @@ export function readReleaseIntent(
     return { reason: 'the workspace globs matched no package at all' };
   }
 
-  const classified: ClassifiedMember[] = members.map((member) => ({
-    name: member.name,
-    dir: member.dir.startsWith(repoRoot) ? member.dir.slice(repoRoot.length + 1) : member.dir,
-    isPrivate: member.manifest['private'] === true,
-    family: member.family,
-    globs: member.globs,
-    repository: declaresRepository(member.manifest),
-    access: publishConfigAccess(member.manifest),
-  }));
+  // The licence files this run opened, added to `files` below. Zero on a tree
+  // where every package takes an SPDX identifier, which is where this estate
+  // stands: the probe happens only for the `SEE LICENSE IN` form, so it is a
+  // count that moves when a paid package arrives and not before.
+  let licenseFilesRead = 0;
+  const classified: ClassifiedMember[] = members.map((member) => {
+    const license = declaredLicense(member.manifest);
+    const licenseFile = licenseFileNamedBy(license);
+    let licenseFileFound: boolean | null = null;
+    if (licenseFile !== null) {
+      licenseFileFound = fs.readText(join(member.dir, licenseFile)) !== null;
+      licenseFilesRead += 1;
+    }
+    return {
+      name: member.name,
+      dir: member.dir.startsWith(repoRoot) ? member.dir.slice(repoRoot.length + 1) : member.dir,
+      isPrivate: member.manifest['private'] === true,
+      family: member.family,
+      globs: member.globs,
+      repository: declaresRepository(member.manifest),
+      access: publishConfigAccess(member.manifest),
+      license,
+      licenseFileFound,
+      licenseFile,
+    };
+  });
 
   const changesetDir = join(repoRoot, '.changeset');
   const entries = listChangesets(changesetDir);
@@ -587,7 +670,11 @@ export function readReleaseIntent(
     // the next merge request to add one failed, while a release consuming them
     // would have dropped it under the −10% floor in the same week. Measured on
     // `a059e56e`: 51 with them, 17 without.
-    files: 2 + members.length,
+    //
+    // The licence files are counted, and they are not the changesets' shape:
+    // one is opened per member declaring a `SEE LICENSE IN` licence, which
+    // follows the tree rather than the release cycle, and today there are none.
+    files: 2 + members.length + licenseFilesRead,
   };
 }
 
@@ -836,10 +923,7 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
 
   for (const member of publicVersionable) {
     // 2b — fitness. What a published package owes a consumer, and what npm's
-    // own provenance prerequisite needs. `license` is deliberately not judged:
-    // the owner deferred the licence to the merge request that makes a package
-    // public on **npmjs** (D-203, amended 2026-09-04), and licence
-    // rights come from the contract rather than from the manifest.
+    // own provenance prerequisite needs.
     const missing: string[] = [];
     if (!member.repository) missing.push('`repository`');
     if (member.access === null) missing.push('`publishConfig.access`');
@@ -853,6 +937,68 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
           'code, and npm makes provenance conditional on it; `publishConfig.access` is a ' +
           'property of the package rather than of where it happens to be published, and it ' +
           'is the value that decides whether a scoped package lands public or private.',
+      });
+    }
+
+    // 2b-i — the licence, which used to sit inside 2b's list as a comment
+    // explaining why it was not judged: *"the owner deferred the licence to the
+    // merge request that makes a package public on npmjs (D-203, amended
+    // 2026-09-04)"*. This is that merge request. The owner's ruling of
+    // 2026-09-06 settles the model — the open core is `MIT`, a paid package
+    // carries `SEE LICENSE IN LICENSE.md`, the split is by **package**, and
+    // entitlement is contractual rather than a registry gate — which is what
+    // gives the question an answer a check can hold a package to.
+    //
+    // **It is a kind of its own rather than a third entry in 2b's `missing`
+    // list**, and the reason is the remedy rather than the field. `repository`
+    // and `publishConfig.access` have one correct value each and a generator
+    // writes them; a licence is a *decision*, and the finding has to be able to
+    // say which of the two the owner's model offers and where the default comes
+    // from. Folded into 2b it would also be invisible as a count — one number
+    // over three fields cannot say that seventy-nine packages are unlicensed
+    // and none is missing a repository.
+    //
+    // **No ledger, deliberately**: every finding here is one field in one file,
+    // and an entry could only license publishing a package whose terms nobody
+    // stated — which is the state this rule exists to end.
+    if (member.license === null) {
+      findings.push({
+        kind: 'unlicensed-package',
+        subject: member.name,
+        message:
+          `(${member.dir}) is public and declares no \`license\`. npm publishes it anyway and ` +
+          'the package page reads "no license", which for a consumer — and for every licence ' +
+          "scanner in their pipeline — is not a permissive default but an absence of terms. " +
+          "The owner's ruling of 2026-09-06: the open core is `MIT`, a paid package is " +
+          '`SEE LICENSE IN LICENSE.md`. A **module package** takes the workspace root\'s ' +
+          '`license` from `manifests:generate` and overrides it by exporting `packageLicense` ' +
+          'from its own `src/manifest.ts`, so the repair there is to regenerate rather than to ' +
+          'edit this file; every other package declares the field itself.',
+      });
+    }
+
+    // 2b-ii — and the one licence value that makes a second claim. `SEE LICENSE
+    // IN <file>` is SPDX's spelling for terms that are not a standard
+    // identifier, and it names a file: without that file the manifest points a
+    // consumer at nothing, and the package is *less* informative than one
+    // carrying no licence at all, because it looks answered.
+    //
+    // Only the form is judged, never the vocabulary — an SPDX identifier list
+    // is a derived fact written down (D-100) that moves without this
+    // repository, and `UNLICENSED` is a legitimate npm value this check has no
+    // business refusing. npm always packs a `LICENSE*` file whatever `files`
+    // says, so existence on disk is the whole question.
+    if (member.licenseFileFound === false) {
+      findings.push({
+        kind: 'unresolvable-license-file',
+        subject: member.name,
+        message:
+          `(${member.dir}) declares \`"license": "${member.license ?? ''}"\` and ` +
+          `\`${member.licenseFile ?? ''}\` is not in the package directory. The consumer is ` +
+          'pointed at terms that do not exist, which is worse than declaring none — a scanner ' +
+          'reads the field as answered and a human finds nothing to read. Add the file beside ' +
+          "the package's `package.json`; npm packs a `LICENSE*` file whether or not `files` " +
+          'names it.',
       });
     }
 
@@ -1052,7 +1198,12 @@ export function checkReleaseIntent(
   // decisions (is it complete, what does its access resolve to, can the
   // registry serve its scope) stay per public member, with one more for the
   // scope agreement across the set, which is a decision about the set rather
-  // than about a member.
+  // than about a member. The licensing ruling of 2026-09-06 makes them **four**
+  // per public member: is this package licensed, and — for the one licence form
+  // that names a file — is that file there. The two are one decision per member
+  // because the second is only reachable through the first, and counting the
+  // file probe separately would make this number oscillate with how many paid
+  // packages the estate happens to hold.
   //
   // **The changeset reconciliations are decisions and are deliberately not
   // counted here**, for the reason given at `files` above: their number follows
@@ -1065,7 +1216,7 @@ export function checkReleaseIntent(
     groupMembers(inputs.config).length +
     2 +
     inputs.members.filter((member) => member.family).length +
-    publicVersionable.length * 3 +
+    publicVersionable.length * 4 +
     (publicVersionable.length > 0 ? 1 : 0);
   const globs = [...inputs.globCoverage.keys()];
   // The independent derivation: `pnpm-workspace.yaml` says how many entries

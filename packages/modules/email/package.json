@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Mailer abstraction with Console / SMTP drivers for transactional email.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "email"
@@ -49,8 +50,7 @@
     "@mikro-orm/core": "^6",
     "@mikro-orm/migrations": "^6",
     "@mikro-orm/postgresql": "^6",
-    "nodemailer": "^7",
-    "vitest": "^2"
+    "nodemailer": "^7"
   },
   "devDependencies": {
     "@endora-commerce/contracts": "workspace:*",

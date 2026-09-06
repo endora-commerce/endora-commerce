@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "LinkedIn Ads integration: per-sales-channel Insight Tag, consent-gated tracking, configurable conversion mappings, and optional server-side reporting through the Conversions API.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "linkedin_ads"
@@ -59,6 +60,17 @@
     "react": "^19",
     "react-router-dom": "^7",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

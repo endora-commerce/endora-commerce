@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Authentication primitives — session cookies, bearer-token resolution, and request actor binding.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "auth"

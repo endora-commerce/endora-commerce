@@ -39,6 +39,12 @@ export type FileMap = Readonly<Record<string, string | null>>;
  * member — `version-disabled` and the first half of `tag-policy-unstated` —
  * ask for one explicitly through {@link PRIVATE_BETA}, which is the direction
  * that keeps each proof's precondition visible in the proof.
+ *
+ * **Both also declare a `license`**, on the same reasoning and for the same
+ * cost: the owner's licensing ruling of 2026-09-06 makes an unlicensed public
+ * package a finding, so a default without one would put two `unlicensed-package`
+ * findings under every other proof in this file. `MIT` because that is the
+ * estate's own default; the two licence proofs take it away and replace it.
  */
 export const DEFAULT_CHECKOUT: FileMap = {
   'pnpm-workspace.yaml': 'packages:\n  - apps/host\n  - packages/*\n',
@@ -60,12 +66,14 @@ export const DEFAULT_CHECKOUT: FileMap = {
   'packages/alpha/package.json': JSON.stringify({
     name: '@fx/alpha',
     version: '1.0.0',
+    license: 'MIT',
     repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/alpha' },
     publishConfig: { access: 'public' },
   }),
   'packages/beta/package.json': JSON.stringify({
     name: '@fx/beta',
     version: '1.0.0',
+    license: 'MIT',
     repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/beta' },
     publishConfig: { access: 'public' },
   }),
@@ -165,6 +173,7 @@ export const PUBLISHED_ALPHA: FileMap = {
   'packages/alpha/package.json': JSON.stringify({
     name: '@fx/alpha',
     version: '1.0.0',
+    license: 'MIT',
     repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/alpha' },
     publishConfig: { access: 'public' },
   }),
@@ -238,6 +247,7 @@ export const NESTED_FAMILY_PACKAGE: FileMap = {
   'packages/modules/gamma/package.json': JSON.stringify({
     name: '@fx/gamma',
     version: '1.0.0',
+    license: 'MIT',
     repository: {
       type: 'git',
       url: 'https://example.invalid/fx.git',

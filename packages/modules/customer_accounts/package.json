@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Customer (B2B) account records, including organization membership and role.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "customer_accounts"
@@ -60,6 +61,17 @@
     "lucide-react": "^1",
     "react": "^19",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

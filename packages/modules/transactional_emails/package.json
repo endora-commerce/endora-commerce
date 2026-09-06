@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "transactional_emails"
@@ -64,8 +65,27 @@
     "lucide-react": "^1",
     "react": "^19",
     "react-router-dom": "^7",
-    "vitest": "^2",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "@endora-commerce/page-builder-admin": {
+      "optional": true
+    },
+    "@measured/puck": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

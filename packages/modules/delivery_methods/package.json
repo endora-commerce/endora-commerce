@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Shipping/delivery method definitions and per-channel availability.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "delivery_methods"
@@ -58,8 +59,18 @@
     "@mikro-orm/postgresql": "^6",
     "fastify": "^5",
     "lucide-react": "^1",
-    "react": "^19",
-    "vitest": "^2"
+    "react": "^19"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

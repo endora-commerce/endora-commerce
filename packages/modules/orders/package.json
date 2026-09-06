@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Order placement, lifecycle, and history.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "orders"
@@ -71,8 +72,21 @@
     "lucide-react": "^1",
     "react": "^19",
     "react-router-dom": "^7",
-    "vitest": "^2",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

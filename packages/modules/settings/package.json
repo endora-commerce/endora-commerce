@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Per-module setting registry, admin UI, and value resolver.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "settings"
@@ -56,6 +57,23 @@
     "lucide-react": "^1",
     "react": "^19",
     "react-router-dom": "^7"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "@endora-commerce/mod-credentials": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

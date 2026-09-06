@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "The Quote Requests (RFQ) module as a package (feature 080, T040b) — the second module to leave backend/src/modules, and the first with a migration chain and an event subscriber. Ships compiled output (D-164); the manifest id 'quote_requests' stays identity of record everywhere (D-142).",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "quote_requests"
@@ -60,8 +61,21 @@
     "lucide-react": "^1",
     "react": "^19",
     "react-router-dom": "^7",
-    "vitest": "^2",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

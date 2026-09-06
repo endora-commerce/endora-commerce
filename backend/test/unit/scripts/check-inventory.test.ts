@@ -9419,15 +9419,51 @@ const CHECKS: readonly CheckEntry[] = [
       'unpublished-package': top(() =>
         releaseIntentFindings(PRIVATE_BETA, 'unpublished-package'),
       ),
-      // Fitness, which is what replaces the blanket refusal. `license` is
-      // deliberately not among the fields — D-203's amendment defers it to the
-      // merge request that makes a package public on npmjs.
+      // Fitness, which is what replaces the blanket refusal. `license` is a
+      // kind of its own below rather than a third field here: the remedy is a
+      // decision rather than a value, and one number over three fields cannot
+      // say which of them is missing.
       'incomplete-public-package': top(() =>
         releaseIntentFindings(
           publishedAlphaAs((manifest) => {
             delete manifest['repository'];
           }),
           'incomplete-public-package',
+        ),
+      ),
+      // The owner's licensing ruling of 2026-09-06, which is the merge request
+      // D-203's amendment deferred this to. A public package with no `license`
+      // publishes anyway and reads "no license" to every consumer and every
+      // scanner — an absence of terms, not a permissive default.
+      'unlicensed-package': top(() =>
+        releaseIntentFindings(
+          publishedAlphaAs((manifest) => {
+            delete manifest['license'];
+          }),
+          'unlicensed-package',
+        ),
+      ),
+      // …and the way it actually arrives once somebody "sets" the field: npm
+      // reads `""` exactly as it reads an absent one, so a blank licence has
+      // said nothing while looking answered.
+      'unlicensed-package-by-empty-string': top(() =>
+        releaseIntentFindings(
+          publishedAlphaAs((manifest) => {
+            manifest['license'] = '   ';
+          }),
+          'unlicensed-package',
+        ),
+      ),
+      // The paid half of the model, and the only licence value that makes a
+      // second claim. `SEE LICENSE IN LICENSE.md` with no `LICENSE.md` points
+      // the consumer at terms that do not exist — worse than declaring none,
+      // because a scanner reads the field as answered.
+      'unresolvable-license-file': top(() =>
+        releaseIntentFindings(
+          publishedAlphaAs((manifest) => {
+            manifest['license'] = 'SEE LICENSE IN LICENSE.md';
+          }),
+          'unresolvable-license-file',
         ),
       ),
       // The value the rehearsal cannot exercise: GitLab ignores `--access`, so
@@ -10158,7 +10194,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // no reference storefront to be missing and no dependency graph to walk.
       // A count that stood still through that would be a proof set describing a
       // check that no longer exists.
-      'backend/scripts/check-release-intent.ts': 18,
+      //
+      // **18 -> 21 (the owner's licensing ruling of 2026-09-06).** Two new
+      // finding kinds, three proofs: `unlicensed-package` in both spellings —
+      // the field deleted, and the field "set" to a blank string, which npm
+      // reads identically and which is how it arrives from somebody who thought
+      // they had answered it — plus `unresolvable-license-file` for the paid
+      // half of the model, `SEE LICENSE IN LICENSE.md` with no such file.
+      'backend/scripts/check-release-intent.ts': 21,
       // Two findings — the centre and the undecidable gate — plus the ledger's
       // three directions and the three refusals `vacuousReason` answers. The
       // fourth refusal is `readSizeRefusal`'s `short-walk` over the

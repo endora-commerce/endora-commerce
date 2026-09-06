@@ -275,14 +275,23 @@ describe('check-release-intent — is a public package fit to be published', () 
   });
 
   /**
-   * `license` is **not** judged, and its absence is a decision rather than an
-   * oversight: the owner deferred the licence to the merge request that makes a
-   * package public on npmjs (D-203, amended 2026-09-04), and licence
-   * rights come from the contract. A check that demanded it here would force
-   * the question this repository has deliberately not answered yet.
+   * `license` is judged, and by a kind of its own — this assertion used to read
+   * *"does not report a public package that declares no `license`"*, on D-203's
+   * amendment deferring it to the merge request that makes a package public on
+   * npmjs. That merge request is the owner's licensing ruling of 2026-09-06,
+   * and what it changes here is only which finding carries it: `repository` and
+   * `publishConfig.access` have one correct value each and a generator writes
+   * them, while a licence is a decision, so folding it into this list would
+   * make one number stand for three fields with three different remedies.
    */
-  it('does not report a public package that declares no `license`', () => {
-    expect(kinds(findings(PUBLISHED_ALPHA))).not.toContain('incomplete-public-package');
+  it('does not fold the licence into `incomplete-public-package`', () => {
+    const found = findings(
+      publishedAlphaAs((manifest) => {
+        delete manifest['license'];
+      }),
+    );
+    expect(kinds(found)).toContain('unlicensed-package');
+    expect(kinds(found)).not.toContain('incomplete-public-package');
   });
 
   /**
@@ -332,6 +341,110 @@ describe('check-release-intent — is a public package fit to be published', () 
 
   it('does not report a package whose access resolves to public', () => {
     expect(kinds(findings(PUBLISHED_ALPHA))).not.toContain('restricted-public-package');
+  });
+});
+
+describe('check-release-intent — the licence a published package declares', () => {
+  /**
+   * The owner's licensing ruling of 2026-09-06: the split is by **package** —
+   * the open core is `MIT`, a paid package carries the SPDX `SEE LICENSE IN`
+   * form — and entitlement is contractual rather than a registry gate, so both
+   * kinds publish to the same registry and nothing at runtime reads the field.
+   *
+   * What is enforced here is that every published package *has* an answer, and
+   * never which answer it has: which modules are paid is a product decision
+   * nobody has taken, and a check that preferred one value would be taking it.
+   */
+  it('reports a public package that declares no licence', () => {
+    const found = findings(
+      publishedAlphaAs((manifest) => {
+        delete manifest['license'];
+      }),
+    );
+    expect(kinds(found)).toContain('unlicensed-package');
+  });
+
+  /**
+   * And the way it arrives from somebody who thought they had answered. npm
+   * reads `""` exactly as it reads an absent field, so a blank licence states
+   * no terms while looking as though it states some — which is the worse of the
+   * two states, because it survives a reader's glance.
+   */
+  it('reads an empty or whitespace licence as no licence at all', () => {
+    for (const value of ['', '   ']) {
+      const found = findings(
+        publishedAlphaAs((manifest) => {
+          manifest['license'] = value;
+        }),
+      );
+      expect(kinds(found)).toContain('unlicensed-package');
+    }
+  });
+
+  it('does not report a package that declares one', () => {
+    expect(kinds(findings(PUBLISHED_ALPHA))).not.toContain('unlicensed-package');
+  });
+
+  /**
+   * A **private** versionable package is outside this rule, and that is the
+   * same population every other fitness question uses rather than a carve-out:
+   * `changeset publish` skips it, so it reaches no consumer and owes none a
+   * licence. It has a finding of its own — `unpublished-package` — and two
+   * findings for one package would be two numbers waiting to disagree about
+   * what is wrong with it.
+   */
+  it('does not report a private versionable package', () => {
+    const found = findings(PRIVATE_BETA);
+    expect(kinds(found)).toContain('unpublished-package');
+    expect(found.filter((f) => f.subject === '@fx/beta').map((f) => f.kind)).not.toContain(
+      'unlicensed-package',
+    );
+  });
+
+  /**
+   * The paid half, and the only licence value that makes a **second** claim.
+   * `SEE LICENSE IN <file>` is SPDX's spelling for terms that are not a
+   * standard identifier, and it names a file: without that file the consumer is
+   * pointed at nothing, and the package is less informative than one carrying
+   * no licence at all, because a scanner reads the field as answered.
+   */
+  it('reports a `SEE LICENSE IN` licence whose file is not in the package', () => {
+    const found = findings(
+      publishedAlphaAs((manifest) => {
+        manifest['license'] = 'SEE LICENSE IN LICENSE.md';
+      }),
+    );
+    expect(kinds(found)).toContain('unresolvable-license-file');
+    expect(kinds(found)).not.toContain('unlicensed-package');
+  });
+
+  it('does not report one whose file is there', () => {
+    const found = findings({
+      ...publishedAlphaAs((manifest) => {
+        manifest['license'] = 'SEE LICENSE IN LICENSE.md';
+      }),
+      'packages/alpha/LICENSE.md': 'Proprietary. All rights reserved.\n',
+    });
+    expect(kinds(found)).not.toContain('unresolvable-license-file');
+    expect(kinds(found)).not.toContain('unlicensed-package');
+  });
+
+  /**
+   * The vocabulary is deliberately not judged. An SPDX identifier list is a
+   * derived fact written down (D-100) that moves without this repository, and
+   * `UNLICENSED` is a legitimate npm value meaning "you may not use this" —
+   * refusing it would be this check taking a licensing decision.
+   */
+  it('says nothing about which identifier a package chose', () => {
+    for (const value of ['MIT', 'Apache-2.0', 'UNLICENSED', 'MIT OR Apache-2.0']) {
+      const found = findings(
+        publishedAlphaAs((manifest) => {
+          manifest['license'] = value;
+        }),
+      );
+      expect(kinds(found)).not.toContain('unlicensed-package');
+      expect(kinds(found)).not.toContain('unresolvable-license-file');
+    }
   });
 });
 
@@ -679,6 +792,7 @@ describe('check-release-intent — eight ways it refuses to report on what it di
         'packages/beta/package.json': JSON.stringify({
           name: '@fx/beta',
           version: '1.0.0',
+          license: 'MIT',
           repository: { url: 'https://example.invalid/fx.git' },
           publishConfig: { access: 'public' },
           scripts: { build: 'next build' },
@@ -731,9 +845,11 @@ describe('check-release-intent — what it reads, beside what it finds', () => {
     expect(result.inputs.files).toBe(5);
     // three members, one ignore pattern, two linked members, two settings —
     // plus, since the ruling of 2026-09-05, one publication decision per
-    // versionable member (2) and three fitness decisions per public one (6),
-    // with one more for the scope agreement across the set.
-    expect(result.sites).toBe(17);
+    // versionable member (2) and four fitness decisions per public one (8),
+    // with one more for the scope agreement across the set. The fourth fitness
+    // decision is the licensing ruling of 2026-09-06: is this package licensed,
+    // and — for the one licence form that names a file — is that file there.
+    expect(result.sites).toBe(19);
     expect(result.coverage).toEqual([{ source: 'workspace-globs', expected: 2, covered: 2 }]);
   });
 

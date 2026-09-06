@@ -4,6 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "description": "Two-factor authentication (TOTP + recovery codes) and Google/Microsoft sign-in, with per-scope enablement/enforcement and admin reset.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "mfa"
@@ -53,7 +54,6 @@
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "@fastify/cookie": "^11",
-    "@fastify/type-provider-zod": "^1",
     "@mikro-orm/core": "^6",
     "@mikro-orm/migrations": "^6",
     "@mikro-orm/postgresql": "^6",
@@ -63,8 +63,18 @@
     "openid-client": "^6",
     "otpauth": "^9",
     "react": "^19",
-    "vitest": "^2",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",

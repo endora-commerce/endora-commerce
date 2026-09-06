@@ -140,6 +140,11 @@ function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, s
       name: 'root',
       repository: { type: 'git', url: 'git+https://example.invalid/fx.git' },
       engines: { node: '>=22.17.0' },
+      // And the estate's licence default (the owner's ruling of 2026-09-06).
+      // One home, for the reason above it: a package inherits it, and a module
+      // that is assigned to the paid tier overrides it from its own
+      // `src/manifest.ts` rather than from here.
+      license: 'MIT',
     }),
     [`${ROOT}/backend/package.json`]: JSON.stringify({
       name: 'backend',
@@ -533,6 +538,157 @@ describe('module package manifests are generated (feature 080, T041)', () => {
    * prove the branch and leave the predicate unproven (issue #130) — and the
    * predicate is the whole ruling.
    */
+  describe('a peer is what a consumer owes, and which layer wrote it decides (FR-022)', () => {
+    /**
+     * A `peerDependencies` entry is an **install-time** requirement — npm and
+     * pnpm provide a missing one automatically — so before this every name in
+     * that map was something an instance installed whether or not it used the
+     * layer that needed it. Measured on `master` over 70 module packages: 56
+     * required `vitest`, 55 `@endora-commerce/admin-kit` and 54 `react`, and
+     * not one package declared a `peerDependenciesMeta`. A backend-only
+     * instance installed a test runner, React, a router and a charting library.
+     *
+     * The derivation needs no dataflow, which is why the header's old rejection
+     * of the field missed it: a specifier is already carried with the file it
+     * was written in, so *which layer wrote the reach* is one field away.
+     */
+    const UI_AND_BACKEND = {
+      ...BACKEND_ONLY,
+      'src/admin/index.ts':
+        "import { createElement } from 'react';\n" +
+        'export const contributions = { routes: [createElement] };\n',
+    };
+
+    it('marks a peer only a UI layer reaches as optional', () => {
+      const manifest = manifestOf(widgets(UI_AND_BACKEND));
+      expect(manifest['peerDependencies']).toMatchObject({ react: '^19' });
+      expect(manifest['peerDependenciesMeta']).toMatchObject({ react: { optional: true } });
+    });
+
+    /**
+     * `./backend`, `./migrations`, `./ports` and the root manifest are on the
+     * path of every consumer that composes the module at all — there is no
+     * instance that resolves the module and not those — so a name they reach is
+     * owed outright.
+     */
+    it('leaves a peer a runtime layer reaches required', () => {
+      const manifest = manifestOf(
+        widgets({
+          ...BACKEND_ONLY,
+          'src/backend/queue.ts': "import { Worker } from 'bullmq';\nexport const w = Worker;\n",
+        }),
+      );
+      expect(manifest['peerDependencies']).toMatchObject({ bullmq: '^5' });
+      expect(manifest).not.toHaveProperty('peerDependenciesMeta');
+    });
+
+    /**
+     * Optionality is a property of the **whole set** of reaches rather than of
+     * any one of them: one runtime import is enough to make the peer owed, and
+     * a per-reach answer would mark a name optional on the strength of the
+     * admin screen that also happens to use it.
+     */
+    it('does not mark a peer optional when a runtime layer reaches it too', () => {
+      const manifest = manifestOf(
+        widgets({
+          ...UI_AND_BACKEND,
+          'src/backend/render.ts': "import { createElement } from 'react';\nexport const e = createElement;\n",
+        }),
+      );
+      expect(manifest['peerDependencies']).toMatchObject({ react: '^19' });
+      expect(manifest['peerDependenciesMeta'] ?? {}).not.toHaveProperty('react');
+    });
+
+    /**
+     * And the headline: a name **only a test file** reaches is not a peer at
+     * all. A module package's `tsconfig.json` excludes the test spellings from
+     * the program its `tsconfig.build.json` emits, so nothing a test imports
+     * survives into anything published — not the JavaScript, not the
+     * declarations — and a consumer owes it nothing. It stays a devDependency,
+     * because the package still has to run its own tests.
+     */
+    it('does not make a peer of a name only a co-located test imports', () => {
+      const manifest = manifestOf(
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/thing.test.ts':
+              "import { it } from 'vitest';\nimport fastify from 'fastify';\nit('x', () => { void fastify; });\n",
+          },
+          { [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: 'export default {};\n' },
+        ),
+      );
+      expect(manifest['peerDependencies']).not.toHaveProperty('vitest');
+      expect(manifest['peerDependencies']).not.toHaveProperty('fastify');
+      expect(manifest['devDependencies']).toMatchObject({
+        vitest: '^2.1.4',
+        fastify: '^5.8.5',
+      });
+    });
+
+    /**
+     * Emitted only when there is one, because an empty object is the same fact
+     * as an absent one and npm reads neither — and a manifest carrying an empty
+     * block would put a key in 15 of the 70 packages that says nothing.
+     */
+    it('emits no meta block for a package with no optional peer', () => {
+      expect(manifestOf(widgets(BACKEND_ONLY))).not.toHaveProperty('peerDependenciesMeta');
+    });
+  });
+
+  describe('the licence: one declared default, one override per module', () => {
+    /**
+     * The owner's ruling of 2026-09-06 splits **by package** — the open core is
+     * `MIT`, a paid package carries `SEE LICENSE IN LICENSE.md` — and this
+     * generator builds the mechanism and never the values. Which modules are
+     * paid is a product decision nobody has taken, and rendering a guess into
+     * 70 manifests would be a licence grant no owner authorised, in the one
+     * direction that cannot be withdrawn from whoever already installed it.
+     */
+    it('renders the workspace root default', () => {
+      expect(manifestOf(widgets(BACKEND_ONLY))['license']).toBe('MIT');
+    });
+
+    /**
+     * One field in one file, and the generator does the rest — which is the
+     * whole requirement: assigning a module to the paid tier later must not be
+     * 70 hand-edits of a generated file.
+     */
+    it('takes a module\'s own override from its manifest.ts', () => {
+      const files = widgets(BACKEND_ONLY);
+      const path = `${ROOT}/packages/modules/widgets/src/manifest.ts`;
+      files[path] = `${files[path]!}export const packageLicense = 'SEE LICENSE IN LICENSE.md';\n`;
+      expect(manifestOf(files)['license']).toBe('SEE LICENSE IN LICENSE.md');
+    });
+
+    /**
+     * A licence this derivation cannot read must not fall through to the
+     * default, because the default is the **permissive** one: the silent answer
+     * would be a grant nobody wrote (issue #113, in the one direction where it
+     * is irreversible).
+     */
+    it('refuses a computed override rather than falling back to the default', () => {
+      const files = widgets(BACKEND_ONLY);
+      const path = `${ROOT}/packages/modules/widgets/src/manifest.ts`;
+      files[path] = `${files[path]!}export const packageLicense = process.env.LICENCE ?? 'MIT';\n`;
+      expect(() => render(files)).toThrow(/packageLicense/);
+    });
+
+    /**
+     * And the root refusal, for the same reason one layer up: a workspace with
+     * no declared default has no licence for a package to inherit, and a
+     * constant in the generator would be the estate's licence recorded a
+     * seventy-first time (D-100).
+     */
+    it('refuses a workspace root that declares no default', () => {
+      const files = widgets(BACKEND_ONLY);
+      const root = JSON.parse(files[`${ROOT}/package.json`]!) as Record<string, unknown>;
+      delete root['license'];
+      files[`${ROOT}/package.json`] = JSON.stringify(root);
+      expect(() => render(files)).toThrow(/license/);
+    });
+  });
+
   describe('a type-only reach into contract surface is a devDependency (R4 narrowed, D-171)', () => {
     /** An owner package that really declares a subpath and really emits it. */
     function ownerFiles(
@@ -1223,14 +1379,22 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       expect(manifestOf(files)['dependencies']).toEqual({ 'some-lib': '^1.0.0' });
     });
 
+    /**
+     * The subject used to be `peerDependenciesMeta`, which FR-022 now
+     * generates. `keywords` replaces it because it has the property the example
+     * needs and the old one has lost: it is a real npm field a hand would
+     * plausibly add, and it is on neither list — so the refusal is proven over
+     * a field that is genuinely unclaimed rather than over one whose absence
+     * from `GENERATED_FIELDS` was itself the thing under repair.
+     */
     it('refuses a field it neither generates nor preserves', () => {
       const files = widgets(BACKEND_ONLY);
       const path = `${ROOT}/packages/modules/widgets/package.json`;
       files[path] = JSON.stringify({
         ...(JSON.parse(files[path]!) as object),
-        peerDependenciesMeta: { fastify: { optional: true } },
+        keywords: ['commerce'],
       });
-      expect(() => render(files)).toThrow(/peerDependenciesMeta/);
+      expect(() => render(files)).toThrow(/keywords/);
     });
   });
 

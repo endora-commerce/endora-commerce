@@ -6,6 +6,7 @@
     "type": "admin-ui"
   },
   "description": "The admin surface a module package's ./admin layer is written against (feature 091). Publishes the contribution declaration types and the host-side zone renderer and the four design-system subpaths — ./ui, ./components, ./lib and ./i18n — whose members are derived from what admin module code actually imports.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",

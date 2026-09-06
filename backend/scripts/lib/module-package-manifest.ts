@@ -87,19 +87,40 @@
  * reach. Both are `check:release-intent`'s `incomplete-public-package`, and
  * both are derived — see {@link rootRepositoryUrl}.
  *
- * ## What is not derived, and is not emitted either
+ * ## The licence (the owner's ruling of 2026-09-06)
  *
- * **`peerDependenciesMeta`.** §2 marks it GENERATED "from the layer inventory"
- * and no shipped package carries one. It is vacuous under the rule above and
- * that is structural, not an omission: a peer appears **only** when a source
- * imports it, so a package with no `src/admin/` has no `react` peer to mark
- * optional in the first place. The contract's example — `react` optional
- * because the admin layer may be absent — describes a manifest whose peer list
- * is fixed, which is exactly the hand-written shape this file replaces. The
- * other reading, "optional means imported behind a runtime guard", needs
- * dataflow a specifier walk does not carry, and there is no such import in the
- * tree to calibrate it against. So nothing is emitted and §2 is amended to stop
- * claiming otherwise.
+ * **`license`** — the workspace root's, or this module's own override. The
+ * split is by **package**: the open core is `MIT` and a paid package carries
+ * `SEE LICENSE IN LICENSE.md`, with entitlement contractual rather than a
+ * registry gate. What this file builds is the *mechanism* and never the values
+ * — which modules are paid is a product decision nobody has taken, and a guess
+ * rendered into 70 manifests would be a licence grant no owner authorised, in
+ * the one direction that cannot be withdrawn from whoever installed it. So
+ * there is one declared default at the root ({@link rootLicense}) and one
+ * override per module ({@link modulePackageLicenseOf}), and assigning a module
+ * to the paid tier later is one field in one file with the generator doing the
+ * rest. See both for why the override is a named export rather than a manifest
+ * field.
+ *
+ * ## `peerDependenciesMeta` — and what this paragraph used to say
+ *
+ * It said the field was *"vacuous under the rule above and that is structural,
+ * not an omission: a peer appears **only** when a source imports it, so a
+ * package with no `src/admin/` has no `react` peer to mark optional in the
+ * first place."* Every clause of that is true and the conclusion does not
+ * follow, because the population it reasons about is *packages that have no
+ * admin layer* and the field's subject is *packages that have one*. Measured
+ * on `master`: **54** of 70 module packages required `react`, **55** required
+ * `@endora-commerce/admin-kit` and **56** required `vitest`, over a union of 54
+ * distinct peers, and **not one** package declared a `peerDependenciesMeta` —
+ * so an instance composing only a backend installed a test runner, React, a
+ * router and a charting library. The other reading the paragraph rejected,
+ * *"optional means imported behind a runtime guard"*, needs dataflow a
+ * specifier walk does not carry and is rejected still; what it missed is the
+ * third one, which needs no dataflow at all: **which layer wrote the reach**.
+ * A specifier is already carried with the file it was written in, so the answer
+ * was one field away the whole time. {@link peerRequirementOf} is the
+ * derivation and FR-022 the requirement.
  */
 import { readdirSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
@@ -564,6 +585,76 @@ export function subpathOf(specifier: string): string {
 }
 
 /**
+ * The layer a reach was written in: a directory name under `src/`, `'root'` for
+ * `src/manifest.ts`, or `'test'` for a co-located test file.
+ *
+ * `'test'` is decided first and by {@link TEST_FILE_RE}, which is vitest's own
+ * default `include` — the same spelling {@link layerInventoryOf} refuses an
+ * unconfigured test file by, so the runner and this classification cannot come
+ * to disagree about which file is a test.
+ */
+export function reachLayerOf(file: string): string {
+  if (TEST_FILE_RE.test(file)) return 'test';
+  const segments = file.split('/');
+  return segments.length > 2 ? segments[1]! : 'root';
+}
+
+/**
+ * What a consumer owes a package for one of its peers (FR-022).
+ *
+ * A `peerDependencies` entry is an **install-time** requirement: npm and pnpm
+ * provide a missing one automatically, so every name in that map is something
+ * an instance installs whether or not it uses the layer that needs it. Measured
+ * on `master` before this landed, over 70 module packages: 56 required
+ * `vitest`, 55 required `@endora-commerce/admin-kit`, 54 required `react`, and
+ * not one package declared a `peerDependenciesMeta` at all — so an instance
+ * that composes only a backend installed a test runner, React, a router and a
+ * charting library, none of which any file it composes imports.
+ *
+ * The answer is derived from **which layer wrote the reach**, and each of the
+ * three verdicts rests on a fact about the package's own build rather than on
+ * anyone's judgement:
+ *
+ *   * **`build-only`** — every reach is in a test file. A module package's
+ *     `tsconfig.json` excludes the test spellings from the program its
+ *     `tsconfig.build.json` emits, so nothing a test imports survives into
+ *     anything published: not the JavaScript, not the declarations. Such a name
+ *     is a `devDependency` and is **not a peer at all** — `vitest` is a peer of
+ *     a co-located test and never of the runtime, and `@fastify/type-provider-zod`
+ *     was required by eight packages for exactly the same reason.
+ *   * **`optional`** — every non-test reach is in a UI layer.
+ *     {@link UI_LAYER_DIRECTORIES} are the only layers a consumer can decline
+ *     to resolve: they publish on `./admin` and `./admin-ui`, and an instance
+ *     composing the backend and no admin imports neither. Everything else —
+ *     `src/backend/`, `src/migrations/`, `src/ports/` and the root manifest —
+ *     is on the path of every consumer that composes the module at all.
+ *   * **`required`** — anything else, including a name reached from a UI layer
+ *     *and* from a runtime one. Optionality is a property of the whole set of
+ *     reaches, so one runtime import is enough to make the peer owed.
+ *
+ * **`optional` is layer optionality and not a weakening of D-181 or D-191.**
+ * Those two rulings say that a reach surviving into a package's emitted
+ * declarations, or into a published component's emitted JavaScript, is a real
+ * dependency a consumer must resolve — and both remain exactly that here, for
+ * the consumer that resolves the subpath carrying them. What `optional` records
+ * is that a consumer who never imports `./admin` is not silently made to
+ * install React in order to compile a backend, which is the question neither
+ * ruling was asked.
+ */
+export type PeerRequirement = 'required' | 'optional' | 'build-only';
+
+/** {@link PeerRequirement}, from the layers one package's reaches were written in. */
+export function peerRequirementOf(reaches: readonly PackageReach[]): PeerRequirement {
+  const published = [...new Set(reaches.map((reach) => reachLayerOf(reach.file)))].filter(
+    (layer) => layer !== 'test',
+  );
+  if (published.length === 0) return 'build-only';
+  return published.every((layer) => UI_LAYER_DIRECTORIES.includes(layer))
+    ? 'optional'
+    : 'required';
+}
+
+/**
  * npm's name for a package's DefinitelyTyped companion: `nodemailer` →
  * `@types/nodemailer`, `@scope/name` → `@types/scope__name`.
  */
@@ -768,6 +859,7 @@ const GENERATED_FIELDS: readonly string[] = [
   'name',
   'type',
   'sideEffects',
+  'license',
   'endora',
   'repository',
   'publishConfig',
@@ -776,6 +868,7 @@ const GENERATED_FIELDS: readonly string[] = [
   'engines',
   'scripts',
   'peerDependencies',
+  'peerDependenciesMeta',
   'devDependencies',
 ];
 
@@ -982,6 +1075,7 @@ export function renderModulePackageManifests(
   const platform = platformSeedVersion(members);
   const nodeEngine = rootNodeEngine(repoRoot, countingFs);
   const repositoryUrl = rootRepositoryUrl(repoRoot, countingFs);
+  const defaultLicense = rootLicense(repoRoot, countingFs);
 
   const directories = candidateDirectories(repoRoot, fs);
   // Two passes: every module package's npm name has to be known before any one
@@ -1109,6 +1203,9 @@ export function renderModulePackageManifests(
       versions,
       platform,
       nodeEngine,
+      license:
+        modulePackageLicenseOf(identity.manifestSource, join(identity.dir, ROOT_ENTRY)) ??
+        defaultLicense,
       existing,
       manifestSource: identity.manifestSource,
       manifestFile: join(identity.dir, ROOT_ENTRY),
@@ -1471,6 +1568,12 @@ interface RenderInput {
    */
   readonly platform: { readonly name: string; readonly version: string | null } | null;
   readonly nodeEngine: string;
+  /**
+   * The SPDX expression this package publishes under: the workspace root's
+   * default ({@link rootLicense}), or this module's own override
+   * ({@link modulePackageLicenseOf}) where it declares one.
+   */
+  readonly license: string;
   readonly existing: Readonly<Record<string, unknown>> | null;
   readonly manifestSource: string;
   readonly manifestFile: string;
@@ -1544,8 +1647,21 @@ export function renderManifest(input: RenderInput): string {
 
   const peers = new Map<string, string>();
   const devs = new Map<string, string>();
+  /** The names {@link peerRequirementOf} answered `optional` for (FR-022). */
+  const optionalPeers = new Set<string>();
   for (const name of [...input.imported.keys()].sort(byAscii)) {
     if (name === input.selfName) continue;
+    // FR-022, asked once per name and before any of the three branches below,
+    // because all three ask the same question of the same reaches. `build-only`
+    // takes the `peers.set` off every branch and leaves `devs.set` where it is:
+    // the package still has to compile and run its own tests, and the consumer
+    // still owes nothing.
+    const requirement = peerRequirementOf(input.imported.get(name) ?? []);
+    const setPeer = (range: string): void => {
+      if (requirement === 'build-only') return;
+      peers.set(name, range);
+      if (requirement === 'optional') optionalPeers.add(name);
+    };
     if (input.modulePackageNames.has(name)) {
       // R4, narrowed by D-171 rather than waived. Every reach into that name
       // must be a type-only import at a subpath whose emitted module exports no
@@ -1599,7 +1715,7 @@ export function renderManifest(input: RenderInput): string {
           (reach) => reach.subpath === PUBLISHED_COMPONENT_LAYER_DIRECTORY,
         )
       ) {
-        peers.set(name, 'workspace:*');
+        setPeer('workspace:*');
       }
       devs.set(name, 'workspace:*');
       continue;
@@ -1607,7 +1723,7 @@ export function renderManifest(input: RenderInput): string {
     if (input.workspaceNames.has(name)) {
       // R5 — `pnpm pack` rewrites `workspace:*` to the exact version, so this
       // source needs no change when versions become real.
-      peers.set(name, 'workspace:*');
+      setPeer('workspace:*');
       devs.set(name, 'workspace:*');
       continue;
     }
@@ -1628,7 +1744,7 @@ export function renderManifest(input: RenderInput): string {
           `no readable major version, so the peer range cannot be derived from it.`,
       );
     }
-    peers.set(name, `^${major}`);
+    setPeer(`^${major}`);
     devs.set(name, declared);
     // A library whose types are a separate `@types/*` package. Nothing imports
     // that package, so the specifier walk above cannot see it — the compiler
@@ -1655,11 +1771,23 @@ export function renderManifest(input: RenderInput): string {
     // conflict the application author cannot fix and the types are theirs to
     // supply. That split is derived from the types package itself
     // ({@link typesPackageIsConsumerSupplied}) and is never a list of names.
+    //
+    // **A companion inherits its library's {@link PeerRequirement}** (FR-022),
+    // because the two are one requirement: a consumer who does not owe the
+    // library cannot owe the declarations that describe it. `build-only` is
+    // already handled — `survivesIntoDeclarations` is false for a name only a
+    // test reaches once the package is built, and `setPeer` refuses it in any
+    // case — and `optional` is carried across explicitly so that a UI-only
+    // library and its `@types/*` never disagree about who has to install them.
     const types = typesPackageFor(name);
     const typesDeclared = input.versions.get(types);
     if (typesDeclared !== undefined) {
       devs.set(types, typesDeclared);
-      if (survivesIntoDeclarations(input, name) && !input.consumerSuppliesTypes(types)) {
+      if (
+        requirement !== 'build-only' &&
+        survivesIntoDeclarations(input, name) &&
+        !input.consumerSuppliesTypes(types)
+      ) {
         const typesMajor = majorOf(typesDeclared);
         if (typesMajor === null) {
           throw new ModulePackageManifestError(
@@ -1669,6 +1797,7 @@ export function renderManifest(input: RenderInput): string {
           );
         }
         peers.set(types, `^${typesMajor}`);
+        if (requirement === 'optional') optionalPeers.add(types);
       }
     }
   }
@@ -1780,6 +1909,12 @@ export function renderManifest(input: RenderInput): string {
     type: 'module',
     sideEffects: false,
     description: descriptionFor(input),
+    // The estate's default, or this module's own override — {@link rootLicense}
+    // and {@link modulePackageLicenseOf}. It is `MIT` for all 70 today because
+    // no module declares an override, and the generator renders a guess for
+    // none of them: which modules are paid is a product decision, and a value
+    // invented here would be a licence grant nobody authorised.
+    license: input.license,
     endora: { type: 'module', id: input.moduleId },
     repository: {
       type: 'git',
@@ -1792,6 +1927,17 @@ export function renderManifest(input: RenderInput): string {
     engines: { node: input.nodeEngine },
     scripts,
     peerDependencies: Object.fromEntries(sortedByAscii(peers)),
+    // FR-022. Emitted only when this package has an optional peer, because an
+    // empty object is the same fact as an absent one and npm reads neither —
+    // and a key here that `peerDependencies` does not carry is a declaration
+    // about nothing. See {@link peerRequirementOf} for what makes one optional.
+    ...(optionalPeers.size === 0
+      ? {}
+      : {
+          peerDependenciesMeta: Object.fromEntries(
+            [...optionalPeers].sort(byAscii).map((name) => [name, { optional: true }]),
+          ),
+        }),
     devDependencies: Object.fromEntries(sortedByAscii(devs)),
     // HAND-WRITTEN (§2) — a third-party runtime library this module alone
     // needs, with the justification Constitution IV requires. Last, so the
@@ -2175,3 +2321,105 @@ export function rootNodeEngine(repoRoot: string, fs: ManifestFs): string {
   }
   return node;
 }
+
+/**
+ * The `license` the workspace root declares — the estate's single default.
+ *
+ * The owner's licensing ruling of 2026-09-06 splits **by package**: the open
+ * core is `MIT`, and a paid package carries a proprietary licence spelled
+ * `SEE LICENSE IN LICENSE.md`, which is the SPDX form npm and the licence
+ * scanners accept. Entitlement is contractual rather than a registry gate, so
+ * both kinds publish to the same registry and nothing at runtime reads this
+ * field.
+ *
+ * **Which** modules are paid is a product decision nobody has taken, so this
+ * generator renders the default and never a guess: a value invented here would
+ * be a licence grant over 70 packages that no owner authorised, and the wrong
+ * direction is not symmetric — an accidental `MIT` on a package meant to be
+ * paid cannot be withdrawn from whoever already installed it.
+ *
+ * Read from the root manifest for {@link rootRepositoryUrl}'s reason: a
+ * constant here would be the estate's licence recorded a seventy-first time
+ * (D-100), and changing the default would then mean regenerating rather than
+ * editing one field. The refusal is at the point of need — a workspace root
+ * that declares no `license` has no default for a package to inherit, and
+ * inventing one is exactly the unauthorised grant above.
+ */
+export function rootLicense(repoRoot: string, fs: ManifestFs): string {
+  const path = join(repoRoot, 'package.json');
+  const text = fs.readText(path);
+  if (text === null) {
+    throw new ModulePackageManifestError(
+      `${path} could not be read, so the licence a module package inherits has no source.`,
+    );
+  }
+  const manifest = JSON.parse(text) as Record<string, unknown>;
+  const license = manifest['license'];
+  if (typeof license !== 'string' || license.trim().length === 0) {
+    throw new ModulePackageManifestError(
+      `${path} declares no \`license\`, so every module package would publish without one — ` +
+        `and a generator that filled the gap would be granting a licence over 70 packages on ` +
+        `nobody's authority. Declare the estate's default once at the workspace root.`,
+    );
+  }
+  return license;
+}
+
+/**
+ * The SPDX expression a module declares for **its own** package, overriding
+ * {@link rootLicense}.
+ *
+ * The spelling is a plain named export beside the manifest —
+ * `export const packageLicense = 'SEE LICENSE IN LICENSE.md';` — which is where
+ * `installHook`, `uninstallHook` and `cliCommands` already live: facts about a
+ * module that the tooling reads from `manifest.ts` and that are deliberately
+ * not fields of the runtime manifest. It is **not** the manifest's own
+ * `license` field, and that is a decision rather than an oversight: that field
+ * is `ModuleLicenseTierSchema` (`'core' | 'pro' | 'enterprise'`), the dead
+ * entitlement mechanism D-194 rules should be deleted, and it is published
+ * contract surface on `ModuleListItem`. Repurposing it would put two meanings
+ * on one name in one file, and deleting it now costs a `major` on
+ * `@endora-commerce/contracts` that D-194 priced while every package was still
+ * private. Both are the owner's call and neither is this generator's.
+ *
+ * Read as a **literal AST node**, so a computed value is refused rather than
+ * guessed at: a licence this derivation cannot read must not be reported as
+ * "this module takes the default" (issue #113), because the default is the
+ * permissive one and the silent answer would be the grant.
+ */
+export function modulePackageLicenseOf(source: string, file: string): string | null {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  let found: string | null = null;
+  let refused = false;
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableStatement(node)) {
+      for (const declaration of node.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)) continue;
+        if (declaration.name.text !== MODULE_LICENSE_EXPORT) continue;
+        const value = declaration.initializer;
+        if (
+          value !== undefined &&
+          (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value))
+        ) {
+          found = value.text;
+        } else {
+          refused = true;
+        }
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sourceFile.forEachChild(visit);
+  if (refused) {
+    throw new ModulePackageManifestError(
+      `${file}: \`${MODULE_LICENSE_EXPORT}\` is not a string literal. A licence this ` +
+        `derivation cannot read would fall back to the workspace default, which is the ` +
+        `permissive one — so the silent answer is a grant nobody wrote. Declare it as a ` +
+        `literal, or delete it and take the default deliberately.`,
+    );
+  }
+  return found;
+}
+
+/** The named export {@link modulePackageLicenseOf} reads. */
+export const MODULE_LICENSE_EXPORT = 'packageLicense';
