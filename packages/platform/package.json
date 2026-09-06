@@ -49,6 +49,10 @@
       "types": "./dist/lifecycle/index.d.ts",
       "default": "./dist/lifecycle/index.js"
     },
+    "./env": {
+      "types": "./dist/env/index.d.ts",
+      "default": "./dist/env/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

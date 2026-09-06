@@ -128,6 +128,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     expect([...measurement.declared].sort()).toEqual([
       'commands',
       'composition',
+      'env',
       'events',
       'http',
       'kernel',
@@ -148,7 +149,13 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // per-directory walk could not see it. `registryCache` — the module-scoped
     // singleton whose second copy no `state-changed` message reaches — was
     // reachable both ways throughout and compared by nothing.
-    expect(measurement.unshimmed).toEqual(['migrations']);
+    //
+    // `./env` joined `./migrations` with `specs/117-instance-bring-up/` Phase 1
+    // and for the same reason: the environment-input declaration is data the
+    // platform carries, its readers are the CLI and `endora doctor`, and the
+    // application reaches it through no shim at all. One route is not a
+    // duplication.
+    expect([...measurement.unshimmed].sort()).toEqual(['env', 'migrations']);
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
       'commands',
       'composition',

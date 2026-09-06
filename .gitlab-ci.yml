@@ -447,6 +447,17 @@ quality:
     # No ledger, deliberately: an entry could only license a single-language
     # module, which is the thing the ruling forbids.
     - pnpm --filter backend run check:bundle-pairing
+    # `specs/117-instance-bring-up/` FR-003 — every environment value a running
+    # Endora reads is declared, and every declared input is read. Both
+    # directions, and the second is the one nothing else would ever notice: the
+    # read goes away, the declaration stays, and an operator goes on being asked
+    # for a value that changes nothing. No existing check's population contains
+    # a `process.env` read, and until this landed the platform's own boot could
+    # say only that "a required secret/env var" was missing — it could not name
+    # one, because no list existed. Module packages are outside this population
+    # and the run **prints** that rather than passing over it: their inputs are
+    # a manifest field and land with this feature's Phase 3.
+    - pnpm --filter backend run check:env-inputs
     # Feature 096 —
     # `specs/096-page-builder-block-ownership/contracts/block-name-check.md`.
     # A Puck block name is written into `jsonb` and never rewritten, and no

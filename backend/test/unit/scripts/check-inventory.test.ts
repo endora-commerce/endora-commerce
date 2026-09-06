@@ -7,6 +7,7 @@ import {
   ModuleManifestSchema,
   SUPPORTED_LANGUAGES,
   defineModuleManifest,
+  type EnvironmentInput,
   type ModuleManifest,
 } from '@endora-commerce/contracts';
 
@@ -24,6 +25,15 @@ import {
   type ActionRecord,
 } from '../../../scripts/check-action-route-permissions.js';
 import { analyzeSource as containerAnalyze } from '../../../scripts/check-container-imports.js';
+import {
+  checkEnvironmentInputs,
+  collectEnvironmentReads,
+  DeclarationUnreadableError,
+  evaluateDeclarationArray,
+  type DeclarationSource,
+  type EnvInputFindingKind,
+  type EnvSourceFile,
+} from '../../../scripts/check-env-inputs.js';
 import {
   checkDocument,
   discoverCitingDocuments,
@@ -595,6 +605,50 @@ function applicationReachInput(sources: Record<string, string>): ApplicationReac
 
 /** The fixture enters the check where a real run does: source text in, findings out. */
 const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
+
+/**
+ * `check:env-inputs` — a declaration and the source text it is reconciled
+ * against, which is exactly what a real run holds.
+ *
+ * The reads enter as **file text** rather than as records, because the whole of
+ * the named-constant resolution — the discrimination that keeps the tree's own
+ * correct `process.env[CONST]` idiom out of `unresolvable-input-name` — lives
+ * in the collector. A fixture handing in pre-classified reads would prove the
+ * reporter and leave that unproven (issue #130).
+ */
+const ENV_INPUT: EnvironmentInput = {
+  name: 'DATABASE_URL',
+  describes: { en: 'where the data is.', pl: 'gdzie są dane.' },
+  requirement: { kind: 'required' },
+  secret: true,
+  generable: false,
+  owner: { kind: 'platform' },
+  consumers: ['backend'],
+};
+
+function envInputFindings(
+  declarations: readonly DeclarationSource[],
+  sources: readonly EnvSourceFile[],
+  kind: EnvInputFindingKind,
+): number {
+  return checkEnvironmentInputs({
+    declarations,
+    reads: collectEnvironmentReads(sources),
+  }).findings.filter((finding) => finding.kind === kind).length;
+}
+
+const platformEnvDeclaration = (
+  inputs: readonly EnvironmentInput[],
+): readonly DeclarationSource[] => [
+  { author: { kind: 'platform' }, file: 'packages/platform/src/env/index.ts', inputs },
+];
+
+const backendEnvSource = (text: string): readonly EnvSourceFile[] => [
+  { path: 'backend/src/x.ts', text, consumer: 'backend' },
+];
+
+/** The `DATABASE_URL` read every fixture below carries, so only one thing varies. */
+const READS_DATABASE_URL = "const url = process.env['DATABASE_URL'];\n";
 
 // --- fixtures the red proofs run on ----------------------------------------
 
@@ -4871,6 +4925,130 @@ const CHECKS: readonly CheckEntry[] = [
       'file-level-site-beside-a-scoped-worker': top(unscopedProgramBesideAScopedWorker),
       // The ledger's second direction.
       'stale-ledger-entry': top(staleLedgerEntry),
+    },
+  },
+  {
+    // `specs/117-instance-bring-up/` FR-003 — every environment value a running
+    // Endora reads is declared, and every declared input is read. It lands at
+    // **zero findings** over the three trees, which is what makes this entry
+    // carry the whole weight: nothing in the tree exercises the check, so a
+    // narrowing would be invisible in every pipeline until the day the shape
+    // arrived.
+    //
+    // Six findings, six proofs, plus the **two discriminations** — and both are
+    // places a plausible implementation goes wrong in the direction that reads
+    // clean. A `process.env[CONST]` where the constant is a string literal is
+    // the tree's own correct idiom (`storefront/lib/env.mjs` exports the two
+    // variable names and `next.config.js` reads through them); a check that
+    // called it `unresolvable-input-name` would have landed with findings
+    // against the file that exists to remove the defect this feature is about.
+    // And one name declared by two *different* authors is not `foreign-input`:
+    // `REVALIDATE_SECRET` is declared by the platform and by the storefront,
+    // because under D-195 those are two repositories that ship independently.
+    script: 'backend/scripts/check-env-inputs.ts',
+    npmScript: 'check:env-inputs',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-env-inputs.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is the three trees a running Endora is made of — the
+    // backend's sources plus the platform's, the storefront's, the admin's —
+    // and none of them is the module tree. A module's own inputs are a manifest
+    // field that lands with this feature's Phase 3, and until then the run
+    // **prints** that they are unjudged rather than passing over them.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'undeclared-input': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([ENV_INPUT]),
+          backendEnvSource(`${READS_DATABASE_URL}const k = process.env['MEILISEARCH_URL'];\n`),
+          'undeclared-input',
+        ),
+      ),
+      'unread-input': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([ENV_INPUT, { ...ENV_INPUT, name: 'REDIS_URL' }]),
+          backendEnvSource(READS_DATABASE_URL),
+          'unread-input',
+        ),
+      ),
+      // Shape one of two under this kind: the owner is not the shipping author.
+      'foreign-input': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([
+            { ...ENV_INPUT, owner: { kind: 'application', application: 'storefront' } },
+          ]),
+          backendEnvSource(READS_DATABASE_URL),
+          'foreign-input',
+        ),
+      ),
+      // Shape two: one author, one name, twice — two `describes`, and whichever
+      // a reader reaches first wins.
+      'foreign-input-declared-twice': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([ENV_INPUT, ENV_INPUT]),
+          backendEnvSource(READS_DATABASE_URL),
+          'foreign-input',
+        ),
+      ),
+      'unresolvable-input-name': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([ENV_INPUT]),
+          backendEnvSource(
+            `${READS_DATABASE_URL}export function read(n: string) { return process.env[n]; }\n`,
+          ),
+          'unresolvable-input-name',
+        ),
+      ),
+      'generable-without-secret': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([{ ...ENV_INPUT, secret: false, generable: true }]),
+          backendEnvSource(READS_DATABASE_URL),
+          'generable-without-secret',
+        ),
+      ),
+      // Both halves of the kind, because they are two different failures: an
+      // `optional` that does not say what is lost, and a condition naming an
+      // input no declaration carries, which can therefore never be true.
+      'requirement-without-a-consequence': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([
+            {
+              ...ENV_INPUT,
+              requirement: { kind: 'optional', without: { en: 'optional', pl: '-' } },
+            },
+          ]),
+          backendEnvSource(READS_DATABASE_URL),
+          'requirement-without-a-consequence',
+        ),
+      ),
+      'requirement-with-an-unknown-condition': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([
+            {
+              ...ENV_INPUT,
+              requirement: {
+                kind: 'requiredWhen',
+                input: 'CATALOG_SEARCH_BACKEND',
+                equals: 'meilisearch',
+              },
+            },
+          ]),
+          backendEnvSource(READS_DATABASE_URL),
+          'requirement-without-a-consequence',
+        ),
+      ),
+      // The vacuous-pass proof: a declaration this run cannot read **in full**
+      // is refused rather than reconciled over the entries that happened to
+      // parse. Exit 2's own shape, entering as source text.
+      'refuses-a-declaration-it-cannot-read': top(() => {
+        try {
+          evaluateDeclarationArray('export const X = [{ name: NAME }];\n', 'x.ts', 'X');
+          return 0;
+        } catch (error: unknown) {
+          return error instanceof DeclarationUnreadableError ? 1 : 0;
+        }
+      }),
     },
   },
   {
@@ -10001,6 +10179,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // at file level — and the ledger's stale direction, which a per-site key
       // can break without breaking anything else.
       'backend/scripts/check-entry-scope.ts': 10,
+      // Six findings, plus `foreign-input`'s and
+      // `requirement-without-a-consequence`'s second shapes — each is a
+      // different failure under one kind and one would go blind behind the
+      // other's red — plus the vacuous-pass proof, which is exit 2's own shape
+      // entering as source text. The two *discriminations* are in the companion
+      // test rather than here, because this file's entries prove a check can go
+      // red and a proof that it stays green over honest source cannot do that.
+      'backend/scripts/check-env-inputs.ts': 9,
       // P1's two — a code missing in both languages and in one — plus P2's
       // three kinds (feature 082, D-127). The fourth fixture D-127 requires is
       // the discrimination one, which asserts **zero** findings and therefore

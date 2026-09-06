@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { main } from '../src/bin/endora.js';
+import { DECLARATION_FILE } from '../src/inputs/declaration.js';
 import { runNewStorefront } from '../src/new-storefront/index.js';
 import {
   backendAddressVariables,
@@ -51,6 +52,26 @@ import {
 
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 
+/**
+ * Enough to satisfy the fixture storefront's one required input, and this
+ * repository's reference storefront's five.
+ *
+ * A test that supplied none would not be exercising the copy at all — it would
+ * be exercising the refusal, which has its own cases below. Both records are
+ * written out rather than derived from the declaration, deliberately: deriving
+ * them would make every assertion here pass over a declaration that had lost
+ * its required inputs, which is the one thing they must not do.
+ */
+const FIXTURE_INPUTS = { NEXT_PUBLIC_API_BASE_URL: 'https://api.example.com' };
+
+const REFERENCE_INPUTS = {
+  NEXT_PUBLIC_API_BASE_URL: 'https://api.example.com',
+  BACKEND_BASE_URL: 'https://api.internal.example.com',
+  NEXT_PUBLIC_SITE_URL: 'https://shop.example.com',
+  NEXT_PUBLIC_SALES_CHANNEL_CODE: 'default',
+  REVALIDATE_SECRET: 'a-secret-both-trees-share',
+};
+
 function temp(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
 }
@@ -77,7 +98,16 @@ function fixtureRepo(options: { storefrontFiles: Record<string, string> }): stri
     JSON.stringify({ name: '@acme/contracts', version: '1.4.2', private: true }, null, 2),
   );
   mkdirSync(join(root, 'shop'), { recursive: true });
-  for (const [path, content] of Object.entries(options.storefrontFiles)) {
+  // Every reference storefront declares what it needs from its environment
+  // (feature 117, FR-001), so every fixture reference storefront does too: the
+  // command loads it before it writes anything, and a fixture without one would
+  // be testing the copy against a tree no client will ever hold. A caller that
+  // supplies its own overrides this.
+  const storefrontFiles = {
+    [DECLARATION_FILE]: FIXTURE_DECLARATION,
+    ...options.storefrontFiles,
+  };
+  for (const [path, content] of Object.entries(storefrontFiles)) {
     const absolute = join(root, 'shop', path);
     mkdirSync(join(absolute, '..'), { recursive: true });
     writeFileSync(absolute, content);
@@ -103,6 +133,38 @@ function fixtureRepo(options: { storefrontFiles: Record<string, string> }): stri
   return root;
 }
 
+/**
+ * The fixture storefront's declaration: one required input and one optional one.
+ *
+ * Two, so that both halves of the resolution have something to act on — the
+ * required one is what a refusal, a prompt and a flag are asserted over, and the
+ * optional one is what proves R1.4 (an optional input is never prompted for).
+ */
+const FIXTURE_DECLARATION = `export const STOREFRONT_ENVIRONMENT_INPUTS = [
+  {
+    name: 'NEXT_PUBLIC_API_BASE_URL',
+    describes: { en: 'the backend address.', pl: 'adres backendu.' },
+    requirement: { kind: 'required' },
+    secret: false,
+    generable: false,
+    owner: { kind: 'application', application: 'storefront' },
+    consumers: ['storefront'],
+  },
+  {
+    name: 'NEXT_PUBLIC_APP_NAME',
+    describes: { en: 'the shop name.', pl: 'nazwa sklepu.' },
+    requirement: {
+      kind: 'optional',
+      without: { en: 'the shortcut carries a default name.', pl: 'skrot ma domyslna nazwe.' },
+    },
+    secret: false,
+    generable: false,
+    owner: { kind: 'application', application: 'storefront' },
+    consumers: ['storefront'],
+  },
+];
+`;
+
 const MANIFEST = JSON.stringify(
   {
     name: 'shop',
@@ -124,7 +186,13 @@ describe('the reference storefront is derived, never named', () => {
     try {
       const reference = resolveReference(root);
       expect(reference.dir).toBe(join(root, 'shop'));
-      expect([...reference.files].sort()).toEqual(['app/page.tsx', 'package.json']);
+      // The declaration travels in the copy (feature 117, §R2.3), so it is part
+      // of the reference's own population like every other file in it.
+      expect([...reference.files].sort()).toEqual([
+        'app/page.tsx',
+        'environment-inputs.mjs',
+        'package.json',
+      ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -291,7 +359,7 @@ describe('rule 4 — an outward reference no rule classifies is a refusal', () =
     });
     const target = join(temp('endora-sf-out-'), 'shop');
     try {
-      const result = await runNewStorefront({ dir: target, cwd: root });
+      const result = await runNewStorefront({ dir: target, cwd: root, inputs: FIXTURE_INPUTS });
       expect(result.plan.omitted.map((entry) => entry.path)).toEqual(['test/repo-shape.test.ts']);
       expect(existsSync(join(target, 'test/repo-shape.test.ts'))).toBe(false);
       expect(existsSync(join(target, 'app/page.tsx'))).toBe(true);
@@ -395,13 +463,14 @@ describe('the registry — an `.npmrc` the scaffold writes only when it is asked
     const plain = join(temp('endora-sf-plain-'), 'shop');
     const scoped = join(temp('endora-sf-scoped-'), 'shop');
     try {
-      const bare = await runNewStorefront({ dir: plain, cwd: root });
+      const bare = await runNewStorefront({ dir: plain, cwd: root, inputs: FIXTURE_INPUTS });
       expect(existsSync(join(plain, '.npmrc'))).toBe(false);
       expect(bare.plan.registry).toBeNull();
 
       const withRegistry = await runNewStorefront({
         dir: scoped,
         cwd: root,
+        inputs: FIXTURE_INPUTS,
         registry: 'https://gitlab.example.com/api/v4/packages/npm',
       });
       const text = readFileSync(join(scoped, '.npmrc'), 'utf8');
@@ -456,7 +525,7 @@ describe('the scaffolded manifest declares `packageManager`', () => {
     });
     const target = join(temp('endora-sf-pm-'), 'shop');
     try {
-      await runNewStorefront({ dir: target, cwd: root });
+      await runNewStorefront({ dir: target, cwd: root, inputs: FIXTURE_INPUTS });
       const written = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
         packageManager?: string;
       };
@@ -499,7 +568,7 @@ describe('the scaffold names nothing above its own directory', () => {
     const parent = temp('endora-sf-real-');
     const target = join(parent, 'shop');
     try {
-      const result = await runNewStorefront({ dir: target, cwd: REPO_ROOT });
+      const result = await runNewStorefront({ dir: target, cwd: REPO_ROOT, inputs: REFERENCE_INPUTS });
       // The same derivation the command runs, re-applied to what it wrote.
       const copied = {
         repoRoot: parent,

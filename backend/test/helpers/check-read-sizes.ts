@@ -697,7 +697,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 1949 again.
-    files: 1950,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 1951,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -770,7 +779,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2073 again.
-    files: 2074,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2075,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -999,7 +1017,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 5294 again.
-    files: 5295,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +8 files, +4 sites.** The files this feature adds under
+    // this walk, which is the whole tree less `backend/scripts` and
+    // `backend/test/unit/scripts` — the two directories whose job is to spell the
+    // shapes the rule refuses. The sites are the `.replace` and `normalize` calls
+    // inside them; none is a fold or a slug run, and `violations` stays 0.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 5303,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1078,7 +1106,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // clears it; the `files` field does not move, that function landing in
     // `packages/cli/src/new-storefront/reference.ts`, which this walk already
     // opened.
-    sites: 526,
+    sites: 530,
     sources: [],
   },
   'backend/scripts/check-divergence.ts': {
@@ -1138,7 +1166,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither is in this walk — `_lifecycle` is **platform**-resident, so
     // `backend/src/lifecycle/` is not a module walk root and no path under
     // `backend/src` is in the owner map's population at all.
-    files: 2159,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2160,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1286,7 +1323,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2073 again.
-    files: 2074,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2075,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1343,7 +1389,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2073 again.
-    files: 2074,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2075,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1400,7 +1455,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2073 again.
-    files: 2074,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2075,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1436,6 +1500,30 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // nowhere else.
     sites: 43,
     sources: ['manifest-index', 'package-scripts'],
+  },
+  'backend/scripts/check-env-inputs.ts': {
+    prefix: '[env-inputs]',
+    run: { kind: 'tsx', path: 'scripts/check-env-inputs.ts', args: [] },
+    // **`specs/117-instance-bring-up/` Phase 1, recorded on the tree that
+    // landed it.** `files` is the runtime sources of the three trees a running
+    // Endora is made of: `backend/src` plus the platform's, the storefront's
+    // `app`, `components`, `lib` and its own root, and `admin/src`. `sites` is
+    // the `process.env` and `import.meta.env` member accesses inside them —
+    // #237's finer population, and the one that moves when the syntax walk
+    // narrows while the file count holds steady.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4: 682 -> 683.**
+    // That branch adds `packages/platform/src/lifecycle/divergence-declaration.ts`,
+    // and the platform's own sources are part of the backend tree this walk reads —
+    // so an entry that is new in this merge request still had to be re-measured
+    // after the rebase rather than carried across it.
+    files: 683,
+    sites: 67,
+    // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
+    // own enum: an author written nowhere near this check and unmoved by
+    // anything a declaration does. A consumer counts as covered only when it
+    // both declares an input and contributed a read, so losing either half is
+    // a short walk rather than a quiet one.
+    sources: ['declared-consumers'],
   },
   'backend/scripts/check-error-translations.ts': {
     prefix: '[error-translations]',
@@ -1526,7 +1614,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
     // driven over three suppliers it builds, at the package specifier an instance
     // would write.
-    files: 1572,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +2 files.** The two tests this feature adds under
+    // `backend/test` — `unit/scripts/check-env-inputs.test.ts`, the new check's
+    // companion, and `unit/packages/platform-env-subpath.test.ts`, which is what
+    // holds the platform's `./env` subpath open now that the check reads the
+    // declaration's source text rather than its build output.
+    files: 1574,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1596,7 +1689,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
     // driven over three suppliers it builds, at the package specifier an instance
     // would write.
-    files: 1572,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +2 files.** The two tests this feature adds under
+    // `backend/test` — `unit/scripts/check-env-inputs.test.ts`, the new check's
+    // companion, and `unit/packages/platform-env-subpath.test.ts`, which is what
+    // holds the platform's `./env` subpath open now that the check reads the
+    // declaration's source text rather than its build output.
+    files: 1574,
     sites: null,
     sources: [],
   },
@@ -1653,7 +1751,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2073 again.
-    files: 2074,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2075,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1689,7 +1796,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // recorded, and stayed inside the +50% band for a day. Worth stating rather
     // than quietly bumping: a re-record can under-record, and the band cannot see
     // it in that direction either.
-    files: 298,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +2 files.** Both halves of this walk's population grow by
+    // one: `backend/scripts/check-env-inputs.ts` is a new `check-*` script, and
+    // `packages/contracts/src/environment-inputs.ts` is a new contract file the
+    // barrel re-exports — which is why `contracts-barrel` moves with it.
+    files: 300,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     sites: 15,
     sources: ['manifest-index', 'contracts-barrel'],
@@ -2443,7 +2554,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walk's population is the module tree, and `_lifecycle` is platform-resident.
     // Measured rather than reasoned about: with that one file taken out of the tree and
     // the check re-run it reads 4667, `sites` unmoved at 11889.
-    files: 4669,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 4670,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -2789,7 +2909,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 7771 again.
-    files: 7772,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +15 files.** Every file this feature adds, this
+    // walk's population being the whole checkout: the contract shape and its test,
+    // the platform's declaration, the storefront's and the admin's, the
+    // reconciliation rule with its repository host and its companion, the
+    // `./env` subpath test, the four input-resolution modules, and the two tests
+    // that prove the resolution and the non-interactive guarantee.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 7789,
     sites: null,
     sources: [],
   },
@@ -3007,7 +3138,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2073 again.
-    files: 2074,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2075,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -3106,7 +3246,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2390 again.
-    files: 2391,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2392,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -3215,7 +3364,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 1945 again.
-    files: 1946,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 1947,
     sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -3412,7 +3570,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
     // driven over three suppliers it builds, at the package specifier an instance
     // would write.
-    files: 1572,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +2 files.** The two tests this feature adds under
+    // `backend/test` — `unit/scripts/check-env-inputs.test.ts`, the new check's
+    // companion, and `unit/packages/platform-env-subpath.test.ts`, which is what
+    // holds the platform's `./env` subpath open now that the check reads the
+    // declaration's source text rather than its build output.
+    files: 1574,
     sites: 163,
     sources: [],
   },
@@ -3521,7 +3684,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2073 again.
-    files: 2074,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2075,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3558,7 +3730,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
     // driven over three suppliers it builds, at the package specifier an instance
     // would write.
-    files: 1651,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +2 files.** The two tests this feature adds under
+    // `backend/test` — `unit/scripts/check-env-inputs.test.ts`, the new check's
+    // companion, and `unit/packages/platform-env-subpath.test.ts`, which is what
+    // holds the platform's `./env` subpath open now that the check reads the
+    // declaration's source text rather than its build output.
+    files: 1653,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -3630,7 +3807,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2073 again.
-    files: 2074,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +1 file.** `packages/platform/src/env/index.ts`, the
+    // environment-input declaration FR-001 gives the platform. It is under the
+    // platform source root, which this walk covers, and it is the only file this
+    // feature adds there.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 2075,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3720,7 +3906,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 4326 again.
-    files: 4327,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +4 files.** The files this feature adds under the
+    // module-package and platform walk this check reads. None is a composed
+    // singleton reach: the declaration is data, and the resolution modules are
+    // the CLI's, which is not a module package.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 4331,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -4068,7 +4263,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 7831 again.
-    files: 7832,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +15 files.** Every file this feature adds, this
+    // walk's population being the whole checkout: the contract shape and its test,
+    // the platform's declaration, the storefront's and the admin's, the
+    // reconciliation rule with its repository host and its companion, the
+    // `./env` subpath test, the four input-resolution modules, and the two tests
+    // that prove the resolution and the non-interactive guarantee.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 7849,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4223,7 +4429,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 5833 again.
-    files: 5834,
+    // **`specs/117-instance-bring-up/` Phases 1-2: +15 files.** Every file this feature adds, this
+    // walk's population being the whole checkout: the contract shape and its test,
+    // the platform's declaration, the storefront's and the admin's, the
+    // reconciliation rule with its repository host and its companion, the
+    // `./env` subpath test, the four input-resolution modules, and the two tests
+    // that prove the resolution and the non-interactive guarantee.
+    // **Rebased onto `specs/115-lifecycle-container-move/` Phase 4.** Both branches
+    // moved this entry and each wrote the same intermediate number, so the value
+    // below is the sum of the two contributions rather than either one's — the
+    // state the drift census exists to surface, and the reason it is re-measured
+    // after a rebase rather than carried across it.
+    files: 5849,
     sites: null,
     sources: ['manifest-index'],
   },
