@@ -706,7 +706,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 1951,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file, net.** Two arrive and one
+    // goes: `packages/platform/src/kernel/i18n/error-translation.ts` (the routing
+    // derivation, moved out of `_i18n` because it had no consumer inside it) and
+    // `backend/src/kernel/i18n/error-translation.ts` (its re-export shim), against
+    // `packages/modules/_i18n/src/backend/services/error-translation.ts`, deleted.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 1952,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -788,7 +797,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 2075,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file, net.** Two arrive and one
+    // goes: `packages/platform/src/kernel/i18n/error-translation.ts` (the routing
+    // derivation, moved out of `_i18n` because it had no consumer inside it) and
+    // `backend/src/kernel/i18n/error-translation.ts` (its re-export shim), against
+    // `packages/modules/_i18n/src/backend/services/error-translation.ts`, deleted.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 2076,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -831,7 +849,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 1607 again.
-    files: 1608,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): -1 file.** The error-code routing
+    // derivation left `packages/modules/_i18n/src/backend/services/` for the
+    // platform's `kernel/i18n/`, so this walk — whose population is the module
+    // tree — reads one file fewer. Nothing else about the module tree moved.
+    files: 1607,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -877,7 +899,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2060 again.
-    files: 2061,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): -1 file.** The error-code routing
+    // derivation left `packages/modules/_i18n/src/backend/services/` for the
+    // platform's `kernel/i18n/`, so this walk — whose population is the module
+    // tree — reads one file fewer. Nothing else about the module tree moved.
+    files: 2060,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1027,7 +1053,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 5303,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +2 files.** The whole-tree walk, so
+    // it sees the branch's net inventory: the platform derivation, its shim and
+    // the FR-030 ratchet arrive, the `_i18n` source goes.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 5305,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1332,7 +1365,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 2075,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file, net.** Two arrive and one
+    // goes: `packages/platform/src/kernel/i18n/error-translation.ts` (the routing
+    // derivation, moved out of `_i18n` because it had no consumer inside it) and
+    // `backend/src/kernel/i18n/error-translation.ts` (its re-export shim), against
+    // `packages/modules/_i18n/src/backend/services/error-translation.ts`, deleted.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 2076,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1398,7 +1440,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 2075,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file, net.** Two arrive and one
+    // goes: `packages/platform/src/kernel/i18n/error-translation.ts` (the routing
+    // derivation, moved out of `_i18n` because it had no consumer inside it) and
+    // `backend/src/kernel/i18n/error-translation.ts` (its re-export shim), against
+    // `packages/modules/_i18n/src/backend/services/error-translation.ts`, deleted.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 2076,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1464,7 +1515,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 2075,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file, net.** Two arrive and one
+    // goes: `packages/platform/src/kernel/i18n/error-translation.ts` (the routing
+    // derivation, moved out of `_i18n` because it had no consumer inside it) and
+    // `backend/src/kernel/i18n/error-translation.ts` (its re-export shim), against
+    // `packages/modules/_i18n/src/backend/services/error-translation.ts`, deleted.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 2076,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1516,7 +1576,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the platform's own sources are part of the backend tree this walk reads —
     // so an entry that is new in this merge request still had to be re-measured
     // after the rebase rather than carried across it.
-    files: 683,
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 685,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -1619,7 +1683,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // companion, and `unit/packages/platform-env-subpath.test.ts`, which is what
     // holds the platform's `./env` subpath open now that the check reads the
     // declaration's source text rather than its build output.
-    files: 1574,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file.** The ratchet the phase
+    // leaves behind, `test/unit/kernel/composition-module-value-imports.test.ts`:
+    // the production composition root names no module package as a value import.
+    // The two `_i18n` error-code tests moved to `test/unit/kernel/` in the same
+    // merge request and cancel, being a move rather than an addition.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 1575,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1694,7 +1767,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // companion, and `unit/packages/platform-env-subpath.test.ts`, which is what
     // holds the platform's `./env` subpath open now that the check reads the
     // declaration's source text rather than its build output.
-    files: 1574,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file.** The ratchet the phase
+    // leaves behind, `test/unit/kernel/composition-module-value-imports.test.ts`:
+    // the production composition root names no module package as a value import.
+    // The two `_i18n` error-code tests moved to `test/unit/kernel/` in the same
+    // merge request and cancel, being a move rather than an addition.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 1575,
     sites: null,
     sources: [],
   },
@@ -1760,7 +1842,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 2075,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file, net.** Two arrive and one
+    // goes: `packages/platform/src/kernel/i18n/error-translation.ts` (the routing
+    // derivation, moved out of `_i18n` because it had no consumer inside it) and
+    // `backend/src/kernel/i18n/error-translation.ts` (its re-export shim), against
+    // `packages/modules/_i18n/src/backend/services/error-translation.ts`, deleted.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 2076,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -1952,7 +2043,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 2580 again.
-    files: 2581,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): -1 file.** The error-code routing
+    // derivation left `packages/modules/_i18n/src/backend/services/` for the
+    // platform's `kernel/i18n/`, so this walk — whose population is the module
+    // tree — reads one file fewer. Nothing else about the module tree moved.
+    files: 2580,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -2002,7 +2097,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 1992 again.
-    files: 1993,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): -1 file.** The error-code routing
+    // derivation left `packages/modules/_i18n/src/backend/services/` for the
+    // platform's `kernel/i18n/`, so this walk — whose population is the module
+    // tree — reads one file fewer. Nothing else about the module tree moved.
+    files: 1992,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -2155,7 +2254,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and one everywhere else. The two `backend/src` files the split moves are outside
     // this walk, whose population is the module tree. Measured rather than reasoned
     // about: with that one file taken out of the tree it reads 1619 and 32643 again.
-    files: 1620,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): files -1, sites -6.** The routing
+    // derivation moved out of `packages/modules/_i18n/` into the platform, and
+    // this walk's population is a module's own sources. The six sites are that
+    // one file's classified literals, which left with it — the file is not gone,
+    // it is outside this rule's subject, which is prose a **module** ships.
+    files: 1619,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -2191,7 +2295,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which relocated with the rule, and the manifest registry's own refusal. Every
     // one of them is English and none is a finding; the population grew, the debt
     // did not.
-    sites: 32653,
+    sites: 32647,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -2563,7 +2667,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 4670,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): -1 file, -1 site.** The routing
+    // derivation left the module tree for the platform. The site is that file's
+    // one specifier, counted here as an import position rather than as a reach —
+    // it named nothing outside `_i18n` and is in no shard.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 4669,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -2585,7 +2697,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // deleted file. The pair is what says which of the two happened: a file left
     // the walk and took its specifiers with it, rather than a specifier shape the
     // reader stopped recognising, which would have moved `sites` alone.
-    sites: 11889,
+    sites: 11888,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -2920,7 +3032,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 7789,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): 7772 -> 7777, of which +2 is this
+    // branch and +3 was already stale.** This branch is net two files: the platform
+    // derivation and its shim arrive, the `_i18n` source goes, and the FR-030
+    // ratchet is new. The other three are `docs/docs/modules/README.md`,
+    // `lifecycle.md` and `module-map.generated.md` — **tracked** files that a
+    // previous recording measured with the whole directory parked, along with the
+    // 76 gitignored copies `composer:generate` places beside them. Re-recorded
+    // over the tracked tree with those copies absent, which is what a fresh
+    // checkout holds; the census names the entry and this is the run that read it.
+    // The branch's two are three files in and one out, and the third of the three
+    // is `.changeset/composition-root-module-value-imports.md` — this walk's
+    // population is the repository, so a changeset is a file it reads.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 7794,
     sites: null,
     sources: [],
   },
@@ -3147,7 +3275,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 2075,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file, net.** Two arrive and one
+    // goes: `packages/platform/src/kernel/i18n/error-translation.ts` (the routing
+    // derivation, moved out of `_i18n` because it had no consumer inside it) and
+    // `backend/src/kernel/i18n/error-translation.ts` (its re-export shim), against
+    // `packages/modules/_i18n/src/backend/services/error-translation.ts`, deleted.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 2076,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -3190,7 +3327,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `overlay/divergence-loader.ts` takes its place beside `overlay-roots.ts`, so that
     // pair cancels here whether or not this walk reads it. Measured rather than reasoned
     // about: with the platform file alone taken out of the tree this walk reads 1849 again.
-    files: 1850,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): -1 file.** The error-code routing
+    // derivation left `packages/modules/_i18n/src/backend/services/` for the
+    // platform's `kernel/i18n/`, so this walk — whose population is the module
+    // tree — reads one file fewer. Nothing else about the module tree moved.
+    files: 1849,
     sites: 1471,
     sources: ['manifest-index'],
   },
@@ -3255,6 +3396,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 site.** The application gained
+    // one relative reach into the platform and this ledger gained the entry for
+    // it: `backend/src/kernel/i18n/error-translation.ts`, the shim over the routing
+    // derivation the phase moved out of `_i18n`. One relative reach in exchange for
+    // one module import in a file that is about to become platform code, and it
+    // retires with its neighbours when T118 moves the caller.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
     files: 2392,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
@@ -3295,7 +3446,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and not a tree that grew, so it moves once and then drains — each of the
     // 84 is a `RELATIVE_HOST_REACHES` key with a retiring phase, and this number
     // falls as they go. The module half's 1744 is untouched.
-    sites: 1828,
+    sites: 1829,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -3373,7 +3524,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 1947,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): -1 file.** The error-code routing
+    // derivation left `packages/modules/_i18n/src/backend/services/` for the
+    // platform's `kernel/i18n/`, so this walk — whose population is the module
+    // tree — reads one file fewer. Nothing else about the module tree moved.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 1946,
     sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -3575,7 +3734,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // companion, and `unit/packages/platform-env-subpath.test.ts`, which is what
     // holds the platform's `./env` subpath open now that the check reads the
     // declaration's source text rather than its build output.
-    files: 1574,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file.** The ratchet the phase
+    // leaves behind, `test/unit/kernel/composition-module-value-imports.test.ts`:
+    // the production composition root names no module package as a value import.
+    // The two `_i18n` error-code tests moved to `test/unit/kernel/` in the same
+    // merge request and cancel, being a move rather than an addition.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 1575,
     sites: 163,
     sources: [],
   },
@@ -3693,7 +3861,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 2075,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file, net.** Two arrive and one
+    // goes: `packages/platform/src/kernel/i18n/error-translation.ts` (the routing
+    // derivation, moved out of `_i18n` because it had no consumer inside it) and
+    // `backend/src/kernel/i18n/error-translation.ts` (its re-export shim), against
+    // `packages/modules/_i18n/src/backend/services/error-translation.ts`, deleted.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 2076,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3735,7 +3912,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // companion, and `unit/packages/platform-env-subpath.test.ts`, which is what
     // holds the platform's `./env` subpath open now that the check reads the
     // declaration's source text rather than its build output.
-    files: 1653,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): files +1, sites -3.** The file is
+    // the FR-030 ratchet under `test/unit/kernel/`. The three sites are three
+    // ledger entries this branch retired rather than three tests: the routing
+    // derivation stopped being `_i18n`'s, so `error-code-collision.test.ts`,
+    // `error-code-routing-equality.test.ts` and `check-inventory.test.ts` name
+    // that module no longer and their `_i18n` shard entries went stale — which is
+    // this check's own two-way rule, met in the merge request that moved them.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 1654,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -3743,7 +3931,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // removes the specifiers that named it, and an owner resolver that stopped
     // matching either spelling collapses this to zero while `files` is untouched
     // (issue #237's shape).
-    sites: 1091,
+    sites: 1088,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -3816,7 +4004,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 2075,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +1 file, net.** Two arrive and one
+    // goes: `packages/platform/src/kernel/i18n/error-translation.ts` (the routing
+    // derivation, moved out of `_i18n` because it had no consumer inside it) and
+    // `backend/src/kernel/i18n/error-translation.ts` (its re-export shim), against
+    // `packages/modules/_i18n/src/backend/services/error-translation.ts`, deleted.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 2076,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3915,7 +4112,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 4331,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +2 files.** The whole-tree walk's
+    // view of the branch's net inventory — the platform derivation, its shim and
+    // the FR-030 ratchet in, the `_i18n` source out.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 4333,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -4274,7 +4478,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 7849,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): 7832 -> 7835, of which +2 is this
+    // branch and +1 was already stale.** Same listing as `check-language.sh`, so
+    // the branch's contribution is the same net two files. The third was stale on
+    // `master` before this branch existed and is measured rather than assumed:
+    // `git ls-tree -r --name-only origin/master`, put through this script's own
+    // exclusion filter, is **7833** lines.
+    // The branch's two are the platform derivation, its shim and the FR-030 ratchet
+    // in against the `_i18n` source out, plus
+    // `.changeset/composition-root-module-value-imports.md`, which
+    // `git ls-files --cached --others --exclude-standard` lists like any other file.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 7852,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4440,7 +4658,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 5849,
+    // **`specs/117-instance-bring-up/` Phase 0 (FR-030): +2 files.** `git ls-files --cached
+    // --others --exclude-standard`, so it is the branch's net tracked inventory:
+    // the platform derivation, its shim and the FR-030 ratchet in, the `_i18n`
+    // source out.
+    // **Rebased onto `specs/117-instance-bring-up/` Phases 1-2.** Both branches moved
+    // this entry, so the value below is the sum of the two contributions rather than
+    // either one's — re-measured after the rebase rather than carried across it, which
+    // is the state the drift census exists to surface.
+    files: 5851,
     sites: null,
     sources: ['manifest-index'],
   },

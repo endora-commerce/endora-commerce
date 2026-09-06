@@ -775,6 +775,25 @@ export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> 
       'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
       'specifier',
   },
+  // The one entry this ledger **gained** rather than drained, and it is worth a
+  // sentence: `specs/117-instance-bring-up/` FR-030 moved the error-code routing
+  // derivation out of `_i18n` and into the platform, beside `request-language.ts`
+  // below — the producer of the other `ErrorEnvelopeOptions` member a composition
+  // root injects. Before the move the root reached it by a **bare** specifier
+  // into the module's package, which is why it needed no entry here and why it
+  // was a value import of a module the same root is about to become platform
+  // code beside (D-52, D-53). One relative reach in exchange for one module
+  // import, and this one retires with its 84 neighbours.
+  'backend/src/kernel/i18n/error-translation.ts|packages/platform/src/kernel/i18n/error-translation.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/i18n/error-translation.ts`, which ' +
+      'no barrel carries — no module calls the derivation, so `host-package.md` §1.3 ' +
+      'classifies it unreached and the reach needs a host-internal subpath before it has an ' +
+      'address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — T118 moves the caller into the platform, at ' +
+      'which point the reach is the package naming its own file and the shim is deleted',
+  },
   'backend/src/kernel/i18n/request-language.ts|packages/platform/src/kernel/i18n/request-language.ts': {
     reason:
       'a re-export shim over `packages/platform/src/kernel/i18n/request-language.ts`, which ' +

@@ -92,7 +92,7 @@ import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 import {
   buildErrorTranslationTargets,
   describeErrorCodeCollisions,
-} from '@endora-commerce/mod-i18n/backend';
+} from '../../src/kernel/i18n/error-translation.js';
 // Type-only, and off the package's **source** rather than its `./backend`
 // subpath, because the three service types below come from the same source
 // files: `dist` and `src` are two nominal declarations of one class, so a

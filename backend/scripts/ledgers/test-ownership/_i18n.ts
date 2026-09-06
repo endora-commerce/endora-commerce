@@ -33,17 +33,25 @@ const SCHEDULED: TestOwnershipLedgerEntry = {
     'feature 106\'s residue, tracked as `specs/109-backend-test-kit/` Phase 5.',
 };
 
+/**
+ * Three entries stood here and are gone (`specs/117-instance-bring-up/` FR-030).
+ *
+ * They were not moved: their **subject** was. The error-code routing derivation
+ * that `error-code-collision.test.ts` and `error-code-routing-equality.test.ts`
+ * exercise, and that `check-inventory.test.ts` imported for one red proof, is
+ * the platform's now — so none of the three names `_i18n` any more, and this
+ * ledger's population is read out of a file's import specifiers rather than out
+ * of the directory it sits in. The first two moved to `test/unit/kernel/`
+ * beside their subject; the third stays where it is and is the repository's.
+ */
 export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
   'backend/test/integration/_i18n/install-uninstall-bundles.integration.test.ts': SCHEDULED,
   'backend/test/integration/_i18n/translate-end-to-end.integration.test.ts': SCHEDULED,
   'backend/test/unit/_i18n/admin-routes-preference-port.test.ts': SCHEDULED,
   'backend/test/unit/_i18n/bundle-loader.unit.test.ts': SCHEDULED,
-  'backend/test/unit/_i18n/error-code-collision.test.ts': SCHEDULED,
-  'backend/test/unit/_i18n/error-code-routing-equality.test.ts': SCHEDULED,
   'backend/test/unit/_i18n/i18n-service.unit.test.ts': SCHEDULED,
   'backend/test/unit/_i18n/missing-key-logger.unit.test.ts': SCHEDULED,
   'backend/test/unit/_i18n/package-bundle-reconcile.test.ts': SCHEDULED,
   'backend/test/unit/_i18n/reconcile-timing.test.ts': SCHEDULED,
   'backend/test/unit/_i18n/registered-bundles-shape.test.ts': SCHEDULED,
-  'backend/test/unit/scripts/check-inventory.test.ts': SCHEDULED,
 };

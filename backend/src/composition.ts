@@ -77,20 +77,26 @@ import {
   absolutizePublicUrl,
   assertPublicApiBaseUrlConfigured,
 } from './kernel/public-api-base-url.js';
-// Feature 080 (T040b) — `auth` is `@endora-commerce/mod-auth`. This is the one
-// **value** import this root takes from a module package, and the bare
-// specifier is what makes it legal: `composition.generated.ts` already imports
-// the same `./backend` subpath, so the process holds one copy of the module
-// (D-160.6.1). The relative path it replaces named a file *inside* the module
-// and would have evaluated the package's source a second time.
-//
-// The helper stays in `auth` rather than moving to the platform the way
-// `absolutizePublicUrl` did, because `auth` reads it itself and because
-// promotion is about `request.actor` and `request.adminActor`, two decorations
-// that module owns. `harness-parity.test.ts`'s `auth:promoteAdminActor` entry
-// names the further step — actor promotion published as a port, resolved from
-// the container — which this change deliberately does not take.
-import { promoteAdminActor } from '@endora-commerce/mod-auth/backend';
+// Feature 117 (FR-030) — actor promotion arrives as a **container name** now,
+// not as an import. `auth` still owns the implementation for the reason its own
+// barrel gives: promotion reads `request.adminActor` and writes `request.actor`,
+// two decorations that module's plugin applies. What changed is this file's
+// destination — `specs/110-instance-repository/` T118 moves the contribution
+// wiring below into `@endora-commerce/platform`, where importing a module is
+// D-52/D-53's refusal, and a value import does not retire by moving a type.
+// The type is the platform's own port declaration; see `adminActorPromotion`
+// beside the other lazily-resolved ports.
+import type { AdminActorPromotion } from './kernel/ports/require-admin.js';
+// And a **type-only** reach into the same package, for what nothing else in
+// this file's program supplies: `request.actor` and `request.adminActor` are a
+// `declare module 'fastify'` block `auth` writes beside its plugin, so they
+// exist for this root only while it names that package. The value import above
+// was carrying it incidentally, which is how 30 reads of `request.actor` came
+// to depend on a function call. It is erased at build time and is one of the
+// module-package type reaches `specs/110-instance-repository/` T118 rewrites —
+// with the caveat that this one is an augmentation and not a shape, so it needs
+// relocating rather than re-spelling.
+import type { Actor } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from './kernel/audit/audit-log-service.js';
 import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
 import { effectiveState } from './kernel/lifecycle/effective-state.js';
@@ -157,16 +163,22 @@ import { configuredMigrations } from './db/configured-migrations.js';
 // Feature 090 — and the map is *derived* rather than imported whole:
 // `buildErrorTranslationTargets` is nothing but the modules' own `errorCodes`
 // declarations. Which modules a deployment resolved is a composition-root
-// input, which is why the call is here and not inside `_i18n` — the same
-// sentence that puts `resolvedModuleRegistry` in this file. Phase 4 deleted the
-// prefix chain and the transitional composition that laid the declarations over
-// it; a code no registered manifest declares now routes nowhere and the
+// input, which is why the call is here and not inside `_i18n`. Phase 4 deleted
+// the prefix chain and the transitional composition that laid the declarations
+// over it; a code no registered manifest declares now routes nowhere and the
 // envelope answers the raising code's own English (§4.1).
+//
+// Feature 117 (FR-030) — and that sentence is now where the *function* lives
+// too. The derivation is the platform's, at `kernel/i18n/error-translation.ts`,
+// beside `request-language.ts`, which produces the envelope's other injected
+// member. It was `_i18n`'s and had no consumer inside `_i18n`; what stays that
+// module's is `translate`, resolved out of the container below. The routing is
+// derived from manifests, the translation is a service.
 import {
   buildErrorTranslationTargets,
   describeErrorCodeCollisions,
-  type AdminI18nCradle,
-} from '@endora-commerce/mod-i18n/backend';
+} from './kernel/i18n/error-translation.js';
+import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 import type { CatalogQueryService } from '@endora-commerce/mod-catalog/backend';
 import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
 import type { ShoppingListService } from '@endora-commerce/mod-shopping-lists/backend';
@@ -503,6 +515,15 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   const customerRollupScopePort = (): CustomerRollupScopePort =>
     (container.cradle as never as { customerRollupScopePort: CustomerRollupScopePort })
       .customerRollupScopePort;
+
+  // Feature 117 (FR-030) — the third port of that kind, and the one whose value
+  // import was the *blocker* rather than a consequence: `promoteAdminActor` was
+  // called, not annotated, so it could not retire the way the nineteen
+  // module-package **type** imports above it do. Read lazily and never
+  // captured, like every other port this file reaches.
+  const adminActorPromotion = (): AdminActorPromotion =>
+    (container.cradle as never as { promoteAdminActor: AdminActorPromotion })
+      .promoteAdminActor;
 
   const settingsManifestCollectionPort = (): SettingsManifestCollectionPort =>
     (
@@ -1089,11 +1110,16 @@ export async function composeApp(): Promise<ComposeAppHandle> {
         };
       },
       resolveAdminActor: (request: FastifyRequest) => {
-        promoteAdminActor(request);
-        if (request.actor.kind !== 'admin') {
+        adminActorPromotion()(request);
+        // Read once, after the promotion, and named: `Actor` is what the
+        // augmentation declares `request.actor` to be, and naming it here is
+        // what keeps the type-only import above load-bearing rather than a
+        // bare `import type {}` a later tidy-up deletes.
+        const promoted: Actor = request.actor;
+        if (promoted.kind !== 'admin') {
           throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
         }
-        return { adminUserId: request.actor.adminUserId };
+        return { adminUserId: promoted.adminUserId };
       },
       resolveOrganizationCustomerIds: async (organizationId: string) => {
         const rows = await identityPorts().customerAccountReadPort.listByOrganization(
