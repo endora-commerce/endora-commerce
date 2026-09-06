@@ -2427,7 +2427,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 7744 -> 7745.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 7745,
+    // **+2 for this branch.** The `./lifecycle` barrel and this branch's changeset;
+    // this walk is the whole repository and takes both.
+    files: 7747,
     sites: null,
     sources: [],
   },
@@ -3535,7 +3537,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 7804 -> 7805.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 7805,
+    // **+2 for this branch**, the same barrel and changeset the neighbouring
+    // whole-repository walk takes.
+    files: 7807,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3664,7 +3668,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 2: 5820 -> 5821.** One file:
     // `packages/platform/src/lifecycle/index.ts`, the `./lifecycle` barrel — the
     // host-internal address D115-4 gives `_lifecycle`'s operator surface.
-    files: 5821,
+    // **+1 for this branch** — the `./lifecycle` barrel alone. A changeset is not a
+    // source file and not a `docs/docs` page, so this walk does not see it.
+    files: 5822,
     sites: null,
     sources: ['manifest-index'],
   },
