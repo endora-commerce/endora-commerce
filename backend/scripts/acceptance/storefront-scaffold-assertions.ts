@@ -351,3 +351,107 @@ export function formatReport(
   );
   return lines.join('\n');
 }
+
+/**
+ * A required input no derivation in this repository can answer, with the reason
+ * and the condition that retires it.
+ *
+ * It is here rather than in the criterion's own file so that the fast suite can
+ * hold it to its two-way rule without importing a module whose top level runs an
+ * install and a `next build`.
+ *
+ * **One entry, and it is a finding rather than a convenience.**
+ * `NEXT_PUBLIC_SITE_URL` is declared **required** by
+ * `storefront/environment-inputs.mjs` and is supplied by nothing in this tree:
+ * not `storefront/.env.example`, not `storefront/Dockerfile`'s build arguments,
+ * not `.gitlab-ci.yml`'s `build:storefront`, not `deploy/compose.prod.yml`. Its
+ * reader falls back to `http://localhost:3000` (`storefront/lib/seo/site-url.ts`),
+ * so a real deployment's canonicals, sitemap and `robots.txt` name localhost and
+ * nothing says so — which is the deployment path's defect and not this
+ * criterion's to repair.
+ *
+ * The value below is that same fallback address, deliberately: it changes
+ * nothing this criterion observes, so no assertion can be made green by it. The
+ * entry retires the moment any derivation reaches the variable — the fast-suite
+ * guard reports it as `staleStandIns` on that day, so nobody has to remember.
+ */
+export const SCAFFOLD_INPUT_STAND_INS: Readonly<Record<string, string>> = {
+  NEXT_PUBLIC_SITE_URL: 'http://127.0.0.1:3000',
+};
+
+/** What the criterion will put on the `endora new storefront` command line. */
+export interface ScaffoldInputPlan {
+  /** Variable name to value, for every required input this run supplies. */
+  readonly values: ReadonlyMap<string, string>;
+  /** Required, and no derivation and no stand-in answers it. A refusal. */
+  readonly unanswerable: readonly string[];
+  /** A stand-in a derivation has caught up with, or one nothing asks for. */
+  readonly staleStandIns: readonly string[];
+}
+
+export interface ScaffoldInputRequest {
+  /** The inputs the command will demand, in declaration order. */
+  readonly required: readonly string[];
+  /** Of those, the ones that name a backend — the copy's own derivation. */
+  readonly backendAddressVariables: readonly string[];
+  /** The backend this run booted, or `null` where it booted none. */
+  readonly backend: string | null;
+  /** The copy's own worked example of its environment. */
+  readonly envExample: ReadonlyMap<string, string>;
+  readonly standIns: Readonly<Record<string, string>>;
+}
+
+/**
+ * Which value each required input gets, and which the run cannot answer.
+ *
+ * **The population is the declaration, never a list here.** The criterion
+ * invoked `endora new storefront` with no inputs at all for as long as the
+ * storefront's variables carried invented defaults; the moment feature 117
+ * removed them the command refused, the criterion exited 2, and every assertion
+ * went unrun. A list of five names written into the harness would have fixed
+ * that run and gone stale at the sixth, so what it supplies is derived from the
+ * same declaration the command resolves against.
+ *
+ * Two value derivations, in order, and both are the tree's own:
+ *
+ *   1. a variable the copy's `.env.example` declares as an absolute `http(s)`
+ *      URL is a backend address, and gets the backend this run booted — the
+ *      translation that already existed, unchanged;
+ *   2. anything else gets the value that same file declares for it, which is
+ *      what the file is: the storefront's worked example of its environment.
+ *
+ * With no backend booted, (1) falls through to (2) rather than to nothing: the
+ * scaffold still has to be given an address, A1–A5 are still measurable without
+ * one, and A6 records `unmeasured` from `backend === null` as it always did.
+ *
+ * What is left over is {@link SCAFFOLD_INPUT_STAND_INS}, one entry deep, and
+ * what is left over *after that* is `unanswerable` — a refusal, because a
+ * criterion that invented a value for a required input would be configuring the
+ * instance out of its own imagination and calling the result a measurement.
+ */
+export function planScaffoldInputs(request: ScaffoldInputRequest): ScaffoldInputPlan {
+  const addresses = new Set(request.backendAddressVariables);
+  const values = new Map<string, string>();
+  const unanswerable: string[] = [];
+
+  const derived = (name: string): string | undefined =>
+    addresses.has(name) && request.backend !== null && request.backend.length > 0
+      ? request.backend
+      : request.envExample.get(name);
+
+  for (const name of request.required) {
+    const value = derived(name) ?? request.standIns[name];
+    if (value === undefined) {
+      unanswerable.push(name);
+      continue;
+    }
+    values.set(name, value);
+  }
+
+  const required = new Set(request.required);
+  const staleStandIns = Object.keys(request.standIns).filter(
+    (name) => !required.has(name) || derived(name) !== undefined,
+  );
+
+  return { values, unanswerable, staleStandIns };
+}

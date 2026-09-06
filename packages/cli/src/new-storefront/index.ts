@@ -38,7 +38,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
-import { scopeToMembers } from '@endora-commerce/contracts';
+import { scopeToMembers, type EnvironmentInput } from '@endora-commerce/contracts';
 
 import { loadTreeDeclaration } from '../inputs/declaration.js';
 import { parseEnvFile, writeEnvFile } from '../inputs/env-file.js';
@@ -246,9 +246,33 @@ const STOREFRONT_DECLARATION_EXPORT = 'STOREFRONT_ENVIRONMENT_INPUTS';
  * flag with nothing here to update (D-100).
  */
 export async function storefrontInputFlags(cwd: string): Promise<readonly string[]> {
+  return (await storefrontDeclaredInputs(cwd)).map((input) => flagFor(input.name).slice(2));
+}
+
+/**
+ * The reference storefront's own declaration, scoped to the one member this
+ * command writes.
+ *
+ * Exported because a caller that has to *supply* these inputs needs the same
+ * population the command will *demand*, and deriving it twice is two answers
+ * waiting to disagree — which is exactly how the acceptance criterion came to
+ * invoke this command with none of them. The scoping is `planResolution`'s and
+ * is applied here so that the two cannot part company either: an input read only
+ * by the admin or only by the backend is out of this command's population, so it
+ * is out of a supplier's too.
+ *
+ * The requirement is deliberately **not** filtered here. `isRequiredGiven` reads
+ * a conditional requirement against the values a run has in hand, so which
+ * inputs are required is a property of the invocation rather than of the
+ * declaration, and answering it here would answer it for one invocation and be
+ * wrong for the next.
+ */
+export async function storefrontDeclaredInputs(
+  cwd: string,
+): Promise<readonly EnvironmentInput[]> {
   const reference = resolveReference(cwd);
   const declared = await loadTreeDeclaration(reference.dir, STOREFRONT_DECLARATION_EXPORT);
-  return scopeToMembers(declared, ['storefront']).map((input) => flagFor(input.name).slice(2));
+  return scopeToMembers(declared, ['storefront']);
 }
 
 /** The file the copy's own runtime configuration lives in. */

@@ -55,13 +55,20 @@ export {
 } from './new-module/host.js';
 export {
   runNewStorefront,
+  storefrontDeclaredInputs,
   type NewStorefrontOptions,
   type NewStorefrontResult,
 } from './new-storefront/index.js';
+// The flag spelling is derived from the variable's name and never written down,
+// so a caller that builds an `endora new storefront` command line takes the
+// derivation rather than re-deriving it — see `storefrontDeclaredInputs`.
+export { flagFor } from './inputs/resolve.js';
 export {
   backendAddressVariables,
   backendAddressVariablesOf,
   ENV_EXAMPLE_FILE,
+  envExampleDeclarations,
+  envExampleDeclarationsOf,
   outwardReferences,
   resolveReference,
   StorefrontHostError,
