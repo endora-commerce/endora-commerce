@@ -1128,7 +1128,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+6, none of it this branch's.** `specs/116-zero-series-versioning/`'s six
     // files landed on `master`; the two root licence files this branch adds are
     // under neither declared documentation root, so this walk does not see them.
-    files: 1255,
+    // **+6 from `master`.** `specs/117-instance-bring-up/` landed with six files —
+    // spec, plan, research and three contracts — and re-recorded nothing. All six
+    // are documents under a declared root, so this walk and the two
+    // whole-repository ones move by the same amount.
+    files: 1261,
     sites: 12,
     sources: [],
   },
@@ -2601,7 +2605,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The licence-tier deletion: 7756 -> 7757 (+1).** The branch's own changeset
     // and nothing else — it deletes lines from six existing files and adds no
     // source file. This walk is the whole repository, so `.changeset/` is in it.
-    files: 7757,
+    // **+6 from `master`.** `specs/117-instance-bring-up/` landed with six files —
+    // spec, plan, research and three contracts — and re-recorded nothing. All six
+    // are documents under a declared root, so this walk and the two
+    // whole-repository ones move by the same amount.
+    files: 7763,
     sites: null,
     sources: [],
   },
@@ -3793,7 +3801,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walk takes.
     // **The licence-tier deletion: 7816 -> 7817 (+1)**, the branch's own changeset,
     // the same one file the neighbouring whole-repository walk takes.
-    files: 7817,
+    // **+6 from `master`.** `specs/117-instance-bring-up/` landed with six files —
+    // spec, plan, research and three contracts — and re-recorded nothing. All six
+    // are documents under a declared root, so this walk and the two
+    // whole-repository ones move by the same amount.
+    files: 7823,
     sites: null,
     sources: ['manifest-index'],
   },
