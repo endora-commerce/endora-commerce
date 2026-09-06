@@ -26,6 +26,19 @@
  * choosing. Both shipped languages, because the prompt is read by whoever runs
  * the command.
  *
+ * ## `addressOf` says what a value *is*, so nothing has to guess from its shape
+ *
+ * Which of these variables names your backend is a question two programs ask —
+ * `endora new storefront`, whose next step tells you to point them at it, and
+ * that command's acceptance criterion, which does the pointing. Both used to
+ * answer it by looking in `.env.example` for a value shaped like an `http(s)`
+ * URL, which is right only by accident: `NEXT_PUBLIC_SITE_URL` is a URL and is
+ * *this shop's own* public address, not the backend's. So every entry says
+ * which member of the instance its value is the address of, or `null` where it
+ * is the address of none. It is required rather than optional — an entry
+ * missing it will not load — because an optional field is forgotten exactly
+ * once, by whoever adds the next address, and nothing says so.
+ *
  * @typedef {import('@endora-commerce/contracts').EnvironmentInput} EnvironmentInput
  */
 
@@ -49,6 +62,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: 'backend',
   },
   {
     name: 'BACKEND_BASE_URL',
@@ -61,6 +75,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: 'backend',
   },
   {
     name: 'NEXT_PUBLIC_SITE_URL',
@@ -73,6 +88,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: 'storefront',
   },
   {
     name: 'NEXT_PUBLIC_SALES_CHANNEL_CODE',
@@ -85,6 +101,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: null,
   },
   {
     name: 'REVALIDATE_SECRET',
@@ -102,6 +119,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['backend', 'storefront'],
+    addressOf: null,
   },
   {
     name: 'NEXT_PUBLIC_APP_NAME',
@@ -120,6 +138,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: null,
   },
   {
     name: 'NEXT_PUBLIC_APP_SHORT_NAME',
@@ -138,6 +157,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: null,
   },
   {
     name: 'NEXT_PUBLIC_BACKEND_BASE_URL',
@@ -156,6 +176,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: 'backend',
   },
   {
     name: 'STOREFRONT_URL',
@@ -174,6 +195,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: 'storefront',
   },
   {
     name: 'NEXT_PUBLIC_BUILD_ID',
@@ -192,6 +214,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: null,
   },
   {
     name: 'NODE_ENV',
@@ -215,6 +238,7 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     // `REVALIDATE_SECRET` above is the contrasting case, and the difference is
     // what §5's cross-tree derivation runs on.
     consumers: ['storefront'],
+    addressOf: null,
   },
   {
     name: 'NEXT_RUNTIME',
@@ -233,5 +257,6 @@ export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: null,
   },
 ];

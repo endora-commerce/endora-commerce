@@ -154,6 +154,36 @@ export const EnvironmentInputSchema = z.object({
   owner: EnvironmentInputOwnerSchema,
   /** Which trees read it. Non-empty: an input nothing reads is a finding. */
   consumers: z.array(EnvironmentConsumerSchema).min(1),
+  /**
+   * Which member of an instance this value is the **address of**, or `null`.
+   *
+   * Two programs ask *"which of these variables names the backend"* — `endora
+   * new storefront`, whose next step tells an author to point them at their
+   * backend, and the scaffold acceptance criterion, which points them at the
+   * backend it booted. Both used to answer it from the **shape of the value**
+   * in `.env.example`: *an absolute `http(s)` URL*. That predicate is only ever
+   * accidentally right. It cannot tell the backend's address from the
+   * storefront's own, from a CDN's or from an object store's, so the first
+   * URL-valued variable that is not a backend joins the set silently — and the
+   * next step then tells a client, in a file they own outright, that a variable
+   * "names the backend this storefront talks to" when it does not. A confident
+   * wrong sentence is worse than the silence it replaces.
+   *
+   * So it is declared rather than inferred, and the field is **required**: an
+   * author must answer it, and `EnvironmentInputSchema` refuses a declaration
+   * that does not — at `loadTreeDeclaration`, at `check:env-inputs`' fourth
+   * refusal, and in every other reader. An optional field would be forgotten
+   * exactly once, by the author of the next backend address, and nothing would
+   * say so.
+   *
+   * `null` is an answer and not an absence: this value is not the address of a
+   * member of this instance. A third party's address is `null` — `DATABASE_URL`
+   * and `REDIS_URL` are addresses, of a database and a cache, and neither is a
+   * member — because the question the two consumers ask is which of an
+   * *instance's own* parts a value points at. A list of origins is `null` too:
+   * `CORS_ALLOWED_ORIGINS` names several, and "the address of" is singular.
+   */
+  addressOf: EnvironmentConsumerSchema.nullable(),
 });
 export type EnvironmentInput = z.infer<typeof EnvironmentInputSchema>;
 
@@ -192,6 +222,28 @@ export function scopeToMembers(
   members: readonly EnvironmentConsumer[],
 ): readonly EnvironmentInput[] {
   return inputs.filter((input) => isReadByAnyOf(input, members));
+}
+
+/**
+ * The variables whose value is the address of `member`, in declaration order.
+ *
+ * One derivation, because the two programs that ask are `endora new storefront`
+ * — telling an author which variables to point at their backend — and the
+ * acceptance criterion, which points those same variables at the backend it
+ * booted. Deriving it twice is two answers waiting to disagree, and that is not
+ * hypothetical: the criterion once configured `PUBLIC_API_BASE_URL`, a name no
+ * file in the storefront reads, and its boot assertion measured the compiled-in
+ * fallback for a whole investigation.
+ *
+ * The population is the declaration handed in, so it is the **copy's** answer
+ * about the copy — under D-195 a client's storefront is theirs, declaring what
+ * it reads — and never a list compiled into either program.
+ */
+export function addressVariablesFor(
+  inputs: readonly EnvironmentInput[],
+  member: EnvironmentConsumer,
+): readonly string[] {
+  return inputs.filter((input) => input.addressOf === member).map((input) => input.name);
 }
 
 /**

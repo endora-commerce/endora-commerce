@@ -44,6 +44,7 @@ const input = (over: Partial<EnvironmentInput>): EnvironmentInput => ({
   generable: false,
   owner: { kind: 'platform' },
   consumers: ['backend'],
+  addressOf: null,
   ...over,
 });
 

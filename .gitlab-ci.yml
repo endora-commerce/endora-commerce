@@ -37,14 +37,20 @@
 #   declaration (D-207, D-208). The `--build-arg` lines in the three build jobs
 #   below are what that declaration emits, and
 #   `backend/test/unit/ci/instance-build-inputs.test.ts` fails on a job, a
-#   Dockerfile or a mapping that has drifted from it. Do not add a fifth input here:
+#   Dockerfile or a mapping that has drifted from it. Do not add an input here:
 #   add it there, or say why it is not derived.
 #     DEPLOYMENT              e.g. acme              (overlay modules + divergence)
 #     API_DOMAIN              e.g. api.example.com
+#     STOREFRONT_DOMAIN       e.g. example.com
 #     SALES_CHANNEL_CODE      e.g. pl_default
 #     DEFAULT_LOCALE          e.g. en-US             (defaults to en-US)
+#   STOREFRONT_DOMAIN was listed below as a domain this pipeline only deploys to,
+#   which was true until the storefront had to name its own public origin inside
+#   its bundle: the canonicals, the sitemap and robots.txt are all built from it,
+#   Next inlines it at build time, and `/robots.txt` is prerendered into the image
+#   — so no container environment can supply it afterwards. It is a build input
+#   now, and one an operator already sets.
 #   Domains this pipeline deploys to, which are not build inputs:
-#     STOREFRONT_DOMAIN       e.g. example.com
 #     ADMIN_DOMAIN            e.g. admin.example.com
 #   Deploy:
 #     SSH_PRIVATE_KEY  (type File, protected)  deploy key for the VPS user.
@@ -2069,9 +2075,21 @@ build:backend:
 
 build:storefront:
   extends: .build-base
+  # `NEXT_PUBLIC_SITE_URL` is the shop's **own** public origin — what every
+  # canonical link, the sitemap and robots.txt name — and is not an address of
+  # the backend. Nothing here passed it until 2026-09-06, while
+  # `storefront/environment-inputs.mjs` declared it required, so every image this
+  # job has pushed serves all three naming the `http://localhost:3000` that
+  # `storefront/lib/seo/site-url.ts` falls back to. Silently: the build reports
+  # success, and no container environment can correct it afterwards, because Next
+  # inlines the value at build time and `/robots.txt` is prerendered into the
+  # image. `STOREFRONT_DOMAIN` is already this deployment's name for that origin
+  # — `deploy/compose.prod.yml` builds the backend's `STOREFRONT_BASE_URL` from
+  # it — so this is one fact told to a second reader, not a second fact.
   script:
     - docker build -f storefront/Dockerfile
       --build-arg NEXT_PUBLIC_API_BASE_URL="https://${API_DOMAIN}"
+      --build-arg NEXT_PUBLIC_SITE_URL="https://${STOREFRONT_DOMAIN}"
       --build-arg NEXT_PUBLIC_SALES_CHANNEL_CODE="${SALES_CHANNEL_CODE}"
       --build-arg NEXT_PUBLIC_DEFAULT_LOCALE="${DEFAULT_LOCALE:-en-US}"
       -t "$CI_REGISTRY_IMAGE/storefront:$IMAGE_TAG"

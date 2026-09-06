@@ -66,6 +66,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'REDIS_URL',
@@ -78,6 +79,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'SESSION_COOKIE_SECRET',
@@ -94,6 +96,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: true,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'PUBLIC_API_BASE_URL',
@@ -106,6 +109,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: 'backend',
   },
   {
     name: 'CORS_ALLOWED_ORIGINS',
@@ -121,6 +125,11 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     // other two trees, which is exactly why a rule keyed on the spelling would
     // scope it wrongly — see `environment-inputs.ts`' header.
     consumers: ['backend'],
+    // `null`, and the near miss earns the line: the value is a **list** of
+    // origins and two of them are members. "The address of" is singular, so a
+    // consumer that pointed every storefront address at one place would collapse
+    // this list to one entry and lock the admin out of its own backend.
+    addressOf: null,
   },
   {
     name: 'STOREFRONT_BASE_URL',
@@ -133,6 +142,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: 'storefront',
   },
   {
     name: 'REVALIDATE_SECRET',
@@ -147,6 +157,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend', 'storefront'],
+    addressOf: null,
   },
   {
     name: 'DEFAULT_SALES_CHANNEL_CODE',
@@ -162,6 +173,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'BACKEND_PUBLIC_URL',
@@ -180,6 +192,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: 'backend',
   },
   {
     name: 'SETTINGS_SECRET_ENCRYPTION_KEY',
@@ -198,6 +211,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: true,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'NEWSLETTER_TOKEN_SECRET',
@@ -216,6 +230,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: true,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'SALES_CHANNEL_HOST_MAP',
@@ -234,6 +249,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'PORT',
@@ -252,6 +268,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'BACKEND_ROLE',
@@ -270,6 +287,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'TRUSTED_PROXY_HOPS',
@@ -288,6 +306,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'TRUSTED_PROXY_ADDRESSES',
@@ -306,6 +325,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'BACKEND_RATE_LIMIT_MAX',
@@ -324,6 +344,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'BACKEND_RATE_LIMIT_DISABLED',
@@ -342,6 +363,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'LOG_LEVEL',
@@ -360,6 +382,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'DB_DEBUG',
@@ -378,6 +401,7 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     generable: false,
     owner: { kind: 'platform' },
     consumers: ['backend'],
+    addressOf: null,
   },
   {
     name: 'NODE_ENV',
@@ -400,5 +424,6 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     // are two processes, possibly on two machines — so this entry names the
     // backend alone. `REVALIDATE_SECRET` above is the contrasting case.
     consumers: ['backend'],
+    addressOf: null,
   },
 ];

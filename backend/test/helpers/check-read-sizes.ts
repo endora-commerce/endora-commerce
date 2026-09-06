@@ -1133,8 +1133,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `readMembers`. Measured by parking the test file: the two helpers alone
     // read 524.
     // **The storefront-scaffold backend variables: 525 -> 526.** One
-    // `.replace()`, in `backendAddressVariables` — the quote strip that reads
-    // `KEY="http://host:3001"` as it reads `KEY=http://host:3001`. Its pattern
+    // `.replace()`, in `envExampleDeclarations` — the quote strip that reads
+    // `KEY="http://host:3001"` as it reads `KEY=http://host:3001`. This entry
+    // named `backendAddressVariables`, which was that parser's one caller and
+    // is gone: the backend-address question is now asked of a declaration's
+    // `addressOf` rather than of a value's shape. The site is the parser's and
+    // did not move with it. Its pattern
     // is anchored on a matching quote pair, so the slug predicate reads it and
     // clears it; the `files` field does not move, that function landing in
     // `packages/cli/src/new-storefront/reference.ts`, which this walk already
@@ -4492,7 +4496,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 7852,
+    // **`NEXT_PUBLIC_SITE_URL` reaches the deployment path: 7852 -> 7854, of which +1 is
+    // this branch and +1 was already stale.** The branch's one is
+    // `.changeset/environment-input-address-of.md`, which
+    // `git ls-files --cached --others --exclude-standard` lists like any other file; every
+    // other edit is to a file that already existed, this repair being four lines in the
+    // deployment path and a field on a declaration. The other is measured rather than
+    // assumed, in this entry's own idiom: `git ls-tree -r --name-only HEAD | wc -l` is
+    // **7854** at `1d906d15a`, against which this walk reads 7853 with the changeset
+    // taken out — so `master` had moved by one before the branch existed.
+    files: 7854,
     sites: null,
     sources: ['manifest-index'],
   },

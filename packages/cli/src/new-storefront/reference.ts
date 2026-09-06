@@ -34,6 +34,13 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
+import {
+  addressVariablesFor,
+  type EnvironmentConsumer,
+  type EnvironmentInput,
+} from '@endora-commerce/contracts';
+
+import { loadTreeDeclaration } from '../inputs/declaration.js';
 import { isNextApplication } from '../lib/workspace-packages.js';
 
 /** Raised when the reference storefront cannot be read. Exit 2. */
@@ -318,33 +325,9 @@ function referencesIn(text: string): readonly RawReference[] {
 /** The file a storefront declares its environment in, and the copy carries verbatim. */
 export const ENV_EXAMPLE_FILE = '.env.example';
 
-/**
- * The variables an instance sets to name the backend it talks to.
- *
- * **Derived from the storefront's own `.env.example`, never written down here.**
- * The reference storefront reads two of them — `BACKEND_BASE_URL` server-side
- * and `NEXT_PUBLIC_API_BASE_URL` baked into the browser bundle — and both are
- * declared in that file, beside a port, a sales channel, a locale and a shared
- * secret. A sentence carrying the two names would be a copy of a fact the
- * storefront already states, going stale the first time one is renamed (D-100),
- * and the guidance this replaces is what that costs: it named
- * `PUBLIC_API_BASE_URL`, which no file in the copy has ever read, so an operator
- * who followed it got a storefront quietly talking to the fallback its fetchers
- * compile in.
- *
- * The predicate is *a declaration whose value is an absolute `http(s)` URL*,
- * which is what a backend address is and what none of the file's other keys is.
- * Its bound is worth stating: a future URL-valued key that is **not** a backend
- * — a CDN, an object store — would be swept in with them. That direction is the
- * safe one for both readers. The scaffold's next step tells its author to set
- * them and the author is looking at the file; the acceptance criterion sets them
- * all to its backend and then *proves* the setting was load-bearing with a probe
- * against an address nothing listens on, so a wrongly-included name cannot turn
- * into a green.
- *
- * Nothing is invented when the file declares no URL at all: the answer is empty
- * and each caller says so in its own words.
- */
+/** The binding a storefront's declaration is exported under. */
+export const STOREFRONT_DECLARATION_EXPORT = 'STOREFRONT_ENVIRONMENT_INPUTS';
+
 /**
  * Every declaration the file makes, in file order — the copy's own worked
  * example of its environment.
@@ -384,23 +367,64 @@ export function envExampleDeclarationsOf(storefrontDir: string): ReadonlyMap<str
   return envExampleDeclarations(readFileSync(path, 'utf8'));
 }
 
-export function backendAddressVariables(envExampleText: string): readonly string[] {
-  const found: string[] = [];
-  for (const [name, value] of envExampleDeclarations(envExampleText)) {
-    if (/^https?:\/\/\S+$/.test(value)) found.push(name);
-  }
-  return found;
+/**
+ * The variables a storefront sets to name a member of its instance.
+ *
+ * **Derived from the storefront's own declaration, never written down here.**
+ * A sentence carrying the two backend names would be a copy of a fact the
+ * storefront already states, going stale the first time one is renamed (D-100),
+ * and the guidance this replaces is what that costs: it named
+ * `PUBLIC_API_BASE_URL`, which no file in the copy has ever read, so an operator
+ * who followed it got a storefront quietly talking to the fallback its fetchers
+ * compile in.
+ *
+ * **The predicate is `addressOf`, and it used to be the shape of the value.**
+ * This function read `.env.example` and answered *a declaration whose value is
+ * an absolute `http(s)` URL*, on the reasoning that a backend address is one and
+ * none of the file's other keys was. The second half stopped being true the
+ * moment the file gained the storefront's own public address: `.env.example`
+ * would then have swept `NEXT_PUBLIC_SITE_URL` in with the backend's, and
+ * `nextSteps` would have told a client — in a file they own outright and nobody
+ * revisits — that it "names the backend this storefront talks to". A confident
+ * wrong sentence is worse than the silence it replaces, and the criterion would
+ * have pointed the shop's canonical origin at its API host at the same time.
+ *
+ * So the question is asked of the declaration, which says what each value **is**
+ * rather than what it looks like. The scoping stays `.env.example`'s job for
+ * *values* (`envExampleDeclarations`, above); this is about meaning.
+ *
+ * Nothing is invented when the declaration names no address: the answer is empty
+ * and each caller says so in its own words.
+ */
+export function addressVariables(
+  declared: readonly EnvironmentInput[],
+  member: EnvironmentConsumer,
+): readonly string[] {
+  return addressVariablesFor(declared, member);
 }
 
 /**
  * The same answer, read off a storefront directory.
  *
- * A storefront with no `.env.example` declares no environment, which is an empty
- * answer rather than a refusal — `resolveReference` has already established that
- * the directory is a Next application, and this file is not what makes it one.
+ * It loads that directory's own `environment-inputs.mjs` — the copy's, when the
+ * caller is holding a copy — through the one loader every other reader uses, so
+ * a declaration that will not parse is a refusal here as it is everywhere else.
+ * A storefront with no declaration at all is `DeclarationLoadError` and not an
+ * empty answer: that was `.env.example`'s rule, and it was right for a file that
+ * is a worked example. This one is the tree's statement of what it reads, and
+ * "absent" is not "reads nothing" (`loadTreeDeclaration`'s own header).
  */
-export function backendAddressVariablesOf(storefrontDir: string): readonly string[] {
-  const path = join(storefrontDir, ENV_EXAMPLE_FILE);
-  if (!existsSync(path)) return [];
-  return backendAddressVariables(readFileSync(path, 'utf8'));
+export async function backendAddressVariablesOf(
+  storefrontDir: string,
+): Promise<readonly string[]> {
+  const declared = await loadTreeDeclaration(storefrontDir, STOREFRONT_DECLARATION_EXPORT);
+  return addressVariables(declared, 'backend');
+}
+
+/** The variables naming the storefront's own public address, off a directory. */
+export async function storefrontAddressVariablesOf(
+  storefrontDir: string,
+): Promise<readonly string[]> {
+  const declared = await loadTreeDeclaration(storefrontDir, STOREFRONT_DECLARATION_EXPORT);
+  return addressVariables(declared, 'storefront');
 }

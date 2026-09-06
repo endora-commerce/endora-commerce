@@ -624,6 +624,10 @@ const ENV_INPUT: EnvironmentInput = {
   generable: false,
   owner: { kind: 'platform' },
   consumers: ['backend'],
+  // A connection URL, and an address — of a database, which is not a member of
+  // this instance. `addressOf` answers which of an instance's *own* parts a
+  // value points at, so this is `null` and not a near miss.
+  addressOf: null,
 };
 
 function envInputFindings(
