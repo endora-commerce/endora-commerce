@@ -1122,7 +1122,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is `.css`, and `admin/test/helpers/compile-instance-stylesheet.mjs` is
     // `.mjs`, while `SOURCE_EXTENSIONS` here is `.ts` and `.tsx` alone.
 
-    files: 5311,
+    // **+1 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    files: 5312,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3333,7 +3338,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // so both files stay. Measured with `backend/.env` absent, no untracked
     // `docs/docs/modules/` copies and no `docs/.module-docs-copies.json`.
 
-    files: 7876,
+    // **+4 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    files: 7880,
     sites: null,
     sources: [],
   },
@@ -4960,7 +4970,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `admin/test/unit/shell-theme-override.test.ts`,
     // `admin/test/helpers/compile-instance-stylesheet.mjs` and the changeset.
 
-    files: 7936,
+    // **+4 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    files: 7940,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5167,7 +5182,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the one that does not, being `.md` and outside `docs/docs/`. That is the
     // same three-against-four split this entry recorded for T120.
 
-    files: 5921,
+    // **+3 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    files: 5924,
     sites: null,
     sources: ['manifest-index'],
   },
