@@ -290,6 +290,49 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       );
     });
 
+    it('renders every committed tailwind.css byte-identically', () => {
+      // The declaration and the file it names are two halves of one statement
+      // (`admin-stylesheet-composition.md` R1.4), so the drift gate covers
+      // both: a run that wrote one and not the other publishes a subpath over
+      // a file that is not there — `ERR_PACKAGE_PATH_NOT_EXPORTED` at the first
+      // consumer, or a stylesheet nothing imports.
+      const run = renderModulePackageManifests(
+        repoRoot!,
+        nodeManifestFs(),
+        findManifestIndex(repoRoot!),
+      );
+      expect(run.stylesheets.length).toBeGreaterThan(0);
+      for (const entry of run.stylesheets) {
+        expect(readFileSync(entry.outputPath, 'utf8'), entry.outputPath).toBe(entry.content);
+      }
+      // And the library family's two reconciled keys, on the same terms: the
+      // shell and the kit family ship the admin's own screens and are module
+      // packages of nothing, so nothing else in this run would name them.
+      expect(run.familyRendered.length).toBeGreaterThan(0);
+      for (const entry of run.familyRendered) {
+        expect(readFileSync(entry.outputPath, 'utf8'), entry.outputPath).toBe(entry.content);
+      }
+    });
+
+    it('declares the subpath for exactly the packages whose stylesheet it renders', () => {
+      // R1.1's two halves, reconciled against each other over the real tree.
+      // A package with a stylesheet and no subpath publishes a file no
+      // consumer can name; a package with a subpath and no stylesheet is M9.
+      const run = renderModulePackageManifests(
+        repoRoot!,
+        nodeManifestFs(),
+        findManifestIndex(repoRoot!),
+      );
+      const withStylesheet = new Set(run.stylesheets.map((entry) => entry.packageName));
+      for (const entry of [...run.rendered, ...run.familyRendered]) {
+        const manifest = JSON.parse(entry.content) as { exports: Record<string, unknown> };
+        expect(
+          manifest.exports['./tailwind.css'] !== undefined,
+          `${entry.packageName} declares ./tailwind.css`,
+        ).toBe(withStylesheet.has(entry.packageName));
+      }
+    });
+
     it('reads every module package the workspace declares, and says so', () => {
       const run = renderModulePackageManifests(
         repoRoot!,
@@ -1135,8 +1178,26 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         './migrations',
         './ports',
         './admin',
+        // The package's own `@source` declarations, which a UI layer earns and
+        // a backend-only package does not (`admin-stylesheet-composition.md`
+        // R1.1). It is a plain path and not a conditions object: the file is
+        // CSS, imported by a stylesheet rather than by a module resolver.
+        './tailwind.css',
         './package.json',
       ]);
+      expect((manifest['exports'] as Record<string, unknown>)['./tailwind.css']).toBe(
+        './tailwind.css',
+      );
+      expect(manifest['files']).toContain('tailwind.css');
+    });
+
+    it('declares no source subpath for a package with no UI layer', () => {
+      // Publishing one would name two directories that are not there, which
+      // Tailwind skips in silence (M12) — a declaration a reader would take
+      // for coverage.
+      const manifest = manifestOf(widgets(BACKEND_ONLY));
+      expect(manifest['exports']).not.toHaveProperty('./tailwind.css');
+      expect(manifest['files']).not.toContain('tailwind.css');
     });
 
     it('names the emitted file, with a types condition beside it', () => {

@@ -11,9 +11,13 @@ import {
   renderAdminRegistry,
   renderDocsSidebar,
   renderModuleMap,
+  renderTailwindRegistry,
   workspacePopulation,
 } from '../../../scripts/generate-composer.js';
-import { scanInstalledModulePackages } from '../../../scripts/lib/module-packages.js';
+import {
+  ModulePackageError,
+  scanInstalledModulePackages,
+} from '../../../scripts/lib/module-packages.js';
 
 /**
  * The two artefacts a **client's instance** generates, rendered over the
@@ -140,11 +144,54 @@ describe("the artefacts an instance generates are rendered over the modules it i
     expect(outputPath).toBe(join(root, 'admin', 'src', 'modules.generated.ts'));
   });
 
+  it("imports the installed package's own source declaration by name", () => {
+    // FR-023 / R2.1. This is the artefact that replaces
+    // `@source "../../packages/**"` — a path that does not exist in this tree,
+    // and did not exist in any client's, while Tailwind reported nothing about
+    // it (M12). The specifier is the package's own subpath, so a package that
+    // is not installed is `Can't resolve` and one whose tarball omits the file
+    // is `ERR_PACKAGE_PATH_NOT_EXPORTED`: both loud, which is the property the
+    // mechanism was chosen for.
+    const { content, outputPath } = renderTailwindRegistry(instancePopulation(root));
+    expect(content).toContain(`@import "${PACKAGE_NAME}/tailwind.css";`);
+    expect(outputPath).toBe(join(root, 'admin', 'src', 'tailwind.generated.css'));
+    // Nothing in the artefact names a directory inside the package: where its
+    // sources are is the package's own statement, in its own stylesheet (§4(b)).
+    expect(content).not.toContain('lib/');
+    expect(content).not.toContain('dist');
+  });
+
+  it('refuses an installed package that contributes a screen and declares no sources', () => {
+    // R2.2's superset relation, asserted rather than assumed. It is the one
+    // state in which this mechanism fails in the direction it exists to
+    // prevent: the screen is registered, the bundle builds, and every class
+    // only that module declares is dropped with no error anywhere.
+    const manifestPath = join(root, 'node_modules', PACKAGE_NAME, 'package.json');
+    const original = readFileSync(manifestPath, 'utf8');
+    const manifest = JSON.parse(original) as { exports: Record<string, unknown> };
+    delete manifest.exports['./tailwind.css'];
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+    try {
+      expect(() => renderTailwindRegistry(instancePopulation(root))).toThrow(ModulePackageError);
+    } finally {
+      writeFileSync(manifestPath, original, 'utf8');
+    }
+  });
+
   it("leaves this repository's own admin registry byte-identical", () => {
     // The population is a parameter and nothing else moved. The committed
     // artefact is the independent author here: `overlay:check` renders and
     // compares it in CI, and this is the same comparison one call earlier.
     const { outputPath, content } = renderAdminRegistry(workspacePopulation());
+    expect(content).toBe(readFileSync(outputPath, 'utf8'));
+  });
+
+  it("leaves this repository's own generated stylesheet byte-identical", () => {
+    // R2.5, which is `plan.md` R7.6: a shape we cannot adopt ourselves is one
+    // we may not ask a client for. The same renderer over the same population
+    // parameter answers for both trees, and the committed artefact is the
+    // independent author — `overlay:check` makes this comparison in CI.
+    const { outputPath, content } = renderTailwindRegistry(workspacePopulation());
     expect(content).toBe(readFileSync(outputPath, 'utf8'));
   });
 

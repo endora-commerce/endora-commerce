@@ -1093,7 +1093,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
     // branch each recorded this entry on `e3dd43635` and neither could see the other;
     // the value below is a fresh census of the combined tree, not the sum of the two.
-    files: 5313,
+    // **`specs/110-instance-repository/` Phase 3 (T123): 5313 -> 5314 (+1).** One
+    // file: `test/unit/packages/tailwind-sources.test.ts`. `backend/scripts` is out
+    // of this population by declaration, so `scripts/lib/tailwind-sources.ts` is
+    // not counted, and the 60 generated stylesheets are `.css` — this walk reads
+    // source, and a `@source` directive is not a diacritic fold.
+    files: 5314,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1772,7 +1777,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 1575,
+    // **`specs/110-instance-repository/` Phase 3 (T123): 1575 -> 1576 (+1).** The
+    // population is `backend/test`, and the one file is
+    // `test/unit/packages/tailwind-sources.test.ts`.
+    files: 1576,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -1856,7 +1864,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 1575,
+    // **`specs/110-instance-repository/` Phase 3 (T123): 1575 -> 1576 (+1).** Same
+    // population and the same one file as `check-fixture-substitution` above:
+    // `test/unit/packages/tailwind-sources.test.ts`.
+    files: 1576,
     sites: null,
     sources: [],
   },
@@ -3231,7 +3242,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds; the other five files it changes already existed, and an edit moves no count
     // here. Measured with `backend/.env` absent and no untracked `docs/docs/modules/`
     // copies.
-    files: 7813,
+    // **`specs/110-instance-repository/` Phase 3 (T123/T124/T125): 7813 -> 7877
+    // (+64).** The population is the whole repository, so it counts every file
+    // this branch adds and nothing it edits: 60 packages each gain their own
+    // `tailwind.css` (`admin-stylesheet-composition.md` R1 — 55 module admin
+    // layers, the shell and the four kit-family packages), plus
+    // `admin/src/tailwind.generated.css`, plus the installed-package fixture's,
+    // plus `scripts/lib/tailwind-sources.ts` and its test. The two `.gitignore`
+    // lines the branch deletes move nothing here — this walk is the directory
+    // tree, not git's list. Measured with `backend/.env` absent, no untracked
+    // `docs/docs/modules/` copies, and no `docs/.module-docs-copies.json`: that
+    // last one is `composer:generate`'s own record of the copies it placed, it is
+    // git-ignored, and a run that has generated locally counts it while a fresh
+    // checkout does not.
+    //
+    // **+1: the branch's changeset.** This walk's population is the whole
+    // repository, so `.changeset/package-owned-tailwind-sources.md` is a file it
+    // opens; 64 files plus one changeset is 65.
+    files: 7878,
     sites: null,
     sources: [],
   },
@@ -3369,8 +3397,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // construction is not read as a walk that came back short. That the list and
     // the registry agree is asserted where it can be, over both committed
     // artefacts, in `test/unit/db/instance-migration-order.test.ts`.
-    sites: 814,
-    files: 85,
+    //
+    // **`specs/110-instance-repository/` Phase 3 (T124): files 85 -> 86, sites
+    // 814 -> 874.** The one file is `admin/src/tailwind.generated.css`, the
+    // ninth artefact and the first this generator renders that is not
+    // TypeScript, JavaScript or markdown — so it is also the first to declare
+    // `entryKind: 'css-specifier'`, CSS's own `@import` grammar over the same
+    // containment question and the same classifier. The 60 sites are one import
+    // per package that declares `./tailwind.css`: 55 module admin layers, plus
+    // the shell and the four kit-family packages, which contribute UI and
+    // contribute no admin-registry entry (R2.2's superset). It moves by one when
+    // a module gains or drops a UI layer, which is what makes it worth
+    // recording — that is the same event that moves the admin registry, and the
+    // two are rendered from one layer inventory so they cannot move apart.
+    sites: 874,
+    files: 86,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -3604,7 +3645,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2398,
+    // **`specs/110-instance-repository/` Phase 3 (T123): 2398 -> 2399 (+1).** One
+    // application file, `scripts/lib/tailwind-sources.ts` — the derivation the
+    // manifest generator, the composer and the guard share. It reaches no platform
+    // file, so the ledger and the reach count do not move with it.
+    files: 2399,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -3951,7 +3996,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 1575,
+    // **`specs/110-instance-repository/` Phase 3 (T123): 1575 -> 1576 (+1).** Same
+    // population and the same one file as `check-fixture-substitution`:
+    // `test/unit/packages/tailwind-sources.test.ts`.
+    files: 1576,
     sites: 163,
     sources: [],
   },
@@ -4136,7 +4184,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 1654,
+    // **`specs/110-instance-repository/` Phase 3 (T123): 1654 -> 1655 (+1).** One
+    // file under `backend/test`: `test/unit/packages/tailwind-sources.test.ts`.
+    files: 1655,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -4342,7 +4392,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 4339,
+    // **`specs/110-instance-repository/` Phase 3 (T123): 4339 -> 4341 (+2).** The
+    // branch's two TypeScript files — `scripts/lib/tailwind-sources.ts` and its
+    // test. Neither reaches a module package's source, so `sites` does not move.
+    files: 4341,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -4769,7 +4822,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds; the other five files it changes already existed, and an edit moves no count
     // here. Measured with `backend/.env` absent and no untracked `docs/docs/modules/`
     // copies.
-    files: 7873,
+    // **`specs/110-instance-repository/` Phase 3 (T123/T124/T125): 7873 -> 7937
+    // (+64).** Every file this branch adds and nothing it edits: 60 packages'
+    // own `tailwind.css`, `admin/src/tailwind.generated.css`, the
+    // installed-package fixture's, and two TypeScript files. Measured with no
+    // untracked `docs/docs/modules/` copies.
+    //
+    // **+1: the branch's changeset.** Same population and the same reason as
+    // `check-nul-bytes` — a changeset is a file this walk opens. `check:language`
+    // does **not** move with it: its subject is comments and `/docs/` pages, and a
+    // changeset is neither.
+    files: 7938,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4957,7 +5020,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
     // branch each recorded this entry on `e3dd43635` and neither could see the other;
     // the value below is a fresh census of the combined tree, not the sum of the two.
-    files: 5860,
+    // **`specs/110-instance-repository/` Phase 3 (T123/T124/T125): 5860 -> 5924
+    // (+64).** The same 64 files as `check-naming.sh`: 60 packages' own
+    // `tailwind.css`, the generated enumeration, the fixture's and two TypeScript
+    // files. A `@source` directive carries no comment, so none of them can carry a
+    // finding; they are population, which is exactly what this number records.
+    files: 5924,
     sites: null,
     sources: ['manifest-index'],
   },

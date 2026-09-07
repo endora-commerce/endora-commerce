@@ -87,6 +87,10 @@ import { BASELINE_THROUGH, historicalBaselineOrder } from '../src/db/migration-o
 import { ADMIN_REGISTRY_ARTEFACT, findAliasMember } from './lib/admin-surfaces.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 import {
+  TAILWIND_REGISTRY_ARTEFACT,
+  TAILWIND_SOURCE_SUBPATH,
+} from './lib/tailwind-sources.js';
+import {
   attributeDocs,
   categoryPositionOf,
   collectDocPages,
@@ -174,6 +178,7 @@ export function generatedArtifactPaths(): readonly string[] {
     migrationsRegistryOutputPath,
     baselineListOutputPath(),
     adminRegistryOutputPath(),
+    tailwindRegistryOutputPath(),
     ...docsArtefactPaths(),
   ];
 }
@@ -2056,6 +2061,192 @@ export function renderAdminRegistry(
   };
 }
 
+// ── the admin stylesheet composition (artefact eight) ───────────────────────
+//
+// `specs/110-instance-repository/contracts/admin-stylesheet-composition.md` R2,
+// FR-023. `admin/src/index.css` used to reach every package's UI with one
+// `@source "../../packages/**"`. In this repository that is correct; in a
+// client's instance it names a directory that is not there, because under D-207
+// the shell and the module packages are **installed**. Tailwind emits no
+// diagnostic for a source matching nothing (§1, M12), so the instance's admin
+// would build green and render **every** screen unstyled — after T120 the shell
+// is a package too.
+//
+// The repair inverts the direction: a package declares its own `@source` lines
+// at `./tailwind.css` (R1, rendered by `manifests:generate`) and the host
+// imports them by name. Every way of getting *that* wrong is loud — an
+// undeclared subpath is `ERR_PACKAGE_PATH_NOT_EXPORTED` (M9), a missing package
+// is `Can't resolve` (M10) — which is the property the mechanism was chosen
+// for.
+//
+// It is rendered here rather than written by hand for R2.5's reason, which is
+// `plan.md` R7.6: a shape we cannot adopt ourselves is one we may not ask a
+// client for, and our own admin build is then the instance's mechanism on every
+// pipeline — the only continuous evidence that it works.
+
+/** One package whose `./tailwind.css` the host imports. */
+export interface TailwindSourceEntry {
+  /** The npm name, which is also the sort key (R2.1). */
+  readonly name: string;
+  /** The specifier the artefact writes — `<name>/tailwind.css`. */
+  readonly specifier: string;
+}
+
+/** Every dependency name one manifest declares, or `[]` when it is not there. */
+function declaredDependencyNames(manifestPath: string): readonly string[] {
+  if (!existsSync(manifestPath)) return [];
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+  const declared = manifest['dependencies'];
+  if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) return [];
+  return Object.keys(declared as Record<string, unknown>);
+}
+
+/**
+ * The packages this tree composes, resolved to their directories.
+ *
+ * **A declared dependency is the population**, and it is the one derivation
+ * that answers identically in both trees: a bare specifier resolves only
+ * through a declared dependency, so a package nothing declares is a package
+ * whose stylesheet could not be imported anyway (M10). Nothing keys on a scope,
+ * a `mod-` prefix or a directory (D-100).
+ *
+ * **Two manifests, unioned, because the two trees put the declaration in
+ * different places and both are correct.** Here `manifests:generate` reconciles
+ * every contributing module into `admin/package.json`, so the admin's own
+ * manifest is the complete answer. An instance is scaffolded as a workspace
+ * whose *root* holds the module dependencies and whose admin project is a
+ * member of it — pnpm links a root dependency into the root `node_modules`,
+ * where the admin's own resolution reaches it. Reading only the admin's
+ * manifest there would render an artefact naming nothing, which is the silence
+ * this whole contract exists to remove.
+ */
+function composedPackageDirectories(root: string): ReadonlyMap<string, string> {
+  const members = workspaceMembers(root, nodeWorkspaceFs());
+  const { member } = findAliasMember(members);
+  const names = [
+    ...declaredDependencyNames(join(member.dir, 'package.json')),
+    ...declaredDependencyNames(join(root, 'package.json')),
+  ];
+  const byName = new Map(members.map((entry) => [entry.name, entry.dir]));
+  const found = new Map<string, string>();
+  for (const name of names) {
+    // A workspace member first, then the installed copy. The order is the one
+    // `check:module-boundary` and `overlay:check` already take: a member's own
+    // directory is the declaration this repository can change, and following
+    // the link instead would answer from whichever checkout `node_modules` was
+    // wired to (issue #255).
+    const memberDir = byName.get(name);
+    const dir = memberDir ?? join(root, 'node_modules', name);
+    if (!existsSync(join(dir, 'package.json'))) continue;
+    found.set(name, dir);
+  }
+  return found;
+}
+
+/** Does the package at `dir` declare `./tailwind.css`? R2.1's predicate, off the map. */
+function declaresTailwindSubpath(dir: string): boolean {
+  const text = readFileSync(join(dir, 'package.json'), 'utf8');
+  let manifest: { exports?: Record<string, unknown> };
+  try {
+    manifest = JSON.parse(text) as { exports?: Record<string, unknown> };
+  } catch {
+    return false;
+  }
+  return manifest.exports?.[TAILWIND_SOURCE_SUBPATH] !== undefined;
+}
+
+/**
+ * Every package the host imports a source declaration from, sorted by name.
+ *
+ * **The population is FR-005's widened by one predicate** (R2.2): the admin
+ * contribution registry's is *"declares `./admin`"*, this one's is *"declares
+ * `./tailwind.css`"* — a superset, because it also holds the shell and the kit
+ * family, which contribute UI and contribute no registry entry.
+ *
+ * That superset relation is asserted rather than assumed: a package the registry
+ * imports and this does not is a **refusal**. It is the one state in which the
+ * whole mechanism fails silently in the direction it exists to prevent — the
+ * screen is registered, the bundle builds, and every class only that module
+ * declares is dropped. `manifests:generate` renders both halves from one layer
+ * inventory, so this state means the two artefacts were committed apart.
+ */
+export function collectTailwindSources(
+  population: ArtefactPopulation = workspacePopulation(),
+): readonly TailwindSourceEntry[] {
+  const composed = composedPackageDirectories(population.root);
+  const declaring = new Set<string>();
+  for (const [name, dir] of composed) {
+    if (declaresTailwindSubpath(dir)) declaring.add(name);
+  }
+  for (const entry of collectAdminContributions(population.packages)) {
+    const name = packageNameOf(entry.specifier);
+    if (declaring.has(name)) continue;
+    throw new ModulePackageError(
+      `[composer] ${name} contributes an admin layer and declares no ` +
+        `'${TAILWIND_SOURCE_SUBPATH}'. The generated stylesheet imports one per package, so ` +
+        `this module's screens would build and render with none of the utility classes only ` +
+        `it declares — silently, because Tailwind reports nothing about a source it never ` +
+        `had. Run \`pnpm --filter backend run manifests:generate\`: the subpath is rendered ` +
+        `from the same layer inventory as './admin'.`,
+    );
+  }
+  return [...declaring]
+    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
+    .map((name) => ({ name, specifier: `${name}/tailwind.css` }));
+}
+
+/** `@endora-commerce/mod-blog/tailwind.css` → `@endora-commerce/mod-blog`. */
+function packageNameOf(specifier: string): string {
+  const segments = specifier.split('/');
+  return specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]!;
+}
+
+/** Pure render of the generated stylesheet, exported so a test can drive it. */
+export function emitTailwindRegistry(entries: readonly TailwindSourceEntry[]): string {
+  const imports = entries.map((entry) => `@import "${entry.specifier}";`).join('\n');
+  return `/* AUTO-GENERATED by scripts/generate-composer.ts — DO NOT EDIT.
+ * Run \`pnpm --filter backend run composer:generate\` to refresh. Editing this
+ * file by hand is undone by the next build, and
+ * \`pnpm --filter backend run overlay:check\` fails on the drift.
+ *
+ * The admin stylesheet composition — one import per package that declares
+ * \`./tailwind.css\`, which is where that package's own \`@source\` directives
+ * live (\`specs/110-instance-repository/contracts/admin-stylesheet-composition.md\`
+ * R2.1).
+ *
+ * It replaces \`@source "../../packages/**"\`, which was correct here and named a
+ * directory that does not exist in a client's instance — where the shell and
+ * every module are installed under \`node_modules\`. Tailwind says nothing about a
+ * source that matches nothing (M12), so that instance's admin built green and
+ * rendered unstyled. Here every failure is a build error instead: a package that
+ * is not installed is \`Can't resolve\`, and one whose tarball omits the file is
+ * \`ERR_PACKAGE_PATH_NOT_EXPORTED\`.
+ *
+ * An \`@source\` **adds** to Tailwind's automatic detection rather than replacing
+ * it, and that detection is rooted at this Vite project — so the admin's own
+ * sources need no directive here (R2.3).
+ */
+${imports}
+`;
+}
+
+/** Where the generated stylesheet lands: beside the admin contribution registry. */
+function tailwindRegistryOutputPath(root: string = repoRoot): string {
+  const members = workspaceMembers(root, nodeWorkspaceFs());
+  const { member, target } = findAliasMember(members);
+  return join(resolve(member.dir, target), TAILWIND_REGISTRY_ARTEFACT);
+}
+
+/** Pure render — the target path + expected content of the generated stylesheet. */
+export function renderTailwindRegistry(
+  population: ArtefactPopulation = workspacePopulation(),
+): { outputPath: string; content: string } {
+  return {
+    outputPath: tailwindRegistryOutputPath(population.root),
+    content: emitTailwindRegistry(collectTailwindSources(population)),
+  };
+}
+
 // ── the documentation registry ──────────────────────────────────────────────
 //
 // Artefacts six and seven (feature 100 / roadmap F12, `contracts/docs-registry.md`
@@ -2932,8 +3123,12 @@ export interface RenderedArtefact {
    * have no containment question. It is declared rather than omitted, because
    * `overlay:check`'s per-artefact floor otherwise reads an empty population as
    * a walk that came back short (D-155.6).
+   *
+   * `'css-specifier'` is the eighth artefact (feature 110, T124): a stylesheet
+   * naming its entries with CSS's own `@import`. Same containment question,
+   * different grammar.
    */
-  readonly entryKind?: 'specifier' | 'doc-id' | 'none';
+  readonly entryKind?: 'specifier' | 'doc-id' | 'none' | 'css-specifier';
   /** The root a bare `doc-id` entry resolves against. Absent for a specifier. */
   readonly entryRoot?: string;
   /**
@@ -2966,6 +3161,7 @@ export async function renderAll(): Promise<
     // committed artefacts, in test/unit/db/instance-migration-order.test.ts.
     { label: 'baseline-migrations', ...renderBaselineList(sources), entryKind: 'none' as const },
     { label: 'admin-registry', ...renderAdminRegistry(population) },
+    { label: 'admin-tailwind', ...renderTailwindRegistry(population), entryKind: 'css-specifier' as const },
     { label: 'docs-sidebar', ...renderDocsSidebar(population) },
     { label: 'module-map', ...renderModuleMap(population) },
     ...(await renderModuleReferences(population)),

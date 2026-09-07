@@ -56,6 +56,7 @@ import {
 } from './lib/module-package-manifest.js';
 import { AdminLayoutUnresolvableError } from './lib/admin-surfaces.js';
 import { UnreadableSubpathError } from './lib/module-package-subpaths.js';
+import { TailwindSourceError } from './lib/tailwind-sources.js';
 import { findManifestIndex, findRepoRoot } from './lib/module-roots.js';
 
 const PREFIX = '[module-manifests]';
@@ -99,7 +100,19 @@ async function main(): Promise<void> {
   // by bare specifier, and a bare specifier resolves only through a declared
   // dependency. It is written by the same command and refused by the same
   // `--check` so the two cannot land apart.
-  for (const artefact of [...run.rendered, ...run.applicationRendered]) {
+  //
+  // The `./tailwind.css` files join them on the same terms (feature 110, T123;
+  // `admin-stylesheet-composition.md` R1.4): the declaration and the file it
+  // points at are two halves of one statement, and a run that wrote one and not
+  // the other publishes a subpath naming a file that is not there — M9 at the
+  // first consumer, which is loud, or a stylesheet nothing imports, which is
+  // not.
+  for (const artefact of [
+    ...run.rendered,
+    ...run.applicationRendered,
+    ...run.familyRendered,
+    ...run.stylesheets,
+  ]) {
     const onDisk = existsSync(artefact.outputPath)
       ? readFileSync(artefact.outputPath, 'utf8')
       : null;
@@ -186,6 +199,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (
       error instanceof ModulePackageManifestError ||
       error instanceof UnreadableSubpathError ||
+      // A fourth, on the same terms: a package ships scannable UI and declares
+      // no build layout, so the emitted half of its `@source` lines cannot be
+      // derived (feature 110, T123). Naming `dist` here instead would be the
+      // host spelling a directory inside a package, which is the shape
+      // `admin-stylesheet-composition.md` §4(b) rejects — and it fails
+      // silently, because Tailwind says nothing about an `@source` naming a
+      // directory that is not there.
+      error instanceof TailwindSourceError ||
       // A third: the admin application could not be located, so the manifest
       // whose dependencies make the generated registry resolvable has no
       // subject. Ambiguity is refused there rather than resolved, for the
