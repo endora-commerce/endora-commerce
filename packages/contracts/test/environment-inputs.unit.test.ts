@@ -31,6 +31,13 @@ const input = (over: Partial<EnvironmentInput>): EnvironmentInput => ({
   generable: false,
   owner: { kind: 'platform' },
   consumers: ['backend'],
+  // `null` is the answer, not an omission: `X` is a synthetic input standing
+  // for no member of any instance, and every fixture below that does not
+  // override this one has a subject that is nobody's address either — a
+  // database URL, a Meilisearch URL and an encryption key. A fixture whose
+  // subject *is* a member's address says so at its own call site, which is the
+  // shape `new-storefront.test.ts`' `declared()` uses.
+  addressOf: null,
   ...over,
 });
 
@@ -88,10 +95,29 @@ describe('the declaration shape', () => {
 });
 
 describe('member scoping is by declared consumer, never by name', () => {
-  // The three real inputs the rule is measured on, with their real consumers.
-  const viteApiBaseUrl = input({ name: 'VITE_API_BASE_URL', consumers: ['admin'] });
-  const adminBaseUrl = input({ name: 'ADMIN_BASE_URL', consumers: ['backend'] });
-  const corsAllowedOrigins = input({ name: 'CORS_ALLOWED_ORIGINS', consumers: ['backend'] });
+  // The three real inputs the rule is measured on, with their real consumers —
+  // and their real addresses, because the two questions come apart on all
+  // three and a fixture that answered only the first would say the wrong thing
+  // about the second.
+  const viteApiBaseUrl = input({
+    name: 'VITE_API_BASE_URL',
+    consumers: ['admin'],
+    // Read by the admin; its value is the **backend's** origin.
+    addressOf: 'backend',
+  });
+  const adminBaseUrl = input({
+    name: 'ADMIN_BASE_URL',
+    consumers: ['backend'],
+    // The mirror image: read by the backend, and its value names the admin.
+    addressOf: 'admin',
+  });
+  const corsAllowedOrigins = input({
+    name: 'CORS_ALLOWED_ORIGINS',
+    consumers: ['backend'],
+    // The near miss, and it stays `null`: the value is a *list* of origins, two
+    // of which are members, and "the address of" is singular.
+    addressOf: null,
+  });
   const all = [viteApiBaseUrl, adminBaseUrl, corsAllowedOrigins];
 
   it('drops exactly the admin-read input when no admin member is written', () => {
