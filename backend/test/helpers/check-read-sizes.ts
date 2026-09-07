@@ -735,7 +735,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2014,
+    // **`chore/094-retire-error-table` (over !1508): 2014 -> 2004.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (2005), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 2004,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -849,7 +857,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2141,
+    // **`chore/094-retire-error-table` (over !1508): 2141 -> 2131.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (2132), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 2131,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1173,7 +1189,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
     // since deleted nine lifecycle shims, so every base below is lower than this branch first
     // measured. The delta is unchanged; the total is a fresh census of the combined tree.
-    files: 5449,
+    // **`chore/094-retire-error-table` (over !1508): 5449 -> 5444.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-4** was already standing at
+    // `094-akeneo-pim-sync`'s tip (5445), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 5444,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1538,7 +1562,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2141,
+    // **`chore/094-retire-error-table` (over !1508): 2141 -> 2131.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (2132), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 2131,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -1633,7 +1665,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2141,
+    // **`chore/094-retire-error-table` (over !1508): 2141 -> 2131.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (2132), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 2131,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1728,7 +1768,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2141,
+    // **`chore/094-retire-error-table` (over !1508): 2141 -> 2131.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (2132), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 2131,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1818,7 +1866,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 691,
+    // **`chore/094-retire-error-table` (over !1508): 691 -> 681.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (682), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 681,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -1845,7 +1901,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 867 -> 883.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 883,
+    // **`chore/094-retire-error-table` (over !1508): 883 -> 888.** The tip of `094-akeneo-pim-sync` read 883, so
+    // the whole move is this branch's. The five bundle keys the walk gains: seven
+    // `errors.PIM_AKENEO_*` pairs now route to a declaring module and two duplicate
+    // `errors.PIM_CONNECTOR_ALREADY_ACTIVE` copies leave `pim_akeneo`'s bundles. The
+    // `sources` token moves with it, `manifest-index:39/39` -> `40/40`: `pim_akeneo` joins
+    // the modules that declare an error code, which is this walk's floor.
+    sites: 888,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -2132,7 +2194,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2141,
+    // **`chore/094-retire-error-table` (over !1508): 2141 -> 2131.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (2132), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 2131,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -2636,7 +2706,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 32854 -> 34152.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    sites: 34152,
+    // **`chore/094-retire-error-table` (over !1508): 34152 -> 34159.** The tip of `094-akeneo-pim-sync` read 34152, so
+    // the whole move is this branch's. The seven `{ code: … }` literals
+    // `pim_akeneo`'s manifest gains: this walk classifies literals in a module's own
+    // sources, and seven more are classified (all English, so `violations` is unmoved).
+    sites: 34159,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -3038,7 +3112,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. Of that, **+46 is
     // this branch's test move**: the 23 tests entering the module walk roots, opened once
     // by the import pass and once by the SQL pass.
-    files: 4859,
+    // **`chore/094-retire-error-table` (over !1508): 4859 -> 4858.** The tip of `094-akeneo-pim-sync` read 4859, so
+    // the whole move is this branch's.
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 4858,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -3530,7 +3609,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
     // since deleted nine lifecycle shims, so every base below is lower than this branch first
     // measured. The delta is unchanged; the total is a fresh census of the combined tree.
-    files: 8042,
+    // **`chore/094-retire-error-table` (over !1508): 8042 -> 8044.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **+3** was already standing at
+    // `094-akeneo-pim-sync`'s tip (8045), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 8044,
     sites: null,
     sources: [],
   },
@@ -3814,7 +3901,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2141,
+    // **`chore/094-retire-error-table` (over !1508): 2141 -> 2131.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (2132), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 2131,
     sites: 213,
     sources: ['manifest-index'],
   },
@@ -3973,7 +4068,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2465,
+    // **`chore/094-retire-error-table` (over !1508): 2465 -> 2456.** None of this move is this branch's — the tip of
+    // `094-akeneo-pim-sync` already read 2456, from the two adaptations !1496 and !1508 and
+    // the `master` merge it carries. This walk does not reach `backend/src/modules`, so the
+    // one file this branch deletes is outside it; re-recorded here because this merge
+    // request is the one whose census measured the drift.
+    files: 2456,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -4023,7 +4123,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1823 -> 1882.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    sites: 1882,
+    // **`chore/094-retire-error-table` (over !1508): 1882 -> 1873.** None of this move is this branch's — the tip of
+    // `094-akeneo-pim-sync` already read 1873, from the two adaptations !1496 and !1508 and
+    // the `master` merge it carries. This walk does not reach `backend/src/modules`, so the
+    // one file this branch deletes is outside it; re-recorded here because this merge
+    // request is the one whose census measured the drift.
+    sites: 1873,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -4496,7 +4601,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2141,
+    // **`chore/094-retire-error-table` (over !1508): 2141 -> 2131.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (2132), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 2131,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4671,7 +4784,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2141,
+    // **`chore/094-retire-error-table` (over !1508): 2141 -> 2131.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (2132), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 2131,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4802,7 +4923,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 4473,
+    // **`chore/094-retire-error-table` (over !1508): 4473 -> 4463.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **-9** was already standing at
+    // `094-akeneo-pim-sync`'s tip (4464), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 4463,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -5284,7 +5413,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
     // since deleted nine lifecycle shims, so every base below is lower than this branch first
     // measured. The delta is unchanged; the total is a fresh census of the combined tree.
-    files: 8102,
+    // **`chore/094-retire-error-table` (over !1508): 8102 -> 8104.** Two contributions, measured apart by
+    // restoring the deleted file and re-running. **+3** was already standing at
+    // `094-akeneo-pim-sync`'s tip (8105), from the two adaptations !1496 and !1508 and the
+    // `master` merge that branch carries, and this merge request is simply the one that
+    // measured it. **-1** is this branch's own:
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 8104,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5512,7 +5649,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
     // since deleted nine lifecycle shims, so every base below is lower than this branch first
     // measured. The delta is unchanged; the total is a fresh census of the combined tree.
-    files: 6064,
+    // **`chore/094-retire-error-table` (over !1508): 6064 -> 6063.** The tip of `094-akeneo-pim-sync` read 6064, so
+    // the whole move is this branch's.
+    // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
+    // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
+    // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
+    files: 6063,
     sites: null,
     sources: ['manifest-index'],
   },
