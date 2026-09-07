@@ -1151,7 +1151,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `EXCLUDED_SUBTREES` in feature 101 Phase 2 — which is why the delta is four and
     // not six, and it is the discrimination worth keeping: the other three whole-tree
     // entries below move by six or seven in the same merge request.
-    files: 5303,
+    // **+4, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    files: 5307,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3407,7 +3411,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T132/T133: 7880 -> 7887 (+7).** The whole-repository
     // byte scan, so it counts everything the merge request adds: four sources, two test
     // files and the changeset. Nothing was excluded and nothing was renamed.
-    files: 7872,
+    // **+7, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    files: 7879,
     sites: null,
     sources: [],
   },
@@ -5079,7 +5087,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T132/T133: 7940 -> 7947 (+7).** As the byte scan
     // above, and for the same population: `endora new instance`'s four sources, its two
     // test files and the changeset.
-    files: 7932,
+    // **+7, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    files: 7939,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5300,7 +5312,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T132/T133: 5924 -> 5930 (+6).** The comment scan
     // over the tree's own sources: four under `packages/cli/src/new-instance/` and the two
     // test files. The changeset is markdown outside `docs/docs/**` and is not in this walk.
-    files: 5915,
+    // **+6, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    files: 5921,
     sites: null,
     sources: ['manifest-index'],
   },
