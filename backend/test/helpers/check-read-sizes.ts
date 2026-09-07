@@ -4682,7 +4682,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // unit(s)`) and printed no read line, because `pim_akeneo` declared a test run and
     // shipped no test file. Moving its 23 harness-free tests into the package is what
     // restored the disclosure, so both numbers are first records rather than drift.
-    sites: 1181,
+    // **`chore/094-close-remaining-reds`: sites 1181 -> 1104 (-77).** The same 81-site
+    // conversion as `check-singleton-identity`'s entry above, seen by a walk with a
+    // narrower population: this one opens `*.test.ts` alone, so the 4 reaches in
+    // `test/perf/pim_akeneo/`'s two `.perf.ts` files are outside it and 77 of the 81
+    // land here. `test/helpers/package-entities.ts` is outside it too — measured, by
+    // reverting the helper alone, which leaves the number at 1104 — so the eleven
+    // specifiers it gains add nothing back. `files` is untouched at 1715: no test file
+    // arrived or left.
+    sites: 1104,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -4980,7 +4988,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test move**, and the direction is the point: a test beside its subject names that
     // subject **relatively within its own package**, which is not a value reach into a
     // package's source and is not a site. The 23 files stopped being 28 of them by moving.
-    sites: 949,
+    // **`chore/094-close-remaining-reds`: sites 949 -> 868 (-81).** The whole of the
+    // move is this branch's, measured rather than inferred: with the 33 converted
+    // files reverted and every other change on the branch in place, the walk reports
+    // 949 again. `pim_akeneo`'s integration, contract and perf tests named 81 entity
+    // classes by filesystem path into a package's `src` — the reach this check exists
+    // to refuse — and each now names it through `test/helpers/package-entities.ts`,
+    // which resolves it out of the composed `entities` array. A helper import is no
+    // reach, so 81 sites go and none arrives.
+    sites: 868,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {
