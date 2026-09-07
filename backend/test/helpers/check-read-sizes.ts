@@ -738,7 +738,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 1946,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 1953,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -852,7 +857,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2070,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 2077,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1173,7 +1183,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 5307,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 5314,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1534,7 +1549,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2070,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 2077,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1632,7 +1652,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2070,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 2077,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1730,7 +1755,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2070,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 2077,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1820,7 +1850,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 681,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 688,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2120,7 +2155,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2070,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 2077,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -3477,7 +3517,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // old path keeps a shim or a binding, which is what T119 drains.
     // **The same merge request: +2 more.** Its two changeset files, which this
     // walk's population includes.
-    files: 7879,
+    // **+9, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 7888,
     sites: null,
     sources: [],
   },
@@ -3749,7 +3794,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2070,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 2077,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -4405,7 +4455,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2070,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 2077,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4573,7 +4628,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2070,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 2077,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4706,7 +4766,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 4329,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 4336,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -5185,7 +5250,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // old path keeps a shim or a binding, which is what T119 drains.
     // **The same merge request: +2 more.** Its two changeset files, which this
     // walk's population includes.
-    files: 7939,
+    // **+9, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 7948,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5416,7 +5486,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 5921,
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 5928,
     sites: null,
     sources: ['manifest-index'],
   },
