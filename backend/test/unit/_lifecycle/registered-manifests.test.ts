@@ -171,22 +171,29 @@ describe('a module’s location is answered, or refused — never guessed (T041a
     //
     // The module is taken from the tree rather than named, and so is **where**
     // it sits: this read `blog` until that module became a package (feature
-    // 080, T040b), then `modules/<id>/`, then "under `backend/src`" — each one
-    // a fact about the layout that the layout then changed. With D-160.11's
-    // second half no registered module is under the application's source root
-    // at all: `_lifecycle` merged into the platform package, and the index
-    // imports its manifest by a **relative** specifier at that package's built
-    // file, which is the shape this control is about. So the module is the one
-    // the index names relatively — `filePath` ending at a manifest file rather
-    // than at a `package.json` — and the specifier is computed to wherever that
-    // is. The bare shape is exercised in the test below, over a real package.
+    // 080, T040b), then `modules/<id>/`, then "under `backend/src`", then "the
+    // one module the index names relatively", which was `_lifecycle` from
+    // D-160.11's second half until `specs/115-lifecycle-container-move/` Phase 6
+    // gave it `@endora-commerce/platform/lifecycle`. Four expiry dates, each a
+    // fact about the layout that the layout then changed — and the last one left
+    // this control sampling an **empty** population, which is the failure it was
+    // written to avoid.
+    //
+    // So it is no longer sampled from the registry at all. The relative branch
+    // is a live code path with no caller in this tree today — a module in the
+    // application's own tree has one, and a client instance's scaffolded index
+    // may — and what it has to be exercised over is a **real** manifest file,
+    // reached relatively, so that the `.js` → `.ts` fallback is the thing under
+    // test. A module package's own `src/manifest.ts` is exactly that: named
+    // relatively from `backend/src` it exists as `.ts` and not as `.js`, which
+    // is the fallback, and in a `dist` build the same call answers the emitted
+    // file. The bare shape is exercised in the test below, over the same
+    // packages.
     const indexUrl = pathToFileURL(join(BACKEND_SRC, 'manifest-index.generated.ts')).href;
-    const inTheTree = REGISTERED_MANIFESTS.find((entry) =>
-      /[\\/]manifest\.(ts|js)$/.test(entry.filePath),
-    );
-    expect(inTheTree, 'no registered module is named by a relative specifier').toBeDefined();
+    const packages = discoverModulePackages(join(BACKEND_SRC, '..', '..'));
+    expect(packages.length, 'this checkout declares no module package').toBeGreaterThan(0);
+    const directory = join(packages[0]!.dir, 'src');
 
-    const directory = dirname(inTheTree!.filePath);
     const within = relative(BACKEND_SRC, directory).split(sep).join('/');
     const specifier = `${within.startsWith('.') ? within : `./${within}`}/manifest.js`;
     const resolved = resolveManifestPath(indexUrl, specifier);

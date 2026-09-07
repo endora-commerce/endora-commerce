@@ -447,8 +447,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // records is a different kind of reference.** The module's sources moved into
   // `@endora-commerce/platform`; what stayed at `backend/src/lifecycle/` is the
   // host half the ruling names — the manifest registry, the divergence reader,
-  // the five `module:*` commands — plus twelve **re-export shims**, one
-  // per moved file that something in `backend/` still names at its old path.
+  // the five `module:*` commands — plus a **re-export shim** per moved file that
+  // something in `backend/` still names at its old path. There were twelve when
+  // that half landed; the count is not written down here, because it is exactly
+  // the length of the array below (D-100).
   // Those shims are the bridge, and they are the only files in this application
   // that reach the module's directory: `src/cli.ts` and `src/composition.ts`
   // reach a shim, which is a sibling of theirs and not this module's file, so
@@ -467,16 +469,27 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // fallback returned a `src/modules/_lifecycle/` nothing has ever imported.
   // Twelve real references would have read as zero, in the file whose subject
   // is references that survive a move.
+  //
+  // **Three shims left with feature 115 Phase 6, and this ledger was edited in
+  // the merge request that freed them** — which is the whole reason the entry is
+  // worth reading. Nothing in that phase *opens* this file: it re-points
+  // `composition.ts`, two `src/db/` readers and two `scripts/` callers onto
+  // `@endora-commerce/platform/lifecycle`, deletes the three shims that then had
+  // no importer left anywhere (`plugin.ts`, `services/migration-ownership.ts`,
+  // `services/module-origin.ts`), and touches no test. So the batch that frees
+  // an entry is structurally the batch whose targeted run cannot see it go
+  // stale, and this paragraph is that rule met rather than restated.
+  //
+  // The nine left are held open by `backend/test/**` alone — Phase 7's subject.
+  // Their production consumers name the subpath already, so what each records
+  // now is a test-tree rewrite, not a missing address.
   _lifecycle: [
-    'src/lifecycle/plugin.ts',
     'src/lifecycle/routes.admin.ts',
     'src/lifecycle/services/deactivation-ledger.ts',
     'src/lifecycle/services/dep-graph.ts',
     'src/lifecycle/services/gating-graph.ts',
     'src/lifecycle/services/lock.ts',
     'src/lifecycle/services/manifest-loader.ts',
-    'src/lifecycle/services/migration-ownership.ts',
-    'src/lifecycle/services/module-origin.ts',
     'src/lifecycle/services/orchestrator.ts',
     'src/lifecycle/services/presence-load.ts',
     'src/lifecycle/services/static-registry.ts',
