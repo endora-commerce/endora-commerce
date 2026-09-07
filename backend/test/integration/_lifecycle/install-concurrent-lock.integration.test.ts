@@ -2,12 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
 import { defineModuleManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
+import {
+  LifecycleError,
+  type LoadedManifestRegistry,
+  LOCK_KEY,
+  ModuleDepGraph,
+  ModuleLifecycleOrchestrator,
+} from '@endora-commerce/platform/lifecycle';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { LOCK_KEY } from '../../../src/lifecycle/services/lock.js';
-import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 
 /**
  * Integration test for SC-007 / FR-022 — two concurrent install

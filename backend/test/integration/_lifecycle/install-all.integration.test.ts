@@ -3,12 +3,12 @@ import { Redis } from 'ioredis';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import {
   LifecycleError,
+  type LoadedManifestRegistry,
+  ModuleDepGraph,
   ModuleLifecycleOrchestrator,
-} from '../../../src/lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
+} from '@endora-commerce/platform/lifecycle';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**

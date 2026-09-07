@@ -52,7 +52,6 @@ import {
 } from '../../../scripts/lib/platform-surface.js';
 import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
 import { platformSourceRootOf, platformSubpathsOf } from '../../../scripts/lib/platform-root.js';
-import { RELATIVE_HOST_REACHES } from '../../../scripts/check-platform-surface.js';
 
 /**
  * The platform's own sources, which since the relocation are
@@ -770,7 +769,7 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
  * `./lifecycle`, the third host-internal subpath (`specs/115-lifecycle-container-move/`,
  * D115-4; `contracts/operator-half.md` §5).
  *
- * ## Why its ledger is derived where `HOST_COMPOSITION_SURFACE` is written down
+ * ## Why this ratchet is derived where `HOST_COMPOSITION_SURFACE` is written down
  *
  * R5.4 asks for `HOST_COMPOSITION_SURFACE`'s instrument: a per-file symbol map,
  * both directions asserted. The map is written by hand there because the 27
@@ -778,136 +777,67 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
  * what makes a twenty-eighth a review event.
  *
  * Here the barrel's contents are not a ruling, they are a **consequence**, and
- * writing the consequence down would be the shape D-100 is about. The subpath
- * exists to give the application's fifteen ledgered relative reaches into
- * `packages/platform/dist/lifecycle/` an address (`RELATIVE_HOST_REACHES`, Phase
- * 1). Each of those reaches is a shim spelling `export * from '<target>'`, so
- * the application holds the target's **whole namespace** — and a reach can be
- * retired onto this subpath only if every name it currently yields is here. That
- * makes the expected set a function of the ledger and of the fourteen files it
- * names, and a second, hand-written copy of it would be a second answer waiting
- * to disagree with the first.
+ * writing the consequence down would be the shape D-100 is about. So the
+ * expected set is derived from the consumers: every name a first-party source
+ * outside the platform imports through `@endora-commerce/platform/lifecycle`,
+ * and nothing else.
  *
- * ## What the two directions are, and what each one catches
+ * ## The population moved once, in Phase 7, and the move is the design
  *
- *  - **A name on the barrel out of a file no ledgered reach names** is surface
- *    parked against a future need, which is precisely what R5.4 forbids.
- *    `routes.storefront.ts` and `commands/activation.commands.ts` are the live
- *    proof that the population is narrower than "the lifecycle directory": no
- *    application file reaches either, and neither is here.
- *  - **A name a reached file exports and the barrel does not carry** is a shim
- *    that cannot retire. It would fail silently in the worst way available — the
- *    reach stays, the ledger entry stays, and the phase that was supposed to
- *    drain it reports success over the names it happened to move.
+ * Until this feature's test drain the subpath had almost no consumers, by
+ * construction: the application reached this surface through fifteen re-export
+ * shims spelling `export * from '…/packages/platform/dist/lifecycle/…'`, so a
+ * consumer ratchet would have been green over nothing — issue #113's shape.
+ * What stood in its place was a ledger-derived one: each shim holds its
+ * target's **whole namespace**, so the barrel had to carry every name each
+ * reached file exports or the shim could not retire onto it, and the expected
+ * set was a function of `RELATIVE_HOST_REACHES` and the files it named.
  *
- * The second direction is what makes this ratchet non-vacuous on the day it
- * lands, which the *consumer* population cannot be: nothing outside the platform
- * names this subpath yet, by design (Phase 2 moves no file), so the assertion
- * `./composition` uses would be green over nothing — issue #113's shape. It
- * becomes the right assertion in Phase 7, when the shims are gone and the
- * consumers are import sites; until then the shims **are** the host's reach and
- * are the honest population.
+ * Phase 6 retired the production reaches and Phase 7 the 112 test ones, and the
+ * last nine shims went with them. That derivation therefore has **no
+ * population left** — no ledgered reach names a platform lifecycle file, and
+ * none ever will again, because the address exists. Keeping it would be a
+ * comparison of nothing to nothing dressed as a guard, which is the failure the
+ * ledger half's own vacuous-pass check refused; the honest population is now
+ * the consumers, and they are 50 test files, five `module:*` entry points, the
+ * manifest-registry binding and both generated artefacts.
+ *
+ * ## What the one remaining direction pair catches
+ *
+ *  - **A name on the barrel that no first-party source outside the platform
+ *    imports** is surface parked against a future need, which is precisely what
+ *    R5.4 forbids. 28 names left in the same merge request that drained the
+ *    ledger — every one of them a symbol that was here only because a shim's
+ *    `export *` yielded it, and that nobody had ever asked for by name.
+ *  - **A name imported from the subpath that the barrel does not carry** is a
+ *    consumer that cannot compile. `tsc` answers that here too; it is asserted
+ *    because this file is where the population is derived, and a consumer
+ *    outside this repository gets no `tsc` run of ours.
  */
 describe('`./lifecycle`, the operator surface no module may name (D115-4)', () => {
   const barrel = 'lifecycle/index.ts';
-  const PLATFORM_LIFECYCLE = 'packages/platform/src/lifecycle/';
-
-  /**
-   * The platform-lifecycle files the application reaches today, off Phase 1's
-   * ledger rather than a list here. The key's second half is the canonical
-   * platform source file, which is the whole reason that ledger is keyed by file
-   * and not by specifier.
-   */
-  const reachedFiles = (): string[] =>
-    [
-      ...new Set(
-        Object.keys(RELATIVE_HOST_REACHES)
-          .map((key) => key.split('|')[1] ?? '')
-          .filter((target) => target.startsWith(PLATFORM_LIFECYCLE)),
-      ),
-    ].sort();
-
-  /** `barrel key → names`, for a lifecycle source file. */
-  const exportsOf = (key: string): string[] =>
-    [
-      ...new Set(
-        parseBarrel(readFileSync(join(SRC, key), 'utf8'), key).published.map((s) => s.name),
-      ),
-    ].sort();
 
   const parsed = (): ReturnType<typeof parseBarrel> =>
     parseBarrel(readFileSync(join(SRC, barrel), 'utf8'), barrel);
 
-  /** Every name a first-party source outside the platform imports from `./lifecycle`. */
-  const consumed = (): ReadonlySet<string> => {
+  it('carries exactly the names its consumers outside the platform import', () => {
     const sources = firstPartySourcesOutsideThePlatform();
     expect(sources.size, 'the walk opened no first-party source').toBeGreaterThan(1000);
-    const names = new Set<string>();
+
+    const imported = new Set<string>();
     for (const [, text] of sources) {
-      for (const name of subpathNamesIn(text, 'lifecycle')) names.add(name);
+      for (const name of subpathNamesIn(text, 'lifecycle')) imported.add(name);
     }
-    return names;
-  };
-
-  it('carries every name a file the host reaches by relative path exports', () => {
-    const files = reachedFiles();
-    // The vacuous-pass guard, and it is the one that matters here: this half of
-    // the expected set is derived from that ledger, so a ledger that stopped
-    // naming lifecycle targets would compare nothing to nothing.
-    expect(files.length, 'no ledgered reach names a platform lifecycle file').toBeGreaterThan(5);
-
-    const byFile: Record<string, string[]> = {};
-    for (const symbol of parsed().published) (byFile[symbol.target] ??= []).push(symbol.name);
-    for (const names of Object.values(byFile)) names.sort();
-
-    for (const file of files) {
-      const key = `lifecycle/${file.slice(PLATFORM_LIFECYCLE.length)}`;
-      const exported = exportsOf(key);
-      expect(exported.length, `${key} exports nothing — it cannot be a reach`).toBeGreaterThan(0);
-      // A name a reached file exports and the barrel drops is a shim that
-      // cannot retire, and it would fail in the worst way available: the reach
-      // stays, its ledger entry stays, and the phase that was to drain it
-      // reports success over the names it happened to move.
-      expect(byFile[key], key).toEqual(exported);
-    }
-  });
-
-  /**
-   * The other direction, and Phase 3 is what split it out of the comparison
-   * above.
-   *
-   * Until the manifest registry moved, every file on this barrel was one the
-   * application reached by relative path, so *"a name out of a file no ledgered
-   * reach names"* and *"a name nobody asked for"* were the same finding and one
-   * `toEqual` asked both. Phase 3 gives the subpath its first consumers —
-   * `registered-manifests.ts` and `packages/module-id-claims.ts` name it by the
-   * bare specifier — and their targets are correctly named by no reach at all,
-   * because a binding over a bare specifier is not a reach to be drained.
-   *
-   * So the rule that survives is R5.4's own words rather than its proxy: the
-   * subpath is not a place to park surface against a future need. A name here
-   * out of an unreached file is one a first-party source outside the platform
-   * actually imports, or it is a finding. That is `./composition`'s ratchet, and
-   * it stops being vacuous here in the same merge request that gives this
-   * subpath a consumer.
-   */
-  it('parks nothing: a name out of an unreached file is one a consumer imports', () => {
-    const reached = new Set(
-      reachedFiles().map((file) => `lifecycle/${file.slice(PLATFORM_LIFECYCLE.length)}`),
-    );
-    const imported = consumed();
+    // The vacuous-pass guard, and it is the one that matters now that the
+    // population is the consumers: a walk that stopped seeing the specifier
+    // would report every name on the barrel as parked, which is a finding about
+    // the walk wearing the costume of a finding about the barrel.
     expect(
       [...imported],
       'no first-party source imports the subpath — this ratchet would be vacuous',
     ).not.toEqual([]);
 
-    const parked = parsed()
-      .published.filter((symbol) => !reached.has(symbol.target))
-      .filter((symbol) => !imported.has(symbol.name))
-      .map((symbol) => `${symbol.target}: ${symbol.name}`)
-      .sort();
-
-    expect(parked).toEqual([]);
+    expect([...new Set(barrelExports(barrel))].sort()).toEqual([...imported].sort());
   });
 
   it('is read in full, so a name is never dropped by the parse', () => {

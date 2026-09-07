@@ -4,7 +4,7 @@ import {
   overlayModuleEntriesUnder,
   overlayModuleManifestsUnder,
 } from '../../../src/overlay/overlay-runtime.js';
-import { discoverManifests } from '../../../src/lifecycle/services/manifest-loader.js';
+import { discoverManifests } from '@endora-commerce/platform/lifecycle';
 import { FIXTURES } from '../../overlay/_fixtures.js';
 
 /**

@@ -729,6 +729,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 1955 -> 2014.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 1955 -> 1946.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 2014,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
@@ -837,6 +843,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 2079 -> 2141.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 2141,
     sites: null,
     sources: ['manifest-index'],
@@ -1126,7 +1138,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // of this population by declaration, so `scripts/lib/tailwind-sources.ts` is
     // not counted, and the 60 generated stylesheets are `.css` — this walk reads
     // source, and a `@source` directive is not a diacritic fold.
-
     // **Feature 115 Phase 6: 5314 -> 5311, re-measured on the union.** 3 fewer files under
     // `backend/src`: the phase re-points the application's own reaches onto
     // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
@@ -1136,6 +1147,32 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 5311 -> 5449.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
+    // **`specs/110-instance-repository/` Phase 3 (T126/T127): 5314 -> 5315 (+1).**
+    // One file, `admin/test/unit/shell-theme-override.test.ts`. The branch adds
+    // two more, and neither is in this population: `packages/admin-shell/theme.css`
+    // is `.css`, and `admin/test/helpers/compile-instance-stylesheet.mjs` is
+    // `.mjs`, while `SOURCE_EXTENSIONS` here is `.ts` and `.tsx` alone.
+    // **+1 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 5312 -> 5303.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T132/T133: 5312 -> 5316 (+4).** `endora new
+    // instance`'s four source files under `packages/cli/src/new-instance/`. The two
+    // test files this branch adds are outside this walk — `packages/cli/test` joined
+    // `EXCLUDED_SUBTREES` in feature 101 Phase 2 — which is why the delta is four and
+    // not six, and it is the discrimination worth keeping: the other three whole-tree
+    // entries below move by six or seven in the same merge request.
+    // **+4, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
     files: 5449,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
@@ -1492,10 +1529,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 2079 -> 2141.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    files: 2141,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 251 -> 260.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2141,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -1584,6 +1627,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 2079 -> 2141.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 2141,
     sites: null,
     sources: ['manifest-index'],
@@ -1673,6 +1722,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 2079 -> 2141.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 2141,
     // Re-recorded twice, both downward and both deliberately.
     //
@@ -1757,6 +1812,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 690 -> 691.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 690 -> 681.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 691,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
@@ -2065,6 +2126,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 2079 -> 2141.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 2141,
     sites: 30,
     sources: ['manifest-index'],
@@ -3423,7 +3490,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1: the branch's changeset.** This walk's population is the whole
     // repository, so `.changeset/package-owned-tailwind-sources.md` is a file it
     // opens; 64 files plus one changeset is 65.
-
     // **Feature 115 Phase 6: 7878 -> 7876, re-measured on the union.** 2 fewer files under
     // `backend/src`: the phase re-points the application's own reaches onto
     // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
@@ -3435,6 +3501,35 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. Of that, **+1 is
     // this branch's test move**: `backend/scripts/ledgers/test-ownership/pim_akeneo.ts`,
     // the shard it opens for the two files that stay.
+    //
+    // **`specs/110-instance-repository/` Phase 3 (T126/T127): 7878 -> 7882 (+4).**
+    // All four files the branch adds, because this walk's population is the whole
+    // repository and its filter is a deny-list: `packages/admin-shell/theme.css`,
+    // `admin/test/unit/shell-theme-override.test.ts`,
+    // `admin/test/helpers/compile-instance-stylesheet.mjs` and the changeset.
+    // Nothing is deleted — T126 moves 207 lines *within* `admin/src/index.css`
+    // into the new file and T127 rewrites a line of `storefront/app/globals.css`,
+    // so both files stay. Measured with `backend/.env` absent, no untracked
+    // `docs/docs/modules/` copies and no `docs/.module-docs-copies.json`.
+    // **+4 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 7880 -> 7871.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files. This walk is the whole repository, so it
+    // also gains the phase's own changeset file: -9 +1.
+    // **`specs/110-instance-repository/` T132/T133: 7880 -> 7887 (+7).** The whole-repository
+    // byte scan, so it counts everything the merge request adds: four sources, two test
+    // files and the changeset. Nothing was excluded and nothing was renamed.
+    // **+7, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
     files: 8042,
     sites: null,
     sources: [],
@@ -3710,10 +3805,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 2079 -> 2141.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    files: 2141,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 196 -> 213.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2141,
     sites: 213,
     sources: ['manifest-index'],
   },
@@ -3866,6 +3967,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. Of that, **+1 is
     // this branch's test move**: `backend/scripts/ledgers/test-ownership/pim_akeneo.ts`,
     // the shard it opens for the two files that stay.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2396 -> 2387 and sites 1823 -> 1814.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 2465,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
@@ -4383,6 +4490,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 2079 -> 2141.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 2141,
     sites: null,
     sources: ['manifest-index'],
@@ -4552,6 +4665,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 2079 -> 2141.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 2141,
     sites: null,
     sources: ['manifest-index'],
@@ -4677,6 +4796,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. Of that, **+1 is
     // this branch's test move**: `backend/scripts/ledgers/test-ownership/pim_akeneo.ts`,
     // the shard it opens for the two files that stay.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 4338 -> 4329.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
     files: 4473,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
@@ -5122,7 +5247,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-nul-bytes` — a changeset is a file this walk opens. `check:language`
     // does **not** move with it: its subject is comments and `/docs/` pages, and a
     // changeset is neither.
-
     // **Feature 115 Phase 6: 7938 -> 7936, re-measured on the union.** 2 fewer files under
     // `backend/src`: the phase re-points the application's own reaches onto
     // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
@@ -5134,6 +5258,32 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. Of that, **+1 is
     // this branch's test move**: `backend/scripts/ledgers/test-ownership/pim_akeneo.ts`,
     // the shard it opens for the two files that stay.
+    //
+    // **`specs/110-instance-repository/` Phase 3 (T126/T127): 7938 -> 7942 (+4).**
+    // The same four files `check-nul-bytes` gains, for the same reason: both are
+    // whole-tree walks with a deny-list filter, so they move together —
+    // `packages/admin-shell/theme.css`,
+    // `admin/test/unit/shell-theme-override.test.ts`,
+    // `admin/test/helpers/compile-instance-stylesheet.mjs` and the changeset.
+    // **+4 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 7940 -> 7931.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files. This walk is the whole repository, so it
+    // also gains the phase's own changeset file: -9 +1.
+    // **`specs/110-instance-repository/` T132/T133: 7940 -> 7947 (+7).** As the byte scan
+    // above, and for the same population: `endora new instance`'s four sources, its two
+    // test files and the changeset.
+    // **+7, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
     files: 8102,
     sites: null,
     sources: ['manifest-index'],
@@ -5327,7 +5477,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `tailwind.css`, the generated enumeration, the fixture's and two TypeScript
     // files. A `@source` directive carries no comment, so none of them can carry a
     // finding; they are population, which is exactly what this number records.
-
     // **Feature 115 Phase 6: 5924 -> 5921, re-measured on the union.** 3 fewer files under
     // `backend/src`: the phase re-points the application's own reaches onto
     // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
@@ -5338,6 +5487,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. Of that, **+1 is
     // this branch's test move**: `backend/scripts/ledgers/test-ownership/pim_akeneo.ts`,
     // the shard it opens for the two files that stay.
+    // **`specs/110-instance-repository/` Phase 3 (T126/T127): 5924 -> 5927 (+3).**
+    // Three of the four files the branch adds. This scan's extension set carries
+    // `*.css` and `*.mjs` as well as `*.ts`, so `packages/admin-shell/theme.css`,
+    // `admin/test/helpers/compile-instance-stylesheet.mjs` and
+    // `admin/test/unit/shell-theme-override.test.ts` all count; the changeset is
+    // the one that does not, being `.md` and outside `docs/docs/`. That is the
+    // same three-against-four split this entry recorded for T120.
+    // **+3 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 5924 -> 5915.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T132/T133: 5924 -> 5930 (+6).** The comment scan
+    // over the tree's own sources: four under `packages/cli/src/new-instance/` and the two
+    // test files. The changeset is markdown outside `docs/docs/**` and is not in this walk.
+    // **+6, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
     files: 6064,
     sites: null,
     sources: ['manifest-index'],

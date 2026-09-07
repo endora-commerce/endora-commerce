@@ -93,6 +93,23 @@ export const TAILWIND_REGISTRY_ARTEFACT = 'tailwind.generated.css';
 export const TAILWIND_SOURCE_FILE = 'tailwind.css';
 
 /**
+ * The subpath the admin shell publishes its design tokens and base rules at
+ * (R3.1).
+ *
+ * A *different kind of file* from the two around it, which is why it is a
+ * different subpath and not a second entry in either (R3.3). `./tailwind.css` is
+ * a source declaration whose order is irrelevant; `./styles.css` is finished
+ * bytes the host does not compile. This one is neither: the host compiles it,
+ * against the host's own `@theme`, and the order of its `@theme` and `:root`
+ * declarations is exactly what decides whether an instance's redeclaration wins.
+ *
+ * Unlike its neighbour it is **hand-written**, because there is nothing to
+ * derive a palette from — R1.4's argument for generating `./tailwind.css` is
+ * that a mistyped `@source` is silent, and a mistyped colour is not.
+ */
+export const THEME_STYLESHEET_SUBPATH = './theme.css';
+
+/**
  * The subpath a package publishes a **finished** stylesheet at (R4.2).
  *
  * A package declaring it is excluded from R1: the host imports its bytes and

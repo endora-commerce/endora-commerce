@@ -16,10 +16,7 @@ import {
   ModulePresenceNotLoadedError,
   registryCache,
 } from '../../../src/kernel/lifecycle/registry-cache.js';
-import {
-  loadModulePresence,
-  type ShippedModuleEntry,
-} from '../../../src/lifecycle/services/presence-load.js';
+import { loadModulePresence, type ShippedModuleEntry } from '@endora-commerce/platform/lifecycle';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
