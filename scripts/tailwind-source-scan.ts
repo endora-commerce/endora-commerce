@@ -47,11 +47,10 @@
  * packages are coming, and `packages/modules/*` written down here would be a
  * derived fact written down (D-100).
  */
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
-  modulePackages,
   nodeWorkspaceFs,
   workspaceMembers,
   type WorkspaceFs,
@@ -59,7 +58,9 @@ import {
 import {
   nodeFileLister,
   tailwindScannablePackages,
+  TAILWIND_SOURCE_SUBPATH,
   type FileLister,
+  type TailwindScannablePackage,
 } from '../backend/scripts/lib/tailwind-sources.js';
 
 /** Extensions a module package's UI can be written in, both of which must be scanned. */
@@ -117,19 +118,6 @@ function utilityFor(seed: number, index: number): { utility: string; needle: str
   return { utility: `mt-[${pixels}px]`, needle: `${pixels}px` };
 }
 
-/**
- * Where a probe goes inside a package: its `src` directory when it has one.
- *
- * `src` is where this repository's module packages keep their sources and where
- * a screen would land, so a `@source` narrowed to it later still passes. A
- * package with no `src` is probed at its root rather than skipped — skipping
- * would be a package silently outside the population.
- */
-function probeDirectoryOf(packageDir: string): string {
-  const source = join(packageDir, 'src');
-  return existsSync(source) ? source : packageDir;
-}
-
 /** One directory a probe is planted in, and how. */
 export interface TailwindProbeDirectory {
   /** Absolute. */
@@ -155,24 +143,137 @@ export interface TailwindProbeTarget {
 }
 
 /**
- * The storefront's population: every module package, probed at its source root
- * (feature 080, T044).
+ * The storefront's population: the packages **its own stylesheet imports**,
+ * probed at every directory each of them declares (R5.2; feature 110, T127).
  *
- * Unchanged, and it stays until `storefront/app/globals.css` takes its own
- * static import (`admin-stylesheet-composition.md` R5.2, T127). Its stylesheet
- * still carries the `packages/**` glob, so the question it asks is still
- * *"does the glob reach every module package"*.
+ * ## Why the population changed
+ *
+ * It was *"every module package, probed at its source root"*, which asserted a
+ * property of the `@source '../../packages/**'` glob the storefront no longer
+ * carries — and that glob was the defect: under D-195 a client's storefront is
+ * scaffolded into their **own** repository, where there is no `packages/` above
+ * `app/globals.css`, and Tailwind says nothing about a source matching nothing.
+ * The question is now the one R5.2 makes true or false: *does each package this
+ * stylesheet names get scanned, at every directory it asks for.*
+ *
+ * A storefront composes **no module package at all**, so there is no generated
+ * enumeration for the guard to read — which means this function is the only
+ * place the two authors can be reconciled, and it reconciles them both ways:
+ *
+ *  - **the stylesheet** — every `@import` naming a package's `./tailwind.css`;
+ *  - **the manifest** — every workspace dependency this member declares whose
+ *    package publishes that subpath.
+ *
+ * A package in the second and not the first is a dependency that ships UI and
+ * is scanned by nobody: the silent failure, one dependency at a time, and the
+ * exact shape `@endora-commerce/cms-components` must *not* be reported as,
+ * which it is not because it declares `./styles.css` instead (R4.2/R4.4). A
+ * package in the first and not the second is an import that resolves to nothing
+ * in a scaffolded tree. Both throw, because a guard that quietly probed the
+ * intersection would be green over either.
+ *
+ * @throws NoModulePackagesError when the two disagree, when the stylesheet is
+ * not there, or when it names none — that last one being the state a deleted
+ * import leaves behind, which must be loud rather than an empty population.
  */
-export function modulePackageProbeTargets(
+export function importedSourceProbeTargets(
   repoRoot: string,
+  memberDir: string,
+  stylesheet: string,
   fs: WorkspaceFs = nodeWorkspaceFs(),
+  listFiles: FileLister = nodeFileLister(),
 ): readonly TailwindProbeTarget[] {
-  return modulePackages(workspaceMembers(repoRoot, fs)).map((modulePackage) => ({
-    subject: modulePackage.name,
-    directories: [
-      { path: probeDirectoryOf(modulePackage.dir), extensions: PROBE_EXTENSIONS, create: true },
-    ],
-  }));
+  const declared = tailwindScannablePackages(repoRoot, fs, listFiles);
+  const imported = importedTailwindPackages(stylesheet);
+  const expected = tailwindDependenciesOf(repoRoot, memberDir, declared, fs);
+
+  const missing = expected.filter((name) => !imported.includes(name));
+  if (missing.length > 0) {
+    throw new NoModulePackagesError(
+      `${stylesheet} imports no '${TAILWIND_SOURCE_SUBPATH}' for ${missing.join(', ')}, which ` +
+        `this member depends on and which publish that subpath. Every utility those packages ` +
+        `contribute is dropped from the built stylesheet with no error anywhere, and their ` +
+        `components render unstyled.`,
+    );
+  }
+  const unexpected = imported.filter((name) => !expected.includes(name));
+  if (unexpected.length > 0) {
+    throw new NoModulePackagesError(
+      `${stylesheet} imports '${TAILWIND_SOURCE_SUBPATH}' from ${unexpected.join(', ')}, which ` +
+        `this member does not depend on. In a scaffolded tree that specifier resolves to ` +
+        `nothing and the build fails at the import.`,
+    );
+  }
+  if (imported.length === 0) {
+    throw new NoModulePackagesError(
+      `${stylesheet} imports no package's '${TAILWIND_SOURCE_SUBPATH}' at all, so this guard ` +
+        'would assert nothing. If that is deliberate, this member has no scannable Endora ' +
+        'dependency and the guard has no subject.',
+    );
+  }
+
+  const byName = new Map(declared.map((pkg) => [pkg.name, pkg] as const));
+  return imported.map((name) => probeTargetOf(byName.get(name)!));
+}
+
+/**
+ * Every package a stylesheet imports a `./tailwind.css` from, in source order.
+ *
+ * Read as literal `@import` specifiers, so a package named in the prose above
+ * one — and this file's own comment names two — is out of the population by
+ * construction rather than by an exclusion somebody has to maintain.
+ */
+export function importedTailwindPackages(stylesheet: string): readonly string[] {
+  const text = readFileSync(stylesheet, 'utf8');
+  const suffix = TAILWIND_SOURCE_SUBPATH.replace(/^\.\//, '/');
+  const names: string[] = [];
+  for (const match of text.matchAll(/@import\s+(?:url\()?['"]([^'"]+)['"]/g)) {
+    const specifier = match[1]!;
+    if (!specifier.endsWith(suffix) || specifier.startsWith('.')) continue;
+    names.push(specifier.slice(0, -suffix.length));
+  }
+  return names;
+}
+
+/**
+ * Every dependency this member declares whose package publishes `./tailwind.css`.
+ *
+ * The **manifest's** answer to the same question the stylesheet answers, which
+ * is what makes the reconciliation two authors rather than one restated. Both
+ * dependency blocks, because which one a UI package sits in is the member's
+ * choice and neither placement changes whether its classes are compiled.
+ */
+export function tailwindDependenciesOf(
+  repoRoot: string,
+  memberDir: string,
+  declared: readonly TailwindScannablePackage[],
+  fs: WorkspaceFs = nodeWorkspaceFs(),
+): readonly string[] {
+  const member = workspaceMembers(repoRoot, fs).find((entry) => entry.dir === memberDir);
+  if (member === undefined) {
+    throw new NoModulePackagesError(
+      `${memberDir} is not a workspace member of ${repoRoot}, so its dependencies cannot be ` +
+        'read and the reconciliation below would compare the stylesheet against nothing.',
+    );
+  }
+  const names = new Set<string>();
+  for (const block of ['dependencies', 'devDependencies']) {
+    const entry = member.manifest[block];
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue;
+    for (const name of Object.keys(entry as Record<string, unknown>)) names.add(name);
+  }
+  return declared.filter((pkg) => names.has(pkg.name)).map((pkg) => pkg.name);
+}
+
+/** One scannable package as a probe target: both spellings of every layer. */
+function probeTargetOf(pkg: TailwindScannablePackage): TailwindProbeTarget {
+  return {
+    subject: pkg.name,
+    directories: pkg.layers.flatMap((layer) => [
+      { path: join(pkg.dir, layer.emitted), extensions: EMITTED_PROBE_EXTENSIONS, create: false },
+      { path: join(pkg.dir, layer.source), extensions: PROBE_EXTENSIONS, create: true },
+    ]),
+  };
 }
 
 /**
@@ -213,21 +314,17 @@ export function declaredSourceProbeTargets(
   fs: WorkspaceFs = nodeWorkspaceFs(),
   listFiles: FileLister = nodeFileLister(),
 ): readonly TailwindProbeTarget[] {
-  return tailwindScannablePackages(repoRoot, fs, listFiles).map((pkg) => ({
-    subject: pkg.name,
-    directories: pkg.layers.flatMap((layer) => [
-      {
-        path: join(pkg.dir, layer.emitted),
-        extensions: EMITTED_PROBE_EXTENSIONS,
-        create: false,
-      },
-      { path: join(pkg.dir, layer.source), extensions: PROBE_EXTENSIONS, create: true },
-    ]),
-  }));
+  return tailwindScannablePackages(repoRoot, fs, listFiles).map(probeTargetOf);
 }
 
 /**
  * Every probe this run will write, for a given seed.
+ *
+ * `targets` is **required and has no default**, which it did have until T127.
+ * The default was the storefront's population, so the storefront's guard got its
+ * question by inheritance and went on asserting a property of a `@source` glob
+ * its stylesheet no longer carried. A population a caller does not state is a
+ * population nobody re-derives when the artefact under it moves.
  *
  * @throws NoModulePackagesError when the population is empty, or when no
  * emitted directory was found in it — the guard would otherwise assert over an
@@ -236,8 +333,7 @@ export function declaredSourceProbeTargets(
 export function planTailwindSourceProbes(
   repoRoot: string,
   seed: number = process.pid,
-  fs: WorkspaceFs = nodeWorkspaceFs(),
-  targets: readonly TailwindProbeTarget[] = modulePackageProbeTargets(repoRoot, fs),
+  targets: readonly TailwindProbeTarget[],
 ): readonly TailwindSourceProbe[] {
   if (targets.length === 0) {
     throw new NoModulePackagesError(

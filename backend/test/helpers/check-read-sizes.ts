@@ -1110,14 +1110,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // of this population by declaration, so `scripts/lib/tailwind-sources.ts` is
     // not counted, and the 60 generated stylesheets are `.css` — this walk reads
     // source, and a `@source` directive is not a diacritic fold.
-
     // **Feature 115 Phase 6: 5314 -> 5311, re-measured on the union.** 3 fewer files under
     // `backend/src`: the phase re-points the application's own reaches onto
     // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 5311,
+    // **`specs/110-instance-repository/` Phase 3 (T126/T127): 5314 -> 5315 (+1).**
+    // One file, `admin/test/unit/shell-theme-override.test.ts`. The branch adds
+    // two more, and neither is in this population: `packages/admin-shell/theme.css`
+    // is `.css`, and `admin/test/helpers/compile-instance-stylesheet.mjs` is
+    // `.mjs`, while `SOURCE_EXTENSIONS` here is `.ts` and `.tsx` alone.
+
+    // **+1 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    files: 5312,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3310,7 +3320,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1: the branch's changeset.** This walk's population is the whole
     // repository, so `.changeset/package-owned-tailwind-sources.md` is a file it
     // opens; 64 files plus one changeset is 65.
-
     // **Feature 115 Phase 6: 7878 -> 7876, re-measured on the union.** 2 fewer files under
     // `backend/src`: the phase re-points the application's own reaches onto
     // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
@@ -3318,7 +3327,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`. The walk is repository-wide, so the changeset
     // this phase adds offsets one of the three.
-    files: 7876,
+    //
+    // **`specs/110-instance-repository/` Phase 3 (T126/T127): 7878 -> 7882 (+4).**
+    // All four files the branch adds, because this walk's population is the whole
+    // repository and its filter is a deny-list: `packages/admin-shell/theme.css`,
+    // `admin/test/unit/shell-theme-override.test.ts`,
+    // `admin/test/helpers/compile-instance-stylesheet.mjs` and the changeset.
+    // Nothing is deleted — T126 moves 207 lines *within* `admin/src/index.css`
+    // into the new file and T127 rewrites a line of `storefront/app/globals.css`,
+    // so both files stay. Measured with `backend/.env` absent, no untracked
+    // `docs/docs/modules/` copies and no `docs/.module-docs-copies.json`.
+
+    // **+4 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    files: 7880,
     sites: null,
     sources: [],
   },
@@ -4930,7 +4955,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-nul-bytes` — a changeset is a file this walk opens. `check:language`
     // does **not** move with it: its subject is comments and `/docs/` pages, and a
     // changeset is neither.
-
     // **Feature 115 Phase 6: 7938 -> 7936, re-measured on the union.** 2 fewer files under
     // `backend/src`: the phase re-points the application's own reaches onto
     // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
@@ -4938,7 +4962,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`. The walk is repository-wide, so the changeset
     // this phase adds offsets one of the three.
-    files: 7936,
+    //
+    // **`specs/110-instance-repository/` Phase 3 (T126/T127): 7938 -> 7942 (+4).**
+    // The same four files `check-nul-bytes` gains, for the same reason: both are
+    // whole-tree walks with a deny-list filter, so they move together —
+    // `packages/admin-shell/theme.css`,
+    // `admin/test/unit/shell-theme-override.test.ts`,
+    // `admin/test/helpers/compile-instance-stylesheet.mjs` and the changeset.
+
+    // **+4 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    files: 7940,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5131,14 +5168,26 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `tailwind.css`, the generated enumeration, the fixture's and two TypeScript
     // files. A `@source` directive carries no comment, so none of them can carry a
     // finding; they are population, which is exactly what this number records.
-
     // **Feature 115 Phase 6: 5924 -> 5921, re-measured on the union.** 3 fewer files under
     // `backend/src`: the phase re-points the application's own reaches onto
     // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 5921,
+    // **`specs/110-instance-repository/` Phase 3 (T126/T127): 5924 -> 5927 (+3).**
+    // Three of the four files the branch adds. This scan's extension set carries
+    // `*.css` and `*.mjs` as well as `*.ts`, so `packages/admin-shell/theme.css`,
+    // `admin/test/helpers/compile-instance-stylesheet.mjs` and
+    // `admin/test/unit/shell-theme-override.test.ts` all count; the changeset is
+    // the one that does not, being `.md` and outside `docs/docs/`. That is the
+    // same three-against-four split this entry recorded for T120.
+
+    // **+3 for this branch, measured on the union after rebasing onto `8bf0da614`.** Four files
+    // arrive: the shell's `theme.css`, its changeset, and the admin's override test with its
+    // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
+    // deleted three re-export shims, so the base moved under it — this value is a fresh census
+    // of the combined tree rather than the sum of the two.
+    files: 5924,
     sites: null,
     sources: ['manifest-index'],
   },

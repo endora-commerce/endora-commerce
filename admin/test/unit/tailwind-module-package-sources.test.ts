@@ -67,7 +67,6 @@ describe('admin Tailwind sources reach every package it composes', () => {
     const probes = planTailwindSourceProbes(
       repoRoot,
       process.pid,
-      undefined,
       declaredSourceProbeTargets(repoRoot),
     );
     expect(probes.filter((probe) => probe.expected).length).toBeGreaterThan(0);
