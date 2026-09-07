@@ -82,7 +82,26 @@
  * park surface against a future need. The second question is `./composition`'s
  * own ratchet, and it became non-vacuous in the same merge request that gave
  * this subpath its first consumer.
+ *
+ * Phase 5 adds the five `module:*` command bodies to that second population for
+ * the same reason: their entry points stayed at their application paths and name
+ * them through this specifier, so they are reached by nothing relative and are
+ * held by the *"a name here is one a consumer imports"* direction alone.
  */
+
+// --- the five `module:*` command bodies, and the seam they take -----------
+// D115-1: the argv grammar, the exit-code table, the orchestrator wiring and
+// the operator's output moved here in Phase 5; five ~20-line entry points stay
+// at their application paths and build the runtime. Their files are named by no
+// ledgered relative reach — correctly, because the host names them through this
+// specifier — so they are held by the barrel's *second* direction: a name here
+// is one a first-party source outside the platform actually imports.
+export { type OperatorRuntime } from './commands/operator-runtime.js';
+export { runInstallCommand } from './commands/install.js';
+export { runUninstallCommand } from './commands/uninstall.js';
+export { runEnableCommand } from './commands/enable.js';
+export { runDisableCommand } from './commands/disable.js';
+export { runStatusCommand } from './commands/status.js';
 
 // --- the module itself, as the generated artefacts name it ----------------
 export { registerModule, type LifecycleCradle } from './backend.js';
