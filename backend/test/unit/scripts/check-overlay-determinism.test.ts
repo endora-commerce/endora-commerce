@@ -10,6 +10,7 @@ import {
   deriveWorkspacePackages,
   examineArtifact,
   permittedRoots,
+  unreadableCssEntryLines,
   vacuousContainmentPopulation,
   type PermittedRoots,
 } from '../../../scripts/check-overlay-determinism.js';
@@ -174,7 +175,11 @@ describe('coveredArtifactPaths', () => {
    * artefact several times over.
    */
   const SKIPPED = new Set(['node_modules', 'dist', 'build', '.docusaurus']);
-  const GENERATED = ['.generated.ts', '.generated.js', '.generated.md'];
+  // `.generated.css` is the eighth artefact's (feature 110, T124). The suffix
+  // list is what makes this ratchet two-way, so it grows in the merge request
+  // that adds a rendering of a new kind — this one went red on arrival, which
+  // is the ratchet doing its job.
+  const GENERATED = ['.generated.ts', '.generated.js', '.generated.md', '.generated.css'];
 
   function generatedFilesUnder(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
@@ -389,6 +394,52 @@ describe('containmentSites', () => {
     expect(
       sites.every((site) => site.verdict === 'core' || site.verdict === 'workspace-package'),
     ).toBe(true);
+  });
+});
+
+describe("containmentSites over a stylesheet's own @import (feature 110, T124)", () => {
+  /** The eighth artefact's grammar: CSS's at-rule, double quotes, no binding. */
+  const stylesheet = (...specifiers: readonly string[]): string =>
+    `${specifiers.map((s) => `@import "${s}";`).join('\n')}\n`;
+
+  const cssVerdicts = (content: string): string[] =>
+    containmentSites(REGISTRY_PATH, content, ROOTS, { kind: 'css-specifier' }).map(
+      (site) => site.verdict,
+    );
+
+  it('accepts a bare specifier naming a workspace member', () => {
+    // The same question and the same classifier as the JavaScript artefacts':
+    // *where does the file this entry names really live*. Answering it twice
+    // would be two answers waiting to disagree about what `foreign` means.
+    expect(cssVerdicts(stylesheet('@endora-commerce/contracts/tailwind.css'))).toEqual([
+      'workspace-package',
+    ]);
+  });
+
+  it('refuses a bare specifier naming an installed package', () => {
+    // R3.3 of `contracts/instance-repository.md` applies here too: an
+    // installed package is discovered at runtime, so baking one into a
+    // committed artefact registers it twice.
+    expect(cssVerdicts(stylesheet('zod/tailwind.css'))).toEqual(['foreign']);
+  });
+
+  it('reads no entry out of a JavaScript artefact, and none out of prose', () => {
+    // The two grammars are kept apart deliberately: `@import` is CSS's and
+    // bare `import` is JavaScript's, and a recogniser that took both would
+    // report a JavaScript artefact's entries under a CSS artefact's rules.
+    expect(cssVerdicts(artefactImporting('@endora-commerce/contracts/src/index.js'))).toEqual([]);
+    expect(cssVerdicts('/* the line below is prose about @import */\n')).toEqual([]);
+  });
+
+  it('reports an @import line it could not read a specifier out of', () => {
+    // The unreadable-line half, which is what stops a shape a future emitter
+    // grows from being silently absent from the population.
+    expect(unreadableCssEntryLines('@import url(../elsewhere.css);\n')).toEqual([
+      '@import url(../elsewhere.css);',
+    ]);
+    expect(unreadableCssEntryLines(stylesheet('@endora-commerce/contracts/tailwind.css'))).toEqual(
+      [],
+    );
   });
 });
 

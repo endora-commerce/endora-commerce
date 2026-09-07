@@ -1,0 +1,8 @@
+/* @fixture/mod-instance-surfaces — the shape `manifests:generate` renders.
+ *
+ * A published package, so it ships its build output and no sources: one
+ * `@source` naming the directory behind its own `./admin` subpath. It is `lib`
+ * rather than `dist` on purpose — nothing in the mechanism spells a build
+ * directory (`admin-stylesheet-composition.md` §4(b)).
+ */
+@source "./lib/admin";
