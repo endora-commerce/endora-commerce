@@ -19,12 +19,12 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*", "test/**/*"],
-  // A test must not be compiled into `dist`: it imports `vitest`, a
-  // devDependency, which is an unresolvable specifier in every consumer's
-  // install. `tsconfig.build.json` extends this file and narrows `include` to
-  // `src`, so the emit never sees `test/` at all; the pattern is kept because
-  // the emit configuration is judged on it
-  // (`backend/test/unit/packages/package-dist-build.test.ts`).
-  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
+  // `test/` is named here and its `*.test.ts` files are **not** excluded: an
+  // exclusion written in the type-check half is a test no `tsc` invocation
+  // reads. It stood here until 2026-09-07, so this package's twelve test files
+  // were in no type-check program at all while `include` said otherwise — the
+  // same end state `packages/contracts` reached by narrowing `include` instead.
+  // The exclusion the emit needs lives in `tsconfig.build.json`, which is where
+  // `backend/test/unit/packages/package-dist-build.test.ts` reads it.
+  "include": ["src/**/*", "test/**/*"]
 }

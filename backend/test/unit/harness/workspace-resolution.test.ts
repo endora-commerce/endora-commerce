@@ -14,21 +14,28 @@
  * resolve `@endora-commerce/*` inside the checkout it is run from, and one asserts that the
  * checkout running the suite is itself correctly wired.
  *
- * The final `describe` asks a different question, and it is the one nothing
- * asked until 2026-08-28: **which runs consult the guard at all?** The guard's
- * own population is complete — it classifies every declared consumer→package
- * link in the checkout, 234 of them today, whichever workspace invoked it — but
- * it is evaluated only when `vitest.config.base.ts` is imported, so a workspace
- * that runs vitest without a configuration merging the base never asks. Five
- * packages sat there for as long as they had existed, green and unexamined,
- * while AGENTS.md correctly said the guard "covers `backend`, `admin` and
- * `storefront` in one place". That sentence was true; being true is not the
- * same as being complete, and a list is what let the difference go unnoticed.
+ * The last two `describe`s ask different questions of the same population, and
+ * both are questions nothing asked until the day they were written.
+ *
+ * *Which runs consult the guard at all?* (2026-08-28.) The guard's own
+ * population is complete — it classifies every declared consumer→package link
+ * in the checkout, whichever workspace invoked it — but it is evaluated only
+ * when `vitest.config.base.ts` is imported, so a workspace that runs vitest
+ * without a configuration merging the base never asks. Five packages sat there
+ * for as long as they had existed, green and unexamined, while AGENTS.md
+ * correctly said the guard "covers `backend`, `admin` and `storefront` in one
+ * place". That sentence was true; being true is not the same as being complete,
+ * and a list is what let the difference go unnoticed.
+ *
+ * *Which files does `tsc` read?* (2026-09-07.) Three packages kept their test
+ * files out of every type-check program, so a branch that broke them compiled
+ * green across the whole workspace. Its own header is below.
  */
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import ts from 'typescript';
 import {
   nodeWorkspaceFs,
   workspaceMembers,
@@ -855,5 +862,409 @@ describe('which runs consult the guard', () => {
     expect(configured.length).toBeGreaterThan(0);
 
     expect(runsOutsideTheGuard(members, read)).toEqual([]);
+  });
+});
+
+/**
+ * The last `describe` asks a third question of the same population, and it is
+ * the one that let a broken branch through `pnpm -r run typecheck`: **which
+ * files does `tsc` actually read?**
+ *
+ * `packages/contracts/tsconfig.json` declared `include: ["src/**\/*"]`, so its
+ * `test/` directory was in no type-check program at all — while
+ * `tsconfig.build.json` carried a comment asserting the opposite ("test files
+ * still type-check — they are in `tsconfig.json`'s `include`"), justifying an
+ * `exclude` block that was guarding against something that could not happen.
+ * That sentence had never been true. A branch whose contract change left
+ * `test/environment-inputs.unit.test.ts` failing to compile type-checked green
+ * across the whole workspace.
+ *
+ * **The predicate here is the file, never the glob**, and that correction is
+ * the whole reason this landed as three repairs rather than one. The obvious
+ * form of the rule — *a member with a `test/` directory names it in `include`*
+ * — is satisfied by `packages/cli` and `packages/test-kit`, both of which name
+ * `test/**\/*` in `include` **and** strip every `*.test.ts` back out with an
+ * `exclude` written in the type-check half. Sixteen test files there were in no
+ * program either, by a different mechanism and with the same end state, and a
+ * rule keyed on the mechanism somebody had already seen would have reported
+ * both as compliant. Widening `packages/cli`'s program surfaced two real type
+ * errors on the day this was written, one of them the *same* `addressOf`
+ * omission the contracts branch had just repaired.
+ *
+ * It belongs in this file rather than in a `check-*` script of its own for the
+ * reason AGENTS.md gives for not deriving one population twice: this file
+ * already reconciles every workspace member against its own tsconfigs — that is
+ * what `sourcesAreItsOwn` and the `paths` case do — and a second program
+ * computing the same member list is a second answer waiting to disagree with
+ * this one. A new script would additionally owe an inventory row, an `endora
+ * check` estate verdict, a recorded read size and a moved-tree classification,
+ * for a question one existing instrument already asks.
+ */
+
+/** A workspace member's own test files, as absolute paths. */
+export type TestFileLister = (memberDir: string) => readonly string[];
+
+/**
+ * A type-check program's file list, or `null` when the configuration could not
+ * be read at all.
+ *
+ * `null` is a **finding** and never a skip (issue #113): a configuration nobody
+ * could parse is a configuration whose file list nobody has seen, and reading
+ * that as "these tests are covered" is the direction that agrees with the
+ * defect.
+ */
+export type TypeCheckProgramReader = (
+  memberDir: string,
+  config: string,
+) => readonly string[] | null;
+
+/** Directories that are not a member's own source. */
+const NOT_SOURCE = new Set(['node_modules', 'dist', '.next', 'build', 'coverage']);
+
+/** The real filesystem behind {@link TestFileLister}. An unreadable directory contributes nothing. */
+export function nodeTestFileLister(): TestFileLister {
+  const walk = (dir: string, found: string[]): string[] => {
+    let entries: readonly string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return found;
+    }
+    for (const entry of entries) {
+      if (NOT_SOURCE.has(entry)) continue;
+      const path = join(dir, entry);
+      let directory: boolean;
+      try {
+        directory = statSync(path).isDirectory();
+      } catch {
+        continue;
+      }
+      if (directory) walk(path, found);
+      else if (/\.(?:test|spec)\.tsx?$/.test(entry)) found.push(path);
+    }
+    return found;
+  };
+  return (memberDir: string): readonly string[] => walk(memberDir, []);
+}
+
+/**
+ * The real filesystem behind {@link TypeCheckProgramReader}.
+ *
+ * It asks **TypeScript's own** configuration parser, which is the point: the
+ * question is what `tsc` reads, and `include`, `exclude`, `files` and an
+ * `extends` chain compose in ways a regex over the JSON gets wrong. The
+ * measurement that produced this rule was first taken with a hand-rolled reader
+ * and reported `admin` as a gap, because its comment-stripping mangled the
+ * `"@/*"` path key.
+ */
+export function nodeTypeCheckProgramReader(): TypeCheckProgramReader {
+  return (memberDir: string, config: string): readonly string[] | null => {
+    const parsed = ts.getParsedCommandLineOfConfigFile(join(memberDir, config), {}, {
+      ...ts.sys,
+      onUnRecoverableConfigFileDiagnostic: () => {
+        /* Reported as `null` below, which is a finding. */
+      },
+    } as ts.ParseConfigFileHost);
+    return parsed === undefined ? null : parsed.fileNames;
+  };
+}
+
+/**
+ * The configurations `pnpm -r run typecheck` builds for this member.
+ *
+ * Read off the member's own `typecheck` script, because that script **is** the
+ * answer: `tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit` builds two
+ * programs and a bare `tsc --noEmit` builds the one `tsconfig.json` in the
+ * member's directory. A list written here would be a copy of a fact every
+ * manifest already states, and a member that adds a third program would leave
+ * it silently short.
+ *
+ * A member with no `typecheck` script gets an empty list, which is a finding
+ * rather than a pass: its files are in no type-check program by construction.
+ */
+export function typeCheckConfigsOf(member: WorkspaceMember): readonly string[] {
+  const scripts = (member.manifest['scripts'] ?? {}) as Readonly<Record<string, string>>;
+  const script = scripts['typecheck'];
+  if (script === undefined) return [];
+  const named = [...script.matchAll(/(?:-p|--project)\s+(\S+)/g)].map((match) => match[1]!);
+  return named.length > 0 ? named : ['tsconfig.json'];
+}
+
+/**
+ * The ledger key a member is judged under.
+ *
+ * Derived from the member's own `endora` block — the same declaration the
+ * `paths` case above reads — so the module packages are one key rather than
+ * fifty-six, and an `admin-ui` package or a fourth `type` arriving tomorrow is
+ * a finding by existing rather than by being added here.
+ */
+export function ledgerClassOf(member: WorkspaceMember): string {
+  const endora = member.manifest['endora'];
+  if (typeof endora === 'object' && endora !== null && !Array.isArray(endora)) {
+    const type = (endora as Record<string, unknown>)['type'];
+    if (typeof type === 'string') return `endora.type=${type}`;
+  }
+  return member.name;
+}
+
+/**
+ * The classes of workspace member whose test files are in no type-check program.
+ *
+ * Keyed by {@link ledgerClassOf}, which is the member's own `endora.type` where
+ * it declares one and its name where it does not — so the module packages are
+ * one entry with one retiring condition rather than a roster that churns every
+ * time a module gains or loses a test.
+ *
+ * It is expected to empty. Never add an entry to make a run pass: every state
+ * it can record is a set of test files no `tsc` invocation reads, which is the
+ * defect this whole `describe` exists for.
+ */
+const TESTS_OUTSIDE_THE_TYPE_CHECK_PROGRAM: Readonly<Record<string, string>> = {
+  'endora.type=module':
+    'A module package keeps its unit tests co-located under `src/`, and every module ' +
+    '`tsconfig.json` excludes `src/**/*.test.ts` so that a compiled `*.test.js` cannot reach ' +
+    '`dist` and import `vitest` — an unresolvable specifier in every consumer install. The ' +
+    'exclusion is written in the **type-check** half, so those tests are read by no `tsc` ' +
+    'invocation at all. Ruling A of `specs/084-small-f4-package-layout/` lets a module ' +
+    'package own its unit tests and T045 defers the split, which is why the state exists; ' +
+    'the repair is the one `packages/contracts`, `packages/cli` and `packages/test-kit` took ' +
+    'on 2026-09-07 — move the exclusion into `tsconfig.build.json`, where only the emit reads ' +
+    'it, and let `tsconfig.ui.json` do the same. Delete this entry when it lands.',
+};
+
+/**
+ * Members whose own test files are in no program `pnpm -r run typecheck` builds.
+ *
+ * **Two-way**: an entry describing a class that no longer has a member outside
+ * the program is `stale-ledger-entry`, so the ledger cannot outlive the state
+ * it records.
+ *
+ * The seam is the **program's file list**, injected, rather than the parsed
+ * `include`: what goes wrong is concluding coverage from a glob, so a fixture
+ * handing in a glob would leave the fact the finding is about uncomputed
+ * (issue #130). Nothing here parses a tsconfig.
+ */
+export function testsOutsideTheTypeCheckProgram(
+  members: readonly WorkspaceMember[],
+  listTests: TestFileLister,
+  readProgram: TypeCheckProgramReader,
+  ledger: Readonly<Record<string, string>> = TESTS_OUTSIDE_THE_TYPE_CHECK_PROGRAM,
+): readonly string[] {
+  const findings: string[] = [];
+  const classesOutside = new Set<string>();
+
+  for (const member of members) {
+    // A file inside a nested member belongs to that member, not to this one.
+    const tests = listTests(member.dir).filter(
+      (file) =>
+        !members.some(
+          (other) => other.dir !== member.dir && other.dir.startsWith(`${member.dir}/`) &&
+            file.startsWith(`${other.dir}/`),
+        ),
+    );
+    if (tests.length === 0) continue;
+
+    const configs = typeCheckConfigsOf(member);
+    if (configs.length === 0) {
+      findings.push(`no-typecheck-script ${member.name} (${tests.length} test files)`);
+      continue;
+    }
+
+    const program = new Set<string>();
+    let unreadable = false;
+    for (const config of configs) {
+      const files = readProgram(member.dir, config);
+      if (files === null) {
+        findings.push(`unreadable-type-check-config ${member.name} ${config}`);
+        unreadable = true;
+        continue;
+      }
+      for (const file of files) program.add(file);
+    }
+    if (unreadable) continue;
+
+    const outside = tests.filter((file) => !program.has(file));
+    if (outside.length === 0) continue;
+
+    const key = ledgerClassOf(member);
+    classesOutside.add(key);
+    if (ledger[key] === undefined) {
+      findings.push(
+        `tests-outside-the-program ${member.name} (${outside.length} of ${tests.length})`,
+      );
+    }
+  }
+
+  for (const key of Object.keys(ledger)) {
+    if (!classesOutside.has(key)) findings.push(`stale-ledger-entry ${key}`);
+  }
+
+  return findings.sort();
+}
+
+describe('which test files `tsc` reads', () => {
+  /** A member with the manifest fields this predicate reads, and nothing else. */
+  const member = (
+    name: string,
+    scripts: Readonly<Record<string, string>>,
+    endora?: Readonly<Record<string, unknown>>,
+  ): WorkspaceMember => ({
+    dir: `/repo/${name}`,
+    name,
+    manifest: endora === undefined ? { name, scripts } : { name, scripts, endora },
+  });
+
+  const EMPTY_LEDGER: Readonly<Record<string, string>> = {};
+
+  it('reports a member whose test files are in none of its type-check programs', () => {
+    // `packages/contracts` before 2026-09-07: `include` named `src` alone, so the
+    // ten files under `test/` were read by nothing. The fixture enters at the
+    // program's file list — the fact the finding is about — rather than at a
+    // verdict or at a glob.
+    const findings = testsOutsideTheTypeCheckProgram(
+      [member('contracts', { typecheck: 'tsc -p tsconfig.json' })],
+      () => ['/repo/contracts/test/environment-inputs.unit.test.ts'],
+      () => ['/repo/contracts/src/environment-inputs.ts'],
+      EMPTY_LEDGER,
+    );
+
+    expect(findings).toEqual(['tests-outside-the-program contracts (1 of 1)']);
+  });
+
+  it('reports a member that names `test/` in `include` and excludes every test in it', () => {
+    // `packages/cli` and `packages/test-kit` before the same day, and the reason
+    // this rule is about files rather than about `include`: the glob predicate
+    // reads this member as compliant while sixteen test files are read by
+    // nothing. The two mechanisms differ; the end state does not.
+    const findings = testsOutsideTheTypeCheckProgram(
+      [member('cli', { typecheck: 'tsc -p tsconfig.json' })],
+      () => ['/repo/cli/test/emit.test.ts', '/repo/cli/test/check-fixture.ts'],
+      () => ['/repo/cli/src/emit.ts', '/repo/cli/test/check-fixture.ts'],
+      EMPTY_LEDGER,
+    );
+
+    expect(findings).toEqual(['tests-outside-the-program cli (1 of 2)']);
+  });
+
+  it('is silent about a member whose tests are in the program', () => {
+    const findings = testsOutsideTheTypeCheckProgram(
+      [member('backend', { typecheck: 'tsc --noEmit' })],
+      () => ['/repo/backend/test/unit/a.test.ts'],
+      (dir, config) =>
+        config === 'tsconfig.json' && dir === '/repo/backend'
+          ? ['/repo/backend/src/index.ts', '/repo/backend/test/unit/a.test.ts']
+          : null,
+      EMPTY_LEDGER,
+    );
+
+    expect(findings).toEqual([]);
+  });
+
+  it('reads every program the member’s own `typecheck` script builds', () => {
+    // A module package builds two, and a rule that looked only at
+    // `tsconfig.json` would report its admin layer's tests as unread. The
+    // fixture answers for one config and not the other, so a reader that
+    // stopped at the first would fail here.
+    const findings = testsOutsideTheTypeCheckProgram(
+      [member('mod', { typecheck: 'tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit' })],
+      () => ['/repo/mod/src/admin/Page.test.tsx'],
+      (_dir, config) =>
+        config === 'tsconfig.ui.json' ? ['/repo/mod/src/admin/Page.test.tsx'] : [],
+      EMPTY_LEDGER,
+    );
+
+    expect(findings).toEqual([]);
+  });
+
+  it('reports a member with test files and no `typecheck` script at all', () => {
+    // Its files are outside `pnpm -r run typecheck` by construction, which the
+    // program comparison cannot see: there is no program to compare against.
+    const findings = testsOutsideTheTypeCheckProgram(
+      [member('scratch', { test: 'vitest run' })],
+      () => ['/repo/scratch/test/a.test.ts'],
+      () => [],
+      EMPTY_LEDGER,
+    );
+
+    expect(findings).toEqual(['no-typecheck-script scratch (1 test files)']);
+  });
+
+  it('reads an unreadable configuration as a finding rather than as coverage', () => {
+    // Issue #113: a program nobody could parse has a file list nobody has seen.
+    // The member is reported once for the configuration and **not** a second
+    // time as uncovered, because which of its files are read is unknown.
+    const findings = testsOutsideTheTypeCheckProgram(
+      [member('broken', { typecheck: 'tsc -p tsconfig.json' })],
+      () => ['/repo/broken/test/a.test.ts'],
+      () => null,
+      EMPTY_LEDGER,
+    );
+
+    expect(findings).toEqual(['unreadable-type-check-config broken tsconfig.json']);
+  });
+
+  it('credits a nested member’s files to that member and not to its parent', () => {
+    // No member nests inside another today. The rule is here because the
+    // alternative — a prefix match — files a package's debt under whichever
+    // ancestor happens to be a member, and an owner that is wrong is worse than
+    // an owner that is missing.
+    const findings = testsOutsideTheTypeCheckProgram(
+      [
+        member('outer', { typecheck: 'tsc -p tsconfig.json' }),
+        { dir: '/repo/outer/inner', name: 'inner', manifest: { name: 'inner' } },
+      ],
+      (dir) =>
+        dir === '/repo/outer'
+          ? ['/repo/outer/test/a.test.ts', '/repo/outer/inner/test/b.test.ts']
+          : ['/repo/outer/inner/test/b.test.ts'],
+      () => ['/repo/outer/test/a.test.ts'],
+      EMPTY_LEDGER,
+    );
+
+    // `outer` is clean — `b.test.ts` is `inner`'s — and `inner` is reported for
+    // having no `typecheck` script of its own.
+    expect(findings).toEqual(['no-typecheck-script inner (1 test files)']);
+  });
+
+  it('keys the ledger on the member’s own `endora.type`, and fails a stale entry', () => {
+    // Both directions in one: a class the ledger names is not reported, and an
+    // entry naming a class with nothing outside the program is stale. Without
+    // the second half the ledger could outlive the state it records, which is
+    // how a ratchet becomes a list nobody drains.
+    const composed = member('mod-blog', { typecheck: 'tsc -p tsconfig.json' }, { type: 'module' });
+    const ledger = { 'endora.type=module': 'why', 'endora.type=gone': 'why' };
+
+    const findings = testsOutsideTheTypeCheckProgram(
+      [composed],
+      () => ['/repo/mod-blog/src/a.test.ts'],
+      () => [],
+      ledger,
+    );
+
+    expect(findings).toEqual(['stale-ledger-entry endora.type=gone']);
+  });
+
+  it('every workspace member’s own tests are in a program `pnpm -r run typecheck` builds', () => {
+    const root = findCheckoutRoot(process.cwd());
+    const members = workspaceMembers(root!, nodeWorkspaceFs());
+    const listTests = nodeTestFileLister();
+    const readProgram = nodeTypeCheckProgramReader();
+
+    // Floors, one per input whose silence would make this vacuous: members at
+    // all, members that own a test file, and — the load-bearing one — a program
+    // that actually contained a test file. A reader that had stopped resolving
+    // would otherwise report every member as a finding, which reads as a defect
+    // in the tree rather than in the run.
+    const withTests = members.filter((m) => listTests(m.dir).length > 0);
+    const inSomeProgram = members.filter((m) =>
+      typeCheckConfigsOf(m).some((config) =>
+        (readProgram(m.dir, config) ?? []).some((file) => /\.(?:test|spec)\.tsx?$/.test(file)),
+      ),
+    );
+    expect(members.length).toBeGreaterThan(0);
+    expect(withTests.length).toBeGreaterThan(0);
+    expect(inSomeProgram.length).toBeGreaterThan(0);
+
+    expect(testsOutsideTheTypeCheckProgram(members, listTests, readProgram)).toEqual([]);
   });
 });
