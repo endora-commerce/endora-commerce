@@ -144,117 +144,23 @@ body,
 }
 
 /*
- * Legacy class compatibility shim. Pages that haven't yet been ported to the
- * `@endora-commerce/admin-kit` primitives still render correctly via these
- * Tailwind compositions over the same shadcn design tokens. New code SHOULD use
- * the kit's components directly.
+ * **The `@layer components` shim that stood here is gone** (feature 110, T128;
+ * D-219's second consequence, `admin-stylesheet-composition.md` R4.5).
  *
- * **Whether this block is retired in favour of those primitives is an open
- * question and is the owner's**; T126 moved it and did not answer it. What T126
- * settles is only *where it lives*: module packages installed in a client's
- * instance render these classes, so their definition belongs to a package the
- * client upgrades and not to a file the client holds. Left in `admin/src`, a
- * module release adding `.badge--info` would have rendered unstyled in every
- * existing instance, silently — §0's failure one blast radius down.
+ * It defined 23 classes — `.page-header`, `.card`, `.field`, `.input`, `.btn`,
+ * `.alert`, `.badge`, `.table` and their modifiers — and **no file that loads
+ * this stylesheet rendered any of them**. The number that put them here read
+ * "11 module packages"; it was a *substring* match (`badge--` matches
+ * `b2b-badge--success`), and under a whole-token predicate in a class-attribute
+ * position the honest number is zero, measured over 3 055 files and 5 746 such
+ * positions in `packages/` and `admin/src`.
+ *
+ * A class name a package publishes is surface it owes semantic versioning on, so
+ * 23 dead ones are a major version waiting for somebody to notice. The live
+ * vocabulary those files really render is the `.b2b-*` family, which T129 brings
+ * to the package every renderer already declares.
+ *
+ * `check:class-vocabulary` is what makes this measurable rather than periodic: a
+ * defined class no file renders is `unrendered-definition`, in both directions,
+ * on every merge request.
  */
-@layer components {
-  .page-header {
-    @apply mb-6 flex flex-wrap items-start justify-between gap-4;
-  }
-  .page-header h1 {
-    @apply text-2xl font-semibold tracking-tight;
-  }
-  .page-header p {
-    @apply mt-1 text-sm text-muted-foreground;
-  }
-  .card {
-    @apply mb-4 rounded-lg border bg-card p-6 text-card-foreground shadow-sm;
-  }
-  .card h2 {
-    @apply mb-4 text-base font-semibold leading-none tracking-tight;
-  }
-  .card h3 {
-    @apply mb-2 text-sm font-semibold;
-  }
-  .field {
-    @apply mb-4 space-y-2;
-  }
-  .field label {
-    @apply text-sm font-medium leading-none;
-  }
-  .field__hint {
-    @apply mt-1 block text-xs text-muted-foreground;
-  }
-  .input,
-  .select,
-  .textarea {
-    @apply flex w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .input,
-  .select {
-    @apply h-9;
-  }
-  .textarea {
-    @apply min-h-[60px] py-2;
-  }
-  .btn {
-    @apply inline-flex h-9 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
-  }
-  .btn--primary {
-    @apply border-transparent bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground;
-  }
-  .btn--danger {
-    @apply border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground;
-  }
-  .alert {
-    @apply mb-4 rounded-lg border p-4 text-sm;
-  }
-  .alert--error {
-    @apply border-destructive/50 bg-destructive/10 text-destructive;
-  }
-  .alert--success {
-    @apply border-emerald-500/40 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100;
-  }
-  .alert--warning {
-    @apply border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100;
-  }
-  .badge {
-    @apply inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium;
-  }
-  .badge--success {
-    @apply border-transparent bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100;
-  }
-  .badge--warning {
-    @apply border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100;
-  }
-  .badge--danger {
-    @apply border-transparent bg-destructive text-destructive-foreground;
-  }
-  .muted {
-    @apply text-muted-foreground;
-  }
-  .code {
-    @apply rounded bg-muted px-1 py-0.5 font-mono text-xs;
-  }
-  .table {
-    @apply w-full caption-bottom text-sm;
-  }
-  .table thead {
-    @apply [&_tr]:border-b;
-  }
-  .table tbody tr {
-    @apply border-b transition-colors hover:bg-muted/50;
-  }
-  .table th {
-    @apply h-10 px-2 text-left align-middle font-medium text-muted-foreground;
-  }
-  .table td {
-    @apply p-2 align-middle;
-  }
-  .toolbar {
-    @apply mb-4 flex flex-wrap items-center gap-2;
-  }
-  .row-actions {
-    @apply flex flex-wrap gap-2;
-  }
-}

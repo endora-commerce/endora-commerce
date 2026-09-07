@@ -46,8 +46,16 @@
  *     rather than a baked literal. A utility this package's build never saw is
  *     what resolves against the client's `:root`, and if the token were inlined
  *     as a value the whole seam would be gone;
- *  2. the `@layer components` shim travelled with it: `.badge--warning`, one of
- *     the 22 classes a module package renders and no instance should define;
+ *  2. **withdrawn by T128.** It asserted that the `@layer components` shim
+ *     travelled with the tokens — `.badge--warning`, described here as *"one of
+ *     the 22 classes a module package renders"*. It is not: that number was a
+ *     substring match, and under a whole-token predicate in a class-attribute
+ *     position **no** file in `packages/` or `admin/src` renders any of the 23.
+ *     The shim was deleted rather than carried into a package's published
+ *     surface (D-219, R4.5), so there is nothing left for this assertion to be
+ *     about. What a module package really renders is the `.b2b-*` vocabulary,
+ *     which T129 brings to the design system's package and which the class
+ *     assertion below is taken over instead;
  *  3. the client's redeclaration **wins** — the last `--primary` in the emitted
  *     cascade is theirs;
  *  4. and in the control instance, which redeclares nothing, it is the shell's
@@ -111,14 +119,10 @@ function writeInstance(dir: string, override: string | null): void {
   writeFileSync(
     path.join(dir, 'src/main.tsx'),
     "import './index.css';\n\n" +
-      '// Two classes and no more: one utility, which only the shell\'s `@theme`\n' +
-      '// can resolve, and one shim class, which only the shell\'s `@layer\n' +
-      '// components` can define. An instance that got neither would build green.\n' +
-      'export const Screen = () => (\n' +
-      '  <div className="bg-primary">\n' +
-      '    <span className="badge badge--warning">warning</span>\n' +
-      '  </div>\n' +
-      ');\n',
+      '// One class: a utility that only the design system package\'s `@theme`\n' +
+      '// can resolve. An instance that did not get it would build green and\n' +
+      '// render unstyled, which is the whole failure this fixture is for.\n' +
+      'export const Screen = () => <div className="bg-primary" />;\n',
     'utf8',
   );
   writeFileSync(path.join(dir, 'src/index.css'), stylesheetOf(override), 'utf8');
@@ -184,9 +188,10 @@ describe('the shell publishes its theme and an instance overrides it by redeclar
     // compiled without ever seeing this instance (R3.2).
     expect(css).toMatch(/\.bg-primary\s*\{\s*background-color:\s*hsl\(var\(--primary\)\);/);
 
-    // (2) the `@layer components` shim arrived with it. A module package renders
-    // this class; nothing in the instance defines it.
-    expect(css).toContain('.badge--warning');
+    // (2) is withdrawn — see this file's doc block. The 23 shim classes it
+    // named were rendered by nobody and are deleted (T128), so the assertion
+    // that they arrive would now be asserting the presence of dead surface.
+    // T129 replaces it with the vocabulary a module package does render.
   }, 180_000);
 
   it('lets the instance change the palette, and defaults to the shell when it does not', async () => {
