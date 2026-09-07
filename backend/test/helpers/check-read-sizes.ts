@@ -732,6 +732,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 1955 -> 1962 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 1946,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
@@ -840,6 +846,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 2070,
     sites: null,
     sources: ['manifest-index'],
@@ -1155,6 +1167,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
     // since deleted nine lifecycle shims, so every base below is lower than this branch first
     // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    // **`specs/110-instance-repository/` T113 and T114: 5312 -> 5319 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 5307,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
@@ -1312,7 +1330,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2166,
+    // **`specs/110-instance-repository/` T113 and T114: 2166 -> 2173 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    files: 2173,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1504,6 +1528,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 2070,
     sites: 251,
     sources: ['manifest-index'],
@@ -1596,6 +1626,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 2070,
     sites: null,
     sources: ['manifest-index'],
@@ -1688,6 +1724,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 2070,
     // Re-recorded twice, both downward and both deliberately.
     //
@@ -1772,6 +1814,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 690 -> 697 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 681,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
@@ -2066,6 +2114,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 2070,
     sites: 30,
     sources: ['manifest-index'],
@@ -3415,6 +3469,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
     // since deleted nine lifecycle shims, so every base below is lower than this branch first
     // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    // **`specs/110-instance-repository/` T113 and T114: 7880 -> 7887 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **The same merge request: +2 more.** Its two changeset files, which this
+    // walk's population includes.
     files: 7879,
     sites: null,
     sources: [],
@@ -3681,6 +3743,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 2070,
     sites: 196,
     sources: ['manifest-index'],
@@ -4331,6 +4399,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 2070,
     sites: null,
     sources: ['manifest-index'],
@@ -4493,6 +4567,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 2070,
     sites: null,
     sources: ['manifest-index'],
@@ -4620,6 +4700,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
+    // **`specs/110-instance-repository/` T113 and T114: 4338 -> 4345 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 4329,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
@@ -5091,6 +5177,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
     // since deleted nine lifecycle shims, so every base below is lower than this branch first
     // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    // **`specs/110-instance-repository/` T113 and T114: 7940 -> 7947 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **The same merge request: +2 more.** Its two changeset files, which this
+    // walk's population includes.
     files: 7939,
     sites: null,
     sources: ['manifest-index'],
@@ -5316,6 +5410,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
     // since deleted nine lifecycle shims, so every base below is lower than this branch first
     // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    // **`specs/110-instance-repository/` T113 and T114: 5924 -> 5931 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
     files: 5921,
     sites: null,
     sources: ['manifest-index'],

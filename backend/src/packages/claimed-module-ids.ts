@@ -25,11 +25,24 @@
 // this file's callers. Both read the same emitted entries, and
 // `test/unit/overlay/overlay-id-collision.test.ts` holds the two populations to
 // each other so the shortcut cannot drift into a second answer.
+//
+// ## Why this file stayed behind when `packages/` moved
+//
+// `specs/110-instance-repository/` R7.4: **a relocated platform file may not
+// import a generated registry — it receives one.** The whole content of this
+// file is that supply. Its installed half is `@endora-commerce/platform`'s since
+// T113, and what is left is the one array that says which generated index this
+// build ships, which is a fact an instance owns anyway. It is the same split
+// `registered-manifests.ts` took in `specs/115-lifecycle-container-move/`
+// Phase 3, at a fifth of the size.
+
+import {
+  installedPackageModuleIdClaims,
+  nodeModulesRootsFor,
+} from '@endora-commerce/platform/packages';
 
 import { DISCOVERED_MANIFESTS } from '../manifest-index.generated.js';
-import { nodeModulesRootsFor } from './installed-packages.js';
 import type { ModuleIdClaim } from './module-id-claims.js';
-import { installedPackageModuleIdClaims } from './package-runtime.js';
 
 /** Every module id this build ships, with the manifest file that claims it. */
 export function coreModuleIdClaims(): ModuleIdClaim[] {
