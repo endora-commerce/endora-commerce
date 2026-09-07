@@ -123,9 +123,22 @@ const PLATFORM_SRC = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
  * of a walk that would execute it. A file naming neither the package nor its
  * directory is the application's own and is not a second spelling of a platform
  * value.
+ *
+ * **It is a re-export, not any mention of the specifier**, and that narrowing is
+ * `specs/115-lifecycle-container-move/` Phase 5's. This read
+ * `/from\s*'…platform…'/`, which matches an `import` exactly as well as an
+ * `export … from` — harmless only for as long as no application file *consumed*
+ * the package by bare specifier. D115-1's five entry points do: each imports
+ * `run<Verb>Command` from `@endora-commerce/platform/lifecycle`. So the file
+ * this header names as the one the filter exists to exclude walked straight back
+ * into the population, and the walk's next step imported it — an ORM opened
+ * against an unreachable service and a `process.exit` at import, in the probe.
+ * A consumer holds no second spelling of anything; only a re-export does.
+ * `[^;]` is what keeps the match inside one statement, so an `export` earlier in
+ * the file cannot reach an `import` further down.
  */
 const FORWARDS_TO_THE_PLATFORM =
-  /from\s*'[^']*(?:packages\/platform\/(?:dist|src)|@endora-commerce\/platform)[^']*'/;
+  /export\s+(?:\*|type\s|\{)[^;]*?from\s*'[^']*(?:packages\/platform\/(?:dist|src)|@endora-commerce\/platform)[^']*'/;
 
 /** The package name is the specifier under test; there is nothing to derive it from. */
 const HOST_PACKAGE = '@endora-commerce/platform';
@@ -189,7 +202,9 @@ interface SubpathComparison {
  *
  * The forwarding filter is what keeps `backend/src/lifecycle/scripts/install.ts`
  * — a `module:*` entry point that opens an ORM and `process.exit`s at import —
- * out of a walk whose next step is to import everything it found.
+ * out of a walk whose next step is to import everything it found. Since Phase 5
+ * that entry point *names* the package by bare specifier, so the filter's shape
+ * — a re-export and not a mention — is what does the keeping out.
  */
 function applicationReachesOf(subpath: string): string[] {
   const forwarding = (file: string): boolean =>
