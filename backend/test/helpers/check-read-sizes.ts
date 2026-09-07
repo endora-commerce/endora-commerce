@@ -3595,7 +3595,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // baseline census run before this file was written (`3 drifted, 39 agree, 0 not measured, of
     // 42 recorded`, +1 on exactly these three entries). !1512 carries the same repair; whichever
     // lands second is a no-op, because the recorded value here is the observed one either way.
-    files: 7890,
+    // **+4, re-measured on the union after rebasing onto `chore/d217-d218-impl`.** Only one of
+    // the four belongs to this branch: `specs/113-module-owned-demo-data/tasks.md`. The other three
+    // come from the base it now sits on — `master` moved +1 in the eight merges of 2026-09-08, and
+    // D-217/D-218 adds two. This branch is merged after that one, so the value is a fresh census of
+    // the combined tree rather than a sum.
+    files: 7894,
     sites: null,
     sources: [],
     //
@@ -5369,7 +5374,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // baseline census run before this file was written (`3 drifted, 39 agree, 0 not measured, of
     // 42 recorded`, +1 on exactly these three entries). !1512 carries the same repair; whichever
     // lands second is a no-op, because the recorded value here is the observed one either way.
-    files: 7950,
+    // **+4, re-measured on the union after rebasing onto `chore/d217-d218-impl`.** The same four
+    // files as `check-nul-bytes.ts` above: one this branch adds, three the base does.
+    files: 7954,
     sites: null,
     sources: ['manifest-index'],
     //
