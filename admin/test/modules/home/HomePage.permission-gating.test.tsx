@@ -27,8 +27,8 @@ const getSpy = vi.fn(async (_path: string) => ({ data: [], items: [], counts: {}
 
 
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual('@/lib/api-client');
+vi.mock('../../../../packages/admin-shell/src/lib/api-client', async () => {
+  const actual = await vi.importActual('../../../../packages/admin-shell/src/lib/api-client');
   return {
     ...(actual as Record<string, unknown>),
     apiClient: {
@@ -41,11 +41,11 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
-vi.mock('../../../src/modules/home/RecentActivityCard', () => ({
+vi.mock('../../../../packages/admin-shell/src/modules/home/RecentActivityCard', () => ({
   RecentActivityCard: () => <div data-testid="recent-activity" />,
 }));
 
-const { HomePage } = await import('../../../src/modules/home/HomePage');
+const { HomePage } = await import('../../../../packages/admin-shell/src/modules/home/HomePage');
 
 const BUNDLE = passthroughBundle('core', [
   'home.welcomeBack',

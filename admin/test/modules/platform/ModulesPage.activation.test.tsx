@@ -3,7 +3,7 @@ import { screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
-import { ApiError } from '@/lib/api-client';
+import { ApiError } from '../../../../packages/admin-shell/src/lib/api-client';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**
@@ -21,7 +21,7 @@ let presence: ModulePresence[] = [];
 const setModuleActivation = vi.fn(async () => ({}));
 const refresh = vi.fn(async () => {});
 
-vi.mock('@/lib/module-presence', () => ({
+vi.mock('../../../../packages/admin-shell/src/lib/module-presence', () => ({
   useModulePresence: () => ({
     modules: presence,
     isPresent: (id: string) => presence.find((m) => m.id === id)?.present ?? false,
@@ -35,11 +35,11 @@ vi.mock('@/lib/module-presence', () => ({
   getModulePresence: vi.fn(),
 }));
 
-vi.mock('@/modules/platform/api', () => ({
+vi.mock('../../../../packages/admin-shell/src/modules/platform/api', () => ({
   listModules: vi.fn(async () => ({ modules: listed })),
 }));
 
-const { ModulesPage } = await import('../../../src/modules/platform/ModulesPage');
+const { ModulesPage } = await import('../../../../packages/admin-shell/src/modules/platform/ModulesPage');
 
 const bundle = passthroughBundle('core', [
   'platform.modules.title',

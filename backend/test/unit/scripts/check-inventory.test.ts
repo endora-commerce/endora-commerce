@@ -2009,6 +2009,10 @@ function moduleBoundaryTree(source: string): Map<string, string> {
 // `_shared` is nobody's for the same reason: no nav entry claims it.
 const ADMIN_SURFACES: AdminBoundarySurfaces = {
   sourceRoot: 'admin/src',
+  // One host root, which is what a tree whose route table has not moved out
+  // of the alias member answers (feature 110, T122). The two-root case is
+  // `check-module-boundary.test.ts`' — this fixture's subject is the ledger.
+  hostRoots: ['admin/src'],
   moduleRoot: 'admin/src/modules',
   aliasPrefix: '@/',
   moduleOfDirectory: new Map([

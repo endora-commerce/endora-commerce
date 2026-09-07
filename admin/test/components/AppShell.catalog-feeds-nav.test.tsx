@@ -16,15 +16,15 @@ import { adminSession, everyDeclaredModule, modulePresence, withSession } from '
 // `@endora-commerce/admin-kit`, where a `vi.mock` on `@/lib/…` cannot reach
 // them. `withSession` supplies both through their `initial` props.
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
@@ -37,7 +37,7 @@ const coreBundle = passthroughBundle('core', [
   'appShell.nav.products',
 ]);
 
-const { AppShell } = await import('../../src/components/AppShell');
+const { AppShell } = await import('../../../packages/admin-shell/src/components/AppShell');
 
 function renderShell(): void {
   setMobileViewport(false);

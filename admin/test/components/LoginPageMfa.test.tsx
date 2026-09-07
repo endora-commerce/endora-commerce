@@ -12,7 +12,7 @@ const loginSpy = vi.fn(async () => {});
 
 let mfaChallengeId: string | null = 'chal-1';
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
   useAuth: () => ({
     login: loginSpy,
     verifyMfa: verifyMfaSpy,
@@ -23,7 +23,7 @@ vi.mock('@/lib/auth', () => ({
   }),
 }));
 
-const { LoginPage } = await import('../../src/components/LoginPage');
+const { LoginPage } = await import('../../../packages/admin-shell/src/components/LoginPage');
 
 describe('LoginPage — MFA second step', () => {
   beforeEach(() => {

@@ -9,6 +9,8 @@
     "paths": {
       "@endora-commerce/contracts": ["../packages/contracts/src/index.ts"],
       "@endora-commerce/contracts/*": ["../packages/contracts/src/*"],
+      "@endora-commerce/admin-shell": ["../packages/admin-shell/src/index.ts"],
+      "@endora-commerce/admin-shell/*": ["../packages/admin-shell/src/*"],
       "@/*": ["./src/*"]
     }
   },

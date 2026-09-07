@@ -20,20 +20,32 @@
  *
  *   1. **Which workspace member is the frontend.** The member whose
  *      `tsconfig.json` declares a `"@/*"` path. That alias is not decoration:
- *      it is what `tsc` and Vite both resolve the admin's own imports through,
- *      so it is a live declaration rather than a convention, and this check has
- *      to resolve it anyway — 67 of the 94 cross-module admin reaches are
- *      written `@/modules/…`. Exactly one member declares it, and **zero or two
- *      is exit 2**, the same refusal {@link findManifestIndex} makes for an
- *      ambiguous manifest index: picking one narrows every scan to it without
- *      saying so.
+ *      it is what `tsc` and Vite both resolve the admin project's own imports
+ *      through, so it is a live declaration rather than a convention, and this
+ *      check has to resolve it anyway. Exactly one member declares it, and
+ *      **zero or two is exit 2**, the same refusal {@link findManifestIndex}
+ *      makes for an ambiguous manifest index: picking one narrows every scan to
+ *      it without saying so.
  *   2. **The source root** — the directory the alias points at (`admin/src`).
- *      Never a path spelled here.
- *   3. **The module root** — the one directory under that source root holding a
+ *      Never a path spelled here. It is where the **generated** contribution
+ *      registry lands, which is the one artefact that stays the admin
+ *      project's whatever else moves (feature 110, R3.2).
+ *   2a. **The shell root** — the source root holding the route table and the
+ *      nav, `App.tsx` and `components/AppShell.tsx`. Feature 110's T120 moved
+ *      them out of the alias member into `@endora-commerce/admin-shell`, so the
+ *      two roots are no longer one directory, and the derivation follows the
+ *      **artefacts** rather than the directory: every workspace member's source
+ *      root is a candidate, exactly one may hold the pair, and zero or two is
+ *      the same refusal as above. On a tree where the alias member still holds
+ *      them the answer is byte-identical to what it was, which is what makes
+ *      that move measurable rather than a rewrite of the instrument. A checkout
+ *      whose shell has gone is exit 2 rather than a scan that reports on the
+ *      thin project that is left — issue #215's shape, one frontend over.
+ *   3. **The module root** — the one directory under a **host root** holding a
  *      child named after a registered module id. That is
  *      {@link applicationModuleRoots}' predicate minus its `manifest.ts` half,
- *      which an admin directory does not have. Under `admin/src` exactly one
- *      directory answers; two would be ambiguous and is refused.
+ *      which an admin directory does not have. Exactly one directory may
+ *      answer; two would be ambiguous and is refused.
  *
  * ## The directory name is not the module id
  *
@@ -133,8 +145,44 @@ export interface AdminNavDeclaration {
 export interface AdminSurfaceLayout {
   /** The workspace member declaring the `@/*` alias. */
   readonly memberDir: string;
-  /** The directory that alias points at — `admin/src`. */
+  /**
+   * The directory that alias points at — `admin/src`.
+   *
+   * The **admin project's** source root, and since feature 110's T120 that is
+   * narrower than "where the admin's code is": the generated contribution
+   * registry lands here and the shell's screens do not. Use
+   * {@link AdminSurfaceLayout.hostRoots} for a walk of the admin's own sources.
+   */
   readonly sourceRoot: string;
+  /**
+   * The source root holding the route table and the nav —
+   * `packages/admin-shell/src`, or {@link AdminSurfaceLayout.sourceRoot} on a
+   * tree where the alias member still holds them.
+   *
+   * Located by the pair of artefacts this layout is read out of rather than by
+   * a directory or a package name, so the extraction moved the derivation with
+   * the files instead of rewriting it (feature 110, T122).
+   */
+  readonly shellRoot: string;
+  /**
+   * Every source root the admin application owns — the alias member's and the
+   * shell's, deduplicated and sorted.
+   *
+   * This is the population for anything whose subject is *"the admin's own
+   * code"*: `check:module-boundary`'s {@link ADMIN_HOST_OWNER} walk,
+   * `check:admin-zones`' render and contribution walk, and `i18n:hardcoded`'s
+   * first root. One list, because two instruments deriving the same population
+   * twice are two answers waiting to disagree — which this repository has
+   * already watched happen to `i18n:hardcoded` and its own companion test
+   * (!1182).
+   *
+   * The shell is deliberately **not** an `endora: { type: 'admin-ui' }` member:
+   * that declaration's third population assumes no namespace in the file can be
+   * the file's own, which is true of a design-system package and false of the
+   * host — the dashboard's tiles gate on `catalog` and `orders` by name because
+   * mounting module surfaces is what the shell is for.
+   */
+  readonly hostRoots: readonly string[];
   /**
    * The directory holding the module surfaces — `admin/src/modules` — or
    * `null` when the application has none left (feature 091, R16).
@@ -170,7 +218,8 @@ export interface AdminSurfaceLayout {
   readonly componentDirectories: ReadonlyMap<string, string>;
   /**
    * The two hand-written registries this layout is read out of — `App.tsx` and
-   * `components/AppShell.tsx`, absolute.
+   * `components/AppShell.tsx` under {@link AdminSurfaceLayout.shellRoot},
+   * absolute.
    *
    * Returned rather than left implicit because a consumer has to be able to
    * exclude them **without spelling them a second time**. `App.tsx` imports one
@@ -255,6 +304,140 @@ export function aliasTargetOf(tsconfigText: string): string | null {
 }
 
 /**
+ * Does this workspace hold an admin application at all?
+ *
+ * `true` when a member declares the source alias, which is the one declaration
+ * that says *"this repository has a frontend"* and needs neither the shell nor
+ * a registered-id set to answer. It is the discriminator between the two states
+ * a `null` {@link AdminSurfaceLayout} has run together since feature 091: a
+ * workspace with no frontend — every fixture in the tree, and the behaviour
+ * that shipped — and a frontend whose route table the walk has stopped finding,
+ * which is exit 2 (feature 110, T122).
+ *
+ * The second state is not hypothetical and is what T120 makes reachable: with
+ * `App.tsx` and the nav inside `@endora-commerce/admin-shell`, a checkout whose
+ * shell is not installed, not built, or renamed has a perfectly good alias
+ * member holding four files — and every admin population would come back empty
+ * with `violations=0` beside it.
+ */
+export function adminApplicationPresent(
+  members: readonly WorkspaceMember[],
+  readText: (path: string) => string | null = defaultReadText,
+): boolean {
+  try {
+    findAliasMember(members, readText);
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof AdminLayoutUnresolvableError) return false;
+    throw error;
+  }
+}
+
+/**
+ * The route table and the nav, relative to a source root — spelled **once**,
+ * here, because three things locate the pair: the shell-root derivation below,
+ * {@link AdminSurfaceLayout.registryFiles}, and the parse in
+ * {@link resolveAdminSurfaces}. A second spelling is a second answer to *"where
+ * does this application write its routes down"*.
+ */
+const ROUTE_TABLE_FILE = 'App.tsx';
+const NAV_FILE = join('components', 'AppShell.tsx');
+
+/**
+ * Every source root a workspace member could keep admin sources in, in the
+ * order the search reads them.
+ *
+ * The alias member's target first — it is the one root a declaration names, so
+ * an unmoved tree resolves on the first candidate and answers exactly what it
+ * answered before feature 110 — then `<dir>/src` for every member, which is the
+ * convention every package in this workspace already builds from
+ * (`tsconfig.build.json`'s `rootDir`). Nothing here spells a package name or a
+ * directory under `packages/`.
+ */
+function candidateSourceRoots(
+  members: readonly WorkspaceMember[],
+  readText: (path: string) => string | null,
+): string[] {
+  const roots: string[] = [];
+  try {
+    const { member, target } = findAliasMember(members, readText);
+    roots.push(resolve(member.dir, target));
+  } catch (error: unknown) {
+    if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
+  }
+  for (const member of members) {
+    const candidate = resolve(member.dir, 'src');
+    if (!roots.includes(candidate)) roots.push(candidate);
+  }
+  return roots;
+}
+
+/**
+ * The source root holding **both** the route table and the nav.
+ *
+ * Feature 110's T120 moved them out of the admin project into
+ * `@endora-commerce/admin-shell`, and T122's requirement is that the two checks
+ * reading them report the same findings before and after. So the subject is the
+ * **pair of artefacts** and never the directory: whichever member holds them is
+ * the shell, and on a tree where that is still the alias member the answer does
+ * not move at all.
+ *
+ * Zero is a refusal and not a `null`, unlike {@link findAdminModuleRoot}'s
+ * empty answer: an admin application with no route table is not a drained
+ * population, it is a walk that has stopped finding the file every attribution
+ * in this module is read out of. Two is a refusal for {@link findAliasMember}'s
+ * reason — picking one narrows every scan to it without saying so.
+ */
+export function findAdminShellRoot(
+  members: readonly WorkspaceMember[],
+  readText: (path: string) => string | null = defaultReadText,
+): string {
+  const found = candidateSourceRoots(members, readText).filter(
+    (root) => readText(join(root, ROUTE_TABLE_FILE)) !== null && readText(join(root, NAV_FILE)) !== null,
+  );
+  if (found.length === 0) {
+    throw new AdminLayoutUnresolvableError(
+      `no workspace member holds both ${ROUTE_TABLE_FILE} and ${NAV_FILE} under its source ` +
+        'root — the module a surface belongs to is read from the route table and the nav, and ' +
+        'a scan that carried on without them would report on whatever is left rather than ' +
+        'saying it had stopped looking',
+    );
+  }
+  if (found.length > 1) {
+    throw new AdminLayoutUnresolvableError(
+      `${found.length} source roots hold both ${ROUTE_TABLE_FILE} and ${NAV_FILE}:\n` +
+        `${found.map((path) => `  ${path}`).join('\n')}\n` +
+        'the admin shell is ambiguous, and picking one narrows the walk to it without saying so',
+    );
+  }
+  return found[0]!;
+}
+
+/**
+ * Every source root the admin application owns — the alias member's and the
+ * shell's — sorted, deduplicated.
+ *
+ * **Narrower than the layout, deliberately**, on {@link adminRegistryPathOf}'s
+ * reasoning: `i18n:hardcoded` needs the walk and needs nothing about module
+ * attribution, so it must not be made to depend on a registered-id set it has
+ * no other use for. One derivation, two entry points —
+ * {@link resolveAdminSurfaces} builds its `hostRoots` from this function.
+ */
+export function adminHostRootsOf(
+  members: readonly WorkspaceMember[],
+  readText: (path: string) => string | null = defaultReadText,
+): readonly string[] {
+  const roots = new Set<string>([findAdminShellRoot(members, readText)]);
+  try {
+    const { member, target } = findAliasMember(members, readText);
+    roots.add(resolve(member.dir, target));
+  } catch (error: unknown) {
+    if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
+  }
+  return [...roots].sort();
+}
+
+/**
  * The generated admin contribution registry's path, or `null` when this
  * workspace has no admin application at all (feature 091, R13b).
  *
@@ -296,11 +479,17 @@ export function adminRegistryPathOf(
  * is `null`, because this feature exists to empty that directory and a refusal
  * would send a reader to repair a finished tree; two is still a throw, because
  * picking one narrows every walk to it without saying so.
+ *
+ * It takes the admin's **host roots** since feature 110's T122 — the admin
+ * project's and the shell's — because a module surface directory left in the
+ * application would move with `App.tsx` rather than stay behind it. A single
+ * root is still accepted, and means the same thing it meant.
  */
 export function findAdminModuleRoot(
-  sourceRoot: string,
+  sourceRoots: readonly string[] | string,
   registered: ReadonlySet<string>,
 ): string | null {
+  const searched = typeof sourceRoots === 'string' ? [sourceRoots] : sourceRoots;
   const roots = new Set<string>();
   const visit = (dir: string): void => {
     let entries: string[];
@@ -326,7 +515,7 @@ export function findAdminModuleRoot(
       visit(full);
     }
   };
-  visit(sourceRoot);
+  for (const root of searched) visit(root);
   const found = [...roots].sort();
   // The terminal state SC-007 reaches: every module's admin surfaces have moved
   // into that module's package, so `admin/src/modules/` holds only the admin
@@ -334,8 +523,8 @@ export function findAdminModuleRoot(
   if (found.length === 0) return null;
   if (found.length > 1) {
     throw new AdminLayoutUnresolvableError(
-      `more than one directory under ${sourceRoot} holds children named after registered ` +
-        `modules:\n${found.map((path) => `  ${path}`).join('\n')}\n` +
+      `more than one directory under ${searched.join(', ')} holds children named after ` +
+        `registered modules:\n${found.map((path) => `  ${path}`).join('\n')}\n` +
         'the admin module root is ambiguous, and picking one narrows the walk to it without ' +
         'saying so',
     );
@@ -577,7 +766,12 @@ export function resolveAdminSurfaces(
         'does not exist — every admin specifier is resolved through that alias',
     );
   }
-  const moduleRoot = findAdminModuleRoot(sourceRoot, registered);
+  // The admin's own sources, wherever they are: the project's and the shell's
+  // (feature 110, T122). Both refusals inside — no shell, and two — are the
+  // layout's, so every consumer inherits them and none re-derives the pair.
+  const hostRoots = adminHostRootsOf(members, readText);
+  const shellRoot = findAdminShellRoot(members, readText);
+  const moduleRoot = findAdminModuleRoot(hostRoots, registered);
   const directories =
     moduleRoot === null
       ? []
@@ -588,16 +782,19 @@ export function resolveAdminSurfaces(
   // The two hand-written registries, spelled once. `registryFiles` below is
   // these same two paths, so a consumer that has to exclude them — the boundary
   // check's host population — never writes a second copy of the pair.
-  const routeTableFile = join(sourceRoot, 'App.tsx');
-  const navFile = join(sourceRoot, 'components', 'AppShell.tsx');
+  const routeTableFile = join(shellRoot, ROUTE_TABLE_FILE);
+  const navFile = join(shellRoot, NAV_FILE);
   const appSource = readText(routeTableFile);
   const shellSource = readText(navFile);
+  // Unreachable through `findAdminShellRoot`, which selected this root by
+  // reading both files; kept because a `null` here would otherwise be parsed as
+  // an empty route table, which attributes every surface directory to nobody.
   if (appSource === null || shellSource === null) {
     throw new AdminLayoutUnresolvableError(
-      `${member.name} has no App.tsx or no components/AppShell.tsx under ${sourceRoot} — the ` +
-        'module a surface directory belongs to is read from the route table and the nav, and ' +
-        'attributing by directory name instead would file two modules\' reaches under names ' +
-        'no module answers to',
+      `${shellRoot} has no ${ROUTE_TABLE_FILE} or no ${NAV_FILE} — the module a surface ` +
+        'directory belongs to is read from the route table and the nav, and attributing by ' +
+        'directory name instead would file two modules\' reaches under names no module ' +
+        'answers to',
     );
   }
   const routes = adminRoutes(appSource);
@@ -607,11 +804,19 @@ export function resolveAdminSurfaces(
   const componentDirectories =
     moduleRoot === null
       ? new Map<string, string>()
-      : routeComponentDirectories(appSource, moduleRoot.slice(sourceRoot.length + 1));
+      : routeComponentDirectories(
+          appSource,
+          // The module root's segment relative to whichever host root holds it.
+          moduleRoot.slice(
+            (hostRoots.find((root) => moduleRoot.startsWith(`${root}/`)) ?? sourceRoot).length + 1,
+          ),
+        );
 
   return {
     memberDir: member.dir,
     sourceRoot,
+    shellRoot,
+    hostRoots,
     moduleRoot,
     aliasPrefix: `${ADMIN_SOURCE_ALIAS.slice(0, -1)}`,
     directories,

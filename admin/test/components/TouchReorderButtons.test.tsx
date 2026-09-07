@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TouchReorderButtons } from '../../src/components/TouchReorderButtons';
+import { TouchReorderButtons } from '../../../packages/admin-shell/src/components/TouchReorderButtons';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 
 const bundle = passthroughBundle('core', [

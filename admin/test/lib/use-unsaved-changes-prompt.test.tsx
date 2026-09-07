@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRef, type ReactNode } from 'react';
 import { fireEvent } from '@testing-library/react';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
-import { useUnsavedChangesPrompt } from '../../src/lib/use-unsaved-changes-prompt';
+import { useUnsavedChangesPrompt } from '../../../packages/admin-shell/src/lib/use-unsaved-changes-prompt';
 
 const BUNDLE = passthroughBundle('core', ['form.unsavedChanges.confirm']);
 

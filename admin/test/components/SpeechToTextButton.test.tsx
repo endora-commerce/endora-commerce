@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { SpeechToTextButton } from '../../src/components/SpeechToTextButton';
+import { SpeechToTextButton } from '../../../packages/admin-shell/src/components/SpeechToTextButton';
 
 /**
  * Speech-to-text mic button: feature-detected (renders nothing without the Web

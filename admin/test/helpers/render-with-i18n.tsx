@@ -1,7 +1,7 @@
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
-import { TranslationProvider } from '../../src/i18n/TranslationProvider';
-import type { Bundle } from '../../src/i18n/types';
+import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
+import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
 
 /**
  * Test wrapper that mounts a component inside the admin i18n

@@ -102,7 +102,7 @@ const HOST_NAV = [
 
 describe('SC-007 — the admin application declares its own registrations and no module’s', () => {
   it('declares exactly the four host routes, and those four', () => {
-    const app = codeOf('src/App.tsx');
+    const app = codeOf('../packages/admin-shell/src/App.tsx');
     // Every `<Route` the host declares with a **literal** destination: `index`,
     // or a `path="…"` string. Three `<Route` elements in that file are not
     // counted and each is named here rather than filtered by accident:
@@ -127,7 +127,7 @@ describe('SC-007 — the admin application declares its own registrations and no
   });
 
   it('declares exactly the three host nav entries, and those three', () => {
-    const shell = codeOf('src/components/AppShell.tsx');
+    const shell = codeOf('../packages/admin-shell/src/components/AppShell.tsx');
     // `module: null` is the shell's own attribution for a destination no module
     // owns. It is read here rather than counted blind: the `to` beside each one
     // is what makes the count checkable against the reasons above, and a fourth
@@ -146,8 +146,8 @@ describe('SC-007 — the admin application declares its own registrations and no
     // silently taking the first match (D-23 calls that the worst available
     // failure). Every module registration now arrives through the generated
     // registry, so a *literal* module path in either file is that regression.
-    const app = codeOf('src/App.tsx');
-    const shell = codeOf('src/components/AppShell.tsx');
+    const app = codeOf('../packages/admin-shell/src/App.tsx');
+    const shell = codeOf('../packages/admin-shell/src/components/AppShell.tsx');
     const literalRoutes = [...app.matchAll(/<Route\s+(?:index\b|path="([^"]*)")/g)]
       .map((match) => match[1])
       .filter((path): path is string => path !== undefined && path !== '*');

@@ -175,7 +175,7 @@ describe('sales_channels contributes the organization detail zone', () => {
     expect(host).toContain('name="organization.detail.after"');
     expect(
       existsSync(
-        resolve(process.cwd(), 'src/modules/sales_channels/components/EntityChannelMembership.tsx'),
+        resolve(process.cwd(), '../packages/admin-shell/src/modules/sales_channels/components/EntityChannelMembership.tsx'),
       ),
     ).toBe(false);
     // **`DefaultChannelBadge` is gone too, and this assertion is what said when
@@ -190,7 +190,7 @@ describe('sales_channels contributes the organization detail zone', () => {
     // duplication.
     expect(
       existsSync(
-        resolve(process.cwd(), 'src/modules/sales_channels/components/DefaultChannelBadge.tsx'),
+        resolve(process.cwd(), '../packages/admin-shell/src/modules/sales_channels/components/DefaultChannelBadge.tsx'),
       ),
     ).toBe(false);
   });

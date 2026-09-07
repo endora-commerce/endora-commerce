@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
+    "@endora-commerce/admin-shell": "workspace:*",
     "@endora-commerce/cms-components": "workspace:^",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/email-components": "workspace:^",

@@ -8,7 +8,7 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
 /**
  * The real providers, not a stubbed hook (feature 091, P3 and P4d).
  *
- * This file used to `vi.mock('@/lib/module-presence')` with an
+ * This file used to `vi.mock('../../../../packages/admin-shell/src/lib/module-presence')` with an
  * `isPresent: () => true`. That mock was already inert for anything inside the
  * kit — P3 moved the hook into `@endora-commerce/admin-kit/lib`, where a mock at
  * the admin's shim path cannot reach it — and P4d is where it started to
