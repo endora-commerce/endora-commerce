@@ -53,6 +53,24 @@
  * storefront's own declaration and its own `.env.example`; a required input no
  * derivation reaches is a refusal rather than a value this run makes up.
  *
+ * ## And it withholds its own environment from the instance
+ *
+ * The install, the build and the boot are processes of the **instance**, so they
+ * are given the instance's environment rather than this harness's: every name
+ * the copy's own declaration says its process reads is withheld unless this run
+ * deliberately supplies it ({@link instanceEnvironment}, and `insideInstance`
+ * below is the one place that hands it `process.env`).
+ *
+ * It is the difference between measuring the command and measuring whoever ran
+ * this file. Next loads the copy's `.env` and does **not** override a variable
+ * the process already carries, so an inherited one silently configures the
+ * instance over the top of what `endora new storefront` wrote — a red for a
+ * value no client would set, or a green for a value the command never produced.
+ * Measured: `NODE_ENV=development`, which `acceptance:storefront-scaffold` sets
+ * job-wide and correctly for the **backend** it boots, made A5 fail in every CI
+ * run this criterion has ever had, with a message naming Next's own
+ * `pages/_document`.
+ *
  * ## Exit codes
  *
  *   0 — the criterion is met.
@@ -101,6 +119,7 @@ import {
   exitCodeFor,
   exitCodeForExpectation,
   formatReport,
+  instanceEnvironment,
   planScaffoldInputs,
   SCAFFOLD_INPUT_STAND_INS,
   type AcceptanceExpectation,
@@ -118,6 +137,34 @@ const EXPECTATION_FILE = join(
 );
 
 const notes: string[] = [];
+
+/**
+ * Every variable the instance's own declaration says its process reads.
+ *
+ * Read off the **copy**, once, as soon as there is a copy to read — the same
+ * `environment-inputs.mjs` `endora new storefront` resolved against, so the
+ * criterion and the command cannot come to disagree about what an instance
+ * reads. It is empty until then, which is correct: before the scaffold there is
+ * no instance and nothing to withhold from.
+ */
+let instanceDeclaredVariables: readonly string[] = [];
+
+/**
+ * The environment for a process run **inside the instance**.
+ *
+ * {@link instanceEnvironment} is the judgement and is unit tested; this is the
+ * one place that hands it the harness's real environment. The return value is an
+ * overlay rather than a whole environment, because `run` and `spawn` already
+ * merge over `process.env` and a withheld name is expressed as `undefined`,
+ * which `child_process` drops.
+ */
+function insideInstance(supplied: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
+  return instanceEnvironment({
+    ambient: process.env,
+    declared: instanceDeclaredVariables,
+    supplied,
+  }).overlay;
+}
 
 function refuse(message: string): never {
   console.error(`[storefront-acceptance] cannot measure: ${message}`);
@@ -485,7 +532,7 @@ function backendEnvironment(
   target: string,
   backend: string,
   names: readonly string[],
-): NodeJS.ProcessEnv {
+): Record<string, string> {
   if (names.length === 0) {
     refuse(
       `${join(target, '.env.example')} declares no variable naming a backend, so this run has ` +
@@ -525,13 +572,17 @@ const SITE_ORIGIN_UNDER_TEST = 'https://shop.acceptance.invalid';
  */
 async function serveOnce(
   target: string,
-  environment: NodeJS.ProcessEnv,
+  environment: Readonly<Record<string, string>>,
 ): Promise<{ status: number | null; body: string | null; output: string }> {
   const port = 3200 + Math.floor(Math.random() * 300);
   const { spawn } = await import('node:child_process');
   const child = spawn('pnpm', ['exec', 'next', 'start', '--port', String(port)], {
     cwd: target,
-    env: { ...process.env, ...environment, PORT: String(port) },
+    // The boot is a process of the instance's, so it gets the instance's
+    // environment and not this harness's — `insideInstance`, for the reason
+    // `instanceEnvironment` gives. `PORT` is this run's and is declared by
+    // nothing in the copy, so it survives the withholding untouched.
+    env: { ...process.env, ...insideInstance(environment), PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -660,17 +711,38 @@ async function main(): Promise<void> {
     scaffold(target, registry, await resolveScaffoldInputs());
 
     // A1/A2 read the copy, through the command's own derivation.
-    const { outwardReferences, backendAddressVariablesOf, storefrontAddressVariablesOf } =
-      (await import('@endora-commerce/cli')) as {
-        outwardReferences: (reference: {
-          repoRoot: string;
-          dir: string;
-          files: readonly string[];
-          manifest: Record<string, unknown>;
-        }) => readonly { file: string; specifier: string }[];
-        backendAddressVariablesOf: (storefrontDir: string) => Promise<readonly string[]>;
-        storefrontAddressVariablesOf: (storefrontDir: string) => Promise<readonly string[]>;
-      };
+    const {
+      outwardReferences,
+      backendAddressVariablesOf,
+      declaredVariablesOf,
+      storefrontAddressVariablesOf,
+    } = (await import('@endora-commerce/cli')) as {
+      outwardReferences: (reference: {
+        repoRoot: string;
+        dir: string;
+        files: readonly string[];
+        manifest: Record<string, unknown>;
+      }) => readonly { file: string; specifier: string }[];
+      backendAddressVariablesOf: (storefrontDir: string) => Promise<readonly string[]>;
+      declaredVariablesOf: (storefrontDir: string) => Promise<readonly string[]>;
+      storefrontAddressVariablesOf: (storefrontDir: string) => Promise<readonly string[]>;
+    };
+
+    // Everything below this line that runs inside the instance goes through
+    // `insideInstance`, which needs this. Loaded from the copy the moment there
+    // is a copy, so the install is covered as well as the build and the boot.
+    instanceDeclaredVariables = await declaredVariablesOf(target);
+    if (instanceDeclaredVariables.length === 0) {
+      refuse(
+        `the copy at ${target} declares no environment input its own process reads, so this ` +
+          `run cannot tell which of the variables it happens to carry belong to the instance. ` +
+          `Every one of them would reach \`next build\` and \`next start\`, where a name the ` +
+          `instance reads displaces the value \`endora new storefront\` wrote into its \`.env\` ` +
+          `— and A5 to A7 would be measuring this harness's configuration rather than the ` +
+          `command's.`,
+      );
+    }
+
     const manifestText = readFileSync(join(target, 'package.json'), 'utf8');
     results.push(
       evaluateA1(
@@ -701,7 +773,10 @@ async function main(): Promise<void> {
       'ignore-workspace=true\nstrict-peer-dependencies=false\n',
     );
 
-    const installed = run('pnpm', ['install', '--no-frozen-lockfile'], { cwd: target });
+    const installed = run('pnpm', ['install', '--no-frozen-lockfile'], {
+      cwd: target,
+      env: insideInstance(),
+    });
     results.push(
       evaluateProcess(
         'A3',
@@ -747,7 +822,27 @@ async function main(): Promise<void> {
             `\`.env\` the command wrote — not the ${COMPILED_IN_SITE_ORIGIN} an unconfigured ` +
             `storefront names`,
       );
-      const built = run('pnpm', ['run', 'build'], { cwd: target, env: buildEnvironment });
+      // The build is the instance's own process, so it is given the instance's
+      // environment: this harness's is withheld wherever the copy declares the
+      // name. Disclosed rather than done quietly — a reader of A5 has to be able
+      // to tell a build configured by the `.env` the command wrote from one
+      // configured by whatever the job that ran this happened to export.
+      const buildOverlay = instanceEnvironment({
+        ambient: process.env,
+        declared: instanceDeclaredVariables,
+        supplied: buildEnvironment,
+      });
+      notes.push(
+        buildOverlay.withheld.length === 0
+          ? `withheld nothing from the instance's own processes: this harness's environment ` +
+            `carries none of the ${String(instanceDeclaredVariables.length)} variables the copy ` +
+            `declares`
+          : `withheld ${buildOverlay.withheld.join(', ')} from the instance's own processes — ` +
+            `this harness's environment is not a client's, and Next does not let a \`.env\` ` +
+            `override a variable the process already carries, so an inherited one would ` +
+            `configure the instance over the top of what \`endora new storefront\` wrote`,
+      );
+      const built = run('pnpm', ['run', 'build'], { cwd: target, env: buildOverlay.overlay });
       results.push(
         evaluateProcess('A5', built.code, built.output, 'next build succeeded outside the checkout'),
       );

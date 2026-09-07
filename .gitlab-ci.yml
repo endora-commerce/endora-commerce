@@ -1692,6 +1692,16 @@ acceptance:storefront-scaffold:
     MEILISEARCH_URL: http://meilisearch:7700
     MEILISEARCH_API_KEY: devMasterKeyChangeMe
     JWT_SECRET: storefront-acceptance-secret-not-a-real-one-000000
+    # The **backend's**, and it stays: `packages/platform/src/env/` declares
+    # NODE_ENV with `consumers: ['backend']`, and this job sets no
+    # SESSION_COOKIE_SECRET, so `production` here is a backend that refuses its
+    # own boot. GitLab has no per-command variable, so it is on every process in
+    # the job — including a `next build` in a scaffolded instance outside the
+    # checkout, where it made A5 fail in every run this criterion has ever had,
+    # with a message naming Next's own `pages/_document`. Withholding it there is
+    # the criterion's job and is done by derivation over the copy's own
+    # declaration; see `storefront-scaffold.ts` § *And it withholds its own
+    # environment from the instance*. Do not "fix" it by deleting this line.
     NODE_ENV: development
     LOG_LEVEL: warn
     PUBLIC_API_BASE_URL: http://127.0.0.1:3001

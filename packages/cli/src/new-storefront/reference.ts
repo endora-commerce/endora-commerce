@@ -36,6 +36,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import {
   addressVariablesFor,
+  scopeToMembers,
   type EnvironmentConsumer,
   type EnvironmentInput,
 } from '@endora-commerce/contracts';
@@ -427,4 +428,33 @@ export async function storefrontAddressVariablesOf(
 ): Promise<readonly string[]> {
   const declared = await loadTreeDeclaration(storefrontDir, STOREFRONT_DECLARATION_EXPORT);
   return addressVariables(declared, 'storefront');
+}
+
+/**
+ * Every variable this storefront's own process reads, off a directory.
+ *
+ * The two functions above answer *which of these names a member* — a subset
+ * chosen by `addressOf`. This one is the whole population, scoped to the one
+ * member that runs here, and it exists because a caller that **spawns** a
+ * storefront's toolchain has to know which names in its own environment belong
+ * to the instance rather than to itself.
+ *
+ * That is not a curiosity. Next loads a `.env` and does **not** override a
+ * variable the process already carries, so any of these names present in a
+ * parent's environment silently displaces the value written into the copy's own
+ * `.env` — and a harness that passed its environment on wholesale would be
+ * measuring its own configuration while reporting on the command's. `NODE_ENV`
+ * is the case that made this real: this storefront's declaration says in as many
+ * words that its toolchain sets it and that *"setting it by hand is how a
+ * production build ends up serving development output"*, and a CI job that set
+ * it for the **backend** it booted put it on every process in the job, including
+ * a `next build` in a scaffolded instance outside the checkout.
+ *
+ * Scoped with `scopeToMembers` rather than by name, for `storefrontDeclaredInputs`'
+ * reason: a declaration may carry an input another member reads, and the question
+ * here is what *this* process reads.
+ */
+export async function declaredVariablesOf(storefrontDir: string): Promise<readonly string[]> {
+  const declared = await loadTreeDeclaration(storefrontDir, STOREFRONT_DECLARATION_EXPORT);
+  return scopeToMembers(declared, ['storefront']).map((input) => input.name);
 }

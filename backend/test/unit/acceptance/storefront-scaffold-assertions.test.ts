@@ -23,6 +23,7 @@ import {
   exitCodeFor,
   exitCodeForExpectation,
   formatReport,
+  instanceEnvironment,
   planScaffoldInputs,
   SCAFFOLD_INPUT_STAND_INS,
 } from '../../../scripts/acceptance/storefront-scaffold-assertions.js';
@@ -652,5 +653,123 @@ describe('the criterion supplies every input the reference storefront declares r
    */
   it('needs no stand-in: every required input has a derivation', () => {
     expect(Object.keys(SCAFFOLD_INPUT_STAND_INS)).toEqual([]);
+  });
+});
+
+/**
+ * The environment a process run **inside the instance** is given.
+ *
+ * **A5 had never once passed in CI when this was written** — 163 runs of
+ * `acceptance:storefront-scaffold` since it landed on 2026-09-03, of which zero
+ * succeeded — and the whole of the difference between a developer's machine and
+ * the runner was one variable the criterion inherited and passed on:
+ * `NODE_ENV=development`, which the job sets job-wide and correctly for the
+ * **backend** it boots. Reproduced on this tree by exporting it and varying
+ * nothing else, down to the chunk offset in the message.
+ *
+ * The message named Next's own `pages/_document`, and that is the shape worth
+ * remembering rather than the variable: `next build` inlines
+ * `process.env.NODE_ENV` as `"production"` into the server bundle it emits, so
+ * the emitted `_document.js` requires `pages.runtime.prod.js` while the render
+ * worker reads the real `NODE_ENV` and requires `pages.runtime.dev.js` — two
+ * module instances, two `React.createContext()` calls, and an `<Html>` looking
+ * for a provider installed on the other one. It is upstream and it is not this
+ * repository's: a four-file `app/` with no dependency of ours in it fails
+ * identically.
+ *
+ * So the rule under test is not about `NODE_ENV`. It is that Next does not let a
+ * `.env` override a variable the process already carries, so **any** name the
+ * instance declares that reaches it from the harness configures the instance
+ * over the top of what `endora new storefront` wrote — a red for a value no
+ * client would set, and, in the other direction, a green for a value the command
+ * never produced.
+ */
+describe('the instance is given its own environment, not the harness‘s', () => {
+  it('withholds a declared name the harness carries — the measured case', () => {
+    const { overlay, withheld } = instanceEnvironment({
+      ambient: { NODE_ENV: 'development', PATH: '/usr/bin' },
+      declared: ['NODE_ENV', 'NEXT_PUBLIC_SITE_URL'],
+      supplied: {},
+    });
+    expect(withheld).toEqual(['NODE_ENV']);
+    // `undefined` rather than absent: the caller merges this over `process.env`,
+    // and `child_process` drops an `undefined` value instead of exporting it, so
+    // this is what makes the child see the variable unset.
+    expect(Object.prototype.hasOwnProperty.call(overlay, 'NODE_ENV')).toBe(true);
+    expect(overlay['NODE_ENV']).toBeUndefined();
+  });
+
+  it('leaves a name the instance does not declare alone', () => {
+    const { overlay, withheld } = instanceEnvironment({
+      ambient: { PATH: '/usr/bin', PUBLIC_API_BASE_URL: 'http://127.0.0.1:3001' },
+      declared: ['NODE_ENV'],
+      supplied: {},
+    });
+    // `PUBLIC_API_BASE_URL` is this harness's own input and no file in a
+    // storefront reads it, so it is not the instance's to withhold.
+    expect(withheld).toEqual([]);
+    expect(Object.keys(overlay)).toEqual([]);
+  });
+
+  it('lets a value this run supplied win over one it merely inherited', () => {
+    const { overlay, withheld } = instanceEnvironment({
+      ambient: { NEXT_PUBLIC_API_BASE_URL: 'http://a-machine-nobody-asked-about:9999' },
+      declared: ['NEXT_PUBLIC_API_BASE_URL'],
+      supplied: { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:3001' },
+    });
+    // A6 points the instance at the backend this run booted. That is the
+    // harness's deliberate configuration and is not an inheritance, so it is
+    // neither withheld nor reported as one.
+    expect(withheld).toEqual([]);
+    expect(overlay['NEXT_PUBLIC_API_BASE_URL']).toBe('http://127.0.0.1:3001');
+  });
+
+  it('withholds a declared name the harness exported empty', () => {
+    // `NODE_ENV=` is exported, reaches the child, and Next reads the empty
+    // string — a state that is not "unset" and would be one if this compared
+    // against falsiness rather than against `undefined`.
+    const { withheld } = instanceEnvironment({
+      ambient: { NODE_ENV: '' },
+      declared: ['NODE_ENV'],
+      supplied: {},
+    });
+    expect(withheld).toEqual(['NODE_ENV']);
+  });
+
+  it('says nothing about a declared name the harness does not carry', () => {
+    const { overlay, withheld } = instanceEnvironment({
+      ambient: { PATH: '/usr/bin' },
+      declared: ['NODE_ENV', 'REVALIDATE_SECRET'],
+      supplied: {},
+    });
+    expect(withheld).toEqual([]);
+    expect(Object.keys(overlay)).toEqual([]);
+  });
+
+  it('discloses one sorted name per variable, whatever the declaration repeats', () => {
+    const { withheld } = instanceEnvironment({
+      ambient: { NODE_ENV: 'development', STOREFRONT_URL: 'http://elsewhere' },
+      declared: ['STOREFRONT_URL', 'NODE_ENV', 'NODE_ENV'],
+      supplied: {},
+    });
+    expect(withheld).toEqual(['NODE_ENV', 'STOREFRONT_URL']);
+  });
+
+  /**
+   * The link between the pure rule above and the tree it protects.
+   *
+   * The withheld population is the storefront's own declaration and never a list
+   * in the criterion, which is what makes the rule tighten by itself when the
+   * storefront declares another variable. The converse is what this asserts: a
+   * declaration that stopped naming `NODE_ENV` would stop covering the one
+   * variable that has actually broken this criterion, and nothing else in the
+   * repository would say so.
+   */
+  it('covers `NODE_ENV`, because the reference storefront declares reading it', async () => {
+    const repoRoot = resolve(__dirname, '..', '..', '..', '..');
+    const { declaredVariablesOf } = await import('@endora-commerce/cli');
+    const declared = await declaredVariablesOf(join(repoRoot, 'storefront'));
+    expect(declared.length).toBeGreaterThan(0);
+    expect(declared).toContain('NODE_ENV');
   });
 });

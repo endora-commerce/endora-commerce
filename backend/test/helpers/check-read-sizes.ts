@@ -3060,7 +3060,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // check reads 7794, which is what was recorded, so its base carried no inherited
     // staleness. Measured with `backend/.env` parked, that being a worktree's file and
     // not CI's.
-    files: 7795,
+    // **Rebased onto the `addressOf` fixture repair, and the storefront-scaffold criterion
+    // stops inheriting its own environment: 7795 -> 7796 (+1).** Both branches moved this
+    // entry and each wrote the same intermediate 7795, so the value below is the sum of the
+    // two contributions rather than either one's — re-measured after the rebase rather than
+    // carried across it, which is the state the drift census exists to surface. This
+    // branch's one file is `.changeset/storefront-declared-variables.md`: its population is
+    // the whole repository, so a changeset is a file it reads. Every other edit it makes is
+    // to a file that already existed — the criterion, its assertions module, their test,
+    // `packages/cli`'s reference derivation and its barrel, the expectation record and one
+    // comment block in `.gitlab-ci.yml` — and an edit moves no count here. Measured with
+    // `backend/.env` parked, which is what a fresh checkout and this check's CI job hold;
+    // unlike `check-naming.sh` one entry over, this walk *does* move by one when that file
+    // is present, its population being the directory tree rather than git's list. Measured
+    // both ways at this head: 7797 with it, 7796 without.
+    files: 7796,
     sites: null,
     sources: [],
   },
@@ -4522,7 +4536,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // as well, which reads **7854**, the recorded value. Nothing was inherited stale, and
     // `git ls-tree -r --name-only` is 7855 at this branch's base against 7856 at its head:
     // the same +1, from a second listing.
-    files: 7855,
+    // **Rebased onto the `addressOf` fixture repair, and the storefront-scaffold criterion
+    // stops inheriting its own environment: 7855 -> 7856 (+1).** Both branches moved this
+    // entry and each wrote the same intermediate 7855, so the value below is the sum of the
+    // two rather than either one's, re-measured after the rebase. The one file is
+    // `.changeset/storefront-declared-variables.md`, which
+    // `git ls-files --cached --others --exclude-standard` lists like any other; nothing else
+    // on this branch adds or removes one. `backend/.env` does not move this walk — git's own
+    // list, not a directory tree — measured both ways, 7856 either way.
+    files: 7856,
     sites: null,
     sources: ['manifest-index'],
   },

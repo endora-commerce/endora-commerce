@@ -66,6 +66,7 @@ export { flagFor } from './inputs/resolve.js';
 export {
   addressVariables,
   backendAddressVariablesOf,
+  declaredVariablesOf,
   storefrontAddressVariablesOf,
   STOREFRONT_DECLARATION_EXPORT,
   ENV_EXAMPLE_FILE,

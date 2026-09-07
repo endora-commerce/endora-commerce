@@ -29,6 +29,7 @@ import { DECLARATION_FILE } from '../src/inputs/declaration.js';
 import { runNewStorefront } from '../src/new-storefront/index.js';
 import {
   addressVariables,
+  declaredVariablesOf,
   envExampleDeclarations,
   memberDirectories,
   outwardReferences,
@@ -847,6 +848,80 @@ describe('the address variables are derived from the copy\'s own declaration', (
       expect(backendSentence).toBeDefined();
       expect(backendSentence).toContain('NEXT_PUBLIC_API_BASE_URL');
       expect(backendSentence).not.toContain('NEXT_PUBLIC_SITE_URL');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * Every variable a storefront's own process reads.
+ *
+ * The two derivations above answer *which of these names a member*; this one is
+ * the whole population, and it exists for a caller that **spawns** a
+ * storefront's toolchain — `endora new storefront`'s acceptance criterion, which
+ * runs an install, a `next build` and two boots inside a copy.
+ *
+ * The failure it closes is not hypothetical: that criterion inherited its own
+ * environment into all four, Next does not let a `.env` override a variable the
+ * process already carries, and one `NODE_ENV=development` a CI job set for the
+ * **backend** it booted made `next build` fail in every run the criterion has
+ * ever had in CI. What a client's storefront reads is the client's storefront's
+ * to say, which is what this asks.
+ */
+describe('a storefront declares which variables its own process reads', () => {
+  it('answers with every input scoped to this member, off the directory', async () => {
+    const root = fixtureRepo({ storefrontFiles: { 'package.json': MANIFEST } });
+    try {
+      expect(await declaredVariablesOf(join(root, 'shop'))).toEqual([
+        'NEXT_PUBLIC_API_BASE_URL',
+        'NEXT_PUBLIC_APP_NAME',
+        'NEXT_PUBLIC_SITE_URL',
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves out an input this member does not read, rather than every name in the file', async () => {
+    // A declaration may carry an input another member reads — `ADMIN_BASE_URL`
+    // is the tree's own example, whose *value* names the admin and whose
+    // consumer is the backend. Withholding it from a storefront's own process
+    // would be withholding a variable that was never the storefront's.
+    const declaration = `export const STOREFRONT_ENVIRONMENT_INPUTS = [
+  {
+    name: 'NEXT_PUBLIC_APP_NAME',
+    describes: { en: 'the shop name.', pl: 'nazwa sklepu.' },
+    requirement: {
+      kind: 'optional',
+      without: { en: 'the shortcut carries a default name.', pl: 'skrot ma domyslna nazwe.' },
+    },
+    secret: false,
+    generable: false,
+    owner: { kind: 'application', application: 'storefront' },
+    consumers: ['storefront'],
+    addressOf: null,
+  },
+  {
+    name: 'SOMEONE_ELSES_SECRET',
+    describes: { en: 'read by the backend alone.', pl: 'czytane tylko przez backend.' },
+    requirement: {
+      kind: 'optional',
+      without: { en: 'the backend uses its own default.', pl: 'backend uzywa domyslnej wartosci.' },
+    },
+    secret: true,
+    generable: false,
+    owner: { kind: 'platform' },
+    consumers: ['backend'],
+    addressOf: null,
+  },
+];
+`;
+    const root = fixtureRepo({
+      storefrontFiles: { 'package.json': MANIFEST, [DECLARATION_FILE]: declaration },
+    });
+    try {
+      expect(await declaredVariablesOf(join(root, 'shop'))).toEqual(['NEXT_PUBLIC_APP_NAME']);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

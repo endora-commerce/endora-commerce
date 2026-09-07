@@ -598,3 +598,78 @@ export function planScaffoldInputs(request: ScaffoldInputRequest): ScaffoldInput
 
   return { values, unanswerable, staleStandIns };
 }
+
+/** What a process run **inside the instance** is given, and what it is not. */
+export interface InstanceEnvironmentRequest {
+  /** The harness's own environment — everything this criterion happens to carry. */
+  readonly ambient: Readonly<Record<string, string | undefined>>;
+  /** Every variable the instance's own declaration says its process reads. */
+  readonly declared: readonly string[];
+  /** What this run deliberately configures the instance with, and why it may. */
+  readonly supplied: Readonly<Record<string, string>>;
+}
+
+export interface InstanceEnvironment {
+  /**
+   * Applied **over** the harness's environment by the caller's own spawn: a
+   * withheld name maps to `undefined`, which `child_process` drops rather than
+   * exports, so the child sees the variable unset.
+   */
+  readonly overlay: Readonly<Record<string, string | undefined>>;
+  /** The declared names the harness carried and this run withheld, sorted. */
+  readonly withheld: readonly string[];
+}
+
+/**
+ * The environment for a process this criterion runs **inside the instance** —
+ * the install, the build and the boot.
+ *
+ * **The harness's environment is not the client's, and A5 has never once passed
+ * in CI because of it.** The criterion inherited `process.env` wholesale into
+ * `pnpm install`, `pnpm run build` and `next start`. Next loads the copy's
+ * `.env` and does *not* override a variable the process already carries, so any
+ * name the instance declares that happens to sit in the harness's environment
+ * displaces the value `endora new storefront` wrote — and the run then measures
+ * the harness's configuration while reporting on the command's. That is the
+ * failure mode in both directions: a red for a value the client would never set,
+ * and a green for a value the command never produced.
+ *
+ * Measured, on this tree, one variable varied and nothing else: with
+ * `NODE_ENV=development` exported — which `acceptance:storefront-scaffold` sets
+ * job-wide, correctly, for the **backend** it boots — A5 fails with
+ * *"<Html> should not be imported outside of pages/_document"*, byte-identical
+ * to CI down to the chunk offset. `next build` inlines `process.env.NODE_ENV` as
+ * `"production"` into the server bundle it emits, so the emitted `_document.js`
+ * requires `pages.runtime.prod.js`, while the render worker reads the *real*
+ * `NODE_ENV` and requires `pages.runtime.dev.js`: two module instances, two
+ * `React.createContext()` calls, and an `<Html>` looking for a provider that was
+ * installed on the other one. It is upstream and it is not ours — a four-file
+ * `app/` with no dependency of this repository in it fails identically — and the
+ * storefront's own declaration already says so: *"the toolchain sets it …
+ * setting it by hand is how a production build ends up serving development
+ * output"*.
+ *
+ * **The population is the instance's own declaration, never a list of variable
+ * names here.** A deny-list would answer for the one variable somebody found and
+ * go quiet for the next; `declaredVariablesOf` is the copy's statement of what
+ * its own process reads, so the rule tightens by itself when the storefront
+ * declares another. What is *supplied* is the harness's deliberate
+ * configuration — the backend address A6 points the instance at — and it wins,
+ * because a value this run chose is not a value it inherited. `NEXT_PUBLIC_SITE_URL`
+ * is deliberately not among them, which is what keeps A7 an observation of the
+ * chain the command wrote rather than of a variable the harness exported.
+ */
+export function instanceEnvironment(request: InstanceEnvironmentRequest): InstanceEnvironment {
+  const withheld = [...new Set(request.declared)]
+    .filter(
+      (name) =>
+        request.ambient[name] !== undefined &&
+        !Object.prototype.hasOwnProperty.call(request.supplied, name),
+    )
+    .sort((left, right) => left.localeCompare(right));
+
+  const overlay: Record<string, string | undefined> = {};
+  for (const name of withheld) overlay[name] = undefined;
+  for (const [name, value] of Object.entries(request.supplied)) overlay[name] = value;
+  return { overlay, withheld };
+}
