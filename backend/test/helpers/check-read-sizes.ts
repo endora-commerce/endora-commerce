@@ -2569,6 +2569,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // manifest read that came back partial.
     sources: ['manifest-index', 'renderer-maps', 'block-declarations', 'block-categories'],
   },
+  'backend/scripts/check-class-vocabulary.ts': {
+    prefix: '[class-vocabulary]',
+    run: { kind: 'tsx', path: 'scripts/check-class-vocabulary.ts', args: [] },
+    // Source files opened plus the design system stylesheets read. It moves with
+    // the module tree and with the admin-ui family, and it is deliberately *not*
+    // the class-attribute positions — that is `sites`, and the two answer
+    // different questions: a changed attribute or helper spelling leaves `files`
+    // exactly where it was and takes `sites` to zero, which is the #235/#237
+    // shape and the state this check's fourth refusal exists for.
+    files: 2686,
+    // Class-attribute positions classified — `className=`, `class=`, and an
+    // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
+    // with every screen written, and a run whose `sites` fell while `files` held
+    // is the syntax walk going blind rather than the tree shrinking.
+    sites: 5327,
+    // `manifest-index` is issue #215's shared floor over the module half of the
+    // render walk. `design-system` is the `exports` maps' own answer to *"which
+    // packages publish `./theme.css`"* against the stylesheets this run opened,
+    // which is the one way the defining half goes silently empty while every
+    // other number stays healthy. `module-admin` is the generated admin
+    // contribution registry's answer to *"which packages ship admin code"* — a
+    // second program's — so a walk that stopped reaching a module's admin layer
+    // disagrees with it in the same run.
+    sources: ['manifest-index', 'design-system', 'module-admin'],
+  },
   'backend/scripts/check-bundle-pairing.ts': {
     prefix: '[bundle-pairing]',
     run: { kind: 'tsx', path: 'scripts/check-bundle-pairing.ts', args: [] },

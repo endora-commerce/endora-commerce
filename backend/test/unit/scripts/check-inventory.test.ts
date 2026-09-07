@@ -109,6 +109,12 @@ import {
   type BundlePairingFindingKind,
 } from '../../../scripts/check-bundle-pairing.js';
 import {
+  checkClassVocabulary,
+  classAttributeSites,
+  undefinedRenderKey,
+  type ClassVocabularyFindingKind,
+} from '../../../scripts/lib/class-vocabulary.js';
+import {
   blockNameFindingsOfKind,
   blockNameParseFailure,
   blockNameRefusalOf,
@@ -3370,6 +3376,34 @@ function blockNameFindingCount(
   return blockNameFindingsOfKind(fixture, kind).length;
 }
 
+/**
+ * `check:class-vocabulary` over **stylesheet bytes and `.tsx` bytes** — every
+ * input a real run reads, and none of its answers (feature 110, T129b).
+ *
+ * The fixture enters at the top because both predicates live below it: P1 reads
+ * rule preludes across brace boundaries and P2 reads a whole token in a
+ * class-attribute position. A fixture handing in a token set would prove the
+ * reporter and leave unproven the one predicate a substring match has already
+ * got wrong, at the cost of moving the wrong third of a design system into a
+ * package.
+ */
+function classVocabularyFindings(
+  input: {
+    readonly css: string;
+    readonly sources?: Record<string, string>;
+    readonly unrendered?: Record<string, string>;
+    readonly undefinedRenders?: Record<string, string>;
+  },
+  kind: ClassVocabularyFindingKind,
+): number {
+  return checkClassVocabulary({
+    stylesheets: new Map([['packages/admin-kit/theme.css', input.css]]),
+    sources: new Map(Object.entries(input.sources ?? {})),
+    unrendered: input.unrendered ?? {},
+    undefinedRenders: input.undefinedRenders ?? {},
+  }).findings.filter((finding) => finding.kind === kind).length;
+}
+
 function bundlePairingFindings(
   declarations: readonly FixtureModule[],
   kind: BundlePairingFindingKind,
@@ -4272,6 +4306,124 @@ const CHECKS: readonly CheckEntry[] = [
         }) === null
           ? 0
           : 1,
+      ),
+    },
+  },
+  {
+    // Feature 110's T129b, and it is **D-219's own mitigation** rather than a
+    // check that happened to land beside it. That ruling made 137 class names
+    // published package surface, and it names this check in the same breath
+    // because both directions of the reconciliation were silent: an undefined
+    // class renders unstyled in every instance with no diagnostic anywhere, and
+    // a defined class nobody renders is dead surface a major version is waiting
+    // on. T126 published 23 of the second kind and the measurement that put
+    // them there was a **substring** match.
+    //
+    // No other rule in this estate has a class token in its population:
+    // `check:module-boundary` reads import specifiers and SQL tables,
+    // `check:admin-zones` reads zone names and `useTranslation` scopes,
+    // `i18n:hardcoded` reads JSX text and four attributes — none of them
+    // `className`'s value read as tokens.
+    //
+    // Four findings, four proofs, plus the three discriminations the population
+    // turns on: a Tailwind utility inside a design-system namespace (`pb-4`), a
+    // token outside every declared namespace (`flex`), and a template whose
+    // substitution **separates** its literals rather than gluing them. Each
+    // enters as stylesheet text and source text.
+    script: 'backend/scripts/check-class-vocabulary.ts',
+    npmScript: 'check:class-vocabulary',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-class-vocabulary.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // The render walk is `layout.moduleWalkRoots` plus the non-module packages
+    // that declare `./tailwind.css` plus the admin's own roots, and it carries
+    // `vacuousModulePopulation` over the first — so a moved module tree is
+    // refused rather than reported clean, and `moved-module-tree.test.ts`
+    // spawns it beside the other module walks.
+    residueGuard: 'derived-population',
+    red: {
+      'undefined-render': top(() =>
+        classVocabularyFindings(
+          {
+            css: '.b2b-badge { color: red }\n',
+            sources: { 'x.tsx': 'export const S = () => <b className="b2b-badge--muted" />;\n' },
+            unrendered: { 'b2b-badge': 'unrendered in this fixture on purpose' },
+          },
+          'undefined-render',
+        ),
+      ),
+      'unrendered-definition': top(() =>
+        classVocabularyFindings(
+          {
+            css: '.b2b-savebar { position: sticky }\n',
+            sources: { 'x.tsx': 'export const S = () => <b className="b2b-btn" />;\n' },
+            undefinedRenders: { [undefinedRenderKey('x.tsx', 'b2b-btn')]: 'ledgered' },
+          },
+          'unrendered-definition',
+        ),
+      ),
+      // A finding and never a skip (issue #113): read as "some class is
+      // rendered" it excuses a definition, read as "no class is rendered" it
+      // accuses a render, and neither direction can be decided.
+      'unresolvable-class': top(() =>
+        classVocabularyFindings(
+          {
+            css: '.b2b-btn { color: red }\n',
+            sources: {
+              'x.tsx': 'export const S = () => <b className={`b2b-btn--${variant}`} />;\n',
+            },
+            unrendered: { 'b2b-btn': 'unrendered in this fixture on purpose' },
+          },
+          'unresolvable-class',
+        ),
+      ),
+      'stale-ledger-entry': top(() =>
+        classVocabularyFindings(
+          { css: '.b2b-btn { color: red }\n', unrendered: { 'b2b-gone': 'stale' } },
+          'stale-ledger-entry',
+        ),
+      ),
+      // The three discriminations, each proven as a **red that does not fire**
+      // over an input one predicate mistake away from a finding. The first is
+      // the one bound this rule declares: the page builder owns `pb-*` and
+      // Tailwind spells padding-bottom `pb-4`.
+      'a-utility-in-a-declared-namespace-is-not-a-finding': top(() =>
+        classVocabularyFindings(
+          {
+            css: '.pb-outline-item { color: red }\n',
+            sources: { 'x.tsx': 'export const S = () => <b className="pb-4" />;\n' },
+            unrendered: { 'pb-outline-item': 'unrendered in this fixture on purpose' },
+          },
+          'undefined-render',
+        ) === 0
+          ? 1
+          : 0,
+      ),
+      'a-token-outside-every-namespace-is-not-a-finding': top(() =>
+        classVocabularyFindings(
+          {
+            css: '.b2b-btn { color: red }\n',
+            sources: { 'x.tsx': 'export const S = () => <b className="flex mb-4" />;\n' },
+            unrendered: { 'b2b-btn': 'unrendered in this fixture on purpose' },
+          },
+          'undefined-render',
+        ) === 0
+          ? 1
+          : 0,
+      ),
+      // `ProductsBulkEditDialog` writes this twice and every class name in it
+      // is a whole literal; without the separation test a fully literal
+      // attribute reads as `unresolvable-class`.
+      'a-separating-substitution-is-not-a-computed-name': top(() =>
+        classAttributeSites(
+          'export const S = () => (\n' +
+            '  <b className={`b2b-btn b2b-btn--sm${on ? \' b2b-btn--primary\' : \'\'}`} />\n' +
+            ');\n',
+          'x.tsx',
+        ).every((site) => !site.computed)
+          ? 1
+          : 0,
       ),
     },
   },
@@ -10134,6 +10286,13 @@ describe('every red proof enters at the top of the analysis', () => {
       // Four findings and the discrimination the conditional turns on: a module
       // shipping neither bundle is exempt, and a run of nothing but such
       // modules is refused rather than reported clean.
+      // Four findings and the three discriminations the population turns on: a
+      // Tailwind utility inside a design-system namespace, a token outside every
+      // declared namespace, and a substitution that separates rather than glues.
+      // The ratio is the point — this rule lands over 201 definitions and 5 327
+      // render sites, so what needs proving is not that it can go red but that
+      // it still tells a vocabulary name from a utility.
+      'backend/scripts/check-class-vocabulary.ts': 7,
       'backend/scripts/check-bundle-pairing.ts': 5,
       // Three findings, and nine more shapes of which six are discriminations.
       // The ratio is the point: this check lands over a population of 46, so

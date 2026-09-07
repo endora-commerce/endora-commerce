@@ -487,6 +487,19 @@ quality:
     # renderer — reconciled against what the manifests declare, in both
     # directions. One ledger, `BLOCKS_WITHOUT_A_RENDERER`, and it lands empty.
     - pnpm --filter backend run check:block-names
+    # Feature 110 T129b (owner ruling D-219) —
+    # `specs/110-instance-repository/contracts/admin-stylesheet-composition.md`
+    # §3's *"a module release renders a class the design system does not
+    # define"* row. D-219 made 137 class names published package surface and
+    # names this check as the mitigation in its own batch, because both
+    # directions were silent: an undefined class renders unstyled in every
+    # instance with no diagnostic anywhere, and a defined class nobody renders
+    # is dead surface a major version is waiting on. No other check in this
+    # estate has a class token in its population. §7.1's two predicates are
+    # this check's — a whole token in a class-attribute position, never a
+    # substring, because one substring match is what moved the wrong third of
+    # the design system into a package.
+    - pnpm --filter backend run check:class-vocabulary
     # Feature 073 (Constitution XVII item 6) —
     # `specs/073-lifecycle-gating-completion/contracts/off-state-coverage-ratchet.md`.
     # Which modules actually carry an off-state proof was re-derived by hand
