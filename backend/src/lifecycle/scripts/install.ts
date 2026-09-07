@@ -2,6 +2,7 @@ import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   runInstallCommand,
+  type OperatorResources,
   type OperatorRuntime,
 } from '@endora-commerce/platform/lifecycle';
 import { initOrm, closeOrm } from '../../db/index.js';
@@ -30,9 +31,19 @@ import { enterSystemScope } from '../../kernel/scope.js';
  * take that source to 5/5 — a 50 % fall against a −10 % band — for no gain in
  * what a client receives.
  *
- * **The manifest set is resolved here, before the ORM is opened** (R2.2): the
- * resolution reads `node_modules` and may raise the module-id collision
- * refusal, and exit 65 is where an operator reads it.
+ * **The manifest set is resolved here, first** (R2.2): the resolution reads
+ * `node_modules` and may raise the module-id collision refusal, and exit 65 is
+ * where an operator reads it. That sentence read *"before the ORM is opened"*
+ * until D115-6, and the edit is not cosmetic — under R2.6 there are invocations
+ * in which the ORM is never opened at all, so an ordering stated against it
+ * would name an event that does not happen.
+ *
+ * **This file owns *when* the handles are opened as well as *how*** (R2.6): the
+ * resources are a memoised thunk, reached only from the body's
+ * `orchestratorFor`, so a usage error, an unknown module id and `--dry-run`
+ * answer with no database and no Redis — which is `cli-commands.md` §C-1's own
+ * step order, and which makes exit 64 for misuse unconditional rather than
+ * conditional on a machine whose database is up.
  */
 
 async function main(): Promise<number> {
@@ -58,16 +69,22 @@ async function main(): Promise<number> {
     return 65;
   }
 
-  const orm = await initOrm();
-  const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
-  const redis = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-    lazyConnect: false,
-  });
+  // Opened on first use and memoised (R2.6). The body calls this from
+  // `orchestratorFor` and from nowhere else, at the point where the eager
+  // handle used to be read, so a resource failure lands exactly where an
+  // awaited `initOrm()` here used to land.
+  let opened: OperatorResources | undefined;
   const runtime: OperatorRuntime = {
-    orm,
-    em: (): EntityManager => orm.em.fork() as EntityManager,
-    redis,
+    resources: async (): Promise<OperatorResources> => {
+      if (opened) return opened;
+      const orm = await initOrm();
+      const redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
+        maxRetriesPerRequest: null,
+        lazyConnect: false,
+      });
+      opened = { orm, em: (): EntityManager => orm.em.fork() as EntityManager, redis };
+      return opened;
+    },
     entries,
     out: (line) => void process.stdout.write(line),
     err: (line) => void process.stderr.write(line),
@@ -76,8 +93,12 @@ async function main(): Promise<number> {
   try {
     return await runInstallCommand(process.argv.slice(2), runtime);
   } finally {
-    redis.disconnect();
-    await closeOrm();
+    // Close only what was opened: an invocation that answered out of argv or
+    // the registry alone has nothing to close.
+    if (opened) {
+      opened.redis.disconnect();
+      await closeOrm();
+    }
   }
 }
 

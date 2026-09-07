@@ -110,7 +110,7 @@ export async function runInstallCommand(
     return 0;
   }
 
-  const orchestrator = orchestratorFor(rt, registry);
+  const orchestrator = await orchestratorFor(rt, registry);
 
   try {
     const result = await orchestrator.install(args.id);

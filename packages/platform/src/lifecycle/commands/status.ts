@@ -98,7 +98,7 @@ export async function runStatusCommand(
     return 0;
   }
 
-  const orchestrator = orchestratorFor(rt, registry);
+  const orchestrator = await orchestratorFor(rt, registry);
 
   try {
     let rows = await orchestrator.status();

@@ -61,7 +61,7 @@ export async function runEnableCommand(
     return 65;
   }
 
-  const orchestrator = orchestratorFor(rt, registry);
+  const orchestrator = await orchestratorFor(rt, registry);
 
   try {
     const result = await orchestrator.enable(args.id);

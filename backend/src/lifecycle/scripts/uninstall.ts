@@ -2,6 +2,7 @@ import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   runUninstallCommand,
+  type OperatorResources,
   type OperatorRuntime,
 } from '@endora-commerce/platform/lifecycle';
 import { initOrm, closeOrm } from '../../db/index.js';
@@ -51,18 +52,27 @@ async function main(): Promise<number> {
     return 65;
   }
 
-  const orm = await initOrm();
-  const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
-  const redis = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-    lazyConnect: false,
-  });
+  // Opened on first use and memoised (R2.6): the `--hard` safety refusal
+  // answers above this, so the invocation that most needs to be cheap and
+  // certain is the one that opens nothing.
+  let opened: OperatorResources | undefined;
   const runtime: OperatorRuntime = {
-    orm,
-    em: (): EntityManager => orm.em.fork() as EntityManager,
-    redis,
+    resources: async (): Promise<OperatorResources> => {
+      if (opened) return opened;
+      const orm = await initOrm();
+      const redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
+        maxRetriesPerRequest: null,
+        lazyConnect: false,
+      });
+      opened = { orm, em: (): EntityManager => orm.em.fork() as EntityManager, redis };
+      return opened;
+    },
     entries,
     migrationOwnership: () => Promise.resolve(coreMigrationOwnership()),
+    // `confirm` is deliberately not supplied (D115-7, R2.7). Absent means this
+    // run cannot ask, so `--hard` requires `--force` — which is what every
+    // invocation of this script meets today, because whether a terminal is
+    // asked at all is `D-217`'s to settle and no prompt exists to reach.
     out: (line) => void process.stdout.write(line),
     err: (line) => void process.stderr.write(line),
   };
@@ -70,8 +80,12 @@ async function main(): Promise<number> {
   try {
     return await runUninstallCommand(process.argv.slice(2), runtime);
   } finally {
-    redis.disconnect();
-    await closeOrm();
+    // Close only what was opened: an invocation that answered out of argv, the
+    // registry or the `--hard` refusal alone has nothing to close.
+    if (opened) {
+      opened.redis.disconnect();
+      await closeOrm();
+    }
   }
 }
 

@@ -96,7 +96,10 @@
 // ledgered relative reach — correctly, because the host names them through this
 // specifier — so they are held by the barrel's *second* direction: a name here
 // is one a first-party source outside the platform actually imports.
-export { type OperatorRuntime } from './commands/operator-runtime.js';
+export {
+  type OperatorResources,
+  type OperatorRuntime,
+} from './commands/operator-runtime.js';
 export { runInstallCommand } from './commands/install.js';
 export { runUninstallCommand } from './commands/uninstall.js';
 export { runEnableCommand } from './commands/enable.js';

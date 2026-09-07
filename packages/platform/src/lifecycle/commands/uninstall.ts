@@ -10,13 +10,15 @@ import { orchestratorFor, type OperatorRuntime } from './operator-runtime.js';
  * Soft uninstall (default): unregisters the module's settings, marks the
  * registry row as `uninstalled`, leaves DB tables / data intact.
  * Hard uninstall (`--hard`): also reverts the module's migrations and
- * deletes the registry row. `--hard` in a non-tty shell additionally
- * requires `--force` to prevent accidental data loss in CI / cron.
+ * deletes the registry row. `--hard` additionally requires `--force` on any run
+ * that cannot ask the operator to confirm — which is every run whose caller
+ * supplies no {@link OperatorRuntime.confirm} (D115-7, R2.7) — to prevent
+ * accidental data loss in CI / cron.
  *
  * Exit codes (per `specs/018-module-lifecycle/contracts/cli-commands.md` §C-2),
  * preserved byte-for-byte by the move (R2.3):
  *   - 0   success (or already uninstalled — no-op)
- *   - 64  misuse: bad argv, --hard without --force in non-tty
+ *   - 64  misuse: bad argv, --hard without --force on a run that cannot ask
  *   - 66  conflict: dependents still installed
  *   - 70  internal error during uninstall
  *   - 75  lock unavailable
@@ -82,17 +84,36 @@ export async function runUninstallCommand(
   }
   const args = parsed;
 
-  // Hard uninstall in a non-tty shell requires --force as a safety net.
+  // Hard uninstall without --force requires a confirmation this run can
+  // obtain, and whether it can is the *caller's* answer rather than this file's
+  // (D115-7, R2.7). It used to be `!process.stdout.isTTY` here. That read is a
+  // decision taken from a process global, which defeats R2.4's two reasons —
+  // *testable without a process*, and *an instance may frame the output* —
+  // exactly as writing to one would: a body test has to mutate a global to
+  // reach this branch, and a deploy script, a systemd unit or an admin action
+  // has its destructive-write policy decided by whether *its own* stdout
+  // happens to be a terminal, which is a fact about the wrapper and not about
+  // the operator. It was also wrong on its own terms — it tested stdout alone,
+  // so `docker run -t`, a `script -qec` wrapper or any CI configuration that
+  // allocates a terminal for coloured output read as interactive and took the
+  // branch that **proceeds**, which is the mirror of the predicate
+  // `specs/117-instance-bring-up/contracts/input-resolution.md` R3.5 refuses.
   //
-  // `process.stdout.isTTY` is read here rather than carried on
-  // `OperatorRuntime` because it is not output — it is a fact about the
-  // invocation, and this is an exit-code decision, which the contract's §1.1
-  // puts on this side of the partition with the rest of the table (R2.3). The
-  // runtime's `out`/`err` stay the only channel anything is *written* through
-  // (R2.4).
-  if (args.hard && !args.force && !process.stdout.isTTY) {
+  // The exit code and the sentence stay here, on this side of the partition
+  // with the rest of the table (§1.1, R2.3); only the fact travels.
+  //
+  // **Absent means this run cannot ask**, and nothing supplies `confirm` today,
+  // so the refusal is what every invocation meets. For the non-interactive runs
+  // the CLI contract test and `uninstall-hard-needs-force.integration.test.ts`
+  // spawn that is this branch's behaviour unchanged. Asking the question —
+  // `specs/018-module-lifecycle/contracts/cli-commands.md` §C-2 step 6's *"or a
+  // tty prompt confirming "yes" verbatim"*, which has never been implemented in
+  // either tree — is `D-217`'s to settle, and the field is shaped so that either
+  // of the owner's answers is a change to the entry points and to this branch,
+  // never to the interface.
+  if (args.hard && !args.force && !rt.confirm) {
     rt.err(
-      `[uninstall] --hard in a non-interactive shell requires --force ` +
+      `[uninstall] --hard requires --force unless this run can ask for confirmation ` +
         `(refusing to delete data without explicit confirmation).\n`,
     );
     return 64;
@@ -122,7 +143,7 @@ export async function runUninstallCommand(
     ? await rt.migrationOwnership()
     : undefined;
 
-  const orchestrator = orchestratorFor(
+  const orchestrator = await orchestratorFor(
     rt,
     registry,
     migrationOwnership ? { migrationOwnership } : {},

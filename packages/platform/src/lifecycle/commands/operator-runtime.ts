@@ -7,6 +7,22 @@ import type { MigrationOwnership } from '../services/migration-ownership.js';
 import { ModuleLifecycleOrchestrator } from '../services/orchestrator.js';
 
 /**
+ * The three things only the tree that installs the platform can build
+ * (`specs/115-lifecycle-container-move/`, D115-6;
+ * `contracts/operator-half.md` §2, R2.6).
+ *
+ * They are handed over as a group because they are opened as a group: an
+ * invocation that needs one needs all three, and an invocation that needs none
+ * opens none. `em` stays a *factory* rather than an `EntityManager` because
+ * forking is the host's decision, taken under its own system scope.
+ */
+export interface OperatorResources {
+  readonly orm: MikroORM;
+  readonly em: () => EntityManager;
+  readonly redis: Redis;
+}
+
+/**
  * The seam the five `module:*` command bodies take
  * (`specs/115-lifecycle-container-move/`, D115-1;
  * `contracts/operator-half.md` §2).
@@ -41,15 +57,50 @@ import { ModuleLifecycleOrchestrator } from '../services/orchestrator.js';
  * {@link OperatorRuntime.err}, never `process.stdout`.** That is what makes a
  * body testable without a process and what lets an instance frame the output.
  * The entry points pass `(line) => process.stdout.write(line)`.
+ *
+ * **R2.6 — {@link OperatorRuntime.resources} is opened on first use** (D115-6).
+ * The entry point cannot know whether an invocation needs a database without
+ * parsing argv, and under D115-1 argv belongs to the body — so the choice is
+ * not "eager or lazy" but which side owns the knowledge of which flags need a
+ * connection, and a thunk keeps it with the grammar, where the grammar already
+ * is. Three properties follow, and each is the rule rather than a side effect:
+ * `specs/018-module-lifecycle/contracts/cli-commands.md` §C-1's own step order
+ * (steps 1–2 load the manifests and resolve the id, and answer above step 3's
+ * lock); `module:install --dry-run` without a database; and **exit 64 for
+ * misuse on a machine whose database is not up** — which is the client instance
+ * this interface exists for, and where an eagerly awaited `initOrm()` in an
+ * entry point that wraps it in no `try` is an unhandled rejection and exit 1, a
+ * code §C-1's table does not contain.
+ *
+ * **R2.7 — {@link OperatorRuntime.confirm} is a capability, not a read of
+ * `process`** (D115-7). A decision that turns on whether a human can answer
+ * takes it from the runtime. No file under `packages/platform/` reads
+ * `process.stdout.isTTY`, `process.stdin` or `process.env` to decide an operator
+ * question: reading a process global for a decision defeats R2.4's two reasons —
+ * *testable without a process*, and *an instance may frame the output* — exactly
+ * as writing to one does, and the predicate it would freeze here is the mirror
+ * of the one `specs/117-instance-bring-up/contracts/input-resolution.md` R3.5
+ * has already ruled insufficient.
  */
 export interface OperatorRuntime {
-  readonly orm: MikroORM;
-  readonly em: () => EntityManager;
-  readonly redis: Redis;
+  /**
+   * The ORM handle, the `EntityManager` factory and the Redis connection,
+   * opened on first use (R2.6). No command reaches this before its argv parse,
+   * its registry build and its unknown-id refusal, so an invocation that
+   * answers out of those alone opens nothing. The entry point memoises the
+   * thunk and closes only what it opened.
+   */
+  readonly resources: () => Promise<OperatorResources>;
   /** The instance-resolved manifest set: core ∪ this deployment's overlay ∪ installed packages. */
   readonly entries: readonly RegisteredManifestEntry[];
   /** `uninstall` only — the migration ownership map, read from the host's generated registry. */
   readonly migrationOwnership?: () => Promise<MigrationOwnership>;
+  /**
+   * Ask the operator to confirm a destructive step. **Absent means this run
+   * cannot ask** (R2.7), and the body refuses rather than proceeding; present
+   * means the caller has judged that it can.
+   */
+  readonly confirm?: (question: string) => Promise<boolean>;
   readonly out: (line: string) => void;
   readonly err: (line: string) => void;
 }
@@ -63,6 +114,15 @@ export interface OperatorRuntime {
  * id, `status` filters rows — and a helper that hid the build would make those
  * paths reach for an orchestrator they do not need.
  *
+ * **This is the one place {@link OperatorResources} is reached** (R2.6), which
+ * is what makes those three paths need no connection. The thunk is called at
+ * the point in each body where the eager handle used to be read, so a body's
+ * own error mapping and a resource failure land exactly where they landed
+ * before: no call site moved to make this true, and in particular `status`
+ * calls this *outside* its `try`, so a resource failure resolves the way the
+ * entry point's `initOrm()` rejection did rather than being newly caught and
+ * reported as exit 0.
+ *
  * The entries go into that build **whole** (feature 080, T036a): the per-field
  * re-map that used to sit between `resolvedManifestEntries()` and
  * `buildStaticRegistry` was one identity function copied seven times, and the
@@ -71,16 +131,17 @@ export interface OperatorRuntime {
  * set. `RegisteredManifestEntry` and `StaticRegistryEntry` are structurally
  * compatible on purpose, so there is nothing to copy.
  */
-export function orchestratorFor(
+export async function orchestratorFor(
   rt: OperatorRuntime,
   registry: LoadedManifestRegistry,
   extra: { readonly migrationOwnership?: MigrationOwnership } = {},
-): ModuleLifecycleOrchestrator {
+): Promise<ModuleLifecycleOrchestrator> {
+  const resources = await rt.resources();
   return new ModuleLifecycleOrchestrator({
-    orm: rt.orm,
-    redis: rt.redis,
-    em: rt.em,
-    auditLog: new AuditLogService(rt.em),
+    orm: resources.orm,
+    redis: resources.redis,
+    em: resources.em,
+    auditLog: new AuditLogService(resources.em),
     registry,
     ...(extra.migrationOwnership ? { migrationOwnership: extra.migrationOwnership } : {}),
   });

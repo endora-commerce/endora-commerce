@@ -2,6 +2,7 @@ import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   runEnableCommand,
+  type OperatorResources,
   type OperatorRuntime,
 } from '@endora-commerce/platform/lifecycle';
 import { initOrm, closeOrm } from '../../db/index.js';
@@ -34,13 +35,22 @@ async function main(): Promise<number> {
     return 65;
   }
 
-  const orm = await initOrm();
-  const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
-  const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
+  // Opened on first use and memoised (R2.6). The body calls this from
+  // `orchestratorFor` and from nowhere else, at the point where the eager
+  // handle used to be read, so a resource failure lands exactly where an
+  // awaited `initOrm()` here used to land.
+  let opened: OperatorResources | undefined;
   const runtime: OperatorRuntime = {
-    orm,
-    em: (): EntityManager => orm.em.fork() as EntityManager,
-    redis,
+    resources: async (): Promise<OperatorResources> => {
+      if (opened) return opened;
+      const orm = await initOrm();
+      const redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
+        maxRetriesPerRequest: null,
+        lazyConnect: false,
+      });
+      opened = { orm, em: (): EntityManager => orm.em.fork() as EntityManager, redis };
+      return opened;
+    },
     entries,
     out: (line) => void process.stdout.write(line),
     err: (line) => void process.stderr.write(line),
@@ -49,8 +59,12 @@ async function main(): Promise<number> {
   try {
     return await runEnableCommand(process.argv.slice(2), runtime);
   } finally {
-    redis.disconnect();
-    await closeOrm();
+    // Close only what was opened: an invocation that answered out of argv or
+    // the registry alone has nothing to close.
+    if (opened) {
+      opened.redis.disconnect();
+      await closeOrm();
+    }
   }
 }
 

@@ -69,7 +69,7 @@ export async function runDisableCommand(
     return 65;
   }
 
-  const orchestrator = orchestratorFor(rt, registry);
+  const orchestrator = await orchestratorFor(rt, registry);
 
   try {
     const result = await orchestrator.disable(args.id, { cascade: args.cascade });
