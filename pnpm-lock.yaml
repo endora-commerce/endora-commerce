@@ -489,6 +489,9 @@ importers:
       '@endora-commerce/mod-payu':
         specifier: workspace:*
         version: link:../packages/modules/payu
+      '@endora-commerce/mod-pim-akeneo':
+        specifier: workspace:*
+        version: link:../packages/modules/pim_akeneo
       '@endora-commerce/mod-pim-connector':
         specifier: workspace:*
         version: link:../packages/modules/pim_connector
