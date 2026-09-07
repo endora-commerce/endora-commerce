@@ -87,6 +87,8 @@ pnpm --filter backend run test:unit:fast # FAST: test/unit minus its 16 service-
 pnpm --filter backend exec vitest run <path>   # targeted run — prefer this while iterating
 pnpm --filter backend run test           # COMPLETE (~1 h): unit + contract + integration,
                                          # needs all three services running
+pnpm --filter '!backend' run test        # every OTHER workspace member's suite — the
+                                         # packages included; nothing above reaches them
 pnpm run dev                             # full dev stack; pnpm run dev:infra for docker services
 pnpm --filter backend run db:fresh       # rebuild the schema from migrations
 pnpm run check:naming && pnpm run check:language
@@ -1694,7 +1696,11 @@ is core's. See `docs/docs/architecture/overlay-pattern.md` and
 ## Working agreement
 
 - **Verify before reporting done**: `typecheck` + `lint` + the targeted tests for what you
-  touched. Report failures with their output; never hide them.
+  touched. Report failures with their output; never hide them. **"What you touched" includes
+  the packages**: `backend`, `admin` and `storefront` are the three names that come to mind and
+  they are not the population — `pnpm --filter '!backend' run test` is what runs the rest, and a
+  package's failure that is not a type error is reachable by nothing else an author is told to
+  run.
 - **Read before writing** — the module you are changing, the closest prior feature's spec
   directory, and the relevant contracts.
 - **English only** in code, comments, identifiers, specs, docs and commit messages

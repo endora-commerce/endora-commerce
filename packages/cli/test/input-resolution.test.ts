@@ -43,6 +43,10 @@ const input = (over: Partial<EnvironmentInput>): EnvironmentInput => ({
   generable: false,
   owner: { kind: 'application', application: 'storefront' },
   consumers: ['storefront'],
+  // `null` is the answer and not an omission: `addressOf` is required, and a
+  // fixture that leaves it out declares nothing about which member of an
+  // instance the value points at. Every case below that cares says so itself.
+  addressOf: null,
   ...over,
 });
 

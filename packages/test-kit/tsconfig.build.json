@@ -18,5 +18,11 @@
     // is, and `dist/` is git-ignored, so nothing else would notice.
     "noEmitOnError": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  // A test must not be compiled into `dist`: it imports `vitest`, a
+  // devDependency, which is an unresolvable specifier in every consumer's
+  // install. `include` above already keeps `test/` out of the emit; the pattern
+  // is what covers a co-located `src/**/*.test.ts`, and it is what
+  // `backend/test/unit/packages/package-dist-build.test.ts` reads.
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
 }
