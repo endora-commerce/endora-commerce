@@ -1297,7 +1297,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // call, and it is the one the task deleted: `divergence-loader.ts`' extension
     // surgery, `path.replace(/\.ts$/, '.js')`, which was `RUNNING_FROM_DIST`' only use.
     // A resolution over the two candidates replaced it, so there is no string to rewrite.
-    sites: 529,
+    // **530 -> 531** with T129b: one more `.replace()` candidate, the comment strip in `definedClasses`. `files` moved with it — this walk is the whole tree.
+    // **-1, re-measured on the chained union.** The site is the one D-217/D-218 removes on the base this branch is now chained behind; this branch adds no fold and removes none.
+    sites: 530,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -1513,6 +1515,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // document. Re-recorded because a census that cannot reach `0 drifted` stops being
     // read.
     // **+1, and it is not this branch's.** The document is `specs/113-module-owned-demo-data/tasks.md`, which arrives on the chained base (`spec/113-demo-data-tasks`, merged before this one). This branch adds no page.
+    // **+1, re-measured on the union after rebasing onto `ad0fe0876`.** This branch adds no
+    // page; `master` gained `specs/110-instance-repository/contracts/application-root-supplier.md`
+    // while the branch was open, and this walk's population is the documents.
+    // **+1, and it is not this branch's.** The document is `specs/113-module-owned-demo-data/tasks.md`, from the chained base.
     files: 1269,
     sites: 12,
     sources: [],
@@ -2068,7 +2074,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the `divergence.ts` of the source-tree deployment fixture. Its other two
     // fixtures are committed JavaScript, deliberately (issue #130: what is under test
     // is the file name the loader resolves), and this walk reads `.ts`.
-    files: 1578,
+    // **1 576 -> 1 577** with T129b's companion test, which is one more file under `backend/test/`.
+    // **+2, re-measured on the chained union.** This walk opens `backend/test/**`: it gains T114a's `deployment-root-supplier.test.ts` from the base and this branch adds none there, the admin test being under `admin/test/`.
+    files: 1579,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -2160,7 +2168,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the `divergence.ts` of the source-tree deployment fixture. Its other two
     // fixtures are committed JavaScript, deliberately (issue #130: what is under test
     // is the file name the loader resolves), and this walk reads `.ts`.
-    files: 1578,
+    // **1 576 -> 1 577** with T129b's companion test, which is one more file under `backend/test/`.
+    // **+2, re-measured on the chained union.** The same `backend/test/**` population as `check-fixture-substitution.ts` above, and the same two files.
+    files: 1579,
     sites: null,
     sources: [],
   },
@@ -2309,7 +2319,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // one: `backend/scripts/check-env-inputs.ts` is a new `check-*` script, and
     // `packages/contracts/src/environment-inputs.ts` is a new contract file the
     // barrel re-exports — which is why `contracts-barrel` moves with it.
-    files: 300,
+    // **300 -> 303** with T129b: two new ledger files (`undefined-class-renders.ts`, `unrendered-class-definitions.ts`) and the analysis that declares their type, all of them artefacts whose job is to carry a reason.
+    files: 303,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     sites: 15,
     sources: ['manifest-index', 'contracts-barrel'],
@@ -2578,7 +2589,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // different questions: a changed attribute or helper spelling leaves `files`
     // exactly where it was and takes `sites` to zero, which is the #235/#237
     // shape and the state this check's fourth refusal exists for.
-    files: 2686,
+    // **+1, re-measured on the chained union.** The check this branch adds walks `packages/` and `admin/src`, and gains the one new platform source that arrives with T114a on the base beneath it.
+    files: 2687,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -3223,7 +3235,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union after rebasing onto `spec/113-demo-data-tasks`.** This branch
     // still contributes the two `pim_unopim` tables its SQL literal names; the remainder is the
     // base moving under it in the eight merges of 2026-09-08. A fresh census of the combined tree.
-    sites: 11900,
+    // **11 893 -> 11 891, and `files` did not move**, which is the #235/#237 shape read the other way: feature 110's T129 deleted two `import './styles/*.css'` lines from `admin/src/main.tsx`, so two specifier sites went and no file did.
+    // **Re-measured on the chained union.** This branch still removes the two stylesheet imports from `admin/src/main.tsx` that its own entry above records; the remainder arrives with the four branches it is chained behind. A fresh census of the combined tree, never a sum of deltas.
+    sites: 11898,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -3732,7 +3746,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1: this row's own changeset.** The file that records the platform's new
     // `./overlay` surface is itself in this walk, which is the whole repository.
     // **+6, re-measured on the chained union.** All six are this branch's: the changeset, three overlay fixture deployments (`divergence.{js,js,ts}`), `backend/test/unit/overlay/deployment-root-supplier.test.ts` and `packages/platform/src/overlay/deployment-roots.ts`. This walk opens the whole repository, so it sees every one.
-    files: 7901,
+    // **7 879 -> 7 884** with feature 110's D-219 batch, and the arithmetic is the whole-tree walk's: five new `.ts` files and two changesets arrive, two stylesheets go (`design-tokens.css` and the shell's `theme.css`; `components.css` is a rename).
+    // **+10, re-measured on the union after rebasing onto `ad0fe0876`.** The branch's own delta
+    // is unchanged and already recorded above; `master` added ten files while it was open —
+    // T113/T114's seven platform sources under `packages/platform/src/{overlay,packages}/`, two
+    // changesets and one contract page — and this walk opens the whole repository.
+    // **+12 against this branch's own earlier record, of which +5 are its own.** It adds eight files, deletes three and renames one, which is net five for a whole-tree walk. The other seven arrive on the chained base — D-217/D-218, 113's `tasks.md`, the UnoPim re-import changeset and T114a's six. Measured on the combined tree.
+    files: 7906,
     sites: null,
     sources: [],
     //
@@ -4172,7 +4192,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 2387,
+    // **2 387 -> 2 391** with T129b's four files under `backend/scripts` — the check, its analysis and its two ledgers. Its companion test is not in this population.
+    files: 2391,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -4534,7 +4555,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the `divergence.ts` of the source-tree deployment fixture. Its other two
     // fixtures are committed JavaScript, deliberately (issue #130: what is under test
     // is the file name the loader resolves), and this walk reads `.ts`.
-    files: 1578,
+    // **1 576 -> 1 577** with T129b's companion test, which is one more file under `backend/test/`.
+    // **+2, re-measured on the chained union.** The same `backend/test/**` population and the same two files as the two entries above.
+    files: 1579,
     sites: 163,
     sources: [],
   },
@@ -4754,7 +4777,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // one of the two `.ts` files the task adds under `backend/test/` — the new unit
     // test — and not the deployment fixture's `divergence.ts`, which is a fixture and
     // owns no subject.
-    files: 1656,
+    // **1 655 -> 1 656** with T129b's companion test, which is one more file under `backend/test/`.
+    // **+1, re-measured on the chained union.** This walk opens `*.test.ts` only, and gains T114a's new unit test from the base.
+    files: 1657,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -5031,7 +5056,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `divergence.ts`). This walk is the widest of the `.ts` ones and reads every root
     // the other three split between them.
     // **+1, re-measured on the chained union.** The new platform source; the fixtures sit outside this walk and the changeset is not a source file.
-    files: 4340,
+    // **4 329 -> 4 334** with T129b's five new `.ts` files — four under `backend/scripts` and the companion test, all of which this consumer walk opens.
+    // **+7, re-measured on the union after rebasing onto `ad0fe0876`.** The seven platform
+    // sources T113 and T114 added to `packages/platform/src/` while this branch was open. The
+    // branch's own +5 is unchanged; this is a fresh census of the combined tree, not a sum.
+    // **+4, re-measured on the chained union.** This branch adds four sources this walk opens — the check, its library, its two ledgers — and T114a's platform source arrives on the base.
+    files: 4345,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -5550,7 +5580,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1: this row's own changeset.** The whole-repository walk reads
     // `.changeset/*.md` too, so the file that announces the surface change moves it.
     // **+6, re-measured on the chained union.** The same six files as `check-nul-bytes.ts` above; this scan is repo-wide.
-    files: 7961,
+    // **7 939 -> 7 944** with feature 110's D-219 batch: five new `.ts` files and two changesets arrive, two stylesheets go.
+    // **+10, re-measured on the union after rebasing onto `ad0fe0876`.** `master`'s ten new
+    // files, as recorded for `check-nul-bytes.ts` above; this scan's population is repo-wide.
+    // **+12, re-measured on the chained union.** Repo-wide, so the same twelve as `check-nul-bytes.ts` above: five this branch's net, seven the chained base's.
+    files: 7966,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -5806,7 +5840,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // other two whole-tree walks this one carried no `master` residue, its population
     // excluding the directory the unrecorded file landed in.
     // **+1, re-measured on the chained union.** The new platform source, whose comments this scan reads.
-    files: 5934,
+    // **5 921 -> 5 924** with feature 110's D-219 batch: five new `.ts` files arrive and two stylesheets go.
+    // **+7, re-measured on the union after rebasing onto `ad0fe0876`.** The same seven platform
+    // sources T113 and T114 added while this branch was open; the comment scan opens them.
+    // **+6, re-measured on the chained union.** This scan reads source comments, so it takes this branch's five new `.ts` files and not its two deleted stylesheets, plus what the chained base adds.
+    files: 5937,
     sites: null,
     sources: ['manifest-index'],
     //
