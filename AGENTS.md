@@ -67,7 +67,15 @@ is already in the stack.
 
 | Path | Contents |
 | --- | --- |
-| `packages/modules/<id>/src/` | A domain module, and **this is where every one of them lives** since T040b closed on 2026-08-28: `manifest.ts`, `backend/` (composition in `index.ts`, plus `entities/`, `services/`, `routes.ts`, optional `plugin.ts`, `actions/`, `workers/`), `migrations/` and optional `ports/`. **`i18n/` and `docs/` are the module's own, and they sit at the *package root* beside `src/`, not under it** — `bundlesDir` and `docs.dir` are joined to `dirname(manifestPath)`, which for a bare specifier is the directory holding the `package.json`. Measured: 63 packages carry `i18n/` and 64 carry `docs/` at the root, none under `src/`, against 59 `src/migrations/`, 8 `src/ports/` and 70 `src/backend/`. There is **no `test/` directory at all** — the 15 co-located tests sit beside their subjects as `*.test.ts`. `backend/src/modules/` holds nothing but a `README.md` — a specifier pointing into it resolves to nothing, which is why an old branch cannot be merged without being packaged (measured on !1103: no intermediate state of it compiles) |
+| `packages/modules/<id>/src/` | A domain module, and **this is where every one of them lives** since T040b closed on 2026-08-28: `manifest.ts`, `backend/` (composition in `index.ts`, plus `entities/`, `services/`, `routes.ts`, optional `plugin.ts`, `actions/`, `workers/`), `migrations/` and optional `ports/`. **`i18n/` and `docs/` are the module's own, and they sit at the *package root* beside `src/`, not under it** — `bundlesDir` and `docs.dir` are joined to `dirname(manifestPath)`, which for a bare specifier is the directory holding the `package.json`. Measured: 63 packages carry `i18n/` and 64 carry `docs/` at the root, none under `src/`, against 59 `src/migrations/`, 8 `src/ports/` and 70 `src/backend/`. There is **no `test/` directory at all** — the co-located tests sit beside their subjects as
+`*.test.ts`, and **how many there are is not written here**: this sentence said *15* against a tree
+holding **211**, a count of a derived fact going stale by an order of magnitude in the row whose
+whole subject is what a module package contains (D-100).
+`find packages/modules -path '*/src/*' -name '*.test.ts' | wc -l` answers it, and
+`ls -d packages/modules/*/test` answering nothing is the other half of the claim.
+That the directory does not exist is normative rather than incidental —
+`specs/106-module-owned-tests/contracts/module-test-ownership.md` §2: *"A `test/` directory in the
+package is **not** the convention."* `backend/src/modules/` holds nothing but a `README.md` — a specifier pointing into it resolves to nothing, which is why an old branch cannot be merged without being packaged (measured on !1103: no intermediate state of it compiles) |
 | `backend/src/apps/<deployment>/modules/<id>/` | Per-deployment overlay modules (feature 057) |
 | `backend/test/{unit,contract,integration,perf}/` | Backend tests, mirroring module names |
 | `specs/NNN-slug/` | Feature artifacts: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/`, `tasks.md` |
@@ -595,16 +603,38 @@ The gating wrappers exist in the platform's `kernel/lifecycle/` (`defineModuleRo
 effective state rather than adding a parallel check. They live in the kernel, alongside the
 registry cache, the activation resolver and the effective-state combiner, because the kernel
 applies them to every module it composes and may not import from `src/modules/` (D-37).
-`_lifecycle` keeps the operator-facing half: the manifest, the permissions, the routes, the
-Commands, the orchestrator and the `module:*` CLI scripts. It is a **registered module whose
-sources the host owns** — `backend/src/lifecycle/`, not `backend/src/modules/_lifecycle/` — and it
-is the one module the packaging sweep does not turn into a package (D-160.11): as a package the
-host would have to publish twelve platform targets for its sole consumer, and a package that
-enumerates all of its siblings is a cycle waiting to be declared. The generated manifest index
-went to `backend/src/` with it (D-160.3). Everything else about it is unchanged: it carries a
-manifest, permissions, an activation declaration, i18n bundles and a palette action, and every
-check that judges a module judges it — `scripts/lib/module-roots.ts` places it from the index's
-own `manifestPath` rather than from a directory named after its id.
+`_lifecycle` is the operator-facing half — the manifest, the permissions, the routes, the
+Commands, the orchestrator and the five `module:*` commands — and **its sources are
+`@endora-commerce/platform`'s**, at `packages/platform/src/lifecycle/`. This paragraph named
+`backend/src/lifecycle/` as their home, and it was stale in five of its six nouns *before*
+feature 115 touched anything (`specs/115-lifecycle-container-move/research.md` §1.2): D-160.11's
+second half had already moved the first five and left twenty-line re-export shims at the old
+paths, and D-207 moved the rest. What the application keeps at `backend/src/lifecycle/` is the
+wiring an instance must own anyway — the manifest-registry **binding**, which supplies the
+generated index and the overlay and package discoverers to the platform's deriver (D115-2), and
+one twenty-line entry point per `module:*` command, which opens that instance's ORM and Redis
+and calls the body (D115-1). Do not write the file list down anywhere: `ls backend/src/lifecycle`
+answers it, and this paragraph is what happens when a derived fact is copied into prose (D-100).
+
+It is still a **registered module that is not a package** (D-160.11): as one, the host would have
+to publish twelve platform targets for its sole consumer, and a package that enumerates all of
+its siblings is a cycle waiting to be declared. What D-207 changed is the *container*, not that
+decision. The surface has an address — `@endora-commerce/platform/lifecycle`, a subpath the
+`exports` map **declares** and no *published* barrel carries — so a module naming it is reported
+as `host-internal-subpath` by `check:platform-surface` with no change to that check, and
+`PUBLISHED_SUBPATHS` stays at five (D-160.14, D115-4). A module that could name this surface
+could install, uninstall, enable or disable its siblings, which is `./composition`'s reason with
+one noun changed. The generated manifest index stays under `backend/src/` (D-160.3) and the
+platform never reaches it: it is **supplied** as a parameter, because an instance's index is a
+different file and a relative specifier into this checkout resolves nowhere else.
+
+Everything else about it is unchanged: it carries a manifest, permissions, an activation
+declaration, i18n bundles and a palette action, and every check that judges a module judges it.
+`scripts/lib/module-roots.ts` places it by the **same marker core discovery uses** — a directory
+holding a `manifest.ts` that declares a registered id — and deliberately **not** from the index's
+own `manifestPath`, which for a platform-resident module names the package's *built* manifest:
+mapping that back to the sources would put a `dist`↔`src` convention inside a derivation, about a
+build layout the package is free to change.
 
 **You almost never call those wrappers yourself.** Every core module is composed through
 the kernel container (feature 072), and `ctx.routes` / `ctx.worker` / `ctx.subscribe` apply

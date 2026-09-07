@@ -49,10 +49,21 @@ const ALL_MODULE_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);
  * `deactivated-boot.test.ts` does it: presence is loaded from PostgreSQL before
  * the first module registers, so a state seeded earlier would simply be
  * overwritten.
+ *
+ * **It mocks the specifier `composition.ts` imports, and that is not a detail.**
+ * A `vi.mock` key is a resolved module, so mocking
+ * `../../../src/lifecycle/services/presence-load.js` intercepted this only while
+ * the composition root reached that shim. `specs/115-lifecycle-container-move/`
+ * Phase 6 re-pointed the root onto `@endora-commerce/platform/lifecycle` — a
+ * different module record — and left this mock naming a file nothing under test
+ * imports: the override stopped applying, silently, and four of this file's five
+ * cases went red on `master` (measured on this branch by restoring the shim and the
+ * old key). Phase 7's rewrite is
+ * the repair. If the root's specifier changes again, this key changes with it.
  */
-vi.mock('../../../src/lifecycle/services/presence-load.js', async (importOriginal) => {
+vi.mock('@endora-commerce/platform/lifecycle', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../../src/lifecycle/services/presence-load.js')>();
+    await importOriginal<typeof import('@endora-commerce/platform/lifecycle')>();
   return {
     ...actual,
     loadModulePresence: async (

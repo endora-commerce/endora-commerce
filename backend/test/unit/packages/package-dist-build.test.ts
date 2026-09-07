@@ -104,7 +104,10 @@ import {
   nodeWorkspaceFs,
 } from '../../../scripts/lib/workspace-packages.js';
 import { findCheckoutRoot } from '../../../../scripts/workspace-resolution.js';
-import { TAILWIND_SOURCE_SUBPATH } from '../../../scripts/lib/tailwind-sources.js';
+import {
+  TAILWIND_SOURCE_SUBPATH,
+  THEME_STYLESHEET_SUBPATH,
+} from '../../../scripts/lib/tailwind-sources.js';
 
 const ROOT = findCheckoutRoot(dirname(fileURLToPath(import.meta.url)));
 
@@ -200,8 +203,8 @@ export function distShapeFindings(manifest: PackageManifest): Finding[] {
   }
 
   for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
-    // Two subpaths whose targets are *not* under `dist` and cannot be, and both are
-    // published files that no compiler produces.
+    // Three subpaths whose targets are *not* under `dist` and cannot be, and all
+    // three are published files that no compiler produces.
     //
     // `./package.json` is the manifest itself: a consumer resolving it — a version read,
     // a tool locating the install — needs it exported, and it has no declarations to
@@ -217,7 +220,23 @@ export function distShapeFindings(manifest: PackageManifest): Finding[] {
     // directory would be the committed-build-output shape §4(a) argues against. It is
     // `i18n/` and `docs/`' position, which this rule has never seen only because those
     // two layers are located by joining a manifest declaration and carry no subpath.
-    if (subpath === './package.json' || subpath === TAILWIND_SOURCE_SUBPATH) continue;
+    //
+    // `./theme.css` is the admin shell's design tokens, base rules and legacy
+    // class shim (feature 110, T126; R3.1). It is at the root for the second of
+    // `./tailwind.css`' two reasons and not the first: it names no relative path,
+    // so M7 does not bind it, but it is **hand-written source** rather than build
+    // output, and this package's build is `tsc`, which compiles `.ts` and copies
+    // nothing else. A copy under `dist` would therefore be either committed build
+    // output or a file the next clean build deletes — and the host is what
+    // compiles its `@theme` and `@apply`, so there is no artefact for a compiler
+    // to have produced in the first place.
+    if (
+      subpath === './package.json' ||
+      subpath === TAILWIND_SOURCE_SUBPATH ||
+      subpath === THEME_STYLESHEET_SUBPATH
+    ) {
+      continue;
+    }
     if (typeof target === 'string') {
       if (!inDist(target)) {
         findings.push({ kind: 'export-target-outside-dist', detail: `${subpath} -> ${target}` });

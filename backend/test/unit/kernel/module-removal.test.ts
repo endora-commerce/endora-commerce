@@ -470,30 +470,27 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // Twelve real references would have read as zero, in the file whose subject
   // is references that survive a move.
   //
-  // **Three shims left with feature 115 Phase 6, and this ledger was edited in
-  // the merge request that freed them** — which is the whole reason the entry is
-  // worth reading. Nothing in that phase *opens* this file: it re-points
-  // `composition.ts`, two `src/db/` readers and two `scripts/` callers onto
-  // `@endora-commerce/platform/lifecycle`, deletes the three shims that then had
-  // no importer left anywhere (`plugin.ts`, `services/migration-ownership.ts`,
-  // `services/module-origin.ts`), and touches no test. So the batch that frees
-  // an entry is structurally the batch whose targeted run cannot see it go
-  // stale, and this paragraph is that rule met rather than restated.
+  // **The entry drained across features 115 Phase 6 and Phase 7, and this
+  // ledger was edited in each of the two merge requests that freed it** — which
+  // is the whole reason the paragraph is worth reading. Nothing in either phase
+  // *opens* this file. Phase 6 re-pointed `composition.ts`, two `src/db/`
+  // readers and two `scripts/` callers onto `@endora-commerce/platform/lifecycle`
+  // and deleted the three shims that then had no importer left anywhere;
+  // Phase 7 re-pointed `backend/test/**`, which was the only thing still
+  // holding the other nine open, and deleted those. So the batch that frees an
+  // entry is structurally the batch whose targeted run cannot see it go stale,
+  // and this paragraph is that rule met rather than restated.
   //
-  // The nine left are held open by `backend/test/**` alone — Phase 7's subject.
-  // Their production consumers name the subpath already, so what each records
-  // now is a test-tree rewrite, not a missing address.
-  _lifecycle: [
-    'src/lifecycle/routes.admin.ts',
-    'src/lifecycle/services/deactivation-ledger.ts',
-    'src/lifecycle/services/dep-graph.ts',
-    'src/lifecycle/services/gating-graph.ts',
-    'src/lifecycle/services/lock.ts',
-    'src/lifecycle/services/manifest-loader.ts',
-    'src/lifecycle/services/orchestrator.ts',
-    'src/lifecycle/services/presence-load.ts',
-    'src/lifecycle/services/static-registry.ts',
-  ],
+  // **`_lifecycle` is therefore absent from this map, and the absence is the
+  // record.** `backend/src/lifecycle/` still exists and still holds the host
+  // half D-160.11 names — the manifest registry binding and the five `module:*`
+  // entry points — but nothing in it names the module's own directory any
+  // more: every one of those files reaches the platform through
+  // `@endora-commerce/platform/lifecycle`, and a bare specifier through an
+  // `exports` map is not a reference into `packages/platform/{src,dist}/lifecycle/`.
+  // A re-entry here means a file in this application has gone back to naming
+  // the module's sources by path, which is exactly what the subpath exists to
+  // stop.
   // `price_lists` needs no entry and gets none, since T040b's fifth batch — this
   // module is now **absent** from the ledger.
   //

@@ -13,8 +13,8 @@ import {
   buildDeactivationLedger,
   deactivationConsequencesFor,
   type LedgerEntry,
-} from '../../../src/lifecycle/services/deactivation-ledger.js';
-import { nonBindingPortEdgesFrom } from '../../../src/lifecycle/services/gating-graph.js';
+  nonBindingPortEdgesFrom,
+} from '@endora-commerce/platform/lifecycle';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**

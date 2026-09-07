@@ -155,6 +155,18 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // platform carries, its readers are the CLI and `endora doctor`, and the
     // application reaches it through no shim at all. One route is not a
     // duplication.
+    //
+    // **`./lifecycle` very nearly joined them with
+    // `specs/115-lifecycle-container-move/` Phase 7, and the reason it did not
+    // is worth more than the reason it might have.** That phase re-pointed the
+    // 112 reaches in `backend/test/**` and deleted the last nine re-export
+    // shims, which is every file this comparison's side two had held since
+    // Phase 2. What keeps the subpath here is the one application file that was
+    // never a shim: the manifest-registry binding, `registered-manifests.ts`,
+    // which re-exports three of the platform's names under its own path because
+    // 121 files import that path (D115-2 keeps every name it exported). A
+    // re-export is a second spelling whatever the file's purpose is, so the
+    // comparison is real and is three names wide rather than the whole barrel.
     expect([...measurement.unshimmed].sort()).toEqual(['env', 'migrations']);
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
       'commands',
@@ -276,19 +288,27 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
       comparisons.flatMap((entry) => entry.shared.map((name) => `${entry.subpath}: ${name}`)),
     );
     for (const symbol of [
-      // Thrown by the orchestrator and caught by all five `module:*` commands,
-      // which map its `kind` to `contracts/cli-commands.md` §C-1's exit codes. A
-      // second class makes every `instanceof LifecycleError` false and every
-      // refusal an undifferentiated internal failure — exit 70 for a missing
-      // dependency, a lock already held, a cycle.
-      'lifecycle: LifecycleError',
-      // The one writer of `module_registrations`, and the holder of the
-      // lifecycle lock. Two of it is two locks.
-      'lifecycle: ModuleLifecycleOrchestrator',
-      // Holds the manifest graph a presence decision is computed over, and is
-      // installed once per process by `installGatingGraph`. A second copy is
-      // never installed, so it answers over an empty graph.
-      'lifecycle: ModuleGatingGraph',
+      // The one name the operator half still has two spellings of, and it is an
+      // error class: `registered-manifests.ts` re-exports it, so a caller may
+      // hold it at the application path or at the subpath. A second class makes
+      // every `instanceof` false and turns the refusal that names a module whose
+      // manifest path is missing into an undifferentiated internal failure.
+      'lifecycle: ManifestPathMissingError',
+      // **Three `lifecycle:` symbols stood beside it and left with Phase 7, and
+      // the removal is this guard reporting success rather than being relaxed.**
+      // `LifecycleError` (whose `kind` all five `module:*` commands map to
+      // `contracts/cli-commands.md` §C-1's exit codes), `ModuleLifecycleOrchestrator`
+      // (the one writer of `module_registrations` and the holder of the lock) and
+      // `ModuleGatingGraph` (installed once per process by `installGatingGraph`)
+      // were named here because Phases 3–5 were about to move code behind a
+      // subpath while nine re-export shims still spelled the same files at their
+      // old paths, and a duplicated module-scope value fails silently. Phase 7
+      // deleted those shims, so each of the three now has exactly one spelling
+      // and there is no comparison for a name of theirs to be the subject of.
+      // Naming one here would assert that a comparison happened when none did;
+      // a second application reach to any of them puts its file back into side
+      // two and re-opens the question in the same run.
+      //
       // Module-scoped, in `kernel/lifecycle/`, and published on `./composition`
       // rather than here — which is why the plan named it in this list and why
       // it took the probe's second derivation to reach it: nothing compared it

@@ -24,26 +24,39 @@
 @import 'tailwindcss/utilities.css' layer(utilities);
 
 /*
- * Feature 080 (T044) — module packages ship UI, and automatic detection cannot
- * see it.
+ * The one Endora package this storefront composes declares its own sources
+ * (feature 110, T127;
+ * `specs/110-instance-repository/contracts/admin-stylesheet-composition.md` R5).
  *
- * With no `@source`, Tailwind v4 stays on automatic source detection, rooted at
- * the build tool's base directory — `process.cwd()` for `@tailwindcss/postcss`,
- * i.e. `storefront/`. Vite and Next resolve and scan differently and the answer
- * was established for each; it is the same answer. Measured on this tree, a
- * `.tsx` at `storefront/` reaches `.next/static/css`, one at the repository root
- * does not, and one under `packages/modules/blog/src` does not — so a class used
- * only inside a module package's component is dropped with no error and no
- * warning, and the component renders unstyled in production.
+ * With no `@source` at all, Tailwind v4 stays on automatic source detection,
+ * rooted at the build tool's base directory — `process.cwd()` for
+ * `@tailwindcss/postcss`, i.e. `storefront/`. Measured, a `.tsx` at
+ * `storefront/` reaches `.next/static/css` and one under a package does not, so
+ * a class used only inside `@endora-commerce/page-builder-core`'s components is
+ * dropped with no error and no warning and the block renders unstyled.
  *
- * The path is relative to this file, so `../../packages` is the repository's
- * package tree. One glob rather than a list, and rooted above the current
- * `modules/` grouping, because a module package is recognised by its own
- * `endora` block wherever the workspace globs put it (D-100).
- * `storefront/test/tailwind-module-package-sources.test.ts` derives those
- * packages and fails when one falls outside this glob.
+ * This line used to be `@source '../../packages/**'`. That was correct in this
+ * repository and unusable in a client's, because under D-195 their storefront is
+ * scaffolded into their **own** repository, where there is no `packages/` above
+ * this file — and Tailwind reports nothing about a source that matches nothing,
+ * so their build was green and their page-builder blocks were unstyled. The
+ * package now declares its own `@source` lines at its `./tailwind.css` subpath,
+ * generated from its layer inventory by `manifests:generate`, and they resolve
+ * relative to *that* file, so they hold wherever it is installed.
+ *
+ * **One static import and no generated artefact**, unlike the admin's: an
+ * instance's admin composes a module set that varies per client and grows after
+ * scaffolding, while a storefront composes no module package at all and its
+ * Endora dependencies are fixed in its own `package.json` when `endora new
+ * storefront` writes it. Generating a one-line file whose content cannot vary
+ * would be a generator standing in for a constant (R5.2).
+ *
+ * `@endora-commerce/cms-components` is deliberately **not** here and must not be
+ * scanned: it ships a finished, `cmsc:`-prefixed stylesheet at `./styles.css`
+ * and takes none of this host's tokens (R4.2/R4.4). It declares no
+ * `./tailwind.css`, so its absence is derived rather than remembered.
  */
-@source '../../packages/**/*.{ts,tsx}';
+@import "@endora-commerce/page-builder-core/tailwind.css";
 
 /* Map Tailwind's `dark:` variant to the storefront's runtime `.is-dark` scope (set on
    <html>), so `dark:` utilities respond to the existing theme toggle rather than the OS

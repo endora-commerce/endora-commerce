@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { defineModuleManifest } from '@endora-commerce/contracts';
 import {
-  ModuleGatingGraph,
   acknowledgedPortEdgesFrom,
   gatingGraph,
+  ModuleGatingGraph,
   nonBindingPortEdgesFrom,
-} from '../../../src/lifecycle/services/gating-graph.js';
+} from '@endora-commerce/platform/lifecycle';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**

@@ -3,10 +3,10 @@ import type { ModuleManifest } from '@endora-commerce/contracts';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import {
   buildDeactivationLedger,
-  deactivationConsequencesFor,
   type CrossModuleRead,
-} from '../../../src/lifecycle/services/deactivation-ledger.js';
-import { nonBindingPortEdgesFrom } from '../../../src/lifecycle/services/gating-graph.js';
+  deactivationConsequencesFor,
+  nonBindingPortEdgesFrom,
+} from '@endora-commerce/platform/lifecycle';
 
 /**
  * What an operator switching `payments` off is told, produced by running the
