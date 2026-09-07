@@ -12,7 +12,11 @@
  * questions:
  *
  *  - **which directory holds `apps/<deployment>/modules`** — `overlay-roots.ts`,
- *    the application's one `import.meta.url` root derivation (D115-3), and
+ *    the application's one `import.meta.url` root derivation (D115-3). Since
+ *    T114a that root is also a **parameter** of each function below, defaulting
+ *    to the one derivation: `composeApp` supplies its own, which is what an
+ *    instance's entry point does with a root no package can see
+ *    (`contracts/application-root-supplier.md` R1.1, R2.1), and
  *  - **who already claims a module id** — `claimsOutsideTheOverlay`, whose core
  *    half comes off the generated manifest index and which R7.4 therefore keeps
  *    out of the package.
@@ -31,6 +35,7 @@
  */
 
 import {
+  activeOverlayModulesRoot as activeOverlayModulesRootUnder,
   overlayModuleEntriesUnder as loadEntriesUnder,
   overlayModuleIdsUnder as idsUnder,
   overlayModuleManifestsUnder as loadManifestsUnder,
@@ -38,7 +43,7 @@ import {
 } from '@endora-commerce/platform/overlay';
 import type { ModuleEntry } from '../kernel/compose.js';
 import { claimsOutsideTheOverlay } from '../packages/claimed-module-ids.js';
-import { activeOverlayModulesRoot } from './overlay-roots.js';
+import { deploymentRoot } from './overlay-roots.js';
 
 /**
  * The manifest shape a caller of {@link discoverOverlayModuleManifests} names.
@@ -78,8 +83,9 @@ export function overlayModuleIdsUnder(
  */
 export async function discoverOverlayModuleManifests(
   env: NodeJS.ProcessEnv = process.env,
+  deploymentDir: string = deploymentRoot(),
 ): Promise<OverlayModuleManifest[]> {
-  const root = activeOverlayModulesRoot(env);
+  const root = activeOverlayModulesRootUnder(deploymentDir, env);
   if (root === null) return [];
   return loadManifestsUnder(root, overlayModuleIdsUnder(root, env));
 }
@@ -110,8 +116,9 @@ export async function overlayModuleManifestsUnder(
  */
 export async function loadOverlayModuleEntries(
   env: NodeJS.ProcessEnv = process.env,
+  deploymentDir: string = deploymentRoot(),
 ): Promise<ModuleEntry[]> {
-  const root = activeOverlayModulesRoot(env);
+  const root = activeOverlayModulesRootUnder(deploymentDir, env);
   if (root === null) return [];
   return loadEntriesUnder(root, claimsOutsideTheOverlay(env));
 }

@@ -15,6 +15,7 @@
 
 import { buildServer } from './http/server.js';
 import { composeApp } from './composition.js';
+import { deploymentRoot } from './overlay/overlay-roots.js';
 
 async function main(): Promise<void> {
   // Force the worker role so composition starts the queue consumers even if
@@ -31,7 +32,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const composition = await composeApp();
+  const composition = await composeApp({ deploymentRoot: deploymentRoot() });
 
   // Build the server purely to register module plugins (this is what wires the
   // queue consumers). We never listen — this process serves no HTTP.

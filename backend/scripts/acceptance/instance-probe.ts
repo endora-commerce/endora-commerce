@@ -366,13 +366,14 @@ async function identityAndAssets(em: () => EntityManager): Promise<AssertionResu
  */
 async function phaseBoot(): Promise<AssertionResult[]> {
   const { composeApp } = await import('../../src/composition.js');
+  const { deploymentRoot } = await import('../../src/overlay/overlay-roots.js');
   const { ModuleRegistration } = await import(
     '../../src/kernel/lifecycle/module-registration.entity.js'
   );
 
   let composition: Awaited<ReturnType<typeof composeApp>>;
   try {
-    composition = await composeApp();
+    composition = await composeApp({ deploymentRoot: deploymentRoot() });
   } catch (error) {
     classifyError(error);
   }
@@ -522,8 +523,9 @@ async function phaseGate(active: boolean): Promise<AssertionResult[]> {
   }
 
   const { composeApp } = await import('../../src/composition.js');
+  const { deploymentRoot } = await import('../../src/overlay/overlay-roots.js');
   const { buildServer } = await import('../../src/http/server.js');
-  const composition = await composeApp();
+  const composition = await composeApp({ deploymentRoot: deploymentRoot() });
   try {
     const app = await buildServer({
       sessionCookieSecret: 'acceptance-secret',
@@ -756,7 +758,9 @@ async function phaseOverlayDecoration(): Promise<AssertionResult[]> {
   // the same words as the finding this assertion exists to report. That is the
   // one way A10 could go red for a reason that is not about the platform, so it
   // is the harness's own failure and leaves as `Inconclusive`.
-  const { activeOverlayModulesRoot } = await import('../../src/overlay/overlay-roots.js');
+  const { activeOverlayModulesRoot, deploymentRoot } = await import(
+    '../../src/overlay/overlay-roots.js'
+  );
   const overlayRoot = activeOverlayModulesRoot();
   if (overlayRoot === null) {
     throw new Inconclusive(
@@ -769,7 +773,7 @@ async function phaseOverlayDecoration(): Promise<AssertionResult[]> {
 
   let composition: Awaited<ReturnType<typeof composeApp>>;
   try {
-    composition = await composeApp();
+    composition = await composeApp({ deploymentRoot: deploymentRoot() });
   } catch (error) {
     // A connection failure is the harness's problem and leaves through
     // `classifyError`; anything else is the platform refusing to compose this

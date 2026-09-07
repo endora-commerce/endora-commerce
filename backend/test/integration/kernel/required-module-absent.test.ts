@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * A composition that lacks a required module refuses to start, and says which
@@ -91,7 +92,7 @@ describe('the production composition root refuses to start without a required mo
 
     const { composeApp } = await import('../../../src/composition.js');
     try {
-      const composition = await composeApp();
+      const composition = await composeApp({ deploymentRoot: deploymentRoot() });
       // Nothing should reach here; dispose anyway so a failure of this file
       // does not leak a pool into every file after it.
       await composition.dispose();

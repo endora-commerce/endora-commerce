@@ -195,9 +195,41 @@ import type { ShoppingListService } from '@endora-commerce/mod-shopping-lists/ba
  *     `request.testActor` shim used by `test/helpers/test-server.ts`
  *
  * The dev script (`pnpm --filter backend run dev`) and the prod entry
- * (`backend/src/index.ts`) both call `composeApp({ app })` after
- * `buildServer({ ... modules: [] })`.
+ * (`backend/src/index.ts`) both call `composeApp({ deploymentRoot })` and then
+ * `buildServer({ … modules: composition.modules })`.
  */
+
+/**
+ * The composition inputs an entry point supplies — the values no composed file
+ * can derive for itself.
+ *
+ * Today there is one, and it is `specs/110-instance-repository/`'s
+ * `contracts/application-root-supplier.md` R1.1 in full.
+ */
+export interface ComposeAppOptions {
+  /**
+   * The absolute path of the directory that holds `apps/`.
+   *
+   * **A composition input, not a container contribution** (R2.1). The proof is
+   * an ordering rather than a preference: this root is needed by
+   * `loadOverlayModuleEntries` and `loadDivergenceDeclaration` some 250 lines
+   * above `composeModules`, and the overlay entries it locates are *spread into
+   * the module list that call receives* — so a value deciding which modules
+   * exist cannot arrive through D-45's window, which opens on the return value
+   * of `composeModules` once every module has registered.
+   *
+   * **It is required, and that is the point.** In this repository the answer is
+   * `overlay-roots.ts`' one expression and it would be easy to default to; in an
+   * instance the platform came out of `node_modules` and any default it could
+   * compute names a directory holding no `apps/` at all — silently, because an
+   * absent declaration and an empty one are deliberately the same answer and an
+   * overlay module nobody can see is skipped with no warning (D-165 step C). A
+   * required parameter is what turns that into a compile error at the one place
+   * that knows: the entry point. R2.4 refuses an environment variable for the
+   * same reason and R2.5 refuses a module-scope singleton.
+   */
+  readonly deploymentRoot: string;
+}
 
 export interface ComposeAppHandle {
   orm: MikroORM;
@@ -261,7 +293,8 @@ function anyLabel(name: unknown): string {
   return '';
 }
 
-export async function composeApp(): Promise<ComposeAppHandle> {
+export async function composeApp(options: ComposeAppOptions): Promise<ComposeAppHandle> {
+  const { deploymentRoot } = options;
   // Issue #218 — before anything is opened, refuse a production boot with no
   // public origin. `PUBLIC_API_BASE_URL` is what every payment-gateway callback
   // URL, public product-feed URL and newsletter confirmation link is built on,
@@ -343,12 +376,12 @@ export async function composeApp(): Promise<ComposeAppHandle> {
   // merged them again from the generated index; the one under test was not the
   // one that ran.
   const resolvedRegistry = await resolvedManifestEntries();
-  const overlayModuleEntries = await loadOverlayModuleEntries();
+  const overlayModuleEntries = await loadOverlayModuleEntries(process.env, deploymentRoot);
   // Feature 107 — read once and used twice, by `loadModulePresence` below for
   // D-101's declared omissions and by `composeModules` for the decoration
   // order. Two loads would be two `import()`s of one file answering one
   // question, which is the shape this repository refuses everywhere else.
-  const divergenceDeclaration = await loadDivergenceDeclaration();
+  const divergenceDeclaration = await loadDivergenceDeclaration(process.env, deploymentRoot);
   // Feature 080 (T031, D-119/D-155) — the same shape, one axis out: every
   // Endora module package installed in this instance's `node_modules`. The
   // committed registries stay bare core for D-104's reason, so this is the only

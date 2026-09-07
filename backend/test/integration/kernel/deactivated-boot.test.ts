@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * The backend still boots with a module switched off (feature 072, D-40).
@@ -231,12 +232,12 @@ describe('the production composition root boots with modules switched off', () =
     // once, with everything present, which is what a real upgrade does; it does
     // not repair the first-boot case, and nothing here claims it does.
     simulatingAbsence = false;
-    const warmup = await composeApp();
+    const warmup = await composeApp({ deploymentRoot: deploymentRoot() });
     await warmup.dispose();
 
     simulatingAbsence = true;
     try {
-      composition = await composeApp();
+      composition = await composeApp({ deploymentRoot: deploymentRoot() });
       app = await buildServer({
         sessionCookieSecret: 'deactivated-boot-test-secret',
         openApi: {
