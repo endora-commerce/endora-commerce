@@ -7,6 +7,7 @@ import type { RenderResult } from '@testing-library/react';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
+import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
 
 /**
  * One of the admin's own source files, read as text.
@@ -56,27 +57,27 @@ let permissions = new Set<string>();
 
 
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/lib/admin-actions/AdminActionsProvider', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/AdminActionsProvider', () => ({
   AdminActionsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/components/IdleLogout', () => ({
+vi.mock('../../../packages/admin-shell/src/components/IdleLogout', () => ({
   IdleLogout: () => null,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -88,9 +89,11 @@ vi.mock('@/lib/prompt-actions/api', () => ({
 }));
 
 /**
- * `App.tsx` imports every host screen statically, and one of them
- * (`cms`' Puck editor) reaches `@dnd-kit/dom`, which constructs a
- * `ResizeObserver` at module scope. jsdom has none. The stub is a
+ * `@dnd-kit/dom` constructs a `ResizeObserver` at module scope, and jsdom has
+ * none. This read *"`App.tsx` imports every host screen statically, and one of
+ * them (`cms`' Puck editor)"* until feature 091's batch 16 moved that editor
+ * into `@endora-commerce/mod-cms`; the stub stays because a lazily loaded
+ * screen reaches the same constructor, and only the reason changed. The stub is a
  * module-load accommodation and nothing this file asserts touches it.
  */
 globalThis.ResizeObserver ??= class {
@@ -99,7 +102,7 @@ globalThis.ResizeObserver ??= class {
   disconnect(): void {}
 } as unknown as typeof ResizeObserver;
 
-const { App } = await import('../../src/App');
+const { App } = await import('../../../packages/admin-shell/src/App');
 
 const bundle = {
   ...passthroughBundle('core', [
@@ -116,7 +119,7 @@ function renderAt(path: string): RenderResult {
   return renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={[path]}>
-        <App modulePresence={modulePresence({ present: [...presentModules] })} />
+        <App contributions={MODULE_ADMIN_CONTRIBUTIONS} modulePresence={modulePresence({ present: [...presentModules] })} />
       </MemoryRouter>,
       { session: adminSession({ permissions: [...permissions] }) },
     ),
@@ -204,7 +207,7 @@ describe('the shell no longer names pwa by hand', () => {
     // The evidence that the conversion converted something. `AppShell.tsx` is
     // one of the two registries 11 of the last 12 module additions edited; it
     // no longer declares this entry, and the sidebar still renders it.
-    const shell = sourceOf('src/components/AppShell.tsx');
+    const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
     expect(shell).not.toContain("to: '/settings/pwa'");
     expect(shell).not.toContain('appShell.nav.pwa');
   });
@@ -215,7 +218,7 @@ describe('the shell no longer names pwa by hand', () => {
     // is carry a second, hand-written copy in `PALETTE_ITEMS`: that one would
     // keep advertising the screen after the module was switched off, because
     // nothing on the server would have been asked.
-    expect(sourceOf('src/components/AppShell.tsx')).not.toContain("'/settings/pwa'");
+    expect(sourceOf('../packages/admin-shell/src/components/AppShell.tsx')).not.toContain("'/settings/pwa'");
   });
 
   it('resolves the declaration through the module package, never through admin/src', () => {
@@ -227,13 +230,25 @@ describe('the shell no longer names pwa by hand', () => {
     expect(registry).not.toContain('packages/modules');
   });
 
-  it('declares one nav entry, no route, and the code its destination enforces', async () => {
-    // The declaration itself, because this is the shape nothing had exercised.
+  it('declares one nav entry, one route, and the code both enforce', async () => {
+    // The declaration itself. **This case read `routes` as `undefined` until
+    // feature 091's batch 10**, and that is the record of the split closing
+    // rather than a loosened assertion: batch six converted the sidebar entry
+    // alone because `PwaPage` lived under `admin/src/modules/settings/pages/`,
+    // and said the route would follow when `settings` moved. It moved, so the
+    // screen is this package's and the route is declared beside the entry that
+    // advertises it. The route-less shape `AdminContributions` allows is still
+    // legal and is exercised by `admin_roles`, which declares a nav entry and
+    // no route by design; what it is no longer exercised by is a module whose
+    // screen was in somebody else's directory.
+    //
     // `pwa:read` is what every `GET /api/v1/admin/pwa/*` endpoint that opens
     // the screen enforces — not `pwa:write` and not `pwa:send_push`, which the
-    // screen's writes enforce and neither of which opens it.
+    // screen's writes enforce and neither of which opens it. Route and entry
+    // carry the same one, which is what stops the sidebar advertising a 403.
     const { contributions } = await import('@endora-commerce/mod-pwa/admin');
-    expect(contributions.routes).toBeUndefined();
+    expect(contributions.routes?.map((route) => route.path)).toEqual(['/settings/pwa']);
+    expect(contributions.routes?.[0]?.requiredPermission).toBe('pwa:read');
     expect(contributions.zones).toBeUndefined();
     expect(contributions.nav?.map((entry) => entry.to)).toEqual(['/settings/pwa']);
     expect(contributions.nav?.[0]?.requiredPermission).toBe('pwa:read');
@@ -242,17 +257,19 @@ describe('the shell no longer names pwa by hand', () => {
   });
 
   it('advertises a destination the admin actually declares', async () => {
-    // The split's record, and the assertion a later batch has to look at. The
-    // entry points at a **host** route that `settings`' directory still owns,
-    // so nothing in the registry declares it and `DuplicateAdminRouteError`
-    // cannot fire. When `settings` is drained the route becomes a registry
-    // route and this assertion holds through the other branch — what it
-    // refuses in both worlds is an advertisement pointing at nothing.
+    // The split's record, and the batch that had to look at it was batch 10.
+    // The entry pointed at a **host** route that `settings`' directory owned,
+    // so nothing in the registry declared it; it is a registry route now and
+    // the assertion holds through the other branch, exactly as this case was
+    // written to. What it refuses in both worlds is an advertisement pointing
+    // at nothing.
     const { contributions } = await import('@endora-commerce/mod-pwa/admin');
     const target = contributions.nav?.[0]?.to ?? '';
-    const { registryRoutes } = await import('../../src/lib/module-registry');
-    const declaredByRegistry = registryRoutes().some((route) => route.path === target);
-    const declaredByHost = sourceOf('src/App.tsx').includes(`path="${target}"`);
+    const { registryRoutes } = await import('../../../packages/admin-shell/src/lib/module-registry');
+    const declaredByRegistry = registryRoutes(MODULE_ADMIN_CONTRIBUTIONS).some(
+      (route) => route.path === target,
+    );
+    const declaredByHost = sourceOf('../packages/admin-shell/src/App.tsx').includes(`path="${target}"`);
     expect(declaredByRegistry || declaredByHost).toBe(true);
   });
 

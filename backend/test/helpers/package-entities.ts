@@ -38,6 +38,7 @@ import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/ba
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
+import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
@@ -142,6 +143,16 @@ import type { ErgonodeMediaLink as ErgonodeMediaLinkRow } from '../../../package
 import type { ErgonodePriceBinding as ErgonodePriceBindingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-price-binding.entity.js';
 import type { ErgonodeProductLink as ErgonodeProductLinkRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-product-link.entity.js';
 import type { ErgonodeStreamCursor as ErgonodeStreamCursorRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-stream-cursor.entity.js';
+import type { UnopimConnection as UnopimConnectionRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-connection.entity.js';
+import type { UnopimImportRun as UnopimImportRunRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-import-run.entity.js';
+import type { UnopimProductLink as UnopimProductLinkRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-product-link.entity.js';
+import type { UnopimSyncBookmark as UnopimSyncBookmarkRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-sync-bookmark.entity.js';
+import type { UnopimCategoryMapping as UnopimCategoryMappingRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-category-mapping.entity.js';
+import type { UnopimAttributeMapping as UnopimAttributeMappingRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-attribute-mapping.entity.js';
+import type { UnopimAssociationTypeMapping as UnopimAssociationTypeMappingRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-association-type-mapping.entity.js';
+import type { UnopimImportIssue as UnopimImportIssueRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-import-issue.entity.js';
+import type { UnopimMediaLink as UnopimMediaLinkRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-media-link.entity.js';
+import type { UnopimPriceBinding as UnopimPriceBindingRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-price-binding.entity.js';
 import type { PimcoreCatalogueDelivery as PimcoreCatalogueDeliveryRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-catalogue-delivery.entity.js';
 import type { PimcoreConnection as PimcoreConnectionRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-connection.entity.js';
 import type { PimcoreDeliveredRecord as PimcoreDeliveredRecordRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-delivered-record.entity.js';
@@ -694,6 +705,43 @@ export const ErgonodeStreamCursor = classNamed<ErgonodeStreamCursorRow>(
   pimErgonodeEntities,
   'ErgonodeStreamCursor',
 );
+export const UnopimConnection = classNamed<UnopimConnectionRow>(
+  pimUnopimEntities,
+  'UnopimConnection',
+);
+export const UnopimImportRun = classNamed<UnopimImportRunRow>(pimUnopimEntities, 'UnopimImportRun');
+export const UnopimProductLink = classNamed<UnopimProductLinkRow>(
+  pimUnopimEntities,
+  'UnopimProductLink',
+);
+export const UnopimSyncBookmark = classNamed<UnopimSyncBookmarkRow>(
+  pimUnopimEntities,
+  'UnopimSyncBookmark',
+);
+export const UnopimCategoryMapping = classNamed<UnopimCategoryMappingRow>(
+  pimUnopimEntities,
+  'UnopimCategoryMapping',
+);
+export const UnopimAttributeMapping = classNamed<UnopimAttributeMappingRow>(
+  pimUnopimEntities,
+  'UnopimAttributeMapping',
+);
+export const UnopimAssociationTypeMapping = classNamed<UnopimAssociationTypeMappingRow>(
+  pimUnopimEntities,
+  'UnopimAssociationTypeMapping',
+);
+export const UnopimImportIssue = classNamed<UnopimImportIssueRow>(
+  pimUnopimEntities,
+  'UnopimImportIssue',
+);
+export const UnopimMediaLink = classNamed<UnopimMediaLinkRow>(
+  pimUnopimEntities,
+  'UnopimMediaLink',
+);
+export const UnopimPriceBinding = classNamed<UnopimPriceBindingRow>(
+  pimUnopimEntities,
+  'UnopimPriceBinding',
+);
 
 export const PimcoreCatalogueDelivery = classNamed<PimcoreCatalogueDeliveryRow>(
   pimPimcoreEntities,
@@ -750,6 +798,13 @@ export type {
   ErgonodeImportIssueRow,
   ErgonodeImportRunRow,
   ErgonodeProductLinkRow,
+  UnopimConnectionRow,
+  UnopimImportRunRow,
+  UnopimProductLinkRow,
+  UnopimSyncBookmarkRow,
+  UnopimCategoryMappingRow,
+  UnopimAttributeMappingRow,
+  UnopimImportIssueRow,
 };
 
 /**

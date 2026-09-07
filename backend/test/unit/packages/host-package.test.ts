@@ -45,6 +45,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findCheckoutRoot } from '../../../../scripts/workspace-resolution.js';
+import {
+  HOST_INTERNAL_SUBPATHS as HOST_INTERNAL_SUBPATH_REASONS,
+  PUBLISHED_SUBPATHS as PUBLISHED_SUBPATH_NAMES,
+} from '../../../scripts/lib/platform-surface.js';
 
 const ROOT = findCheckoutRoot(dirname(fileURLToPath(import.meta.url)));
 const HOST_DIR = join(ROOT ?? '.', 'packages', 'platform');
@@ -57,7 +61,34 @@ interface HostManifest {
   readonly dependencies?: Readonly<Record<string, string>>;
 }
 
-const PUBLISHED_SUBPATHS = ['./kernel', './http', './tenancy', './commands', './events'];
+/**
+ * The two classes of subpath, as the `exports` map spells them.
+ *
+ * Both come from `scripts/lib/platform-surface.ts` and neither is written here.
+ * They were two literals in this file until `specs/115-lifecycle-container-move/`
+ * Phase 2, and the host-internal one was a *second* copy of a list
+ * `published-surface.test.ts` also held — so "which subpaths are host-internal"
+ * had two independently maintained answers in one test tree, in the estate whose
+ * own rule that is (D-100). One home, and the reason for each member travels
+ * with it (`HOST_INTERNAL_SUBPATHS` is keyed by subpath, valued by the sentence
+ * that says why it is not public API).
+ *
+ * The two are kept apart from each other rather than merged, and §2.7.5(a) is
+ * why: the published list is what a **symbol** is judged against, and an entry
+ * there would publish `composeModules` out of `kernel/compose.ts` for every
+ * reach at that file, a module's relative one included. Here they differ only in
+ * that this file asks the same `exports`-map shape of both — declared,
+ * `./dist`-targeted, no wildcard — and asks who may name them not at all, that
+ * being `check:platform-surface`'s `host-internal-subpath` finding.
+ */
+const PUBLISHED_SUBPATHS = PUBLISHED_SUBPATH_NAMES.map((subpath) => `./${subpath}`);
+
+const HOST_INTERNAL_SUBPATHS = Object.keys(HOST_INTERNAL_SUBPATH_REASONS).map(
+  (subpath) => `./${subpath}`,
+);
+
+/** Every subpath the `exports` map is required to declare, published or not. */
+const DECLARED_SUBPATHS = [...PUBLISHED_SUBPATHS, ...HOST_INTERNAL_SUBPATHS];
 
 type ExportFindingKind =
   | 'root-export'
@@ -91,7 +122,7 @@ export function exportMapFindings(manifest: HostManifest): ExportFinding[] {
       continue;
     }
     if (subpath === './package.json') continue;
-    if (!PUBLISHED_SUBPATHS.includes(subpath)) {
+    if (!DECLARED_SUBPATHS.includes(subpath)) {
       findings.push({ kind: 'unknown-subpath', detail: subpath });
       continue;
     }
@@ -110,7 +141,7 @@ export function exportMapFindings(manifest: HostManifest): ExportFinding[] {
     }
   }
 
-  for (const subpath of PUBLISHED_SUBPATHS) {
+  for (const subpath of DECLARED_SUBPATHS) {
     if (!seen.has(subpath)) findings.push({ kind: 'missing-subpath', detail: subpath });
   }
 
@@ -133,7 +164,7 @@ describe('the host package `exports` map', () => {
       name: HOST_NAME,
       exports: {
         ...Object.fromEntries(
-          PUBLISHED_SUBPATHS.map((subpath) => [
+          DECLARED_SUBPATHS.map((subpath) => [
             subpath,
             {
               types: `./dist/${subpath.slice(2)}/index.d.ts`,
@@ -178,6 +209,23 @@ describe('the host package `exports` map', () => {
       ]);
     });
 
+    // The same refusal over the half of the map that is *not* public API. A
+    // `./composition` that quietly disappeared would leave the test kit and the
+    // host's own composition root with no supported specifier and this file
+    // reporting a sound map (D-160.14); a `./migrations` that did would leave
+    // the ORM configuration computing an execution order with an empty frozen
+    // prefix, which is the state `specs/110-instance-repository/` Phase 4a
+    // exists to end.
+    it('refuses a host-internal subpath being gone', () => {
+      for (const subpath of HOST_INTERNAL_SUBPATHS) {
+        const exports = { ...sound.exports };
+        delete (exports as Record<string, unknown>)[subpath];
+        expect(exportMapFindings({ ...sound, exports }), subpath).toEqual([
+          { kind: 'missing-subpath', detail: subpath },
+        ]);
+      }
+    });
+
     it('refuses a subpath pointing at source', () => {
       const exports = {
         ...sound.exports,
@@ -190,7 +238,10 @@ describe('the host package `exports` map', () => {
     });
   });
 
-  it('publishes the five subpaths, the manifest, and nothing else', () => {
+  // The two populations are named rather than counted: "the two host-internal
+  // ones" stood here while there were three, which is a derived number copied
+  // into prose in the file that derives it (D-100).
+  it('declares every published and host-internal subpath, the manifest, and nothing else', () => {
     expect(exportMapFindings(MANIFEST)).toEqual([]);
   });
 
@@ -435,7 +486,7 @@ describe('the host package resolves under node', () => {
       join(consumer.dir, 'probe.mjs'),
       [
         'const results = {};',
-        `for (const specifier of ${JSON.stringify([...PUBLISHED_SUBPATHS.map((s) => `${HOST_NAME}/${s.slice(2)}`), ...REFUSED])}) {`,
+        `for (const specifier of ${JSON.stringify([...DECLARED_SUBPATHS.map((s) => `${HOST_NAME}/${s.slice(2)}`), ...REFUSED])}) {`,
         '  try {',
         '    const mod = await import(specifier);',
         "    results[specifier] = { ok: true, exports: Object.keys(mod).filter((k) => k !== 'default').length };",
@@ -452,7 +503,7 @@ describe('the host package resolves under node', () => {
     if (consumer !== undefined) rmSync(consumer.dir, { recursive: true, force: true });
   });
 
-  it('resolves the five published subpaths and refuses the five that are not', () => {
+  it('resolves every declared subpath and refuses the five that are not', () => {
     const raw = execFileSync(process.execPath, ['probe.mjs'], {
       cwd: consumer.dir,
       encoding: 'utf8',
@@ -462,7 +513,7 @@ describe('the host package resolves under node', () => {
       { ok: boolean; exports?: number; code?: string | null }
     >;
 
-    for (const subpath of PUBLISHED_SUBPATHS) {
+    for (const subpath of DECLARED_SUBPATHS) {
       const specifier = `${HOST_NAME}/${subpath.slice(2)}`;
       expect(results[specifier], specifier).toEqual({
         ok: true,

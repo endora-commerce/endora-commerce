@@ -128,6 +128,7 @@ export const manifest = defineModuleManifest({
     ],
   },
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   actions: [
     {
       id: 'import-products',

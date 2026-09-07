@@ -23,8 +23,16 @@ import {
   rootRegisteredNames,
   HOST_REGISTERED_PORTS,
   PLATFORM_OWNED_NAMES,
+  ROOT_DELEGATES_TO,
+  ROOT_FILES,
   type PortResolution,
 } from '../../../scripts/check-port-dependencies.js';
+import {
+  delegatedComposerOf,
+  delegatedSuppliedNames,
+  delegatedSupplyFields,
+  delegationRefusalMessage,
+} from '../../../scripts/lib/delegated-composer.js';
 import { defineModuleManifest } from '@endora-commerce/contracts';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
@@ -1394,6 +1402,8 @@ describe('findNonBindingIssues — the rail on `refuses-without`', () => {
 });
 
 const layout = await requireModuleLayout('[port-dependency-check]');
+/** The same layout, under a name the delegation cases below can reach. */
+const REAL_LAYOUT = layout;
 
 describe('CONTRIBUTION_POLICY_STATED — the registries a contribution may name', () => {
   /**
@@ -1729,5 +1739,157 @@ describe('a deployment’s overlay module is visible to this check (issue #210)'
 
     expect(message).toContain('src/apps/example/modules/example_overlay/manifest.ts');
     expect(message).not.toContain('src/modules/example_overlay/manifest.ts');
+  });
+});
+
+/**
+ * A composition root that delegates (feature 109, Phase 1c).
+ *
+ * `backend/test/helpers/test-server.ts` supplies a composition and
+ * `@endora-commerce/test-kit/server` performs it, so *what the harness
+ * registers* is spread over two files: the names the composer writes into
+ * `registerValues` itself, and the names the root hands it as data. Reading only
+ * the root reported **16** production-only registrations on the merge request
+ * that made the harness the kit's first caller — every one of them a name the
+ * harness composition does register — and printed, for each, a remedy that had
+ * already been followed.
+ *
+ * Both halves enter here as **source text** (issue #130): a fixture that entered
+ * as a pre-computed name set would exercise neither derivation.
+ */
+describe('a delegating root supplies through its composer', () => {
+  it('reads which option field the composer spreads into its registration', () => {
+    const composer = [
+      "import { registerValues } from '@endora-commerce/platform/composition';",
+      'export function composeTestServer(options: Options): void {',
+      '  registerValues(container, {',
+      '    redis,',
+      '    eventBus,',
+      '    ...options.values,',
+      '  });',
+      '}',
+      '',
+    ].join('\n');
+
+    // The field is the composer's declaration, not a convention: spelling
+    // `values` into the check would be one copy of a fact the composer states.
+    expect(delegatedSupplyFields(composer, 'compose.ts')).toEqual(['values']);
+    // And the names the composer registers outright are still the call shapes
+    // this check has always read.
+    expect(rootRegisteredNames(composer, 'compose.ts')).toEqual(['redis', 'eventBus']);
+  });
+
+  it('reads nothing where the composer spreads no option field', () => {
+    // The exit-2 condition, at the point that decides it: a composer with no
+    // data seam means every host value a root hands it is invisible, and the
+    // check must refuse rather than report them as registered by nobody.
+    const composer = [
+      "import { registerValues } from '@endora-commerce/platform/composition';",
+      'export function composeTestServer(): void {',
+      '  registerValues(container, { redis });',
+      '}',
+      '',
+    ].join('\n');
+
+    expect(delegatedSupplyFields(composer, 'compose.ts')).toEqual([]);
+  });
+
+  it('collects the names a root hands the composer as data', () => {
+    const root = [
+      "import { composeTestServer } from '@endora-commerce/test-kit/server';",
+      'export async function setupBackendServer(): Promise<void> {',
+      '  await composeTestServer({',
+      '    composition,',
+      '    values: {',
+      '      productFeedsRunWorkers: false,',
+      "      storefrontBaseUrl: 'http://localhost:3000',",
+      '    },',
+      '    contribute: async () => undefined,',
+      '  });',
+      '}',
+      '',
+    ].join('\n');
+
+    expect(delegatedSuppliedNames(root, 'root.ts', 'composeTestServer', ['values'])).toEqual([
+      'productFeedsRunWorkers',
+      'storefrontBaseUrl',
+    ]);
+    // The names are invisible to the call-shape reader, which is the whole
+    // reason this derivation exists: the root calls no registration function.
+    expect(rootRegisteredNames(root, 'root.ts')).not.toContain('storefrontBaseUrl');
+  });
+
+  it('reads a field only where the composer declared one', () => {
+    // The discrimination. `contribute` is an option of the same call and carries
+    // a callback, not registrations; a derivation that took every object-valued
+    // option would collect whatever a caller happened to write there.
+    const root = [
+      "import { composeTestServer } from '@endora-commerce/test-kit/server';",
+      'await composeTestServer({',
+      '  values: { storefrontBaseUrl: 1 },',
+      '  server: { openApi: { title: 1 } },',
+      '});',
+      '',
+    ].join('\n');
+
+    expect(delegatedSuppliedNames(root, 'root.ts', 'composeTestServer', ['values'])).toEqual([
+      'storefrontBaseUrl',
+    ]);
+  });
+
+  it('follows this repository’s own harness to the composer it delegates to', () => {
+    // The derivation over the real tree, which is what makes the three fixtures
+    // above evidence about something rather than about themselves. A rebuild is
+    // not required and must not be: the composer is read at its **source**,
+    // because a package resolves at its build output (D-164) and a ledger taken
+    // from the artefact would describe the previous build.
+    const layout = REAL_LAYOUT;
+    const rootPath = join(layout.applicationRoot, ROOT_FILES['harness'] as string);
+    const rootSource = readFileSync(rootPath, 'utf8');
+    const binding = ROOT_DELEGATES_TO['harness'] as string;
+
+    const delegation = delegatedComposerOf(rootSource, rootPath, layout.repoRoot, binding);
+    expect(delegation.ok, delegation.ok ? '' : JSON.stringify(delegation)).toBe(true);
+    if (!delegation.ok) return;
+
+    expect(delegation.composer.files.length).toBeGreaterThan(0);
+    expect(delegation.composer.source).toContain(`function ${binding}(`);
+    // The names that were reported as production-only before the delegation was
+    // followed. All seven are the platform's own, registered by the composer.
+    const supplied = new Set(
+      delegation.composer.files.flatMap((file) =>
+        rootRegisteredNames(readFileSync(file, 'utf8'), file),
+      ),
+    );
+    for (const name of [
+      'redis',
+      'redisSubscriber',
+      'eventBus',
+      'commandBus',
+      'auditLogService',
+      'apiInterceptors',
+      'resolvedModuleRegistry',
+    ]) {
+      expect(supplied, `${name} is not registered by the composer`).toContain(name);
+    }
+  });
+
+  it('refuses a root whose composer it cannot find, rather than reading none', () => {
+    const layout = REAL_LAYOUT;
+    const rootPath = join(layout.applicationRoot, ROOT_FILES['harness'] as string);
+    const rootSource = readFileSync(rootPath, 'utf8');
+
+    const delegation = delegatedComposerOf(
+      rootSource,
+      rootPath,
+      layout.repoRoot,
+      'composeSomethingNobodyImports',
+    );
+    expect(delegation.ok).toBe(false);
+    if (delegation.ok) return;
+    expect(delegation.refusal.kind).toBe('no-import');
+    expect(delegationRefusalMessage('[port-deps]', delegation.refusal)).toContain(
+      'supplies nothing',
+    );
   });
 });

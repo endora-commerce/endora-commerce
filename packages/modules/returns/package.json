@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/mod-returns",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "description": "Return/complaint (RMA) case management, settlement, and refunds.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "returns"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/returns"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -30,7 +38,8 @@
   },
   "files": [
     "dist",
-    "i18n"
+    "i18n",
+    "docs"
   ],
   "engines": {
     "node": ">=22.17.0"
@@ -38,7 +47,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -53,6 +63,20 @@
     "react": "^19",
     "react-router-dom": "^7",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -69,6 +93,7 @@
     "react": "^19.2.5",
     "react-router-dom": "^7.14.2",
     "typescript": "^5.9.3",
+    "vitest": "^2.1.4",
     "zod": "^4.2.0"
   }
 }

@@ -3,7 +3,7 @@ import { screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
-import { ApiError } from '@endora-commerce/api-client';
+import { ApiError } from '../../../../packages/admin-shell/src/lib/api-client';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**
@@ -21,7 +21,7 @@ let presence: ModulePresence[] = [];
 const setModuleActivation = vi.fn(async () => ({}));
 const refresh = vi.fn(async () => {});
 
-vi.mock('@/lib/module-presence', () => ({
+vi.mock('../../../../packages/admin-shell/src/lib/module-presence', () => ({
   useModulePresence: () => ({
     modules: presence,
     isPresent: (id: string) => presence.find((m) => m.id === id)?.present ?? false,
@@ -35,11 +35,11 @@ vi.mock('@/lib/module-presence', () => ({
   getModulePresence: vi.fn(),
 }));
 
-vi.mock('@/modules/platform/api', () => ({
+vi.mock('../../../../packages/admin-shell/src/modules/platform/api', () => ({
   listModules: vi.fn(async () => ({ modules: listed })),
 }));
 
-const { ModulesPage } = await import('../../../src/modules/platform/ModulesPage');
+const { ModulesPage } = await import('../../../../packages/admin-shell/src/modules/platform/ModulesPage');
 
 const bundle = passthroughBundle('core', [
   'platform.modules.title',
@@ -70,6 +70,8 @@ const bundle = passthroughBundle('core', [
 // sentence, which a passthrough key cannot show.
 bundle['core']!['platform.modules.error.dependentsPresent'] = 'blocked: {name} needs {modules}';
 bundle['core']!['platform.modules.error.dependenciesAbsent'] = 'missing: {name} wants {modules}';
+bundle['core']!['platform.modules.error.pimConnectorAlreadyActive'] =
+  'pim blocked: {name} vs {activeModuleId}';
 
 function moduleItem(patch: Partial<ModuleListItem> & { id: string }): ModuleListItem {
   return {
@@ -79,7 +81,6 @@ function moduleItem(patch: Partial<ModuleListItem> & { id: string }): ModuleList
     state: 'installed',
     dependencies: [],
     flags: [],
-    license: null,
     installedAt: '2026-08-01T00:00:00.000Z',
     lastStateChangeAt: '2026-08-01T00:00:00.000Z',
     ...patch,
@@ -220,6 +221,30 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
     );
 
     expect(await screen.findByText('blocked: Settings needs organizations')).toBeInTheDocument();
+  });
+
+  it('names the incumbent PIM connector when mutual exclusion refuses the flip (FR-003)', async () => {
+    setModuleActivation.mockRejectedValueOnce(
+      new ApiError(409, {
+        error: {
+          code: 'PIM_CONNECTOR_ALREADY_ACTIVE',
+          message: 'Another PIM connector is already active: pim_ergonode',
+          details: { activeModuleId: 'pim_ergonode' },
+          requestId: 'req_test',
+        },
+      }),
+    );
+    listed = [moduleItem({ id: 'pim_unopim', name: 'UnoPim PIM' })];
+    presence = [presenceItem({ id: 'pim_unopim', present: false, activated: false })];
+    await renderPage();
+
+    await userEvent.click(
+      within(row('pim_unopim')).getByRole('button', { name: /platform.modules.action.enable/ }),
+    );
+
+    expect(
+      await screen.findByText('pim blocked: UnoPim PIM vs pim_ergonode'),
+    ).toBeInTheDocument();
   });
 
   it('keeps the server sentence for a refusal that names no modules', async () => {

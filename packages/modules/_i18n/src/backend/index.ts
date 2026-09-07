@@ -208,18 +208,29 @@ export const entities = [
  * everything module-scoped in it. Publishing the names is what gives those
  * callers a spelling that lands on the copy the platform holds.
  *
- *   * `buildErrorTranslationTargets` / `ErrorTranslationTarget` and their shapes
- *     — the routing map both composition roots inject into the error envelope
- *     (D-54), derived from the modules' own `errorCodes` declarations (feature
- *     090, D-182), together with the collisions the derivation refuses to
- *     resolve. `check:error-translations` reads the same derivation as code, so
- *     the gate and the platform answer out of one function.
+ *   * `buildErrorTranslationTargets` and its shapes **stood here and are gone**
+ *     (`specs/117-instance-bring-up/` FR-030). The routing map is now
+ *     `@endora-commerce/platform`'s, at `kernel/i18n/error-translation.ts`,
+ *     beside `request-language.ts` — the producer of the other
+ *     `ErrorEnvelopeOptions` member a composition root injects.
+ *
+ *     The line it moved across is worth stating here as well as there, because
+ *     this is where a reader looks for it: *the routing is derived from
+ *     manifests, the translation is a service*. `I18nService.translate` — what
+ *     the envelope's `translateErrorMessage` closure calls — resolves a key
+ *     against a bundle and is `_i18n`'s. The derivation translated nothing; it
+ *     read `manifest.errorCodes` off the **resolved manifest set**, which is a
+ *     composition-root input, and it had no consumer inside this package at
+ *     all: this barrel re-exported it and nothing here called it. That is
+ *     T040b's criterion 8, the test `absolutizePublicUrl` moved out of `email`
+ *     under, met exactly.
  *
  *     `ERROR_TRANSLATION_KEYS` and `composeErrorTranslationTargets` stood here
- *     and are **deleted** (Phase 4): the first was the prefix chain's static
- *     table, the second the transitional composition that laid the declarations
- *     over it so the migration could be delivered one module per merge request.
- *     All eighteen owners have declared, so there is nothing left to lay over.
+ *     too and were **deleted** in feature 090 Phase 4: the first was the prefix
+ *     chain's static table, the second the transitional composition that laid
+ *     the declarations over it so the migration could be delivered one module
+ *     per merge request. All eighteen owners have declared, so there is nothing
+ *     left to lay over.
  *   * `I18nService` — the resolver the reconciler, the CLI commands and the
  *     acceptance probe construct over an `EntityManager` of their own.
  *   * `MissingKeyLogger` — the resolver's collaborator, constructed the same way.
@@ -230,15 +241,6 @@ export const entities = [
  *   * `registerI18nAdminRoutes` / `I18nAdminDeps` — the HTTP surface, registered
  *     against a bare Fastify instance by its own contract test.
  */
-export {
-  buildErrorTranslationTargets,
-  describeErrorCodeCollisions,
-  type ErrorCodeClaim,
-  type ErrorCodeCollision,
-  type ErrorCodeDeclarationSource,
-  type ErrorTranslationTarget,
-  type ErrorTranslationTargets,
-} from './services/error-translation.js';
 export { I18nService } from './services/i18n-service.js';
 export { MissingKeyLogger } from './services/missing-key-logger.js';
 export {

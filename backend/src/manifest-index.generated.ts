@@ -50,7 +50,7 @@ import { manifest as manifest12 } from '@endora-commerce/mod-autopay';
 import { manifest as manifest13 } from '@endora-commerce/mod-blog';
 import { manifest as manifest14, cliCommands as cliCommands14 } from '@endora-commerce/mod-carts';
 import { manifest as manifest15, recentActivity as recentActivity15 } from '@endora-commerce/mod-catalog';
-import { manifest as manifest16 } from '@endora-commerce/mod-cms';
+import { manifest as manifest16, cliCommands as cliCommands16 } from '@endora-commerce/mod-cms';
 import { manifest as manifest17 } from '@endora-commerce/mod-comparisons';
 import { manifest as manifest18 } from '@endora-commerce/mod-credentials';
 import { manifest as manifest19 } from '@endora-commerce/mod-credit-limits';
@@ -82,28 +82,30 @@ import { manifest as manifest44 } from '@endora-commerce/mod-payment-methods';
 import { manifest as manifest45 } from '@endora-commerce/mod-payments';
 import { manifest as manifest46 } from '@endora-commerce/mod-paypal';
 import { manifest as manifest47 } from '@endora-commerce/mod-payu';
-import { manifest as manifest48 } from './modules/pim_akeneo/manifest.js';
-import { manifest as manifest49 } from '@endora-commerce/mod-pim-ergonode';
-import { manifest as manifest50 } from '@endora-commerce/mod-pim-pimcore';
-import { manifest as manifest51, recentActivity as recentActivity51 } from '@endora-commerce/mod-price-lists';
-import { manifest as manifest52 } from '@endora-commerce/mod-product-feeds';
-import { manifest as manifest53 } from '@endora-commerce/mod-promotions';
-import { manifest as manifest54, recentActivity as recentActivity54 } from '@endora-commerce/mod-prompt-actions';
-import { manifest as manifest55 } from '@endora-commerce/mod-pwa';
-import { manifest as manifest56 } from '@endora-commerce/mod-quick-order';
-import { manifest as manifest57 } from '@endora-commerce/mod-quote-requests';
-import { manifest as manifest58 } from '@endora-commerce/mod-returns';
-import { manifest as manifest59 } from '@endora-commerce/mod-sales-channels';
-import { manifest as manifest60, cliCommands as cliCommands60 } from '@endora-commerce/mod-search';
-import { manifest as manifest61 } from '@endora-commerce/mod-seo';
-import { manifest as manifest62, cliCommands as cliCommands62 } from '@endora-commerce/mod-settings';
-import { manifest as manifest63 } from '@endora-commerce/mod-shipments';
-import { manifest as manifest64 } from '@endora-commerce/mod-shopping-lists';
-import { manifest as manifest65 } from '@endora-commerce/mod-stripe';
-import { manifest as manifest66 } from '@endora-commerce/mod-taxes';
-import { manifest as manifest67 } from '@endora-commerce/mod-tpay';
-import { manifest as manifest68 } from '@endora-commerce/mod-transactional-emails';
-import { manifest as manifest69 } from '@endora-commerce/mod-webhooks';
+import { manifest as manifest48 } from '@endora-commerce/mod-pim-akeneo';
+import { manifest as manifest49 } from '@endora-commerce/mod-pim-connector';
+import { manifest as manifest50 } from '@endora-commerce/mod-pim-ergonode';
+import { manifest as manifest51 } from '@endora-commerce/mod-pim-pimcore';
+import { manifest as manifest52 } from '@endora-commerce/mod-pim-unopim';
+import { manifest as manifest53, recentActivity as recentActivity53 } from '@endora-commerce/mod-price-lists';
+import { manifest as manifest54 } from '@endora-commerce/mod-product-feeds';
+import { manifest as manifest55 } from '@endora-commerce/mod-promotions';
+import { manifest as manifest56, recentActivity as recentActivity56 } from '@endora-commerce/mod-prompt-actions';
+import { manifest as manifest57 } from '@endora-commerce/mod-pwa';
+import { manifest as manifest58 } from '@endora-commerce/mod-quick-order';
+import { manifest as manifest59 } from '@endora-commerce/mod-quote-requests';
+import { manifest as manifest60 } from '@endora-commerce/mod-returns';
+import { manifest as manifest61 } from '@endora-commerce/mod-sales-channels';
+import { manifest as manifest62, cliCommands as cliCommands62 } from '@endora-commerce/mod-search';
+import { manifest as manifest63 } from '@endora-commerce/mod-seo';
+import { manifest as manifest64, cliCommands as cliCommands64 } from '@endora-commerce/mod-settings';
+import { manifest as manifest65 } from '@endora-commerce/mod-shipments';
+import { manifest as manifest66 } from '@endora-commerce/mod-shopping-lists';
+import { manifest as manifest67 } from '@endora-commerce/mod-stripe';
+import { manifest as manifest68 } from '@endora-commerce/mod-taxes';
+import { manifest as manifest69 } from '@endora-commerce/mod-tpay';
+import { manifest as manifest70 } from '@endora-commerce/mod-transactional-emails';
+import { manifest as manifest71 } from '@endora-commerce/mod-webhooks';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -138,7 +140,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'blog', manifest: manifest13, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-blog') },
   { id: 'carts', manifest: manifest14, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-carts'), cliCommands: cliCommands14 },
   { id: 'catalog', manifest: manifest15, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-catalog'), recentActivity: recentActivity15 },
-  { id: 'cms', manifest: manifest16, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-cms') },
+  { id: 'cms', manifest: manifest16, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-cms'), cliCommands: cliCommands16 },
   { id: 'comparisons', manifest: manifest17, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-comparisons') },
   { id: 'credentials', manifest: manifest18, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-credentials') },
   { id: 'credit_limits', manifest: manifest19, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-credit-limits') },
@@ -170,26 +172,28 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'payments', manifest: manifest45, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-payments') },
   { id: 'paypal', manifest: manifest46, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-paypal') },
   { id: 'payu', manifest: manifest47, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-payu') },
-  { id: 'pim_akeneo', manifest: manifest48, manifestPath: resolveManifestPath(import.meta.url, './modules/pim_akeneo/manifest.js') },
-  { id: 'pim_ergonode', manifest: manifest49, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pim-ergonode') },
-  { id: 'pim_pimcore', manifest: manifest50, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pim-pimcore') },
-  { id: 'price_lists', manifest: manifest51, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-price-lists'), recentActivity: recentActivity51 },
-  { id: 'product_feeds', manifest: manifest52, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-product-feeds') },
-  { id: 'promotions', manifest: manifest53, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-promotions') },
-  { id: 'prompt_actions', manifest: manifest54, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-prompt-actions'), recentActivity: recentActivity54 },
-  { id: 'pwa', manifest: manifest55, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pwa') },
-  { id: 'quick_order', manifest: manifest56, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-quick-order') },
-  { id: 'quote_requests', manifest: manifest57, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-quote-requests') },
-  { id: 'returns', manifest: manifest58, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-returns') },
-  { id: 'sales_channels', manifest: manifest59, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-sales-channels') },
-  { id: 'search', manifest: manifest60, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-search'), cliCommands: cliCommands60 },
-  { id: 'seo', manifest: manifest61, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-seo') },
-  { id: 'settings', manifest: manifest62, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-settings'), cliCommands: cliCommands62 },
-  { id: 'shipments', manifest: manifest63, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shipments') },
-  { id: 'shopping_lists', manifest: manifest64, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shopping-lists') },
-  { id: 'stripe', manifest: manifest65, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-stripe') },
-  { id: 'taxes', manifest: manifest66, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-taxes') },
-  { id: 'tpay', manifest: manifest67, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-tpay') },
-  { id: 'transactional_emails', manifest: manifest68, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-transactional-emails') },
-  { id: 'webhooks', manifest: manifest69, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-webhooks') },
+  { id: 'pim_akeneo', manifest: manifest48, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pim-akeneo') },
+  { id: 'pim_connector', manifest: manifest49, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pim-connector') },
+  { id: 'pim_ergonode', manifest: manifest50, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pim-ergonode') },
+  { id: 'pim_pimcore', manifest: manifest51, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pim-pimcore') },
+  { id: 'pim_unopim', manifest: manifest52, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pim-unopim') },
+  { id: 'price_lists', manifest: manifest53, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-price-lists'), recentActivity: recentActivity53 },
+  { id: 'product_feeds', manifest: manifest54, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-product-feeds') },
+  { id: 'promotions', manifest: manifest55, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-promotions') },
+  { id: 'prompt_actions', manifest: manifest56, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-prompt-actions'), recentActivity: recentActivity56 },
+  { id: 'pwa', manifest: manifest57, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-pwa') },
+  { id: 'quick_order', manifest: manifest58, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-quick-order') },
+  { id: 'quote_requests', manifest: manifest59, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-quote-requests') },
+  { id: 'returns', manifest: manifest60, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-returns') },
+  { id: 'sales_channels', manifest: manifest61, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-sales-channels') },
+  { id: 'search', manifest: manifest62, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-search'), cliCommands: cliCommands62 },
+  { id: 'seo', manifest: manifest63, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-seo') },
+  { id: 'settings', manifest: manifest64, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-settings'), cliCommands: cliCommands64 },
+  { id: 'shipments', manifest: manifest65, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shipments') },
+  { id: 'shopping_lists', manifest: manifest66, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shopping-lists') },
+  { id: 'stripe', manifest: manifest67, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-stripe') },
+  { id: 'taxes', manifest: manifest68, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-taxes') },
+  { id: 'tpay', manifest: manifest69, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-tpay') },
+  { id: 'transactional_emails', manifest: manifest70, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-transactional-emails') },
+  { id: 'webhooks', manifest: manifest71, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-webhooks') },
 ];

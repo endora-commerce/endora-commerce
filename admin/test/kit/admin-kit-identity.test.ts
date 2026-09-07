@@ -41,24 +41,24 @@ import * as kitLib from '@endora-commerce/admin-kit/lib';
 import * as kitI18n from '@endora-commerce/admin-kit/i18n';
 import * as kitComponents from '@endora-commerce/admin-kit/components';
 
-import { Button } from '@/components/ui/button';
-import { Table } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
-import { apiClient, ApiError } from '@/lib/api-client';
-import { PAGE_SIZE_OPTIONS, usePageSizePreference } from '@/lib/use-page-size-preference';
-import { AuthProvider, useAuth } from '@/lib/auth';
-import { ModulePresenceProvider, useModulePresence, getModulePresence } from '@/lib/module-presence';
-import { isSurfaceVisible, satisfiesPermission, useSurfaceVisibility } from '@/lib/surface-visibility';
-import { useTranslation } from '@/i18n/useTranslation';
-import { AppLanguageContext } from '@/i18n/app-language-context';
-import { ResponsiveTable } from '@/components/ResponsiveTable';
-import { EChart } from '@/components/charts/echart';
-import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
-import { CmsBlockPicker } from '@/components/cms-picker/CmsBlockPicker';
-import { CmsPagePicker } from '@/components/cms-picker/CmsPagePicker';
-import { OrganizationPicker, OrganizationStatusBadge } from '@/components/organization-picker';
-import { OrganizationPickerMulti } from '@/components/organization-picker/OrganizationPickerMulti';
-import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
+import { Button } from '../../../packages/admin-shell/src/components/ui/button';
+import { Table } from '../../../packages/admin-shell/src/components/ui/table';
+import { cn } from '../../../packages/admin-shell/src/lib/utils';
+import { apiClient, ApiError } from '../../../packages/admin-shell/src/lib/api-client';
+import { PAGE_SIZE_OPTIONS, usePageSizePreference } from '../../../packages/admin-shell/src/lib/use-page-size-preference';
+import { AuthProvider, useAuth } from '../../../packages/admin-shell/src/lib/auth';
+import { ModulePresenceProvider, useModulePresence, getModulePresence } from '../../../packages/admin-shell/src/lib/module-presence';
+import { isSurfaceVisible, satisfiesPermission, useSurfaceVisibility } from '../../../packages/admin-shell/src/lib/surface-visibility';
+import { useTranslation } from '../../../packages/admin-shell/src/i18n/useTranslation';
+import { AppLanguageContext } from '../../../packages/admin-shell/src/i18n/app-language-context';
+import { ResponsiveTable } from '../../../packages/admin-shell/src/components/ResponsiveTable';
+import { EChart } from '../../../packages/admin-shell/src/components/charts/echart';
+import { SalesChannelPicker } from '../../../packages/admin-shell/src/components/sales-channel-picker/SalesChannelPicker';
+import { CmsBlockPicker } from '../../../packages/admin-shell/src/components/cms-picker/CmsBlockPicker';
+import { CmsPagePicker } from '../../../packages/admin-shell/src/components/cms-picker/CmsPagePicker';
+import { OrganizationPicker, OrganizationStatusBadge } from '../../../packages/admin-shell/src/components/organization-picker';
+import { OrganizationPickerMulti } from '../../../packages/admin-shell/src/components/organization-picker/OrganizationPickerMulti';
+import { AssetFieldPicker } from '../../../packages/admin-shell/src/components/asset-picker/AssetFieldPicker';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {
@@ -99,6 +99,84 @@ describe('@endora-commerce/admin-kit — the shims forward, they do not copy', (
     // to forward.
     expect(AssetFieldPicker).toBe(kitComponents.AssetFieldPicker);
   });
+
+  // **All four P8 members have left this group, and the last two left together.**
+  // Batch 15 took `orders`' `Section` and batch 16 `cms`' two content
+  // components, in merge requests that were open at the same time; the
+  // e-mail-outcome pair had gone in batch 12. So there is no P8 member left
+  // with two spellings and nothing here to compare — this is the P9 note
+  // below arriving for a whole family rather than for one component. The
+  // reasoning each removal recorded is kept verbatim, because it is the
+  // evidence that each shim died of its last reader leaving and not of
+  // somebody tidying.
+    // Feature 091's P8 published four generic members that sat under a module's
+    // admin directory and were reached from another's: `cms`' two content
+    // components, `orders`' `Section` and `invoices`' e-mail-outcome helpers.
+    // Their consumers name the subpath directly; the shims stay because the old
+    // paths are the spelling each owner's own tests and any client tree already
+    // hold, and a second resolution would be a second copy.
+    //
+    // **`Section` has left this group too**, in feature 091's batch 15, for the
+    // same reason and by the same measurement: `orders` took its admin surface
+    // into `@endora-commerce/mod-orders/admin`, so `admin/src/modules/orders/`
+    // is gone and the shim that stood in it went with the directory. Its only
+    // remaining reader was this file — `quote_requests`, the reach P8 published
+    // the layout primitive for, already names the subpath — so keeping the shim
+    // would have kept a file alive for one assertion, and keeping the assertion
+    // without it would have compared `kitUi` to itself. Two more `orders` shims
+    // went with the same directory and never had a case here:
+    // `StatusTransitionGraph` (batch 8) and `orderStatusColor` (P8), whose four
+    // readers were all that module's own screens and now name
+    // `@endora-commerce/admin-kit/components`, `@endora-commerce/admin-kit/lib`
+    // and `@endora-commerce/contracts` directly. `catalog`'s `ProductPicker`
+    // shim (P2) had **no** reader left at all and went with its directory in the
+    // same batch.
+    //
+    // **The e-mail-outcome pair left in feature 091's batch
+    // 12**, and that removal is the `CustomFieldValuesPanel` note below arriving
+    // a second time: `invoices` took its admin surface into
+    // `@endora-commerce/mod-invoices/admin`, so `admin/src/modules/invoices/`
+    // is gone and the shim that stood in it went with the directory. Its only
+    // remaining reader was this file — `orders`, the reach P8 published the
+    // three functions for, already names the subpath — so keeping the shim
+    // would have kept a file alive for one assertion, and keeping the
+    // assertion without it would have compared `kitLib` to itself. What the
+    // three functions still have is `admin/test/kit/kit-invoice-email-outcome.test.ts`,
+    // which drives the published bindings; what is gone is a second spelling of
+    // them, which is the thing this file exists to compare.
+    // **`cms`' two have left this group**, in feature 091's batch 16, and it is
+    // the same removal a third time — batch 12 took the e-mail-outcome pair and
+    // batch 13 the fulfilment picker, each for this reason. `cms` took its
+    // admin surface into `@endora-commerce/mod-cms/admin`, so
+    // `admin/src/modules/cms/` is gone and the two shims that stood in it went
+    // with the directory. Their only remaining reader was this file — `blog`,
+    // the reach P8 published them for, names the subpath directly now that it
+    // is a package too — so keeping the shims would have kept two files alive
+    // for two assertions, and keeping the assertions without them would have
+    // compared `kitComponents` to itself. What the two components still have is
+    // `admin/test/kit/kit-content-scope.test.tsx`, which drives the published
+    // bindings; what is gone is a second spelling of them, which is the thing
+    // this file exists to compare.
+
+  // **The P9 fulfilment picker had a case here and no longer has a shim to
+  // compare.** P9 published `inventory`'s warehouse-picking control into the
+  // kit — §10.2 read it as a published component rather than a zone, its props
+  // being `(value, onChange, warehouses, …)`, which is Z1 question 1 — and kept
+  // a forwarder at
+  // `admin/src/modules/inventory/components/FulfilmentStrategyPicker.tsx` *"for
+  // this module's own screens and any client tree"*. Feature 091's batch 13
+  // moved those screens into `@endora-commerce/mod-inventory/admin`, where a
+  // `@/` specifier does not resolve at all, and it turned out that neither of
+  // them ever named the picker: its two consumers are `catalog`'s product
+  // inventory tab and `organizations`' fulfilment panel, and both already name
+  // the subpath. The forwarder's only remaining reader was this file, so it
+  // went with the directory — keeping it would have kept a file alive for one
+  // assertion, and keeping the assertion without it would have compared
+  // `kitComponents` to itself. What the picker still has is
+  // `admin/test/kit/kit-fulfilment-strategy-picker.test.tsx`, which drives the
+  // published component; what is gone is a second spelling of it, which is the
+  // thing this file exists to compare. That is batch 12's e-mail-outcome note
+  // and batch 9's `CustomFieldValuesPanel` note arriving a third time.
 
   // **`CustomFieldValuesPanel` had a case here and no longer has a shim to
   // compare.** P4e published the panel into the kit and kept a forwarder at

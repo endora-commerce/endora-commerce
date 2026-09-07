@@ -14,8 +14,9 @@ import { FIXTURES } from './_fixtures.js';
  *
  * The crash this replaces was measured, not inferred: `loadOverlayModulePlugins`
  * imported `<id>/plugin.ts` for **every** discovered overlay id, with no
- * existence guard and no `try`, while `scanOverlay` short-circuits a new module
- * id before it inspects a single file. So a `backend.ts`-only overlay module —
+ * existence guard and no `try`, while the overlay scan reports a module
+ * directory without inspecting a single file inside it. So a `backend.ts`-only
+ * overlay module —
  * the path the generated composer explicitly ordered last, with a header
  * explaining why — could not boot at all. The first case below is that shape.
  */

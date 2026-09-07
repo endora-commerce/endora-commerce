@@ -5,6 +5,14 @@ import { loginCustomer } from '../../../../../lib/api/auth';
 import { acceptInvitation } from '../../../../../lib/api/organization';
 import { StorefrontApiError } from '../../../../../lib/api/client';
 import { setSessionCookie } from '../../../../../lib/session';
+import type { Metadata } from 'next';
+
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
+ * authenticated or transactional surface, of no use to a crawler and not a
+ * page a search result should ever land a buyer on.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Invitation redemption (email link → `/invitations/:token/accept`).

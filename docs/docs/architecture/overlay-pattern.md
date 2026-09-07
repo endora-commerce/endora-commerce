@@ -12,32 +12,53 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
 
 ## How it works
 
-- **Overlay location** — a deployment's overrides live under
-  `backend/src/apps/<deployment>/modules/<id>/…`, mirroring the core module tree
-  at `backend/src/modules/<id>/…`. The active deployment is chosen by the
-  `DEPLOYMENT` environment variable at build time; unset (or a deployment with no
-  overlay directory) means a bare-core build.
-- **Shadowing rule** — an overlay file at the same module-relative path as a core
-  file *shadows* it. A file under a module id that does not exist in core is a
-  brand-new **client-only module** (additive).
-- **Deterministic resolution** — the resolver (`backend/src/overlay/`) walks core
-  + the overlay root with a stable sort and emits a resolved unit set. Identical
-  inputs produce an identical resolution and an identical **override manifest**,
-  so a rebuild never drifts.
-- **Override manifest** — every build emits a committed, deterministic artifact
-  (`override-manifest.core.generated.ts` for bare core; per-deployment under
-  `apps/<name>/`) listing every override and every new module, so a reviewer can
-  see exactly how a deployment diverges from core.
+- **Overlay location** — a deployment's own modules live under
+  `backend/src/apps/<deployment>/modules/<id>/…`. The active deployment is chosen
+  by the `DEPLOYMENT` environment variable at build time; unset (or a deployment
+  with no overlay directory) means a bare-core build.
+- **An overlay module owns every file it ships.** Nothing in it shadows, replaces
+  or extends a file of another module. There is no classification of its contents
+  and no rule about what it may put where — it is an ordinary module that happens
+  to belong to one client. (This was not always so; see *There used to be file
+  shadowing* below.)
+- **One id, one owner** — an overlay module id already claimed by core, by a
+  workspace module package, by an installed package or by another overlay module
+  fails composition, naming every claimant's file.
+- **Deterministic resolution** — the resolver (`backend/src/overlay/`) lists the
+  module directories under the overlay root with a stable sort. Identical inputs
+  produce an identical resolution and an identical **divergence report**, so a
+  rebuild never drifts.
+- **Divergence report** — every build emits a committed, deterministic record of
+  every way the deployment differs from core, in two renderings from one
+  derivation: `divergence.generated.ts` for a program and
+  `divergence.generated.md` for a human (`divergence.core.generated.*` for bare
+  core; per-deployment under `apps/<name>/`). Each entry names what was changed,
+  which of the deployment's modules changed it, which module owns what was
+  changed, the rung of the [customisation ladder](./customisation-ladder.md) it
+  sits on, and the sentence the deployment wrote when it did it. Its predecessor
+  recorded one fact — which overlay modules a deployment adds — which survives as
+  the report's `overlayModules` field.
+- **The deployment's own declaration** — `apps/<name>/divergence.ts`, hand-written
+  and reviewed, carrying the three things no walk can produce: the modules this
+  deployment does not ship, the wrapping order where two of its overlay modules
+  decorate one name, and one sentence per derived divergence. It is reconciled
+  against the report **both ways**: a divergence with no sentence fails the
+  build, and so does a sentence describing a divergence that is gone.
 
-## What you may override (v1)
+## What you may override
 
-| Kind | Overridable? | Notes |
-|------|--------------|-------|
-| Service | ✅ | By **decoration** from the deployment's overlay module, not by shadowing a file — see below. |
-| Route / plugin | ✅ | Same route mechanism as core. |
-| Config / manifest | ✅ | |
-| Whole new module | ✅ (no schema — see below) | Registered without editing the core registry. Ships `backend.ts`, never `plugin.ts`. |
-| Entity / migration | ❌ | An overlay module contributes no schema — see below. Ship new schema from a **core** module. |
+Every row names a seam. None names a file path, because there is no seam that
+takes one.
+
+| Want | Seam |
+|------|------|
+| Change what a core service does | `ctx.di.decorate('<name>', (inner) => …)` from the deployment's own overlay module — see *Service overrides are decorations* below |
+| Add a capability | a client-only overlay module under `backend/src/apps/<deployment>/modules/<id>/`, shipping `backend.ts` and `manifest.ts` |
+| Run before or after another module's endpoint; veto it; rewrite its response | `ctx.interceptors` (feature `060`) |
+| Vary a behaviour the owner anticipated | a strategy port the owner publishes, registered behind `ctx.di.providePort` and read through `lazyPort` |
+| Change configuration | a manifest-declared Setting, and `divergence.ts` to omit a module |
+| Add client-specific tables | from a **core** module, read from the overlay through that module's port — an overlay module contributes no schema, see below |
+| **Replace a route handler wholesale** | **No seam. Not offered.** See *The one thing there is no seam for* below |
 
 ## An overlay module contributes no schema
 
@@ -182,17 +203,94 @@ module decorating a name twice is unambiguous and two modules decorating it are
 not.
 
 Before feature 072 a service override shadowed
-`modules/<id>/services/<name>.ts` and replaced the core class. A `services/`
-file under an overlay is now an **unknown override target**, which is what it
-is: a file the platform would never load.
+`modules/<id>/services/<name>.ts` and replaced the core class. That is retired
+too, and completely: a `services/` file under an overlay module is now just one
+of that module's own files, because an overlay module owns everything it ships.
+
+## There used to be file shadowing, and it is retired
+
+Until 2026-09 this page described a second mechanism: an overlay file at the
+same module-relative path as a core file *shadowed* it, with a taxonomy of
+overridable kinds (`route`, `config`), two rejected ones (`schema`, `other`),
+a conflict policy and three build-time refusals. If you are reading a client
+tree, an older spec or a document that still describes one, this is why it is
+gone and why you should not reinvent it.
+
+**Nothing that ran was given up**, and that is measured rather than asserted.
+`git log -S` over the whole history of `backend/src/overlay/` finds exactly one
+loader for a shadowed file ever written — `loadOverlayServiceClasses`, for
+`service` — and feature 072 deleted it deliberately, replacing it with
+`ctx.di.decorate` for the reason the section above gives. `route` and `config`
+never had a loader at all: the resolver's `overrides` output had exactly one
+consumer in the history of the tree, the divergence report's generator (then the
+override-manifest generator), which serialised it into an audit artefact. So a route override never changed what a
+running platform served, on any deployment, in any tree state.
+
+**And it had stopped even classifying.** The scan indexed core from
+`backend/src/modules`, which has held no module since the packaging sweep
+finished on 2026-08-28. With that index empty every overlay directory
+short-circuited to "a brand-new module claiming this id" before a single file
+was looked at, so all three refusals below were unreachable — including the one
+whose whole job was to stop a deployment shipping a migration it would never
+run. A dead fail-closed guard is worse than no guard: the author who trusts it
+gets silence.
+
+Retired with it: **Conflict** (two overlays targeting one core unit),
+**Unknown target** (an overlay file whose core equivalent does not exist) and
+**Schema override** (an overlay file under a core module's `entities/` or
+`migrations/`). The schema rule itself is *not* retired — an overlay module
+still contributes no schema, and `generate-composer.ts` is what refuses it,
+which is the only place that can say the table would never be created.
+
+**Why it was not repaired instead.** Shadowing a file inside a published package
+is not a coherent operation. The platform composes a module through
+`@endora-commerce/mod-<id>/backend`, whose `exports` map points at `dist`, so
+making one overlay file replace one of those would mean intercepting Node's
+resolution for a single file of a single package — reintroducing that package's
+*source* into a graph that already holds its build output. Two rules refuse the
+shapes that would take: D-164, which is why a module package ships `dist` at
+all, and `check:singleton-identity`, whose whole subject is that evaluating one
+package twice duplicates its module-scope values **silently**. Doing it at the
+specifier level instead — re-pointing the package at the deployment's copy —
+avoids the double evaluation and replaces the whole module, which is forking a
+module rather than overriding one, and is the thing Principle XV exists to
+prevent.
+
+The ruling is D-201, and the analysis is
+`specs/103-overlay-shadowing-retirement/`.
+
+## The one thing there is no seam for
+
+**There is no way to replace a route handler wholesale.** `ctx.interceptors`
+runs after the route's own `preHandler` guards and after schema validation: a
+pre-interceptor may veto by throwing a registered `HttpError` and may replace
+the validated body, and a post-interceptor may replace the payload, but neither
+can substitute the handler.
+
+That is not a regression the retirement introduced — route shadowing never
+replaced a handler either. It is stated here rather than implied, in the idiom
+`PackageDecorationNotOfferedError` already uses: not offered, naming the exit.
+The honest sequence for a deployment that needs one is to decorate the service
+the handler calls, which is where the behaviour usually is, or to ask the owning
+module for a port. If a real deployment turns up needing more, that is a feature
+with a real requirement behind it, and it should not be justified by a mechanism
+that never worked.
 
 ## Fail-closed guards
 
-The build fails — never resolves silently — on:
+Every guard on this list can be provoked. The build fails — never resolves
+silently — on:
 
-- **Conflict** — two overlays targeting one core unit (no last-wins).
-- **Unknown target** — an overlay whose core file does not exist (stale/typo).
-- **Schema override** — an overlay under `entities/`/`migrations/` of a core module.
+- **Module id collision** — an overlay module claiming an id already held by
+  core, a workspace module package, an installed package or another overlay
+  module. The refusal names every claimant's file.
+- **Overlay schema** — an `@Entity()` class or a migration under
+  `backend/src/apps/`, refused by `generate-composer.ts` (D-106).
+- **Missing manifest** — an overlay module directory carrying no
+  `manifest.js`/`manifest.ts`. The refusal names both candidates.
+- **Unregisterable backend** — an overlay module whose `backend.js`/`backend.ts`
+  exports no `registerModule`. (A directory with *no* backend entry point is
+  skipped, deliberately: a deployment may ship a module with no server half.)
 - **Ambiguous decoration** — two modules decorating one registration with no declared order.
 - **Foreign decoration** — a core module decorating a registration it does not own.
 - **Package decoration** — an overlay decorating a registration an installed
@@ -200,7 +298,7 @@ The build fails — never resolves silently — on:
 
 ## Guards still apply
 
-An override swaps an *implementation*, never a guard seam: overlay code runs
+A decoration wraps an *implementation*, never a guard seam: overlay code runs
 under the same tenant isolation (Principle XI), sales-channel scoping
 (Principle XII), and Command-Bus auditing (Principle XIII) as core. Overlay
 modules are ordinary lifecycle participants and must register their permissions
@@ -215,12 +313,28 @@ and pass the permission-inventory check per deployment.
 # 2. Override a core service from its registerModule, by registration name:
 #    ctx.di.decorate('pricingService', (inner) => wrap(inner))
 
-# 3. Render the deployment's override manifest and commit it:
-DEPLOYMENT=acme pnpm --filter backend run overlay:manifest
+# 3. Say why, in the deployment's own declaration:
+#    backend/src/apps/acme/divergence.ts, `reasons`, keyed by the derived entry's
+#    own key — `decoration:acme_loyalty:pricingService`
 
-# 4. Verify divergence in the emitted manifest and check determinism:
+# 4. Render the deployment's divergence report and commit both renderings:
+DEPLOYMENT=acme pnpm --filter backend run overlay:divergence
+
+# 5. Check that every divergence is derived, owned and explained, and that the
+#    committed artefacts are what this tree produces:
+pnpm --filter backend run check:divergence
 pnpm --filter backend run overlay:check
 ```
 
-See the feature spec, plan, and quickstart under
-`specs/057-overlay-pattern-multideploy/` for the full contract.
+**Which seam to reach for, and what each costs**, is the
+[customisation ladder](./customisation-ladder.md). Read it before writing any of
+the above: rung 3 is not available to a deployment wanting to substitute an
+implementation, and that page says so rather than sending you to a mechanism that
+will refuse you.
+
+See `specs/057-overlay-pattern-multideploy/` for the original feature,
+`specs/107-override-report-and-ladder/contracts/divergence-report.md` for the
+current report contract and `.../deployment-declaration.md` for the declaration's.
+Both supersede `specs/103-overlay-shadowing-retirement/contracts/override-manifest-v2.md`
+§1–§2, which in turn superseded feature 057's override-manifest and
+overlay-resolution contracts.

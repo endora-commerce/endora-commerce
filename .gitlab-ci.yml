@@ -30,12 +30,28 @@
 # been executed, which is how a `rootDir` defect sat latent in three of them.
 #
 # Required CI/CD variables (Settings → CI/CD → Variables):
-#   Build/runtime (public, baked into the frontend bundles at build time):
+#   Per-instance build inputs (feature 110, FR-009). The set, each input's meaning,
+#   its default and the build argument each image reads are declared **once**, in
+#   `packages/cli/src/lib/instance-build-inputs.ts` — they are an instance's inputs
+#   and not this pipeline's, so a client's own pipeline is rendered from the same
+#   declaration (D-207, D-208). The `--build-arg` lines in the three build jobs
+#   below are what that declaration emits, and
+#   `backend/test/unit/ci/instance-build-inputs.test.ts` fails on a job, a
+#   Dockerfile or a mapping that has drifted from it. Do not add an input here:
+#   add it there, or say why it is not derived.
+#     DEPLOYMENT              e.g. acme              (overlay modules + divergence)
 #     API_DOMAIN              e.g. api.example.com
 #     STOREFRONT_DOMAIN       e.g. example.com
+#     SALES_CHANNEL_CODE      e.g. pl_default
+#     DEFAULT_LOCALE          e.g. en-US             (defaults to en-US)
+#   STOREFRONT_DOMAIN was listed below as a domain this pipeline only deploys to,
+#   which was true until the storefront had to name its own public origin inside
+#   its bundle: the canonicals, the sitemap and robots.txt are all built from it,
+#   Next inlines it at build time, and `/robots.txt` is prerendered into the image
+#   — so no container environment can supply it afterwards. It is a build input
+#   now, and one an operator already sets.
+#   Domains this pipeline deploys to, which are not build inputs:
 #     ADMIN_DOMAIN            e.g. admin.example.com
-#     SALES_CHANNEL_CODE      e.g. pl_default        (NEXT_PUBLIC_SALES_CHANNEL_CODE)
-#     DEFAULT_LOCALE          e.g. en-US             (NEXT_PUBLIC_DEFAULT_LOCALE)
 #   Deploy:
 #     SSH_PRIVATE_KEY  (type File, protected)  deploy key for the VPS user.
 #                      Masked type rejects multi-line values, so use type=File:
@@ -45,6 +61,14 @@
 #     DEPLOY_HOST      (protected, masked)     VPS hostname/IP
 #     DEPLOY_USER      (protected, masked)     VPS ssh user (member of the docker group)
 #     DEPLOY_PATH      (protected)             dir on the VPS holding compose.prod.yml + .env (e.g. /opt/b2b)
+#   Publish (feature 104, D-203 — `publish:packages`, on a release branch only):
+#     ENDORA_NPM_REGISTRY (protected)          the npm endpoint to publish to, with its
+#                      trailing slash — GitLab's own troubleshooting says the scoped URL
+#                      carries one. Unset is exit 2 rather than a publish to npmjs.
+#     ENDORA_NPM_TOKEN (protected, masked)     a token that may write packages there.
+#                      Protected, so `release/*` has to be a protected branch pattern or
+#                      the job refuses; it is written into `.npmrc` as `${ENDORA_NPM_TOKEN}`,
+#                      an environment reference pnpm expands, so no file holds the value.
 
 stages:
   - quality
@@ -206,15 +230,6 @@ quality:
     # a stale entry, an empty shard, an orphan shard and an entry filed under
     # another module's shard.
     - pnpm --filter backend run check:module-boundary
-    # Feature 091 (FR-018) — the admin's two hand-written registries, counted
-    # per module and held both ways. 145 of `App.tsx`'s 149 routes and 97 of
-    # `AppShell.tsx`'s 100 nav entries belong to a module, and Story 3 moves
-    # them into the modules that own them. The batch that moves a directory
-    # does not touch either file, which is the shape AGENTS.md records as
-    # having produced three reds on `master` in a row — so a batch that leaves
-    # a registration behind declares the screen twice, with `react-router`
-    # silently taking the first match.
-    - pnpm --filter backend run check:admin-registrations
     # Feature 091 (FR-009/FR-016) — a module reaching admin platform surface
     # `@endora-commerce/admin-kit` does not publish. `check:platform-surface`
     # asks this on the backend and had no frontend twin, because until Phase 1b
@@ -405,6 +420,18 @@ quality:
     # scheduled for mass production — six were found across three batches before
     # this check existed.
     - pnpm --filter backend run check:doc-snippets
+    # `specs/100-module-owned-documentation/` — the documentation navigation
+    # describes the modules the platform composes. `overlay:check` asks whether
+    # each artefact is what the generator would emit; this asks whether the
+    # generator is looking at everything it should, which is a different
+    # question and the one that was wrong: a generator emitting a correct
+    # sidebar for the 62 modules it could see agreed with itself perfectly while
+    # eight written pages were reachable from no navigation, 23 registered
+    # modules had no map row and four page slugs named no module. Nothing in the
+    # repository could see any of it, because the one instrument that could —
+    # Docusaurus's own `checkSidebarsDocIds` — ran in a build that existed in no
+    # CI job. `build:docs` below is that half.
+    - pnpm --filter backend run check:module-docs
     # Principle VIII — an error code the operator can see has a sentence, in both
     # shipped languages. The envelope replaces the message wholesale with the
     # bundle string, so a missing key renders the raw code and nothing reports it:
@@ -412,6 +439,107 @@ quality:
     # envelope does not read, while all six of its codes rendered untranslated.
     # The ledger is the standing debt and may only shrink.
     - pnpm --filter backend run check:error-translations
+    # `specs/094-translation-boundary/` — the owner's ruling of 2026-09-01: a
+    # module that ships a bundle in any language ships one in every language the
+    # platform ships. A **conditional**, because 7 of the 69 registered modules
+    # legitimately ship none and a universal would be repaired by seven empty
+    # files. It lands at zero violations, which is the argument for landing it:
+    # nothing held the invariant there.
+    # `registered-bundles-shape.test.ts` looked like the enforcer and was a
+    # two-way miss — its symmetry case skipped exactly the module that drops a
+    # bundle, and its action-key case asked each module about the languages it
+    # happened to ship. Both are repaired in the same merge request; this check
+    # is the file-level precondition neither of them can be.
+    # No ledger, deliberately: an entry could only license a single-language
+    # module, which is the thing the ruling forbids.
+    - pnpm --filter backend run check:bundle-pairing
+    # `specs/117-instance-bring-up/` FR-003 — every environment value a running
+    # Endora reads is declared, and every declared input is read. Both
+    # directions, and the second is the one nothing else would ever notice: the
+    # read goes away, the declaration stays, and an operator goes on being asked
+    # for a value that changes nothing. No existing check's population contains
+    # a `process.env` read, and until this landed the platform's own boot could
+    # say only that "a required secret/env var" was missing — it could not name
+    # one, because no list existed. Module packages are outside this population
+    # and the run **prints** that rather than passing over it: their inputs are
+    # a manifest field and land with this feature's Phase 3.
+    - pnpm --filter backend run check:env-inputs
+    # Feature 096 —
+    # `specs/096-page-builder-block-ownership/contracts/block-name-check.md`.
+    # A Puck block name is written into `jsonb` and never rewritten, and no
+    # existing check's population contains one: `check:module-boundary` reads
+    # import specifiers and SQL tables, `check:admin-zones` reads zone names and
+    # `useTranslation` scopes, `i18n:hardcoded` reads JSX. Eight findings over
+    # two site kinds — a `{ type, props }` node literal in a module's own
+    # sources, and a `components` key or a `switch (node.type)` case in a
+    # renderer — reconciled against what the manifests declare, in both
+    # directions. One ledger, `BLOCKS_WITHOUT_A_RENDERER`, and it lands empty.
+    - pnpm --filter backend run check:block-names
+    # Feature 073 (Constitution XVII item 6) —
+    # `specs/073-lifecycle-gating-completion/contracts/off-state-coverage-ratchet.md`.
+    # Which modules actually carry an off-state proof was re-derived by hand
+    # three times and gave three different answers, because both careful
+    # attempts keyed on the **path** a test file sits at: `payments` is named by
+    # six files and not one of them is under `payments/`, and `customers` was
+    # missed by both. The predicate is the **argument** of an
+    # `expectModuleAbsent` call, resolved through the shapes the tree writes —
+    # a bare `withModuleOff` is a state seam and never coverage, which is the
+    # tiering. It lands at zero findings with an empty ledger.
+    - pnpm --filter backend run check:off-state-coverage
+    # `specs/106-module-owned-tests/contracts/module-test-ownership.md` — a test
+    # file belongs to the module it is about, and a module package's tests are
+    # configured to run. Feature 106 moved 211 files into 56 packages and its
+    # instrument did not ship with them: 185 harness-free single-owner files were
+    # left under `backend/test` with nothing reporting them, nothing stopping the
+    # 186th, and 56 packages' `vitest.config.ts` guarded by nothing — a
+    # configuration whose deletion leaves test files that no job collects, which
+    # is the state that looks greenest.
+    # Ownership is the file's **import specifiers**, never the directory it sits
+    # in: that predicate was tried three times in this repository and gave three
+    # different answers, because a file in one module's directory routinely names
+    # another. The ledger arrives holding the 185, split into `scheduled` and
+    # `retained` so the drain is a number on every run rather than a diff nobody
+    # sums.
+    - pnpm --filter backend run check:test-ownership
+    # `specs/094-translation-boundary/` — the same ruling's first clause: English
+    # is the default, so a prose literal in another language, outside a
+    # per-language structure, in a module's own sources is a defect. The second
+    # signal, in a check of its own because `check:untranslated-delivery` asks
+    # about a delivery *call* — a `return`, an array push and a field assignment
+    # are none of them — and `check:language`'s scope is comments by
+    # constitutional design (D-8).
+    # It lands **red-free and not empty**: 46 sites over 41 keys, recorded in a
+    # per-module ledger under `scripts/ledgers/non-english-defaults/`, two-way
+    # and expected to empty. What it refuses is the 42nd.
+    - pnpm --filter backend run check:default-language-prose
+    # `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2 (FR-010…FR-014) — every
+    # storefront route says whether a crawler may index it, and the sitemap and
+    # the route table agree in both directions. Before it, the reference
+    # storefront told crawlers nothing at all: no `sitemap.ts`, no `robots.ts`,
+    # and not one canonical. Under D-195 that template is what every client
+    # instance is copied from, so this is the only place the property is
+    # enforceable once.
+    # The population is the 57 `page.tsx` files, not the 67 route files — five
+    # are API handlers, five are layouts, and 48 of the pages are account, auth
+    # and checkout surfaces that must **not** be indexed; a canonical on
+    # `/account/password` would be a defect.
+    # Its second author is `storefront/app/sitemap.ts`'s own declared route set,
+    # which is a Constitution VII deliverable in its own right rather than a
+    # fixture built to satisfy a check. No ledger, deliberately: every finding
+    # is one line away from compliance in the merge request that produces it.
+    - pnpm --filter backend run check:storefront-indexability
+    # `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3, FR-020…FR-022 — a
+    # client component does not fetch its own first-paint content. A render
+    # gated on state a `useEffect` populates is a component that sends a
+    # skeleton, an empty list or a `null` to a crawler, because the effect that
+    # would replace it never runs on the server.
+    # Its population is derived and that is the whole difference: the storefront
+    # application **and** every workspace package the storefront composes, taken
+    # from `storefront/package.json`'s own dependencies. All five known
+    # instances of the defect live in `packages/cms-components/`, so the
+    # roadmap's `storefront/components` population would have reported zero and
+    # been wrong on the day it landed (FR-021).
+    - pnpm --filter backend run check:rsc-discipline
     # Feature 021 / Principle VIII (issue #116) — a user-visible string in the
     # admin SPA is a translation key, not a literal. `AGENTS.md` has cited this
     # script as the gate since 021 and it ran in no job at all: first because its
@@ -427,12 +555,28 @@ quality:
     # `before_script`. It measures a real directory or exits 2; it never reports
     # a budget it did not measure.
     - pnpm run check:pdfmake-footprint
-    # Feature 057 (FR-006/SC-003) — the manifest index + override manifest
+    # Feature 057 (FR-006/SC-003) — the manifest index + divergence report
     # regenerate deterministically for the bare-core build; `overlay:check`
     # regenerates and fails on ANY drift (identical inputs ⇒ identical artifact).
     # Per-deployment builds add `DEPLOYMENT=<name>` and run this same check plus
     # the DB-backed suite (see the overlay matrix note above `test:backend`).
     - pnpm --filter backend run overlay:check
+    # `specs/107-override-report-and-ladder/contracts/divergence-report.md` §4–§5
+    # (D-30) — a deployment's divergence from core is derived, owned and
+    # explained. A check of its own rather than an arm of `overlay:check`,
+    # because these are not determinism questions: that gate renders each
+    # artefact and byte-compares, and **two renders of a wrong derivation
+    # agree**. A report can be perfectly deterministic and record a decoration
+    # nobody explained, name a registration no module registers, or target an
+    # endpoint no route serves. Same reasoning D-155.6 used to add the `foreign`
+    # verdict rather than trust the other three.
+    # Nine findings, four refusals of its own and three delegated to the shared
+    # helpers that own them. **No ledger, deliberately**: every finding is a file
+    # the deployment owns and one edit from compliance, so an entry could only
+    # license the thing the report exists to surface. It lands empty — the
+    # merge request that adds it writes `example`'s three reasons and
+    # `acceptance`'s one.
+    - pnpm --filter backend run check:divergence
     # Feature 080 (T043) — the release-intent gate below cannot silently stop
     # asking. `release:changeset` is the changesets CLI's own command, so there
     # is nothing of ours in it to keep correct — and that was the stated reason
@@ -462,6 +606,35 @@ quality:
     # reaches standing today; every entry names the paragraph that classified it
     # and the event that retires it.
     - pnpm --filter backend run check:platform-surface
+    # Feature 080 (T041) — every module package's `package.json` is generated
+    # from its layer inventory, and this is the two-way gate over the 70 of them
+    # plus `admin/package.json`'s dependency block. It ran in **no job at all**
+    # until this line: `grep -c 'manifests:check' .gitlab-ci.yml` was 0, and on
+    # 2026-09-05 it was red on `master` with 70 stale manifests after a release
+    # commit set versions by hand. A developer running it locally found that; no
+    # pipeline said a word. That is issue #113's shape one level up — not a
+    # green that means "not looking", but a gate nobody runs.
+    #
+    # It belongs HERE rather than in `test:backend`. It reads files and refuses,
+    # it reaches no service, and it is not a test — but the deciding half is
+    # that `quality` has no `changes:` filter, while `.backend-test-rules` is a
+    # rung ladder and the diff that produced the defect was
+    # `packages/*/package.json` and nothing else. A gate placed where the diff
+    # that breaks it does not run it is a gate that will be silent exactly when
+    # it matters.
+    #
+    # It imports every module package's manifest, so it needs `build:packages`
+    # — which this job's `before_script` already has, and which
+    # `test/unit/ci/toolchain-supply.test.ts` holds it to. `--check` never
+    # writes: a CI job that repaired the tree it is checking would report green
+    # on a commit nobody can reproduce. Measured at 8 s on a developer machine,
+    # twice.
+    #
+    # `test/unit/ci/gate-coverage.test.ts` is what stops the next one being
+    # forgotten: it derives every script in the workspace that runs a repository
+    # script file, asks whether any job reaches it, and fails on one that is
+    # neither run nor classified.
+    - pnpm --filter backend run manifests:check
   cache:
     key:
       files:
@@ -647,11 +820,69 @@ release:changeset:
 # A diff the matcher does not recognise runs the tests; that is rung 3, and it
 # is what stops a future refactor of rung 1 from turning "the matcher broke"
 # into "nothing needed testing".
+.backend-unit-test-rules:
+  # The service-free unit suite, and it **keeps its merge-request rung** while
+  # the migration narrows the two heavy jobs above to the default branch
+  # (D-198). It shared `.backend-test-rules` until 2026-09-03, so narrowing that
+  # anchor silently took this job with it — caught before the change shipped,
+  # and the reason it now has an anchor of its own rather than a comment asking
+  # the next editor to remember.
+  #
+  # It earns the merge-request run on three properties the sharded suite lacks:
+  # it declares `BACKEND_TEST_SERVICES=none` and provisions no container, it
+  # finishes in minutes, and it names the failing test. That last one is the
+  # whole point of keeping *something* on a branch — with fifteen merge requests
+  # landing in a batch, a red default branch has fifteen candidates.
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
+        - .changeset/config.json
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - docs/**/*
+        - specs/**/*
+        - '**/*.md'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
 .backend-test-rules:
+  # ---------------------------------------------------------------------------
+  # **Default branch only, for the duration of the packaging migration** (owner
+  # ruling D-198, 2026-09-03). Restore the `|| $CI_PIPELINE_SOURCE ==
+  # "merge_request_event"` clause on rungs 1 and 2 when the migration closes —
+  # the ruling names the condition, and this comment is the reminder that it is
+  # a suspension and not a design.
+  #
+  # **Why.** This suite is five shards that *serialise* (`resource_group:
+  # backend-suite`, issue #199) on a runner shared with another project, so a
+  # merge-request run costs hours. At the migration's merge cadence — fifteen
+  # merge requests landed on 2026-09-03 alone — that signal arrives after the
+  # branch it describes is already merged.
+  #
+  # **What is kept, and why those.** `quality`, `quality:static` and
+  # `test:backend:unit` still run on every merge request: minutes, no service
+  # containers, and each names the file and the rule it refuses. That is the
+  # property master-only cannot reproduce — with fifteen merges in a batch, a
+  # red `master` has fifteen candidates, and establishing whose a number was
+  # cost a full day of work on 2026-09-03 (`RECORDED_READ_SIZES`, 31 entries,
+  # attributed by standing a second worktree at a month-old commit).
+  #
+  # **What is given up, stated rather than discovered.** An integration or
+  # contract regression is now found on `master`, after the merge, by whoever
+  # runs next. AGENTS.md already records that shape three times over — a
+  # contract test red across 29 merges, an integration test red across 50. This
+  # ruling accepts it for the migration window in exchange for the runner, and
+  # the `master` pipeline is what bounds it.
+  # ---------------------------------------------------------------------------
   rules:
     # 1 — something that can affect the backend changed. On the default branch
-    #     this is what gets deployed; on an MR it is the merge gate.
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+    #     this is what gets deployed.
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - backend/**/*
         - packages/**/*
@@ -673,7 +904,7 @@ release:changeset:
     #     because they were classified, not because no pattern happened to hit.
     #     A `*.md` under a code path (e.g. `backend/src/modules/*/README.md`)
     #     never reaches this rung — rung 1 already matched it.
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - docs/**/*
         - specs/**/*
@@ -755,8 +986,13 @@ test:backend:deployment:
     paths:
       - .pnpm-store
   rules:
+    # **Default branch only for the duration of the packaging migration**
+    # (D-198, 2026-09-03) — restore the merge-request rung when it closes. This
+    # job composes each deployment's overlay modules and boots them, which is
+    # the composition that bare core cannot break; nothing about that judgement
+    # changed, only when it runs. See `.backend-test-rules` above for the full
+    # reasoning and for what is given up.
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - backend/**/*
         - packages/**/*
@@ -953,7 +1189,7 @@ test:backend:unit:
         - pnpm-lock.yaml
     paths:
       - .pnpm-store
-  rules: !reference [.backend-test-rules, rules]
+  rules: !reference [.backend-unit-test-rules, rules]
 
 # ---------------------------------------------------------------------------
 # The acceptance criterion for "a package can ship schema" (feature 080, D-110).
@@ -1078,6 +1314,13 @@ test:frontend:
   stage: test
   image: node:22.17-slim
   before_script:
+    # `packages/cli`'s storefront-scaffold tests build a fixture **checkout**, because the
+    # scaffold's copy population is `git ls-files` and a fixture that is not a repository
+    # would test a different derivation. `node:22.17-slim` ships no git, so `spawnSync`
+    # returns `status: null` and the failure reads `git init -q: undefined` — a message that
+    # names neither git nor its absence. Four other jobs in this file install it for their
+    # own reasons; this is the fifth.
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
     - pnpm run build:packages
@@ -1091,6 +1334,62 @@ test:frontend:
       - .pnpm-store
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# The test kit's **service-bound** half (feature 109, Phase 1b).
+#
+# `test:frontend` above runs every non-backend member's `test` script in an
+# image with no service containers, and the kit's own proofs need a real
+# PostgreSQL and a real Redis: it composes a platform, leases a database and
+# reads a tenant-filtered row back. That is the subject rather than the
+# background — an in-memory substitute would make the kit installable with no
+# services and would test a platform nobody runs (`plan.md` § Complexity
+# Tracking) — so the files live in a second vitest configuration and this job is
+# where they run.
+#
+# Two configurations rather than a condition inside one, for the reason issue
+# #113 gives about every check in this pipeline: a condition is a green that can
+# quietly become "not looking", and the failure would be invisible precisely
+# because the kit is what every module package's server-bound test will compose
+# through.
+#
+# No Meilisearch: the kit's fixture platform is two synthetic modules and one
+# entity, and it composes no search.
+test:kit:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
+    REDIS_URL: redis://redis:6379
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+  script:
+    - pnpm --filter @endora-commerce/test-kit run test:services
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - packages/test-kit/**/*
+        - packages/platform/**/*
+        - packages/contracts/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # ---------------------------------------------------------------------------
@@ -1178,6 +1477,12 @@ perf:backend:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: manual
       allow_failure: true
+  # Shared with `perf:storefront` and `conformance:storefront`, which run on the
+  # same nightly schedule on the same 4 vCPU host (feature 098, T501). A p95
+  # measured beside another job's `next build` measures that build; the header
+  # above already says so about `test:backend`'s shards, and the schedule grew
+  # two more heavy jobs since it was written.
+  resource_group: perf-measurement
 
 # ---------------------------------------------------------------------------
 # The boot gate — the built image is booted, and asserted to be the platform the
@@ -1256,6 +1561,482 @@ boot-gate:
         - .gitlab-ci.yml
 
 # ---------------------------------------------------------------------------
+# Pack gate (feature 104) — every publishable package packs into a tarball a
+# consumer can actually use.
+#
+# The only gate in this pipeline whose subject is a **tarball**. `quality`
+# type-checks sources, `test:backend` runs vitest against sources,
+# `overlay:check` renders generated files from sources — and every defect this
+# gate refuses is invisible in a checkout by construction, because a workspace
+# link resolves an `exports` subpath against the source directory and a
+# `workspace:` range resolves against the workspace. It runs in `test` rather
+# than `build` for the same reason `build:docs` does: a package that cannot be
+# consumed has to fail the merge request that writes it, not the release that
+# publishes it.
+#
+# It needs no registry credential and makes no network request: the packed
+# binary is run with its declared dependencies **symlinked** out of this
+# checkout, which is also what makes an undeclared runtime dependency a finding
+# rather than an invisible one. See `backend/scripts/pack-gate.ts`.
+pack-gate:
+  stage: test
+  image: node:22.17-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends tar
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    # Every `@endora-commerce/*` specifier resolves at its built `./dist`, this
+    # gate's own `tsx` entry point included — and `pnpm pack` packs what is on
+    # disk, so an unbuilt workspace would produce 79 tarballs with no code in
+    # them and the gate would report the run rather than the tree.
+    - pnpm run build:packages
+  script:
+    # `--no-build` because `before_script` has already built: the gate builds
+    # for itself when a developer runs it, and must not do it twice here.
+    - pnpm --filter backend run pack-gate -- --no-build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        # What gets packed, and what decides how.
+        - packages/**/*
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - tsconfig.base.json
+        # The gate itself and its judgement.
+        - backend/scripts/pack-gate.ts
+        - backend/scripts/lib/pack-assert.ts
+        - .gitlab-ci.yml
+
+# ---------------------------------------------------------------------------
+# The acceptance criterion for `endora new storefront`
+# (specs/071-modular-packaging/roadmap.md § F7 — Storefront scaffold).
+#
+# It scaffolds a storefront OUTSIDE this checkout, installs it from packed
+# tarballs with no symlink back, `next build`s it, and boots the result against
+# a backend this job starts. Every step exists to leave the monorepo, for
+# `acceptance:package-schema`'s reason one surface over: a copy that stays
+# inside is still inside relative-specifier range, still reached by the
+# workspace globs, and pnpm links a workspace member into `node_modules` — so a
+# rehearsal that stays inside passes and proves nothing.
+#
+# **Why it does not wait for publication.** Nothing under `packages/` is
+# published, so the semver ranges the scaffold writes name versions no registry
+# serves. `pnpm pack` rewrites a packed manifest's `workspace:` range to a
+# version, and a `pnpm.overrides` block pins each tarball — which reaches the
+# transitive edge too, `page-builder-core` depending on `contracts@0.0.0` being
+# exactly as unpublished. Publication removes the overrides block and changes
+# nothing else.
+#
+# **It boots a backend, and that is the point of A6 rather than an extravagance.**
+# A `next start` with no backend serves the storefront's error page, and a
+# criterion that called that a pass would be green over a storefront that renders
+# nothing. The criterion records `unmeasured` — never a pass — when
+# PUBLIC_API_BASE_URL names nothing, and the expectation file records A6 as
+# `pass`, so a job that stopped booting one drifts and fails.
+#
+# It is not a `check-*` script and must not become one:
+# `test/unit/scripts/check-read-size.test.ts` spawns every one of those, and an
+# install plus a `next build` inside a unit run is not a test. Its judgement is
+# `scripts/acceptance/storefront-scaffold-assertions.ts`, which touches no
+# process and is unit tested over fixture text.
+#
+# **Two supply routes, and this job takes the first** (feature 104, § 1.6). The
+# criterion installs either from tarballs packed out of this checkout and pinned
+# through `pnpm.overrides`, or from a real registry through the `.npmrc`
+# `endora new storefront --registry` writes. Which one is decided by
+# ENDORA_NPM_REGISTRY in the environment and by nothing else — there is no flag —
+# and that variable is protected, so a merge-request pipeline resolves it to
+# nothing and this job measures the tarball route. That is deliberate rather
+# than pending: the tarball route is the only one that works before the first
+# publish, and it is what keeps the criterion green on a branch that publishes
+# nothing. The registry route is recorded `unrun` in the expectation file until
+# a run of it measures its six states; the run that does so drifts, which is
+# what makes the record arrive from a measurement rather than from a prediction.
+#
+# A registry with no ENDORA_NPM_TOKEN is exit 2 and never an anonymous attempt:
+# the endpoint answers an absent credential with 404, in the same sentence it
+# gives for a package that was never published (feature 104 research §6), so the
+# red it would produce says nothing about the criterion.
+#
+# `stage: test`, so it fails the merge request that breaks the scaffold rather
+# than the default branch afterwards. The `changes:` list is the set of inputs
+# that can change the answer: the command, the reference storefront, the
+# packages a scaffolded storefront installs, the criterion itself, and the two
+# files that decide how anything resolves.
+# ---------------------------------------------------------------------------
+acceptance:storefront-scaffold:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    # The runner migrates this database from scratch on every run, so its name
+    # satisfies the disposable-name convention `(^|_)test(_|$)` — the judgement
+    # `test/global-setup.ts` and the dev-seed guard make, and what keeps a
+    # mistyped DSN from being a data-loss incident.
+    DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_storefront_acceptance_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    JWT_SECRET: storefront-acceptance-secret-not-a-real-one-000000
+    # The **backend's**, and it stays: `packages/platform/src/env/` declares
+    # NODE_ENV with `consumers: ['backend']`, and this job sets no
+    # SESSION_COOKIE_SECRET, so `production` here is a backend that refuses its
+    # own boot. GitLab has no per-command variable, so it is on every process in
+    # the job — including a `next build` in a scaffolded instance outside the
+    # checkout, where it made A5 fail in every run this criterion has ever had,
+    # with a message naming Next's own `pages/_document`. Withholding it there is
+    # the criterion's job and is done by derivation over the copy's own
+    # declaration; see `storefront-scaffold.ts` § *And it withholds its own
+    # environment from the instance*. Do not "fix" it by deleting this line.
+    NODE_ENV: development
+    LOG_LEVEL: warn
+    PUBLIC_API_BASE_URL: http://127.0.0.1:3001
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    # `git` because `endora new storefront` derives its copy population from `git ls-files`;
+    # without it the scaffold exits 2 — *the run could not see the tree* — and this job
+    # correctly reports that as neither a pass nor a failure of the criterion.
+    - apt-get update -qq && apt-get install -y -qq postgresql-client curl git >/dev/null
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+  script:
+    - PGPASSWORD=b2b psql -h postgres -U b2b -d postgres -c "create database b2b_storefront_acceptance_test"
+    - pnpm --filter backend exec tsx src/db/migrate.ts up
+    # A6's subject. Backgrounded here rather than inside the criterion so that a
+    # backend that will not boot is this job's failure, named as one, instead of
+    # an assertion reporting that the storefront answered 500.
+    - pnpm --filter backend exec tsx src/index.ts > /tmp/backend.log 2>&1 &
+    - for i in $(seq 1 60); do curl -sf -o /dev/null "$PUBLIC_API_BASE_URL/api/v1/storefront/module-presence" && break || sleep 2; done
+    - curl -s -o /dev/null -w '%{http_code}\n' "$PUBLIC_API_BASE_URL/api/v1/storefront/module-presence" || (tail -50 /tmp/backend.log && exit 1)
+    - pnpm --filter backend run acceptance:storefront-scaffold:ci
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        # The command, and the derivation it runs.
+        - packages/cli/src/new-storefront/**/*
+        - packages/cli/src/bin/endora.ts
+        # The subject: a declaration added to the reference storefront that
+        # names something above its own directory is what this job refuses.
+        - storefront/**/*
+        # The packages a scaffolded storefront installs. Their `exports` maps
+        # and `"use client"` boundaries are what an install that is not a
+        # workspace link has to survive.
+        - packages/contracts/**/*
+        - packages/cms-components/**/*
+        - packages/page-builder-core/**/*
+        # The criterion itself, and its recorded expectation.
+        - backend/scripts/acceptance/storefront-scaffold*.ts
+        - backend/acceptance/storefront-scaffold-expected-state.json
+        # How anything resolves at all.
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - .gitlab-ci.yml
+
+# ---------------------------------------------------------------------------
+# Docs — build the Docusaurus site
+# ---------------------------------------------------------------------------
+#
+# `specs/100-module-owned-documentation/` FR-014, and it is in Phase 1 rather
+# than a follow-up because a generated sidebar that nothing builds is a
+# generated file nobody validates.
+#
+# It is the acceptance instrument for two things no other job in this pipeline
+# can see:
+#
+#   * Docusaurus's own `checkSidebarsDocIds` — a sidebar entry naming no page,
+#     which throws *"These sidebar document ids do not exist"*
+#     (`@docusaurus/plugin-content-docs/lib/sidebars/utils.js`);
+#   * `onBrokenLinks: 'throw'` — a relative link to a page that moved. Phase 2
+#     moves 78 pages and renames four slugs whose URLs are cited by other pages
+#     and by specs, so this is what makes a rename reviewable.
+#
+# Measured before it existed: `.gitlab-ci.yml` declared `build:backend`,
+# `build:storefront` and `build:admin` and no docs job, `.backend-test-rules`
+# rung 2 skips the backend suite for a documentation-only diff (deliberately and
+# correctly), and `pnpm -r run typecheck` does not read `sidebars.js` — its
+# `// @ts-check` header is inert, because `@docusaurus/tsconfig` sets no
+# `allowJs` and the file is in no program. So the one direction Docusaurus does
+# enforce was enforced by a build that ran on a developer's machine and nowhere
+# else.
+#
+# It is **not** a `check-*` script and must not become one:
+# `test/unit/scripts/check-read-size.test.ts` spawns every one of those, and a
+# Docusaurus build inside a unit run is not a test.
+#
+# `stage: test` rather than `build`, because `build` runs only on the default
+# branch and this has to fail on the merge request that breaks a link. The
+# `changes:` list is what the site is made of: its own tree, the generated
+# sidebar fragment, and the generator that writes it.
+build:docs:
+  stage: test
+  image: node:22.17-slim
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    # The site imports no `@endora-commerce/*` package today, and this stays
+    # anyway: it is the uniform rule for every job that runs a workspace script,
+    # and Phase 2 makes the site's own tree depend on the module packages'
+    # `docs/` layers. A job that is the exception until the day it silently is
+    # not is the shape this repository keeps paying for.
+    - pnpm run build:packages
+  script:
+    - pnpm --filter docs run build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - docs/**/*
+        - packages/modules/*/docs/**/*
+        - backend/scripts/generate-composer.ts
+        - packages/cli/src/lib/module-docs.ts
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+
+# ---------------------------------------------------------------------------
+# The storefront conformance job — the served HTML is asserted, and the
+# accessibility floor is measured in a browser
+# (specs/098-storefront-ssr-seo-a11y-suite/ Phase 4;
+# contracts/accessibility-floor.md §4).
+#
+# **This is the only place three of this feature's four claims are decidable.**
+# Phases 1–3 judge source text: a block's server render, a route's indexability
+# declaration, a client component's effect. Whether the bytes a crawler actually
+# receives carry a canonical, one `<h1>`, a meta description and the JSON-LD the
+# route declares is a property of a booted storefront, and so is every rule of
+# `.claude/skills/ux-laws/SKILL.md` § 4 that turns on computed style — contrast,
+# focus visibility and `prefers-reduced-motion`. `scripts/conformance-storefront.sh`
+# carries the whole reasoning; it is `boot-gate`'s shape one application over.
+# The boot itself is `scripts/lib/storefront-stack.sh`, shared with
+# `perf:storefront` since feature 098's Phase 5 — the question the two jobs ask
+# differs, getting a storefront to the point of answering one does not, and
+# three of its steps are measurements somebody paid for rather than procedure.
+#
+# **It boots `next start`'s replacement, not the image.** The storefront builds
+# with `output: 'standalone'` and Next refuses to serve that build under
+# `next start`; the job runs `node .next/standalone/storefront/server.js`, which
+# is what `storefront/Dockerfile`'s own `CMD` runs. Building here rather than
+# pulling an image is what puts the browser in this job's container and
+# `.next/app-path-routes-manifest.json` — the page set's second author — on
+# disk. The image stays `build:storefront`'s subject.
+#
+# **Default branch and a schedule, and deliberately not a merge request**
+# (FR-062, `[NEEDS CLARIFICATION #3]`). It migrates a database, seeds it, boots
+# a backend, builds the storefront, boots it and drives a browser: 3m06s
+# measured on a 16-core developer machine, of which the `next build` is most.
+# The runner host is shared — see the Memory block above `test:backend` — and
+# `storefront/next.config.js` already caps that build at two workers because it
+# was OOM-killed on this box twice. The class of defect it catches is not
+# introduced quickly (the JSON-LD gap stood from April), so the merge request
+# pays `test:frontend` and `quality`, and this catches the rest afterwards.
+#
+# It is **not** a `check-*` script and must not become one:
+# `test/unit/scripts/check-read-size.test.ts` spawns every one of those, and a
+# booted stack inside a unit run is not a test. Its judgement is
+# `storefront/test/conformance/{plan,assertions}.ts`, which touch neither the
+# network nor a browser and carry a red proof per finding in `test:frontend`.
+# ---------------------------------------------------------------------------
+conformance:storefront:
+  stage: test
+  # The Playwright image, so the browser and its system libraries are the
+  # version `@playwright/test` expects rather than whatever `playwright install
+  # --with-deps` resolves against a bare node image. The tag tracks the
+  # `@playwright/test` range in `storefront/package.json`; a mismatch is a
+  # browser Playwright refuses to drive, loudly.
+  image: mcr.microsoft.com/playwright:v1.60.0-noble
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    # The name follows the disposable `(^|_)test(_|$)` convention `test/global-setup.ts`
+    # and the dev-seed guard judge on, and `conformance-storefront.sh` refuses a
+    # DSN that does not — the step after the migration drops business data.
+    DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_storefront_conformance_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    JWT_SECRET: storefront-conformance-secret-not-a-real-one-0000
+    SESSION_COOKIE_SECRET: storefront-conformance-secret-not-a-real-one-0000
+    NODE_ENV: development
+    LOG_LEVEL: warn
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - apt-get update -qq && apt-get install -y -qq postgresql-client curl >/dev/null
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+    - PGPASSWORD=b2b psql -h postgres -U b2b -d postgres -c "create database b2b_storefront_conformance_test"
+  script:
+    - bash scripts/conformance-storefront.sh
+  artifacts:
+    when: always
+    paths:
+      - storefront/test-results/conformance-findings.txt
+    expire_in: 1 week
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    # A merge request may ask for it deliberately; it never runs by itself
+    # there. `allow_failure` so that asking costs nothing.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+  # Shared with `perf:backend` and `perf:storefront` (feature 098, T501). Two of
+  # the three build a Next application on a host whose OOM killer has already
+  # taken two concurrent frontend builds, and the other two are wall-clock
+  # verdicts this job's `next build` would be measured into.
+  resource_group: perf-measurement
+
+# ---------------------------------------------------------------------------
+# The storefront performance budget — `.lighthouserc.js` is measured against a
+# booted storefront (specs/098-storefront-ssr-seo-a11y-suite/ Phase 5, FR-050).
+#
+# **This file has existed since T242 and has had no runner since `5b0bfb5dd`
+# deleted the GitHub Actions workflows.** `lhci` was a dependency of nothing,
+# the config's own header said "NOT RUN BY CI", and Core Web Vitals
+# (Constitution VII) were asserted by a developer remembering to run three
+# commands. That header is corrected in the merge request that adds this job,
+# because a file describing a state a later change silently invalidates is the
+# shape this estate keeps finding.
+#
+# **Schedule only, for `perf:backend`'s reason and not a weaker one.** These are
+# wall-clock assertions. The runner host is shared — see the Memory block above
+# `test:backend` — and a Largest Contentful Paint measured beside two live
+# shards measures contention, so a per-MR gate would be a coin toss that blocks
+# merges. `when: manual` on a merge request is for someone deliberately
+# measuring a change they suspect.
+#
+# CI_SCHEDULE_KIND is set on the schedule itself, and the split is about the
+# sample count rather than the page set:
+#   nightly       three runs per URL — the gate. Lighthouse asserts on the
+#                 median, and three is what the committed thresholds were
+#                 re-based from.
+#   weekly-heavy  five runs per URL. A drift smaller than the run-to-run spread
+#                 is invisible at three samples on a 4 vCPU box, and six extra
+#                 Lighthouse runs have no place in a nightly.
+#
+# The first three runs on this runner are RECORDING runs (D-65, as for
+# `perf:backend`): `scripts/perf-storefront.sh --record` collects and asserts
+# nothing, and every threshold in `.lighthouserc.js` is re-based from what those
+# runs measure here. The numbers committed today come from local runs and carry
+# that derivation in a comment beside them; they are a starting point, not the
+# enforced number.
+#
+# It is **not** a `check-*` script and must not become one:
+# `test/unit/scripts/check-read-size.test.ts` spawns every one of those, and a
+# booted stack plus a browser inside a unit run is not a test.
+# ---------------------------------------------------------------------------
+perf:storefront:
+  stage: test
+  # The Playwright image, for `conformance:storefront`'s reasons — the browser
+  # and its system libraries are the version `@playwright/test` expects. This
+  # job drives Chrome through Lighthouse rather than through Playwright, and
+  # `scripts/perf-storefront.sh` derives `CHROME_PATH` from that same package,
+  # so the repository ships one browser rather than one per job.
+  image: mcr.microsoft.com/playwright:v1.60.0-noble
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    # The disposable `(^|_)test(_|$)` convention `test/global-setup.ts` and the
+    # dev-seed guard judge on, and `scripts/lib/storefront-stack.sh` refuses a
+    # DSN that does not — the seed it runs drops business data.
+    DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_storefront_perf_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    JWT_SECRET: storefront-perf-secret-not-a-real-one-00000000
+    SESSION_COOKIE_SECRET: storefront-perf-secret-not-a-real-one-00000000
+    NODE_ENV: development
+    LOG_LEVEL: warn
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - apt-get update -qq && apt-get install -y -qq postgresql-client curl >/dev/null
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+    - PGPASSWORD=b2b psql -h postgres -U b2b -d postgres -c "create database b2b_storefront_perf_test"
+  script:
+    # `@lhci/cli` is fetched with a pinned `pnpm dlx` inside the script rather
+    # than declared: this is the only job that runs it, so declaring it would
+    # cost `pnpm install --frozen-lockfile` in the other thirteen and buy this
+    # one nothing (plan.md § Complexity Tracking).
+    - LH_RUNS=3
+    - if [ "$CI_SCHEDULE_KIND" = "weekly-heavy" ]; then LH_RUNS=5; fi
+    - LHCI_NUMBER_OF_RUNS="$LH_RUNS" bash scripts/perf-storefront.sh
+  artifacts:
+    when: always
+    paths:
+      - storefront/test-results/lighthouse
+    expire_in: 1 week
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      allow_failure: false
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+  # The same fact about this host that serialises `test:backend`'s shards and
+  # the image builds. Three heavy jobs run on the nightly schedule — this one,
+  # `perf:backend` and `conformance:storefront` — the runner is 4 vCPU with
+  # `concurrent=2`, and two of the three build a Next application whose build
+  # `storefront/next.config.js` already caps at two workers because it was
+  # OOM-killed on this box twice. Two of them are also wall-clock verdicts, and
+  # a p95 or an LCP measured beside another job measures the other job. Costs
+  # nightly wall clock, which nobody is waiting on; revisit from the runner's
+  # own `concurrent` setting once the suite has a machine to itself.
+  resource_group: perf-measurement
+
+# ---------------------------------------------------------------------------
 # Build — Docker images → GitLab Container Registry
 # ---------------------------------------------------------------------------
 .build-base:
@@ -1290,7 +2071,13 @@ boot-gate:
 build:backend:
   extends: .build-base
   script:
+    # `DEPLOYMENT` reaches a build for the first time here (feature 110, FR-009).
+    # It selects the deployment whose overlay modules and `divergence.ts` compose;
+    # blank is bare core, byte-for-byte, which is what `selectedDeployment` reads a
+    # whitespace value as — so an image built with the variable unset is exactly
+    # the image this job produced before.
     - docker build -f backend/Dockerfile
+      --build-arg DEPLOYMENT="${DEPLOYMENT}"
       -t "$CI_REGISTRY_IMAGE/backend:$IMAGE_TAG"
       -t "$CI_REGISTRY_IMAGE/backend:latest" .
     - docker push "$CI_REGISTRY_IMAGE/backend:$IMAGE_TAG"
@@ -1298,11 +2085,23 @@ build:backend:
 
 build:storefront:
   extends: .build-base
+  # `NEXT_PUBLIC_SITE_URL` is the shop's **own** public origin — what every
+  # canonical link, the sitemap and robots.txt name — and is not an address of
+  # the backend. Nothing here passed it until 2026-09-06, while
+  # `storefront/environment-inputs.mjs` declared it required, so every image this
+  # job has pushed serves all three naming the `http://localhost:3000` that
+  # `storefront/lib/seo/site-url.ts` falls back to. Silently: the build reports
+  # success, and no container environment can correct it afterwards, because Next
+  # inlines the value at build time and `/robots.txt` is prerendered into the
+  # image. `STOREFRONT_DOMAIN` is already this deployment's name for that origin
+  # — `deploy/compose.prod.yml` builds the backend's `STOREFRONT_BASE_URL` from
+  # it — so this is one fact told to a second reader, not a second fact.
   script:
     - docker build -f storefront/Dockerfile
-      --build-arg NEXT_PUBLIC_API_BASE_URL="https://$API_DOMAIN"
-      --build-arg NEXT_PUBLIC_SALES_CHANNEL_CODE="$SALES_CHANNEL_CODE"
-      --build-arg NEXT_PUBLIC_DEFAULT_LOCALE="$DEFAULT_LOCALE"
+      --build-arg NEXT_PUBLIC_API_BASE_URL="https://${API_DOMAIN}"
+      --build-arg NEXT_PUBLIC_SITE_URL="https://${STOREFRONT_DOMAIN}"
+      --build-arg NEXT_PUBLIC_SALES_CHANNEL_CODE="${SALES_CHANNEL_CODE}"
+      --build-arg NEXT_PUBLIC_DEFAULT_LOCALE="${DEFAULT_LOCALE:-en-US}"
       -t "$CI_REGISTRY_IMAGE/storefront:$IMAGE_TAG"
       -t "$CI_REGISTRY_IMAGE/storefront:latest" .
     - docker push "$CI_REGISTRY_IMAGE/storefront:$IMAGE_TAG"
@@ -1328,7 +2127,7 @@ build:admin:
   # is short".
   script:
     - docker build -f admin/Dockerfile
-      --build-arg VITE_API_BASE_URL="https://$API_DOMAIN"
+      --build-arg VITE_API_BASE_URL="https://${API_DOMAIN}"
       -t "$CI_REGISTRY_IMAGE/admin:$IMAGE_TAG"
       -t "$CI_REGISTRY_IMAGE/admin:latest" .
     - docker push "$CI_REGISTRY_IMAGE/admin:$IMAGE_TAG"
@@ -1366,5 +2165,125 @@ deploy:
     url: https://$STOREFRONT_DOMAIN
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+  allow_failure: false
+
+# ---------------------------------------------------------------------------
+# Publish — the packages a scaffolded storefront resolves, to the registry a CI
+# variable names (feature 104, D-203)
+#
+# It runs on a **release branch** and nowhere else: `version:packages` cuts
+# `release/version-<date>`, consumes the changesets and moves the versions, and
+# this is what puts the result on a registry. `release:changeset` recognises the
+# same branch from its diff — it deletes changeset files and adds none — and
+# asks it the inverted question, whether anything's `version` actually moved. A
+# rule cannot read a diff, so the gate here is the branch shape that script
+# writes, plus `when: manual`: a publish is a deliberate act, and on npmjs
+# `package@version` can never be reused.
+#
+# **The protected-branch coupling is the operator's step.** `ENDORA_NPM_TOKEN`
+# is protected, so GitLab resolves it only on a protected ref — protect
+# `release/*` in Settings → Repository → Protected branches, or the job's first
+# refusal fires. That refusal is the fail-closed direction and is deliberate: an
+# unset registry variable would otherwise publish to `registry.npmjs.org`, which
+# is npm's default and the one place this rehearsal must not reach.
+#
+# `changeset publish` writes a local git tag for each **public** package it
+# publishes, whatever `privatePackages.tag` says — that field governs private
+# packages only (`@changesets/cli@3.0.1`, `dist/git-tag.mjs`). Nothing pushes
+# them, and the container is discarded, so they anchor nothing until D-160.5's
+# tag question is answered by the merge request that makes a package public on
+# npmjs.
+# ---------------------------------------------------------------------------
+publish:packages:
+  stage: deploy
+  image: node:22.17-slim
+  variables:
+    # `changeset publish` tags what it publishes, so it shells out to git.
+    GIT_DEPTH: 0
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    # Every package resolves at its own `dist`, and `changeset publish` packs
+    # what is on disk: an unbuilt workspace publishes tarballs with no code in
+    # them. This is also `toolchain-supply.test.ts`' rule — a job that runs a
+    # workspace script builds first — and the script below runs one.
+    - pnpm run build:packages
+  script:
+    - |
+      set -e
+      if [ -z "$ENDORA_NPM_REGISTRY" ]; then
+        echo "publish:packages — ENDORA_NPM_REGISTRY is unset. Publishing anyway would send these packages to registry.npmjs.org, which is npm's default and the one registry this rehearsal must not reach; a version spent there can never be reused. Set the variable (protected), and protect this branch pattern so GitLab resolves it." >&2
+        exit 2
+      fi
+      if [ -z "$ENDORA_NPM_TOKEN" ]; then
+        echo "publish:packages — ENDORA_NPM_TOKEN is unset. It is a protected variable, so this is what an unprotected ref looks like: the publish would be attempted anonymously and the registry would answer 404, which is the same sentence it gives for a package that does not exist." >&2
+        exit 2
+      fi
+    - |
+      # The scope is derived from the packages that are about to be published,
+      # never written here: `check:release-intent`'s `unresolvable-scope` holds
+      # them to exactly one, and a second copy of the answer in a CI file is the
+      # derived fact D-100 forbids.
+      #
+      # It is asked of that same check rather than computed here, and the reason
+      # is the defect this line replaces. The derivation used to live in this
+      # file as a `readdir("packages")` one level deep, which is the
+      # `build:packages` single-star problem arriving a second time through a
+      # `readdir`: `packages/modules` carries no `package.json` of its own, so
+      # the read threw, the `catch` swallowed it, and all 70 module packages
+      # under it were invisible. Correct for the three top-level public packages
+      # and silently wrong from the first public module package onward — which
+      # D-203's shape-2 client needs, since an instance installs every module
+      # from a registry. The symptom would have been a publish that authenticated
+      # for a scope it never derived, or published nothing for one, while the job
+      # reported success.
+      #
+      # `--print-publish-scope` walks the **workspace members** instead:
+      # `pnpm-workspace.yaml` already enumerates `packages/*` and
+      # `packages/modules/*`, and a third entry changes the answer by being
+      # written there. Nothing in this job names a directory. Stdout is the scope
+      # and nothing else; the disclosure of what it read goes to stderr, into the
+      # job log.
+      #
+      # `exec tsx`, not `run check:release-intent --`: `pnpm run` prints its
+      # `> backend@0.0.0 …` banner on **stdout**, which this command substitution
+      # would capture into the `.npmrc` line (measured).
+      set -e
+      scope=$(pnpm --filter backend exec tsx scripts/check-release-intent.ts --print-publish-scope)
+    - |
+      # The token is written as an environment **reference**, not as a value:
+      # pnpm expands `${VAR}` in `.npmrc` in both the registry and the auth
+      # position (measured, feature 104 research §5), so no file in this job
+      # holds the secret and nothing can print it by cat-ing one. It goes to
+      # `$HOME`, not the checkout, so it cannot be committed or packed.
+      set -e
+      printf '%s:registry=%s\n' "$scope" "$ENDORA_NPM_REGISTRY" > "$HOME/.npmrc"
+      printf '%s:_authToken=${ENDORA_NPM_TOKEN}\n' "${ENDORA_NPM_REGISTRY#*:}" >> "$HOME/.npmrc"
+      echo "publish:packages — publishing $scope to $ENDORA_NPM_REGISTRY"
+    # The last gate before a publish. `quality` does not run on a branch
+    # pipeline — its rules are a merge request or the default branch — so
+    # without this line the release branch would publish having been judged only
+    # by the merge request that wrote it.
+    - pnpm --filter backend run check:release-intent
+    - |
+      set -e
+      status=0
+      pnpm exec changeset publish > changeset-publish.log 2>&1 || status=$?
+      cat changeset-publish.log
+      if [ "$status" -ne 0 ]; then exit "$status"; fi
+      # `changeset publish` exits 0 when it has nothing to publish, which is the
+      # same silence `version:packages` refuses on the version half: a release
+      # branch that consumed changesets and published nothing has either already
+      # published this version, or been read by a configuration that cannot see
+      # the packages at all.
+      if grep -q 'No unpublished projects to publish' changeset-publish.log; then
+        echo "publish:packages — this branch consumed changesets and published nothing. \`changeset publish\` reports a plan of zero releases and exits 0, which is byte-identical to a successful publish. Check that the versions moved (\`release:changeset\` asks that question) and that \`.changeset/config.json\` still sees the packages." >&2
+        exit 2
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH =~ /^release\/version-/'
       when: manual
   allow_failure: false

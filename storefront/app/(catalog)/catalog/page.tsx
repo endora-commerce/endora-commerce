@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { ProductGrid } from '../../../components/ProductGrid';
 import { FilterPanel } from '../../../components/FilterPanel';
@@ -15,6 +16,18 @@ import {
   priceControlsActive,
 } from '../../../lib/catalog-price-query';
 import type { ProductListSort } from '@endora-commerce/contracts';
+import { seo } from './seo';
+
+/**
+ * Indexable (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010/FR-012). The
+ * canonical is the bare path: the filter, sort and pagination query strings
+ * this page accepts are facets of one listing, and pointing every one of them
+ * at the same canonical is what stops a crawler indexing them as separate
+ * pages.
+ */
+export const metadata: Metadata = {
+  alternates: { canonical: seo.route },
+};
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

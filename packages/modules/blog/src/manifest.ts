@@ -230,6 +230,7 @@ export const manifest = defineModuleManifest({
     { code: 'BLOG_URL_PREFIX_RESERVED' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   actions: [
     {
       id: 'new-post',

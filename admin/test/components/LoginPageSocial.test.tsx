@@ -15,7 +15,7 @@ import type {
  * The two reads are stubbed at the HTTP client, one level below the hook, so
  * the loading gap and the error paths are exercised rather than asserted away.
  */
-vi.mock('@/lib/auth', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
   useAuth: () => ({
     login: vi.fn(),
     verifyMfa: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 const get = vi.fn();
-vi.mock('@/lib/api-client', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/api-client', () => ({
   apiClient: {
     get: (path: string) => get(path),
     post: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('@/lib/api-client', () => ({
   },
 }));
 
-const { LoginPage } = await import('../../src/components/LoginPage');
+const { LoginPage } = await import('../../../packages/admin-shell/src/components/LoginPage');
 
 const PRESENCE = '/api/v1/storefront/module-presence';
 const OPTIONS = '/api/v1/auth/admin/oauth/providers';

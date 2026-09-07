@@ -63,6 +63,7 @@ import { Migration20260821T084925AutopayFailureStatusOnHold } from '@endora-comm
 
 // ── blog ────────────────────────────────────────────────────────────────────
 import { Migration20260506T081055BlogInit } from '@endora-commerce/mod-blog/migrations';
+import { Migration20260903T101744BlogNamespaceBlockNames } from '@endora-commerce/mod-blog/migrations';
 
 // ── carts ───────────────────────────────────────────────────────────────────
 import { Migration20260611T140352CartsConsolidation } from '@endora-commerce/mod-carts/migrations';
@@ -96,6 +97,7 @@ import { Migration20260804T160244CatalogCategoryActivation } from '@endora-comme
 // ── cms ─────────────────────────────────────────────────────────────────────
 import { Migration20260425T162418CmsPagesInit } from '@endora-commerce/mod-cms/migrations';
 import { Migration20260505T130214CmsInit } from '@endora-commerce/mod-cms/migrations';
+import { Migration20260903T101741CmsNamespaceBlockNames } from '@endora-commerce/mod-cms/migrations';
 
 // ── comparisons ─────────────────────────────────────────────────────────────
 import { Migration20260501T185834ComparisonsInit } from '@endora-commerce/mod-comparisons/migrations';
@@ -173,6 +175,7 @@ import { Migration20260830T182139InventoryOrganizationAttribution } from '@endor
 import { Migration20260629T125121InvoicesModule } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20260801T111000InvoicesGenericTemplateReseed } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20260817T201110InvoicesCorrectionIdempotencyKey } from '@endora-commerce/mod-invoices/migrations';
+import { Migration20260903T101756InvoicesNamespaceBlockNames } from '@endora-commerce/mod-invoices/migrations';
 
 // ── ksef ────────────────────────────────────────────────────────────────────
 import { Migration20260722T224358KsefInit } from '@endora-commerce/mod-ksef/migrations';
@@ -195,6 +198,7 @@ import { Migration20260611T140409MfaInit } from '@endora-commerce/mod-mfa/migrat
 // ── newsletter ──────────────────────────────────────────────────────────────
 import { Migration20260629T200954NewsletterInit } from '@endora-commerce/mod-newsletter/migrations';
 import { Migration20260830T212736NewsletterOrganizationAttribution } from '@endora-commerce/mod-newsletter/migrations';
+import { Migration20260903T101752NewsletterNamespaceBlockNames } from '@endora-commerce/mod-newsletter/migrations';
 
 // ── orders ──────────────────────────────────────────────────────────────────
 import { Migration20260611T140355OrdersBusinessId } from '@endora-commerce/mod-orders/migrations';
@@ -237,7 +241,10 @@ import { Migration20260816T053830PayuSeedPaymentMethods } from '@endora-commerce
 import { Migration20260821T084923PayuFailureStatusOnHold } from '@endora-commerce/mod-payu/migrations';
 
 // ── pim_akeneo ──────────────────────────────────────────────────────────────
-import { Migration20260825T124458PimAkeneoInit } from '../modules/pim_akeneo/migrations/20260825T124458_pim_akeneo_init.js';
+import { Migration20260825T124458PimAkeneoInit } from '@endora-commerce/mod-pim-akeneo/migrations';
+
+// ── pim_connector ───────────────────────────────────────────────────────────
+import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-pim-connector/migrations';
 
 // ── pim_ergonode ────────────────────────────────────────────────────────────
 import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pim-ergonode/migrations';
@@ -247,6 +254,9 @@ import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-comm
 import { Migration20260818T102204PimPimcoreInit } from '@endora-commerce/mod-pim-pimcore/migrations';
 import { Migration20260820T150317PimPimcoreCompleteRecordDelivery } from '@endora-commerce/mod-pim-pimcore/migrations';
 import { Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths } from '@endora-commerce/mod-pim-pimcore/migrations';
+
+// ── pim_unopim ──────────────────────────────────────────────────────────────
+import { Migration20260826T160000PimUnopimInit } from '@endora-commerce/mod-pim-unopim/migrations';
 
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';
@@ -321,6 +331,7 @@ import { Migration20260821T084924TpayFailureStatusOnHold } from '@endora-commerc
 // ── transactional_emails ────────────────────────────────────────────────────
 import { Migration20260629T113442TransactionalEmailsInit } from '@endora-commerce/mod-transactional-emails/migrations';
 import { Migration20260801T111001TransactionalEmailsEmailDefaultsReseed } from '@endora-commerce/mod-transactional-emails/migrations';
+import { Migration20260903T101748TransactionalEmailsNamespaceBlockNames } from '@endora-commerce/mod-transactional-emails/migrations';
 
 // ── webhooks ────────────────────────────────────────────────────────────────
 import { Migration20260425T091359WebhooksUs7Init } from '@endora-commerce/mod-webhooks/migrations';
@@ -365,6 +376,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── blog ────────────────────────────────────────────────────────────────────
   migration('blog', Migration20260506T081055BlogInit),
+  migration('blog', Migration20260903T101744BlogNamespaceBlockNames),
 
   // ── carts ───────────────────────────────────────────────────────────────────
   migration('carts', Migration20260611T140352CartsConsolidation),
@@ -398,6 +410,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── cms ─────────────────────────────────────────────────────────────────────
   migration('cms', Migration20260425T162418CmsPagesInit),
   migration('cms', Migration20260505T130214CmsInit),
+  migration('cms', Migration20260903T101741CmsNamespaceBlockNames),
 
   // ── comparisons ─────────────────────────────────────────────────────────────
   migration('comparisons', Migration20260501T185834ComparisonsInit),
@@ -475,6 +488,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('invoices', Migration20260629T125121InvoicesModule),
   migration('invoices', Migration20260801T111000InvoicesGenericTemplateReseed),
   migration('invoices', Migration20260817T201110InvoicesCorrectionIdempotencyKey),
+  migration('invoices', Migration20260903T101756InvoicesNamespaceBlockNames),
 
   // ── ksef ────────────────────────────────────────────────────────────────────
   migration('ksef', Migration20260722T224358KsefInit),
@@ -497,6 +511,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── newsletter ──────────────────────────────────────────────────────────────
   migration('newsletter', Migration20260629T200954NewsletterInit),
   migration('newsletter', Migration20260830T212736NewsletterOrganizationAttribution),
+  migration('newsletter', Migration20260903T101752NewsletterNamespaceBlockNames),
 
   // ── orders ──────────────────────────────────────────────────────────────────
   migration('orders', Migration20260611T140355OrdersBusinessId),
@@ -541,6 +556,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── pim_akeneo ──────────────────────────────────────────────────────────────
   migration('pim_akeneo', Migration20260825T124458PimAkeneoInit),
 
+  // ── pim_connector ───────────────────────────────────────────────────────────
+  migration('pim_connector', Migration20260826T153500PimConnectorInit),
+
   // ── pim_ergonode ────────────────────────────────────────────────────────────
   migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
   migration('pim_ergonode', Migration20260819T193653PimErgonodeFoldDerivedKeys),
@@ -549,6 +567,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('pim_pimcore', Migration20260818T102204PimPimcoreInit),
   migration('pim_pimcore', Migration20260820T150317PimPimcoreCompleteRecordDelivery),
   migration('pim_pimcore', Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths),
+
+  // ── pim_unopim ──────────────────────────────────────────────────────────────
+  migration('pim_unopim', Migration20260826T160000PimUnopimInit),
 
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),
@@ -623,6 +644,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── transactional_emails ────────────────────────────────────────────────────
   migration('transactional_emails', Migration20260629T113442TransactionalEmailsInit),
   migration('transactional_emails', Migration20260801T111001TransactionalEmailsEmailDefaultsReseed),
+  migration('transactional_emails', Migration20260903T101748TransactionalEmailsNamespaceBlockNames),
 
   // ── webhooks ────────────────────────────────────────────────────────────────
   migration('webhooks', Migration20260425T091359WebhooksUs7Init),

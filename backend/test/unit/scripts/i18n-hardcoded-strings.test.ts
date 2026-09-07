@@ -1,9 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  adminScanRoots,
   analyzeSource,
   collectTsxFiles,
+  coveredModuleAdminLayers,
   defaultRoots,
   compareToBaseline,
   countByFile,
@@ -66,13 +69,99 @@ describe('analyzeSource — the shapes it claims to flag', () => {
   });
 });
 
-describe('the default scan root', () => {
-  it('exists and holds .tsx files — the check read none of them for its whole life', () => {
-    const adminSrc = fileURLToPath(new URL('../../../../admin/src', import.meta.url));
-    expect(existsSync(adminSrc), `${adminSrc} is the default root`).toBe(true);
+describe('the default scan roots', () => {
+  /**
+   * The vacuity guard, **derived** (feature 091 fallout; D-100).
+   *
+   * It read `collectTsxFiles(admin/src)` and
+   * `expect(files.length).toBeGreaterThan(100)`, which is two stale things at
+   * once: a literal count of a derived fact, over **one** of the three root
+   * families the script walks. Phase 4's drain moved the admin's screens into
+   * their owning module packages, `admin/src` fell to 65 `.tsx` files, and this
+   * case went red for a tree in which the check reads *more* than it ever has —
+   * 422 files across 57 roots. A reader is sent to look for a narrowed walk by
+   * the one instrument that was supposed to prove the walk is not narrow.
+   *
+   * The defect it exists for is the original one and is unchanged: the default
+   * root was `admin/src` resolved against the working directory, so from
+   * `backend/` it matched nothing and the check reported `0 findings across 0
+   * files` and exited 0 for its whole life. That is a statement about **roots**,
+   * so it is asked about every root the script declares, with no number in it.
+   */
+  it('every root the script declares contributes at least one file', () => {
+    const roots = adminScanRoots();
+    expect(roots.length, 'the script declared no scan root at all').toBeGreaterThan(0);
+    const empty: string[] = [];
+    for (const root of roots) {
+      expect(existsSync(root.dir), `${root.dir} is declared and is not on disk`).toBe(true);
+      const files: string[] = [];
+      collectTsxFiles(root.dir, files);
+      // A module package whose admin layer is a barrel and no screen is the one
+      // legitimate zero (`admin_roles` ships `src/admin/index.ts` and nothing
+      // else), so an empty *module* root is not a finding; an empty
+      // application or admin-ui root is, because those are the two families
+      // whose whole content is screens.
+      if (files.length === 0 && (root.owner === null || root.adminUi)) empty.push(root.dir);
+    }
+    expect(empty, 'a screen-bearing root contributed no .tsx file').toEqual([]);
+  });
+
+  /**
+   * The floor with no number in it: every file the ledger names has to be a file
+   * the walk opened.
+   *
+   * This is what the drain would have gone red on **in the batch that caused
+   * it** rather than three merges later, and it says the true thing — *the walk
+   * no longer reaches `X`* — where the ratchet below can only say *`X` is
+   * drained*, which is the laundering FR-017 exists to refuse. The ledger is the
+   * independent author: 47 entries written by other merge requests, at
+   * repository-relative keys, describing exactly the population a relocation
+   * moves.
+   */
+  it('opens every file HARDCODED_STRINGS_BASELINE names', () => {
+    const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+    const ledger = Object.keys(HARDCODED_STRINGS_BASELINE);
+    expect(ledger.length, 'an empty ledger cannot floor anything').toBeGreaterThan(0);
     const files: string[] = [];
-    collectTsxFiles(adminSrc, files);
-    expect(files.length).toBeGreaterThan(100);
+    for (const root of defaultRoots()) collectTsxFiles(root, files);
+    const walked = new Set(files.map((f) => relative(repoRoot, f).split('\\').join('/')));
+    expect(ledger.filter((entry) => !walked.has(entry))).toEqual([]);
+  });
+});
+
+describe('the module-admin floor', () => {
+  /**
+   * The `sources=module-admin` token's coverage half, driven from a fixture that
+   * enters at the top of the analysis rather than from a value the walk
+   * computed.
+   *
+   * A layer is covered when the walk **opened its directory as a root**, not
+   * when the walk found a `.tsx` under it: one registry-named layer
+   * (`admin_roles`) is a barrel and no screen, and a coverage rule keyed on
+   * files would refuse a correct tree. What the token can therefore see is a
+   * layer that left the walk — which is the whole of the regression it exists
+   * for — and what it cannot is a root that was walked and yielded nothing,
+   * which the case above covers for the two families where zero is wrong.
+   */
+  it('counts a layer the walk opened, and not one it did not', () => {
+    const walked = ['/repo/packages/modules/orders/src/admin'];
+    expect(
+      coveredModuleAdminLayers(
+        [
+          { directory: '/repo/packages/modules/orders/src/admin' },
+          { directory: '/repo/packages/modules/catalog/src/admin' },
+        ],
+        walked,
+      ),
+    ).toBe(1);
+  });
+
+  it('is 0 when the registry names layers and the walk opened none of them', () => {
+    expect(
+      coveredModuleAdminLayers([{ directory: '/repo/packages/modules/orders/src/admin' }], [
+        '/repo/admin/src',
+      ]),
+    ).toBe(0);
   });
 });
 

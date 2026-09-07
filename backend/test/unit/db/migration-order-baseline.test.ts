@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
 import { BASELINE_THROUGH, orderMigrations } from '../../../src/db/migration-order.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
@@ -22,8 +23,11 @@ import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
  * in 37 places — so emitting it any other way produces an order a fresh
  * database cannot apply. It is the claim the live-database safety rests on.
  *
- * **The literal is closed and cannot grow.** Membership is `origin === 'core'`
- * and a stamp at or before `BASELINE_THROUGH` (`20260801T000000`), and
+ * **The literal is closed and cannot grow.** Membership is *identity* — a class
+ * name on the list `@endora-commerce/platform` publishes
+ * (`specs/110-instance-repository/contracts/instance-migration-order.md` R1.1)
+ * — and that list is rendered from what the committed core registry contributes
+ * at or before `BASELINE_THROUGH` (`20260801T000000`), while
  * `scripts/new-migration.ts` clamps every scaffolded core stamp past that
  * watermark — see `new-migration-scaffolder.test.ts`, "never emits a stamp
  * inside the uncorrected block". So no migration a merge request adds can join
@@ -212,7 +216,7 @@ function emittedOrder(): string[] {
   return orderMigrations({
     entries: MIGRATION_REGISTRY,
     moduleDependencies: MODULE_DEPENDENCIES,
-    baselineThrough: BASELINE_THROUGH,
+    baseline: BASELINE_MIGRATIONS,
   }).migrations.map((migration) => migration.name);
 }
 
@@ -268,6 +272,34 @@ describe('migration order — the frozen historical prefix', () => {
     expect([...withinWatermark].sort()).toEqual([...FROZEN_PREFIX].sort());
   });
 
+  it('is the list the platform publishes, name for name and position for position', () => {
+    // What makes the *generated* artefact trustworthy, and the reason this file
+    // was not replaced by it.
+    //
+    // `BASELINE_MIGRATIONS` is rendered by `composer:generate` from today's
+    // registry; `FROZEN_PREFIX` is the order a database actually applied,
+    // captured on `master@9ecee8fa` before the ordering algorithm was rewritten
+    // and never regenerated since. A generated list held against a literal with
+    // that provenance is a list *proved* to reproduce history, where a generated
+    // list held against a recomputation of itself would assert it. That is why
+    // the literal above stays a literal — see the header — and it is the whole
+    // of what stops the published artefact drifting from the block a live
+    // database has already applied.
+    const divergence = FROZEN_PREFIX.findIndex(
+      (name, index) => BASELINE_MIGRATIONS[index] !== name,
+    );
+    expect(
+      divergence,
+      divergence === -1
+        ? ''
+        : `position ${divergence} of the published baseline list holds ` +
+          `"${BASELINE_MIGRATIONS[divergence]}", where history applied ` +
+          `"${FROZEN_PREFIX[divergence]}". Regenerate with \`composer:generate\`; if the two ` +
+          'still disagree, the generator no longer renders history and the artefact is a lie.',
+    ).toBe(-1);
+    expect([...BASELINE_MIGRATIONS]).toEqual([...FROZEN_PREFIX]);
+  });
+
   it('emits nothing stamped inside the watermark after the prefix ends', () => {
     // The boundary, asserted without consulting the literal. Only the committed
     // core registry is walked, so the origin half of the membership rule cannot
@@ -282,10 +314,12 @@ describe('migration order — the frozen historical prefix', () => {
   });
 
   it('carries no committed entry that declares itself external', () => {
-    // The second half of baseline membership. A committed entry stamped below
-    // the watermark but declared `external` is dropped from the prefix by
-    // `isBaseline` while still passing the stamp filter above, so the two tests
-    // before this one would disagree about it for a reason neither can name.
+    // It stopped being half of baseline membership when that became an identity
+    // (R1.6 — no ordering decision is taken on `origin`), and it is still true
+    // and still worth asserting: `origin` is what the acceptance criterion's
+    // per-origin template digest and `configured-migrations.ts`' report read, so
+    // a committed entry claiming to have come from somewhere else would make
+    // both of them describe a platform that is not this one.
     const external = MIGRATION_REGISTRY.filter(
       (entry) => entry.origin !== undefined && entry.origin !== 'core',
     ).map((entry) => entry.cls.name);

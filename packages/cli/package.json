@@ -1,9 +1,17 @@
 {
   "name": "@endora-commerce/cli",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "description": "The `endora` command line: scaffolding and conformance tooling for Endora Commerce modules and integrations.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "endora": "./dist/bin/endora.js"
   },
@@ -17,6 +25,14 @@
     "./lib/*.js": {
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"
+    },
+    "./rules/*.js": {
+      "types": "./dist/rules/*.d.ts",
+      "default": "./dist/rules/*.js"
+    },
+    "./checks": {
+      "types": "./dist/checks.d.ts",
+      "default": "./dist/checks.js"
     },
     "./package.json": "./package.json"
   },

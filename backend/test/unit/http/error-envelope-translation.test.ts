@@ -351,9 +351,9 @@ describe('the error envelope filling a sentence from details', () => {
  * Fastify cannot route it back through `setErrorHandler`: it falls back to its
  * own serialiser and the response stops being an `ErrorEnvelope` at all —
  * `{ statusCode, code, error, message }`, in which `error` is the status
- * phrase and `error.code` is `undefined`. `@endora-commerce/api-client` finds
- * `'error' in body`, builds an `ApiError` from it, and reports
- * `undefined: undefined`.
+ * phrase and `error.code` is `undefined`. The admin's API client
+ * (`@endora-commerce/admin-kit/lib`) finds `'error' in body`, builds an
+ * `ApiError` from it, and reports `undefined: undefined`.
  *
  * That is not hypothetical. Feature 080's T052 converted the root's
  * `adminPreferredLanguage` closure from `em().findOne(AdminUser, …)` to the

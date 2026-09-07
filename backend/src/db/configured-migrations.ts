@@ -5,9 +5,9 @@ import {
   discoverPackageSchema,
   type PackageSchemaContribution,
 } from '../packages/package-runtime.js';
+import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
 import {
   orderMigrations,
-  BASELINE_THROUGH,
   type MigrationOrderDiagnostic,
   type MigrationOrigin,
   type MigrationRegistryEntry,
@@ -154,6 +154,19 @@ export function configuredMigrationsFrom(inputs: {
   readonly coreEntries: readonly MigrationRegistryEntry[];
   readonly coreModuleDependencies: ReadonlyMap<string, readonly string[]>;
   readonly packages: readonly PackageSchemaContribution[];
+  /**
+   * The frozen historical prefix, by identity. Defaults to the list
+   * `@endora-commerce/platform` publishes, which is what every real composition
+   * uses.
+   *
+   * It is a parameter for the reason the two inputs above are: so a guard can
+   * drive the real merge over a baseline it built itself.
+   * `test/unit/db/instance-migration-order.test.ts` computes the *unrepaired*
+   * membership predicate as a list and orders the same corpus with it, which is
+   * how the defect this feature closed stays measurable after the repair
+   * instead of becoming a sentence in a doc block.
+   */
+  readonly baseline?: readonly string[];
 }): ConfiguredMigrations {
   const entries: MigrationRegistryEntry[] = [
     ...inputs.coreEntries,
@@ -171,7 +184,7 @@ export function configuredMigrationsFrom(inputs: {
   const ordered = orderMigrations({
     entries,
     moduleDependencies,
-    baselineThrough: BASELINE_THROUGH,
+    baseline: inputs.baseline ?? BASELINE_MIGRATIONS,
   });
 
   const registryByName = new Map(entries.map((entry) => [entry.cls.name, entry] as const));

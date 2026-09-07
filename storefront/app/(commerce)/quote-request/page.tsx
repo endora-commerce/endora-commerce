@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
 import { RfqDraftView } from '../../../components/rfq/RfqDraftView';
 import { getServerContext } from '../../../lib/server-context';
+import type { Metadata } from 'next';
+
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
+ * authenticated or transactional surface, of no use to a crawler and not a
+ * page a search result should ever land a buyer on.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Quote-request draft page (`/quote-request`) — the cart-modelled "review &

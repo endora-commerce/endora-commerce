@@ -42,5 +42,6 @@
   "onBehalf.reason.malformed_row": "Nieprawidłowy wiersz",
   "onBehalf.reason.variant_not_resolved": "Nie rozpoznano wariantu",
   "onBehalf.reason.variant_ambiguous": "Niejednoznaczny wariant",
-  "onBehalf.reason.row_limit_exceeded": "Przekroczono limit wierszy"
+  "onBehalf.reason.row_limit_exceeded": "Przekroczono limit wierszy",
+  "orderEntry.tab.quick": "Szybkie zamówienie"
 }

@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/mod-analytics",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "description": "Server-side analytics aggregation and dashboard data feeds.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "analytics"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/analytics"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -30,7 +38,8 @@
   },
   "files": [
     "dist",
-    "i18n"
+    "i18n",
+    "docs"
   ],
   "engines": {
     "node": ">=22.17.0"
@@ -38,7 +47,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -50,6 +60,17 @@
     "fastify": "^5",
     "lucide-react": "^1",
     "react": "^19"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -63,6 +84,7 @@
     "fastify": "^5.8.5",
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4"
   }
 }

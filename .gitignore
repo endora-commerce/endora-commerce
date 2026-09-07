@@ -18,6 +18,12 @@ coverage/
 .nyc_output/
 *.lcov
 
+# `perf:storefront`'s raw Lighthouse reports. `lhci` writes them to the
+# directory it was invoked in; `scripts/perf-storefront.sh` deletes the
+# directory before every run and copies what it produced under
+# `storefront/test-results/`, which is where the CI job picks its artifact up.
+.lighthouseci/
+
 # Logs
 *.log
 npm-debug.log*
@@ -78,3 +84,18 @@ backend/var/assets/
 */vite.config.ts.timestamp-*.mjs
 */vite.config.ts.timestamp-*.cjs
 */vite.config.ts.timestamp-*.js
+
+# Module-owned documentation, copied into the site's tree by
+# `pnpm --filter backend run composer:generate` (feature 100 Phase 2, FR-016).
+#
+# The source of every one of these pages is the `docs/` layer of the module that
+# owns it, and committing the copy would put 10,311 lines of prose in this
+# repository twice — one editable copy and one that looks editable and is not.
+# A **tracked** file is never ignored whatever the pattern says, so the pages
+# that genuinely live in the site's own tree stay visible here and no list of
+# exceptions is written down: git's own answer to "is this file this
+# repository's" is the discriminator, and it cannot go stale.
+#
+# `git add` a new page that really belongs to the site rather than to a module.
+/docs/docs/modules/**
+/docs/.module-docs-copies.json

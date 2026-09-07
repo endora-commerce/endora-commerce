@@ -138,6 +138,54 @@ export const KnownIconNameSchema = z.enum([
   // happens to be on the list. The batch's other five need nothing — `Search`,
   // `Receipt`, `Truck`, `CreditCard` and `Package` are all above.
   'Newspaper',
+  // Feature 091 (Phase 4, batch 10) — `dictionaries`' two sidebar entries and
+  // the two palette actions that replace its hand-written *Navigate* rows, and
+  // `settings`' cache row. All three glyphs were imported into `AppShell.tsx`
+  // from `lucide-react` by hand; a module declaration has to name its icon
+  // rather than import it, so the names join the allowlist here instead of the
+  // entries degrading to names that happen to be on it already. The batch's
+  // other rows need nothing — `Languages` covers `/dictionary`, `ListChecks` is
+  // already above for `catalog`'s bulk-operations row, and `Settings` and
+  // `KeyRound` have been there since the first palette actions of the two
+  // modules that render them.
+  'Languages',
+  'Eraser',
+  // Feature 091 (Phase 4, batch 13) — four of `inventory`'s five sidebar
+  // entries. `AppShell.tsx` imported all four from `lucide-react` by hand
+  // (`Warehouse as WarehouseIcon`, `TrendingDown`, `Bell as BellOutline`,
+  // `PackageOpen`), and a module declaration has to *name* its icon rather than
+  // import it, so the names join the allowlist here instead of four rows
+  // silently degrading to names that happen to be on it already — which for
+  // this batch would have been four operator-visible glyph changes bought for
+  // nothing. The batch's other rows need nothing: `Box` covers the stock
+  // roster, `CircleDollarSign` `/price-lists`, and `PlugZap` `/pim-ergonode` —
+  // `pim_pimcore` added that last one for the row directly below it.
+  'Warehouse',
+  'TrendingDown',
+  'Bell',
+  'PackageOpen',
+  // Feature 091 (Phase 4, batch 14) — `organizations`' sidebar entry and the
+  // palette action that replaces its hand-written *Navigate* row, and
+  // `sales_channels`' sidebar entry and the palette action that replaces its
+  // row. `AppShell.tsx` imported both glyphs from `lucide-react` by hand, and a
+  // module declaration has to *name* its icon rather than import it, so the
+  // names join the allowlist here instead of four declarations degrading to
+  // names that happen to be on it already — which would be two operator-visible
+  // glyph changes bought for nothing. `customers`' two rows and its two
+  // existing actions need nothing: `Users` has been above since the first
+  // palette actions of that module.
+  'Building2',
+  'Store',
+  // Feature 091 (Phase 4, batch 15) — `orders`' three sidebar entries.
+  // `AppShell.tsx` imported the glyph from `lucide-react` by hand, and a module
+  // declaration has to *name* its icon rather than import it, so the name joins
+  // the allowlist here instead of three declarations degrading to one that
+  // happens to be on it already — `ShoppingCart`, which this module's own
+  // `open-orders` action names, is a different glyph the sidebar has never
+  // rendered. The batch's other seven rows need nothing: `Package`, `Boxes`,
+  // `Tag` and `FileText` cover `catalog`'s five, and `ListChecks` — the
+  // bulk-operations glyph — has been above since feature 020.
+  'ClipboardCheck',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

@@ -1,332 +1,86 @@
 /**
- * CI check — a module reaches the platform only through what the platform
- * publishes (feature 080, T042d; ruling **D-160.8**).
+ * CI check — a module reaches only the platform surface the host publishes
+ * (D-160.8). **Repository-scope host** over the relocated analysis.
  *
- * ## Why it exists
+ * The rule lives in `@endora-commerce/cli/rules/platform-surface.js`
+ * (`specs/101-endora-check/contracts/package-scope-layout.md` §6: one analysis,
+ * two hosts) — its findings, its specifier spellings, its refusals and its
+ * population walks. This file resolves this repository's module walk roots, its
+ * application roots, its platform barrels and its floors, and it holds the two
+ * ledgers below: a ledger is a statement about *this* tree's debt and does not
+ * travel. The forwarding specifier is **bare**, never a path into `dist`.
  *
- * `specs/080-f4-real-scope/contracts/host-package.md` §1 classifies all 53
- * platform files a module reaches as **P** (published API), **A** (accidental
- * reach — host-internal, harness-only or orchestrator-only) or **O** (the
- * module is reaching for a class where a sanctioned port exists). Three
- * delivered rows now build on that classification, and **nothing in the
- * repository enforced it**: `check:module-boundary` is module→module,
- * `check:kernel-boundary` is ORM relations, and the `exports` map D-160.7 rules
- * enforces nothing at all for the modules still in `backend/src` — which is all
- * of them. A classification with no ratchet rots at the speed of the tree, and
- * this one is load-bearing for the package split.
+ * ## Two consumer populations, one rule (feature 115, D115-5)
  *
- * ## The population, and what it misses
+ * The rule is *a reach into the host names a published subpath or a declared
+ * host-internal one, never a file inside the package by relative path*. Until
+ * feature 115 it was asked of **modules** only, and the application — which is
+ * the consumer that writes 84 such reaches — was outside the population by
+ * construction: `layout.moduleIdOfPath` answers `null` for every one of its
+ * files, so `violations=0` was honest about a population that did not contain
+ * them. `RELATIVE_HOST_REACHES` is that half's ledger and
+ * `relative-host-reach` is its finding.
  *
- * Every import specifier written in a module's own sources — core under the
- * application's module roots, packaged under `packages/modules/<id>`, overlay
- * under `src/apps` — that names the platform. Two spellings, and they are the
- * same reach:
+ * It is a second population and not a second check because this file already
+ * derives all four inputs a separate script would have to re-derive — where the
+ * platform's sources are, the name it publishes under, the subpaths its
+ * `exports` map declares, and the barrels — and two derivations of one
+ * population are two answers waiting to disagree (D-100). The precedent is one
+ * package over: `check:module-boundary`'s predicate 1b walks the admin
+ * application outside the module root and attributes a reach out of it to
+ * `ADMIN_HOST_OWNER`, with a shard of its own and a coverage floor of its own.
  *
- *   * a **relative** specifier that resolves to a file outside the module tree.
- *     "Outside the module tree" is the whole predicate: the host is everything
- *     that is not a module, so a reach into `src/seeds` or `src/composition.ts`
- *     is judged by the same rule as one into `src/kernel`, with no directory
- *     list to keep current.
- *   * a **bare** specifier into the host package — `<host>/kernel` — which is
- *     the only spelling a module outside the application tree has (feature 080,
- *     T060). It resolves through the host's own `exports` map to the same
- *     barrel, so `@endora-commerce/platform/http` and `../../http/index.js` are
- *     one answer. Neither the package name nor the subpath list is written
- *     here: both are read off the manifest of the member declaring
- *     `endora.type: "platform"`, so the D-161 scope rename and a sixth
- *     published directory arrive by being authored once.
+ * **What the application half does not read**, stated rather than discovered
+ * later: `backend/test/**`, which is a different population with a different
+ * answer and whose reaches drain as a mechanical rewrite; a bare specifier into
+ * the host, whatever the subpath, because the host is entitled to the
+ * host-internal one and the three-way answer is a *module's* question; and a
+ * relative specifier that resolves to no source file inside the platform, which
+ * is `tsc`'s question and not this one's.
  *
- * A declared subpath lands on a **barrel**, and reaching a barrel is reaching
- * the published surface entire — so a bare reach is counted, attributed and
- * cleared, and the symbol-level verdicts below are the relative spelling's. That
- * is not a weaker rule for a packaged module: a name the barrel does not carry
- * is a `tsc` error at the import, which is the same answer sooner. What the bare
- * spelling *can* be wrong about is the **subpath**, and that is the finding it
- * gets.
- *
- * Every specifier shape `scripts/lib/specifiers.ts` knows is read, `import type`
- * and the one type-position `import('…')` included (§0b: a `from '…'`-only scan
- * does not see it, and a module would move with an unrewritten specifier that
- * `tsc` resolves and `node` never sees).
- *
- * **The second bullet is T060 and it is a repair, not a widening.** The
- * population was relative specifiers alone, on the reasoning — written into
- * this header — that "there is no host package yet, and when there is, its
- * `exports` map refuses a deep path at resolution time and this check's
- * population shrinks to nothing on its own". Both halves were wrong by the time
- * the first module moved. The map refuses a *deep* path and licenses everything
- * a widened map would license, which is precisely the reach D-160.8 exists to
- * refuse; and a population that shrinks as the sweep proceeds is a check that
- * reports green because it stopped looking. Measured: batch one took **104**
- * reaches out of the walk and modules #1–#5 another 112, while the recorded
- * read size absorbed one module's worth of the fall inside its own floor. That
- * is why {@link hostDependentCoverage} exists beside the resolution — the
- * repair without the floor is one edit away from happening again.
- *
- * **What that misses, stated rather than discovered later.** A specifier is not
- * the only way to reach something, and `check:module-boundary` learned it the
- * expensive way — it had to grow a SQL-table predicate for 121 reaches that name
- * no specifier at all. The same three doors are open here and none of them is
- * this check's:
- *
- *   * **A container name.** `lazyPort('settingsReadPort')` reaches the platform
- *     through a string. That edge is `check:port-dependencies`' and
- *     `check:port-shape`'s, which between them own the port surface;
- *     `PLATFORM_OWNED_NAMES` is where a platform-owned name is declared.
- *   * **A platform-owned table.** `settings`, `audit_logs`,
- *     `module_registrations` and `sales_channels` are the host's, and SQL naming
- *     one names no specifier. That door is `check:module-boundary`'s and it is
- *     **open**: its owner map attributes those four to `kernel` off the
- *     platform-relative path of the file declaring them, so a module's SQL
- *     naming one is reported like any other cross-owner reach. `catalog`'s
- *     `sales_channel_products` join is ledgered under that attribution today,
- *     and `admin_actions`' `module_registrations` join was until feature 080
- *     retired it. This paragraph read *"a module→platform table reach is
- *     currently nobody's"* and was measured false while that second entry was
- *     being drained — it was written before the platform relocation taught the
- *     other check to attribute a `packages/platform/…` path to the kernel.
- *     What is still not this check's is the **verdict**: a table has no barrel,
- *     so there is no published-symbol question to ask about one.
- *   * **A module package's own layout.** Where inside a package a subpath
- *     leads is that package's `exports` map, and this check reads only the
- *     *host's*. A module that reached another module by bare specifier is
- *     `check:module-boundary`'s, which resolves module package names for
- *     exactly that reason.
- *
- * ## The granularity: per symbol, of a named file
- *
- * A finding is a **(module file, platform file, symbol)** triple, and the
- * verdict is "does that platform file's barrel publish that name". Not per file,
- * and the difference is not academic — !883 measured it: sixteen symbols of
- * **P** files are reached by nobody and are deliberately unpublished, so
- * "the file is P" licenses `SettingsCache`, `decryptSecretValue` and the LRU
- * tuning constants along with the symbols the classification actually names.
- *
- * **What per-*file* granularity would catch that this will not.** A per-file
- * check would refuse every reach into an **A** or **O** file outright, symbol or
- * no symbol — so it would flag `SettingNotRegistered` imported from
- * `settings.service.ts` (row 8, **O**), `parseHostMap` from
- * `sales-channel-resolver.service.ts` (row 24, **O**) and
- * `MembershipMutationResult` from `sales-channel-membership.service.ts` (row 15,
- * **O**). Eight such symbols stand today and §8 rules every one of them
- * *published* on purpose — a `@throws` a caller cannot name is a method a caller
- * cannot call. So the per-file verdict would be eight false findings, and its
- * one genuine catch is a different question: *is this symbol rightly on the
- * barrel at all?* That question belongs to
- * `test/unit/kernel/published-surface.test.ts`, which holds each barrel to
- * §1.3's own symbol column in both directions. The two are deliberately not
- * duplicates: that test asks whether the barrel is right, this check asks
- * whether the tree obeys it, and both read the barrel through
- * `scripts/lib/platform-surface.ts` so they cannot disagree about what it says.
- *
- * **That gap is closed** (T042f). It read, until then: `!883` prunes and
- * ratchets three of the five barrels, and `tenancy/index.ts` and
- * `commands/index.ts` are published surface by D-160.7 with no expected set at
- * all — so for two of this check's five subpaths its authority was a barrel
- * nothing held to §1.3. Both are now pruned to their **P** columns (§1.3 rows
- * 2, 5, 12, 21, 28, 30, 33) and ratcheted two-way, and
- * `published-surface.test.ts` derives its own population from
- * {@link PUBLISHED_SUBPATHS} rather than a list, so a sixth published directory
- * cannot arrive unratcheted the way these two did.
- *
- * Worth recording, because a green that moves nothing is the outcome most
- * likely to be misread: closing it moved **no** ledger key and no finding. The
- * 37 names the two barrels shed are reached by no module, and every name a
- * module reaches stayed published — so nothing had been hiding behind the
- * unratcheted barrels. The value bought is prospective: a 38th name added to
- * either now has to move an expected set.
- *
- * ## Five findings
- *
- *   * `unpublished-symbol` — the rule itself.
- *   * `whole-file-reach` — `import * as`, a side-effect import, `export *`, a
- *     `require()` or a dynamic `import()` with no named binding, at a file that
- *     is not a barrel. The symbol set is not knowable from the specifier, so the
- *     reach is the file's *whole* surface, internals included.
- *   * `unresolvable-reach` — a relative specifier that names no file the walk
- *     found. It is a finding and not a skip: !879 found #215 one layer in, where
- *     a walk of the right length had its *result* discarded downstream and
- *     reported clean behind a full-length `read:` line.
- *   * `unattributed-source` — a file under a module walk root that no module
- *     owns. Same reason: a file walked and not judged is worse than one not
- *     walked, because the `read:` line counts it.
- *   * `unpublished-subpath` — a bare specifier into the host package naming a
- *     subpath its `exports` map does not declare, the host's root among them
- *     (D-160.7 publishes no root export). Today `node` and `tsc` refuse it too,
- *     which is not a reason to leave it unjudged: what makes it a *finding* is
- *     that widening the map is the obvious repair, and the whole of D-160.8 is
- *     that widening the map is the thing an author must not do quietly.
- *
- * ## One key space, and it is the repository's
- *
- * Every path here — a module source, a platform file, a barrel, a ledger key —
- * is written relative to the **repository root**. That is more verbose than the
- * `modules/blog/x.ts` shape the other ledgers use, and it is not a style
- * choice: this check *resolves* specifiers, and a specifier resolves in exactly
- * one namespace. `layout.keyOf` deliberately has two bases — an application
- * file is keyed inside `backend/src`, a packaged module's file relative to the
- * checkout, because there is no application prefix that would be true of the
- * second — and a resolver straddling both is wrong for every reach that crosses
- * between them. Measured on the split-tree fixture, where six modules live in
- * `packages/modules/<id>/src`: 90 reaches resolved to nothing, and the whole
- * point of that fixture is that a check keeps working while the layout moves.
- *
- * Plus the **refusals**, each over an input whose silent absence would narrow
- * the answer rather than fail it:
- *
- *   * a barrel this parse cannot read in full (an `export *`, a namespace
- *     re-export, an `export { … }` with no `from`) is exit 2, never a narrower
- *     published set. A short surface turns correct reaches into findings, and
- *     the obvious "repair" for one of those is to widen the barrel;
- *   * a workspace with no platform member, or a platform member publishing
- *     under no name — every bare reach would then be judged by nothing;
- *   * a module package whose `package.json` will not parse, which is what says
- *     whether it reaches the host at all;
- *   * and {@link hostDependentCoverage}'s shortfall: a module package that
- *     declares the host and contributed no host reach to this walk. That is
- *     issue #215's predicate over the population T060 restored, and it is the
- *     one derivation that would have caught T060's own defect — `manifest-index`
- *     counts modules that produced a *file*, which a packaged module does
- *     plentifully, and `platform-barrels` counts barrels, which a module move
- *     does not touch.
- *
- * Usage: `tsx scripts/check-platform-surface.ts [--list]`
- * Exit 0 = every module reach into the platform is published or ledgered;
- * exit 1 = at least one is not, or a ledger entry is stale;
- * exit 2 = the walk, the index or a barrel could not be read.
+ * Normative: `specs/115-lifecycle-container-move/contracts/host-reach-check.md`.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { moduleIdOf, refuseVacuousModulePopulation } from './lib/module-population.js';
-import { requireModuleLayout } from './lib/module-roots.js';
+import {
+  applicationReachRefusal,
+  checkApplicationReaches,
+  checkPlatformSurface,
+  collectPlatformSurfaceSources as walk,
+  hostDependentCoverage,
+  hostReachCoverage,
+  isPackageToolingConfig,
+  keyOf,
+  platformSurfaceRefusal,
+  remedyOf,
+  resolveTarget,
+  type LedgeredHostReach,
+  type LedgeredReach,
+  type ModulePackageDeclaration,
+} from '@endora-commerce/cli/rules/platform-surface.js';
+
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 import {
   barrelKeyOf,
   publishedSurface,
   PUBLISHED_SUBPATHS,
-  resolutionCandidates,
-  resolveHostSpecifier,
-  resolveRelative,
-  type BarrelUnreadable,
   type HostPackage,
-  type PlatformSurface,
 } from './lib/platform-surface.js';
-import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
-import { namedSpecifiers } from './lib/specifiers.js';
+import { requireModuleLayout } from './lib/module-roots.js';
+import { platformSubpathsAt } from './lib/platform-root.js';
+import { reportReadSize } from './lib/read-size.js';
 
-/** The symbol token recorded for a reach that names no symbol at all. */
-export const WHOLE_FILE = '*';
+export * from '@endora-commerce/cli/rules/platform-surface.js';
 
-/** The symbol token recorded for a finding that is about the file, not a name. */
-export const NO_SYMBOL = '?';
-
-/** The target token recorded for a source file no module owns. */
-export const NO_MODULE = '(unattributed)';
-
-export type PlatformSurfaceFindingKind =
-  | 'unpublished-symbol'
-  | 'whole-file-reach'
-  | 'unresolvable-reach'
-  | 'unattributed-source'
-  | 'unpublished-subpath';
-
-export interface PlatformSurfaceFinding {
-  readonly kind: PlatformSurfaceFindingKind;
-  /** The module file, keyed relative to the source root. */
-  readonly file: string;
-  readonly line: number;
-  /** The module that owns {@link file}, or `null` when nothing does. */
-  readonly moduleId: string | null;
-  /**
-   * The platform file reached, keyed relative to the source root — or, for an
-   * `unresolvable-reach`, the specifier as written, and for an
-   * `unattributed-source`, {@link NO_MODULE}.
-   */
-  readonly target: string;
-  /** The name reached, {@link WHOLE_FILE}, or {@link NO_SYMBOL}. */
-  readonly symbol: string;
-  /** The specifier as written, for the failure message. */
-  readonly specifier: string;
-}
-
-/**
- * One ledgered reach: which unpublished names this file may take from that
- * platform file, and why.
- *
- * **The symbols are named rather than counted**, which is where this ledger
- * differs from `check:module-boundary`'s omittable `{ sites, reason }`. There a
- * count is enough because the verdict is per *target* — a file either may name
- * another module's directory or it may not, and how often says nothing a
- * reviewer needs. Here the verdict is per *symbol*: a **P** file publishes some
- * of its exports and withholds others, so an entry that did not name the symbol
- * could not be checked against the barrel it disagrees with, and a reach that
- * swapped one unpublished name for another would inherit the entry in silence.
- */
-export interface LedgeredReach {
-  /** Every unpublished name this file takes from that target. Order is not read. */
-  readonly symbols: readonly string[];
-  /** Why it stands, and what would retire it. */
-  readonly reason: string;
-}
-
-/**
- * The reaches into unpublished platform surface that stand today.
- *
- * Keyed `<module file>|<platform file>`, both relative to the repository root —
- * so moving code inside a file does not invalidate an entry, and re-opening a
- * closed reach does not silently inherit one.
- *
- * The platform half is spelled at `packages/platform/src/…` since the
- * relocation, which is where the file is. A module still writes the old relative
- * specifier and still lands on a re-export shim at `backend/src/<subpath>/…`;
- * {@link PlatformSurfaceInput.canonicalTargetOf} follows the shim, because a
- * shim publishes nothing and judging one would refuse every reach in the tree.
- * Forty of these keys were re-spelled by the move and not one entry, symbol or
- * count moved with them.
- *
- * **Two-way and draining**, in the idiom of `PORT_CATCHES_TO_DRAIN`: an
- * unledgered reach fails the build, a key that no longer describes one fails it,
- * and a listed symbol the walk no longer sees fails it too. Every entry names
- * the contract paragraph that classified it and the event that retires it — an
- * entry is debt with a due date, not a permission.
- *
- * **What is left is four files, and none of them is a module's.** The ledger
- * held 33 keys; 29 of them were `_lifecycle`'s, under five reasons that each
- * said the same thing in a different register — the ORM bootstrap a
- * container-less CLI has no other way to reach, the `ModulePlugin` type, the
- * worker-pause pair, the twelve unpublished targets it was the only consumer
- * of. All 29 retired together, and **not one of them by editing an import**,
- * which is what every one of those reasons predicted: D-160.11's second half
- * moved `_lifecycle`'s platform-safe files into the host package, where the
- * same specifier crosses no boundary
- * ({@link PlatformSurfaceInput.platformSourceRoot}), and left its host half —
- * the manifest registry, the reduced-deployment reader and the five `module:*`
- * commands — outside the module walk, where it is host code like `src/db` and
- * `src/overlay` and was never this check's subject.
- *
- * So no module is blocked by this check, and none is ledgered by it. The three
- * entries that were questions rather than repairs are all answered:
- * `REGISTRY_CACHE` went with D-174 — `admin_actions` registers an
- * `InProcessCacheLayer` and the platform's own state-changed subscriber drops
- * it, so the module names no channel and no new symbol was published — and the
- * TOTP shim entry went by **deletion**: its premise turned out to be false (§8's
- * one-hop rule is scoped to *port* methods, and the barrel applies it that way
- * in both directions), the two backup-code functions had zero call sites and
- * zero tests, and the shim itself had zero importers. Nothing was published for
- * any of them.
- *
- * A new entry is therefore a real finding, not a queue position: it is a module
- * the F4 sweep cannot convert, and the group header it needs has to be written
- * before it is added.
- */
 /**
  * Not a module's file at all.
  *
- * `src/apps/<deployment>/` holds a deployment's reduced-deployment declaration
- * and its generated override manifest **beside** its overlay modules, and the
- * walk covers that root whole. The rule is about modules, and a deployment's own
+ * `src/apps/<deployment>/` holds a deployment's divergence declaration and its
+ * generated override manifest **beside** its overlay modules, and the walk
+ * covers that root whole. The rule is about modules, and a deployment's own
  * files are never packaged (D-104).
  *
  * They are ledgered rather than filtered out on purpose: a filter would make
@@ -336,453 +90,849 @@ export interface LedgeredReach {
  */
 const DEPLOYMENT_FILE =
   'a per-deployment file, not a module\'s: `src/apps/<deployment>/` holds the ' +
-  'reduced-deployment declaration and the generated override manifest beside its overlay ' +
+  'divergence declaration and the generated divergence report beside its overlay ' +
   'modules, and none of them is ever packaged (D-104). Ledgered rather than filtered so a ' +
   'module file the attribution loses cannot hide among them.';
 
 export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach>> = {
   // === DEPLOYMENT_FILE (4) ===
-  'backend/src/apps/acceptance/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
-  'backend/src/apps/acceptance/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
-  'backend/src/apps/example/override-manifest.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
-  'backend/src/apps/example/reduced-deployment.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
+  'backend/src/apps/acceptance/divergence.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
+  'backend/src/apps/acceptance/divergence.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
+  'backend/src/apps/example/divergence.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
+  'backend/src/apps/example/divergence.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
 
 };
 
-export interface PlatformSurfaceInput {
-  /**
-   * The module sources to judge, keyed relative to the source root.
-   *
-   * Everything the walk opened, including a file no module owns — attributing
-   * it is the analysis' job and failing to is a finding.
-   */
-  readonly sources: ReadonlyMap<string, string>;
-  /** Every file key that exists under the source root, for resolving a specifier. */
-  readonly files: ReadonlySet<string>;
-  /** The published surface, from `lib/platform-surface.ts`. */
-  readonly surface: PlatformSurface;
-  /**
-   * Which module a key belongs to. Defaults to the `modules/<id>/` segment,
-   * which is what the application tree and an overlay tree both carry; a run
-   * over a tree that holds module **packages** passes the layout's own
-   * attribution, which reads a package's declared id instead.
-   */
-  readonly moduleIdOf?: (key: string) => string | null;
-  /**
-   * A resolved target's canonical key — the file a specifier really lands on.
-   *
-   * Identity for every reach but one: the platform relocation left a re-export
-   * shim at each old `backend/src/{kernel,http,tenancy,commands,events}/…` path,
-   * so a module's relative specifier resolves to a file whose whole content is
-   * `export * from` the platform's own. Judging the shim would compare a module's
-   * symbol against a barrel that lives one tree over and publish nothing, turning
-   * all 1642 reaches into findings. Judging the file the shim forwards to is the
-   * effective truth and keeps this check's answer the same across the move — the
-   * ledger's platform half is spelled at the platform, which is where it is.
-   */
-  readonly canonicalTargetOf?: (key: string) => string;
-  /**
-   * The host package, so a **bare** specifier into it is judged like a relative
-   * one (feature 080, T060).
-   *
-   * `null` — the default — is "this workspace declares no platform", which is
-   * true of every fixture workspace and of nothing else. It is not a way to
-   * switch the population off: a run whose workspace *has* a platform passes it,
-   * and `main` exits 2 when it cannot find one.
-   */
-  readonly host?: HostPackage | null;
-  /**
-   * The platform's own source root, repo-relative — so a module whose sources
-   * live **inside** the host package is not judged for reaching it (feature
-   * 080, D-160.11).
-   *
-   * `_lifecycle` merged into `@endora-commerce/platform`, and its files go on
-   * naming `../../kernel/lifecycle/registry-cache.js` exactly as they did in
-   * `backend/src/lifecycle/`. The specifier is unchanged and its meaning is
-   * not: it is now a reach from one directory of a package into another
-   * directory of the *same* package, which crosses no boundary and which no
-   * `exports` map is asked about. This check's whole subject is the reach a
-   * packaged module could not write — D-160.8, and the reason the sixteen
-   * `LIFECYCLE_HOST_HALF` entries said they would *"retire with the merge, not
-   * by editing the import"*. Judging them here would publish twelve kernel and
-   * `http` symbols for one consumer forever, which is what D-160.11 refused.
-   *
-   * It exempts the **reaches**, never the file: the walk still opens it, still
-   * counts it in `read: files=`, and still reports it as `unattributed-source`
-   * if no module owns it — so a module file inside the platform that stopped
-   * resolving to its id is a finding rather than a silence (#215 one layer in).
-   * Every other file in the platform is outside this check's population
-   * already, for the same reason: none of them is a module's.
-   *
-   * `null` — the default — is "this workspace has no platform", which is true
-   * of every fixture and of nothing else; `main` exits 2 before it gets here.
-   */
-  readonly platformSourceRoot?: string | null;
-}
-
-/** One module package's answer to "does your manifest declare the host?". */
-export interface ModulePackageDeclaration {
-  readonly moduleId: string;
-  /** True when its `dependencies` or `peerDependencies` name the host package. */
-  readonly dependsOnHost: boolean;
-}
-
 /**
- * The floor that follows the sweep: every module package whose manifest
- * declares the host must have contributed a host reach to this walk.
+ * The application's own reaches into the platform, written as relative paths
+ * (`specs/115-lifecycle-container-move/contracts/host-reach-check.md`).
  *
- * This is issue #215's predicate over the population T060 restored, and it is
- * the one derivation that would have caught the defect. The other two cannot:
- * `manifest-index` counts modules that produced a **file**, and a packaged
- * module produces plenty; `platform-barrels` counts barrels, which the move
- * does not touch. What fell was the *reaches*, and the number that recorded
- * them was a snapshot in `test/helpers/check-read-sizes.ts` whose −10% floor
- * absorbed one module's worth of the fall without a word.
+ * Keyed `<application file>|<canonical platform source file>`. The key's second
+ * half is the file, never the specifier: re-spelling
+ * `../../packages/platform/dist/x.js` as `../../packages/platform/src/x.ts` is
+ * the same reach and must not clear an entry, which is the one way this repair
+ * could regress in silence (§4).
  *
- * The declaration is a second author's, which is what makes it worth
- * reconciling against: `manifests:generate` renders a module package's
- * `peerDependencies` from the bare specifiers its sources import, and
- * `manifests:check` fails on drift. So "the manifest says this package reaches
- * the host" and "the walk read a reach from this package" are two derivations
- * of one fact, and a walk that stopped reading bare specifiers makes them
- * disagree in the same run.
+ * **Two-way and expected to empty** (R4.2/R4.3). An unledgered reach fails the
+ * build and a key describing no reach fails it too. Every entry has an available
+ * remedy — a subpath the `exports` map already declares, or one this feature
+ * adds — so this is not a permanence ledger and takes no `permanent` entries. An
+ * entry saying "this reach is correct" would mean the predicate has outgrown its
+ * population: narrow the predicate, never add the entry (R4.5).
  *
- * `null` rather than `expected: 0` for a tree with no module package that
- * declares the host — every tree in this repository until !910, and every
- * fixture workspace. An expectation of zero is itself a refusal in this
- * grammar, and rightly: a floor that expects nothing is switched off.
+ * `ledger-size` is printed by the run and is written down nowhere (D-100).
  */
-export function hostDependentCoverage(
-  packages: readonly ModulePackageDeclaration[],
-  hostReachModules: ReadonlySet<string>,
-): ReadCoverage | null {
-  const declaring = packages.filter((pkg) => pkg.dependsOnHost);
-  if (declaring.length === 0) return null;
-  return {
-    source: 'host-dependents',
-    expected: declaring.length,
-    covered: declaring.filter((pkg) => hostReachModules.has(pkg.moduleId)).length,
-  };
-}
+export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> = {
+  // === GENERATED (3) ===
+  //
+  // The generator's reaches, not an author's (R4.4), and the sharpest thing in
+  // this ledger. `manifest-index.generated.ts` names `_lifecycle`'s manifest at
+  // `../../packages/platform/dist/lifecycle/manifest.js`, which resolves in this
+  // checkout and in **no** client instance — so the artefact whose whole job is to
+  // register the modules a build ships cannot register `_lifecycle` anywhere else,
+  // and that is precisely what stops an instance built from published packages
+  // from working. `composition.generated.ts` carries the same two reaches for the
+  // same reason. Neither is repaired by editing the file: `generate-composer.ts`
+  // has to emit the bare specifier for the one entry whose manifest the platform
+  // owns.
+  'backend/src/composition.generated.ts|packages/platform/src/lifecycle/backend.ts': {
+    reason:
+      'the generated composition imports `_lifecycle`\'s `registerModule` through the ' +
+      'platform\'s build output by relative path, for the same reason and with the same ' +
+      'consequence as the manifest index\'s',
+    retiredBy:
+      'feature 115 Phase 6 — `generate-composer.ts` emits ' +
+      '`@endora-commerce/platform/lifecycle` for the one entry whose manifest the platform ' +
+      'owns',
+  },
+  'backend/src/composition.generated.ts|packages/platform/src/lifecycle/manifest.ts': {
+    reason:
+      'the generated composition imports `_lifecycle`\'s manifest through the platform\'s build ' +
+      'output by relative path — the second half of the same emission',
+    retiredBy:
+      'feature 115 Phase 6 — `generate-composer.ts` emits ' +
+      '`@endora-commerce/platform/lifecycle` for the one entry whose manifest the platform ' +
+      'owns',
+  },
+  'backend/src/manifest-index.generated.ts|packages/platform/src/lifecycle/manifest.ts': {
+    reason:
+      'the generated manifest index reaches `_lifecycle`\'s manifest through the platform\'s ' +
+      'build output by relative path, so the index cannot register `_lifecycle` in any tree ' +
+      'that is not this checkout — the one entry in this ledger that is a live product defect ' +
+      'rather than a layout debt',
+    retiredBy:
+      'feature 115 Phase 6 — `generate-composer.ts` emits ' +
+      '`@endora-commerce/platform/lifecycle` for the one entry whose manifest the platform ' +
+      'owns',
+  },
 
-/** `<module file>|<platform file>` — the ledger key and the identity of a reach. */
-export function keyOf(finding: PlatformSurfaceFinding): string {
-  return `${finding.file}|${finding.target}`;
-}
+  // === LIFECYCLE_SHIM (12) ===
+  //
+  // `_lifecycle`'s twelve 20-line re-export shims, each forwarding one platform
+  // file the host half still names at its old application path. They are the half
+  // this feature drains: Phase 2 gives the operator surface a declared address
+  // (`./lifecycle`, host-internal — D115-4), and Phases 3–5 move the manifest
+  // registry, the divergence parser and the five command bodies behind it, at
+  // which point each shim's consumers name the subpath and the shim is deleted.
+  'backend/src/lifecycle/plugin.ts|packages/platform/src/lifecycle/plugin.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/plugin.ts` at its own path, and the platform ' +
+      'publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/routes.admin.ts|packages/platform/src/lifecycle/routes.admin.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/routes.admin.ts` at its own path, and the platform ' +
+      'publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/deactivation-ledger.ts|packages/platform/src/lifecycle/services/deactivation-ledger.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/deactivation-ledger.ts` at its own path, and ' +
+      'the platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/dep-graph.ts|packages/platform/src/lifecycle/services/dep-graph.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/dep-graph.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/gating-graph.ts|packages/platform/src/lifecycle/services/gating-graph.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/gating-graph.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/lock.ts|packages/platform/src/lifecycle/services/lock.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/lock.ts` at its own path, and the platform ' +
+      'publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/manifest-loader.ts|packages/platform/src/lifecycle/services/manifest-loader.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/manifest-loader.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/migration-ownership.ts|packages/platform/src/lifecycle/services/migration-ownership.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/migration-ownership.ts` at its own path, and ' +
+      'the platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/module-origin.ts|packages/platform/src/lifecycle/services/module-origin.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/module-origin.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/lifecycle/services/orchestrator.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/orchestrator.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/lifecycle/services/presence-load.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/presence-load.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
+  'backend/src/lifecycle/services/static-registry.ts|packages/platform/src/lifecycle/services/static-registry.ts': {
+    reason:
+      'a `_lifecycle` re-export shim: the application still names ' +
+      '`packages/platform/src/lifecycle/services/static-registry.ts` at its own path, and the ' +
+      'platform publishes no address for the operator half',
+    retiredBy:
+      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
+      'and the command bodies behind it',
+  },
 
-/** The file a specifier names, or `null` when the walk found no such file. */
-function resolveTarget(
-  fromKey: string,
-  specifier: string,
-  files: ReadonlySet<string>,
-): string | null {
-  const joined = resolveRelative(fromKey, specifier);
-  if (joined === null) return null;
-  for (const candidate of resolutionCandidates(joined)) {
-    if (files.has(candidate)) return candidate;
-  }
-  return null;
-}
+  // === PUBLISHED_SHIM (41) ===
+  //
+  // A re-export shim at `backend/src/<subpath>/…` whose target a published barrel
+  // already carries, so the address exists today and the remedy is a rewrite: the
+  // shim's consumers name `@endora-commerce/platform/<subpath>` and the shim goes.
+  // This is the bulk of the debt and it is not this feature's — 110's Phase 2 is
+  // where the application stops holding a private copy of the platform's layout.
+  'backend/src/commands/actor.ts|packages/platform/src/commands/actor.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/commands/actor.ts`, which ' +
+      '`@endora-commerce/platform/commands` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/commands/command-bus.ts|packages/platform/src/commands/command-bus.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/commands/command-bus.ts`, which ' +
+      '`@endora-commerce/platform/commands` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/commands/command.ts|packages/platform/src/commands/command.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/commands/command.ts`, which ' +
+      '`@endora-commerce/platform/commands` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/commands/reversible.ts|packages/platform/src/commands/reversible.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/commands/reversible.ts`, which ' +
+      '`@endora-commerce/platform/commands` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/events/bus.ts|packages/platform/src/events/bus.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/events/bus.ts`, which ' +
+      '`@endora-commerce/platform/events` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/http/cursor.ts|packages/platform/src/http/cursor.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/cursor.ts`, which ' +
+      '`@endora-commerce/platform/http` already carries — the reach is a rewrite away from an ' +
+      'address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/http/error-envelope.ts|packages/platform/src/http/error-envelope.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/error-envelope.ts`, which ' +
+      '`@endora-commerce/platform/http` already carries — the reach is a rewrite away from an ' +
+      'address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/http/product-audience.ts|packages/platform/src/http/product-audience.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/product-audience.ts`, which ' +
+      '`@endora-commerce/platform/http` already carries — the reach is a rewrite away from an ' +
+      'address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/http/storefront-revalidator.ts|packages/platform/src/http/storefront-revalidator.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/storefront-revalidator.ts`, which ' +
+      '`@endora-commerce/platform/http` already carries — the reach is a rewrite away from an ' +
+      'address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/audit/audit-log-entry.entity.ts|packages/platform/src/kernel/audit/audit-log-entry.entity.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/audit/audit-log-entry.entity.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/cache/in-process-cache-registry.ts|packages/platform/src/kernel/cache/in-process-cache-registry.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/cache/in-process-cache-registry.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/crypto/password-hasher.ts|packages/platform/src/kernel/crypto/password-hasher.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/crypto/password-hasher.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/lifecycle/effective-state.ts|packages/platform/src/kernel/lifecycle/effective-state.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/effective-state.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/lifecycle/plugin-helpers.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/plugin-helpers.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/logging.ts|packages/platform/src/kernel/logging.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/logging.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/module-context.ts|packages/platform/src/kernel/module-context.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/module-context.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/audit.ts|packages/platform/src/kernel/ports/audit.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/audit.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/organizations.ts|packages/platform/src/kernel/ports/organizations.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/organizations.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/require-admin.ts|packages/platform/src/kernel/ports/require-admin.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/require-admin.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/require-customer.ts|packages/platform/src/kernel/ports/require-customer.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/require-customer.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/sales-channel.ts|packages/platform/src/kernel/ports/sales-channel.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/sales-channel.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/ports/settings.ts|packages/platform/src/kernel/ports/settings.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/ports/settings.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/public-api-base-url.ts|packages/platform/src/kernel/public-api-base-url.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/public-api-base-url.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/no-system-default-channel.error.ts|packages/platform/src/kernel/sales-channels/no-system-default-channel.error.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/no-system-default-channel.error.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/request-channel-assortment.ts|packages/platform/src/kernel/sales-channels/request-channel-assortment.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/request-channel-assortment.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channel-membership.service.ts|packages/platform/src/kernel/sales-channels/sales-channel-membership.service.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channel-membership.service.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channel-resolver.middleware.ts|packages/platform/src/kernel/sales-channels/sales-channel-resolver.middleware.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channel-resolver.middleware.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channel-resolver.service.ts|packages/platform/src/kernel/sales-channels/sales-channel-resolver.service.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channel-resolver.service.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channel.entity.ts|packages/platform/src/kernel/sales-channels/sales-channel.entity.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channel.entity.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/sales-channels/sales-channels-cache.ts|packages/platform/src/kernel/sales-channels/sales-channels-cache.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channels-cache.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/scope.ts|packages/platform/src/kernel/scope.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/scope.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/secret-value-codec.ts|packages/platform/src/kernel/settings/secret-value-codec.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/secret-value-codec.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/setting-group.entity.ts|packages/platform/src/kernel/settings/setting-group.entity.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/setting-group.entity.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/setting-value.entity.ts|packages/platform/src/kernel/settings/setting-value.entity.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/setting-value.entity.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/setting.entity.ts|packages/platform/src/kernel/settings/setting.entity.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/setting.entity.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/settings-cache.ts|packages/platform/src/kernel/settings/settings-cache.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/settings-cache.ts`, which ' +
+      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/kernel/settings/settings.service.ts|packages/platform/src/kernel/settings/settings.service.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/settings.service.ts`, ' +
+      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
+      'from an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/tenancy/derived-scope.ts|packages/platform/src/tenancy/derived-scope.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/derived-scope.ts`, which ' +
+      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/tenancy/escape-hatch.ts|packages/platform/src/tenancy/escape-hatch.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/escape-hatch.ts`, which ' +
+      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/tenancy/org-scoped.decorator.ts|packages/platform/src/tenancy/org-scoped.decorator.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/org-scoped.decorator.ts`, which ' +
+      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
+  'backend/src/tenancy/tenant-context.ts|packages/platform/src/tenancy/tenant-context.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/tenant-context.ts`, which ' +
+      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
+      'an address that exists',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
+      'the shim is deleted',
+  },
 
-export interface PlatformSurfaceScan {
-  /** Every (specifier, symbol) reach into the platform the walk judged. */
-  readonly reaches: number;
-  readonly findings: readonly PlatformSurfaceFinding[];
-  /**
-   * Modules that named the host package by its **bare** specifier at least once
-   * — published subpath or not.
-   *
-   * The numerator of {@link hostDependentCoverage}. A reach at a subpath the
-   * host does not publish counts here: the question is whether the walk *read*
-   * the package's host specifiers, and a finding is the loudest possible yes.
-   */
-  readonly hostReachModules: ReadonlySet<string>;
-}
-
-/**
- * Every module reach into the platform, judged against the published surface.
- *
- * Pure over source text, file keys and barrel-derived surface, so a fixture
- * enters exactly where a run does — including the specifier extraction and the
- * `.js` → `.ts` resolution, which is where a resolution bug would hide (issue
- * #130).
- */
-export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfaceScan {
-  const attribute = input.moduleIdOf ?? moduleIdOf;
-  const canonical = input.canonicalTargetOf ?? ((key: string): string => key);
-  const host = input.host ?? null;
-  const platformSourceRoot = input.platformSourceRoot ?? null;
-  const withinPlatform = (key: string): boolean =>
-    platformSourceRoot !== null &&
-    (key === platformSourceRoot || key.startsWith(`${platformSourceRoot}/`));
-  const findings: PlatformSurfaceFinding[] = [];
-  const hostReachModules = new Set<string>();
-  let reaches = 0;
-
-  for (const [file, text] of [...input.sources].sort(([a], [b]) => a.localeCompare(b))) {
-    const moduleId = attribute(file);
-    if (moduleId === null) {
-      // A file the walk opened and could not attribute. Skipping it would leave
-      // it counted in `read: files=` and judged by nothing, which is #215 one
-      // layer in (!879).
-      findings.push({
-        kind: 'unattributed-source',
-        file,
-        line: 1,
-        moduleId: null,
-        target: NO_MODULE,
-        symbol: NO_SYMBOL,
-        specifier: '',
-      });
-      continue;
-    }
-    // Attributed, and then exempt: a module inside the host package reaches the
-    // platform by relative path within one package — see `platformSourceRoot`.
-    if (withinPlatform(file)) continue;
-
-    for (const specifier of namedSpecifiers(text, file)) {
-      // A bare specifier into the host package is the same reach a module in
-      // the application tree writes relatively (feature 080, T060). Asked
-      // first, because a specifier that names the host is never a relative one
-      // and the two answers must not both be consulted.
-      const hostReach = resolveHostSpecifier(specifier.text, host);
-      if (hostReach !== null) hostReachModules.add(moduleId);
-      if (hostReach?.kind === 'undeclared-subpath') {
-        findings.push({
-          kind: 'unpublished-subpath',
-          file,
-          line: specifier.line,
-          moduleId,
-          target: specifier.text,
-          symbol: NO_SYMBOL,
-          specifier: specifier.text,
-        });
-        continue;
-      }
-      // Someone else's package: `zod`, `@mikro-orm/core`, another module's.
-      if (hostReach === null && !specifier.text.startsWith('.')) continue;
-      const resolved =
-        hostReach === null ? resolveTarget(file, specifier.text, input.files) : hostReach.target;
-      const target = resolved === null ? null : canonical(resolved);
-      if (target === null) {
-        findings.push({
-          kind: 'unresolvable-reach',
-          file,
-          line: specifier.line,
-          moduleId,
-          target: specifier.text,
-          symbol: NO_SYMBOL,
-          specifier: specifier.text,
-        });
-        continue;
-      }
-      // Module → module is `check:module-boundary`'s rule, not this one's.
-      if (attribute(target) !== null) continue;
-
-      const named = specifier.bindings.filter((binding) => !binding.startsWith('* as'));
-      const wholeFile = specifier.bindings.length === 0 || named.length < specifier.bindings.length;
-
-      if (wholeFile) {
-        reaches += 1;
-        // Reaching a barrel *is* reaching the published surface, whole or not.
-        if (!input.surface.barrels.has(target)) {
-          findings.push({
-            kind: 'whole-file-reach',
-            file,
-            line: specifier.line,
-            moduleId,
-            target,
-            symbol: WHOLE_FILE,
-            specifier: specifier.text,
-          });
-        }
-      }
-
-      const published = input.surface.published.get(target) ?? new Set<string>();
-      for (const name of named) {
-        reaches += 1;
-        if (input.surface.barrels.has(target)) continue;
-        if (published.has(name)) continue;
-        findings.push({
-          kind: 'unpublished-symbol',
-          file,
-          line: specifier.line,
-          moduleId,
-          target,
-          symbol: name,
-          specifier: specifier.text,
-        });
-      }
-    }
-  }
-
-  findings.sort((a, b) =>
-    a.file === b.file
-      ? a.target === b.target
-        ? a.symbol.localeCompare(b.symbol)
-        : a.target.localeCompare(b.target)
-      : a.file.localeCompare(b.file),
-  );
-  return { reaches, findings, hostReachModules };
-}
-
-export interface CheckResult {
-  /** (specifier, symbol) reaches into the platform judged — the `sites=` number. */
-  readonly reaches: number;
-  readonly findings: readonly PlatformSurfaceFinding[];
-  readonly violations: readonly PlatformSurfaceFinding[];
-  readonly ledgered: readonly PlatformSurfaceFinding[];
-  /** Ledger keys that describe no reach at all. */
-  readonly staleKeys: readonly string[];
-  /** `<key>#<symbol>` an entry names and the walk no longer sees. */
-  readonly staleSymbols: readonly string[];
-  /** Barrels the parse could not read in full — a caller exits 2 on any. */
-  readonly unreadable: readonly BarrelUnreadable[];
-  /** Modules that named the host package's own specifier — see the scan. */
-  readonly hostReachModules: ReadonlySet<string>;
-}
-
-export function checkPlatformSurface(
-  input: PlatformSurfaceInput,
-  ledger: Readonly<Record<string, LedgeredReach>> = UNPUBLISHED_PLATFORM_REACHES,
-): CheckResult {
-  const scan = scanPlatformSurface(input);
-  const seen = new Map<string, Set<string>>();
-  for (const finding of scan.findings) {
-    const symbols = seen.get(keyOf(finding)) ?? new Set<string>();
-    symbols.add(finding.symbol);
-    seen.set(keyOf(finding), symbols);
-  }
-
-  const covers = (finding: PlatformSurfaceFinding): boolean =>
-    ledger[keyOf(finding)]?.symbols.includes(finding.symbol) === true;
-
-  const staleKeys: string[] = [];
-  const staleSymbols: string[] = [];
-  for (const [key, entry] of Object.entries(ledger)) {
-    const symbols = seen.get(key);
-    if (symbols === undefined) {
-      staleKeys.push(key);
-      continue;
-    }
-    for (const symbol of entry.symbols) {
-      if (!symbols.has(symbol)) staleSymbols.push(`${key}#${symbol}`);
-    }
-  }
-
-  return {
-    reaches: scan.reaches,
-    findings: scan.findings,
-    violations: scan.findings.filter((finding) => !covers(finding)),
-    ledgered: scan.findings.filter(covers),
-    staleKeys: staleKeys.sort(),
-    staleSymbols: staleSymbols.sort(),
-    unreadable: input.surface.unreadable,
-    hostReachModules: scan.hostReachModules,
-  };
-}
-
-/**
- * Why this run may not judge a reach against the surface it read, or `null`.
- *
- * Pure over the two things that can be silently missing — a barrel that is not
- * there, and a re-export the parse cannot enumerate — because both fail in the
- * same direction and it is the wrong one: a **short** published set turns
- * correct reaches into findings, and the obvious repair for one of those is to
- * widen the barrel. So it is exit 2, in the idiom of `readSizeRefusal`, and a
- * proof enters where a run enters (issue #130).
- */
-export function platformSurfaceRefusal(input: {
-  readonly missingBarrels: readonly string[];
-  readonly surface: PlatformSurface;
-}): string | null {
-  if (input.missingBarrels.length > 0) {
-    return (
-      `${input.missingBarrels.join(', ')} — a published subpath (D-160.7) whose barrel is ` +
-      'not there. The published surface would come back short and every reach into that ' +
-      'directory would read as a violation; refusing to report on it'
-    );
-  }
-  if (input.surface.unreadable.length > 0) {
-    const named = input.surface.unreadable
-      .map((entry) => `\n  - ${entry.barrel}:${entry.line}  ${entry.reason}`)
-      .join('');
-    return (
-      'a published barrel holds a re-export this parse cannot enumerate, so the published ' +
-      'surface would come back short — and the obvious "repair" for a reach it wrongly ' +
-      `refused is to widen the barrel:${named}`
-    );
-  }
-  return null;
-}
-
-function walk(dir: string, out: string[] = []): string[] {
-  if (!existsSync(dir)) return out;
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      if (name === 'node_modules' || name === 'dist') continue;
-      walk(full, out);
-    } else if (
-      // `.tsx` since feature 091: a module package's `./admin` layer is React
-      // components, and a walk that cannot see them reports every relative
-      // reach into one as `unresolvable-reach` — a finding about the walk.
-      (name.endsWith('.ts') || name.endsWith('.tsx')) &&
-      !name.endsWith('.test.ts') &&
-      !name.endsWith('.test.tsx') &&
-      !name.endsWith('.d.ts')
-    ) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
-/**
- * A module package's own tooling configuration, which is not module source.
- *
- * `vitest.config.ts` is the first `.ts` file a module package holds that its
- * build does not compile (feature 089, Phase 1): `tsconfig.build.json` roots the
- * emit at `src/`, and the manifest's `files` ships `dist` and the asset
- * directories, so nothing a consumer installs contains it and no `exports`
- * subpath can name it. The other configurations a package carries are `.json`
- * and were therefore never in this walk at all.
- *
- * It has to leave the population rather than be made to resolve, because the
- * file exists to `mergeConfig` the repository root's `vitest.config.base.ts` —
- * which is where issue #255's foreign-workspace-link refusal lives, so the reach
- * is mandatory — and that root is in no module walk root and no source root. A
- * reach the walk cannot resolve is `unresolvable-reach`, deliberately fail-closed
- * (#215 one layer in), and the honest answer here is that this file is not a
- * module reach at all.
- *
- * Narrow on purpose: only a `*.config.ts` sitting **directly** at a module walk
- * root, which is a package's own root or a module directory. A `config.ts` under
- * `src/` stays module source, and a directory named `config/` is untouched.
- */
-export function isPackageToolingConfig(root: string, file: string): boolean {
-  const within = relative(root, file).split('\\').join('/');
-  return !within.includes('/') && within.endsWith('.config.ts');
-}
-
-/** The remedy sentence a finding gets, by kind. */
-function remedyOf(finding: PlatformSurfaceFinding): string {
-  switch (finding.kind) {
-    case 'unpublished-symbol':
-      return `\`${finding.symbol}\` is not published out of ${finding.target}`;
-    case 'whole-file-reach':
-      return `reaches every export of ${finding.target}, internals included`;
-    case 'unresolvable-reach':
-      return `\`${finding.specifier}\` resolves to no file the walk found`;
-    case 'unattributed-source':
-      return 'the walk opened this file and no module owns it';
-    case 'unpublished-subpath':
-      return (
-        `\`${finding.specifier}\` names no subpath the host publishes — its \`exports\` map ` +
-        'refuses the path at resolution time'
-      );
-  }
-}
+  // === UNPUBLISHED_SHIM (28) ===
+  //
+  // The same shape with one difference that decides the order of the repair: no
+  // barrel carries the target, so there is no address to rewrite the reach to yet.
+  // Each needs a subpath declared first — host-internal unless a module genuinely
+  // needs the symbol, which is D-160.14's line and never a widening of
+  // `PUBLISHED_SUBPATHS` taken to make a check pass. 110's Phase 2, after the
+  // subpath question is answered for each of them.
+  'backend/src/demo/index.ts|packages/platform/src/demo/index.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/demo/index.ts`, which no barrel carries — ' +
+      'the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/dispatch.ts|packages/platform/src/http/interceptors/dispatch.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/dispatch.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/index.ts|packages/platform/src/http/interceptors/index.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/index.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/registry.ts|packages/platform/src/http/interceptors/registry.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/registry.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/route-table.ts|packages/platform/src/http/interceptors/route-table.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/route-table.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/interceptors/validation.ts|packages/platform/src/http/interceptors/validation.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/interceptors/validation.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/server.ts|packages/platform/src/http/server.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/server.ts`, which no barrel carries ' +
+      '— the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/test-actor-carrier.ts|packages/platform/src/http/test-actor-carrier.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/test-actor-carrier.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/http/trusted-proxy.ts|packages/platform/src/http/trusted-proxy.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/http/trusted-proxy.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/audit/audit-log-service.ts|packages/platform/src/kernel/audit/audit-log-service.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/audit/audit-log-service.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/compose.ts|packages/platform/src/kernel/compose.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/compose.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/container.ts|packages/platform/src/kernel/container.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/container.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  // The one entry this ledger **gained** rather than drained, and it is worth a
+  // sentence: `specs/117-instance-bring-up/` FR-030 moved the error-code routing
+  // derivation out of `_i18n` and into the platform, beside `request-language.ts`
+  // below — the producer of the other `ErrorEnvelopeOptions` member a composition
+  // root injects. Before the move the root reached it by a **bare** specifier
+  // into the module's package, which is why it needed no entry here and why it
+  // was a value import of a module the same root is about to become platform
+  // code beside (D-52, D-53). One relative reach in exchange for one module
+  // import, and this one retires with its 84 neighbours.
+  'backend/src/kernel/i18n/error-translation.ts|packages/platform/src/kernel/i18n/error-translation.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/i18n/error-translation.ts`, which ' +
+      'no barrel carries — no module calls the derivation, so `host-package.md` §1.3 ' +
+      'classifies it unreached and the reach needs a host-internal subpath before it has an ' +
+      'address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — T118 moves the caller into the platform, at ' +
+      'which point the reach is the package naming its own file and the shim is deleted',
+  },
+  'backend/src/kernel/i18n/request-language.ts|packages/platform/src/kernel/i18n/request-language.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/i18n/request-language.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/activation-resolver.ts|packages/platform/src/kernel/lifecycle/activation-resolver.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/activation-resolver.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/module-registration.entity.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/lifecycle/module-registration.entity.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/registry-cache.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/registry-cache.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/required-modules.ts|packages/platform/src/kernel/lifecycle/required-modules.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/required-modules.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/lifecycle/unique-module-ids.ts|packages/platform/src/kernel/lifecycle/unique-module-ids.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/unique-module-ids.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/request-scope-hook.ts|packages/platform/src/kernel/request-scope-hook.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/request-scope-hook.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/sales-channels/compose.ts|packages/platform/src/kernel/sales-channels/compose.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/sales-channels/compose.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/sales-channels/default-channel-reconciler.ts|packages/platform/src/kernel/sales-channels/default-channel-reconciler.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/default-channel-reconciler.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/settings/compose.ts|packages/platform/src/kernel/settings/compose.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/compose.ts`, which no ' +
+      'barrel carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/kernel/settings/manifest-reconciler.ts|packages/platform/src/kernel/settings/manifest-reconciler.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/settings/manifest-reconciler.ts`, ' +
+      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
+      'to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/seeds/dev-seed-guard.ts|packages/platform/src/demo/guard.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/demo/guard.ts`, which no barrel carries — ' +
+      'the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/seeds/seed-scope.ts|packages/platform/src/demo/scope.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/demo/scope.ts`, which no barrel carries — ' +
+      'the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/tenancy/filters.ts|packages/platform/src/tenancy/filters.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/filters.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/tenancy/resolve-tenant-context.ts|packages/platform/src/tenancy/resolve-tenant-context.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/resolve-tenant-context.ts`, which ' +
+      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
+      'name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+  'backend/src/tenancy/scoped-em.ts|packages/platform/src/tenancy/scoped-em.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/scoped-em.ts`, which no barrel ' +
+      'carries — the reach needs a declared subpath before it has an address to name',
+    retiredBy:
+      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
+      'specifier',
+  },
+};
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
@@ -858,6 +1008,12 @@ async function main(): Promise<void> {
   // its own manifest, and one entry per published subpath pointing at the barrel
   // this run just read. Both derived — a scope written here would break on D-161
   // and a subpath list would break on the sixth published directory.
+  //
+  // `declaredSubpaths` is the *manifest's* own answer and deliberately a second
+  // list (D-160.14). `./composition` is declared by the `exports` map and
+  // carried by no barrel, so `node` and `tsc` both resolve it and only this
+  // check can refuse a module that names it — as `host-internal-subpath`, which
+  // is neither "published" nor "the map refuses this path".
   const hostName = layout.platformPackageName;
   if (hostName === null) {
     console.error(
@@ -875,6 +1031,7 @@ async function main(): Promise<void> {
         repoKeyOf(join(platformRoot, barrelKeyOf(subpath))),
       ]),
     ),
+    declaredSubpaths: new Set(platformSubpathsAt(layout.repoRoot)),
   };
 
   // The population is the module tree, and the rest of `src/` is a small
@@ -891,15 +1048,72 @@ async function main(): Promise<void> {
     moduleIdOf: attribute,
   });
 
-  const result = checkPlatformSurface({
-    sources,
-    files,
-    surface,
-    moduleIdOf: attribute,
-    canonicalTargetOf,
-    host,
-    platformSourceRoot: repoKeyOf(platformRoot),
+  // The **application** as a second consumer population (feature 115, D115-5).
+  //
+  // The rule is this check's own sentence one population over — *a reach into
+  // the host names a published or a declared address* — and the application is
+  // the consumer nothing was asking it of: `attribute` answers `null` for every
+  // one of its files, so `violations=0` was honest about a population that did
+  // not contain them.
+  //
+  // The two roots are the contract's (§2) and are the application's own, never
+  // the repository's: `layout.srcRoot` is where the manifest index says the
+  // application's sources are, and `scripts/` beside it is the only other tree
+  // whose files this repository executes as part of the application. The test
+  // tree is out — it is a different population with a different answer, and its
+  // reaches drain as a mechanical rewrite — and it is out *by not being walked*
+  // rather than by an exclusion, which is why `scripts` is spelled and `test`
+  // is not.
+  //
+  // Every file a module owns stays in `sources` above and is judged by the
+  // existing rules; a file inside the platform is the package reaching itself.
+  const applicationSources = new Map<string, string>();
+  for (const root of [layout.srcRoot, join(layout.applicationRoot, 'scripts')]) {
+    for (const file of walk(root)) {
+      if (layout.moduleWalkRoots.some((moduleRoot) => file.startsWith(`${moduleRoot}/`))) continue;
+      if (attribute(repoKeyOf(file)) !== null) continue;
+      if (file.startsWith(`${platformRoot}/`)) continue;
+      applicationSources.set(repoKeyOf(file), readFileSync(file, 'utf8'));
+    }
+  }
+
+  const applicationRefusal = applicationReachRefusal({
+    canonicalTargets: canonicalTargets.size,
+    applicationFiles: applicationSources.size,
   });
+  if (applicationRefusal !== null) {
+    console.error(`${prefix} ${applicationRefusal}`);
+    process.exit(2);
+  }
+
+  const applicationReaches = checkApplicationReaches(
+    {
+      sources: applicationSources,
+      // The member's own directory — the directory holding the manifest that
+      // declares `endora.type: "platform"`. `platformSourceRootOf` builds its
+      // answer by joining `src` to it, so `dirname` is that derivation's exact
+      // inverse rather than a guess about the layout.
+      platformMemberRoot: repoKeyOf(dirname(platformRoot)),
+      platformSourceRoot: repoKeyOf(platformRoot),
+      files,
+      surface,
+      host,
+    },
+    RELATIVE_HOST_REACHES,
+  );
+
+  const result = checkPlatformSurface(
+    {
+      sources,
+      files,
+      surface,
+      moduleIdOf: attribute,
+      canonicalTargetOf,
+      host,
+      platformSourceRoot: repoKeyOf(platformRoot),
+    },
+    UNPUBLISHED_PLATFORM_REACHES,
+  );
 
   // The floor that follows the sweep. Every module package's manifest is
   // rendered from the bare specifiers its sources import (`manifests:generate`),
@@ -933,6 +1147,10 @@ async function main(): Promise<void> {
   const hostDependents = hostDependentCoverage(declarations, result.hostReachModules);
 
   if (listMode) {
+    for (const finding of applicationReaches.findings) {
+      const tag = RELATIVE_HOST_REACHES[keyOf(finding)] === undefined ? 'HOST    ' : 'LEDGERED';
+      console.log(`${tag} ${finding.file}:${finding.line}  ${finding.target}  (${finding.kind})`);
+    }
     for (const finding of result.findings) {
       const tag =
         UNPUBLISHED_PLATFORM_REACHES[keyOf(finding)]?.symbols.includes(finding.symbol) === true
@@ -952,10 +1170,21 @@ async function main(): Promise<void> {
   // changes. The two `sources=` derivations have different authors: the module
   // count comes from the generated manifest index, and the barrel count from
   // D-160.7's subpath list reconciled against the tree.
+  //
+  // `files` and `sites` carry **both** populations (host-reach-check.md §6):
+  // `files` grows by the application files opened and `sites` by the
+  // application reaches examined. `platform-barrels` is deliberately unchanged
+  // — `PUBLISHED_SUBPATHS` is untouched by feature 115, and a token that moved
+  // would say the published surface had.
+  const hostReaches = hostReachCoverage(
+    RELATIVE_HOST_REACHES,
+    (file) => existsSync(join(layout.repoRoot, file)),
+    new Set(applicationSources.keys()),
+  );
   reportReadSize({
     prefix,
-    files: sources.size,
-    sites: result.reaches,
+    files: sources.size + applicationSources.size,
+    sites: result.reaches + applicationReaches.reaches,
     coverage: [
       coverage,
       {
@@ -964,6 +1193,7 @@ async function main(): Promise<void> {
         covered: surface.barrelsWithExports,
       },
       ...(hostDependents === null ? [] : [hostDependents]),
+      ...(hostReaches === null ? [] : [hostReaches]),
     ],
   });
   console.log(
@@ -972,13 +1202,24 @@ async function main(): Promise<void> {
       `ledger-size=${Object.keys(UNPUBLISHED_PLATFORM_REACHES).length} ` +
       `stale=${result.staleKeys.length + result.staleSymbols.length}`,
   );
+  console.log(
+    `${prefix} application reaches into the platform by relative path=` +
+      `${applicationReaches.findings.length} violations=${applicationReaches.violations.length} ` +
+      `ledgered=${applicationReaches.ledgered.length} ` +
+      `ledger-size=${Object.keys(RELATIVE_HOST_REACHES).length} ` +
+      `stale=${applicationReaches.staleKeys.length}`,
+  );
 
   if (result.violations.length > 0) {
     console.error(
       '\nA module reached platform surface the host does not publish (feature 080 §1,\n' +
         'D-160.8). Take the published symbol from the directory barrel, take the port\n' +
         'where the contract says the class is `O`, or repair the call site before the\n' +
-        'module can be packaged — an `exports` map will refuse it at resolution time.\n',
+        'module can be packaged — an `exports` map will refuse it at resolution time.\n' +
+        '\nOne kind is the exception and is the reason it has a kind of its own: a\n' +
+        '`host-internal-subpath` reach *does* resolve, for `node` and for `tsc` alike\n' +
+        '(D-160.14). Nothing but this check stands between a module and the composition\n' +
+        'surface the host keeps for itself, so its remedy is never "widen the map".\n',
     );
     for (const finding of result.violations) {
       console.error(
@@ -996,10 +1237,28 @@ async function main(): Promise<void> {
     for (const key of result.staleSymbols) console.error(`  - ${key}`);
   }
 
+  if (applicationReaches.violations.length > 0) {
+    console.error(
+      '\nThe application reached inside `@endora-commerce/platform` by relative path\n' +
+        '(feature 115, D115-5). A relative path into the package resolves in this checkout\n' +
+        'and in no instance built from published packages, which is the defect D-207 names.\n' +
+        'Name a published subpath, or a host-internal one the map declares — never a file.\n',
+    );
+    for (const finding of applicationReaches.violations) {
+      console.error(`  - ${finding.file}:${finding.line}  ${remedyOf(finding)}`);
+    }
+  }
+  if (applicationReaches.staleKeys.length > 0) {
+    console.error('\nStale RELATIVE_HOST_REACHES keys (no longer describe a reach — delete them):');
+    for (const key of applicationReaches.staleKeys) console.error(`  - ${key}`);
+  }
+
   const failed =
     result.violations.length > 0 ||
     result.staleKeys.length > 0 ||
-    result.staleSymbols.length > 0;
+    result.staleSymbols.length > 0 ||
+    applicationReaches.violations.length > 0 ||
+    applicationReaches.staleKeys.length > 0;
   process.exit(failed ? 1 : 0);
 }
 

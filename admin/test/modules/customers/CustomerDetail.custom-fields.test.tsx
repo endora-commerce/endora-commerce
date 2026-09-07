@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * The customer screen still renders its custom fields and still saves them,
@@ -47,21 +48,38 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 
 // The screen's sibling panels each pull their own data chain; none is under
 // test here.
-vi.mock('@/modules/customers/panels/HistoryPanels', () => ({
+//
+// **Both spellings are the package's own source, and that is feature 091's
+// batch 14 re-keying them rather than tidying them.** They read
+// `@/modules/customers/panels/…` until that batch, and the screen now imports
+// `../panels/HistoryPanels.js` from inside
+// `@endora-commerce/mod-customers`, where the `@/` alias resolves to nothing —
+// so the old spelling would have named a file that is gone, and vitest answers
+// a mock over a deleted path by making it **inert** rather than by failing.
+// Both panels would have mounted for real and reached the stubbed `apiClient`
+// with requests this file makes no assertion about. `tsc` is what found it,
+// by the dynamic import below.
+vi.mock('../../../../packages/modules/customers/src/admin/panels/HistoryPanels', () => ({
   OrdersPanel: () => null,
   QuoteRequestsPanel: () => null,
   CartsPanel: () => null,
 }));
-vi.mock('@/modules/customers/panels/ManagementPanels', () => ({
+vi.mock('../../../../packages/modules/customers/src/admin/panels/ManagementPanels', () => ({
   OrganizationAssignmentPanel: () => null,
   CustomerGroupPanel: () => null,
   AddressesPanel: () => null,
 }));
-vi.mock('@/modules/quick_order/DefaultPreferencesPanel', () => ({
-  DefaultPreferencesPanel: () => null,
-}));
+// A fourth `vi.mock` stood here until feature 091's P7b — `quick_order`'s
+// `DefaultPreferencesPanel`, which this screen imported by path. It is a
+// `customer.detail.after` contribution now and its `admin/src` copy is deleted,
+// so the mock named a module that no longer exists — and vitest answered that by
+// making it **inert** rather than by failing. What replaces it is the empty
+// registry below: the zone enumerates nothing here, because this file's subject
+// is the custom-field panel and not the zone.
 
-const { CustomerDetail } = await import('../../../src/modules/customers/CustomerDetail');
+const { CustomerDetail } = await import(
+  '../../../../packages/modules/customers/src/admin/pages/CustomerDetail',
+);
 
 const CORE_EN = JSON.parse(
   readFileSync(resolve(process.cwd(), '../packages/modules/_i18n/i18n/en.json'), 'utf8'),
@@ -114,11 +132,18 @@ function renderDetail(): void {
     return Promise.reject(new Error(`unexpected GET ${path}`));
   });
   renderWithI18n(
-    <MemoryRouter initialEntries={[`/customers/${CUSTOMER_ID}`]}>
-      <Routes>
-        <Route path="/customers/:id" element={<CustomerDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={[`/customers/${CUSTOMER_ID}`]}>
+        <Routes>
+          <Route path="/customers/:id" element={<CustomerDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: ['*'] }),
+        presence: modulePresence({ present: ['customers'] }),
+        contributions: [],
+      },
+    ),
     bundle,
   );
 }

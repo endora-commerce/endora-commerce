@@ -71,6 +71,22 @@ describe('check-admin-zones — the site walks', () => {
     expect(zoneRenderSites(source, 'f.tsx').map((site) => site.zone)).toEqual([ZONE, OTHER_ZONE]);
   });
 
+  it('reads a zone name off <RouteTabsZone>, the kit\'s second renderer', () => {
+    // `RouteTabsZone` is a *renderer of a place* (feature 091, P4d): it counts
+    // what `useAdminZone` filtered and renders the contributions as a tab
+    // strip. A host that mounts a zone through it mounts a zone, so the walk
+    // has to see it — otherwise the member it renders reads as
+    // `unrendered-zone` and the two-way refusal fires on a place that is
+    // rendered.
+    const source = `const a = <RouteTabsZone name="${ZONE}" props={{}} />;`;
+    expect(zoneRenderSites(source, 'f.tsx').map((site) => site.zone)).toEqual([ZONE]);
+  });
+
+  it('refuses a computed name on <RouteTabsZone> exactly as on <AdminZone>', () => {
+    const source = 'const a = <RouteTabsZone name={ZONE} props={{}} />;';
+    expect(zoneRenderSites(source, 'f.tsx').map((site) => site.zone)).toEqual([null]);
+  });
+
   it('reads a contribution in both published spellings', () => {
     const source = [
       `zoneComponent('${ZONE}', () => import('./A.js'));`,
@@ -261,6 +277,141 @@ describe('check-admin-zones — one red proof per finding', () => {
       expect(findings[0]?.message).toContain('cannot read');
     });
 
+    it("an admin-ui package rendering out of a module's namespace", () => {
+      // Feature 091, P5c. The population is widened **before** P5b moves the
+      // shared page-builder chrome and the e-mail builder into
+      // `@endora-commerce/page-builder-admin`: on this tree the family set is
+      // empty, so the only thing that can show the widening works is a fixture
+      // that declares one.
+      const findings = adminZoneFindings(
+        baseline({
+          files: [
+            ...baseline().files,
+            {
+              path: 'packages/page-builder-admin/src/email/EmailEditorPane.tsx',
+              source: "const t = useTranslation('cms');",
+              roles: ['admin-ui'],
+            },
+          ],
+          registered: ['catalog', 'cms'],
+        }),
+        'foreign-module-id',
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.key).toBe(
+        'packages/page-builder-admin/src/email/EmailEditorPane.tsx:module-namespace:cms',
+      );
+      // The message's owner half is what makes the file's own words honest: an
+      // admin-ui package owns no module id, so there is no id it could name
+      // legitimately.
+      expect(findings[0]?.message).toContain('belongs to no module');
+    });
+
+    it('a computed namespace in an admin-ui package is a finding, not a skip', () => {
+      // The kit's issue-#113 reasoning over a package that is not the kit: no
+      // namespace here can be the file's own, so one this walk cannot read is
+      // one it cannot clear.
+      const findings = adminZoneFindings(
+        baseline({
+          files: [
+            ...baseline().files,
+            {
+              path: 'packages/page-builder-admin/src/Chrome.tsx',
+              source: 'const t = useTranslation(namespace);',
+              roles: ['admin-ui'],
+            },
+          ],
+        }),
+        'foreign-module-id',
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.message).toContain('cannot read');
+    });
+
+    it("a packaged module's admin layer, in both spellings of the coupling", () => {
+      // The half the tree moved out from under. Renders and contributions came
+      // off `layout.moduleWalkRoots` from the day P4a landed and this walk read
+      // `admin/src` alone, so a module that had *become a package* could gate on
+      // another module's id and render out of another module's namespace with
+      // nothing in the estate reading either. 37 of the module packages ship an
+      // admin layer and every batch of Story 3 adds one.
+      const findings = adminZoneFindings(
+        baseline({
+          files: [
+            ...baseline().files,
+            {
+              path: 'packages/modules/returns/src/admin/pages/ReturnDetail.tsx',
+              source: [
+                'const isVisible = useSurfaceVisibility();',
+                "const show = isVisible({ module: 'inpost' });",
+                "const t = useTranslation('orders');",
+              ].join('\n'),
+              roles: ['module'],
+              owner: 'returns',
+            },
+          ],
+          registered: ['catalog', 'returns', 'orders', 'inpost'],
+        }),
+        'foreign-module-id',
+      );
+      expect(findings.map((finding) => finding.key).sort()).toEqual([
+        'packages/modules/returns/src/admin/pages/ReturnDetail.tsx:module-namespace:orders',
+        'packages/modules/returns/src/admin/pages/ReturnDetail.tsx:visibility-gate:inpost',
+      ]);
+    });
+
+    it("a packaged module naming its own id is not foreign, in either spelling", () => {
+      // The attribution half of the widening: a package's owner is the
+      // `endora.id` it declares about itself, so its own namespace and its own
+      // gate are the file doing its job. Without this the widening would report
+      // every packaged screen for rendering out of its own bundle.
+      expect(
+        adminZoneFindings(
+          baseline({
+            files: [
+              ...baseline().files,
+              {
+                path: 'packages/modules/returns/src/admin/pages/ReturnDetail.tsx',
+                source: [
+                  'const isVisible = useSurfaceVisibility();',
+                  "const show = isVisible({ module: 'returns' });",
+                  "const t = useTranslation('returns');",
+                ].join('\n'),
+                roles: ['module'],
+                owner: 'returns',
+              },
+            ],
+            registered: ['catalog', 'returns'],
+          }),
+          'foreign-module-id',
+        ),
+      ).toHaveLength(0);
+    });
+
+    it('a computed namespace in an owned file is not a finding', () => {
+      // Deliberately the opposite answer to the kit's and the family's, and the
+      // reason is the owner: a file with an id of its own may perfectly well be
+      // naming that id through the expression this walk cannot read, so
+      // refusing it would report a module for rendering out of its own bundle.
+      expect(
+        adminZoneFindings(
+          baseline({
+            files: [
+              ...baseline().files,
+              {
+                path: 'packages/modules/returns/src/admin/pages/ReturnDetail.tsx',
+                source: 'const t = useTranslation(namespace);',
+                roles: ['module'],
+                owner: 'returns',
+              },
+            ],
+            registered: ['catalog', 'returns'],
+          }),
+          'foreign-module-id',
+        ),
+      ).toHaveLength(0);
+    });
+
     it("a module gating on its own id is not foreign", () => {
       expect(
         adminZoneFindings(
@@ -362,6 +513,7 @@ describe('check-admin-zones — the refusals', () => {
     kitFiles: 60,
     translationSites: 200,
     moduleIdCount: 69,
+    moduleAdminLayers: 37,
   };
 
   it('reports nothing to refuse on a complete run', () => {
@@ -376,10 +528,45 @@ describe('check-admin-zones — the refusals', () => {
     ['no kit source', { kitFiles: 0 }, 'kit-namespace population'],
     ['no useTranslation site', { translationSites: 0 }, 'unwatched tree'],
     ['no module id', { moduleIdCount: 0 }, 'could ever be foreign'],
+    ['no module admin layer', { moduleAdminLayers: 0 }, 'no independent author'],
   ])('refuses a run with %s', (_label, override, fragment) => {
     const reason = vacuousReason({ ...complete, ...override });
     expect(reason).not.toBeNull();
     expect(reason).toContain(fragment);
+  });
+
+  it('refuses a workspace with a frontend whose admin layout resolved to nothing', () => {
+    // Feature 110's T122. `App.tsx` and the nav are inside
+    // `@endora-commerce/admin-shell` now, so a shell that is unbuilt or
+    // renamed takes the host walk to zero — and no other floor here sees it:
+    // `hostFiles` stays comfortably non-empty on the module and kit walks
+    // alone, which is exactly why this needs a refusal of its own.
+    const reason = vacuousReason({
+      ...complete,
+      adminApplicationLost:
+        'no workspace member holds both App.tsx and components/AppShell.tsx under its source root',
+    });
+    expect(reason).not.toBeNull();
+    expect(reason).toContain('declares the admin source alias');
+    // The layout's sentence, carried rather than re-worded.
+    expect(reason).toContain('App.tsx');
+  });
+
+  it('is silent when the layout resolved, whatever else is true', () => {
+    // `null` is *"the caller asked and the layout is there"*, `undefined` is a
+    // caller that did not ask — a fixture, and the behaviour that shipped.
+    expect(vacuousReason({ ...complete, adminApplicationLost: null })).toBeNull();
+    expect(vacuousReason(complete)).toBeNull();
+  });
+
+  it('does not refuse a workspace that has no admin application at all', () => {
+    // `null` and `0` are different answers on purpose: a workspace with no admin
+    // application has no generated registry, so there is nothing to be short of
+    // and the `module-admin` token is omitted rather than printed `0/0` — which
+    // `read-size.ts` would refuse as `no-expectation` on every run. A workspace
+    // that *has* one whose registry names nothing has lost the floor's
+    // independent author, and that is the case above.
+    expect(vacuousReason({ ...complete, moduleAdminLayers: null })).toBeNull();
   });
 });
 

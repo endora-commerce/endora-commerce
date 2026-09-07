@@ -177,7 +177,7 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
     // reverts the last one in the order the ORM config *configures*. The two
     // agree only on a database migrated in one pass, which is what a clone of
     // the template is and what an incrementally-migrated database is not — see
-    // `templateDrift` in `test/run-isolation.ts` for the run this loop made
+    // `templateDrift` in `@endora-commerce/test-kit/database` for the run this loop made
     // when they disagreed.
     const migrator = db.orm.getMigrator();
     for (;;) {

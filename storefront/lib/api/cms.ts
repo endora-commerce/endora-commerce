@@ -1,5 +1,11 @@
-import type { CmsPage, CmsResolvedBlock, CmsResolvedHook, CmsResolvedPage } from '@endora-commerce/contracts';
+import type {
+  CmsPageIndexResponse,
+  CmsResolvedBlock,
+  CmsResolvedHook,
+  CmsResolvedPage,
+} from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
+import { isModuleDisabled } from './module-absence';
 
 /**
  * Fetch a published CMS block by its code (per the request's sales channel +
@@ -25,8 +31,9 @@ export async function getCmsBlockByCode(
 }
 
 /**
- * Public CMS paths must match `cmsPagePathSchema` (lowercase kebab segments).
- * URL bar and links may use different casing; normalize before calling the API.
+ * A published CMS slug is lowercase (`cmsSlugRe` in `packages/contracts`).
+ * A URL bar and a hand-written link may use different casing; normalize before
+ * calling the API, so one row is asked for under one key and one cache tag.
  */
 export function normalizeCmsUrlPath(path: string): string {
   return path
@@ -37,28 +44,16 @@ export function normalizeCmsUrlPath(path: string): string {
 }
 
 /**
- * Fetch a published CMS page by its kebab-case path. Returns null on 404
- * so caller pages can render a 404 in place of throwing.
+ * Fetch a published CMS page by its slug, resolved for the request's sales
+ * channel and language
+ * (`specs/105-cms-root-page-urls/contracts/cms-page-url.md` §3.1).
+ * Returns `null` on 404, so a caller can render a 404 in place of throwing.
+ *
+ * This is the only CMS page reader. A `path`-addressed one stood here until
+ * feature 105 and called an endpoint no module has ever registered, so every
+ * URL under it resolved to a 404 indistinguishable from an empty CMS; §3.2 is
+ * why that endpoint is not built rather than that caller repaired.
  */
-export async function getCmsPage(
-  path: string,
-  ctx: RequestContext,
-): Promise<CmsPage | null> {
-  const canonical = normalizeCmsUrlPath(path);
-  try {
-    const res = await apiGet<{ data: CmsPage }>(`/api/v1/cms/pages/${canonical}`, ctx, {
-      revalidate: 300,
-      tags: ['cms:page', `cms:page:${canonical}`],
-    });
-    return res.data;
-  } catch (err) {
-    if (err instanceof Error && (err as { status?: number }).status === 404) {
-      return null;
-    }
-    throw err;
-  }
-}
-
 export async function getCmsPageBySlug(
   slug: string,
   ctx: RequestContext,
@@ -104,6 +99,40 @@ export async function getCmsHookByCode(
     if (err instanceof StorefrontApiError && err.status === 404) {
       return null;
     }
+    throw err;
+  }
+}
+
+/**
+ * The published CMS pages of the request's sales channel, for the sitemap
+ * (`specs/105-cms-root-page-urls/` FR-020…FR-022; `contracts/cms-page-url.md`
+ * §4.1/§4.3).
+ *
+ * `null` means the `cms` module is **absent**, and it means nothing else. A
+ * switched-off module is a decision the platform made and the shop renders
+ * around it: the sitemap then advertises no CMS URL and still serves, which is
+ * the correct sitemap rather than a degraded one — the answer `getBlogIndex`
+ * already gives. Absence is read from the module's own `MODULE_DISABLED`
+ * refusal through `isModuleDisabled`, never from a bare `catch`, which would
+ * make a network blip look identical to an operator's withdrawal.
+ *
+ * Every other error propagates to the caller, which is a sitemap source with a
+ * narrow tolerance of its own: a crawler that gets a 500 here is told the shop
+ * advertises nothing at all, so a short sitemap is the better answer — but the
+ * decision to shorten belongs to the sitemap, not to this reader.
+ */
+export async function getCmsPageIndex(
+  ctx: RequestContext,
+): Promise<CmsPageIndexResponse | null> {
+  try {
+    const res = await apiGet<{ data: CmsPageIndexResponse }>(
+      '/api/v1/cms/pages/by-channel',
+      ctx,
+      { revalidate: 60, tags: ['cms:page'] },
+    );
+    return res.data;
+  } catch (err) {
+    if (isModuleDisabled(err)) return null;
     throw err;
   }
 }

@@ -1,11 +1,19 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { getShopInfo } from '../../lib/api/shop';
 import { getServerContext } from '../../lib/server-context';
 import { ContactForm } from '../../components/contact/ContactForm';
+import { Breadcrumbs } from '../../components/Breadcrumbs';
+import { tForLocale } from '../../lib/i18n/messages';
+import { seo } from './seo';
 
-export const metadata = {
+/**
+ * Indexable (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010/FR-012).
+ */
+export const metadata: Metadata = {
   title: 'Kontakt',
   description: 'Skontaktuj się z nami — formularz kontaktowy.',
+  alternates: { canonical: seo.route },
 };
 
 /**
@@ -13,11 +21,23 @@ export const metadata = {
  * `contact_form_submitted` trigger) alongside the shop's contact details.
  */
 export default async function KontaktPage(): Promise<ReactNode> {
-  const { ctx } = await getServerContext();
+  const { ctx, locale } = await getServerContext();
   const shop = await getShopInfo(ctx);
+  const t = tForLocale(locale);
 
   return (
     <div className="mx-auto max-w-[960px] px-[24px] py-[32px]">
+      {/*
+        The trail is the page's `BreadcrumbList` emitter as well as its
+        navigation: `Breadcrumbs` renders the JSON-LD itself, so declaring the
+        type in `seo.ts` and rendering the component are one change, not two.
+      */}
+      <Breadcrumbs
+        crumbs={[
+          { href: '/', label: t('nav.home') },
+          { href: '/kontakt', label: 'Kontakt' },
+        ]}
+      />
       <h1 className="text-[28px] font-semibold">Kontakt</h1>
       <p className="mt-2 text-[15px] text-muted">
         Masz pytanie? Wypełnij formularz — odpowiemy najszybciej, jak to możliwe.

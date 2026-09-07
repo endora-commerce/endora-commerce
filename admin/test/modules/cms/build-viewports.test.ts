@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildViewports } from '@/modules/cms/components/build-viewports';
+import { buildViewports } from '../../../../packages/modules/cms/src/admin/components/build-viewports';
 
 describe('buildViewports', () => {
   it('uses breakpoint tablet min (+ scrollbar nudge) and a desktop width of at least 1280', () => {

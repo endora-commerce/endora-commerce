@@ -10,6 +10,7 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  */
 export const manifest = defineModuleManifest({
   id: 'languages',
+  docs: { dir: 'docs' },
   name: 'Languages',
   description:
     'Storefront/admin language catalog and per-channel locale routing.',

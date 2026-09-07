@@ -1,16 +1,45 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import {
+  AdminLayoutUnresolvableError,
+  adminHostRootsOf,
+  adminRegistryPathOf,
+} from './lib/admin-surfaces.js';
+import {
+  adminRegistryPresent,
+  moduleAdminLayers,
+  type ModuleAdminLayer,
+} from './lib/module-admin-layers.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
-import { modulePackages, nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
+import {
+  adminUiPackages,
+  modulePackages,
+  nodeWorkspaceFs,
+  workspaceMembers,
+} from './lib/workspace-packages.js';
 
 /** The checkout, whichever one this file was loaded from. */
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
+/** One directory this check walks, and what put it in the population. */
+export interface AdminScanRoot {
+  /** Absolute directory. */
+  readonly dir: string;
+  /**
+   * The workspace member that declared it, or `null` for the admin
+   * application's own source tree.
+   */
+  readonly owner: string | null;
+  /** True for a root an `endora: { type: 'admin-ui' }` declaration produced. */
+  readonly adminUi: boolean;
+}
+
 /**
  * The roots the admin's user-visible strings live in, and the reason there is
- * more than one (feature 091, Phase 1b and Phase 4).
+ * more than one (feature 091, Phase 1b, Phase 4 and P5c).
  *
  * The population was `admin/src` alone, and the key was relative to it. Then 57
  * of those files moved into `@endora-commerce/admin-kit` — the admin's own
@@ -25,16 +54,52 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  * too. A screen moving from `admin/src/modules/<id>/` into
  * `packages/modules/<id>/src/admin/` is the identical relocation at the
  * identical granularity, and the batch that performs it is — by construction —
- * the batch that cannot see the entry describing it go stale. Neither the
- * directory nor the package name is spelled: a member declares
- * `endora: { type: 'module' }` about itself, and the layer is a root when the
- * package actually has one.
+ * the batch that cannot see the entry describing it go stale.
+ *
+ * **P5 opens it a fourth time, and this root is here *before* the move.** The
+ * shared page-builder chrome and the e-mail builder go into
+ * `@endora-commerce/page-builder-admin`, which is neither the admin
+ * application, nor the kit, nor a module package — so on the day it is created
+ * the four `_shared/email-builder` baseline entries (9 + 1 + 2 + 4 = 16
+ * findings) would name paths no root reaches, and the two-way ratchet would ask
+ * for them to be deleted. Sixteen untranslated strings would leave this ledger
+ * as *drained*, which is the same laundering in the same direction, one home
+ * further out. Widening while the files are still under `admin/src` is a
+ * measured no-op; widening afterwards adds the population that would have
+ * caught the move in the merge request that no longer needs it.
+ *
+ * **Feature 110's T120 opens it a fifth time, and this root is here *with* the
+ * move.** `admin/src` was the admin application, and T120 extracted the router,
+ * the shell and every host screen into `@endora-commerce/admin-shell`, leaving
+ * the alias member holding four files. `LoginPage.tsx`'s four baseline findings
+ * would have named a path no root reaches, and the two-way ratchet would have
+ * asked for the entry to be deleted — sixteen strings' worth of the same
+ * laundering, one home further out. So the admin's roots are the **host roots**
+ * the layout derives, which are the project's and the shell's, and the one
+ * baseline key moves with the file in the same merge request.
+ *
+ * ## Nothing here is spelled — every root is a declaration
+ *
+ * The admin application's own roots come from `lib/admin-surfaces.ts`, which
+ * derives them from the `"@/*"` alias and from the source root holding the
+ * route table and the nav — two declarations rather than a path this file
+ * names. Every other root is a workspace member's own statement about itself:
+ * `endora: { type: 'module' }` for a module package, whose admin layer is a
+ * root when the package has one, and `endora: { type: 'admin-ui' }` for a
+ * package whose whole source tree is admin UI. **The kit is found by that
+ * declaration and no longer by name.** It used to be `ADMIN_KIT_PACKAGE`, a constant naming
+ * `@endora-commerce/admin-kit`, which is a derived fact written down (D-100):
+ * the second admin-ui package would have had to be added to it by whoever
+ * remembered, and forgetting costs sixteen findings silently.
+ *
+ * Why a manifest field may decide a check's population at all, since the next
+ * reader will reach for D-171: that ruling refused a self-certified
+ * **exemption**, and this declaration is the opposite — it only ever adds
+ * obligations. The full reasoning is on `declaresAdminUi` in
+ * `lib/workspace-packages.ts`, where the derivation lives.
  *
  * The keys are repository-relative, so the ledger names one file in one
- * namespace whichever root it sits under. The kit's directory is not spelled
- * here either: it is the workspace member whose manifest carries the name, so a
- * move costs no edit and a kit that is gone is exit 2 rather than a population
- * quietly halved.
+ * namespace whichever root it sits under.
  *
  * **Exported because the companion test has to ask the same question, not a
  * similar one** (feature 091, Phase 4 batch three). It kept its own two-root
@@ -47,28 +112,118 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  * ledger. Two derivations of one population are two answers waiting to
  * disagree; there is one now.
  */
-export function defaultRoots(): readonly string[] {
+export function adminScanRoots(): readonly AdminScanRoot[] {
   const members = workspaceMembers(REPO_ROOT, nodeWorkspaceFs());
-  const kit = members.find((member) => member.name === ADMIN_KIT_PACKAGE);
-  if (kit === undefined) {
+  const adminUi = adminUiPackages(members);
+  if (adminUi.length === 0) {
     process.stderr.write(
-      `[i18n:hardcoded] no workspace member is ${ADMIN_KIT_PACKAGE} — half the admin's own ` +
-        'components would go unscanned and the ledger entries naming them would read as ' +
-        'drained; refusing to report a vacuous pass\n',
+      '[i18n:hardcoded] no workspace member declares `endora: { type: "admin-ui" }` — the ' +
+        "admin's own design system is one, so half the components every screen renders " +
+        'would go unscanned and the ledger entries naming them would read as drained; ' +
+        'refusing to report a vacuous pass\n',
     );
     process.exit(2);
   }
   const moduleAdminLayers = modulePackages(members)
-    .map((pkg) => join(pkg.dir, 'src', 'admin'))
+    .map((pkg) => ({ dir: join(pkg.dir, 'src', 'admin'), owner: pkg.name, adminUi: false }))
     // A module package with no admin layer is the ordinary case and contributes
-    // nothing — an empty set is legitimate here, unlike the kit's absence,
+    // nothing — an empty set is legitimate here, unlike the admin-ui set,
     // because before Story 3 there were no layers at all.
-    .filter((dir) => existsSync(dir));
-  return [join(REPO_ROOT, 'admin', 'src'), join(kit.dir, 'src'), ...moduleAdminLayers];
+    .filter((root) => existsSync(root.dir));
+  // The admin's own roots, and a refusal rather than a fallback when they
+  // cannot be derived (feature 110, T122). The alternative — carrying on with
+  // whatever roots are left — is `admin/src`'s four files plus the packages,
+  // over a ledger keyed by path: every entry naming a shell file would read as
+  // **drained**, which is the laundering this walk's own header exists to
+  // refuse, arriving through the derivation instead of through a move.
+  let hostRoots: readonly string[];
+  try {
+    hostRoots = adminHostRootsOf(members);
+  } catch (error: unknown) {
+    if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
+    process.stderr.write(`[i18n:hardcoded] ${error.message}; refusing to report a vacuous pass\n`);
+    process.exit(2);
+  }
+  return [
+    // `owner: null` for both, because both are the admin application's: the
+    // shell is not an `admin-ui` **library** whose every module id is foreign,
+    // it is the mounting point, relocated (feature 110, T122).
+    ...hostRoots.map((dir) => ({ dir, owner: null, adminUi: false })),
+    ...adminUi.map((pkg) => ({ dir: join(pkg.dir, 'src'), owner: pkg.name, adminUi: true })),
+    ...moduleAdminLayers,
+  ];
 }
 
-/** The package the admin's design system lives in since feature 091, Phase 1b. */
-const ADMIN_KIT_PACKAGE = '@endora-commerce/admin-kit';
+/** The directories {@link adminScanRoots} produces — the walk's input. */
+export function defaultRoots(): readonly string[] {
+  return adminScanRoots().map((root) => root.dir);
+}
+
+/**
+ * How many of the admin layers the generated registry names this walk opened as
+ * a root (feature 091 fallout; `contracts/admin-registry.md` R13b).
+ *
+ * **The registry is the independent author, and it is the only one there is for
+ * this family.** `admin-ui` corroborates two of the three root families; the
+ * third — 55 module packages' own `src/admin`, which is 357 of the 422 files
+ * this check reads — had none, and {@link adminScanRoots} builds it by asking
+ * the filesystem whether `<pkg>/src/admin` exists. A population that is a
+ * directory listing, reconciled against a count derived from the same listing,
+ * is the same answer twice (issue #244): every module admin layer could drop out
+ * of the walk at once and this check would print `files=65 sources=admin-ui:2/2`
+ * and exit 0, clean over the fifteen per cent of the admin it could still see.
+ * That is issue #215's short walk, on the population feature 091 is actively
+ * moving, one merge request at a time.
+ *
+ * `admin/src/modules.generated.ts` is a different program's answer to *"which
+ * packages ship admin code, and under which subpath"* — rendered by
+ * `generate-composer.ts`, refused by `overlay:check` when it is stale, foreign
+ * or empty — and `lib/module-admin-layers.ts` is the one derivation over it,
+ * shared with `check:admin-zones` and `check:admin-surface`. Nothing here spells
+ * `./admin` or `src/admin`; the subpath's source directory comes off the
+ * package's own `exports` map.
+ *
+ * **Coverage is the root, not a file under it.** One registry-named layer
+ * (`admin_roles`) is a barrel and no screen, so a layer holding no `.tsx` is the
+ * ordinary case rather than a finding, and a rule keyed on files would refuse a
+ * correct tree. What this can see is a layer that left the walk, which is the
+ * regression; what it cannot is a root that was walked and yielded nothing,
+ * which is `adminScanRoots`' own `existsSync` filter and the companion test's
+ * first case.
+ */
+export function coveredModuleAdminLayers(
+  layers: readonly Pick<ModuleAdminLayer, 'directory'>[],
+  walkedRoots: readonly string[],
+): number {
+  const walked = new Set(walkedRoots.map((root) => resolve(root)));
+  return layers.filter((layer) => walked.has(resolve(layer.directory))).length;
+}
+
+/**
+ * The floor's own vacuity refusal, or `null` when there is a floor to apply.
+ *
+ * `null` layers is *"this workspace has no admin contribution registry"* — a
+ * fixture tree, a checkout with no admin application — and the token is omitted
+ * rather than printed `0/0`, which `read-size.ts` refuses as `no-expectation`
+ * anyway. An **empty** array is the different and dangerous state: the registry
+ * is on disk and names nobody, so `module-admin:0/0` would corroborate nothing
+ * while looking exactly like a floor.
+ *
+ * Pure and exported so the proof drives it from a fixture rather than from a
+ * value a run computed (issue #130): the branch it guards ends in
+ * `process.exit(2)`, which nothing can enter at the top.
+ */
+export function moduleAdminFloorRefusal(
+  layers: readonly Pick<ModuleAdminLayer, 'directory'>[] | null,
+): string | null {
+  if (layers === null || layers.length > 0) return null;
+  return (
+    'the generated admin contribution registry names no module package — the module ' +
+    "packages' own `src/admin` layers are the larger part of this walk and their floor " +
+    'has no other author, so a batch that took every one of them out of the population ' +
+    'would print a clean line over the remainder; refusing to report a vacuous pass'
+  );
+}
 
 /**
  * `pnpm --filter backend run i18n:hardcoded [-- <path>… | --strict | --list]` — feature 021.
@@ -223,23 +378,53 @@ export function analyzeSource(source: string, filePath: string): Finding[] {
 export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // Issue #193 lifted the two federated-provider labels into
   // `preauth-login-copy.ts`; the four left are the second-step MFA screen.
-  'admin/src/components/LoginPage.tsx': 4,
+  //
+  // Re-keyed, not drained: feature 110's T120 moved `admin/src` into
+  // `@endora-commerce/admin-shell` and this walk's roots moved with it, so the
+  // same four strings in the same component are read at the path they now sit
+  // at. The count is unmoved, which is what says nothing was translated.
+  'packages/admin-shell/src/components/LoginPage.tsx': 4,
   // Feature 091's P4c published the asset cluster, so this file's one finding
   // ("Clear asset") is the kit's now. The count is unmoved: the same string in
   // the same component, under the path the walk reads it at.
   'packages/admin-kit/src/components/asset-picker/AssetFieldPicker.tsx': 1,
   'packages/admin-kit/src/components/rule-builder/RuleBuilder.tsx': 6,
   'packages/admin-kit/src/ui/color-picker.tsx': 1,
-  'admin/src/modules/_shared/email-builder/EmailEditorPane.tsx': 9,
-  'admin/src/modules/_shared/email-builder/EmailRichTextField.tsx': 1,
-  'admin/src/modules/_shared/email-builder/EmailRowLayoutPicker.tsx': 2,
-  'admin/src/modules/_shared/email-builder/EmailVariablesProvider.tsx': 4,
-  'admin/src/modules/cms/components/AssetPickers.tsx': 5,
-  'admin/src/modules/cms/components/ButtonLinkFields.tsx': 4,
-  'admin/src/modules/cms/components/CatalogPickers.tsx': 13,
-  'admin/src/modules/cms/components/ComponentDragHandle.tsx': 1,
-  'admin/src/modules/cms/components/RowLayoutPicker.tsx': 2,
-  'admin/src/modules/invoices/templates/invoice-puck-config.tsx': 6,
+  // Feature 091's P5b published the shared page-builder chrome and the e-mail
+  // builder as `@endora-commerce/page-builder-admin`, and these **six** entries
+  // are **re-keyed**, not raised and not dropped. Every count is unmoved: the
+  // same strings in the same components, under the paths the walk reads them at
+  // now. Four of them were `_shared/email-builder`'s (9 + 1 + 2 + 4 = 16, the
+  // figure P5c's widening was sized against) and two are `cms`' — `AssetPickers`
+  // and `CatalogPickers` moved with the chrome, which the plan's count of the
+  // e-mail half did not include. The walk reaches them because the package
+  // declares `endora: { type: 'admin-ui' }`; forget that block and all six go
+  // *stale* in the same run rather than silently unread, which is the property
+  // that makes a self-declared population safe here.
+  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 9,
+  'packages/page-builder-admin/src/email/EmailRichTextField.tsx': 1,
+  'packages/page-builder-admin/src/email/EmailRowLayoutPicker.tsx': 2,
+  'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': 4,
+  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 5,
+  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 13,
+  // Feature 091, Phase 4 batch 16 — re-keyed, not raised and not dropped:
+  // `cms` took its admin surface into its package and these three files went
+  // with it. Every count is unmoved; the same strings in the same components,
+  // under the paths the walk reads them at now. This baseline is a ledger
+  // *about* the files it names rather than one of them, so the merge request
+  // that moves a file is structurally the one that cannot see the entry go
+  // stale — the shape the six entries above record for P5b, and the reason both
+  // halves are corrected here rather than one of them going red later.
+  'packages/modules/cms/src/admin/components/ButtonLinkFields.tsx': 4,
+  'packages/modules/cms/src/admin/components/ComponentDragHandle.tsx': 1,
+  'packages/modules/cms/src/admin/components/RowLayoutPicker.tsx': 2,
+  // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `invoices` took its
+  // admin surface into its package and this file went with it. The count is
+  // untouched; nothing about the strings changed, only their address. This
+  // baseline is a ledger *about* the files it names rather than one of them,
+  // so the merge request that moves a file is structurally the one that
+  // cannot see the entry go stale.
+  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 6,
   // Feature 091, Phase 4 batch three: the screen moved into its module's
   // package and the entry is **re-keyed**, not raised and not dropped. The
   // finding is one LinkedIn URN format example in a `placeholder`, and it is
@@ -309,26 +494,70 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // four files carry no finding — the library screen, its folder tree and its
   // detail drawer render every sentence through `useTranslation`.
   'packages/modules/custom_fields/src/admin/pages/CustomFieldsPage.tsx': 4,
-  'admin/src/modules/newsletter/pages/AutomationBuilder.tsx': 6,
-  'admin/src/modules/newsletter/pages/AutomationsPage.tsx': 4,
-  'admin/src/modules/newsletter/pages/BlocksPage.tsx': 8,
-  'admin/src/modules/newsletter/pages/CampaignEditor.tsx': 14,
-  'admin/src/modules/newsletter/pages/CampaignStats.tsx': 3,
-  'admin/src/modules/newsletter/pages/CampaignsPage.tsx': 4,
-  'admin/src/modules/newsletter/pages/ProviderSettingsPage.tsx': 7,
-  'admin/src/modules/newsletter/pages/SubscribersPage.tsx': 6,
-  'admin/src/modules/newsletter/pages/TagsPage.tsx': 9,
-  'admin/src/modules/organizations/panels/RestrictionsPanel.tsx': 1,
-  'admin/src/modules/pim_ergonode/ErgonodeConnectionPage.tsx': 1,
-  'admin/src/modules/settings/PushAudienceRuleBuilder.tsx': 17,
-  'admin/src/modules/settings/components/AssetIdSettingInput.tsx': 1,
-  'admin/src/modules/settings/pages/PwaPage.tsx': 22,
-  'admin/src/modules/transactional_emails/components/BrandingPanel.tsx': 5,
-  'admin/src/modules/transactional_emails/pages/EmailBlocksPage.tsx': 3,
-  'admin/src/modules/transactional_emails/pages/EmailEditor.tsx': 3,
-  'admin/src/modules/transactional_emails/pages/EmailFragmentEditor.tsx': 1,
-  'admin/src/modules/transactional_emails/pages/EmailTemplatesPage.tsx': 3,
-  'admin/src/modules/transactional_emails/pages/EmailsList.tsx': 4,
+  // Feature 091, Phase 4 batch 10 — three entries **re-keyed**, not raised and
+  // not dropped: the same 17, 22 and 1 findings at new addresses, which the
+  // two-way ratchet reported in one run as three regressions at the new keys
+  // and three drains at the old ones.
+  //
+  // Two of the three moved further than the rest of their directory.
+  // `PwaPage.tsx` and `PushAudienceRuleBuilder.tsx` sat under
+  // `admin/src/modules/settings/` and are `pwa`'s screen and its rule builder;
+  // batch six moved that module's sidebar entry alone and said the route would
+  // follow when `settings` moved, so they are `@endora-commerce/mod-pwa`'s now
+  // rather than `settings`'. The debt travels with the file and is untouched:
+  // between them they render the whole push-notification screen — the icon
+  // uploader, the VAPID controls, the audience builder's operators — in English
+  // whatever language the operator chose. Translating it is a screen's worth of
+  // keys and belongs to whoever repairs that screen, not to a batch whose
+  // subject is where the file lives.
+  //
+  // `dictionaries` and `credentials` moved in the same batch and get no entry,
+  // because none of their nine files carries a finding.
+  // Feature 091, Phase 4 batch 11 — fifteen entries **re-keyed**, not raised
+  // and not dropped: the same 6, 4, 8, 14, 3, 4, 7, 6, 9, 5, 3, 3, 1, 3 and 4
+  // findings at new addresses, which the two-way ratchet reported in one run as
+  // fifteen regressions at the new keys and fifteen drains at the old ones.
+  //
+  // The debt travels with the file and is untouched. Between them these fifteen
+  // render the whole newsletter surface — subscribers, campaigns, automations,
+  // tags, blocks, the sending provider — and the transactional-email editors
+  // and branding panel, in English whatever language the operator chose.
+  // Translating them is two screens' worth of keys per module and belongs to
+  // whoever repairs those screens, not to a batch whose subject is where the
+  // file lives.
+  'packages/modules/newsletter/src/admin/pages/AutomationBuilder.tsx': 6,
+  'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 4,
+  'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 8,
+  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 14,
+  'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': 3,
+  'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 4,
+  'packages/modules/newsletter/src/admin/pages/ProviderSettingsPage.tsx': 7,
+  'packages/modules/newsletter/src/admin/pages/SubscribersPage.tsx': 6,
+  'packages/modules/newsletter/src/admin/pages/TagsPage.tsx': 9,
+  'packages/modules/transactional_emails/src/admin/components/BrandingPanel.tsx': 5,
+  'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 3,
+  'packages/modules/transactional_emails/src/admin/pages/EmailEditor.tsx': 3,
+  'packages/modules/transactional_emails/src/admin/pages/EmailFragmentEditor.tsx': 1,
+  'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 3,
+  'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 4,
+  'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 17,
+  'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 22,
+  'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
+  // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `organizations`
+  // took its admin surface into its package and this panel went with it. The
+  // finding is unchanged, and this ledger is one **about** the files it names
+  // rather than one of them, so the batch that moves a screen is structurally
+  // the batch that cannot see the entry go stale — which is why it is
+  // corrected here, in the same merge request.
+  'packages/modules/organizations/src/admin/panels/RestrictionsPanel.tsx': 1,
+  // Feature 091, Phase 4 batch 13 — re-keyed, not dropped: `pim_ergonode` took
+  // its admin surface into its package and this screen went with it. The
+  // finding is unchanged (one `placeholder` reading `https://pim.example.com`),
+  // and this ledger is one **about** the files it names rather than one of
+  // them, so the batch that moves a screen is structurally the batch that
+  // cannot see the entry go stale — which is why it is corrected here, in the
+  // same merge request.
+  'packages/modules/pim_ergonode/src/admin/pages/ErgonodeConnectionPage.tsx': 1,
 };
 
 /** One file's measured count against its baseline. */
@@ -396,13 +625,14 @@ export function collectTsxFiles(root: string, out: string[]): void {
   }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const positional = argv.filter((a) => !a.startsWith('--'));
   // The default root is resolved against the repository, not the working
   // directory. `admin/src` was relative to `process.cwd()`, and the documented
   // invocation runs with `backend/` as the cwd, where no such directory exists.
-  const roots = positional.length > 0 ? positional : defaultRoots();
+  const declared = positional.length > 0 ? null : adminScanRoots();
+  const roots = declared === null ? positional : declared.map((root) => root.dir);
   // The baseline is measured over the whole of `admin/src`, so it can only judge
   // a run that scanned the whole of `admin/src`. Given a path, every file the
   // ledger names but the walk never opened would read as drained — so an
@@ -411,7 +641,12 @@ function main(): void {
   const strict = argv.includes('--strict') || positional.length > 0;
 
   const files: string[] = [];
+  // Per root, so the `sources=` token below can say which declared root
+  // contributed nothing rather than only how many files the walk opened in
+  // total.
+  const perRoot: number[] = [];
   for (const r of roots) {
+    const before = files.length;
     try {
       const st = statSync(r);
       if (st.isDirectory()) collectTsxFiles(r, files);
@@ -419,6 +654,7 @@ function main(): void {
     } catch {
       process.stderr.write(`[i18n:hardcoded] path not found: ${r}\n`);
     }
+    perRoot.push(files.length - before);
   }
 
   if (files.length === 0) {
@@ -435,10 +671,82 @@ function main(): void {
   const findings: Finding[] = [];
   for (const f of files) walkFile(f, findings);
 
+  // The module-admin floor. It is resolved here rather than inside
+  // `adminScanRoots` because it is deliberately **not** part of the population:
+  // the roots are this walk's own listing, and this is the second program's
+  // answer they are reconciled against. See `coveredModuleAdminLayers`.
+  //
+  // An explicit path (the draining mode) reads a deliberate subset and declares
+  // no coverage at all, so nothing is resolved for it — which also keeps the
+  // draining mode free of the manifest index, as it has always been.
+  let adminLayers: readonly ModuleAdminLayer[] | null = null;
+  if (declared !== null) {
+    const registryFile = adminRegistryPathOf(workspaceMembers(REPO_ROOT, nodeWorkspaceFs()));
+    // The gate is the registry file and nothing else — `check:admin-zones`' T4
+    // repair, for the reason `admin-kit-surface.md` §7.5 measured: a gate that
+    // can go false for a reason having nothing to do with the registry omits
+    // this token over every layer while the check prints a clean line. A
+    // workspace with no admin application has no registry and no token; one
+    // whose registry is there and names none is the refusal below.
+    if (adminRegistryPresent(registryFile)) {
+      const layout = await requireModuleLayout('[i18n:hardcoded]');
+      adminLayers = moduleAdminLayers(layout, registryFile!);
+      const refusal = moduleAdminFloorRefusal(adminLayers);
+      if (refusal !== null) {
+        process.stderr.write(`[i18n:hardcoded] ${refusal}\n`);
+        process.exit(2);
+      }
+    }
+  }
+
   // What was read, in the shared grammar (issue #244) — before the `--strict`
-  // branch below, so both modes disclose the same walk. `self-reported`: the
-  // population is the admin SPA's own tree, which nothing else derives.
-  reportReadSize({ prefix: '[i18n:hardcoded]', files: files.length });
+  // branch below, so both modes disclose the same walk.
+  //
+  // Two corroborations, one per root family that has a second author. **admin-ui**:
+  // the workspace manifests say how many packages ship a tree of admin UI, this
+  // walk says how many of them produced a file, and a package that declared
+  // itself and contributed nothing is a `short-walk` refusal rather than a
+  // quietly narrowed scan. It replaced a by-name refusal ("no member is
+  // `@endora-commerce/admin-kit`") and is strictly wider: the kit going missing
+  // still exits 2, and so does the second admin-ui package's tree moving out
+  // from under the walk (feature 091, P5c). **module-admin**: the generated
+  // contribution registry's answer, reconciled against the roots this walk
+  // opened — the floor the third and largest family had none of until feature
+  // 091's drain made the absence measurable.
+  //
+  // The application's own `admin/src` still has no second author and is not
+  // reconciled here; the companion test's ledger case is what floors it, since
+  // every entry `HARDCODED_STRINGS_BASELINE` names has to be a file this walk
+  // opened.
+  reportReadSize({
+    prefix: '[i18n:hardcoded]',
+    files: files.length,
+    coverage:
+      declared === null
+        ? []
+        : [
+            {
+              source: 'admin-ui',
+              expected: declared.filter((root) => root.adminUi).length,
+              covered: declared.filter((root, index) => root.adminUi && perRoot[index]! > 0)
+                .length,
+            },
+            // Omitted rather than printed `0/0` where the registry is not on
+            // disk, which `read-size.ts` refuses as `no-expectation`.
+            ...(adminLayers === null
+              ? []
+              : [
+                  {
+                    source: 'module-admin',
+                    expected: adminLayers.length,
+                    covered: coveredModuleAdminLayers(
+                      adminLayers,
+                      declared.map((root) => root.dir),
+                    ),
+                  },
+                ]),
+          ],
+  });
 
   const cwd = process.cwd();
   const print = (f: Finding): void => {
@@ -503,5 +811,5 @@ function main(): void {
 // Run as CLI only — importing this module (e.g. from a unit test) must not
 // trigger the scan + process.exit.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  void main();
 }

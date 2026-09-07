@@ -45,8 +45,14 @@ export * from './seo.js';
 export * from './i18n.js';
 export * from './platform-language.js';
 export * from './admin-i18n.js';
-export * from './cms-pages.js';
 export {
+  // `cmsPageStatusSchema` and `CmsPageStatus` are on this list because feature
+  // 105 removed the file that used to supply them to the barrel. Both files
+  // declared the same enum, `cms-pages.js`' star export won the collision, and
+  // that file is gone with the pre-014 page projection — so naming `cms.js`'
+  // pair here is what keeps the two names on the barrel with the shape they
+  // always had.
+  cmsPageStatusSchema,
   cmsContentEnvelopeSchema,
   cmsPageSummarySchema,
   cmsPageDetailSchema,
@@ -68,6 +74,13 @@ export {
   cmsHookAttachmentRequestSchema,
   cmsFieldDescriptorSchema,
   cmsPageBuilderDescriptorSchema,
+  // Feature 096 — the Page Builder block vocabulary. `blockNameRe` is the one
+  // authored copy of the persisted-name grammar; `page-builder-core` imports it
+  // rather than restating it.
+  blockNameRe,
+  blockCategoryKeyRe,
+  BlockDefinitionSchema,
+  BlockCategorySchema,
   cmsColorPaletteEntrySchema,
   cmsColorPaletteSchema,
   putCmsColorPaletteRequestSchema,
@@ -76,6 +89,13 @@ export {
   cmsResolvedTemplateSchema,
   cmsResolvedPageSchema,
   cmsResolvedHookSchema,
+  // Feature 105, Phase 3 — what the shop advertises to a crawler.
+  cmsPageIndexEntrySchema,
+  cmsPageIndexResponseSchema,
+  // Feature 105, Phase 4 — the reserved set the editor and the refusal share.
+  cmsReservedSegmentsResponseSchema,
+  firstSlugSegment,
+  type CmsPageStatus,
   type CmsContentEnvelope,
   type CmsPageSummary,
   type CmsPageDetail,
@@ -97,6 +117,8 @@ export {
   type CmsHookAttachmentRequest,
   type CmsFieldDescriptor,
   type CmsPageBuilderDescriptor,
+  type BlockDefinition,
+  type BlockCategory,
   type CmsColorPaletteEntry,
   type CmsColorPalette,
   type PutCmsColorPaletteRequest,
@@ -105,9 +127,17 @@ export {
   type CmsResolvedTemplate,
   type CmsResolvedPage,
   type CmsResolvedHook,
+  type CmsPageIndexEntry,
+  type CmsPageIndexResponse,
+  type CmsReservedSegmentsResponse,
   // Feature 075, Phase P — the in-process port surface. Named here like every
-  // other `cms` export because this file re-exports the module explicitly to
-  // resolve name collisions.
+  // other `cms` export because this file re-exports the module by name rather
+  // than with a star: the barrel's CMS surface is what this list says it is,
+  // and nothing leaves `cms.ts` for a consumer without being written here.
+  // Until feature 105 the list also resolved a collision — `cms-pages.ts` held
+  // a second `cmsPageStatusSchema` and a second `CmsPage` over the pre-014
+  // `path`/`title`/`body` projection, and that file's last reader is gone with
+  // it.
   type CmsReference,
   type CmsExternalReferenceScanner,
   type CmsReferenceRegistryPort,
@@ -147,6 +177,12 @@ export * from './ksef.js';
 export * from './product-feeds.js';
 export * from './pim-ergonode.js';
 export * from './pim-akeneo.js';
+export * from './pim-connector.js';
+export {
+  canonicalisePimFieldPath,
+  isValidPimFieldPath,
+} from './pim-field-path.js';
+export * from './pim-unopim.js';
 export * from './pim-pimcore.js';
 export * from './kernel.js';
 // Port contracts published by feature 075's Phase P for providers that had no
@@ -176,3 +212,8 @@ export * from './text-normalization.js';
 // stored and compared in one form, reachable by both modules that key a row on
 // one.
 export * from './email-address.js';
+// The environment-input declaration (feature 117, FR-001). Not an API shape: it
+// is the one machine-readable statement of what a running platform needs, read
+// by the scaffolding commands, by `endora doctor` and by the reconciliation
+// check — three readers, one declaration, no second list (D-100).
+export * from './environment-inputs.js';

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ModuleIdCollisionError,
-  assertNoPackageModuleIdCollisions,
-  packageModuleIdCollisions,
+  assertNoModuleIdCollisions,
+  moduleIdCollisions,
   type ModuleIdClaim,
 } from '../../../src/packages/module-id-claims.js';
 
@@ -43,7 +43,7 @@ const pkg = (id: string, name: string): ModuleIdClaim => ({
 
 describe('two packages claiming one module id', () => {
   it('is a collision, and names both resolved package.json paths and the id', () => {
-    const collisions = packageModuleIdCollisions([
+    const collisions = moduleIdCollisions([
       pkg('blog', '@a/mod-blog'),
       pkg('blog', '@b/mod-blog'),
     ]);
@@ -57,7 +57,7 @@ describe('two packages claiming one module id', () => {
 
     const error = (() => {
       try {
-        assertNoPackageModuleIdCollisions([pkg('blog', '@a/mod-blog'), pkg('blog', '@b/mod-blog')]);
+        assertNoModuleIdCollisions([pkg('blog', '@a/mod-blog'), pkg('blog', '@b/mod-blog')]);
         return null;
       } catch (thrown) {
         return thrown;
@@ -76,7 +76,7 @@ describe('two packages claiming one module id', () => {
     // whichever package the directory listing happened to yield last, and the
     // container had already composed both.
     expect(() =>
-      assertNoPackageModuleIdCollisions([pkg('blog', '@a/mod-blog'), pkg('blog', '@b/mod-blog')]),
+      assertNoModuleIdCollisions([pkg('blog', '@a/mod-blog'), pkg('blog', '@b/mod-blog')]),
     ).toThrow(ModuleIdCollisionError);
   });
 });
@@ -86,32 +86,59 @@ describe('a package claiming a core module id', () => {
     // `resolvedManifestEntries`' `continue` is correct for an overlay — a
     // deployment shadowing files it authored — and wrong for a stranger, who
     // has to be told rather than dropped (D-155.7).
-    expect(() => assertNoPackageModuleIdCollisions([core('blog'), pkg('blog', '@a/mod-blog')])).toThrow(
+    expect(() => assertNoModuleIdCollisions([core('blog'), pkg('blog', '@a/mod-blog')])).toThrow(
       ModuleIdCollisionError,
     );
-    expect(() => assertNoPackageModuleIdCollisions([core('blog'), pkg('blog', '@a/mod-blog')])).toThrow(
+    expect(() => assertNoModuleIdCollisions([core('blog'), pkg('blog', '@a/mod-blog')])).toThrow(
       /backend[/\\]src[/\\]modules[/\\]blog[/\\]manifest\.ts/,
     );
   });
 
   it('names the core manifest as the other claimant', () => {
-    const collisions = packageModuleIdCollisions([core('blog'), pkg('blog', '@a/mod-blog')]);
+    const collisions = moduleIdCollisions([core('blog'), pkg('blog', '@a/mod-blog')]);
     expect(collisions[0]?.claims.map((c) => c.origin)).toEqual(['core', 'package']);
   });
 });
 
-describe('what it deliberately does not refuse', () => {
-  it('leaves a core id and an overlay id colliding to the existing shadowing rule', () => {
-    // Not this function's question. An overlay module shadowing a core id is
-    // dropped by `resolvedManifestEntries` on purpose and has been since D-103;
-    // widening this refusal to cover it would change a shipped behaviour under
-    // cover of a package fix.
-    expect(packageModuleIdCollisions([core('blog'), overlay('blog')])).toEqual([]);
+describe('an overlay module claiming a core module id', () => {
+  it('is the same refusal (feature 103, FR-004)', () => {
+    // It used to be excluded, on the reading that a deployment shadowing a
+    // module it authored is what the overlay mechanism is for. D-201 retires
+    // file shadowing, so nothing is being shadowed — and the exclusion was
+    // never the whole answer anyway: `resolvedManifestEntries` dropped the
+    // manifest while `overlayModuleEntriesUnder` composed the module, so the
+    // deployment ran a module with no registry row, no permission-catalogue
+    // entry and its routes gated on another module's effective state.
+    expect(() => assertNoModuleIdCollisions([core('blog'), overlay('blog')])).toThrow(
+      ModuleIdCollisionError,
+    );
+    expect(moduleIdCollisions([core('blog'), overlay('blog')])[0]?.claims.map((c) => c.origin)).toEqual(
+      ['core', 'overlay'],
+    );
   });
 
+  it('names both files and tells the deployment author to rename, not to uninstall', () => {
+    const error = (() => {
+      try {
+        assertNoModuleIdCollisions([core('blog'), overlay('blog')]);
+        return null;
+      } catch (thrown) {
+        return thrown;
+      }
+    })();
+    const message = (error as Error).message;
+    expect(message).toContain('/repo/backend/src/modules/blog/manifest.ts');
+    expect(message).toContain('/repo/backend/src/apps/acme/modules/blog/manifest.ts');
+    expect(message).toMatch(/id of this deployment's own/);
+    // Nobody installed this one, so the package remedy has no business here.
+    expect(message).not.toContain('pnpm remove');
+  });
+});
+
+describe('what it deliberately does not refuse', () => {
   it('accepts distinct ids from any number of packages', () => {
     expect(
-      packageModuleIdCollisions([
+      moduleIdCollisions([
         core('blog'),
         overlay('acme_bi'),
         pkg('crm', '@a/mod-crm'),
@@ -121,7 +148,7 @@ describe('what it deliberately does not refuse', () => {
   });
 
   it('reports every colliding id, not only the first', () => {
-    const collisions = packageModuleIdCollisions([
+    const collisions = moduleIdCollisions([
       pkg('blog', '@a/mod-blog'),
       pkg('blog', '@b/mod-blog'),
       pkg('crm', '@a/mod-crm'),

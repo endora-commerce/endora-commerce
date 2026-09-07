@@ -19,6 +19,8 @@ import {
   type SourceTree,
 } from '../../../scripts/generate-composer.js';
 import { findAliasMember } from '../../../scripts/lib/admin-surfaces.js';
+import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
+import { MODULE_REFERENCE_CATEGORY, resolveDocsLayout } from '../../../scripts/lib/module-docs.js';
 import {
   nodeWorkspaceFs,
   workspaceMembers,
@@ -100,12 +102,86 @@ describe('coveredArtifactPaths', () => {
     return resolve(member.dir, target);
   })();
 
+  /**
+   * The documentation site's own root, derived the way the generator derives it
+   * (feature 100): the workspace member holding a Docusaurus configuration.
+   *
+   * A third root, because the two documentation artefacts are the first that
+   * live outside a source tree — and the first that are not `.ts`. A sweep that
+   * kept looking only under `backend/src` and the admin would have agreed with
+   * itself perfectly while two committed generated files drifted with nothing
+   * watching, which is exactly the state this ratchet exists to refuse.
+   */
+  const docsRoot = ((): string => {
+    const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+    return resolveDocsLayout(repoRoot).member.dir;
+  })();
+
+  /**
+   * The generated reference pages' category (feature 100 Phase 3).
+   *
+   * A **directory** rather than a filename suffix, because these artefacts are
+   * pages a reader lands on: `module-reference/catalog.generated` would put the
+   * word in a public URL to satisfy a sweep. Every page in that category is
+   * generated from a manifest, so the category *is* the population — and
+   * sweeping it keeps the ratchet two-way in the direction that matters most
+   * here: a page for a module that has gone is on disk, named by no render, and
+   * is exactly what this comparison reports.
+   */
+  /**
+   * The platform package's own source root, derived the way the generator
+   * derives it: the workspace member declaring `endora.type: "platform"`.
+   *
+   * A **fourth** root, because the published baseline list
+   * (`specs/110-instance-repository/` R1.5) is the first artefact that lands
+   * inside a package rather than in an application's tree — the frozen
+   * historical prefix is data about this platform's history, and a client
+   * receives it by installing the platform. Without it this sweep would agree
+   * with itself perfectly while that artefact drifted with nothing watching,
+   * which is the state it exists to refuse. A workspace with no such member is a
+   * refusal rather than a walk quietly narrowed.
+   */
+  const platformSourceRoot = ((): string => {
+    const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+    const root = platformSourceRootAt(repoRoot);
+    if (root === null) {
+      throw new Error(
+        'no workspace member declares `endora.type: "platform"`, so the sweep below would ' +
+          'not look at the published baseline list at all',
+      );
+    }
+    return root;
+  })();
+
+  const referenceRoot = ((): string => {
+    const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+    return join(resolveDocsLayout(repoRoot).contentRoot, MODULE_REFERENCE_CATEGORY);
+  })();
+
+  function referencePagesOnDisk(): string[] {
+    return readdirSync(referenceRoot)
+      .filter((name) => name.endsWith('.md') || name.endsWith('.mdx'))
+      .map((name) => join(referenceRoot, name));
+  }
+
+  /**
+   * Every committed generated file under `dir`, by suffix rather than by
+   * extension.
+   *
+   * `.generated.js` and `.generated.md` are the documentation registry's; the
+   * build outputs are skipped by name, because `build/` and `.docusaurus/` hold
+   * copies of the site's own tree and a sweep that read them would report each
+   * artefact several times over.
+   */
+  const SKIPPED = new Set(['node_modules', 'dist', 'build', '.docusaurus']);
+  const GENERATED = ['.generated.ts', '.generated.js', '.generated.md'];
+
   function generatedFilesUnder(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
-      if (name === 'node_modules' || name === 'dist') continue;
+      if (SKIPPED.has(name)) continue;
       const full = join(dir, name);
       if (statSync(full).isDirectory()) generatedFilesUnder(full, out);
-      else if (name.endsWith('.generated.ts')) out.push(full);
+      else if (GENERATED.some((suffix) => name.endsWith(suffix))) out.push(full);
     }
     return out;
   }
@@ -123,26 +199,37 @@ describe('coveredArtifactPaths', () => {
     const onDisk = [
       ...generatedFilesUnder(srcRoot),
       ...generatedFilesUnder(adminSourceRoot),
+      ...generatedFilesUnder(platformSourceRoot),
+      ...generatedFilesUnder(docsRoot),
+      ...referencePagesOnDisk(),
     ].sort();
     expect(onDisk).toEqual([...coveredArtifactPaths()].sort());
   });
 
-  it('names one override manifest per deployment on disk, plus bare core', () => {
+  it('names both renderings of one divergence report per deployment, plus bare core', () => {
     // The half the sweep above cannot show on its own: it compares two lists
     // that would agree just as well if both had lost the same deployment.
-    const manifests = [...coveredArtifactPaths()].filter((p) =>
-      p.includes('override-manifest'),
-    );
-    expect(manifests.some((p) => p.endsWith('overlay/override-manifest.core.generated.ts'))).toBe(
-      true,
-    );
-    for (const deployment of deploymentsOnDisk()) {
+    //
+    // **Both** renderings, because one derivation emits two (feature 107,
+    // FR-015) and the `.md` is the one a human reads: a gate covering only the
+    // `.ts` would leave the human rendering free to drift, which is the one
+    // artefact whose drift nobody would catch by reading it.
+    const reports = [...coveredArtifactPaths()].filter((p) => p.includes('divergence.'));
+    for (const extension of ['ts', 'md']) {
       expect(
-        manifests.some((p) => p.endsWith(join('apps', deployment, 'override-manifest.generated.ts'))),
-        `no override manifest covered for deployment '${deployment}'`,
+        reports.some((p) => p.endsWith(`overlay/divergence.core.generated.${extension}`)),
+        `bare core's .${extension} rendering is covered by no determinism gate`,
       ).toBe(true);
+      for (const deployment of deploymentsOnDisk()) {
+        expect(
+          reports.some((p) =>
+            p.endsWith(join('apps', deployment, `divergence.generated.${extension}`)),
+          ),
+          `no .${extension} divergence rendering covered for deployment '${deployment}'`,
+        ).toBe(true);
+      }
     }
-    expect(manifests).toHaveLength(deploymentsOnDisk().length + 1);
+    expect(reports).toHaveLength((deploymentsOnDisk().length + 1) * 2);
   });
 });
 

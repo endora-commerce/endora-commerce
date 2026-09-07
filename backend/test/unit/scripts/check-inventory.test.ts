@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   ModuleManifestSchema,
+  SUPPORTED_LANGUAGES,
   defineModuleManifest,
+  type EnvironmentInput,
   type ModuleManifest,
 } from '@endora-commerce/contracts';
 
@@ -23,6 +25,15 @@ import {
   type ActionRecord,
 } from '../../../scripts/check-action-route-permissions.js';
 import { analyzeSource as containerAnalyze } from '../../../scripts/check-container-imports.js';
+import {
+  checkEnvironmentInputs,
+  collectEnvironmentReads,
+  DeclarationUnreadableError,
+  evaluateDeclarationArray,
+  type DeclarationSource,
+  type EnvInputFindingKind,
+  type EnvSourceFile,
+} from '../../../scripts/check-env-inputs.js';
 import {
   checkDocument,
   discoverCitingDocuments,
@@ -54,7 +65,7 @@ import {
   reconcileEnumeration,
   type TranslationInput,
 } from '../../../scripts/check-error-translations.js';
-import { buildErrorTranslationTargets } from '@endora-commerce/mod-i18n/backend';
+import { buildErrorTranslationTargets } from '../../../src/kernel/i18n/error-translation.js';
 import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
 import { checkFixtureSubstitution } from '../../../scripts/check-fixture-substitution.js';
 import {
@@ -73,28 +84,135 @@ import {
 } from '../../../scripts/check-kernel-boundary.js';
 import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
 import {
-  checkAdminRegistrations,
-  vacuousReason as adminRegistrationsVacuousReason,
-  type AdminRegistrationFinding,
-} from '../../../scripts/check-admin-registrations.js';
+  findingsOfKind as testOwnershipFindingsOfKind,
+  ledgerIssues as testOwnershipLedgerIssues,
+  HARNESS_FREE_BLOG_TEST,
+  SCHEDULED as TEST_OWNERSHIP_SCHEDULED,
+  SERVER_BOUND_BLOG_TEST,
+  shard as testOwnershipShard,
+} from '../../helpers/test-ownership-fixture.js';
+import { vacuousTestOwnership } from '../../../scripts/check-test-ownership.js';
 import { ADMIN_HOST_OWNER } from '../../../scripts/lib/admin-surfaces.js';
 import { checkEmittedFreshness } from '../../../scripts/lib/emitted-freshness.js';
 import {
   createEmittingPackageFixture,
   type EmittingPackageFixtureOptions,
 } from '../../helpers/emitted-freshness-fixture.js';
-import type {
-  AdminNavDeclaration,
-  AdminRouteDeclaration,
-  AdminSurfaceLayout,
-} from '../../../scripts/lib/admin-surfaces.js';
-import type { AdminRegistrationCounts } from '../../../scripts/ledgers/admin-registrations.js';
 import {
   adminZoneFindingCount,
   declarationSource as zoneDeclarationSource,
   runAdminZones,
   type AdminZoneFixture,
 } from '../../helpers/admin-zones-fixture.js';
+import {
+  checkBundlePairing,
+  type BundlePairingFindingKind,
+} from '../../../scripts/check-bundle-pairing.js';
+import {
+  blockNameFindingsOfKind,
+  blockNameParseFailure,
+  blockNameRefusalOf,
+  nodeLiteralSource,
+  rendererMapSource,
+} from '../../helpers/block-name-fixture.js';
+import {
+  FIXTURE_FILE,
+  keyFor,
+  proseDiscrimination,
+  proseFindings,
+  proseSites,
+  runDefaultLanguageProse,
+} from '../../helpers/default-language-prose-fixture.js';
+import {
+  createBundlePairingFixture,
+  validBundle,
+  type FixtureModule,
+} from '../../helpers/bundle-pairing-fixture.js';
+import {
+  checkOffStateCoverage,
+  harnessExportsCoverage,
+  vacuousOffStateCoverage,
+  type ModuleUnderCheck as OffStateModule,
+  type OffStateCoverageFindingKind,
+  type OffStateCoverageInput,
+  type VacuousInput as OffStateVacuousInput,
+  type VacuousReasonKind as OffStateVacuousReasonKind,
+} from '../../../scripts/check-off-state-coverage.js';
+import {
+  checkModuleDocs,
+  derivedFactSitesOf,
+  mapRowsIn,
+  moduleTreePrefixes,
+  navigationEntriesIn,
+  proseKey,
+  type DerivedFactSite,
+  type ForeignLinkLedger,
+  type ModuleDocsFindingKind,
+  type PageLink,
+} from '../../../scripts/check-module-docs.js';
+import { attributeDocs, relativeLinksIn } from '../../../scripts/lib/module-docs.js';
+import {
+  createModuleDocsFixture,
+  mapArtefactNaming,
+  sidebarArtefactNaming,
+  type FixtureModuleDocs,
+  type FixturePage,
+} from '../../helpers/module-docs-fixture.js';
+import {
+  checkStorefrontIndexability,
+  vacuousReason as storefrontIndexabilityVacuous,
+  type RouteFile as StorefrontRouteFile,
+  type SegmentWalk,
+  topLevelSegmentsOf as storefrontTopLevelSegments,
+  type StorefrontIndexabilityFindingKind,
+} from '../../../scripts/check-storefront-indexability.js';
+import {
+  checkRscDiscipline,
+  ledgerKey as rscLedgerKey,
+  vacuousReason as rscDisciplineVacuous,
+  type ClientFetchLedger,
+  type ClientSourceFile,
+  type ComposedPackage,
+  type RscDisciplineFindingKind,
+} from '../../../scripts/check-rsc-discipline.js';
+import { readSizeRefusal } from '../../../scripts/lib/read-size.js';
+import { moduleContextSeams } from '../../../scripts/lib/divergence.js';
+import {
+  FIXTURE_OVERLAY,
+  fixtureFindings,
+  MODULE_CONTEXT_SOURCE,
+} from '../../helpers/divergence-fixture.js';
+import { ESTATE, PACKAGE_HOSTS, pendingEntries } from '@endora-commerce/cli/checks';
+import * as hostNulBytes from '../../../scripts/check-nul-bytes.js';
+import * as hostBundlePairing from '../../../scripts/check-bundle-pairing.js';
+import * as hostContainerImports from '../../../scripts/check-container-imports.js';
+import * as hostSubscribeSeam from '../../../scripts/check-subscribe-seam.js';
+import * as hostCommandCoverage from '../../../scripts/check-command-coverage.js';
+import * as ruleNulBytes from '@endora-commerce/cli/rules/nul-bytes.js';
+import * as ruleBundlePairing from '@endora-commerce/cli/rules/bundle-pairing.js';
+import * as ruleContainerImports from '@endora-commerce/cli/rules/container-imports.js';
+import * as ruleSubscribeSeam from '@endora-commerce/cli/rules/subscribe-seam.js';
+import * as ruleCommandCoverage from '@endora-commerce/cli/rules/command-coverage.js';
+import * as hostActionRoute from '../../../scripts/check-action-route-permissions.js';
+import * as hostChannelResolution from '../../../scripts/check-channel-resolution.js';
+import * as hostDefaultLanguageProse from '../../../scripts/check-default-language-prose.js';
+import * as hostDiacriticFolds from '../../../scripts/check-diacritic-folds.js';
+import * as hostEntryScope from '../../../scripts/check-entry-scope.js';
+import * as hostKernelBoundary from '../../../scripts/check-kernel-boundary.js';
+import * as hostPlatformSurface from '../../../scripts/check-platform-surface.js';
+import * as hostPortShape from '../../../scripts/check-port-shape.js';
+import * as hostSingletonIdentity from '../../../scripts/check-singleton-identity.js';
+import * as hostTransactionContext from '../../../scripts/check-transaction-context.js';
+import * as ruleActionRoute from '@endora-commerce/cli/rules/action-route-permissions.js';
+import * as ruleChannelResolution from '@endora-commerce/cli/rules/channel-resolution.js';
+import * as ruleDefaultLanguageProse from '@endora-commerce/cli/rules/default-language-prose.js';
+import * as ruleDiacriticFolds from '@endora-commerce/cli/rules/diacritic-folds.js';
+import * as ruleEntryScope from '@endora-commerce/cli/rules/entry-scope.js';
+import * as ruleKernelBoundary from '@endora-commerce/cli/rules/kernel-boundary.js';
+import * as rulePlatformSurface from '@endora-commerce/cli/rules/platform-surface.js';
+import * as rulePortShape from '@endora-commerce/cli/rules/port-shape.js';
+import * as ruleSingletonIdentity from '@endora-commerce/cli/rules/singleton-identity.js';
+import * as ruleTransactionContext from '@endora-commerce/cli/rules/transaction-context.js';
 import {
   checkAdminSurface,
   reachKey,
@@ -109,11 +227,14 @@ import {
   analyzeSource as moduleBoundaryAnalyze,
   checkModuleBoundary,
   findCrossModuleSql,
+  findMigrationSql,
   vacuousReason as moduleBoundaryVacuous,
   type AdminBoundarySurfaces,
   type CrossModuleImport,
   type CrossModuleImportKind,
+  type LedgerShard,
 } from '../../../scripts/check-module-boundary.js';
+import { dependencyClosures } from '../../../scripts/lib/manifest-dependencies.js';
 import {
   modulePackageSurfaces,
   UnreadableSubpathError,
@@ -121,12 +242,13 @@ import {
 import {
   compareArtifact,
   containmentSites,
+  docEntries,
   examineArtifact,
   permittedRoots,
   vacuousContainmentPopulation,
 } from '../../../scripts/check-overlay-determinism.js';
 import { coreSources, renderEntitiesRegistry } from '../../../scripts/generate-composer.js';
-import { checkPortCatches } from '../../../scripts/check-port-catches.js';
+import { checkPortCatches, keyOf, type PortCatch } from '../../../scripts/check-port-catches.js';
 import {
   findNonBindingIssues,
   findRootIssues,
@@ -145,8 +267,11 @@ import {
 import { buildDeactivationLedger } from '../../../src/lifecycle/services/deactivation-ledger.js';
 import { nonBindingPortEdgesFrom } from '../../../src/lifecycle/services/gating-graph.js';
 import {
+  applicationReachRefusal,
+  checkApplicationReaches,
   checkPlatformSurface,
   platformSurfaceRefusal,
+  type ApplicationReachInput,
   type PlatformSurfaceFindingKind,
   type PlatformSurfaceInput,
 } from '../../../scripts/check-platform-surface.js';
@@ -181,7 +306,11 @@ import {
 } from '../../../scripts/check-entry-presence.js';
 import { checkLockClaims } from '../../../scripts/check-lock-claims.js';
 import type { ManifestActivationInput } from '../../../scripts/lib/switchable-modules.js';
-import { analyzeSource as hardcodedAnalyze } from '../../../scripts/i18n-hardcoded-strings.js';
+import {
+  analyzeSource as hardcodedAnalyze,
+  coveredModuleAdminLayers as hardcodedCoveredLayers,
+  moduleAdminFloorRefusal as hardcodedFloorRefusal,
+} from '../../../scripts/i18n-hardcoded-strings.js';
 import {
   lowEntryDrift,
   type ProofEntry,
@@ -202,6 +331,9 @@ import {
   configuredAs as releaseIntentConfiguredAs,
   FIXTURE_ROOT as RELEASE_INTENT_ROOT,
   HOST_SOURCED_PACKAGE,
+  PRIVATE_BETA,
+  PUBLISHED_ALPHA,
+  publishedAlphaAs,
   type FileMap as ReleaseIntentFiles,
 } from '../../helpers/release-intent-check-fixture.js';
 
@@ -271,6 +403,15 @@ const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const BACKEND_ROOT = join(REPO_ROOT, 'backend');
 const read = (repoRelative: string): string => readFileSync(join(REPO_ROOT, repoRelative), 'utf8');
 
+/**
+ * A check's estate id where it has no npm script: the script's own stem.
+ *
+ * One derivation, used by both sides of the reconciliation below, so the two
+ * cannot come to disagree about what a rule with no npm script is called.
+ */
+const stemOf = (script: string): string =>
+  script.slice(script.lastIndexOf('/') + 1).replace(/\.(ts|sh)$/, '');
+
 /** How a check refuses to report a pass over an input it never read. */
 type VacuousGuard =
   /** Exits 2 — distinct from both "clean" (0) and "violations found" (1). */
@@ -287,8 +428,9 @@ interface RedProof {
 }
 
 /**
- * Whether the check's population is the module tree, and how it proves it read
- * that tree rather than the residue left when the tree moves (issue #215).
+ * Whether the check carries the shared module-population floor, and how it
+ * proves it read the module tree rather than the residue left when that tree
+ * moves (issue #215).
  *
  * `derived-population` means it compares its walk against the module ids the
  * generated manifest index registers, and refuses when a registered module
@@ -296,8 +438,36 @@ interface RedProof {
  * `test/unit/scripts/moved-module-tree.test.ts` spawns over a moved tree, and
  * the link below is two-way: a check marked here and missing from that file
  * fails, and so does one proven there and unmarked.
+ *
+ * **`deferred-shared-proof` is the third value, and it exists because two
+ * states were being recorded under one word** (feature 111, FR-010;
+ * `specs/111-shared-fixture-package-naming/contracts/split-fixture-package-naming.md`
+ * § 6). *"This rule's subject is not the module tree"* is a permanent fact.
+ * *"This rule carries the floor and the shared fixture cannot yet reach a
+ * verdict over it"* is a **debt with a retiring condition**, and a ledger that
+ * cannot tell the two apart is a ledger nobody drains. Measured over the 19
+ * entries carrying `not-a-module-walk` before this value existed, three
+ * scripts matched this file's own `DELEGATED` regex — `check-admin-zones`,
+ * `check-divergence` and `check-test-ownership` — so each recorded that it does
+ * not carry the floor while its own source called it.
+ *
+ * The three values therefore **partition on `DELEGATED`**, which is what makes
+ * the reconciliation below definitional rather than a heuristic: the first two
+ * must match it, `not-a-module-walk` must not. Every
+ * `deferred-shared-proof` entry carries its reason and the condition that
+ * retires it in {@link DEFERRED_SHARED_PROOFS}, and that ledger is two-way like
+ * every other in the estate — an entry whose check the proof file now spawns
+ * fails.
+ *
+ * **It says nothing about the rule's *subject*, deliberately**, and that is why
+ * `endora check`'s invariant 3 stays keyed on `derived-population` alone.
+ * `check:divergence` is the standing case where the two questions come apart:
+ * its subject is a **deployment**, so `repository-only` is right for it and a
+ * module package cannot become one, while the module tree is its owner map's
+ * input and a residue of that tree would have it report four `unowned-subject`
+ * findings. It carries the floor for that reason and judges no module.
  */
-type ResidueGuard = 'derived-population' | 'not-a-module-walk';
+type ResidueGuard = 'derived-population' | 'deferred-shared-proof' | 'not-a-module-walk';
 
 /**
  * Whether the check prints the size of what it read (issue #244).
@@ -391,6 +561,7 @@ function platformSurfaceInput(sources: Record<string, string>): PlatformSurfaceI
     host: {
       name: '@endora-commerce/platform',
       subpathTargets: new Map([['http', 'backend/src/http/index.ts']]),
+      declaredSubpaths: new Set(['http', 'composition']),
     },
   };
 }
@@ -405,8 +576,83 @@ function platformSurfaceFindings(
   ).length;
 }
 
+/**
+ * The **application** half of the same check (feature 115, D115-5), over source
+ * text, a file list and the two platform roots — every input a real run has.
+ *
+ * A fixture of its own rather than a widening of {@link platformSurfaceInput},
+ * because the two populations differ in exactly the thing the new predicate
+ * turns on: that one spells the platform at `backend/src/<subpath>/…`, which is
+ * where the *shims* are, and this one at `packages/platform/…`, which is where
+ * the package is.
+ */
+function applicationReachInput(sources: Record<string, string>): ApplicationReachInput {
+  return {
+    sources: new Map(Object.entries(sources)),
+    platformMemberRoot: 'packages/platform',
+    platformSourceRoot: 'packages/platform/src',
+    files: new Set([...Object.keys(sources), 'packages/platform/src/kernel/index.ts']),
+    surface: publishedSurface(
+      new Map([['packages/platform/src/kernel/index.ts', "export { compose } from './compose.js';"]]),
+    ),
+    host: {
+      name: '@endora-commerce/platform',
+      subpathTargets: new Map([['kernel', 'packages/platform/src/kernel/index.ts']]),
+      declaredSubpaths: new Set(['kernel', 'composition']),
+    },
+  };
+}
+
 /** The fixture enters the check where a real run does: source text in, findings out. */
 const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
+
+/**
+ * `check:env-inputs` — a declaration and the source text it is reconciled
+ * against, which is exactly what a real run holds.
+ *
+ * The reads enter as **file text** rather than as records, because the whole of
+ * the named-constant resolution — the discrimination that keeps the tree's own
+ * correct `process.env[CONST]` idiom out of `unresolvable-input-name` — lives
+ * in the collector. A fixture handing in pre-classified reads would prove the
+ * reporter and leave that unproven (issue #130).
+ */
+const ENV_INPUT: EnvironmentInput = {
+  name: 'DATABASE_URL',
+  describes: { en: 'where the data is.', pl: 'gdzie są dane.' },
+  requirement: { kind: 'required' },
+  secret: true,
+  generable: false,
+  owner: { kind: 'platform' },
+  consumers: ['backend'],
+  // A connection URL, and an address — of a database, which is not a member of
+  // this instance. `addressOf` answers which of an instance's *own* parts a
+  // value points at, so this is `null` and not a near miss.
+  addressOf: null,
+};
+
+function envInputFindings(
+  declarations: readonly DeclarationSource[],
+  sources: readonly EnvSourceFile[],
+  kind: EnvInputFindingKind,
+): number {
+  return checkEnvironmentInputs({
+    declarations,
+    reads: collectEnvironmentReads(sources),
+  }).findings.filter((finding) => finding.kind === kind).length;
+}
+
+const platformEnvDeclaration = (
+  inputs: readonly EnvironmentInput[],
+): readonly DeclarationSource[] => [
+  { author: { kind: 'platform' }, file: 'packages/platform/src/env/index.ts', inputs },
+];
+
+const backendEnvSource = (text: string): readonly EnvSourceFile[] => [
+  { path: 'backend/src/x.ts', text, consumer: 'backend' },
+];
+
+/** The `DATABASE_URL` read every fixture below carries, so only one thing varies. */
+const READS_DATABASE_URL = "const url = process.env['DATABASE_URL'];\n";
 
 // --- fixtures the red proofs run on ----------------------------------------
 
@@ -452,16 +698,16 @@ function errorSentenceTree(bundles: Record<string, Record<string, string>>): Tra
  * `check-release-intent` over a whole synthetic checkout, counting findings of
  * one kind (feature 080, T043).
  *
- * The fixture is the file map, because every one of this check's eight findings
+ * The fixture is the file map, because every one of this check's findings
  * is a disagreement *between* files — `pnpm-workspace.yaml` against the
  * manifests, `.changeset/config.json` against both. A proof handed a
  * pre-classified "these are the versionable packages" list would leave the
  * derivation unproven, and that derivation is the part that has to survive 66
  * module packages arriving under a second scope (D-160.2).
  *
- * Counting **by kind** rather than in total is the other half: eight signals
- * over one configuration is exactly the shape where seven go blind behind the
- * eighth's red.
+ * Counting **by kind** rather than in total is the other half: a dozen signals
+ * over one configuration is exactly the shape where eleven go blind behind the
+ * twelfth's red.
  */
 function releaseIntentFindings(
   overrides: ReleaseIntentFiles,
@@ -1194,6 +1440,73 @@ const PORT_CATCH_DEPS_TREE = new Map([
 ]);
 
 /**
+ * The promise form — `.catch(handler)` and `.then(onOk, onErr)`.
+ *
+ * The check read `ts.CatchClause` and nothing else, so
+ * `port.remove(id).catch(() => undefined)` was outside its population entirely:
+ * the rule was escapable by punctuation. Each fixture below is **source text**
+ * handed to `checkPortCatches` (issue #130) — the blindness was in the site
+ * recogniser, so a fixture entering below it would prove nothing about it.
+ *
+ * `promiseTree` differs from {@link PORT_CATCH_DEPS_TREE} in one expression, so
+ * a proof that goes green because the *alias* analysis broke reads 0 here and 0
+ * there together.
+ */
+const promiseTree = (guarded: string): ReadonlyMap<string, string> =>
+  new Map([
+    [
+      'modules/promotions/backend.ts',
+      "export function registerModule(ctx) { ctx.di.providePort('promotionService', x); }",
+    ],
+    [
+      'modules/carts/backend.ts',
+      "const deps = { promotion: lazyPort<Promotions>(ctx, 'promotionService') };",
+    ],
+    ['modules/carts/services/cart-total-service.ts', guarded],
+  ]);
+
+const PORT_CATCH_PROMISE_TREE = promiseTree(
+  'await this.deps.promotion.detach(id).catch(() => undefined);',
+);
+
+/** The same swallow written as `.then`'s rejection arm. */
+const PORT_CATCH_PROMISE_THEN_TREE = promiseTree(
+  'await this.deps.promotion.detach(id).then((x) => x, () => undefined);',
+);
+
+/** A conditional re-throw — refused in the promise form exactly as in the statement one. */
+const PORT_CATCH_PROMISE_CONDITIONAL_TREE = promiseTree(
+  'await this.deps.promotion.detach(id).catch((e) => { if (e instanceof HttpError) throw e; });',
+);
+
+/**
+ * Two discriminations in one tree, each of which has to read **clean**.
+ *
+ * `.finally` consumes no rejection, and `.then`'s *success* arm is not routed to
+ * the handler beside it — that is the language's rule, so a check that guarded
+ * either would be reporting sites that cannot exist. The tree also carries the
+ * real swallow as a control, so the proof reads 1 rather than 0 when the
+ * recogniser is working and the limits hold.
+ */
+const PORT_CATCH_PROMISE_LIMITS_TREE = promiseTree(
+  'await this.deps.promotion.detach(id).finally(() => undefined);\n' +
+    'await ready().then((x) => this.deps.promotion.detach(x), () => undefined);\n' +
+    'await this.deps.promotion.purge(id).catch(() => undefined);',
+);
+
+/**
+ * Both spellings over one alias in one file — the ledger-key discrimination.
+ *
+ * A shared key would let an entry written for the `try` silently absorb a
+ * `.catch` added later, which is the inheritance `keyOf`'s line-independence was
+ * chosen to avoid, one granularity across.
+ */
+const PORT_CATCH_BOTH_FORMS_TREE = promiseTree(
+  'try { await this.deps.promotion.detach(id); } catch { /* swallowed */ }\n' +
+    'await this.deps.promotion.detach(id).catch(() => undefined);',
+);
+
+/**
  * D-88 — the gate reached one hop backwards, through `this` and nothing else.
  *
  * The dominant integration skeleton in this tree: a public `handle(payload)`, a
@@ -1445,7 +1758,7 @@ function unscopedEntrySites(
   kind: EntryKind,
   declared: ReadonlySet<string> = new Set(),
 ): number {
-  return violationsOf(findEntrySites(file, source, declared)).filter((e) => e.kind === kind).length;
+  return violationsOf(findEntrySites(file, source, declared), NO_SCOPE_NEEDED).filter((e) => e.kind === kind).length;
 }
 
 /**
@@ -1494,7 +1807,7 @@ const TWO_SITES_ONE_RIGHT = `
 function unscopedSiteBesideAScopedOne(): number {
   const sites = findEntrySites('/repo/backend/src/kernel/lifecycle/registry-cache.ts', TWO_SITES_ONE_RIGHT);
   if (sites.filter((site) => site.kind === 'interval' && site.scoped).length !== 1) return 0;
-  return violationsOf(sites).filter((site) => site.kind === 'message').length;
+  return violationsOf(sites, NO_SCOPE_NEEDED).filter((site) => site.kind === 'message').length;
 }
 
 /**
@@ -1511,7 +1824,7 @@ function unscopedProgramBesideAScopedWorker(): number {
     declared,
   );
   if (sites.filter((site) => site.kind === 'worker' && site.scoped).length !== 1) return 0;
-  return violationsOf(sites).filter((site) => site.kind === 'program').length;
+  return violationsOf(sites, NO_SCOPE_NEEDED).filter((site) => site.kind === 'program').length;
 }
 
 /**
@@ -1544,7 +1857,7 @@ function staleLedgerEntry(): number {
   // The site must be recognised **and** scoped, or the stale verdict below
   // would be true for the uninteresting reason that no site was found at all.
   if (sites.filter((site) => site.scoped).length !== 1) return 0;
-  return staleAllowances(sites).filter((stale) => stale === key).length;
+  return staleAllowances(sites, NO_SCOPE_NEEDED).filter((stale) => stale === key).length;
 }
 
 /**
@@ -1677,54 +1990,6 @@ const ORDERS_READS_A_PRODUCT_TWICE = [
 ].join('\n');
 const CROSS_MODULE_KEY = `${ORDER_SERVICE_FILE}:catalog/entities/product.entity`;
 
-// --- check-admin-registrations (feature 091, FR-018) -------------------------
-//
-// The fixture is a route table and a nav, as declarations, plus the import map
-// that says which surface directory a component comes from. That is where the
-// attribution happens and therefore where the proof has to enter: a fixture
-// handing in a ready-made owner would exercise the subtraction and leave the
-// two attributions — the one that reads `App.tsx`'s imports and the one that
-// reads `AppShell.tsx`'s `module` field — unrun (issue #130).
-function adminRegistrationFindings(
-  baseline: Readonly<Record<string, AdminRegistrationCounts>>,
-  blog: AdminRegistrationCounts | null,
-): readonly AdminRegistrationFinding[] {
-  const routes: AdminRouteDeclaration[] = [];
-  const nav: AdminNavDeclaration[] = [];
-  if (blog !== null) {
-    for (let at = 0; at < blog.routes; at += 1) {
-      routes.push({ path: `/blog/${at}`, component: 'BlogPage', line: at + 1 });
-    }
-    for (let at = 0; at < blog.nav; at += 1) {
-      nav.push({ to: `/blog/${at}`, module: 'blog', line: at + 1 });
-    }
-  }
-  return checkAdminRegistrations(
-    {
-      routes,
-      nav,
-      componentDirectories: new Map([['BlogPage', 'blog']]),
-      moduleOfDirectory: new Map([['blog', 'blog']]),
-      registered: new Set(['blog']),
-    },
-    baseline,
-  ).findings;
-}
-
-/** 1 when the record refuses the run, 0 when it does not. */
-function adminRegistrationsVacuous(record: {
-  readonly admin?: AdminSurfaceLayout | null;
-  readonly routes: number;
-  readonly nav: number;
-  readonly baselineEntries: number;
-}): number {
-  const admin =
-    record.admin === undefined
-      ? ({ sourceRoot: 'admin/src' } as AdminSurfaceLayout)
-      : record.admin;
-  return adminRegistrationsVacuousReason({ ...record, admin }) === null ? 0 : 1;
-}
-
 function moduleBoundaryTree(source: string): Map<string, string> {
   return new Map([
     ['modules/orders/backend.ts', 'export function registerModule(ctx) {}'],
@@ -1744,6 +2009,10 @@ function moduleBoundaryTree(source: string): Map<string, string> {
 // `_shared` is nobody's for the same reason: no nav entry claims it.
 const ADMIN_SURFACES: AdminBoundarySurfaces = {
   sourceRoot: 'admin/src',
+  // One host root, which is what a tree whose route table has not moved out
+  // of the alias member answers (feature 110, T122). The two-root case is
+  // `check-module-boundary.test.ts`' — this fixture's subject is the ledger.
+  hostRoots: ['admin/src'],
   moduleRoot: 'admin/src/modules',
   aliasPrefix: '@/',
   moduleOfDirectory: new Map([
@@ -1903,6 +2172,110 @@ function sqlOnlyTheControl(source: string, file: string = BLOG_SERVICE_FILE): nu
 
 const SQL_CONTROL = 'await conn.execute(`select id from products where status = ?`, [s]);';
 
+/* ── a migration's cross-module SQL (feature 097) ─────────────────────────── */
+
+/**
+ * The migration rules' fixtures — source text, an owner map built from source
+ * text, and the **declared** manifest graph.
+ *
+ * The graph is the manifests' own `dependencies` arrays and never a ready-made
+ * closure, because `migration-transitive-declaration` is a proof about the
+ * traversal: handing in the closure would leave the thing under test
+ * unexercised, which is the failure issue #130 records.
+ */
+const MIGRATION_SCHEMA: ReadonlyMap<string, string> = new Map([
+  [
+    'modules/a/entities/a-thing.entity.ts',
+    "@Entity({ tableName: 'a_table' })\nexport class AThing {}",
+  ],
+  [
+    'modules/b/entities/b-thing.entity.ts',
+    "@Entity({ tableName: 'b_table' })\nexport class BThing {}",
+  ],
+  [
+    'kernel/sales-channels/sales-channel.entity.ts',
+    "@Entity({ tableName: 'sales_channels' })\nexport class SalesChannel {}",
+  ],
+  [
+    'db/migrations/20260424T165847_core_foundation_init.ts',
+    'this.addSql(`create table "sales_channel_products" ' +
+      '("sales_channel_id" uuid not null, "product_id" uuid not null);`);',
+  ],
+]);
+
+const A_MIGRATION = 'modules/a/migrations/20260901T101010_a_widen.ts';
+const MIGRATION_KEY = `${A_MIGRATION}:b_table`;
+const UNDECLARED_WRITE =
+  'this.addSql(`update "b_table" set "flag" = true where "id" is not null;`);';
+
+function migrationRules(
+  source: string,
+  declared: Readonly<Record<string, readonly string[]>>,
+): readonly string[] {
+  return findMigrationSql({
+    sources: new Map([[A_MIGRATION, source]]),
+    schema: new Map([...MIGRATION_SCHEMA, [A_MIGRATION, source]]),
+    dependencyClosures: dependencyClosures(new Map(Object.entries(declared))),
+  }).found.map((finding) => finding.rule);
+}
+
+/** How many findings of one rule the source produces. */
+function migrationFindingsOf(
+  rule: string,
+  source: string,
+  declared: Readonly<Record<string, readonly string[]>> = { a: [], b: [] },
+): number {
+  return migrationRules(source, declared).filter((found) => found === rule).length;
+}
+
+/**
+ * A shape neither rule may report, proven as a discrimination: the fixture
+ * carries the negative shape **and** the control, and returns 1 only when
+ * exactly the control comes back.
+ */
+function migrationOnlyTheControl(
+  source: string,
+  declared: Readonly<Record<string, readonly string[]>> = { a: [], b: [] },
+): number {
+  const rules = migrationRules(`${UNDECLARED_WRITE}\n${source}`, declared);
+  return rules.length === 2 ? 1 : 0;
+}
+
+function migrationLedgerCheck(
+  source: string,
+  ledgers: {
+    readonly undeclaredReferences: readonly LedgerShard[];
+    readonly foreignWrites: readonly LedgerShard[];
+  },
+) {
+  return checkModuleBoundary(
+    {
+      sources: new Map([
+        ['modules/a/backend.ts', 'export function registerModule(ctx) {}'],
+        ['modules/b/backend.ts', 'export function registerModule(ctx) {}'],
+        [A_MIGRATION, source],
+      ]),
+      schema: new Map([...MIGRATION_SCHEMA, [A_MIGRATION, source]]),
+      dependencyClosures: dependencyClosures(new Map([['a', ['b']], ['b', []]])),
+    },
+    [],
+    ledgers,
+  );
+}
+
+/** The read record the migration refusals are driven from — a real run's shape. */
+const MIGRATION_READ = {
+  moduleFiles: ['modules/orders/a.ts'],
+  registeredModules: ['orders'],
+  ledgerDirectoryExists: true,
+  entityTables: 220,
+  migrationTables: 241,
+  migrationFiles: 225,
+  migrationRegistryMissing: [] as readonly string[],
+  declaresNoDependency: false,
+  migrationLedgerDirectoriesExist: true,
+};
+
 /**
  * The knex builder's fixtures (issue #187) — the same schema, the same entry
  * point, and a `syntax` assertion on every one.
@@ -1996,6 +2369,97 @@ function foreignSpecifiers(content: string): string[] {
   return containmentSites(ENTITIES_REGISTRY_PATH, content, CONTAINMENT_ROOTS)
     .filter((site) => site.verdict === 'foreign')
     .map((site) => site.specifier);
+}
+
+/**
+ * The doc-id half of the containment verdict (feature 100,
+ * `contracts/docs-registry.md` R2.3).
+ *
+ * A sidebar entry is a **doc id** and a map row is a relative page link, so
+ * neither reaches the import-specifier reader at all — a run that classified none
+ * of them would report the two documentation artefacts contained by having read
+ * nothing in them, which is the `empty` verdict's own argument one artefact over.
+ * The fixture is therefore artefact **text** plus a real content root, which is
+ * exactly what a real run hands `classifyDocEntry`.
+ */
+function docContainmentVerdicts(entry: string, contentRoot: string): string[] {
+  const artefact = join(contentRoot, 'modules', 'module-map.generated.md');
+  return containmentSites(artefact, `| [x](${entry}) |\n`, CONTAINMENT_ROOTS, {
+    kind: 'doc-id',
+    root: contentRoot,
+  }).map((site) => site.verdict);
+}
+
+/**
+ * A doc id naming a page under an installed package: `foreign`, by real path.
+ *
+ * The fixture is a **checkout** rather than a bare directory, and it has to be:
+ * containment is decided against the workspace members
+ * `pnpm-workspace.yaml` globs, so a page written anywhere else on the filesystem
+ * is foreign for being nowhere rather than for being installed — which would
+ * prove the verdict while proving nothing about the discrimination.
+ */
+function foreignDocEntryFindings(): number {
+  const root = mkdtempSync(join(tmpdir(), 'doc-containment-'));
+  try {
+    const site = join(root, 'docs');
+    const inTree = join(site, 'docs', 'modules');
+    const installed = join(root, 'node_modules', '.pnpm', 'mod-blog@1.0.0', 'docs');
+    mkdirSync(inTree, { recursive: true });
+    mkdirSync(installed, { recursive: true });
+    writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - docs\n', 'utf8');
+    writeFileSync(
+      join(site, 'package.json'),
+      `${JSON.stringify({ name: 'docs', private: true })}\n`,
+      'utf8',
+    );
+    writeFileSync(join(inTree, 'blog.md'), '# Blog\n', 'utf8');
+    writeFileSync(join(installed, 'index.md'), '# Blog\n', 'utf8');
+    const sites = containmentSites(
+      join(inTree, 'module-map.generated.md'),
+      '| [Blog](./blog.md) |\n| [Blog](../../../node_modules/.pnpm/mod-blog@1.0.0/docs/index.md) |\n',
+      permittedRoots(root),
+      { kind: 'doc-id', root: join(site, 'docs') },
+    );
+    // The discrimination, in one fixture so the proof cannot pass by seeing
+    // nothing: the page inside the workspace member is `workspace-package` and
+    // the one under an installed package is `foreign`. Neither is decided by a
+    // `node_modules` segment — pnpm links a workspace member into `node_modules`
+    // too — but by the real path each one lands on.
+    return sites.length === 2 &&
+      sites[0]?.verdict === 'workspace-package' &&
+      sites[1]?.verdict === 'foreign'
+      ? 1
+      : 0;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+/** A committed navigation entry naming no page at all is contained by nothing. */
+function unresolvableDocEntryFindings(): number {
+  const contentRoot = join(REPO_ROOT, 'docs', 'docs');
+  const gone = docContainmentVerdicts('./no-such-page.md', contentRoot);
+  const real = docContainmentVerdicts('./README.md', contentRoot);
+  return gone.length === 1 && gone[0] === 'foreign' && real[0] !== 'foreign' ? 1 : 0;
+}
+
+/**
+ * The reader itself, which is the stage the two proofs above stand on.
+ *
+ * `docEntries` is what turns artefact text into a population, and a reader that
+ * matched nothing would make every doc-id artefact report zero entries — which
+ * `vacuousContainmentPopulation` refuses, but only after this stage has already
+ * decided there is nothing to contain.
+ */
+function docEntryReaderSites(): number {
+  const found = docEntries(
+    "const modules = [\n  { type: 'doc', id: 'modules/catalog', label: 'Catalog' },\n" +
+      "  { type: 'category', link: { type: 'doc', id: 'modules/cms/index' },\n" +
+      "    items: [\n      'modules/cms/extending-page-builder',\n    ] },\n];\n",
+  );
+  const links = docEntries('| [Blog](./blog.md) | A capability. | core |\n');
+  return found.length === 3 && links.length === 1 ? 1 : 0;
 }
 
 /**
@@ -2520,11 +2984,17 @@ type AdminSurfaceVacuousRecord = Parameters<typeof adminSurfaceVacuous>[0];
 function adminSurfaceRefuses(record: Partial<AdminSurfaceVacuousRecord>): number {
   return adminSurfaceVacuous({
     adminResolved: true,
+    adminRefusal: null,
     kitFound: true,
     implementationSubpaths: 4,
     barrelsRead: 4,
     barrelWithStar: null,
     walkedFiles: 1,
+    // The terminal state's own record: the application half is empty and the
+    // package half carries the walk. A proof that varied `shims` from a
+    // non-empty application half would prove the *old* refusal (R18(6)).
+    applicationFiles: 0,
+    registryLayers: 54,
     shims: 1,
     ...record,
   }) === null
@@ -2566,6 +3036,636 @@ function adminZoneFixture(overrides: Partial<AdminZoneFixture> = {}): AdminZoneF
   };
 }
 
+/**
+ * `check-off-state-coverage`'s standing population: two modules with an
+ * operator axis and one locked. Small on purpose — the check's risk is the
+ * resolver, not the arithmetic over the set.
+ */
+const OFF_STATE_MODULES: readonly OffStateModule[] = [
+  { moduleId: 'blog', activationSettingCode: 'blog.enabled' },
+  { moduleId: 'seo', activationSettingCode: 'seo.enabled' },
+  { moduleId: 'orders', activationSettingCode: null },
+];
+
+/** One caller file, in the shape the walk hands the analysis. */
+function offStateFile(text: string, path = 'backend/test/integration/x/off-state.test.ts'): {
+  path: string;
+  text: string;
+} {
+  return { path, text };
+}
+
+const OFF_STATE_BLOG_PROOF = offStateFile(
+  "await expectModuleAbsent(h, 'blog', { routes: ['/api/v1/admin/blog/posts'] });",
+  'backend/test/integration/blog/off-state.test.ts',
+);
+const OFF_STATE_SEO_PROOF = offStateFile(
+  "await expectModuleAbsent(h, 'seo', { routes: ['/api/v1/admin/seo/sitemap'] });",
+  'backend/test/integration/seo/off-state.test.ts',
+);
+
+/** A harness exporting exactly the two names the predicate keys on. */
+const OFF_STATE_HARNESS_SOURCE = [
+  "export type OffStateAxis = 'deactivated' | 'platform-unavailable';",
+  'export async function withModuleOff(moduleId, axis, body) {}',
+  'export async function expectModuleAbsent(server, moduleId, surfaces) {}',
+].join('\n');
+
+/** Findings of exactly one kind, over source text, a module list and a ledger. */
+function offStateFindings(
+  input: OffStateCoverageInput,
+  kind: OffStateCoverageFindingKind,
+): number {
+  return checkOffStateCoverage(input).findings.filter((finding) => finding.kind === kind).length;
+}
+
+/** One vacuous refusal, over the record a real run hands in. */
+function offStateRefusals(
+  overrides: Partial<OffStateVacuousInput>,
+  kind: OffStateVacuousReasonKind,
+): number {
+  const reason = vacuousOffStateCoverage({
+    modules: OFF_STATE_MODULES,
+    files: [OFF_STATE_BLOG_PROOF, OFF_STATE_SEO_PROOF],
+    harness: {
+      path: 'backend/test/helpers/off-state.ts',
+      source: OFF_STATE_HARNESS_SOURCE,
+    },
+    ...overrides,
+  });
+  return reason?.kind === kind ? 1 : 0;
+}
+
+/**
+ * A documentation tree that satisfies `check:module-docs` — every proof's
+ * control, and load-bearing rather than decorative in three of the six: the
+ * artefact readers are compared against the walk, so a tree with nothing in it
+ * makes `orphan-page` and both directions of `unpaired-index-row` unreachable.
+ */
+const MODULE_DOCS_COMPLIANT: {
+  modules: readonly FixtureModuleDocs[];
+  pages: readonly FixturePage[];
+} = {
+  modules: [{ id: 'catalog' }, { id: 'blog' }],
+  pages: [
+    { path: 'catalog.md', frontMatter: { title: 'Catalog', description: 'Products.' } },
+    { path: 'blog/index.md', frontMatter: { title: 'Blog', description: 'Posts.' } },
+  ],
+};
+
+/**
+ * A tree in which one module's page links a sibling module's page (FR-020).
+ *
+ * Both pages are **module-owned**, because that is what makes the link a
+ * cross-package reach: a sibling that may not be installed in the reader's
+ * instance, where the link names a page that is not there.
+ */
+const MODULE_DOCS_SIBLING_LINK = {
+  modules: [
+    {
+      id: 'catalog',
+      docs: [
+        {
+          path: 'catalog.md',
+          frontMatter: { title: 'Catalog' },
+          body: 'See [blog](./blog/index.md).',
+        },
+      ],
+    },
+    { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+  ],
+  pages: [],
+  rows: [
+    { moduleId: 'catalog', slug: 'catalog' },
+    { moduleId: 'blog', slug: 'blog' },
+  ],
+} as const;
+
+/**
+ * The links a fixture's module-owned pages write, resolved as a real run
+ * resolves them — the reader under test producing the proof's population.
+ */
+function moduleDocsLinks(fixture: ReturnType<typeof createModuleDocsFixture>): PageLink[] {
+  const owner = new Map<string, string>();
+  for (const page of fixture.pages) {
+    if (page.origin.kind === 'module' && page.origin.moduleId !== null) {
+      owner.set(page.docId, page.origin.moduleId);
+    }
+  }
+  const links: PageLink[] = [];
+  for (const page of fixture.pages) {
+    if (page.origin.kind !== 'module' || page.origin.moduleId === null) continue;
+    for (const link of relativeLinksIn(page, readFileSync(page.path, 'utf8'))) {
+      links.push({
+        fromModule: page.origin.moduleId,
+        fromDocId: page.docId,
+        toModule: link.docId === null ? null : owner.get(link.docId) ?? null,
+        toDocId: link.docId,
+        target: link.target,
+      });
+    }
+  }
+  return links;
+}
+
+/**
+ * `check-module-docs` over a real documentation tree, for findings of exactly
+ * one kind — so no signal goes blind behind another's red.
+ *
+ * The builder is `test/helpers/module-docs-fixture.ts` and the companion test
+ * calls the same one, in the idiom `bundle-pairing-fixture.ts` established.
+ *
+ * Every input enters at the top: the pages come off a **tree the fixture wrote**
+ * and are parsed by the real walk, and the two artefacts are handed in as
+ * **text**, read by the check's own literal-node scanners. A proof supplying a
+ * parsed entry list would leave those two readers unproven — and they are the
+ * readers that decide whether every page is an orphan and whether every module
+ * is unpaired.
+ */
+function moduleDocsFindings(
+  options: {
+    modules?: readonly FixtureModuleDocs[];
+    pages?: readonly FixturePage[];
+    navigation?: readonly string[];
+    rows?: readonly { moduleId: string; slug?: string | undefined }[];
+    links?: readonly PageLink[];
+    proseSites?: readonly DerivedFactSite[];
+    ledgers?: {
+      undocumented?: Readonly<Record<string, string>>;
+      orphans?: Readonly<Record<string, string>>;
+      foreignLinks?: ForeignLinkLedger;
+      derivedFacts?: Readonly<Record<string, string | { sites: number; reason: string }>>;
+    };
+  },
+  kind: ModuleDocsFindingKind,
+): number {
+  const modules = options.modules ?? MODULE_DOCS_COMPLIANT.modules;
+  const pages = options.pages ?? MODULE_DOCS_COMPLIANT.pages;
+  const fixture = createModuleDocsFixture(modules, pages);
+  try {
+    const attribution = attributeDocs(
+      fixture.pages,
+      modules.map((module) => module.id),
+    );
+    const navigation =
+      options.navigation ??
+      attribution.documented.flatMap((entry) =>
+        [entry.entry, ...entry.children].map((page) => page.docId),
+      );
+    const rows =
+      options.rows ??
+      modules.map((module) => ({
+        moduleId: module.id,
+        slug: attribution.documented.find((entry) => entry.moduleId === module.id)?.slug,
+      }));
+    return checkModuleDocs({
+      modules: fixture.modules,
+      attribution,
+      navigationEntries: navigationEntriesIn(sidebarArtefactNaming(navigation)),
+      mapRows: mapRowsIn(
+        mapArtefactNaming(rows),
+        modules.map((module) => module.id),
+      ),
+      links: options.links ?? moduleDocsLinks(fixture),
+      proseSites: options.proseSites ?? [],
+      ledgers: {
+        undocumented: {},
+        orphans: {},
+        foreignLinks: {},
+        derivedFacts: {},
+        ...options.ledgers,
+      },
+    }).findings.filter((finding) => finding.kind === kind).length;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+/**
+ * A page of prose, as **source text**, over a layout this repository does not
+ * have (feature 100 Phase 3, FR-023).
+ *
+ * The fixture enters at the top of the analysis (issue #130): the prefix
+ * derivation, the matcher and the per-line grouping all run over it, and a proof
+ * handing in a built `DerivedFactSite` would prove the ledger comparison and
+ * leave the predicate — which is the half that decides whether a sentence is a
+ * finding at all — unproven.
+ */
+const MODULE_DOCS_PROSE_LAYOUT = new Map([
+  ['catalog', '/repo/packages/modules/catalog'],
+  ['blog', '/repo/packages/modules/blog'],
+]);
+
+function moduleDocsProseSites(source: string): DerivedFactSite[] {
+  return derivedFactSitesOf(
+    { docId: 'architecture/kernel', path: '/repo/docs/docs/architecture/kernel.md' },
+    source,
+    moduleTreePrefixes(MODULE_DOCS_PROSE_LAYOUT, '/repo'),
+  );
+}
+
+/** The sentence that states where a module's code lives, and one that does not. */
+const MODULE_DOCS_DERIVED_FACT = 'The body is `packages/modules/catalog/src/backend/cli/x.ts`.';
+const MODULE_DOCS_ORDINARY_PATH = 'The kernel is `packages/platform/src/kernel/compose.ts`.';
+
+/**
+ * The discrimination `derived-fact-in-prose` turns on, counted as *cleanliness*.
+ *
+ * The rule is D-100's — a fact the platform derives, restated — and it is
+ * neither "a number in prose" nor "a path in prose". Without this proof the two
+ * above would pass over a predicate that had quietly widened to every path in
+ * the documentation, at which point the ledger is mostly exceptions and the
+ * signal is worth nothing.
+ */
+function moduleDocsDerivedFactDiscrimination(): number {
+  const derived = moduleDocsFindings(
+    { proseSites: moduleDocsProseSites(MODULE_DOCS_DERIVED_FACT) },
+    'derived-fact-in-prose',
+  );
+  const ordinary = moduleDocsFindings(
+    { proseSites: moduleDocsProseSites(MODULE_DOCS_ORDINARY_PATH) },
+    'derived-fact-in-prose',
+  );
+  return derived === 1 && ordinary === 0 ? 1 : 0;
+}
+
+/**
+ * The discrimination the `undocumented-module` predicate turns on, counted as
+ * *cleanliness* rather than as a finding.
+ *
+ * A module that declares `docs: false` owes nothing and a module that declares
+ * nothing owes a page, and the two are one field apart. Without this proof the
+ * five above would all pass over a check that had quietly collapsed them, at
+ * which point either every infrastructure module is a finding or every
+ * undocumented one is exempt — and both readings print a plausible number.
+ */
+function moduleDocsDeclarationDiscrimination(): number {
+  const undeclared = moduleDocsFindings(
+    {
+      modules: [{ id: 'catalog' }, { id: 'mfa' }],
+      pages: [{ path: 'catalog.md', frontMatter: { title: 'Catalog' } }],
+      rows: [{ moduleId: 'catalog', slug: 'catalog' }, { moduleId: 'mfa' }],
+    },
+    'undocumented-module',
+  );
+  const declared = moduleDocsFindings(
+    {
+      modules: [{ id: 'catalog' }, { id: 'mfa', declaresNoDocs: true }],
+      pages: [{ path: 'catalog.md', frontMatter: { title: 'Catalog' } }],
+      rows: [{ moduleId: 'catalog', slug: 'catalog' }, { moduleId: 'mfa' }],
+    },
+    'undocumented-module',
+  );
+  return undeclared === 1 && declared === 0 ? 1 : 0;
+}
+
+/**
+ * A module that satisfies `check:bundle-pairing` — every proof's control, and
+ * in three of the five it is load-bearing rather than decorative: the probe
+ * directory names are derived from the `bundlesDir` values the manifests
+ * declare, so a tree in which nobody declares one has no name to probe at all.
+ */
+const BUNDLE_PAIRING_COMPLIANT: FixtureModule = {
+  id: 'catalog',
+  bundles: { 'en.json': validBundle(), 'pl.json': validBundle('actions.open.label', 'Otwórz') },
+};
+
+/**
+ * `check-bundle-pairing` over a real module tree, for findings of exactly one
+ * kind — so no signal goes blind behind another's red.
+ *
+ * The builder is `test/helpers/bundle-pairing-fixture.ts` and the companion test
+ * calls the same one, in the idiom `emitted-freshness-fixture.ts` established:
+ * two builders over one population are two answers waiting to disagree.
+ */
+/**
+ * `check:block-names`' red proofs run through the **shared** builder
+ * (`test/helpers/block-name-fixture.ts`), which is the same one the companion
+ * test calls. Two builders over one population are two answers waiting to
+ * disagree, and the one that disagrees quietly is the one inside a red proof.
+ *
+ * Every fixture enters as **source text plus a manifest set** — the two things a
+ * real run reads. The chain that then runs is the whole of it: TypeScript parses
+ * the text into sites and `analyseBlockNames` classifies them. A fixture handing
+ * in a pre-classified record would prove the reporter and leave all eight
+ * predicates unproven (issue #130).
+ */
+const BLOCK_NAMES_CMS = {
+  id: 'cms',
+  blocks: [{ name: 'cms.Hero', category: 'content', contexts: ['cms'] }],
+  categories: [{ key: 'content', contexts: ['cms'] }],
+};
+
+const BLOCK_NAMES_RENDERER = {
+  key: 'packages/cms-components/src/index.ts',
+  text: rendererMapSource(['cms.Hero']),
+};
+
+function blockNameFindingCount(
+  fixture: Parameters<typeof blockNameFindingsOfKind>[0],
+  kind: Parameters<typeof blockNameFindingsOfKind>[1],
+): number {
+  return blockNameFindingsOfKind(fixture, kind).length;
+}
+
+function bundlePairingFindings(
+  declarations: readonly FixtureModule[],
+  kind: BundlePairingFindingKind,
+): number {
+  const fixture = createBundlePairingFixture(declarations);
+  try {
+    return checkBundlePairing({
+      modules: fixture.modules,
+      languages: [...SUPPORTED_LANGUAGES],
+    }).findings.filter((finding) => finding.kind === kind).length;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+/**
+ * The conditional's discrimination, counted as a refusal rather than a finding.
+ *
+ * A tree in which no module ships a bundle is *vacuously clean* under a
+ * conditional predicate — every module is exempt and `findings=0` is the honest
+ * answer to a question nobody asked. So the proof is that the run is **refused**
+ * by the shared reporter, which is where the real check's exit 2 comes from, and
+ * that the same tree with a shipping module in it is not.
+ */
+function bundlePairingReadRefusals(declarations: readonly FixtureModule[]): number {
+  const fixture = createBundlePairingFixture(declarations);
+  try {
+    const languages = [...SUPPORTED_LANGUAGES];
+    const result = checkBundlePairing({ modules: fixture.modules, languages });
+    const record = {
+      prefix: '[bundle-pairing]',
+      files: result.filesRead.length,
+      sites: result.classified.length,
+      coverage: [
+        {
+          source: 'manifest-index',
+          expected: fixture.modules.length,
+          covered: result.classified.length,
+        },
+        {
+          source: 'shipped-languages',
+          expected: languages.length,
+          covered: result.languagesProbed,
+        },
+      ],
+    };
+    return result.findings.length === 0 && readSizeRefusal(record) !== null ? 1 : 0;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+/**
+ * `check-storefront-indexability` over route **source text** and the sitemap's
+ * own source text — the two inputs a real run reads (feature
+ * `specs/098-storefront-ssr-seo-a11y-suite/`, Phase 2).
+ *
+ * Both are written out rather than handed in as classifications, so each proof
+ * drives the TypeScript walk that decides every one of the seven findings: an
+ * `export const metadata` initializer and every `return` of `generateMetadata`,
+ * down to the `robots.index` literal and the `alternates.canonical` key. A
+ * fixture entering below that would prove the reporter and leave the classifier
+ * — which is all of the analysis — unproven (issue #130).
+ */
+const STOREFRONT_APP_ROOT = 'storefront/app';
+
+function storefrontSitemap(
+  staticRoutes: readonly string[],
+  dynamicRoutes: readonly string[] = [],
+): string {
+  return [
+    'export const SITEMAP_STATIC_ROUTES: readonly string[] = [',
+    ...staticRoutes.map((route) => `  '${route}',`),
+    '];',
+    'export const SITEMAP_DYNAMIC_ROUTES: readonly string[] = [',
+    ...dynamicRoutes.map((route) => `  '${route}',`),
+    '];',
+  ].join('\n');
+}
+
+const STOREFRONT_SEO_DECLARATION =
+  "export const seo: RouteSeo = { route: '/catalog', jsonLd: ['BreadcrumbList'] };";
+
+const STOREFRONT_INDEXABLE_PAGE =
+  "import { seo } from './seo';\n" +
+  'export const metadata = { alternates: { canonical: seo.route } };\n' +
+  'export default function Page() { return null; }\n';
+
+/**
+ * The control every proof runs beside: an indexable route the sitemap
+ * advertises. Load-bearing rather than decorative — a run holding only the
+ * violation classifies nothing and is *refused*, so the proof would assert the
+ * refusal instead of the finding.
+ */
+const STOREFRONT_CLEAN_ROUTE: StorefrontRouteFile = {
+  path: `${STOREFRONT_APP_ROOT}/(catalog)/catalog/page.tsx`,
+  text: STOREFRONT_INDEXABLE_PAGE,
+  seoText: STOREFRONT_SEO_DECLARATION,
+};
+
+/**
+ * The clean tree's segment walk: no boundary anywhere, every directory read.
+ *
+ * A parameter rather than a constant because
+ * `status-decision-under-a-boundary` is a **conjunction** — a decision *and* a
+ * boundary above it — so its red proof and its discrimination differ only in
+ * this value, and its refusal differs only in the second field.
+ */
+const STOREFRONT_NO_BOUNDARY: SegmentWalk = { boundaries: [], unreadable: [] };
+
+/**
+ * `storefront/app/reserved-segments.ts`, as the check reads it: one string array
+ * (feature `specs/105-cms-root-page-urls/`, FR-034).
+ */
+function storefrontReserved(segments: readonly string[]): string {
+  return [
+    'export const RESERVED_TOP_LEVEL_SEGMENTS: readonly string[] = [',
+    ...segments.map((segment) => `  '${segment}',`),
+    '];',
+  ].join('\n');
+}
+
+/**
+ * The top-level segments a fixture's own routes produce.
+ *
+ * The default for every proof that is not about feature 105, so a proof about
+ * indexability is never accidentally also a red for the reserved
+ * reconciliation — each of those two has to be asked for.
+ */
+function storefrontOwnSegments(
+  routes: readonly StorefrontRouteFile[],
+  handlerPaths: readonly string[] = [],
+): readonly string[] {
+  return storefrontTopLevelSegments(
+    [...routes.map((route) => route.path), ...handlerPaths],
+    STOREFRONT_APP_ROOT,
+  );
+}
+
+function storefrontIndexabilityFindings(
+  routes: readonly StorefrontRouteFile[],
+  sitemap: { static: readonly string[]; dynamic?: readonly string[] },
+  kind: StorefrontIndexabilityFindingKind,
+  segments: SegmentWalk = STOREFRONT_NO_BOUNDARY,
+  reserved?: { readonly segments?: readonly string[]; readonly handlerPaths?: readonly string[] },
+): number {
+  const handlerPaths = reserved?.handlerPaths ?? [];
+  return checkStorefrontIndexability({
+    appRoot: STOREFRONT_APP_ROOT,
+    routes,
+    handlerPaths,
+    sitemapText: storefrontSitemap(sitemap.static, sitemap.dynamic ?? []),
+    reservedSegmentsText: storefrontReserved(
+      reserved?.segments ?? storefrontOwnSegments(routes, handlerPaths),
+    ),
+    segments,
+  }).findings.filter((finding) => finding.kind === kind).length;
+}
+
+/**
+ * A page that decides a response status on the document render path.
+ *
+ * Source text, and the import is in it: the five calls are bound through
+ * `next/navigation` rather than by spelling, so a fixture that only wrote
+ * `notFound()` would prove nothing about the binding — and a page with its own
+ * `redirect()` helper is correctly read as deciding nothing.
+ */
+function storefrontDecidingPage(
+  path = `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+): StorefrontRouteFile {
+  return {
+    path,
+    text:
+      "import { notFound } from 'next/navigation';\n" +
+      'export const metadata = { robots: { index: false, follow: false } };\n' +
+      'export default async function Page({ params }) {\n' +
+      '  const row = await load(params.slug);\n' +
+      '  if (!row) notFound();\n' +
+      '  return null;\n' +
+      '}\n',
+    seoText: null,
+  };
+}
+
+/**
+ * The refusals `vacuousReason` answers, over the record a run produces.
+ *
+ * `expected` names the kind, because five of them now share this helper and a
+ * proof asserting only "some refusal fired" would be green on whichever one
+ * happened to be reached first.
+ */
+function storefrontIndexabilityRefusals(
+  routes: readonly StorefrontRouteFile[],
+  sitemapText: string | null,
+  segments: SegmentWalk = STOREFRONT_NO_BOUNDARY,
+  expected?: string,
+  reservedSegmentsText: string | null = storefrontReserved(storefrontOwnSegments(routes)),
+): number {
+  const result = checkStorefrontIndexability({
+    appRoot: STOREFRONT_APP_ROOT,
+    routes,
+    handlerPaths: [],
+    sitemapText,
+    reservedSegmentsText,
+    segments,
+  });
+  const refusal = storefrontIndexabilityVacuous(result);
+  if (refusal === null) return 0;
+  return expected === undefined || refusal.kind === expected ? 1 : 0;
+}
+
+/**
+ * `check-rsc-discipline` over component **source text** — the one input a real
+ * run reads (feature `specs/098-storefront-ssr-seo-a11y-suite/`, Phase 3).
+ *
+ * The predicate is a three-clause conjunction decided by a TypeScript AST walk:
+ * the `'use client'` marker, a render that branches on a state variable, and a
+ * `useEffect` that writes that state while calling something the file imported.
+ * A fixture handing in a classified component would prove the reporter and
+ * leave all three clauses unproven, which is the whole analysis — and this
+ * check has already been measured going blind to two clause *spellings* it did
+ * not implement, so a proof that cannot see the walk is worth nothing here.
+ */
+const RSC_PACKAGES: readonly ComposedPackage[] = [
+  { name: 'storefront', shard: 'storefront', root: 'storefront', composed: false },
+  {
+    name: '@endora-commerce/cms-components',
+    shard: 'cms-components',
+    root: 'packages/cms-components/src',
+    composed: true,
+  },
+];
+
+const RSC_GRID_PATH = 'packages/cms-components/src/components/ProductGrid.tsx';
+
+/** Contract §3's worked example, reduced to its three clauses. */
+const RSC_FETCHING_COMPONENT = `'use client';
+import { useEffect, useState } from 'react';
+import { fetchProductsList } from '../utils/catalog-fetch.js';
+
+export function ProductGrid({ limit }: { limit: number }) {
+  const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+    void (async () => { await fetchProductsList({ limit }); setIsLoading(false); })();
+  }, [limit]);
+  if (isLoading) return <Skeleton />;
+  return <ul />;
+}
+`;
+
+/** The same shape behind an openness gate the analysis cannot decide. */
+const RSC_UNDECIDABLE_COMPONENT = `'use client';
+import { useEffect, useState } from 'react';
+import { fetchCart } from '../lib/cart.js';
+import { initialDrawerState } from '../lib/drawer.js';
+
+export function CartDrawer() {
+  const [isOpen] = useState(initialDrawerState());
+  const [lines, setLines] = useState([]);
+  useEffect(() => { void (async () => setLines(await fetchCart()))(); }, []);
+  if (!isOpen) return null;
+  if (lines.length === 0) return <p>Empty</p>;
+  return <ul />;
+}
+`;
+
+/**
+ * Contract §3's discrimination, asserted as a control beside every red: a
+ * `'use client'` file in the same package that takes its content as a prop. A
+ * predicate keyed on the marker or the directory reports it, and would look
+ * exactly as green on a repaired tree.
+ */
+const RSC_PROP_DRIVEN_COMPONENT = `'use client';
+export function ProductCard({ product }: { product: CmsProductSummary }) {
+  if (!product.price) return null;
+  return <span>{product.name}</span>;
+}
+`;
+
+function rscDisciplineFindings(
+  files: readonly ClientSourceFile[],
+  kind: RscDisciplineFindingKind,
+  ledger: ClientFetchLedger = {},
+): number {
+  return checkRscDiscipline({ files, composedPackages: RSC_PACKAGES, ledger }).findings.filter(
+    (finding) => finding.kind === kind,
+  ).length;
+}
+
+/** The three refusals `vacuousReason` answers, over the record a run produces. */
+function rscDisciplineRefusals(files: readonly ClientSourceFile[]): number {
+  return rscDisciplineVacuous(
+    checkRscDiscipline({ files, composedPackages: RSC_PACKAGES, ledger: {} }),
+  ) === null
+    ? 0
+    : 1;
+}
+
 const CHECKS: readonly CheckEntry[] = [
   {
     // Feature 091's P4a. The zone mechanism's two-way refusal — promised by
@@ -2577,25 +3677,41 @@ const CHECKS: readonly CheckEntry[] = [
     // entering as **source text**: the check's chain is a declaration parser,
     // four site walks and six classifiers, and a fixture handing in sites would
     // prove the classifiers and leave every walk above them unproven.
+    //
+    // The sixth's populations gained a **module-owned** one after P4a: the
+    // foreign-id walk read `admin/src` and the admin-ui family while the render
+    // half read every module walk root, so a screen moving into its module's
+    // package left this predicate behind — one directory per batch, in the
+    // direction that looks like progress. Its proof is the last `red` entry.
     script: 'backend/scripts/check-admin-zones.ts',
     npmScript: 'check:admin-zones',
     job: 'quality',
     companionTest: 'backend/test/unit/scripts/check-admin-zones.test.ts',
     vacuousGuard: 'exit-2',
     readSize: 'reported',
-    // Its module walk **does** carry issue #215's shared floor — the
-    // `manifest-index` coverage token, refused as `short-walk` — and it still
-    // cannot join `moved-module-tree.test.ts`, for the reason
-    // `check:admin-surface` records one entry down: that fixture is a
-    // *backend* tree with no admin application and no kit, and this check
-    // refuses both of those populations before it reaches the module one. Over
-    // the moved tree and the split tree alike it would exit 2 on the kit, which
-    // is the correct answer and asserts no discrimination at all — the two
-    // trees have to differ for that file's proof to mean anything. So the
-    // classification is honest rather than convenient: the floor is in the
-    // check, and the thing that would exercise it is a fixture with a
-    // frontend, which nothing in this estate has.
-    residueGuard: 'not-a-module-walk',
+    // Its module walk carries issue #215's shared floor — the `manifest-index`
+    // and `module-admin` coverage tokens, refused as a short walk — and since
+    // feature 111 it is **spawned over the shared fixture**, which is what this
+    // value asserts.
+    //
+    // This entry read `not-a-module-walk` until then, on a reason that was
+    // measured true when it was written and stopped being true one phase later:
+    // *"that fixture is a backend tree with no admin application and no kit …
+    // over the moved tree and the split tree alike it would exit 2 on the kit,
+    // which asserts no discrimination at all"*. FR-007 staged the admin-ui
+    // family, and the discrimination is now real — measured on this tree: exit
+    // **2** over the moved tree, **0** over the split one, **2** over the
+    // half-moved one, naming the stranded module.
+    //
+    // It is proven in a **block of its own** in that file rather than in its
+    // `CHECKS` list, and the reason is worth stating because it is not a
+    // weakening: over a tree with no admin render at all this check's *own*
+    // vacuous refusal fires before the module floor, so its moved-tree message
+    // is the zone one and carries no walk size — which is exactly what the
+    // shared list asserts of every member. The floor itself is exercised by the
+    // half-moved tree, which is the sharper of the two anyway: a partial move is
+    // what a package split actually performs.
+    residueGuard: 'derived-population',
     red: {
       'unrendered-zone': top(() =>
         adminZoneFindingCount(
@@ -2733,6 +3849,28 @@ const CHECKS: readonly CheckEntry[] = [
           'foreign-module-id',
         ),
       ),
+      // The same predicate over a **module's own** sources — the population the
+      // tree moved into and this walk did not follow until it was widened. The
+      // proof is a module package's admin layer, which is where Story 3 puts a
+      // screen and where neither spelling of the coupling was being read.
+      'foreign-module-id:module-owned': top(() =>
+        adminZoneFindingCount(
+          adminZoneFixture({
+            files: [
+              ...adminZoneFixture().files,
+              {
+                path: 'packages/modules/settings/src/admin/components/ConfigurationReferenceInput.tsx',
+                source:
+                  "const isVisible = useSurfaceVisibility();\nconst show = isVisible({ module: 'credentials' });",
+                roles: ['module'],
+                owner: 'settings',
+              },
+            ],
+            registered: ['catalog', 'settings', 'credentials'],
+          }),
+          'foreign-module-id',
+        ),
+      ),
       // Both stale directions of the two-way ledger.
       'stale-entry': top(
         () =>
@@ -2759,6 +3897,467 @@ const CHECKS: readonly CheckEntry[] = [
           ledger: { [key]: 'one site recorded, two walked' },
         }).findings.length;
       }),
+    },
+  },
+  {
+    // `specs/100-module-owned-documentation/contracts/docs-registry.md` §3 —
+    // the documentation navigation describes the modules the platform composes.
+    //
+    // It is a check of its own rather than an arm of `overlay:check`, and the
+    // difference is measurable rather than aesthetic: `overlay:check` asks
+    // whether each artefact is what the generator would emit, and a generator
+    // that correctly emits a sidebar for the 62 modules it can see agrees with
+    // itself perfectly while eight written pages are reachable from no
+    // navigation. That was the tree on 2026-09-03.
+    //
+    // One proof per finding kind, both stale directions of every ledger that
+    // carries one, and the discrimination the whole `undocumented-module`
+    // predicate turns on. Each enters over a **documentation tree on disk** plus
+    // the two committed artefacts as **text**: the analysis is a directory walk,
+    // a front-matter parse, a slug fold, a shipper attribution, a link resolver
+    // and two literal-node artefact readers, and a fixture handing in
+    // attributions would prove the reporter and leave every one of them
+    // unproven (issue #130).
+    //
+    // **Phase 2 moved the pages into the modules that own them**, so the
+    // fixture now writes a module's `docs/` layer as well as the site's tree —
+    // which is what lets a proof reach the three findings that only exist for a
+    // module-owned page: publishing under a sibling's slug, a slug the site
+    // will not route, and a relative link into a sibling's pages.
+    //
+    // **Phase 3 adds `derived-fact-in-prose`** (FR-023), whose population is the
+    // whole site rather than the modules category: an architecture guide names a
+    // module's address as readily as the module's own page does, and § 0.3
+    // measured the sentences across all of `docs/docs`. Its proofs enter as
+    // **source text** and run the real prefix derivation and matcher, because
+    // the predicate is the half that decides whether a sentence is a finding at
+    // all — and the discrimination beside them is what says the rule is *a fact
+    // the platform derives*, not *a path in prose*.
+    script: 'backend/scripts/check-module-docs.ts',
+    npmScript: 'check:module-docs',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-module-docs.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // The population is every registered module's own directory, and the floor
+    // is `refuseVacuousModulePopulation` over it — so a moved module tree is
+    // refused rather than reported clean, and `moved-module-tree.test.ts`
+    // spawns it beside the other module walks.
+    residueGuard: 'derived-population',
+    red: {
+      'undocumented-module': top(() =>
+        moduleDocsFindings(
+          {
+            modules: [{ id: 'catalog' }, { id: 'mfa' }],
+            pages: [{ path: 'catalog.md', frontMatter: { title: 'Catalog' } }],
+            rows: [{ moduleId: 'catalog', slug: 'catalog' }, { moduleId: 'mfa' }],
+          },
+          'undocumented-module',
+        ),
+      ),
+      // The other direction of the same ledger: an entry whose module now has a
+      // page, so it retires in the merge request that wrote the page.
+      'undocumented-module:stale-entry': top(() =>
+        moduleDocsFindings(
+          { ledgers: { undocumented: { blog: 'documented in a later merge request' } } },
+          'undocumented-module',
+        ),
+      ),
+      'orphan-page': top(() =>
+        moduleDocsFindings({ navigation: ['modules/catalog'] }, 'orphan-page'),
+      ),
+      'unlocated-page': top(() =>
+        moduleDocsFindings(
+          {
+            pages: [
+              ...MODULE_DOCS_COMPLIANT.pages,
+              { path: 'something-else.md', frontMatter: { title: 'Something else' } },
+            ],
+          },
+          'unlocated-page',
+        ),
+      ),
+      // Both directions of the map, because a census is wrong in two ways: a
+      // registered module with no row, and a row for a module that has gone.
+      'unpaired-index-row:missing': top(() =>
+        moduleDocsFindings({ rows: [{ moduleId: 'catalog', slug: 'catalog' }] }, 'unpaired-index-row'),
+      ),
+      'unpaired-index-row:extra': top(() =>
+        moduleDocsFindings(
+          {
+            rows: [
+              { moduleId: 'catalog', slug: 'catalog' },
+              { moduleId: 'blog', slug: 'blog' },
+              { moduleId: 'gone' },
+            ],
+          },
+          'unpaired-index-row',
+        ),
+      ),
+      // Shipper and subject disagree — `catalog` publishing at `blog`'s
+      // address. Attribution stays the shipper's, so the finding is the only
+      // thing that makes the squat visible.
+      'misowned-page': top(() =>
+        moduleDocsFindings(
+          {
+            modules: [
+              { id: 'catalog', docs: [{ path: 'blog.md', frontMatter: { title: 'Catalog' } }] },
+              { id: 'blog', docs: [{ path: 'blog-2.md', frontMatter: { title: 'Blog' } }] },
+            ],
+            pages: [],
+            rows: [
+              { moduleId: 'catalog', slug: 'blog' },
+              { moduleId: 'blog', slug: 'blog-2' },
+            ],
+          },
+          'misowned-page',
+        ),
+      ),
+      // A page Docusaurus makes a **partial**: no route, unfindable from the
+      // sidebar. `orphan-page` calls it reached, because the artefact names it
+      // and only the build knows it generates nothing (D-200).
+      'unroutable-page': top(() =>
+        moduleDocsFindings(
+          {
+            modules: [
+              { id: 'catalog', docs: [{ path: '_catalog.md', frontMatter: { title: 'C' } }] },
+            ],
+            pages: [],
+            rows: [{ moduleId: 'catalog', slug: '_catalog' }],
+          },
+          'unroutable-page',
+        ),
+      ),
+      // FR-020 — a relative link into a sibling module's page, which is a page
+      // that is not there in an instance that did not install the sibling.
+      // Both directions of the per-consumer ledger, because a recorded link the
+      // walk no longer finds is the entry the draining batch cannot see.
+      'foreign-module-link:unledgered': top(() =>
+        moduleDocsFindings(MODULE_DOCS_SIBLING_LINK, 'foreign-module-link'),
+      ),
+      'foreign-module-link:stale': top(() =>
+        moduleDocsFindings(
+          {
+            ...MODULE_DOCS_SIBLING_LINK,
+            ledgers: {
+              foreignLinks: {
+                catalog: { blog: 'FR-020.' },
+                blog: { catalog: 'FR-020 — a link nobody writes any more.' },
+              },
+            },
+          },
+          'foreign-module-link',
+        ),
+      ),
+      // FR-023 — a sentence stating where a module's code lives. Both
+      // directions of the ledger: an unledgered sentence, and an entry for one
+      // nobody writes any more, which is the entry the draining batch cannot
+      // see go stale.
+      'derived-fact-in-prose:unledgered': top(() =>
+        moduleDocsFindings(
+          { proseSites: moduleDocsProseSites(MODULE_DOCS_DERIVED_FACT) },
+          'derived-fact-in-prose',
+        ),
+      ),
+      'derived-fact-in-prose:stale': top(() =>
+        moduleDocsFindings(
+          {
+            ledgers: {
+              derivedFacts: { 'architecture/kernel#deadbeef': 'a sentence nobody writes now.' },
+            },
+          },
+          'derived-fact-in-prose',
+        ),
+      ),
+      // The count, which is the other granularity: one sentence naming two
+      // modules is one key and two references, and a ledger that recorded one
+      // is an entry describing half the line it covers.
+      'derived-fact-in-prose:count': top(() => {
+        const sites = moduleDocsProseSites(
+          'See `packages/modules/catalog/src/manifest.ts` and `packages/modules/blog/`.',
+        );
+        return moduleDocsFindings(
+          {
+            proseSites: sites,
+            ledgers: {
+              derivedFacts: { [proseKey(sites[0]!.docId, sites[0]!.line)]: 'one reference.' },
+            },
+          },
+          'derived-fact-in-prose',
+        );
+      }),
+      'derived-fact-discriminates-a-derived-address-from-a-path': top(() =>
+        moduleDocsDerivedFactDiscrimination(),
+      ),
+      'declaration-discriminates-false-from-absent': top(() =>
+        moduleDocsDeclarationDiscrimination(),
+      ),
+    },
+  },
+  {
+    // `specs/096-page-builder-block-ownership/contracts/block-name-check.md` —
+    // a Puck block name is written into `jsonb` and never rewritten, and no
+    // existing check's population contains one. It lands **after** the
+    // conversion with its one ledger empty, which AGENTS.md calls the cheapest
+    // possible moment to lock an invariant.
+    //
+    // Eight findings, eight proofs, plus five discriminations the predicate
+    // turns on and would be worthless without: a Puck **field** descriptor
+    // (`{ type: 'text', label: 'Gap' }`, hundreds of them, no `props` sibling);
+    // a block name in a comment and in a quoted example; a **joining** category
+    // declaration that omits `weight` and `visible`, which is the shape §1.1
+    // tells authors to write; a tree-**copy** helper (`{ type: record.type }`),
+    // which carries no authored name; and a `switch` that is not over
+    // `node.type`, measured to pull in 26 names from five files that render no
+    // block.
+    script: 'backend/scripts/check-block-names.ts',
+    npmScript: 'check:block-names',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-block-names.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its module half is `layout.moduleWalkRoots` under
+    // `refuseVacuousModulePopulation`, so a moved tree is refused rather than
+    // reported clean — and refused **first**, before a finding count can be
+    // printed, so it is named as a moved tree rather than as 74 violations.
+    residueGuard: 'derived-population',
+    red: {
+      'bare-block-name': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              { key: 'packages/modules/cms/src/seed.ts', text: nodeLiteralSource('Hero') },
+              BLOCK_NAMES_RENDERER,
+            ],
+            modules: [BLOCK_NAMES_CMS],
+          },
+          'bare-block-name',
+        ),
+      ),
+      'undeclared-block-name': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              { key: 'packages/modules/cms/src/seed.ts', text: nodeLiteralSource('cms.Nope') },
+              BLOCK_NAMES_RENDERER,
+            ],
+            modules: [BLOCK_NAMES_CMS],
+          },
+          'undeclared-block-name',
+        ),
+      ),
+      'foreign-namespace-declaration': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [BLOCK_NAMES_RENDERER],
+            modules: [
+              {
+                id: 'cms',
+                blocks: [{ name: 'catalog.ProductGrid', category: 'catalog', contexts: ['cms'] }],
+                categories: [{ key: 'catalog', contexts: ['cms'] }],
+              },
+            ],
+          },
+          'foreign-namespace-declaration',
+        ),
+      ),
+      'duplicate-block-name': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [BLOCK_NAMES_RENDERER],
+            modules: [
+              BLOCK_NAMES_CMS,
+              {
+                id: 'blog',
+                blocks: [{ name: 'cms.Hero', category: 'content', contexts: ['cms'] }],
+                categories: [{ key: 'content', contexts: ['cms'] }],
+              },
+            ],
+          },
+          'duplicate-block-name',
+        ),
+      ),
+      'declared-without-renderer': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [BLOCK_NAMES_RENDERER],
+            modules: [
+              {
+                id: 'cms',
+                blocks: [
+                  { name: 'cms.Hero', category: 'content', contexts: ['cms'] },
+                  { name: 'cms.Ghost', category: 'content', contexts: ['cms'] },
+                ],
+                categories: [{ key: 'content', contexts: ['cms'] }],
+              },
+            ],
+          },
+          'declared-without-renderer',
+        ),
+      ),
+      'renderer-without-declaration': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              {
+                key: 'packages/cms-components/src/index.ts',
+                text: rendererMapSource(['cms.Hero', 'cms.Orphan']),
+              },
+            ],
+            modules: [BLOCK_NAMES_CMS],
+          },
+          'renderer-without-declaration',
+        ),
+      ),
+      'unreadable-block-name': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              {
+                key: 'packages/modules/cms/src/seed.ts',
+                text:
+                  'declare const kind: string;\n' +
+                  'export const tree = { content: [{ type: `cms.${kind}`, props: {} }] };\n',
+              },
+              BLOCK_NAMES_RENDERER,
+            ],
+            modules: [BLOCK_NAMES_CMS],
+          },
+          'unreadable-block-name',
+        ),
+      ),
+      'category-presentation-disagreement': top(() =>
+        blockNameFindingCount(
+          {
+            sources: [
+              {
+                key: 'packages/modules/invoices/src/config.tsx',
+                text: rendererMapSource(['invoices.InvoiceHeader', 'ksef.InvoiceSection']),
+              },
+            ],
+            modules: [
+              {
+                id: 'invoices',
+                blocks: [
+                  { name: 'invoices.InvoiceHeader', category: 'invoice', contexts: ['invoice'] },
+                ],
+                categories: [{ key: 'invoice', contexts: ['invoice'], weight: 10 }],
+              },
+              {
+                id: 'ksef',
+                blocks: [
+                  { name: 'ksef.InvoiceSection', category: 'invoice', contexts: ['invoice'] },
+                ],
+                categories: [{ key: 'invoice', contexts: ['invoice'], weight: 20 }],
+              },
+            ],
+          },
+          'category-presentation-disagreement',
+        ),
+      ),
+      // The two vacuous-pass proofs (§7), entering the same way. A run that read
+      // no tree site is refused rather than reported clean, and a family member
+      // whose renderer map does not parse is **named** rather than treated as
+      // rendering nothing — which would make every one of its blocks a
+      // `declared-without-renderer` finding.
+      'refuses-a-run-with-no-tree-site': top(() =>
+        blockNameRefusalOf({ treeSites: 0 })?.kind === 'no-tree-site' ? 1 : 0,
+      ),
+      'names-an-unparseable-renderer-map': top(() =>
+        blockNameParseFailure({
+          key: 'packages/cms-components/src/index.ts',
+          text: "export const config: Config = { components: { 'cms.Hero': ,,, } };\n",
+        }) === null
+          ? 0
+          : 1,
+      ),
+    },
+  },
+  {
+    // `specs/094-translation-boundary/contracts/bundle-pairing-ratchet.md` —
+    // the owner's ruling of 2026-09-01: a module that ships a bundle in any
+    // language ships one in every language the platform ships. It lands at
+    // **zero violations**, which is what makes this entry carry the whole
+    // weight: nothing in the tree exercises the check, so a narrowing would be
+    // invisible in every pipeline until the day the shape arrived.
+    //
+    // Four findings, four proofs, plus the discrimination § 1 turns on — a
+    // module shipping **neither** bundle is clean, which is what proves the
+    // predicate was implemented as a conditional rather than as "every module
+    // ships `pl.json`". Each enters over a **fixture module tree on disk**
+    // plus the records a generated index produces over it: the analysis is a
+    // directory probe, a per-language stat, a `JSON.parse` and a schema
+    // validation, and a fixture handing in classifications would prove the
+    // reporter and leave all four unproven (issue #130).
+    script: 'backend/scripts/check-bundle-pairing.ts',
+    npmScript: 'check:bundle-pairing',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-bundle-pairing.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // The population is every registered module's own directory, and the floor
+    // is `refuseVacuousModulePopulation` over it — so a moved module tree is
+    // refused rather than reported clean, and `moved-module-tree.test.ts`
+    // spawns it beside the other module walks.
+    residueGuard: 'derived-population',
+    red: {
+      'missing-language-bundle': top(() =>
+        bundlePairingFindings(
+          [BUNDLE_PAIRING_COMPLIANT, { id: 'blog', bundles: { 'en.json': validBundle() } }],
+          'missing-language-bundle',
+        ),
+      ),
+      'empty-bundle': top(() =>
+        bundlePairingFindings(
+          [
+            BUNDLE_PAIRING_COMPLIANT,
+            { id: 'blog', bundles: { 'en.json': '{}\n', 'pl.json': validBundle() } },
+          ],
+          'empty-bundle',
+        ),
+      ),
+      'unparseable-bundle': top(() =>
+        bundlePairingFindings(
+          [
+            BUNDLE_PAIRING_COMPLIANT,
+            {
+              id: 'blog',
+              bundles: {
+                // Nested rather than flat: it parses as JSON and fails the
+                // schema, which is what the boot reconciler logs and skips.
+                'en.json': `${JSON.stringify({ actions: { open: { label: 'Open' } } })}\n`,
+                'pl.json': validBundle(),
+              },
+            },
+          ],
+          'unparseable-bundle',
+        ),
+      ),
+      'undeclared-bundle-dir': top(() =>
+        bundlePairingFindings(
+          [
+            // The compliant module is load-bearing rather than decorative: the
+            // probe directory names are derived from what the *other* manifests
+            // declare, so a tree in which nobody declares one has no name to
+            // probe and this finding cannot fire.
+            BUNDLE_PAIRING_COMPLIANT,
+            {
+              id: 'blog',
+              bundlesDir: null,
+              bundles: { 'en.json': validBundle(), 'pl.json': validBundle() },
+            },
+          ],
+          'undeclared-bundle-dir',
+        ),
+      ),
+      // The conditional, as a red proof of the *discrimination*: a module that
+      // ships nothing is exempt, and the run that contains one is refused for
+      // reading no bundle at all rather than reported clean. Without this the
+      // four above would all pass over a check that had quietly become a
+      // universal, and seven correct modules would each be a finding.
+      'conditional-exempts-a-module-shipping-nothing': top(() =>
+        bundlePairingReadRefusals([{ id: 'catalog' }, { id: 'auth' }]),
+      ),
     },
   },
   {
@@ -2876,80 +4475,16 @@ const CHECKS: readonly CheckEntry[] = [
       'unreadable-barrel-refuses': top(() => adminSurfaceRefuses({ barrelsRead: 3 })),
       'export-star-barrel-refuses': top(() => adminSurfaceRefuses({ barrelWithStar: 'ui' })),
       'empty-walk-refuses': top(() => adminSurfaceRefuses({ walkedFiles: 0 })),
-      'no-shim-refuses': top(() => adminSurfaceRefuses({ shims: 0 })),
-    },
-  },
-  {
-    // Feature 091's FR-018. Four findings, and the two count drifts are the
-    // ones the ratchet exists for — a batch that moves a module's admin
-    // directory does not touch either host file, so the number it leaves
-    // behind describes a registration that is now declared twice. Every
-    // fixture enters as route and nav **declarations** plus the import map,
-    // because the attribution — a route by the directory its component comes
-    // from, a nav entry by the `module` field it carries — is where the defect
-    // lives; a proof handed a ready-made owner would count the arithmetic and
-    // nothing above it (issue #130).
-    script: 'backend/scripts/check-admin-registrations.ts',
-    npmScript: 'check:admin-registrations',
-    job: 'quality',
-    companionTest: 'backend/test/unit/scripts/check-admin-registrations.test.ts',
-    vacuousGuard: 'exit-2',
-    readSize: 'reported',
-    // Its population is the admin's two host registries, which a moved backend
-    // module tree does not touch. What it *does* follow is the admin module
-    // root, derived from the source alias — and losing that is exit 2 through
-    // its own first vacuous reason, proven below.
-    residueGuard: 'not-a-module-walk',
-    red: {
-      'unrecorded-module': top(
-        () =>
-          adminRegistrationFindings({}, { routes: 1, nav: 1 }).filter(
-            (finding) => finding.kind === 'unrecorded-module',
-          ).length,
-      ),
-      'stale-baseline-entry': top(
-        () =>
-          adminRegistrationFindings({ blog: { routes: 3, nav: 1 } }, null).filter(
-            (finding) => finding.kind === 'stale-baseline-entry' && finding.owner === 'blog',
-          ).length,
-      ),
-      // The direction Story 3 produces: the screens moved into the package and
-      // the `<Route>` stayed, so the admin declares it twice.
-      'route-count-drift-above': top(
-        () =>
-          adminRegistrationFindings({ blog: { routes: 3, nav: 1 } }, { routes: 1, nav: 1 }).filter(
-            (finding) => finding.kind === 'route-count-drift',
-          ).length,
-      ),
-      // The other direction: a module grew a hand-written registration, which
-      // after Phase 2 is no longer how an admin screen is added.
-      'route-count-drift-below': top(
-        () =>
-          adminRegistrationFindings({ blog: { routes: 0, nav: 1 } }, { routes: 1, nav: 1 }).filter(
-            (finding) => finding.kind === 'route-count-drift',
-          ).length,
-      ),
-      'nav-count-drift': top(
-        () =>
-          adminRegistrationFindings({ blog: { routes: 1, nav: 4 } }, { routes: 1, nav: 1 }).filter(
-            (finding) => finding.kind === 'nav-count-drift',
-          ).length,
-      ),
-      // The four vacuous reasons, each entered on the record a real run builds.
-      // Without them a tree whose admin had moved would compare an empty walk
-      // against an empty baseline and report a cheerful zero.
-      'no-admin-layout-refuses': top(() =>
-        adminRegistrationsVacuous({ admin: null, routes: 0, nav: 0, baselineEntries: 1 }),
-      ),
-      'no-routes-refuses': top(() =>
-        adminRegistrationsVacuous({ routes: 0, nav: 1, baselineEntries: 1 }),
-      ),
-      'no-nav-refuses': top(() =>
-        adminRegistrationsVacuous({ routes: 1, nav: 0, baselineEntries: 1 }),
-      ),
-      'empty-baseline-refuses': top(() =>
-        adminRegistrationsVacuous({ routes: 1, nav: 1, baselineEntries: 0 }),
-      ),
+      // R18(4). The registry is on disk and names no module package, so the
+      // package half's floor has no independent author — the shape that would
+      // otherwise report clean over a walk nothing corroborates.
+      'registry-names-no-package-refuses': top(() => adminSurfaceRefuses({ registryLayers: 0 })),
+      // R18(6). The shim refusal is conditional on the application half being
+      // non-empty, so the proof has to supply one. The *other* half of that
+      // claim — with the application half empty the same record does not refuse
+      // — is a green and belongs in the companion test, not in a map whose
+      // every entry is a shape this check refuses.
+      'no-shim-refuses': top(() => adminSurfaceRefuses({ applicationFiles: 3, shims: 0 })),
     },
   },
   {
@@ -3110,6 +4645,121 @@ const CHECKS: readonly CheckEntry[] = [
       // is matched, not the exact string.
       require: top(
         () => containerAnalyze("const a = require('awilix/lib/awilix.js');\n", MODULE_FILE).length,
+      ),
+    },
+  },
+  {
+    // `specs/107-override-report-and-ladder/contracts/divergence-report.md`
+    // §4–§5 (D-30) — a deployment's divergence from core is derived, owned and
+    // explained.
+    //
+    // **The acceptance instrument is the fixture deployment, not this
+    // repository's tree** (SC-008). `example` and `acceptance` carry one
+    // decoration, one interceptor and one registration between them, so a proof
+    // set over them would exercise three of the nine kinds and go quiet about
+    // the other six. Every proof below enters as **source text** — the top of
+    // the analysis — so the receiver resolution, the seam spelling, the literal
+    // resolution, the owner attribution and the rung stamp all run; a fixture
+    // handing in resolved sites would prove the reporter and leave the walk
+    // unproven (issue #130).
+    //
+    // No ledger, deliberately (FR-021): every finding is a file the deployment
+    // owns and one edit from compliance.
+    script: 'backend/scripts/check-divergence.ts',
+    npmScript: 'check:divergence',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-divergence.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // **Its population is `backend/src/apps/`, and the module walk is an input to
+    // it rather than the subject of it** — which is what this field asks
+    // (`ResidueGuard`: *"whether the check's **population** is the module
+    // tree"*). A module contributes to the **owner map** this check attributes a
+    // decoration's subject with; no module contributes a divergence, because a
+    // divergence is a deployment's.
+    //
+    // That distinction is also what makes the `endora check` verdict
+    // `repository-only` consistent rather than contradictory: invariant 3 there
+    // refuses a repository-only claim over a `derived-population` walk, on the
+    // ground that a module package is one of the modules such a walk judges. It
+    // is not one of the deployments this rule judges, and it cannot become one —
+    // a module package's divergence from core is a contradiction in terms.
+    //
+    // **What this field asks is narrower than that, though, and the two answers
+    // came apart here** (feature 111, FR-009/FR-010). The check calls
+    // `refuseVacuousModulePopulation` first, before every other refusal, so a
+    // moved module tree is named as one rather than answered with four
+    // `unowned-subject` findings — it carries the floor, and
+    // `not-a-module-walk` said it does not. The value below says it carries it
+    // and the shared fixture cannot yet reach a verdict over it;
+    // `DEFERRED_SHARED_PROOFS` holds the measurement and the condition that
+    // retires the entry. The `endora check` verdict above is unaffected: that
+    // question is about the rule's subject, and this one is about its floor.
+    residueGuard: 'deferred-shared-proof',
+    red: {
+      'computed-subject': top(() =>
+        fixtureFindings('computed-subject', {
+          sources: [
+            {
+              moduleId: 'acme_overlay',
+              file: 'backend/src/apps/acme/modules/acme_overlay/backend.ts',
+              text:
+                "import type { ModuleContext } from '../../../../kernel/index.js';\n" +
+                'export function registerModule(ctx: ModuleContext): void {\n' +
+                '  ctx.di.decorate<Pricing>(nameFrom(config), (inner) => inner);\n' +
+                '}\n',
+            },
+          ],
+        }),
+      ),
+      'unowned-subject': top(() => fixtureFindings('unowned-subject', { owners: new Map() })),
+      'unmatched-interceptor-target': top(() =>
+        fixtureFindings('unmatched-interceptor-target', { routeSources: [] }),
+      ),
+      'undeclared-divergence': top(() =>
+        fixtureFindings('undeclared-divergence', { reasons: {} }),
+      ),
+      'stale-reason': top(() =>
+        fixtureFindings('stale-reason', {
+          reasons: {
+            'decoration:acme_overlay:somethingRemoved':
+              'A wrap this deployment used to carry and no longer does — the shape that lets ' +
+              'a deployment silently reacquire a hazard it once declared.',
+          },
+        }),
+      ),
+      'unclassified-seam': top(() =>
+        fixtureFindings('unclassified-seam', {
+          seams: [...moduleContextSeams(MODULE_CONTEXT_SOURCE), 'mountEverything'],
+        }),
+      ),
+      'stale-decoration-order': top(() =>
+        fixtureFindings('stale-decoration-order', {
+          decorationOrder: { pricingService: ['acme_overlay'] },
+        }),
+      ),
+      'foreign-order-member': top(() =>
+        fixtureFindings('foreign-order-member', {
+          decorationOrder: { pricingService: ['acme_overlay', 'somebody_elses_module'] },
+        }),
+      ),
+      'incomplete-order': top(() =>
+        fixtureFindings('incomplete-order', {
+          overlayModules: ['acme_overlay', 'beta_overlay'],
+          decorationOrder: { pricingService: ['acme_overlay'] },
+          sources: [
+            {
+              moduleId: 'acme_overlay',
+              file: 'backend/src/apps/acme/modules/acme_overlay/backend.ts',
+              text: FIXTURE_OVERLAY,
+            },
+            {
+              moduleId: 'beta_overlay',
+              file: 'backend/src/apps/acme/modules/beta_overlay/backend.ts',
+              text: FIXTURE_OVERLAY.replace('acme_overlay', 'beta_overlay'),
+            },
+          ],
+        }),
       ),
     },
   },
@@ -3283,6 +4933,130 @@ const CHECKS: readonly CheckEntry[] = [
       'file-level-site-beside-a-scoped-worker': top(unscopedProgramBesideAScopedWorker),
       // The ledger's second direction.
       'stale-ledger-entry': top(staleLedgerEntry),
+    },
+  },
+  {
+    // `specs/117-instance-bring-up/` FR-003 — every environment value a running
+    // Endora reads is declared, and every declared input is read. It lands at
+    // **zero findings** over the three trees, which is what makes this entry
+    // carry the whole weight: nothing in the tree exercises the check, so a
+    // narrowing would be invisible in every pipeline until the day the shape
+    // arrived.
+    //
+    // Six findings, six proofs, plus the **two discriminations** — and both are
+    // places a plausible implementation goes wrong in the direction that reads
+    // clean. A `process.env[CONST]` where the constant is a string literal is
+    // the tree's own correct idiom (`storefront/lib/env.mjs` exports the two
+    // variable names and `next.config.js` reads through them); a check that
+    // called it `unresolvable-input-name` would have landed with findings
+    // against the file that exists to remove the defect this feature is about.
+    // And one name declared by two *different* authors is not `foreign-input`:
+    // `REVALIDATE_SECRET` is declared by the platform and by the storefront,
+    // because under D-195 those are two repositories that ship independently.
+    script: 'backend/scripts/check-env-inputs.ts',
+    npmScript: 'check:env-inputs',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-env-inputs.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is the three trees a running Endora is made of — the
+    // backend's sources plus the platform's, the storefront's, the admin's —
+    // and none of them is the module tree. A module's own inputs are a manifest
+    // field that lands with this feature's Phase 3, and until then the run
+    // **prints** that they are unjudged rather than passing over them.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'undeclared-input': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([ENV_INPUT]),
+          backendEnvSource(`${READS_DATABASE_URL}const k = process.env['MEILISEARCH_URL'];\n`),
+          'undeclared-input',
+        ),
+      ),
+      'unread-input': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([ENV_INPUT, { ...ENV_INPUT, name: 'REDIS_URL' }]),
+          backendEnvSource(READS_DATABASE_URL),
+          'unread-input',
+        ),
+      ),
+      // Shape one of two under this kind: the owner is not the shipping author.
+      'foreign-input': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([
+            { ...ENV_INPUT, owner: { kind: 'application', application: 'storefront' } },
+          ]),
+          backendEnvSource(READS_DATABASE_URL),
+          'foreign-input',
+        ),
+      ),
+      // Shape two: one author, one name, twice — two `describes`, and whichever
+      // a reader reaches first wins.
+      'foreign-input-declared-twice': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([ENV_INPUT, ENV_INPUT]),
+          backendEnvSource(READS_DATABASE_URL),
+          'foreign-input',
+        ),
+      ),
+      'unresolvable-input-name': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([ENV_INPUT]),
+          backendEnvSource(
+            `${READS_DATABASE_URL}export function read(n: string) { return process.env[n]; }\n`,
+          ),
+          'unresolvable-input-name',
+        ),
+      ),
+      'generable-without-secret': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([{ ...ENV_INPUT, secret: false, generable: true }]),
+          backendEnvSource(READS_DATABASE_URL),
+          'generable-without-secret',
+        ),
+      ),
+      // Both halves of the kind, because they are two different failures: an
+      // `optional` that does not say what is lost, and a condition naming an
+      // input no declaration carries, which can therefore never be true.
+      'requirement-without-a-consequence': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([
+            {
+              ...ENV_INPUT,
+              requirement: { kind: 'optional', without: { en: 'optional', pl: '-' } },
+            },
+          ]),
+          backendEnvSource(READS_DATABASE_URL),
+          'requirement-without-a-consequence',
+        ),
+      ),
+      'requirement-with-an-unknown-condition': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([
+            {
+              ...ENV_INPUT,
+              requirement: {
+                kind: 'requiredWhen',
+                input: 'CATALOG_SEARCH_BACKEND',
+                equals: 'meilisearch',
+              },
+            },
+          ]),
+          backendEnvSource(READS_DATABASE_URL),
+          'requirement-without-a-consequence',
+        ),
+      ),
+      // The vacuous-pass proof: a declaration this run cannot read **in full**
+      // is refused rather than reconciled over the entries that happened to
+      // parse. Exit 2's own shape, entering as source text.
+      'refuses-a-declaration-it-cannot-read': top(() => {
+        try {
+          evaluateDeclarationArray('export const X = [{ name: NAME }];\n', 'x.ts', 'X');
+          return 0;
+        } catch (error: unknown) {
+          return error instanceof DeclarationUnreadableError ? 1 : 0;
+        }
+      }),
     },
   },
   {
@@ -4100,7 +5874,11 @@ const CHECKS: readonly CheckEntry[] = [
           ].join('\n'),
         ),
       ),
-      'sql-in-a-migration-is-not-a-finding': top(() => {
+      // Feature 097 **narrowed** this exclusion rather than deleting it: what a
+      // migration is out of is this predicate's rule — every reach is debt,
+      // into `cross-module-imports` — and not the population. The migration
+      // rows below judge the same statement under R1 and R2.
+      'sql-in-a-migration-is-not-this-predicates': top(() => {
         const found = findCrossModuleSql({
           sources: new Map([
             [BLOG_SERVICE_FILE, SQL_CONTROL],
@@ -4201,6 +5979,196 @@ const CHECKS: readonly CheckEntry[] = [
           `${KNEX_BINDING}\n${BUILDER_CONTROL}\n` +
             "if (!effectiveState.isPresent('assets')) return;\nconst label = translate('cms_blocks');",
         ),
+      ),
+
+      // --- a migration's cross-module SQL (feature 097) --------------------
+      //
+      // The `sql` predicate excluded `migrations/` outright and delegated to
+      // `test/unit/db/fk-dependency-drift.test.ts`, which reads `create table`,
+      // `alter table` and `references "…"` and no DML statement at all — so 76
+      // cross-module DML accesses in 28 migration files were judged by nothing
+      // in this repository. Two rules replace the blanket exclusion.
+      //
+      // Seventeen proofs, and they are two findings rather than one because the
+      // remedies differ: an R1 finding is repaired by a manifest line **or** by
+      // moving the statement, an R2 finding only by moving it. Merged, R2 would
+      // go blind behind R1's red for every module that declares its target —
+      // 21 of the 37 module-targeting writes standing when this landed, which
+      // is issue #130's shape.
+      //
+      // Every one enters at the **top**: source text, a schema the owner map is
+      // built from, and the **declared** manifest graph, never a closure or a
+      // pre-classified access record.
+      'migration-undeclared-write': top(
+        () =>
+          migrationRules(UNDECLARED_WRITE, { a: [], b: [] }).join(',') ===
+          'undeclared-migration-table-reference,migration-writes-a-foreign-table'
+            ? 1
+            : 0,
+      ),
+      'migration-undeclared-read': top(() => {
+        const rules = migrationRules('this.addSql(`select "id" from "b_table";`);', {
+          a: [],
+          b: [],
+        });
+        return rules.length === 1 && rules[0] === 'undeclared-migration-table-reference' ? 1 : 0;
+      }),
+      // "No finding" cannot go red on its own, so the clean cases are paired
+      // with the reach they are one manifest line away from.
+      'migration-declared-read-is-clean': top(() =>
+        migrationRules('this.addSql(`select "id" from "b_table";`);', { a: ['b'], b: [] })
+          .length === 0 &&
+        migrationRules('this.addSql(`select "id" from "b_table";`);', { a: [], b: [] })
+          .length === 1
+          ? 1
+          : 0,
+      ),
+      // The clause R1 alone cannot state, and the one this feature exists for:
+      // `transactional_emails` is `nonDeactivatable` and `newsletter` is
+      // switchable, so the manifest line R1 would ask for makes `newsletter`'s
+      // activation control a dead switch. If this goes green on an R1-only
+      // implementation, R2 was folded into R1 and the design was lost.
+      'migration-declared-write-still-fails': top(() => {
+        const rules = migrationRules(UNDECLARED_WRITE, { a: ['b'], b: [] });
+        return rules.length === 1 && rules[0] === 'migration-writes-a-foreign-table' ? 1 : 0;
+      }),
+      // The closure is transitive (ordering-algorithm.md Step 3), and the
+      // fixture is the declared graph, so the traversal runs.
+      'migration-transitive-declaration': top(() =>
+        migrationRules('this.addSql(`select "id" from "b_table";`);', {
+          a: ['c'],
+          b: [],
+          c: ['b'],
+        }).length === 0 &&
+        migrationRules('this.addSql(`select "id" from "b_table";`);', { a: ['c'], b: [], c: [] })
+          .length === 1
+          ? 1
+          : 0,
+      ),
+      'migration-own-table-is-not-a-finding': top(() =>
+        migrationOnlyTheControl('this.addSql(`update "a_table" set "flag" = true;`);'),
+      ),
+      // Decided from the owner map's own answer, never from a table-name list:
+      // the kernel cannot appear in a `dependencies` array, so R1 over a kernel
+      // table would demand a declaration `defineModuleManifest` cannot spell.
+      'migration-kernel-table-is-not-a-finding': top(() =>
+        migrationOnlyTheControl(
+          'this.addSql(`insert into "sales_channels" ("id") values (?);`);',
+        ),
+      ),
+      // The non-duplication of `fk-dependency-drift.test.ts`: DDL is its
+      // subject, and `STATEMENT_HEAD` does not admit `create` or `alter`.
+      'migration-ddl-is-not-a-finding': top(() =>
+        migrationOnlyTheControl(
+          'this.addSql(`create table "b_table" ("id" uuid not null);`);',
+        ),
+      ),
+      // The AST reader's property, re-asserted at the new population.
+      'migration-sql-in-a-comment-is-not-a-finding': top(() =>
+        migrationOnlyTheControl(
+          [
+            '/* This used to `update "b_table" set "flag" = true where id is not null`. */',
+            "// It's gone, and it's b's own migration that does it now.",
+          ].join('\n'),
+        ),
+      ),
+      // The builder names its table as a call argument, so a statement-only
+      // implementation goes green while the write stands (issue #187's shape at
+      // this population). Asserted on the count of R2 findings, with the
+      // statement path given nothing to see.
+      'migration-builder-write': top(() =>
+        migrationFindingsOf(
+          'migration-writes-a-foreign-table',
+          ['const knex = em.getKnex();', "await knex('b_table').insert({ id });"].join('\n'),
+          { a: ['b'], b: [] },
+        ),
+      ),
+      // The two ledgers, both directions, through `checkModuleBoundary` with the
+      // source map *and* the shards: handing the comparison two ready-made sets
+      // would prove the set difference and nothing above it.
+      'migration-unledgered-write-fails': top(
+        () =>
+          migrationLedgerCheck(UNDECLARED_WRITE, {
+            undeclaredReferences: [],
+            foreignWrites: [],
+          }).foreignWrites.violations.length,
+      ),
+      'migration-stale-entry-fails': top(
+        () =>
+          migrationLedgerCheck('export class Migration20260901T101010AWiden {}', {
+            undeclaredReferences: [],
+            foreignWrites: [{ moduleId: 'a', entries: { [MIGRATION_KEY]: 'moves to b_init' } }],
+          }).foreignWrites.stale.length,
+      ),
+      'migration-entry-count-disagreeing-fails': top(
+        () =>
+          migrationLedgerCheck(UNDECLARED_WRITE, {
+            undeclaredReferences: [],
+            foreignWrites: [
+              { moduleId: 'a', entries: { [MIGRATION_KEY]: { sites: 2, reason: 'moves to b_init' } } },
+            ],
+          }).foreignWrites.countIssues.length,
+      ),
+      'migration-misfiled-entry-fails': top(
+        () =>
+          migrationLedgerCheck(UNDECLARED_WRITE, {
+            undeclaredReferences: [],
+            foreignWrites: [{ moduleId: 'b', entries: { [MIGRATION_KEY]: 'moves to b_init' } }],
+          }).foreignWrites.misfiledEntries.length,
+      ),
+      // Contract §4.3: one shard holding two predicates with different verdicts
+      // is how a ledger size stops meaning anything. An R2 entry must not
+      // account for an R1 finding over the same statement.
+      'migration-ledgers-stay-apart': top(() => {
+        const result = checkModuleBoundary(
+          {
+            sources: new Map([
+              ['modules/a/backend.ts', 'export function registerModule(ctx) {}'],
+              ['modules/b/backend.ts', 'export function registerModule(ctx) {}'],
+              [A_MIGRATION, UNDECLARED_WRITE],
+            ]),
+            schema: new Map([...MIGRATION_SCHEMA, [A_MIGRATION, UNDECLARED_WRITE]]),
+            dependencyClosures: dependencyClosures(new Map([['a', []], ['b', []]])),
+          },
+          [],
+          {
+            undeclaredReferences: [],
+            foreignWrites: [{ moduleId: 'a', entries: { [MIGRATION_KEY]: 'moves to b_init' } }],
+          },
+        );
+        return result.foreignWrites.violations.length === 0 &&
+          result.undeclaredReferences.violations.length === 1
+          ? 1
+          : 0;
+      }),
+      // The four refusals (contract §6). The first is the one that matters most
+      // and the one a careless implementation omits: the `manifest-index` floor
+      // is satisfied by any file a registered module contributes, and a
+      // module's backend sources are plentiful, so a `migrations/` walk that
+      // stopped resolving leaves R1 and R2 judging nothing while every other
+      // number holds. Each is paired with the record that must **not** refuse.
+      'no-migration-file-read-refuses': top(() =>
+        moduleBoundaryVacuous({ ...MIGRATION_READ, migrationFiles: 0 }) !== null &&
+        moduleBoundaryVacuous(MIGRATION_READ) === null
+          ? 1
+          : 0,
+      ),
+      'short-migration-walk-refuses': top(() =>
+        moduleBoundaryVacuous({
+          ...MIGRATION_READ,
+          migrationRegistryMissing: ['Migration20260901T101010AWiden'],
+        }) !== null
+          ? 1
+          : 0,
+      ),
+      'empty-dependency-closure-refuses': top(() =>
+        moduleBoundaryVacuous({ ...MIGRATION_READ, declaresNoDependency: true }) !== null ? 1 : 0,
+      ),
+      'missing-migration-ledger-directory-refuses': top(() =>
+        moduleBoundaryVacuous({ ...MIGRATION_READ, migrationLedgerDirectoriesExist: false }) !==
+        null
+          ? 1
+          : 0,
       ),
 
       // --- the admin population (feature 091, FR-017) ----------------------
@@ -4462,6 +6430,15 @@ const CHECKS: readonly CheckEntry[] = [
       // record: an artefact that contributed no entry, over roots the
       // derivation itself produced.
       'vacuous-containment-population': top(() => containmentFloorRefusals()),
+      // The doc-id half (feature 100). `foreign` is re-derived for the two
+      // documentation artefacts — a sidebar entry is a doc id and a map row is a
+      // relative page link, neither of which reaches the specifier reader — so
+      // the predicate is proven again over the reader it actually uses. Without
+      // these three, adding two artefacts to this check would have added two
+      // artefacts nothing contains.
+      'foreign-doc-entry': top(() => foreignDocEntryFindings()),
+      'unresolvable-doc-entry': top(() => unresolvableDocEntryFindings()),
+      'doc-entry-reader': top(() => docEntryReaderSites()),
     },
   },
   {
@@ -4571,6 +6548,59 @@ const CHECKS: readonly CheckEntry[] = [
           .violations;
         return violations.length === 1 && violations[0]?.port === 'customFields' ? 1 : 0;
       }),
+      // --- the promise form -------------------------------------------------
+      //
+      // One proof per shape the rule claims to refuse in this spelling, plus
+      // the two limits it claims **not** to reach and the key discrimination.
+      // The limit proof is a discrimination rather than a zero: its tree
+      // carries a real swallow beside the two shapes that must stay invisible,
+      // so it reads 1 while the limits hold and 2 the moment one of them stops
+      // holding — a bare 0 would also be what a dead recogniser prints.
+      'promise-catch-swallows-the-answer': top(
+        () => checkPortCatches({ sources: PORT_CATCH_PROMISE_TREE }, {}).violations.length,
+      ),
+      'promise-then-rejection-arm-swallows-the-answer': top(
+        () => checkPortCatches({ sources: PORT_CATCH_PROMISE_THEN_TREE }, {}).violations.length,
+      ),
+      'promise-catch-conditional-rethrow': top(
+        () =>
+          checkPortCatches({ sources: PORT_CATCH_PROMISE_CONDITIONAL_TREE }, {}).violations.length,
+      ),
+      'promise-finally-and-then-success-arm-are-not-guarded': top(() => {
+        const violations = checkPortCatches({ sources: PORT_CATCH_PROMISE_LIMITS_TREE }, {})
+          .violations;
+        return violations.length === 1 ? 1 : 0;
+      }),
+      'promise-form-keys-apart-from-the-statement-form': top(() => {
+        const both = checkPortCatches({ sources: PORT_CATCH_BOTH_FORMS_TREE }, {
+          'modules/carts/services/cart-total-service.ts:promotion': 'the statement form only',
+        });
+        return both.violations.length === 1 &&
+          keyOf(both.violations[0] as PortCatch).endsWith('#promise')
+          ? 1
+          : 0;
+      }),
+      // The second population floor. The module floor is satisfied by any file
+      // a registered module contributes, none of which need hold a promise, so
+      // a recogniser that stopped resolving would print a clean line over an
+      // unjudged population (`check:subscribe-seam`'s worker half). Read as a
+      // proof rather than as a `vacuousGuard` field because the tree it is
+      // about is one that holds handlers and *no* ports.
+      'promise-census-counts-handlers-that-reach-no-port': top(
+        () =>
+          checkPortCatches(
+            {
+              sources: new Map([
+                [
+                  'modules/carts/services/misc.ts',
+                  'await fetchThing().catch(() => undefined);\n' +
+                    'await other().then((x) => x, () => undefined);\n',
+                ],
+              ]),
+            },
+            {},
+          ).rejectionHandlerSites,
+      ),
     },
   },
   {
@@ -4935,7 +6965,7 @@ const CHECKS: readonly CheckEntry[] = [
       ),
       'unattributed-source': top(() =>
         platformSurfaceFindings(
-          { 'backend/src/apps/example/reduced-deployment.ts': '' },
+          { 'backend/src/apps/example/divergence.ts': '' },
           'unattributed-source',
         ),
       ),
@@ -4950,6 +6980,21 @@ const CHECKS: readonly CheckEntry[] = [
               "import { SettingsCache } from '@endora-commerce/platform/kernel/settings/settings-cache.js';",
           },
           'unpublished-subpath',
+        ),
+      ),
+      // D-160.14 — the third subpath state, and the only finding here that
+      // neither `node` nor `tsc` would raise: `./composition` is declared by the
+      // host's `exports` map, so it resolves, and is carried by no barrel, so no
+      // module may name it. A proof of its own because a set sweep over
+      // published symbols cannot see it — the reach names no symbol the surface
+      // is keyed by, and the two neighbouring verdicts are both wrong for it.
+      'host-internal-subpath': top(() =>
+        platformSurfaceFindings(
+          {
+            'packages/modules/blog/src/backend.ts':
+              "import { composeModules } from '@endora-commerce/platform/composition';",
+          },
+          'host-internal-subpath',
         ),
       ),
       'stale-ledger-key': top(
@@ -4971,6 +7016,40 @@ const CHECKS: readonly CheckEntry[] = [
               },
             },
           ).staleSymbols.length,
+      ),
+      // Feature 115's second consumer population: the **application** reaching
+      // inside the package by relative path. It is a finding of its own because
+      // no other one here can stand in for it — the reach names no symbol the
+      // published set is keyed by, and its file is attributed to no module, so
+      // the module half answers `unattributed-source` if it answers at all.
+      'relative-host-reach': top(
+        () =>
+          checkApplicationReaches(
+            applicationReachInput({
+              'backend/src/kernel/index.ts':
+                "export * from '../../../packages/platform/dist/kernel/index.js';",
+            }),
+            {},
+          ).violations.length,
+      ),
+      'stale-host-reach-key': top(
+        () =>
+          checkApplicationReaches(applicationReachInput({}), {
+            'backend/src/kernel/index.ts|packages/platform/src/kernel/index.ts': {
+              reason: 'gone',
+              retiredBy: 'feature 115 Phase 6',
+            },
+          }).staleKeys.length,
+      ),
+      // The two refusals the application half owns. Both fail in the direction
+      // that produces a **clean** result, which is why each is exit 2 and not a
+      // finding: the module half goes on printing a healthy `files=` beside a
+      // silence (issue #215 over this population).
+      'no-canonical-target': top(() =>
+        applicationReachRefusal({ canonicalTargets: 0, applicationFiles: 137 }) === null ? 0 : 1,
+      ),
+      'empty-application-walk': top(() =>
+        applicationReachRefusal({ canonicalTargets: 900, applicationFiles: 0 }) === null ? 0 : 1,
       ),
       'unreadable-barrel': top(() =>
         platformSurfaceRefusal({
@@ -5391,6 +7470,433 @@ const CHECKS: readonly CheckEntry[] = [
       'stale-package-artefact': top(() => emittedFreshnessFindings({ sourceIsNewer: true })),
       'unpairable-package-artefact': top(() =>
         emittedFreshnessFindings({ sourceIsNewer: false, sourceExists: false }),
+      ),
+    },
+  },
+  {
+    // `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2 — every storefront
+    // route says whether a crawler may index it, and the sitemap and the route
+    // table agree in both directions. It lands **at zero findings with the
+    // production change in the same merge request**: before it there was no
+    // `sitemap.ts`, no `robots.ts` and not one canonical in the tree, so the
+    // check and the 57 classifications it judges arrived together.
+    //
+    // That is what makes this entry carry the weight. Nothing in the tree
+    // exercises the check, so a narrowing that stopped it seeing a shape would
+    // be invisible in every pipeline until the day someone added a route.
+    //
+    // Seven findings, seven proofs, each entering as **source text** — the page
+    // file's and the sitemap's — because the classifier is a TypeScript walk
+    // and a fixture handing in a classification would leave it unproven.
+    // `contradictory-indexability` is per metadata *object* rather than per
+    // file, so its proof puts both signals in one object: the per-file reading
+    // would report the four dynamic routes in this tree that correctly answer
+    // `noindex` for an unresolved slug and a canonical otherwise.
+    script: 'backend/scripts/check-storefront-indexability.ts',
+    npmScript: 'check:storefront-indexability',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-storefront-indexability.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is `storefront/app`, which a moved *backend* module tree
+    // does not touch. The equivalent refusal is its own `no-page-file`, proven
+    // below, and the partial-move case is `readSizeRefusal`'s `short-walk` over
+    // the `sitemap:<covered>/<expected>` token.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'undeclared-indexability': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text: 'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          { static: ['/catalog'] },
+          'undeclared-indexability',
+        ),
+      ),
+      'contradictory-indexability': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text:
+                'export const metadata = { robots: { index: false }, ' +
+                "alternates: { canonical: '/wholesale' } };\n" +
+                'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          { static: ['/catalog'] },
+          'contradictory-indexability',
+        ),
+      ),
+      // A finding and never a skip (issue #113): read as indexable it agrees
+      // with everything, read as non-indexable it excuses everything.
+      'unresolvable-indexability': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text:
+                "import { CRAWLER_POLICY } from '../../lib/policy';\n" +
+                'export const metadata = { robots: CRAWLER_POLICY };\n' +
+                'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          { static: ['/catalog'] },
+          'unresolvable-indexability',
+        ),
+      ),
+      // The sitemap classified it, so the route owes a canonical rather than a
+      // classification — and this is what makes the second author load-bearing
+      // rather than decorative.
+      'missing-canonical': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text: 'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          { static: ['/catalog', '/wholesale'] },
+          'missing-canonical',
+        ),
+      ),
+      'sitemap-orphan-route': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text: STOREFRONT_INDEXABLE_PAGE,
+              seoText: STOREFRONT_SEO_DECLARATION,
+            },
+          ],
+          { static: ['/catalog'] },
+          'sitemap-orphan-route',
+        ),
+      ),
+      'orphan-sitemap-entry': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE],
+          { static: ['/catalog', '/wholesale'] },
+          'orphan-sitemap-entry',
+        ),
+      ),
+      // The declaration Phase 4 asserts the served HTML against. Without it the
+      // route's JSON-LD is a thing nothing can check, which is the state the
+      // whole feature is about.
+      'undeclared-structured-data': top(() =>
+        storefrontIndexabilityFindings(
+          [{ ...STOREFRONT_CLEAN_ROUTE, seoText: null }],
+          { static: ['/catalog'] },
+          'undeclared-structured-data',
+        ),
+      ),
+      // The moved tree (issue #215), as a proof of the *refusal* rather than of
+      // a finding: with `storefront/app` gone the walk opens nothing and the
+      // reconciliation below it is vacuously satisfied.
+      'moved-app-tree-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [],
+          storefrontSitemap(['/catalog']),
+          STOREFRONT_NO_BOUNDARY,
+          'no-page-file',
+        ),
+      ),
+      // The second author gone. A check with one author is a check that agrees
+      // with itself, so an absent or unreadable sitemap is exit 2 and not a
+      // report over the route files alone.
+      'unreadable-sitemap-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [STOREFRONT_CLEAN_ROUTE],
+          null,
+          STOREFRONT_NO_BOUNDARY,
+          'unreadable-sitemap',
+        ),
+      ),
+      // With a declaration-based predicate, "nobody declared anything" prints
+      // `findings=0` honestly and means the opposite.
+      'nothing-classified-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [
+            {
+              path: `${STOREFRONT_APP_ROOT}/a/page.tsx`,
+              text: 'export default function Page() { return null; }\n',
+              seoText: null,
+            },
+          ],
+          storefrontSitemap(['/a']),
+          STOREFRONT_NO_BOUNDARY,
+          'nothing-classified',
+        ),
+      ),
+      // `specs/108-storefront-response-status/` FR-014. The boundary in the
+      // page's **own** segment: measured on a real build, adding a
+      // `loading.tsx` beside a page took its `/p/missing` back to 200 while a
+      // sibling route with none kept its 308.
+      'status-decision-under-a-boundary': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE, storefrontDecidingPage()],
+          { static: ['/catalog'] },
+          'status-decision-under-a-boundary',
+          { boundaries: [`${STOREFRONT_APP_ROOT}/wholesale/loading.tsx`], unreadable: [] },
+        ),
+      ),
+      // The ancestor segment, which is the shape this tree actually had: one
+      // `app/loading.tsx` defeating all 68 call sites at once, three
+      // directories above the nearest of them.
+      'boundary-in-an-ancestor-segment': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE, storefrontDecidingPage()],
+          { static: ['/catalog'] },
+          'status-decision-under-a-boundary',
+          { boundaries: [`${STOREFRONT_APP_ROOT}/loading.tsx`], unreadable: [] },
+        ),
+      ),
+      // Exit 2 rather than 1, and this is the one the analysis has to get
+      // right: a directory that could not be read may hold the `loading.tsx`
+      // that defeats every page under it, and reporting those pages as clean is
+      // the verdict this run may not give.
+      'unenumerable-segment-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [STOREFRONT_CLEAN_ROUTE, storefrontDecidingPage()],
+          storefrontSitemap(['/catalog']),
+          { boundaries: [], unreadable: [`${STOREFRONT_APP_ROOT}/(catalog)`] },
+          'unenumerable-segment',
+        ),
+      ),
+      // The predicate is a conjunction, so "no page decides anything" prints
+      // `findings=0` honestly and means the call reader stopped resolving.
+      'nothing-decided-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [STOREFRONT_CLEAN_ROUTE],
+          storefrontSitemap(['/catalog']),
+          STOREFRONT_NO_BOUNDARY,
+          'nothing-decided',
+        ),
+      ),
+      // `specs/105-cms-root-page-urls/` FR-034, and the fail-**open** direction
+      // of it: a CMS page is served at the site root, so a top-level path this
+      // storefront owns and does not publish as reserved is a path a page saves
+      // into, publishes into, and is never shown at.
+      'unreserved-top-level-segment': top(() =>
+        storefrontIndexabilityFindings(
+          [
+            STOREFRONT_CLEAN_ROUTE,
+            {
+              path: `${STOREFRONT_APP_ROOT}/wholesale/page.tsx`,
+              text: STOREFRONT_INDEXABLE_PAGE,
+              seoText: STOREFRONT_SEO_DECLARATION,
+            },
+          ],
+          { static: ['/catalog', '/wholesale'] },
+          'unreserved-top-level-segment',
+          STOREFRONT_NO_BOUNDARY,
+          { segments: ['catalog'] },
+        ),
+      ),
+      // The fail-safe direction, reported apart so that a repair in one cannot
+      // hide a hole in the other — a deployment copying the list refuses a slug
+      // that is actually free.
+      'stale-reserved-segment': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE],
+          { static: ['/catalog'] },
+          'stale-reserved-segment',
+          STOREFRONT_NO_BOUNDARY,
+          { segments: ['catalog', 'wholesale'] },
+        ),
+      ),
+      // A `route.ts` owns a segment and emits no document, so it is in this
+      // population and in none of the others. `/api`, `/pwa` and
+      // `/manifest.webmanifest` are handlers in this tree, and a page slugged
+      // into one is shadowed exactly as it would be by a page.
+      'a-route-handler-owns-a-segment': top(() =>
+        storefrontIndexabilityFindings(
+          [STOREFRONT_CLEAN_ROUTE],
+          { static: ['/catalog'] },
+          'unreserved-top-level-segment',
+          STOREFRONT_NO_BOUNDARY,
+          {
+            segments: ['catalog'],
+            handlerPaths: [`${STOREFRONT_APP_ROOT}/api/revalidate/route.ts`],
+          },
+        ),
+      ),
+      // Exit 2: with nothing to read, both directions of the reconciliation are
+      // vacuously satisfied.
+      'unreadable-reserved-segments-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [STOREFRONT_CLEAN_ROUTE, storefrontDecidingPage()],
+          storefrontSitemap(['/catalog']),
+          STOREFRONT_NO_BOUNDARY,
+          'unreadable-reserved-segments',
+          null,
+        ),
+      ),
+      // The other side of the same set comparison: a walk that produced no
+      // segment would report every published entry as stale, which is a finding
+      // about the walk dressed as one about the tree.
+      'no-top-level-segment-is-refused': top(() =>
+        storefrontIndexabilityRefusals(
+          [
+            {
+              path: `${STOREFRONT_APP_ROOT}/page.tsx`,
+              text:
+                "import { notFound } from 'next/navigation';\n" +
+                'export const metadata = { robots: { index: false, follow: false } };\n' +
+                'export default async function Page() { notFound(); }\n',
+              seoText: null,
+            },
+          ],
+          storefrontSitemap(['/']),
+          STOREFRONT_NO_BOUNDARY,
+          'no-top-level-segment',
+          storefrontReserved(['catalog']),
+        ),
+      ),
+    },
+  },
+  {
+    // `specs/098-storefront-ssr-seo-a11y-suite/` Phase 3 — a client component
+    // does not fetch its own first-paint content (FR-020…FR-022).
+    //
+    // **Its population is the thing to get right, and the roadmap had it
+    // wrong.** That row read *"`grep -rl "'use client'" storefront/components`
+    // classifies 54 files"*, and all five known instances of the defect live in
+    // `packages/cms-components/` — a check scoped to the application would have
+    // reported zero and been wrong on the day it landed. So the walk is derived
+    // from `storefront/package.json`'s own dependencies, and that same
+    // derivation is the run's second author.
+    //
+    // Two clause *spellings* were measured missing from the first draft, which
+    // is why the proofs below all enter as source text: a render gate written
+    // as a conditional expression inside the returned JSX, and a fetch reached
+    // through a dynamic `import()` inside the effect. With neither, the sweep
+    // found 2 of the 5; with both, all 5 and 31 more. A proof entering over a
+    // classified record would have been green for both drafts.
+    //
+    // The discrimination is asserted beside the reds and carries as much
+    // weight: `ProductCard`'s shape — a `'use client'` file, in the same
+    // package, taking its content as a prop — must stay clean, because a
+    // predicate that reports everything looks exactly as green as a correct one.
+    script: 'backend/scripts/check-rsc-discipline.ts',
+    npmScript: 'check:rsc-discipline',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-rsc-discipline.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is one application's composed client tree, which a moved
+    // *backend* module tree does not touch. #215's equivalent for it is the
+    // `storefront-deps:<covered>/<expected>` token: a composed package that
+    // contributed no file is `readSizeRefusal`'s `short-walk`, proven in the
+    // companion test.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'client-fetch-on-first-paint': top(() =>
+        rscDisciplineFindings(
+          [
+            { path: RSC_GRID_PATH, text: RSC_FETCHING_COMPONENT },
+            {
+              path: 'packages/cms-components/src/components/ProductCard.tsx',
+              text: RSC_PROP_DRIVEN_COMPONENT,
+            },
+          ],
+          'client-fetch-on-first-paint',
+        ),
+      ),
+      // A finding and never a skip (issue #113): "deferred" as the default
+      // answer for the undecidable case excuses every component in the tree.
+      'unclassifiable-render-gate': top(() =>
+        rscDisciplineFindings(
+          [{ path: 'storefront/components/CartDrawer.tsx', text: RSC_UNDECIDABLE_COMPONENT }],
+          'unclassifiable-render-gate',
+        ),
+      ),
+      'stale-ledger-entry': top(() =>
+        rscDisciplineFindings(
+          [
+            {
+              path: 'packages/cms-components/src/components/ProductCard.tsx',
+              text: RSC_PROP_DRIVEN_COMPONENT,
+            },
+          ],
+          'stale-ledger-entry',
+          {
+            'cms-components': {
+              [rscLedgerKey(RSC_GRID_PATH, 'isLoading')]: {
+                firstPaint: true,
+                reason: 'the grid renders a skeleton to a crawler',
+                retiredBy: 'specs/096-page-builder-block-ownership/',
+              },
+            },
+          },
+        ),
+      ),
+      'ledger-entry-without-a-reason': top(() =>
+        rscDisciplineFindings(
+          [{ path: RSC_GRID_PATH, text: RSC_FETCHING_COMPONENT }],
+          'ledger-entry-without-a-reason',
+          {
+            'cms-components': {
+              [rscLedgerKey(RSC_GRID_PATH, 'isLoading')]: {
+                firstPaint: true,
+                reason: '   ',
+                retiredBy: 'specs/096-page-builder-block-ownership/',
+              },
+            },
+          },
+        ),
+      ),
+      // A debt with no retiring condition is a permanent exemption written as a
+      // temporary one.
+      'ledger-entry-without-a-retiring-condition': top(() =>
+        rscDisciplineFindings(
+          [{ path: RSC_GRID_PATH, text: RSC_FETCHING_COMPONENT }],
+          'ledger-entry-without-a-retiring-condition',
+          {
+            'cms-components': {
+              [rscLedgerKey(RSC_GRID_PATH, 'isLoading')]: {
+                firstPaint: true,
+                reason: 'the grid renders a skeleton to a crawler',
+                retiredBy: '',
+              },
+            },
+          },
+        ),
+      ),
+      'moved-tree-is-refused': top(() => rscDisciplineRefusals([])),
+      // The marker's spelling, or the walk, having stopped working. The first
+      // clause of the predicate is the marker, so this state reports every
+      // component clean.
+      'no-client-component-is-refused': top(() =>
+        rscDisciplineRefusals([
+          {
+            path: 'storefront/app/page.tsx',
+            text: 'export default async function Page() { return null; }\n',
+          },
+        ]),
+      ),
+      // #237's shape, and the one that matters most: the file count stands
+      // still while the syntax walk goes blind, so a healthy `files=` prints
+      // beside a cheerful `findings=0` over a tree nothing is reading.
+      'nothing-classified-is-refused': top(() =>
+        rscDisciplineRefusals([
+          {
+            path: 'packages/cms-components/src/components/ProductCard.tsx',
+            text: RSC_PROP_DRIVEN_COMPONENT,
+          },
+        ]),
       ),
     },
   },
@@ -6003,6 +8509,387 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // `specs/073-lifecycle-gating-completion/contracts/off-state-coverage-ratchet.md`
+    // — Constitution XVII item 6, held by an instrument instead of by hand.
+    //
+    // **The strongest argument in the estate for a check.** Which modules carry
+    // a real off-state proof was derived by hand three times and gave three
+    // different answers: 15 by one path predicate, 23 by a narrower one, and 20
+    // by reading the call arguments. Both careful attempts were wrong *in both
+    // directions at once* — they credited modules holding only a partial proof
+    // while charging `payments`, which is asserted from its six consumers and
+    // from no file under `payments/`, and they missed `customers` entirely.
+    //
+    // It lands at **zero findings with an empty ledger**, so nothing in the tree
+    // exercises it and this entry carries the whole weight — the same position
+    // `check:bundle-pairing` is in. Fourteen shapes: six findings, two resolver
+    // shapes, and the six vacuous refusals. Plus two discriminations that decide
+    // whether it lands green at all, and both are the fail-*closed* direction of
+    // a derivation that could otherwise be written as a path exclusion.
+    //
+    // Every proof enters over **source text**, a module list and a ledger — what
+    // a real run reads. The resolver is the whole of this check's risk (a
+    // fixture of pre-resolved subjects would prove four lines of set arithmetic
+    // and leave it unproven), and issue #130's defect was exactly a fixture
+    // handed the value its check normally computes.
+    script: 'backend/scripts/check-off-state-coverage.ts',
+    npmScript: 'check:off-state-coverage',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-off-state-coverage.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is the **manifest index**, and its walk is over
+    // `backend/test/**`. A moved *module* tree leaves both intact, so the
+    // `moved-module-tree` fixture would assert no discrimination — its own
+    // moved-tree case is vacuous condition (3), a test root that opened no file,
+    // and (5), a harness that is not where the check looks, both proven below.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'uncovered-module': top(() =>
+        offStateFindings(
+          { modules: OFF_STATE_MODULES, files: [OFF_STATE_BLOG_PROOF] },
+          'uncovered-module',
+        ),
+      ),
+      'unresolvable-subject': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile('await expectModuleAbsent(h, idFor(row), { routes: [r] });'),
+            ],
+          },
+          'unresolvable-subject',
+        ),
+      ),
+      'unknown-subject': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile("await expectModuleAbsent(h, 'no_such_module', { routes: [r] });"),
+            ],
+          },
+          'unknown-subject',
+        ),
+      ),
+      'stale-ledger-entry': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [OFF_STATE_BLOG_PROOF, OFF_STATE_SEO_PROOF],
+            ledger: { seo: 'a reason that has outlived its module' },
+          },
+          'stale-ledger-entry',
+        ),
+      ),
+      'orphan-ledger-entry': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [OFF_STATE_BLOG_PROOF, OFF_STATE_SEO_PROOF],
+            // `orders` is registered and locked; both directions of "not in the
+            // population" answer here, and neither is a module id nobody knows.
+            ledger: { orders: 'locked, so it has no operator axis' },
+          },
+          'orphan-ledger-entry',
+        ),
+      ),
+      'ledger-entry-without-a-reason': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [OFF_STATE_BLOG_PROOF],
+            ledger: { seo: '   ' },
+          },
+          'ledger-entry-without-a-reason',
+        ),
+      ),
+      // The resolver shape the sixteen `_admin_surfaces/batch-*` files use, and
+      // the one a naive resolver misses. It is proven through `unknown-subject`
+      // rather than through a green: drop the `it.each` binding and the kind
+      // becomes `unresolvable-subject`, so this count falls to zero and the
+      // proof goes red. On the real tree, dropping it turns nine correct sites
+      // into findings that are not there.
+      'resolver-reads-an-it-each-table': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile(
+                [
+                  "const SUBJECTS = [{ module: 'no_such_module' }];",
+                  "it.each(SUBJECTS)('$module', async (s) => {",
+                  '  await expectModuleAbsent(h, s.module, { routes: [r] });',
+                  '});',
+                ].join('\n'),
+              ),
+            ],
+          },
+          'unknown-subject',
+        ),
+      ),
+      // The tiering, asserted rather than assumed: a module named **only**
+      // through `withModuleOff` has an off-state mention and no off-state
+      // proof. If the two helpers were treated alike this count is zero.
+      'a-bare-withModuleOff-is-not-coverage': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              offStateFile("await withModuleOff('seo', 'deactivated', async () => {});"),
+            ],
+          },
+          'uncovered-module',
+        ),
+      ),
+      // The two discriminations. Both are the same derivation seen from the
+      // side where getting it wrong is *silent*: a synthetic module a file
+      // builds for itself, and a per-deployment overlay module the generated
+      // index does not carry (D-104), are excused — and the excuse is derived
+      // from the source text and from the deployments on disk, never from a
+      // path exclusion, which is the defect this whole check exists to replace.
+      // A seeding the analysis cannot read excuses nothing.
+      'unknown-subject-survives-an-unreadable-seeding': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile(
+                [
+                  'registryCache.__setEnabledForTesting(idsFromSomewhere());',
+                  "await expectModuleAbsent({ app }, 'fixture_gated', { routes: [r] });",
+                ].join('\n'),
+              ),
+            ],
+          },
+          'unknown-subject',
+        ),
+      ),
+      'unknown-subject-survives-an-undeclared-deployment': top(() =>
+        offStateFindings(
+          {
+            modules: OFF_STATE_MODULES,
+            files: [
+              OFF_STATE_BLOG_PROOF,
+              OFF_STATE_SEO_PROOF,
+              offStateFile("await withModuleOff('example_overlay', 'deactivated', f);"),
+            ],
+            deploymentModules: [],
+          },
+          'unknown-subject',
+        ),
+      ),
+      'vacuous-no-registered-module': top(() =>
+        offStateRefusals({ modules: [] }, 'no-registered-module'),
+      ),
+      'vacuous-no-activation-control': top(() =>
+        offStateRefusals(
+          { modules: [{ moduleId: 'orders', activationSettingCode: null }] },
+          'no-activation-control',
+        ),
+      ),
+      'vacuous-no-caller-file': top(() => offStateRefusals({ files: [] }, 'no-caller-file')),
+      // The load-bearing one. With 46 switchable modules this state is reported
+      // as 46 findings — loud, and the opposite of the truth.
+      'vacuous-no-assertion-site': top(() =>
+        offStateRefusals(
+          { files: [offStateFile("await withModuleOff('blog', 'deactivated', f);")] },
+          'no-assertion-site',
+        ),
+      ),
+      'vacuous-harness-not-found': top(() =>
+        offStateRefusals(
+          { harness: { path: 'backend/test/helpers/off-state.ts', source: null } },
+          'harness-not-found',
+        ),
+      ),
+      // The sixth condition is a **short walk** against an independent
+      // derivation rather than a refusal of this check's own, so it is proven
+      // through the shared reporter — over harness *source text*, which is
+      // where a real run reads it.
+      'vacuous-third-harness-export': top(() => {
+        const coverage = harnessExportsCoverage(
+          `${OFF_STATE_HARNESS_SOURCE}\nexport async function expectModuleDegraded(s, id) {}`,
+        );
+        if (coverage.expected !== 3 || coverage.covered !== 2) return 0;
+        return readSizeRefusal({
+          prefix: '[off-state-coverage]',
+          files: 107,
+          sites: 198,
+          coverage: [coverage],
+        })?.kind === 'short-walk'
+          ? 1
+          : 0;
+      }),
+    },
+  },
+  {
+    // `specs/094-translation-boundary/contracts/default-language-prose-check.md`
+    // — the owner's ruling of 2026-09-01, clause 1: English is the default. The
+    // **second signal** for that ruling, and a check of its own because neither
+    // instrument that looks like its home can hold it (D-8):
+    // `check:untranslated-delivery` asks about a *delivery call*, and a
+    // `return`, an array push and a field assignment are none; `check:language`
+    // is comments by constitutional design.
+    //
+    // Unlike the ratchet that landed beside it, its population is **not** empty:
+    // 46 sites over 41 keys stand today, and the ledger arrives holding them.
+    // That changes what this entry has to prove. A check landing at zero is
+    // exercised only by its proofs; a check landing at 46 is exercised by the
+    // tree as well — and the risk moves to the **exemptions**, because 50
+    // correct sites (`specs/093-backend-delivered-prose/research.md` § 1.4) are
+    // one predicate mistake away from being ledger entries, and a ledger that is
+    // mostly exceptions is the shape `check:diacritic-folds`' `slug-run` design
+    // already refuses.
+    //
+    // So: three findings, and **nine** more shapes, of which six are
+    // discriminations. Each enters over **source text** — the analysis is a
+    // TypeScript parse, a position filter, a prose gate, a language detector and
+    // a four-way structure analysis, and a fixture handing in a classified
+    // literal would prove the reporter and leave all five unproven (issue #130).
+    // Each discrimination carries a control site that *must* be reported, so it
+    // reads 1 while the narrowing holds and 0 the moment the exemption stops
+    // discriminating — a bare "no finding" is what a blind check also prints.
+    script: 'backend/scripts/check-default-language-prose.ts',
+    npmScript: 'check:default-language-prose',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-default-language-prose.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is every module's own `.ts` sources, and the floor is
+    // `refuseVacuousModulePopulation` over the walk — so a moved module tree is
+    // refused rather than reported clean, and `moved-module-tree.test.ts` spawns
+    // it beside the other module walks.
+    residueGuard: 'derived-population',
+    red: {
+      // Shape A: a Polish sentence returned from a route handler. The centre,
+      // and the shape whose discovery invalidated 093's taxonomy.
+      'non-english-default': top(() =>
+        proseFindings(
+          `export function describeStatus(s: string) {
+             return 'Twoja Organizacja oczekuje na weryfikację.';
+           }`,
+          'non-english-default',
+        ),
+      ),
+      // Shape D, reported apart from the first because *"it has a mechanism"* is
+      // the exact reasoning that waved 18 of these through once already.
+      'polish-default-behind-a-prop': top(() =>
+        proseFindings(
+          `export const d = str(props, 'labelSaleDate', 'Data sprzedaży');`,
+          'polish-default-behind-a-prop',
+        ),
+      ),
+      // A finding and not a skip (issue #113): treating a path the analysis
+      // cannot place as exempt is the direction that agrees with the defect.
+      'unclassifiable-literal': top(() =>
+        proseFindings(
+          `export const M = { [language]: 'Przesyłka wysłana do klienta' };`,
+          'unclassifiable-literal',
+        ),
+      ),
+      // The three discriminations § 3 names, each with a control site.
+      'per-language-map-is-clean': top(() =>
+        proseDiscrimination(
+          `export const D = {
+             languages: {
+               'en-US': tree({ heading: 'Verify your email' }),
+               'pl-PL': tree({ heading: 'Zweryfikuj swój e-mail' }),
+             },
+           };
+           export const stray = 'Rejestracja Twojej Organizacji została odrzucona.';`,
+          'Rejestracja Twojej Organizacji została odrzucona.',
+        ),
+      ),
+      'en-pl-sibling-map-is-clean': top(() =>
+        proseDiscrimination(
+          `export const S = [{ name: { en: 'Shipment Sent', pl: 'Przesyłka wysłana' } }];
+           export const stray = 'Zamówienie zostało anulowane przez operatora.';`,
+          'Zamówienie zostało anulowane przez operatora.',
+        ),
+      ),
+      'english-prose-is-clean': top(() =>
+        proseDiscrimination(
+          `export const a = 'We have reviewed your return request and cannot accept it.';
+           export const stray = 'Faktura nie została jeszcze opłacona.';`,
+          'Faktura nie została jeszcze opłacona.',
+        ),
+      ),
+      // The exemption that keeps `dictionaries`' 14 seed rows out of the ledger,
+      // and the narrowing that keeps it from exempting the row beside them: a
+      // row's `entryCode` is what it is *about*, `languageCode` is what it is
+      // *written in*, and reading "any sibling holding a language code" would
+      // conflate the two.
+      'language-declaring-row-is-clean': top(() =>
+        proseDiscrimination(
+          `export const R = [
+             { entryCode: 'PLN', languageCode: 'pl-PL', label: 'Polski złoty' },
+             { entryType: 'language', entryCode: 'pl-PL', label: 'Polska wersja językowa' },
+           ];`,
+          'Polska wersja językowa',
+        ),
+      ),
+      // § 1.2's third shape, and the filename rule it is deliberately not: the
+      // same source in a file named `translations.pl-PL.ts` is still judged.
+      'single-language-file-is-clean': top(() => {
+        const exemptByExport = proseSites(
+          `export const PL_MESSAGES = ['Zamówienie zostało anulowane.'];`,
+        );
+        const judgedByName = runDefaultLanguageProse({
+          'packages/modules/blog/src/backend/seed/translations.pl-PL.ts':
+            `export const rows = [{ label: 'Zamówienie zostało anulowane.' }];`,
+        }).findings;
+        return exemptByExport.length === 0 && judgedByName.length === 1 ? 1 : 0;
+      }),
+      // The prose gate, which is what keeps 30 Polish numeral words and a unit
+      // abbreviation out of the ledger — and the position that suspends it,
+      // because there the position is the evidence the token count would infer.
+      'one-word-literal-is-not-prose': top(() => {
+        const table = proseSites(`const PL_ONES = ['pięć', 'sześćdziesiąt']; export const u = PL_ONES;`);
+        const inPropDefault = proseFindings(
+          `export const p = str(props, 'labelPaid', 'Zapłacono');`,
+          'polish-default-behind-a-prop',
+        );
+        return table.length === 0 && inPropDefault === 1 ? 1 : 0;
+      }),
+      // The stopword list, which contributes **nothing** on the tree today: it
+      // exists for the Polish that carries no diacritic (§ 1.3), so this proof
+      // is the only thing between it and becoming dead code unnoticed.
+      'stopword-sees-diacritic-free-polish': top(() =>
+        proseFindings('export const m = `Zamowienie nie zostalo oplacone`;', 'non-english-default'),
+      ),
+      // The shared `proper_nouns` list, applied here for the reason
+      // `check:language` applies it: an English sentence names a Polish
+      // institution, and translating the name would make it wrong.
+      'proper-noun-is-not-prose': top(() =>
+        proseDiscrimination(
+          `export const s = 'Source: Ministerstwo Finansów';
+           export const stray = 'Zamówienie zostało anulowane przez operatora.';`,
+          'Zamówienie zostało anulowane przez operatora.',
+        ),
+      ),
+      // The ledger's second direction. Keyed on a digest, so the proof is that
+      // an entry whose sentence no longer exists is reported — never a line,
+      // which would red on any insertion above the site.
+      'ledger-entry-that-describes-nothing': top(
+        () =>
+          runDefaultLanguageProse({ [FIXTURE_FILE]: `export const m = 'Order placed.';` }, [
+            { moduleId: 'blog', entries: { [keyFor('Zamówienie zostało anulowane.')]: 'gone' } },
+          ]).stale.length,
+      ),
+    },
+  },
+  {
     // Issue #240 — the wrong answer that looks like the right one. Four authors
     // wrote `normalize('NFD').replace(/\p{Diacritic}/gu, '')` inside a year and
     // all four shipped the same bug, because `ł` has no canonical
@@ -6207,6 +9094,7 @@ const CHECKS: readonly CheckEntry[] = [
                 retiredBy: 'issue #239',
               },
             },
+            {},
           ).stale.length,
       ),
       // The vacuous-pass guard, which is the exemption itself: a helper that no
@@ -6265,12 +9153,16 @@ const CHECKS: readonly CheckEntry[] = [
       // green when the check is blind.
       //
       // A one-for-one substitution preserves length and position — identifier
-      // grammar, not slug grammar. `FieldProtectionToggle`'s DOM id.
+      // grammar, not slug grammar. `FieldProtectionToggle`'s DOM id, which
+      // feature 091's P4b moved from `pim_ergonode`'s admin directory into the
+      // kit: the path is the fixture's label and nothing reads it off disk, but
+      // a label naming a file that no longer exists sends the next reader
+      // looking for the live site in the wrong place.
       'one-for-one-substitution-is-not-a-slug': top(() =>
         exactlyFoldPaths(
           [
             foldSource(
-              'admin/src/modules/pim_ergonode/components/FieldProtectionToggle.tsx',
+              'packages/admin-kit/src/field-protection/FieldProtectionToggle.tsx',
               "export const id = (p: string) => `x-${p}`.replace(/[^a-zA-Z0-9_-]/g, '-');",
             ),
             foldSource('admin/src/lib/slug.ts', handRolledSlug('fold', '/[^a-z0-9]+/g')),
@@ -6396,6 +9288,25 @@ const CHECKS: readonly CheckEntry[] = [
             '/repo/admin/src/a.tsx',
           ).filter((f) => f.kind === 'jsx-attr').length,
       ),
+      // The `module-admin` floor, counted as a refusal rather than a finding —
+      // `bundlePairingReadRefusals`' shape. It refuses two ways and both are
+      // driven here from a fixture that enters above the analysis: a registry
+      // that is on disk and names nobody (the floor with no author), and a walk
+      // that opened fewer of the named layers than the registry declares (the
+      // short walk, which is the regression feature 091's drain produces one
+      // merge request at a time). The discrimination is inside the proof, so a
+      // predicate that refused everything — or nothing — reads as 0 here.
+      'module-admin-floor': top(() => {
+        const layers = [
+          { directory: '/repo/packages/modules/orders/src/admin' },
+          { directory: '/repo/packages/modules/catalog/src/admin' },
+        ];
+        const authorless = hardcodedFloorRefusal([]) !== null && hardcodedFloorRefusal(null) === null;
+        const shortWalk =
+          hardcodedCoveredLayers(layers, ['/repo/packages/modules/orders/src/admin']) === 1 &&
+          hardcodedCoveredLayers(layers, layers.map((l) => l.directory)) === 2;
+        return authorless && shortWalk ? 1 : 0;
+      }),
     },
   },
   {
@@ -6663,32 +9574,147 @@ const CHECKS: readonly CheckEntry[] = [
     residueGuard: 'not-a-module-walk',
     red: {
       // The headline, and the one shape whose absence is worth the whole file.
+      // `PRIVATE_BETA` is the precondition, not scenery: the rule asks its
+      // question *while a versionable package is private*, and the fixture's
+      // default became the compliant shape with the ruling of 2026-09-05.
       'version-disabled': top(() => releaseIntentFindings(
-        releaseIntentConfiguredAs((config) => {
-          config['privatePackages'] = { version: false, tag: false };
-        }),
+        {
+          ...PRIVATE_BETA,
+          ...releaseIntentConfiguredAs((config) => {
+            config['privatePackages'] = { version: false, tag: false };
+          }),
+        },
         'version-disabled',
       )),
       // The same value written the way it actually arrives — by deletion.
       'version-disabled-by-omission': top(() => releaseIntentFindings(
-        releaseIntentConfiguredAs((config) => {
-          delete config['privatePackages'];
-        }),
+        {
+          ...PRIVATE_BETA,
+          ...releaseIntentConfiguredAs((config) => {
+            delete config['privatePackages'];
+          }),
+        },
         'version-disabled',
       )),
-      // D-160.5: everything stays private through Wave 4, and this is what
-      // makes the tag decision land in the merge request that changes it.
-      'publishable-package': top(() =>
+      // D-160.5, narrowed by feature 104 and then inverted by the owner's
+      // publication ruling of 2026-09-05. "May this package be public" had a
+      // constant answer once every `@endora-commerce` package publishes, so the
+      // question is now the one that still has a subject: a versionable member
+      // `changeset publish` would skip in silence, while `pnpm pack` has
+      // already rewritten every sibling's `workspace:*` to its exact version.
+      'unpublished-package': top(() =>
+        releaseIntentFindings(PRIVATE_BETA, 'unpublished-package'),
+      ),
+      // Fitness, which is what replaces the blanket refusal. `license` is a
+      // kind of its own below rather than a third field here: the remedy is a
+      // decision rather than a value, and one number over three fields cannot
+      // say which of them is missing.
+      'incomplete-public-package': top(() =>
         releaseIntentFindings(
-          { 'packages/alpha/package.json': '{ "name": "@fx/alpha", "version": "1.0.0" }' },
-          'publishable-package',
+          publishedAlphaAs((manifest) => {
+            delete manifest['repository'];
+          }),
+          'incomplete-public-package',
         ),
       ),
-      'tag-without-publication': top(() => releaseIntentFindings(
-        releaseIntentConfiguredAs((config) => {
-          config['privatePackages'] = { version: true, tag: true };
-        }),
-        'tag-without-publication',
+      // The owner's licensing ruling of 2026-09-06, which is the merge request
+      // D-203's amendment deferred this to. A public package with no `license`
+      // publishes anyway and reads "no license" to every consumer and every
+      // scanner — an absence of terms, not a permissive default.
+      'unlicensed-package': top(() =>
+        releaseIntentFindings(
+          publishedAlphaAs((manifest) => {
+            delete manifest['license'];
+          }),
+          'unlicensed-package',
+        ),
+      ),
+      // …and the way it actually arrives once somebody "sets" the field: npm
+      // reads `""` exactly as it reads an absent one, so a blank licence has
+      // said nothing while looking answered.
+      'unlicensed-package-by-empty-string': top(() =>
+        releaseIntentFindings(
+          publishedAlphaAs((manifest) => {
+            manifest['license'] = '   ';
+          }),
+          'unlicensed-package',
+        ),
+      ),
+      // The paid half of the model, and the only licence value that makes a
+      // second claim. `SEE LICENSE IN LICENSE.md` with no `LICENSE.md` points
+      // the consumer at terms that do not exist — worse than declaring none,
+      // because a scanner reads the field as answered.
+      'unresolvable-license-file': top(() =>
+        releaseIntentFindings(
+          publishedAlphaAs((manifest) => {
+            manifest['license'] = 'SEE LICENSE IN LICENSE.md';
+          }),
+          'unresolvable-license-file',
+        ),
+      ),
+      // The value the rehearsal cannot exercise: GitLab ignores `--access`, so
+      // nothing before the first *public* publish would reveal it.
+      'restricted-public-package': top(() =>
+        releaseIntentFindings(
+          publishedAlphaAs((manifest) => {
+            manifest['publishConfig'] = { access: 'restricted' };
+          }),
+          'restricted-public-package',
+        ),
+      ),
+      // R2.1: a scope that resolves to no top-level namespace is not an error —
+      // the request is forwarded to npmjs and the client is told the package
+      // does not exist. Nothing an install does would report it.
+      'unresolvable-scope': top(() =>
+        releaseIntentFindings(
+          {
+            ...PUBLISHED_ALPHA,
+            'apps/host/package.json': JSON.stringify({
+              name: 'host',
+              version: '0.0.0',
+              private: true,
+              scripts: { build: 'next build' },
+              dependencies: { next: '^15.0.0', '@api/alpha': 'workspace:*' },
+            }),
+            'packages/alpha/package.json': JSON.stringify({
+              name: '@api/alpha',
+              version: '1.0.0',
+              repository: { url: 'https://example.invalid/fx.git' },
+              publishConfig: { access: 'public' },
+            }),
+          },
+          'unresolvable-scope',
+        ),
+      ),
+      // The tag rule, in the state the old one could not see. Its guard was
+      // `every versionable package is private`, so the first public package
+      // made it stop firing in both directions — this fixture is exactly that
+      // state, and it has to be red (feature 104, FR-011).
+      'tag-policy-unstated': top(() => releaseIntentFindings(
+        {
+          ...PUBLISHED_ALPHA,
+          // The precondition, explicit since the fixture's default became the
+          // compliant shape: this half of the rule asks its question *while a
+          // versionable package is private*, so a checkout with none answers it
+          // green for the wrong reason.
+          ...PRIVATE_BETA,
+          ...releaseIntentConfiguredAs((config) => {
+            config['privatePackages'] = { version: true, tag: true };
+          }),
+        },
+        'tag-policy-unstated',
+      )),
+      // …and its other half, which is what makes it total: with nothing private
+      // left the field governs nothing, so an absent one is the changesets
+      // default rather than a decision anybody took.
+      'tag-policy-unstated-once-nothing-is-private': top(() => releaseIntentFindings(
+        {
+          ...PUBLISHED_ALPHA,
+          ...releaseIntentConfiguredAs((config) => {
+            config['privatePackages'] = { version: true };
+          }),
+        },
+        'tag-policy-unstated',
       )),
       // The 67-package failure mode, written as it would arrive: one `ignore`
       // entry under the new scope, and every module package stops needing a
@@ -6811,6 +9837,200 @@ const CHECKS: readonly CheckEntry[] = [
       }),
     },
   },
+  {
+    script: 'backend/scripts/check-test-ownership.ts',
+    npmScript: 'check:test-ownership',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/test-ownership-check.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    /**
+     * **The condition this entry named has been met, so the value changed.**
+     *
+     * It read `not-a-module-walk` when the check landed, on a reason that was
+     * measured and that ended with its own retiring condition: *"it retires when
+     * that stub can name a packaged module the way the generator does
+     * (D-149)"*. Feature 111 is that — Phase 2 gave the split fixture's
+     * generated index the generator's bare specifier, which put the anchor back
+     * at the package root and took `check-singleton-identity`'s two
+     * `stale-allowance` findings with it, and Phase 3 staged `backend/test`,
+     * which was this check's first vacuous condition rather than its module one.
+     *
+     * The floor itself never moved: the check floors its module half per module
+     * on the module's own directory — `check:bundle-pairing`'s conjunction,
+     * because 14 of the 70 packages ship no test and a floor over test files
+     * would refuse every clean run — and delegates to
+     * `refuseVacuousModulePopulation` before either addend of the union. What
+     * changed is that the shared fixture can now put its population in front of
+     * it: measured over the three trees, exit **2** / **0** / **2**, with both
+     * addends of its union non-zero over the split one and the stranded module
+     * named over the half-moved one.
+     */
+    residueGuard: 'derived-population',
+    red: {
+      // §4's five findings, each over source text and a file map. Nothing here
+      // hands the check an owner list or a verdict, so the specifier walk, the
+      // call-node predicate and the ownership table run in every proof.
+      'misplaced-test': top(() =>
+        testOwnershipFindingsOfKind(
+          { application: { 'backend/test/unit/blog/cache.test.ts': HARNESS_FREE_BLOG_TEST } },
+          'misplaced-test',
+        ),
+      ),
+      'harness-bound-move': top(() =>
+        testOwnershipFindingsOfKind(
+          { packages: { 'packages/modules/blog/src/backend/boot.test.ts': SERVER_BOUND_BLOG_TEST } },
+          'harness-bound-move',
+        ),
+      ),
+      'unconfigured-package-tests': top(() =>
+        testOwnershipFindingsOfKind(
+          {
+            packages: { 'packages/modules/blog/src/backend/cache.test.ts': 'export {};\n' },
+            manifests: { blog: { testScript: null } },
+          },
+          'unconfigured-package-tests',
+        ),
+      ),
+      'outward-reach': top(() =>
+        testOwnershipFindingsOfKind(
+          {
+            packages: {
+              'packages/modules/blog/src/backend/cache.test.ts':
+                "import { h } from '../../../../../backend/test/helpers/fixtures.js';\nexport { h };\n",
+            },
+          },
+          'outward-reach',
+        ),
+      ),
+      // A finding and never a skip (issue #113): the repository is where an
+      // unmoved file already is, so reading an unreadable file as the
+      // repository's agrees with the defect.
+      'unclassifiable-test': top(() =>
+        testOwnershipFindingsOfKind(
+          { application: { 'backend/test/unit/blog/broken.test.ts': 'const x = {{{ ;\n' } },
+          'unclassifiable-test',
+        ),
+      ),
+      // The ledger is two-way, so the stale direction is a shape of its own: the
+      // batch that frees an entry is structurally the batch that cannot see it
+      // go stale.
+      'stale-ledger-entry': top(
+        () =>
+          testOwnershipLedgerIssues({
+            application: { 'backend/test/unit/blog/cache.test.ts': HARNESS_FREE_BLOG_TEST },
+            modules: ['blog'],
+            ledger: [
+              testOwnershipShard('blog', {
+                'backend/test/unit/blog/cache.test.ts': TEST_OWNERSHIP_SCHEDULED,
+                'backend/test/unit/blog/gone.test.ts': TEST_OWNERSHIP_SCHEDULED,
+              }),
+            ],
+          }).length,
+      ),
+      // Issue #217, one population over: a shard that declares a narrower entry
+      // type makes the `scheduled` field a type error in it, so the drain would
+      // have to be claimed in prose and the rule that reads it would never run
+      // over that shard at all.
+      'mistyped-shard': top(
+        () =>
+          testOwnershipLedgerIssues({
+            application: { 'backend/test/unit/blog/cache.test.ts': HARNESS_FREE_BLOG_TEST },
+            modules: ['blog'],
+            ledger: [
+              testOwnershipShard(
+                'blog',
+                { 'backend/test/unit/blog/cache.test.ts': TEST_OWNERSHIP_SCHEDULED },
+                'export const entries: Readonly<Record<string, string>> = {};\n',
+              ),
+            ],
+          }).length,
+      ),
+      // The two addends of the union, floored separately: 1428 of the 1639 files
+      // are the application's, so a package walk that went to zero leaves the
+      // file count looking healthy while three of the five findings have no
+      // population — and the converse.
+      'no-application-test-file': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 0,
+          packageFiles: 211,
+          attributions: 1090,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      'no-package-test-file': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 0,
+          attributions: 1090,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      // Issue #237's shape: the file count stands still while the syntax walk
+      // goes blind, and every file then reads as the platform's.
+      'no-owner-attribution': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 211,
+          attributions: 0,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      'no-package-test-script': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 211,
+          attributions: 1090,
+          packagesDeclaringTests: 0,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      // An *empty* ledger is a clean tree — the state this sweep drains towards
+      // — and a *missing* one is a run that could not read its baseline.
+      'missing-ledger-directory': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 211,
+          attributions: 1090,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: false,
+          harnessSource: 'export async function setupBackendServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+      // The `composesServer` predicate's subject. A harness that moved or was
+      // renamed must be a refusal, never a reclassification of every
+      // server-bound file in the tree at once.
+      'harness-not-found': top(() =>
+        vacuousTestOwnership({
+          applicationFiles: 1428,
+          packageFiles: 211,
+          attributions: 1090,
+          packagesDeclaringTests: 56,
+          ledgerDirectoryExists: true,
+          harnessSource: 'export async function bootServer() {}\n',
+        }) === null
+          ? 0
+          : 1,
+      ),
+    },
+  },
 ];
 
 // --- the enumeration --------------------------------------------------------
@@ -6891,15 +10111,34 @@ describe('every red proof enters at the top of the analysis', () => {
       CHECKS.map((check) => [check.script, Object.keys(check.red).length]),
     );
     expect(shapes).toEqual({
-      // Four findings and the four vacuous reasons, plus both directions of the
-      // route count — the ratchet's whole claim is that it fails either way.
-      'backend/scripts/check-admin-registrations.ts': 9,
-      'backend/scripts/check-admin-surface.ts': 15,
-      // Five zone findings, then four for the sixth: the `foreign-module-id`
-      // predicate has three populations and an unreadable case, and one proof over
-      // the whole finding would let three of the four go blind behind the first's
-      // red. Plus both stale directions of its ledger.
-      'backend/scripts/check-admin-zones.ts': 11,
+      // Six reach proofs, both stale directions of the ledger, and — since
+      // feature 091's Phase 5 — **eight** vacuous reasons rather than seven:
+      // R18(4)'s registry/walk disagreement is the new one. R18(6)'s shim
+      // refusal is not a new shape, it is the same one made conditional, so it
+      // adds no key here; its other direction is a green and lives in the
+      // companion test.
+      'backend/scripts/check-admin-surface.ts': 16,
+      // Five zone findings, then five for the sixth: the `foreign-module-id`
+      // predicate has three populations, an unreadable case and — since the walk
+      // widened to a module's own sources — the module-owned spelling of the
+      // coupling, and one proof over the whole finding would let four of the five
+      // go blind behind the first's red. Plus both stale directions of its ledger.
+      'backend/scripts/check-admin-zones.ts': 12,
+      // Eight findings and both vacuous-pass proofs. The discriminations —
+      // a Puck field descriptor, a comment, a joining category declaration, a
+      // tree-copy helper and a non-`node.type` switch — live in the companion
+      // test, because each is a **green** and this record counts red shapes.
+      'backend/scripts/check-block-names.ts': 10,
+      // Four findings and the discrimination the conditional turns on: a module
+      // shipping neither bundle is exempt, and a run of nothing but such
+      // modules is refused rather than reported clean.
+      'backend/scripts/check-bundle-pairing.ts': 5,
+      // Three findings, and nine more shapes of which six are discriminations.
+      // The ratio is the point: this check lands over a population of 46, so
+      // what needs proving is not that it can go red — the tree does that — but
+      // that its exemptions still discriminate. 50 correct sites are one
+      // predicate mistake away from being ledger entries.
+      'backend/scripts/check-default-language-prose.ts': 12,
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
       'backend/scripts/check-action-route-permissions.ts': 8,
@@ -6930,6 +10169,7 @@ describe('every red proof enters at the top of the analysis', () => {
       'backend/scripts/check-diacritic-folds.ts': 25,
       // Three snippet shapes, the discovery that enrols a document, and
       // T010's root floor — the population one level above the discovery.
+      'backend/scripts/check-divergence.ts': 9,
       'backend/scripts/check-doc-snippets.ts': 5,
       // The two in-tree shapes — none and more than one — plus T034's two: a
       // package's persisted entity is in the population, and a package that
@@ -6947,6 +10187,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // at file level — and the ledger's stale direction, which a per-site key
       // can break without breaking anything else.
       'backend/scripts/check-entry-scope.ts': 10,
+      // Six findings, plus `foreign-input`'s and
+      // `requirement-without-a-consequence`'s second shapes — each is a
+      // different failure under one kind and one would go blind behind the
+      // other's red — plus the vacuous-pass proof, which is exit 2's own shape
+      // entering as source text. The two *discriminations* are in the companion
+      // test rather than here, because this file's entries prove a check can go
+      // red and a proof that it stays green over honest source cannot do that.
+      'backend/scripts/check-env-inputs.ts': 9,
       // P1's two — a code missing in both languages and in one — plus P2's
       // three kinds (feature 082, D-127). The fourth fixture D-127 requires is
       // the discrimination one, which asserts **zero** findings and therefore
@@ -7004,7 +10252,39 @@ describe('every red proof enters at the top of the analysis', () => {
       // finding kinds (an unledgered host reach and a stale host entry), the
       // discrimination that keeps the three registries out of it, and the two
       // floors — an empty host walk and a short one.
-      'backend/scripts/check-module-boundary.ts': 55,
+      // Plus feature 097's nineteen for a migration's cross-module DML, which
+      // no instrument in this repository could see: R1 over a write and over a
+      // read, its clean case, R2 under a declaration, the transitive closure,
+      // the four shapes neither rule reaches (its own table, a kernel table,
+      // DDL and a comment) proven as discriminations, the builder path at this
+      // population, four ledger directions, the proof that the two ledgers stay
+      // apart, and the four refusals. `declared-write-still-fails` is the one to
+      // read: if it goes green on an R1-only implementation, R2 was folded into
+      // R1 and the clause R1 cannot state was lost.
+      'backend/scripts/check-module-boundary.ts': 74,
+      // Seven findings, both stale directions of the ledgers that carry one, and
+      // the discrimination `undocumented-module` turns on: `docs: false` is a
+      // decision and an absent declaration is not, one field apart, and
+      // collapsing them makes either every infrastructure module a finding or
+      // every undocumented one exempt.
+      //
+      // **8 -> 11 with Phase 2**, and the arithmetic is worth reading because
+      // one proof left. `stale-page-alias` went with the alias table D-200
+      // retired — the rule is now a derivation, so there is no entry to go
+      // stale — and four arrived: `misowned-page`, `unroutable-page` (D-200's
+      // own refusal: a slug Docusaurus will not route is a page no check may
+      // call reachable), and **both** directions of `foreign-module-link`'s
+      // per-consumer ledger, because the direction a draining batch cannot see
+      // is the recorded link the walk no longer finds.
+      //
+      // **11 -> 15 with Phase 3**: `derived-fact-in-prose`, both directions of
+      // its ledger, its `sites` count, and the discrimination the whole
+      // predicate turns on — that a path naming no module is not a finding. The
+      // last is the one that carries the others: the rule is D-100's *a fact the
+      // platform derives, restated*, and a predicate that widened to every path
+      // in the documentation would arrive with a ledger that is mostly
+      // exceptions, which the three red proofs above would not notice.
+      'backend/scripts/check-module-docs.ts': 15,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue
@@ -7012,11 +10292,18 @@ describe('every red proof enters at the top of the analysis', () => {
       // enter as a tree on disk rather than as bytes: a directory exclusion is
       // a decision the walk takes, and a record list is its output.
       'backend/scripts/check-nul-bytes.ts': 11,
+      // Six findings, two resolver shapes and the six vacuous refusals — the
+      // fourteen the contract tabulates — plus the two discriminations that
+      // decide whether it lands green: a synthetic module a file builds for
+      // itself and a per-deployment overlay module are excused, and both
+      // excuses are proven from the direction where getting them wrong is
+      // silent rather than loud.
+      'backend/scripts/check-off-state-coverage.ts': 16,
       // Three ways an artefact can be wrong, plus the fourth verdict's four
       // (feature 080, T030a): the leak, the two discriminations it must not get
       // backwards — a workspace member is not a foreign package, a core-tree
       // entry is not either — and the containment floor.
-      'backend/scripts/check-overlay-determinism.ts': 7,
+      'backend/scripts/check-overlay-determinism.ts': 10,
       // Five, plus D-88's four: two shapes the backward hop now refuses and two
       // it must not follow. The last two are the limit — a free function in
       // another file, and a class method shadowing a module-scoped alias — and
@@ -7025,7 +10312,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // collisions the scoping rules now refuse, and — pointing the other way —
       // the call-bound local that must go on being a finding, because "the
       // analysis cannot follow this" is not "this is not a port".
-      'backend/scripts/check-port-catches.ts': 13,
+      'backend/scripts/check-port-catches.ts': 19,
       // Plus T034's one: a name an installed package owns is an undeclared
       // edge, not the consumer's wiring bug the short map reported. Plus the
       // 2026-08-25 ruling's three for the `refuses-without` rail: a refusal
@@ -7052,14 +10339,27 @@ describe('every red proof enters at the top of the analysis', () => {
       // surface come back **short**, which is the direction that reports *more*
       // findings, so neither would ever be noticed as a defect — an author would
       // read the extra finding as real and widen the barrel to clear it.
-      'backend/scripts/check-platform-surface.ts': 9,
+      //
+      // Plus D-160.14's `host-internal-subpath`, the sixth finding and a shape
+      // its two neighbours cannot stand in for: `./composition` is declared by
+      // the `exports` map, so `node` and `tsc` both resolve it and this check is
+      // the only thing that refuses a module naming it — and it names no symbol,
+      // so the published-set sweep does not see it either.
+      //
+      // Plus feature 115's four: the application as a second consumer population
+      // (`relative-host-reach` and its ledger's stale direction), and the two
+      // refusals that half owns. Neither refusal could be a violation — an
+      // empty canonical-target map reports every relative reach as reaching
+      // nothing, and an application walk that opened no file reports no reach
+      // at all, while the module half keeps printing a healthy `files=`.
+      'backend/scripts/check-platform-surface.ts': 14,
       // Plus D-171.1's two: the condition consumer-side declaration is
       // licensed against, and the discrimination that keeps it from firing on
       // the correct case. The second is a proof of its own because a signal
       // that reported every provider — or none — reads identically green on the
       // tree, which today declares four module ports and refuses none of them.
       'backend/scripts/check-port-shape.ts': 10,
-      // Eight findings, plus the two refusals that are decisions rather than
+      // Every finding, plus the two refusals that are decisions rather than
       // printing: the short walk (issue #215 over a workspace, where losing the
       // library glob leaves four application manifests answering every
       // question) and a pattern grammar it does not implement. `version-disabled`
@@ -7067,12 +10367,41 @@ describe('every red proof enters at the top of the analysis', () => {
       // written as `false`, and by deleting a block that reads as boilerplate.
       // Plus D-162's two for `--since`: the ninth finding, and the build
       // configuration it could not read, which read as absent would say the
-      // package publishes nothing outside its own directory. The fourteenth is
-      // pipeline 11491's discrimination — an empty diff from a real fork point
-      // is still a refusal, and an already-merged branch is a verdict — driven
-      // as one proof because either half alone is satisfied by a check that
-      // answers both the same way.
-      'backend/scripts/check-release-intent.ts': 14,
+      // package publishes nothing outside its own directory. Then pipeline
+      // 11491's discrimination — an empty diff from a real fork point is still a
+      // refusal, and an already-merged branch is a verdict — driven as one proof
+      // because either half alone is satisfied by a check that answers both the
+      // same way.
+      //
+      // **14 -> 19 (feature 104).** `publishable-package` and
+      // `tag-without-publication` are two shapes that leave; five findings and
+      // one refusal arrive, and `tag-policy-unstated` gets **two** for the same
+      // reason `version-disabled` does — the whole of FR-011 is that the rule
+      // says something in *both* states, so a single proof would be satisfied by
+      // a rule that is total in one of them, which is what the finding it
+      // replaces was.
+      //
+      // **19 -> 18 (the owner's publication ruling of 2026-09-05).**
+      // `unexpected-public-package` becomes `unpublished-package`, one shape for
+      // one shape, and the `undecidable-publication-set` refusal leaves with the
+      // closure it guarded: with every versionable member publishable there is
+      // no reference storefront to be missing and no dependency graph to walk.
+      // A count that stood still through that would be a proof set describing a
+      // check that no longer exists.
+      //
+      // **18 -> 21 (the owner's licensing ruling of 2026-09-06).** Two new
+      // finding kinds, three proofs: `unlicensed-package` in both spellings —
+      // the field deleted, and the field "set" to a blank string, which npm
+      // reads identically and which is how it arrives from somebody who thought
+      // they had answered it — plus `unresolvable-license-file` for the paid
+      // half of the model, `SEE LICENSE IN LICENSE.md` with no such file.
+      'backend/scripts/check-release-intent.ts': 21,
+      // Two findings — the centre and the undecidable gate — plus the ledger's
+      // three directions and the three refusals `vacuousReason` answers. The
+      // fourth refusal is `readSizeRefusal`'s `short-walk` over the
+      // `storefront-deps` token, proven in the companion test where the record
+      // it reads is built.
+      'backend/scripts/check-rsc-discipline.ts': 8,
       // Three spellings of a whole-table wipe, plus the baseline's second
       // direction.
       'backend/scripts/check-shared-table-wipes.ts': 4,
@@ -7089,13 +10418,46 @@ describe('every red proof enters at the top of the analysis', () => {
       // handful it refuses, and a proof set that only showed the refusal would
       // not show it is the right check.
       'backend/scripts/check-singleton-identity.ts': 10,
+      // Seven findings and all three vacuous reasons. The seventh finding —
+      // `undeclared-structured-data` — is not in `contracts/seo-declarations.md`
+      // §7's list of six: that contract puts the JSON-LD types in a ledger
+      // instead, on the assumption that the emitters would arrive after the
+      // check. They arrived in the same merge request, so the ledger would have
+      // landed empty with nothing to strand, and a finding over the *declaration*
+      // is what gives the per-route `seo.ts` a reader.
+      // **10 -> 14 with `specs/108-storefront-response-status/`**: the eighth
+      // finding in both of the shapes it takes — a boundary in the page's own
+      // segment and one in an ancestor, which are the same rule and were
+      // measured to be two separately reachable defects — and two more vacuous
+      // reasons. The `'use server'` discrimination is **not** counted here and
+      // is not missing either: it belongs beside the reds in the companion test,
+      // where the whole population of a run can be asserted, because what it has
+      // to prove is that 33 correct authentication guards stay *out* of a
+      // finding list, and a proof counting findings of one kind cannot say that.
+      // **14 -> 19 with `specs/105-cms-root-page-urls/`'s Phase 4c**: the two
+      // directions of the reserved-segment reconciliation, kept apart because
+      // one fails open and the other fails safe; the `route.ts` shape, which is
+      // a population this check had no reason to walk until a CMS page could be
+      // slugged into `/api`; and two more vacuous reasons, one per side of a
+      // set comparison that reports the *other* side's whole contents when its
+      // own is empty.
+      'backend/scripts/check-storefront-indexability.ts': 19,
       // Three spellings of a bare subscription, plus the two queue-consumer
       // shapes: a factory call whose value goes nowhere, and a `new Worker` the
       // module keeps to itself.
       'backend/scripts/check-subscribe-seam.ts': 5,
       // Two shapes, two scopes, and the ledger's stale direction.
+      // Feature 106's five findings, the ledger's two failure directions that
+      // are not a finding (stale entry, mistyped shard), and the six exit-2
+      // conditions of contract §7 — the two addends of the union floored apart,
+      // the owner resolver going blind, the independent author losing its
+      // subject, the missing ledger directory, and the harness moving.
+      'backend/scripts/check-test-ownership.ts': 13,
       'backend/scripts/check-transaction-context.ts': 5,
-      'backend/scripts/i18n-hardcoded-strings.ts': 2,
+      // Two finding kinds, plus the `module-admin` floor's refusal — the third
+      // root family's only independent author, added when feature 091's drain
+      // made 357 of this walk's 422 files corroborated by nothing.
+      'backend/scripts/i18n-hardcoded-strings.ts': 3,
       // Four rules, the fifth (migration class scope) that reads the
       // filesystem, and issue #244's short listing — the shape every one of
       // this script's other floors is green on. Plus feature 080's three for
@@ -7136,7 +10498,7 @@ describe('every check refuses a vacuous pass', () => {
           new RegExp(`exit\\(2\\)|exit 2|${DELEGATED.source}`),
         );
       }
-      if (check.residueGuard === 'derived-population') {
+      if (check.residueGuard !== 'not-a-module-walk') {
         expect(
           source,
           `${check.script} walks the module tree, so it must derive its expected ` +
@@ -7145,6 +10507,118 @@ describe('every check refuses a vacuous pass', () => {
       }
     });
   }
+
+  /**
+   * The other direction, and it is the one nothing asserted (feature 111,
+   * FR-009).
+   *
+   * `derived-population` was reconciled two ways — the script must delegate, and
+   * the proof file must spawn it — and `not-a-module-walk` **no** ways. So a
+   * check could record that its population is not the module tree while its own
+   * source called the shared module-population guard, which is a claim
+   * contradicted by the file it is written in. Three did, and the value was
+   * doing duty for a state it cannot express: `check-admin-zones` and
+   * `check-test-ownership` were waiting for a fixture that could stage their
+   * populations, and `check-divergence` carries the floor over the owner map's
+   * input. `deferred-shared-proof` is that state, with a reason and a retiring
+   * condition; this assertion is what stops the next one being filed here
+   * instead.
+   *
+   * It is stated over `CHECKS` as a whole rather than per check so the failure
+   * names the whole set at once — a reader repairing one of three wants to see
+   * the other two.
+   */
+  it('records no module-population floor as "not a module walk" (SC-004)', () => {
+    const delegating = CHECKS.filter(
+      (check) => check.residueGuard === 'not-a-module-walk' && DELEGATED.test(read(check.script)),
+    ).map((check) => check.script);
+    expect(
+      delegating,
+      'these call the shared module-population guard while recording that their population ' +
+        'is not the module tree — mark them `derived-population` if the shared proof can ' +
+        `spawn them, or \`deferred-shared-proof\` with a reason if it cannot: ${delegating.join(', ')}`,
+    ).toEqual([]);
+  });
+});
+
+/**
+ * Checks whose module-population floor the shared fixture cannot yet exercise,
+ * with the measurement and the condition that retires the entry.
+ *
+ * **Two-way**, in the idiom of every other ledger in this estate: a check
+ * marked `deferred-shared-proof` with no entry fails, an entry over a check
+ * that is not so marked fails, and — the direction that makes it a debt rather
+ * than an exemption — an entry whose check `moved-module-tree.test.ts` now
+ * spawns fails.
+ *
+ * It is expected to empty. It lands holding one.
+ */
+const DEFERRED_SHARED_PROOFS: Readonly<
+  Record<string, { readonly reason: string; readonly retiredBy: string }>
+> = {
+  'backend/scripts/check-divergence.ts': {
+    reason:
+      'its owner map is built from the module tree and from the **repository-resident package ' +
+      'roots** under the application root, and the shared fixture stages the first and not the ' +
+      'second. `backend/acceptance/fixture-package` is what registers `acceptanceProbeGreeter`, ' +
+      "which the `acceptance` deployment's overlay module decorates, so over the split tree the " +
+      'name is owned by nobody and the run answers `unowned-subject` plus the `stale-reason` ' +
+      'that follows from it — exit 1, two findings about the fixture rather than about the ' +
+      'tree, against findings=0 over this checkout. Measured on 2026-09-05: exit 2 / 1 / 2 over ' +
+      'the moved, split and half-moved trees, the two 2s being this check\'s own delegation ' +
+      'naming the missing modules, so both refusals are real and only the passing tree is out ' +
+      'of reach.',
+    retiredBy:
+      'the shared fixture stages the application root\'s repository-resident package roots, at ' +
+      'which point the split tree answers 0 and the check joins `CHECKS` in ' +
+      '`moved-module-tree.test.ts` as `derived-population`.',
+  },
+};
+
+describe('a floor the shared fixture cannot exercise is a debt, not an exemption (FR-010)', () => {
+  const PROOF_FILE = 'backend/test/unit/scripts/moved-module-tree.test.ts';
+  const proof = read(PROOF_FILE);
+
+  it('has a reason and a retiring condition for every deferred floor', () => {
+    const undeclared = CHECKS.filter((check) => check.residueGuard === 'deferred-shared-proof')
+      .map((check) => check.script)
+      .filter((script) => DEFERRED_SHARED_PROOFS[script] === undefined);
+    expect(undeclared, `no entry in DEFERRED_SHARED_PROOFS for: ${undeclared.join(', ')}`).toEqual(
+      [],
+    );
+    // A sentence, not a word. The estate's own floor for a `repository-only`
+    // reason, applied to both halves, because "the fixture" is what an entry
+    // written to make this pass would say.
+    const thin = Object.entries(DEFERRED_SHARED_PROOFS)
+      .filter(([, entry]) => entry.reason.trim().length < 80 || entry.retiredBy.trim().length < 40)
+      .map(([script]) => script);
+    expect(thin, `these say too little to be read: ${thin.join(', ')}`).toEqual([]);
+  });
+
+  it('holds no entry for a check that is not deferred', () => {
+    const deferred = new Set(
+      CHECKS.filter((check) => check.residueGuard === 'deferred-shared-proof').map(
+        (check) => check.script,
+      ),
+    );
+    const stale = Object.keys(DEFERRED_SHARED_PROOFS).filter((script) => !deferred.has(script));
+    expect(stale, `DEFERRED_SHARED_PROOFS names these and the inventory does not: ${stale.join(', ')}`).toEqual(
+      [],
+    );
+  });
+
+  it('holds no entry for a check the shared proof already spawns', () => {
+    // The draining direction. `derived-population`'s two-way link reads the
+    // proof file for the checks it names; this reads it for the checks it must
+    // not, so an entry outlives its debt by exactly one merge request.
+    const drained = Object.keys(DEFERRED_SHARED_PROOFS).filter((script) =>
+      proof.includes(`'${script.slice(script.lastIndexOf('/') + 1)}'`),
+    );
+    expect(
+      drained,
+      `${PROOF_FILE} now spawns these, so their entries are stale: ${drained.join(', ')}`,
+    ).toEqual([]);
+  });
 });
 
 describe('a check whose population is the module tree proves it read the tree', () => {
@@ -7154,6 +10628,10 @@ describe('a check whose population is the module tree proves it read the tree', 
   // future edit would delete without noticing. Both directions therefore fail
   // here: a check marked `derived-population` and absent from the proof file,
   // and a script the proof file names that the inventory does not mark.
+  //
+  // The third value is the escape's other side and is reconciled just above: a
+  // `deferred-shared-proof` entry the proof file *does* spawn is stale, so a
+  // check cannot sit in the ledger and in the proof at once.
   const PROOF_FILE = 'backend/test/unit/scripts/moved-module-tree.test.ts';
   const proof = read(PROOF_FILE);
   const basenameOf = (script: string): string => script.slice(script.lastIndexOf('/') + 1);
@@ -7182,7 +10660,8 @@ describe('a check whose population is the module tree proves it read the tree', 
 /**
  * Checks that do not yet print what they read, with what it would take.
  *
- * **Two-way**, and empty: all twenty-seven print a read line today. An entry
+ * **Two-way**, and empty: every check in `CHECKS` prints a read line today. An
+ * entry
  * here is a check whose green still cannot be told from a check that read
  * nothing, which is the family issue #244 closes — so an entry is a statement
  * that one member of the family is still live, not a to-do.
@@ -7197,7 +10676,7 @@ describe('every check says how much it read (issue #244)', () => {
   // `test/helpers/check-read-sizes.ts` records what that line says on this
   // tree. The behavioural half — spawning each check and comparing — is
   // `check-read-size.test.ts`, for the same reason the moved-tree proof is its
-  // own file: twenty-seven spawns are too slow to sit in a file a developer
+  // own file: one spawn per check is too slow to sit in a file a developer
   // runs constantly.
   const RECORDS_FILE = 'backend/test/helpers/check-read-sizes.ts';
   const RATCHET_FILE = 'backend/test/unit/scripts/check-read-size.test.ts';
@@ -7218,7 +10697,7 @@ describe('every check says how much it read (issue #244)', () => {
   it('names the shared reporter in the script itself', () => {
     // Presence, not behaviour: a private `console.log` that happened to spell
     // the grammar would drift from it, and the point of a shared reporter is
-    // that the ratchet parses one shape for twenty-seven checks.
+    // that the ratchet parses one shape for every check in `CHECKS`.
     const missing = reported
       .filter((check) => !/reportReadSize|read_size_report/.test(read(check.script)))
       .map((check) => check.script);
@@ -7233,7 +10712,11 @@ describe('every check says how much it read (issue #244)', () => {
     // the two shell checks reconcile against the same index while staying
     // `not-a-module-walk` here, because `moved-module-tree.test.ts` spawns tsx
     // scripts over a fixture backend and a shell check needs a git work tree.
-    const unreconciled = CHECKS.filter((check) => check.residueGuard === 'derived-population')
+    //
+    // `deferred-shared-proof` is held to it too: what that value defers is the
+    // *spawned* proof, not the floor, and a floor that does not print its
+    // coverage is a floor nobody can see going short.
+    const unreconciled = CHECKS.filter((check) => check.residueGuard !== 'not-a-module-walk')
       .filter((check) => !(RECORDED_READ_SIZES[check.script]?.sources ?? []).includes('manifest-index'))
       .map((check) => check.script);
     expect(unreconciled).toEqual([]);
@@ -7315,6 +10798,313 @@ describe('the inventory agrees with the CI jobs', () => {
     it(`${check.script} runs in ${check.job}`, () => {
       expect(mentions(qualityBlock, check), 'quality job').toBe(check.job === 'quality');
       expect(mentions(staticBlock, check), 'quality:static job').toBe(check.job === 'quality:static');
+    });
+  }
+});
+
+/**
+ * `endora check`'s estate manifest, reconciled against this inventory in both
+ * directions (`specs/101-endora-check/` FR-021, `data-model.md` §1).
+ *
+ * ## Why the reconciliation is here rather than in the package
+ *
+ * The manifest lives in `@endora-commerce/cli` because **a stranger's run cannot
+ * read a `vitest` file**. But it is not a second author for *which rules exist* —
+ * this file is, and it is the one that enumerates the scripts on disk and fails
+ * on one it does not name. So the manifest authors only the per-rule
+ * classification, and the population is held to this file's.
+ *
+ * Story 2's whole subject is that an aggregate command whose set of members is
+ * maintained by memory is the exact defect this estate is built against,
+ * arriving one level up. Thirty of these rules exist because "somebody will
+ * remember" was measured false; a thirty-sixth rule joining the inventory and
+ * not the manifest would make `endora check` a curated subset, silently.
+ *
+ * **Nothing here writes the estate's size down.** Both sides are derived, and
+ * the count moved by one between `research.md`'s measurement and this block
+ * being written (D-100).
+ */
+describe('the endora check estate holds every rule this inventory names', () => {
+  const inventoried = new Set(CHECKS.map((check) => check.npmScript ?? stemOf(check.script)));
+  const estate = new Map(ESTATE.map((entry) => [entry.id, entry]));
+
+  it('has an entry for every inventoried check', () => {
+    expect([...inventoried].filter((id) => !estate.has(id)).sort()).toEqual([]);
+  });
+
+  it('names no rule this inventory does not hold', () => {
+    expect(ESTATE.map((entry) => entry.id).filter((id) => !inventoried.has(id)).sort()).toEqual([]);
+  });
+
+  it('is exactly as large as the inventory, derived on both sides', () => {
+    expect(ESTATE).toHaveLength(CHECKS.length);
+  });
+
+  it('names a script that resolves to a file in this tree', () => {
+    const missing = ESTATE.filter((entry) => !existsSync(join(REPO_ROOT, entry.script)));
+    expect(missing.map((entry) => entry.script)).toEqual([]);
+  });
+
+  it('agrees with the inventory about which file each rule is', () => {
+    const byId = new Map(CHECKS.map((check) => [check.npmScript ?? stemOf(check.script), check]));
+    const disagreements = ESTATE.filter(
+      (entry) => byId.get(entry.id)?.script !== entry.script,
+    ).map((entry) => `${entry.id}: ${entry.script} vs ${byId.get(entry.id)?.script ?? '<none>'}`);
+    expect(disagreements).toEqual([]);
+  });
+
+  // Invariant 2 — Story 2's condition 3.
+  it('refuses a repository-only entry with no reason', () => {
+    const reasonless = ESTATE.filter(
+      (entry) =>
+        entry.scope === 'repository-only' && (entry.reason ?? '').trim().length < 40,
+    );
+    expect(reasonless.map((entry) => entry.id)).toEqual([]);
+  });
+
+  it('refuses a reason on a package-scope entry', () => {
+    // A reason field on a rule that *does* travel is a sentence nothing reads,
+    // which is how the classification comes to disagree with itself.
+    expect(
+      ESTATE.filter((entry) => entry.scope === 'package' && entry.reason !== undefined).map(
+        (entry) => entry.id,
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * Invariant 3 — Story 2's condition 4, and the sharpest of the six.
+   *
+   * A rule this repository records as walking the **module tree** has a
+   * population every module contributes to, and a module package is one of
+   * those modules. Claiming it is repository-only therefore contradicts the
+   * population, and the contradiction is derived from the inventory's own
+   * `residueGuard` field rather than from a reader's judgement.
+   *
+   * **`deferred-shared-proof` is deliberately not read here** (feature 111).
+   * That value's claim is about the check's *floor* — it calls the shared
+   * module-population guard — and this invariant's is about the rule's
+   * **subject**. `check:divergence` is where the two come apart: it carries the
+   * floor because a residue of the module tree would leave its owner map short,
+   * and it judges deployments, of which a module package is not one and cannot
+   * become one. Reading the third value here would refuse that entry for a
+   * contradiction it does not hold. The value is not thereby an escape from this
+   * invariant: it is a two-way ledger with a retiring condition, and the entry
+   * that retires becomes `derived-population`, at which point this test asks its
+   * question.
+   */
+  it('refuses a repository-only claim over a module walk', () => {
+    const byId = new Map(CHECKS.map((check) => [check.npmScript ?? stemOf(check.script), check]));
+    const contradictions = ESTATE.filter(
+      (entry) =>
+        entry.scope === 'repository-only' &&
+        byId.get(entry.id)?.residueGuard === 'derived-population',
+    );
+    expect(contradictions.map((entry) => entry.id)).toEqual([]);
+  });
+
+  // Invariant 4.
+  it('registers a package-scope host for every entry that declares one is built', () => {
+    const built = ESTATE.filter((entry) => entry.host === 'built').map((entry) => entry.id);
+    expect(built.filter((id) => !PACKAGE_HOSTS.has(id))).toEqual([]);
+  });
+
+  it('declares `host: built` for every host it registers', () => {
+    expect(
+      [...PACKAGE_HOSTS.keys()].filter((id) => estate.get(id)?.host !== 'built'),
+    ).toEqual([]);
+  });
+
+  it('gives every package-scope entry a host or a phase', () => {
+    const undeclared = ESTATE.filter(
+      (entry) => entry.scope === 'package' && entry.host === undefined,
+    );
+    expect(undeclared.map((entry) => entry.id)).toEqual([]);
+  });
+
+  // Invariant 5.
+  it('records tier C exactly for the repository-only rules', () => {
+    const wrong = ESTATE.filter(
+      (entry) => (entry.tier === 'C') !== (entry.scope === 'repository-only'),
+    );
+    expect(wrong.map((entry) => `${entry.id} (${entry.tier}/${entry.scope})`)).toEqual([]);
+  });
+
+  it('names a phase on every pending entry', () => {
+    const nameless = pendingEntries().filter(([, phase]) => phase.trim().length === 0);
+    expect(nameless).toEqual([]);
+  });
+
+  /**
+   * Invariant 6 — `contracts/exit-reduction.md` §5.1 and red proof 9, **under
+   * D-208**, which withdrew half of it.
+   *
+   * 089 §7 and 101 §5.1 coupled publication to completeness: while any rule was
+   * `pending`, `@endora-commerce/cli` stayed `private: true`. The reasoning was
+   * that the state which would make the incompleteness matter should be the
+   * state the tooling refuses, rather than a requirement written down and
+   * hoped for — and it was right for a package nobody outside this repository
+   * could obtain. **D-208 changes the premise**: the CLI is the product's front
+   * door and the first package a client installs, `endora check` is one of its
+   * three commands, and a deferral is no longer available to us.
+   *
+   * The coupling is therefore split into what it was protecting and what it was
+   * deferring, and only the second is withdrawn.
+   *
+   *   * **Deferred** — that nobody meets an incomplete estate at all. This is
+   *     what `private: true` bought and what D-208 spends.
+   *   * **Protected** — that nobody can mistake an incomplete estate for a
+   *     complete one. That is carried by two assertions of its own, neither of
+   *     which depends on publication: every `pending` entry names the phase
+   *     that retires it (*names a phase on every pending entry*, above), and
+   *     `pending` dominates the exit code so a wholly clean package still exits
+   *     2 (`packages/cli/test/check-exit-reduction.test.ts`, proof 4). A
+   *     stranger's run therefore prints the incompleteness and refuses, which
+   *     is `exit-reduction.md` §5's own design and not a consolation.
+   *
+   * What survives here is the **reachability** half, unchanged and still worth
+   * asserting: the gate that judges this package's publication is
+   * `check:release-intent`'s `unpublished-package` — the same gate under the
+   * ruling of 2026-09-05, asking the question in the direction that still has a
+   * subject — and the one configuration that could silence it for the CLI
+   * without anybody noticing is an `ignore` pattern, glob-matched against
+   * package *names*, so one entry reading `@endora-commerce/*` would exempt it
+   * along with 78 others.
+   */
+  it('keeps @endora-commerce/cli inside the gate that judges its publication', () => {
+    const manifest = JSON.parse(read('packages/cli/package.json')) as {
+      name: string;
+      private?: boolean;
+    };
+
+    // The gate that judges it, and the one configuration that could switch it
+    // off silently — `ignore` is glob-matched against package *names*.
+    expect(read('backend/scripts/check-release-intent.ts')).toContain('unpublished-package');
+    const changesets = JSON.parse(read('.changeset/config.json')) as { ignore?: string[] };
+    for (const pattern of changesets.ignore ?? []) {
+      const matcher = new RegExp(
+        `^${pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`,
+      );
+      expect(matcher.test(manifest.name), `\`${pattern}\` ignores ${manifest.name}`).toBe(false);
+    }
+
+    // And the two facts D-208 makes it turn on: a package that is public owes a
+    // consumer the metadata `incomplete-public-package` asks for. Asserted here
+    // rather than left to the check alone because this file is where the
+    // coupling is recorded, and a coupling recorded with nothing under it is
+    // what §5.1 was written to avoid.
+    expect(manifest.private).toBeUndefined();
+    const published = JSON.parse(read('packages/cli/package.json')) as {
+      repository?: { url?: string };
+      publishConfig?: { access?: string };
+    };
+    expect(published.repository?.url).toBeTruthy();
+    expect(published.publishConfig?.access).toBe('public');
+  });
+
+  /**
+   * FR-010: a partial rule counts **once**, as `ran`, and names each signal it
+   * did not evaluate. An un-evaluated signal must never become a second estate
+   * entry — the population is this file's, and inventing a row there would be a
+   * second author for it.
+   */
+  it('gives every partial signal a name and a reason', () => {
+    const thin = ESTATE.flatMap((entry) =>
+      (entry.partial ?? [])
+        .filter((signal) => signal.signal.length === 0 || signal.reason.trim().length < 40)
+        .map((signal) => `${entry.id}: ${signal.signal}`),
+    );
+    expect(thin).toEqual([]);
+  });
+
+  /**
+   * `host-reach-check.md` §8, both directions.
+   *
+   * The estate says the application-reach half is vacuous when the subject is
+   * one installed module package — a package has no application tree, so the
+   * half has no subject there and must be **declared** vacuous rather than
+   * counted zero. The reconciliation is a biconditional against the analysis's
+   * own export, so the entry cannot arrive without the population and cannot
+   * outlive it: delete `scanApplicationReaches` and this fails; delete the
+   * signal and it fails too.
+   */
+  it('declares the application-reach half vacuous exactly while the analysis has one', () => {
+    // The binding is named for its subject rather than `entry`, deliberately:
+    // `check:fixture-substitution` follows a read **through the value**, and a
+    // file-scope `entry` bound to a `find` makes every unrelated
+    // `(entry.reason ?? '')` in this file a defaulted fixture read. Measured.
+    const platformSurface = ESTATE.filter((row) => row.id === 'check:platform-surface');
+    expect(platformSurface).toHaveLength(1);
+    const signals = platformSurface.flatMap((row) => row.partial ?? []).map((one) => one.signal);
+
+    expect(signals.includes('application-host-reach')).toBe(
+      typeof rulePlatformSurface.scanApplicationReaches === 'function',
+    );
+  });
+
+  it('names a declaration on every subject declaration', () => {
+    const empty = ESTATE.filter(
+      (entry) =>
+        entry.subjectDeclaration !== null &&
+        entry.subjectDeclaration.declaration.trim().length === 0,
+    );
+    expect(empty.map((entry) => entry.id)).toEqual([]);
+  });
+});
+
+/**
+ * FR-022 — a rule's analysis has **exactly one implementation**, hosted twice.
+ *
+ * The two hosts are `backend/scripts/check-<name>.ts` (this repository) and
+ * `endora check` (one module package). "Delegate or re-implement" is a false
+ * choice and the spec says so: the analysis is *relocated*, and this is the
+ * assertion that it stayed relocated. A copy taken back into `backend/scripts/`
+ * would leave these identities false while every other test in this file stayed
+ * green, because a copy of a correct analysis is correct.
+ */
+describe('a relocated analysis has one implementation and two hosts', () => {
+  const RELOCATED: ReadonlyArray<readonly [string, Record<string, unknown>, Record<string, unknown>]> =
+    [
+      ['check:nul-bytes', hostNulBytes as unknown as Record<string, unknown>, ruleNulBytes as unknown as Record<string, unknown>],
+      ['check:bundle-pairing', hostBundlePairing as unknown as Record<string, unknown>, ruleBundlePairing as unknown as Record<string, unknown>],
+      ['check:container-imports', hostContainerImports as unknown as Record<string, unknown>, ruleContainerImports as unknown as Record<string, unknown>],
+      ['check:subscribe-seam', hostSubscribeSeam as unknown as Record<string, unknown>, ruleSubscribeSeam as unknown as Record<string, unknown>],
+      ['check:command-coverage', hostCommandCoverage as unknown as Record<string, unknown>, ruleCommandCoverage as unknown as Record<string, unknown>],
+      // Phase 2. Two of these — `check:action-route-permissions` and
+      // `check:singleton-identity` — have **no package host in this build** and
+      // are here anyway, deliberately: the analysis relocated, the estate is
+      // what decides whether a host exists, and this assertion is about the
+      // relocation rather than about the host. A copy taken back into
+      // `backend/scripts/` while the entry sits at `pending` would otherwise be
+      // invisible until Phase 3 came to build over it.
+      ['check:action-route-permissions', hostActionRoute as unknown as Record<string, unknown>, ruleActionRoute as unknown as Record<string, unknown>],
+      ['channel:resolution', hostChannelResolution as unknown as Record<string, unknown>, ruleChannelResolution as unknown as Record<string, unknown>],
+      ['check:default-language-prose', hostDefaultLanguageProse as unknown as Record<string, unknown>, ruleDefaultLanguageProse as unknown as Record<string, unknown>],
+      ['check:diacritic-folds', hostDiacriticFolds as unknown as Record<string, unknown>, ruleDiacriticFolds as unknown as Record<string, unknown>],
+      ['check:entry-scope', hostEntryScope as unknown as Record<string, unknown>, ruleEntryScope as unknown as Record<string, unknown>],
+      ['check:kernel-boundary', hostKernelBoundary as unknown as Record<string, unknown>, ruleKernelBoundary as unknown as Record<string, unknown>],
+      ['check:platform-surface', hostPlatformSurface as unknown as Record<string, unknown>, rulePlatformSurface as unknown as Record<string, unknown>],
+      ['check:port-shape', hostPortShape as unknown as Record<string, unknown>, rulePortShape as unknown as Record<string, unknown>],
+      ['check:singleton-identity', hostSingletonIdentity as unknown as Record<string, unknown>, ruleSingletonIdentity as unknown as Record<string, unknown>],
+      ['check:transaction-context', hostTransactionContext as unknown as Record<string, unknown>, ruleTransactionContext as unknown as Record<string, unknown>],
+    ];
+
+  for (const [id, host, rule] of RELOCATED) {
+    it(`${id}: every analysis the repository host exports is the package's own object`, () => {
+      const exported = Object.keys(rule);
+      // A rule that exports nothing at runtime is a relocation that moved no
+      // analysis, and a per-key comparison over it would pass vacuously.
+      expect(exported.length).toBeGreaterThan(0);
+      // **Every** runtime export, not a threshold. This assertion read
+      // `shared.length > 3` until Phase 2 and that is a count of a derived fact
+      // written down (D-100): it went red the moment a rule whose whole surface
+      // is two functions relocated, and it had been silently *weaker* than this
+      // for the five before that — a host that re-exported four of a rule's
+      // eleven analyses satisfied it. The floor is now the rule's own surface,
+      // which is what "one implementation, two hosts" actually claims.
+      expect(exported.filter((name) => !(name in host))).toEqual([]);
+      const divergent = exported.filter((name) => host[name] !== rule[name]);
+      expect(divergent).toEqual([]);
     });
   }
 });

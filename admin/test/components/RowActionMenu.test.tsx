@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ResponsiveTable, type ResponsiveColumn } from '../../src/components/ResponsiveTable';
+import { ResponsiveTable, type ResponsiveColumn } from '../../../packages/admin-shell/src/components/ResponsiveTable';
 import {
   RowActionMenu,
   RowActionMenuItem,
   RowActionMenuSeparator,
-} from '../../src/components/RowActionMenu';
+} from '../../../packages/admin-shell/src/components/RowActionMenu';
 
 /**
  * The defect this pins: a row menu positioned with `absolute` lives inside the

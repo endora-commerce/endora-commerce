@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { discoverModulePackages } from '../../../scripts/lib/module-packages.js';
 import { findRepoRoot } from '../../../scripts/lib/module-roots.js';
+import { platformSourceRootOf } from '../../../scripts/lib/platform-root.js';
+import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
 import { describe, expect, it } from 'vitest';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
@@ -30,6 +32,24 @@ const SCRIPTS = ['install', 'uninstall', 'enable', 'disable', 'status'] as const
 /** A file under `backend/src`, for the host-owned sources this file asserts on. */
 const sourceOf = (relative: string): string =>
   readFileSync(fileURLToPath(new URL(`../../../src/${relative}`, import.meta.url)), 'utf8');
+
+/**
+ * A `module:*` command body, wherever the platform's sources are.
+ *
+ * The root is derived from the workspace member that declares itself the
+ * platform, never spelled: the same discipline `manifestSourceOf` below applies
+ * to a module package, for the same reason — a path built from segments is
+ * invisible to a relocation and reports ENOENT instead of a claim.
+ */
+const platformRoot = platformSourceRootOf(
+  workspaceMembers(fileURLToPath(new URL('../../../../', import.meta.url)), nodeWorkspaceFs()),
+);
+if (platformRoot === null) {
+  throw new Error('no workspace member declares itself the platform — nothing to read');
+}
+
+const commandBodyOf = (verb: string): string =>
+  readFileSync(join(platformRoot, 'lifecycle', 'commands', `${verb}.ts`), 'utf8');
 
 /**
  * The **source** of a module's manifest, wherever the module lives.
@@ -111,10 +131,22 @@ describe('a registry built the way a module: command builds one carries them', (
     // is `module-cli-resolved-registry.test.ts`'s, and stays there. What this
     // asserts is the absence of the re-map, which is the property that makes
     // the drop impossible rather than merely absent today.
-    const source = sourceOf(`lifecycle/scripts/${name}.ts`);
+    //
+    // The subject is now the **command body**, which is where the build is
+    // since `specs/115-lifecycle-container-move/` Phase 5 (D115-1); the entry
+    // point is asserted with it, because a re-map re-introduced when the
+    // entries are put on the runtime would drop the field just as completely.
+    // Read the entry point alone and every regex below is absent for the wrong
+    // reason — the file no longer builds anything — so the positive guard is
+    // asserted first.
+    const body = commandBodyOf(name);
+    const entryPoint = sourceOf(`lifecycle/scripts/${name}.ts`);
 
-    expect(source).not.toMatch(/resolvedManifestEntries\(\)\)\.map\(/);
-    expect(source).not.toMatch(/installHook: e\.installHook/);
+    expect(body).toMatch(/buildStaticRegistry\(rt\.entries\)/);
+    expect(body).not.toMatch(/rt\.entries\.map\(/);
+    expect(body).not.toMatch(/installHook: e\.installHook/);
+    expect(entryPoint).not.toMatch(/entries: entries\.map\(/);
+    expect(entryPoint).not.toMatch(/installHook: e\.installHook/);
   });
 });
 

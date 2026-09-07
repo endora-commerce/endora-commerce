@@ -36,6 +36,14 @@ import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { getMe } from '../../../lib/api/account';
 import { getProductDisplayMode, PRICING_UNAVAILABLE } from '../../../lib/api/pricing';
 import type { DisplayMode } from '@endora-commerce/contracts';
+import type { Metadata } from 'next';
+
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
+ * authenticated or transactional surface, of no use to a crawler and not a
+ * page a search result should ever land a buyer on.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Cart page — Industria-themed (feature 027 T045 / T046 / T059 / T074 / T096).

@@ -159,5 +159,9 @@
   "activation.managedOnPlatformScreen": "To jest przełącznik włączania modułu. Zarządza się nim na ekranie Moduły, razem z tym, co udostępnia ta instalacja.",
   "activation.openPlatformScreen": "Otwórz Moduły",
   "editor.readOnly": "Tylko do odczytu",
-  "editor.readOnlyReason": "Moduł, do którego należy to ustawienie, jest wyłączony. Zapisana wartość jest zachowana i będzie ponownie edytowalna po włączeniu modułu."
+  "editor.readOnlyReason": "Moduł, do którego należy to ustawienie, jest wyłączony. Zapisana wartość jest zachowana i będzie ponownie edytowalna po włączeniu modułu.",
+  "nav.settings.label": "Ustawienia",
+  "nav.settingGroups.label": "Grupy ustawień",
+  "nav.cache.label": "Czyszczenie cache",
+  "editor.credentialRef.preview": "Podgląd"
 }

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { toAbsoluteAssetUrl } from '../lib/asset-url';
 
-// NEXT_PUBLIC_API_BASE_URL is unset in the test env, so the helper falls back
-// to its `http://localhost:3001` default. These assertions pin the rebasing
-// behaviour that keeps gallery/thumbnail images resolving against the backend
-// origin rather than the storefront origin.
-const BASE = 'http://localhost:3001';
+// `vitest.config.mts` sets NEXT_PUBLIC_API_BASE_URL for the run, because the
+// helper no longer invents an origin when it is unset — it refuses. These
+// assertions pin the rebasing behaviour that keeps gallery/thumbnail images
+// resolving against the backend origin rather than the storefront origin, and
+// the origin below is deliberately not a plausible default: a helper that
+// answered from somewhere other than the configured variable cannot produce it.
+const BASE = 'http://api.test';
 
 describe('toAbsoluteAssetUrl', () => {
   it('rebases host-relative asset URLs onto the API origin', () => {

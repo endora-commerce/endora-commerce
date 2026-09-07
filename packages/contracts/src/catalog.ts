@@ -2497,6 +2497,15 @@ export interface CatalogProductWritePort {
       sortOrder?: number;
     },
   ): Promise<CatalogAttributeOptionResult>;
+  patchAttributeOption(
+    optionId: string,
+    input: {
+      label?: Record<string, string>;
+      labelDefault?: string;
+      isDefault?: boolean;
+      sortOrder?: number;
+    },
+  ): Promise<CatalogAttributeOptionResult>;
 
   createVariant(
     parentProductId: string,
@@ -2509,6 +2518,35 @@ export interface CatalogProductWritePort {
   ): Promise<CatalogProductVariantRecord>;
   deleteVariant(parentProductId: string, variantId: string): Promise<void>;
 }
+
+/**
+ * One channel/language override upsert — feature 022 / product-scope-overrides.
+ * Used by PIM importers (feature 089) to land channel-locale-scoped names and
+ * descriptions without reaching `product_value_overrides` directly (Principle XII).
+ */
+export interface CatalogProductValueOverrideUpsert {
+  attributeKey: string;
+  channelId: string;
+  languageCode: string | null;
+  value: { v: unknown };
+}
+
+/**
+ * Container name: `catalogProductValueOverrideWritePort`. Owner: `catalog`.
+ *
+ * Bulk upsert of per-channel / per-language product attribute overrides. The
+ * only consumer today is `pim_unopim` (feature 089 / FR-023); the admin SPA
+ * still goes through `ProductOverridesService` inside catalog's own routes.
+ *
+ * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
+ */
+export interface CatalogProductValueOverrideWritePort {
+  applyBulk(
+    productId: string,
+    input: { upserts: readonly CatalogProductValueOverrideUpsert[] },
+  ): Promise<void>;
+}
+
 
 /** The patch `updateCategory` accepts. Absent keys are left alone. */
 export interface UpdateCategoryInput {

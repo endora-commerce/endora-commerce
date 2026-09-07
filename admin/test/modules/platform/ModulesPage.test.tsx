@@ -23,7 +23,7 @@ let listed: ModuleListItem[] = [];
 let presence: ModulePresence[] = [];
 let degraded = false;
 
-vi.mock('@/lib/module-presence', () => ({
+vi.mock('../../../../packages/admin-shell/src/lib/module-presence', () => ({
   useModulePresence: () => ({
     modules: presence,
     isPresent: (id: string) => presence.find((m) => m.id === id)?.present ?? false,
@@ -37,11 +37,11 @@ vi.mock('@/lib/module-presence', () => ({
   getModulePresence: vi.fn(),
 }));
 
-vi.mock('@/modules/platform/api', () => ({
+vi.mock('../../../../packages/admin-shell/src/modules/platform/api', () => ({
   listModules: vi.fn(async () => ({ modules: listed })),
 }));
 
-const { ModulesPage } = await import('../../../src/modules/platform/ModulesPage');
+const { ModulesPage } = await import('../../../../packages/admin-shell/src/modules/platform/ModulesPage');
 
 const bundle = passthroughBundle('core', [
   'platform.modules.title',
@@ -82,7 +82,6 @@ function moduleItem(patch: Partial<ModuleListItem> & { id: string }): ModuleList
     state: 'installed',
     dependencies: [],
     flags: [],
-    license: null,
     installedAt: '2026-08-01T00:00:00.000Z',
     lastStateChangeAt: '2026-08-01T00:00:00.000Z',
     ...patch,

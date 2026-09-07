@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/mod-email",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "description": "Mailer abstraction with Console / SMTP drivers for transactional email.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "email"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/email"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -33,7 +41,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/contracts": "workspace:*",
@@ -52,6 +61,7 @@
     "@types/node": "^22.9.0",
     "@types/nodemailer": "^7.0.4",
     "nodemailer": "^7.0.9",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4"
   }
 }

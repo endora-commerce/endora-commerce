@@ -26,6 +26,7 @@ export const manifest = defineModuleManifest({
   // resolutions rather than constructor arguments.
   dependencies: ['_i18n', '_lifecycle', 'auth', 'admin_roles'],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   settings: {
     moduleCode: 'admin_actions',
     groups: [{ code: 'admin_actions', name: 'Command palette' }],

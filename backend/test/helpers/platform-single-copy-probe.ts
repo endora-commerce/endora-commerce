@@ -47,17 +47,98 @@
  * harmless once (the point of the exercise) and cannot be undone, so it must not
  * happen inside a fork the rest of the suite shares.
  *
+ * ## A barrel spanning directories, and a directory that is not all shims
+ *
+ * `backend/src/<subpath>/**` was the whole of side two until
+ * `specs/115-lifecycle-container-move/` Phase 2, and it is wrong for a
+ * **host-internal** subpath in both directions.
+ *
+ * `./composition` re-exports out of `http/`, `kernel/` and `tenancy/` because a
+ * composition root does, so its application spelling is a shim under one of
+ * *those* directories and there is no `backend/src/composition/` for the walk to
+ * find. It was therefore recorded `unshimmed` — a fair description of the walk
+ * and a false one of the tree: `registryCache` is reachable at
+ * `backend/src/kernel/lifecycle/registry-cache.ts` and at
+ * `@endora-commerce/platform/composition`, two spellings of the module-scoped
+ * singleton whose second copy *"no `state-changed` message reaches"*, and
+ * nothing in the repository compared them.
+ *
+ * `./lifecycle` is the other direction. `backend/src/lifecycle/` holds twelve
+ * shims **and seven real application files**, five of which are `module:*` CLI
+ * entry points that open an ORM and `process.exit` at import. A walk that
+ * imported the directory whole would not measure a duplication, it would run a
+ * lifecycle command against whatever `DATABASE_URL` names.
+ *
+ * So side two is the **union** of two derivations, and neither is a list:
+ *
+ *  1. every file under `backend/src/<subpath>/` that forwards to the platform,
+ *     which is exactly the shims — a file that does not forward holds the
+ *     application's own values, which are not a second spelling of anything, and
+ *     is never imported;
+ *  2. for each name the barrel re-exports, the application file at the barrel's
+ *     own target path, if there is one and it forwards.
+ *
+ * Measured when it landed: the five published subpaths' shared count is
+ * unchanged at 57 — the second derivation adds no name the first did not already
+ * reach — and `./composition` gains 22 comparable values, `registryCache` among
+ * them.
+ *
+ * ## A declared subpath the application really does not reach
+ *
+ * `./migrations` is one: the frozen historical prefix is data the platform
+ * carries with no second copy anywhere in the application. One route is not a
+ * duplication, so there is nothing here to compare and reporting "no
+ * duplication" over it would be reporting on a comparison that never happened.
+ *
+ * The discriminator is **structural and not an empty walk**: a subpath neither
+ * derivation finds a forwarding file for is recorded as `unshimmed`, while a
+ * `backend/src/<subpath>` directory that *is* there and yields no source file at
+ * all stays exit 2 — that second state is the #113 shape, and it is the one a
+ * deleted shim produces. Both lists are in the output and
+ * `test/unit/kernel/platform-single-copy.test.ts` holds each of them to an
+ * expected set, so a subpath moving between them fails in both directions.
+ *
  * Exit 2 on anything that would make an empty answer look like a clean one: an
- * unbuilt host package, a subpath that would not import, a subpath the
- * application reaches through no shim at all, a barrel that exported nothing.
+ * unbuilt host package, a subpath that would not import, a shim directory that
+ * is there and holds no source, a barrel that could not be read, a subpath whose
+ * forwarding files yielded no comparable value, and a run in which no subpath
+ * was comparable at all.
  */
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import { barrelKeyOf, parseBarrel } from '../../scripts/lib/platform-surface.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = join(HERE, '..', '..');
 const SRC_ROOT = join(BACKEND_ROOT, 'src');
+const PLATFORM_SRC = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
+
+/**
+ * A file that forwards to the platform — the shim shape, in either spelling.
+ *
+ * Read off the source text rather than assumed from the path, because the
+ * discrimination this makes is the one that keeps a `module:*` entry point out
+ * of a walk that would execute it. A file naming neither the package nor its
+ * directory is the application's own and is not a second spelling of a platform
+ * value.
+ *
+ * **It is a re-export, not any mention of the specifier**, and that narrowing is
+ * `specs/115-lifecycle-container-move/` Phase 5's. This read
+ * `/from\s*'…platform…'/`, which matches an `import` exactly as well as an
+ * `export … from` — harmless only for as long as no application file *consumed*
+ * the package by bare specifier. D115-1's five entry points do: each imports
+ * `run<Verb>Command` from `@endora-commerce/platform/lifecycle`. So the file
+ * this header names as the one the filter exists to exclude walked straight back
+ * into the population, and the walk's next step imported it — an ORM opened
+ * against an unreachable service and a `process.exit` at import, in the probe.
+ * A consumer holds no second spelling of anything; only a re-export does.
+ * `[^;]` is what keeps the match inside one statement, so an `export` earlier in
+ * the file cannot reach an `import` further down.
+ */
+const FORWARDS_TO_THE_PLATFORM =
+  /export\s+(?:\*|type\s|\{)[^;]*?from\s*'[^']*(?:packages\/platform\/(?:dist|src)|@endora-commerce\/platform)[^']*'/;
 
 /** The package name is the specifier under test; there is nothing to derive it from. */
 const HOST_PACKAGE = '@endora-commerce/platform';
@@ -68,11 +149,11 @@ function refuse(reason: string): never {
 }
 
 /**
- * The subpaths the host publishes, read off its own `exports` map rather than
- * written here: a sixth published directory has to be measured the day it is
- * published, not the day somebody remembers this file.
+ * The subpaths the host declares, read off its own `exports` map rather than
+ * written here: a sixth subpath has to be measured — or explicitly recorded as
+ * unshimmed — the day it is declared, not the day somebody remembers this file.
  */
-async function publishedSubpaths(): Promise<string[]> {
+async function declaredSubpaths(): Promise<string[]> {
   const manifest = (await import(`${HOST_PACKAGE}/package.json`, { with: { type: 'json' } })) as {
     default: { exports?: Record<string, unknown> };
   };
@@ -114,7 +195,56 @@ interface SubpathComparison {
   readonly distinct: readonly string[];
 }
 
-async function compare(subpath: string): Promise<SubpathComparison> {
+/**
+ * The application files that are a second spelling of this subpath's platform
+ * files: derivation 1 (the subpath's own directory) ∪ derivation 2 (the barrel's
+ * targets, mirrored into `backend/src`), both filtered to files that forward.
+ *
+ * The forwarding filter is what keeps `backend/src/lifecycle/scripts/install.ts`
+ * — a `module:*` entry point that opens an ORM and `process.exit`s at import —
+ * out of a walk whose next step is to import everything it found. Since Phase 5
+ * that entry point *names* the package by bare specifier, so the filter's shape
+ * — a re-export and not a mention — is what does the keeping out.
+ */
+function applicationReachesOf(subpath: string): string[] {
+  const forwarding = (file: string): boolean =>
+    existsSync(file) && FORWARDS_TO_THE_PLATFORM.test(readFileSync(file, 'utf8'));
+
+  const directory = join(SRC_ROOT, subpath);
+  const files = new Set(walk(directory).filter(forwarding));
+  if (existsSync(directory) && walk(directory).length === 0) {
+    // The directory is there and holds no source at all. That is the walk coming
+    // back empty, never a subpath the application does not reach — see the
+    // header. A directory of files that merely do not forward is a different
+    // state and a legitimate one: it is what a fully drained subpath looks like.
+    refuse(
+      `the application reaches '${subpath}' through no file under ${directory}, ` +
+        'though the directory is there. The comparison would have one side and would ' +
+        'report "no duplication" for a subpath it never read.',
+    );
+  }
+
+  const barrel = join(PLATFORM_SRC, barrelKeyOf(subpath));
+  if (existsSync(barrel)) {
+    const parsed = parseBarrel(readFileSync(barrel, 'utf8'), barrelKeyOf(subpath));
+    if (parsed.unreadable.length > 0) {
+      // A barrel whose names cannot be enumerated silently narrows derivation 2
+      // to the names it could read, which is a shorter comparison reported as a
+      // complete one.
+      refuse(
+        `${barrelKeyOf(subpath)} holds a re-export this parse cannot enumerate ` +
+          `(${parsed.unreadable.map((u) => u.reason).join('; ')})`,
+      );
+    }
+    for (const symbol of parsed.published) {
+      const mirrored = join(SRC_ROOT, symbol.target);
+      if (forwarding(mirrored)) files.add(mirrored);
+    }
+  }
+  return [...files].sort();
+}
+
+async function compare(subpath: string, shimFiles: readonly string[]): Promise<SubpathComparison> {
   const fromPackage = (await import(`${HOST_PACKAGE}/${subpath}`).catch((error: unknown) => {
     refuse(
       `'${HOST_PACKAGE}/${subpath}' did not import (${String(error)}). The host package is ` +
@@ -122,15 +252,6 @@ async function compare(subpath: string): Promise<SubpathComparison> {
         'report "nothing to compare".',
     );
   })) as Record<string, unknown>;
-
-  const shimFiles = walk(join(SRC_ROOT, subpath));
-  if (shimFiles.length === 0) {
-    refuse(
-      `the application reaches '${subpath}' through no file under ${join(SRC_ROOT, subpath)}. ` +
-        'The comparison would have one side and would report "no duplication" for a ' +
-        'subpath it never read.',
-    );
-  }
 
   /** Name → value, merged over the subpath's shims, with disagreement reported. */
   const fromApplication = new Map<string, unknown>();
@@ -141,11 +262,11 @@ async function compare(subpath: string): Promise<SubpathComparison> {
     for (const name of Object.keys(namespace)) {
       const already = fromApplication.get(name);
       if (already !== undefined && already !== namespace[name]) {
-        // Two shims of one directory handing out two objects for one name is
-        // the duplication in miniature, and it would otherwise be hidden by
+        // Two of a subpath's shims handing out two objects for one name is the
+        // duplication in miniature, and it would otherwise be hidden by
         // whichever import happened to come last.
         refuse(
-          `two files under src/${subpath} export '${name}' as different objects — ` +
+          `two of '${subpath}'s application reaches export '${name}' as different objects — ` +
             'the application does not agree with itself about the platform',
         );
       }
@@ -169,6 +290,22 @@ async function compare(subpath: string): Promise<SubpathComparison> {
   return { subpath, shims: shimFiles.length, shared, distinct };
 }
 
+const declared = await declaredSubpaths();
 const comparisons: SubpathComparison[] = [];
-for (const subpath of await publishedSubpaths()) comparisons.push(await compare(subpath));
-process.stdout.write(`${JSON.stringify(comparisons)}\n`);
+const unshimmed: string[] = [];
+for (const subpath of declared) {
+  // Structural, not an empty walk: no forwarding file by either derivation means
+  // the application has one route to this subpath and there is no second copy
+  // for one to disagree with.
+  const reaches = applicationReachesOf(subpath);
+  if (reaches.length > 0) comparisons.push(await compare(subpath, reaches));
+  else unshimmed.push(subpath);
+}
+if (comparisons.length === 0) {
+  refuse(
+    'no declared subpath is reached through a shim, so nothing was compared. The ' +
+      'application reaches the platform through re-export shims; a run that found none ' +
+      'of them read one side of every comparison.',
+  );
+}
+process.stdout.write(`${JSON.stringify({ declared, comparisons, unshimmed })}\n`);

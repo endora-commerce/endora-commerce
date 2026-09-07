@@ -6,7 +6,8 @@ import {
 } from '../../../src/lifecycle/services/orchestrator.js';
 import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
 import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
-import { orderMigrations, BASELINE_THROUGH } from '../../../src/db/migration-order.js';
+import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
+import { orderMigrations } from '../../../src/db/migration-order.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
@@ -309,12 +310,12 @@ describe('a cycle does not stop the platform migrating (US4)', () => {
         ['core', []],
         ...DISCOVERED_MANIFESTS.map((e) => [e.id, e.manifest.dependencies ?? []] as const),
       ]),
-      baselineThrough: BASELINE_THROUGH,
+      baseline: BASELINE_MIGRATIONS,
     });
     const cycled = orderMigrations({
       entries: MIGRATION_REGISTRY,
       moduleDependencies: declared,
-      baselineThrough: BASELINE_THROUGH,
+      baseline: BASELINE_MIGRATIONS,
     });
 
     expect(cycled.diagnostics.map((d) => d.modules)).toEqual([['pkg_alpha', 'pkg_beta']]);

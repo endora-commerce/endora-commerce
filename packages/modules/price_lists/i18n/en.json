@@ -6,5 +6,9 @@
   "activity.verb.price_list.duplicate": "duplicated price list",
   "activity.verb.price_list.expire": "expired price list",
   "activity.verb.price_list.products_replace": "replaced products on price list",
-  "activity.verb.price_list.update": "updated price list"
+  "activity.verb.price_list.update": "updated price list",
+
+  "nav.priceLists.label": "Price lists",
+  "actions.openPriceLists.label": "Price lists",
+  "actions.openPriceLists.description": "Pricing rules + assignments"
 }

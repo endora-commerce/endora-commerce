@@ -24,12 +24,21 @@ import { afterEach, describe, expect, it } from 'vitest';
  *   2. **`linked` links through the *dependent-bump* machinery and not
  *      otherwise.** It raises a package that is already in a release to the
  *      group's number; it never adds one. So the documented behaviour — a
- *      release of `@endora-commerce/page-builder-core` carries all three — holds today
- *      because every package sits at `0.0.0`, where `workspace:^` resolves to
- *      `^0.0.0` and *any* bump is out of range. At `1.x` the same minor leaves
- *      the peers satisfied, so it carries neither. Both regimes are asserted,
- *      because the second one arrives with the first release and nothing else
- *      in the repository would report it.
+ *      release of `@endora-commerce/page-builder-core` carries all three — holds
+ *      while the group is at **`0.x`**, where `workspace:^` resolves to a caret
+ *      range no minor bump satisfies. At `1.x` the same minor leaves the peers
+ *      satisfied, so it carries neither. Both regimes are asserted, because the
+ *      second one arrives with the group's first major and nothing else in the
+ *      repository would report it.
+ *
+ * **Every fixture that asserts an absolute number seeds its own base version**,
+ * and that is the repair rather than a style. This file read *"holds today
+ * because every package sits at `0.0.0`"* and took the tree's numbers by
+ * default, so D-210's first release — `0.7.0` set by hand across 79 manifests —
+ * turned four of these measurements red for a reason that has nothing to do
+ * with what they measure. A regime is what is under test; which regime the
+ * repository happens to be in today is not, and reading it out of the tree
+ * makes every future release falsify this file again.
  *   3. **A release branch is the one branch the gate would refuse for doing its
  *      job**, and the diff-shaped discriminator `release:changeset` uses tells
  *      it apart from an ordinary one.
@@ -44,15 +53,32 @@ import { afterEach, describe, expect, it } from 'vitest';
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/, '');
 const CHANGESET_BIN = join(REPO_ROOT, 'node_modules/.bin/changeset');
 
-/** The five packages, and the three the `linked` group covers. */
+/**
+ * The library packages this fixture carries, and the three the `linked` group
+ * covers. `api-client` was the fifth until D-202 deleted it.
+ */
 const LIBRARIES = [
   'contracts',
-  'api-client',
   'page-builder-core',
   'cms-components',
   'email-components',
 ] as const;
 const APPLICATIONS = ['backend', 'admin', 'storefront', 'docs'] as const;
+
+/**
+ * The base every **absolute-number** assertion in this file is measured from.
+ *
+ * `0.0.0`, because the numbers those tests name are arithmetic from it — and a
+ * base this file fixes is the whole point. The tree's own version is a release
+ * decision that moves (D-210 moved it to `0.7.0`, and four measurements here
+ * went red for a reason that had nothing to do with the machinery they
+ * measure). What is under test is the **regime**: `0.x`, where `workspace:^`
+ * resolves to a caret range no minor bump satisfies. `0.7.0` is in that same
+ * regime, so those four tests measured the same behaviour throughout and only
+ * ever disagreed about the digits.
+ */
+const BASE = '0.0.0';
+
 const PAGE_BUILDER_GROUP = [
   '@endora-commerce/page-builder-core',
   '@endora-commerce/cms-components',
@@ -67,10 +93,30 @@ afterEach(() => {
 });
 
 interface FixtureOptions {
-  /** Seed every library at this version. Defaults to whatever the tree says. */
+  /**
+   * Seed every library at this version.
+   *
+   * Defaults to whatever the tree says, which is the right default for a test
+   * whose assertion is relative (*did this move at all?*) and the wrong one for
+   * a test that names a number: the tree's version is a release decision that
+   * moves, and D-210 moved it. Every absolute assertion below passes one.
+   */
   readonly seedVersion?: string;
   /** Applied to a copy of the real `.changeset/config.json`. */
   readonly mutateConfig?: (config: Record<string, unknown>) => void;
+  /**
+   * Libraries to mark `"private": true` in the fixture.
+   *
+   * `privatePackages.version` governs **private** packages, so the two
+   * measurements below are only available over one — and since the owner's
+   * publication ruling of 2026-09-05 there is no private versionable package
+   * left in this repository to borrow. The precondition therefore belongs in
+   * the fixture rather than in the tree, which is also the more honest place
+   * for it: those tests measure what changesets does to a private package, and
+   * a fixture that got that state by accident of the day it ran is a test
+   * measuring the calendar.
+   */
+  readonly privateLibraries?: readonly string[];
   /** Extra files, repository-relative. */
   readonly files?: Readonly<Record<string, string>>;
 }
@@ -99,6 +145,7 @@ function fixture(options: FixtureOptions = {}): string {
       readFileSync(join(REPO_ROOT, 'packages', name, 'package.json'), 'utf8'),
     ) as Record<string, unknown>;
     if (options.seedVersion !== undefined) manifest['version'] = options.seedVersion;
+    if (options.privateLibraries?.includes(name) === true) manifest['private'] = true;
     write(`packages/${name}/package.json`, JSON.stringify(manifest, null, 2));
     write(`packages/${name}/src/index.ts`, 'export const marker = 1;\n');
   }
@@ -153,39 +200,73 @@ describe('the changesets CLI is the one this repository ships', () => {
 
 describe('privatePackages.version — the setting that silently disables everything', () => {
   /**
-   * The headline measurement. Every package under `packages/` is
-   * `"private": true`, and `@changesets/config@4` defaults `privatePackages` to
+   * The headline measurement. Every versionable package but the handful feature
+   * 104 published is `"private": true`, and `@changesets/config@4` defaults
+   * `privatePackages` to
    * `false`; with it false, `changeset version` reports success and moves
    * nothing, leaving the changeset file on disk to be consumed by a release
    * that will never come.
+   *
+   * The subject is `email-components`, and it is made private **by the
+   * fixture**. It was `contracts` until feature 104 published that, then
+   * `email-components` until the publication ruling of 2026-09-05 published
+   * every versionable package — at which point there was no private one left to
+   * borrow and both cases went green for the wrong reason, reporting a `minor`
+   * bump that had happened rather than a silence that had not. `privatePackages`
+   * governs **private** packages, so the precondition is now declared where the
+   * measurement is.
    */
   it('bumps nothing, exits 0 and keeps the changeset when it is `false`', () => {
     const dir = fixture({
+      privateLibraries: ['email-components'],
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
-      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/email-components', 'minor') },
     });
-    const before = versionOf(dir, 'contracts');
+    const before = versionOf(dir, 'email-components');
 
     const run = runChangeset(dir, ['version']);
 
     expect(run.status).toBe(0);
-    expect(versionOf(dir, 'contracts')).toBe(before);
+    expect(versionOf(dir, 'email-components')).toBe(before);
     expect(existsSync(join(dir, '.changeset/a.md'))).toBe(true);
   });
 
   it('does the same when the block is omitted, which is the literal default', () => {
     const dir = fixture({
+      privateLibraries: ['email-components'],
       mutateConfig: (config) => {
         delete config['privatePackages'];
       },
-      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/email-components', 'minor') },
     });
-    const before = versionOf(dir, 'contracts');
+    const before = versionOf(dir, 'email-components');
 
     expect(runChangeset(dir, ['version']).status).toBe(0);
-    expect(versionOf(dir, 'contracts')).toBe(before);
+    expect(versionOf(dir, 'email-components')).toBe(before);
+  });
+
+  /**
+   * And the state feature 104 created, which bounds everything above: the same
+   * setting moves a **public** package regardless. `privatePackages.version` is
+   * not a switch on the release flow, it is a switch on whether *private*
+   * packages take part in one — so `check:release-intent`'s `version-disabled`
+   * is a rule about the private remainder, and the day that remainder empties
+   * the setting stops having a subject.
+   */
+  it('bumps a public package whatever `privatePackages.version` says', () => {
+    const dir = fixture({
+      seedVersion: BASE,
+      mutateConfig: (config) => {
+        config['privatePackages'] = { version: false, tag: false };
+      },
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+    });
+
+    expect(runChangeset(dir, ['version']).status).toBe(0);
+    expect(versionOf(dir, 'contracts')).toBe('0.1.0');
+    expect(existsSync(join(dir, '.changeset/a.md'))).toBe(false);
   });
 
   /**
@@ -203,23 +284,40 @@ describe('privatePackages.version — the setting that silently disables everyth
     expect(existsSync(join(dir, 'packages/contracts/CHANGELOG.md'))).toBe(true);
   });
 
-  /** `updateInternalDependencies: "patch"` — independent numbers, carried together. */
-  it('carries `@endora-commerce/api-client` on a `@endora-commerce/contracts` release without sharing its number', () => {
-    const dir = fixture({ files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') } });
+  /**
+   * `updateInternalDependencies: "patch"` — independent numbers, carried
+   * together.
+   *
+   * The dependent used to be `@endora-commerce/api-client`, which D-202
+   * deleted. `@endora-commerce/page-builder-core` is the dependent that
+   * replaced it: it declares `@endora-commerce/contracts` at `workspace:*`
+   * exactly as that package did, so the mechanism under test is the same one.
+   * It is also a member of the `linked` group, which the next `describe` is
+   * about — asserted here so that the two facts are not confused with each
+   * other: `contracts` is **not** raised to the group's number, and the group
+   * follows its own member rather than the release that carried it in.
+   */
+  it('carries a dependent on a `@endora-commerce/contracts` release without sharing its number', () => {
+    const dir = fixture({
+      seedVersion: BASE,
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+    });
 
     runChangeset(dir, ['version']);
 
     expect(versionOf(dir, 'contracts')).toBe('0.1.0');
-    expect(versionOf(dir, 'api-client')).toBe('0.0.1');
+    expect(versionOf(dir, 'page-builder-core')).toBe('0.0.1');
   });
 });
 
 describe('the `linked` group — what it does, and what it does not', () => {
   /**
-   * D-108's documented behaviour, at the versions the tree carries today.
+   * D-108's documented behaviour, in the regime the group is in — `0.x`, which
+   * is where it has been since it was created and where `0.7.0` leaves it.
    */
-  it('carries all three on a minor to `@endora-commerce/page-builder-core`, at 0.0.0', () => {
+  it('carries all three on a minor to `@endora-commerce/page-builder-core`, at 0.x', () => {
     const dir = fixture({
+      seedVersion: BASE,
       files: { '.changeset/a.md': changeset('@endora-commerce/page-builder-core', 'minor') },
     });
 
@@ -234,6 +332,7 @@ describe('the `linked` group — what it does, and what it does not', () => {
 
   it('moves only `@endora-commerce/cms-components` on a patch to it alone', () => {
     const dir = fixture({
+      seedVersion: BASE,
       files: { '.changeset/a.md': changeset('@endora-commerce/cms-components', 'patch') },
     });
 
@@ -252,9 +351,11 @@ describe('the `linked` group — what it does, and what it does not', () => {
    * `linked` raises a package that is **already in a release** to the group's
    * highest version; it never puts one there. What puts `cms-components` and
    * `email-components` into a `page-builder-core` release is their
-   * `peerDependencies` range going out of range — and at `0.0.0`, `workspace:^`
-   * resolves to `^0.0.0`, which *any* bump breaks. After the first real release
-   * a minor no longer does, so the three numbers diverge.
+   * `peerDependencies` range going out of range — and at `0.x`, `workspace:^`
+   * resolves to a caret range a minor bump breaks. From `1.x` a minor no longer
+   * does, so the three numbers diverge. D-210's `0.7.0` is therefore *not* the
+   * regime change: it moved the estate's digits and left this behaviour exactly
+   * where it was.
    *
    * That is correct rather than broken: the reason D-108 gives for the group is
    * that the consuming application must resolve exactly one copy of

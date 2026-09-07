@@ -12,6 +12,32 @@ import nextPlugin from '@next/eslint-plugin-next';
 export default [
   ...rootConfig,
   {
+    /*
+     * The build scripts under `scripts/` are plain Node ESM, and the shared root
+     * config only reaches `.ts` / `.tsx` — so `eslint scripts` matched nothing
+     * and exited 0 over an unlinted directory. That is the green-that-means-not-
+     * looking this repository refuses everywhere else, so the block exists
+     * rather than the lint target being narrowed back.
+     *
+     * `.mjs` and not TypeScript because `generate-themes.mjs` runs before
+     * anything in the storefront is built, in a tree whose TypeScript toolchain
+     * belongs to whoever owns that storefront after `endora new storefront`.
+     */
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { process: 'readonly', console: 'readonly', URL: 'readonly' },
+    },
+    rules: {
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-undef': 'error',
+      eqeqeq: ['error', 'smart'],
+      'prefer-const': 'error',
+    },
+  },
+  {
     files: ['**/*.ts', '**/*.tsx'],
     plugins: {
       '@next/next': nextPlugin,
@@ -34,6 +60,14 @@ export default [
         { selector: 'enumMember', format: ['PascalCase', 'UPPER_CASE'] },
         { selector: 'property', format: null },
         { selector: 'objectLiteralProperty', format: null },
+        // Carried over from the root config, which this block replaces wholesale
+        // rather than extends. typescript-eslint classifies a property whose
+        // value is a function as `objectLiteralMethod`, so dropping the selector
+        // put every `vi.mock` factory returning a React component — the name has
+        // to be the mocked module's export, and React requires it PascalCase —
+        // under the camelCase default. Nothing saw it while `test/` was outside
+        // the lint target.
+        { selector: 'objectLiteralMethod', format: null },
         // Default imports of PascalCase components (Link, Image, …).
         { selector: 'import', format: ['camelCase', 'PascalCase'] },
       ],

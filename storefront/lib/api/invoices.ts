@@ -1,4 +1,5 @@
 import { apiGetAuthed } from './mutations';
+import { publicApiBaseUrl } from '../env.mjs';
 
 /**
  * Storefront invoice bindings (feature 047, US4). Lists the invoices attached
@@ -15,7 +16,7 @@ export interface MyOrderInvoice {
   downloadHref: string;
 }
 
-const apiBaseUrl = process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
+const apiBaseUrl = publicApiBaseUrl();
 
 /** Absolute URL to the backend invoice PDF download route. */
 export function invoiceDownloadUrl(orderId: string, invoiceId: string): string {

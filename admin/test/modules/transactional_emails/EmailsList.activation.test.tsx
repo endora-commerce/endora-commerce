@@ -19,21 +19,35 @@ let items: TransactionalEmailSummary[] = [];
 const setActive = vi.fn();
 let permissions = ['transactional_emails:read', 'transactional_emails:write'];
 
-vi.mock('@/lib/auth', () => ({
-  useAuth: () => ({
-    hasPermission: (code: string) => permissions.includes(code),
-  }),
-}));
+// The **kit's** barrel, not `@/lib/auth`. The screen resolves `useAuth` and
+// `ApiError` there since feature 091's batch 11; the admin's own path is a
+// re-export shim of the same bindings, and mocking a shim leaves the module the
+// screen actually imports untouched.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
+  return {
+    ...actual,
+    useAuth: () => ({
+      hasPermission: (code: string) => permissions.includes(code),
+    }),
+  };
+});
 
-vi.mock('@/modules/transactional_emails/api/transactional-emails-client', () => ({
+vi.mock('../../../../packages/modules/transactional_emails/src/admin/api/transactional-emails-client', () => ({
   transactionalEmailsClient: {
     list: async () => ({ items }),
     setActive: (code: string, active: boolean) => setActive(code, active),
   },
 }));
 
+// The screen is `@endora-commerce/mod-transactional-emails/admin`'s since
+// feature 091's batch 11. The path names the package's `src/`, which is batch
+// 8's convention for a screen test: the package publishes only its barrels, so
+// there is no subpath a test could name a single component through.
 const { EmailsList } = await import(
-  '../../../src/modules/transactional_emails/pages/EmailsList'
+  '../../../../packages/modules/transactional_emails/src/admin/pages/EmailsList'
 );
 
 const bundle = passthroughBundle('transactional_emails', [

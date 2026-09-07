@@ -4,8 +4,8 @@
 // the registry-record shape persisted in `module_registrations`. The settings
 // portion (per-module groups + settings) is delegated to feature 004's
 // existing `ModuleSettingsManifestSchema`; this module wraps it with the
-// outer module-level metadata (id, name, version, dependencies, optional
-// license tier) and the lifecycle-hook type aliases.
+// outer module-level metadata (id, name, version, dependencies) and the
+// lifecycle-hook type aliases.
 //
 // Hooks themselves are NOT validated by Zod (functions don't serialise
 // through schemas); the loader attaches them from the manifest module's
@@ -22,6 +22,7 @@ import { KnownIconNameSchema, ModuleActionsManifestSchema } from './admin-action
 import { modulePermissionDeclarationSchema } from './admin.js';
 import { errorCodeRe } from './errors.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
+import { BlockCategorySchema, BlockDefinitionSchema, blockNameRe } from './cms.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -43,14 +44,6 @@ export const moduleVersionRe = /^\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/;
 // ---------------------------------------------------------------------------
 
 /**
- * License tier reserved for future edition-gating (per `research.md` R-10).
- * v1 only validates and audits this field; enforcement is the
- * release-pipeline's responsibility.
- */
-export const ModuleLicenseTierSchema = z.enum(['core', 'pro', 'enterprise']);
-export type ModuleLicenseTier = z.infer<typeof ModuleLicenseTierSchema>;
-
-/**
  * Per-module Admin UI translation declaration (feature 019).
  * When present, the lifecycle install hook reads
  * `<modulePath>/<bundlesDir>/<lang>.json` for every supported Admin UI
@@ -64,6 +57,215 @@ export const ModuleI18nManifestSchema = z.object({
 export type ModuleI18nManifest = z.infer<typeof ModuleI18nManifestSchema>;
 
 /**
+ * Per-module documentation declaration (feature 100 / roadmap F12).
+ *
+ * The same shape as {@link ModuleI18nManifestSchema} and for the same reason: a
+ * directory at the **package root**, in the package's `files` list, with no
+ * `exports` subpath, located by joining `dir` to `dirname(manifestPath)`. The
+ * anchor is the platform's, so nothing in the module names a package, a
+ * repository root or a build directory in order to find its own pages
+ * (`specs/100-module-owned-documentation/contracts/module-documentation-layer.md`
+ * R2.1–R2.3).
+ *
+ * A declared directory that is not on disk is a **refusal**, naming the module —
+ * never "this module ships no documentation". That distinction is the whole of
+ * the repair `backend/src/manifest-locations.ts` was written for: the `_i18n`
+ * boot reconciler logs and skips an absent bundles directory, so a packaged
+ * module rendered every palette entry as a raw key with no error anywhere.
+ */
+export const ModuleDocsManifestSchema = z.object({
+  /** The directory, relative to the module's own root. */
+  dir: z.string().min(1).default('docs'),
+});
+export type ModuleDocsManifest = z.infer<typeof ModuleDocsManifestSchema>;
+
+/**
+ * `docs: false` — this module ships no documentation, deliberately.
+ *
+ * **Absent and `false` are not the same state**, and the documentation check
+ * distinguishes them: absent is a module nobody has decided about, `false` is a
+ * decision. The argument is `check:bundle-pairing`'s, one population over — a
+ * universal obligation over a population where some members legitimately owe
+ * nothing is repaired by empty files whose only effect is to make a check pass.
+ * Some modules are infrastructure other modules consume and may honestly
+ * document nothing.
+ */
+export const ModuleDocsDeclarationSchema = z.union([ModuleDocsManifestSchema, z.literal(false)]);
+export type ModuleDocsDeclaration = z.infer<typeof ModuleDocsDeclarationSchema>;
+
+// ---------------------------------------------------------------------------
+// Per-module demo data (feature 113, `contracts/module-demo-data-layer.md` §1)
+// ---------------------------------------------------------------------------
+
+/**
+ * What a module's demo body is handed.
+ *
+ * One field, deliberately. The body gets its module's own composed
+ * `ModuleContext` and nothing else: everything it wants an operator to read
+ * comes back in {@link DemoSeedResult}, which the runner formats once (§3.7),
+ * so there is no `out`/`err` pair here and a body must not reach for
+ * `process.stdout`. That is the difference from {@link ModuleCliCommandContext},
+ * which injects both because a command's output *is* its result.
+ *
+ * `Ctx` is a type parameter for the reason {@link ModuleCliCommand}'s is: a
+ * module names `ModuleContext` from `@endora-commerce/platform/kernel`, and the
+ * contracts package may not. A declaration reaching the host is typed
+ * `ModuleDemoManifest<never>` — the schema's inference — and every module's
+ * `ModuleDemoManifest<ModuleContext>` is assignable to it, so the host casts
+ * once at the invocation, exactly as `collectModuleCommands` does.
+ */
+export interface ModuleDemoContext<Ctx = unknown> {
+  /** The module's own composed `ModuleContext`. */
+  ctx: Ctx;
+}
+
+/**
+ * One line of a module's per-module accounting.
+ *
+ * `entity` is the class name the module wrote, in the module's own words; the
+ * runner neither derives nor validates it. Structured rather than free text
+ * because it is the only way SC-007's idempotence is assertable without
+ * diffing a database: seeding twice must report the same counts.
+ */
+export interface DemoEntityCount {
+  readonly entity: string;
+  readonly count: number;
+}
+
+/**
+ * A sign-in detail the demo created, printed by the runner at the end of a run.
+ *
+ * Structured rather than a sentence in `notes` so the runner formats it once
+ * and a client's scaffolded composition does not have to know how the platform
+ * lays credentials out.
+ */
+export interface DemoCredential {
+  readonly label: string;
+  readonly value: string;
+}
+
+/** What a module's `seed` reports. Never a throw-or-succeed (§3.7). */
+export interface DemoSeedResult {
+  readonly created: readonly DemoEntityCount[];
+  readonly credentials?: readonly DemoCredential[];
+  /** What this module chose not to do, and why. */
+  readonly notes?: readonly string[];
+}
+
+/** What a module's `reset` reports. */
+export interface DemoResetResult {
+  readonly removed: readonly DemoEntityCount[];
+  readonly notes?: readonly string[];
+}
+
+/**
+ * The demo declaration a module carries in its `manifest.ts` (§1.3).
+ *
+ * ## The body is reached by a relative `await import()`, never a top-level one
+ *
+ * §1.4, and it is `cliCommands`' rule for `cliCommands`' reason: a manifest is
+ * loaded by every process that composes the platform — and by the check scripts
+ * and `src/db/configured-migrations.ts`, which import the generated index — so a
+ * demo body imported at the top of `manifest.ts` is a service graph pulled into
+ * all of them. Write it as
+ *
+ * ```ts
+ * const demo: ModuleDemoManifest<ModuleContext> = {
+ *   summary: 'A demo warehouse and stock for the seeded products.',
+ *   seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
+ *   reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
+ * };
+ * ```
+ *
+ * and pass it to `defineModuleManifest`. The typed `const` is what gives the
+ * author `context.ctx: ModuleContext`; declared inline the parameter infers
+ * from the schema and is `never`.
+ *
+ * A relative import inside the package lands in `dist` through the existing
+ * emit, so this declaration needs **no `exports` subpath, no `files` entry and
+ * no change to the manifest generator** (§1.5).
+ *
+ * ## What a body may do
+ *
+ * §2.1–§2.2: write only tables its own module owns, read no other module's
+ * table, resolve no other module's port, import from no other module's package.
+ * Wiring that spans modules is a composition and belongs to the instance
+ * (§5, D-209) — `megamenu`'s demo menu mirroring `catalog`'s demo categories is
+ * the measured case, and `megamenu` does not declare `catalog`.
+ */
+export interface ModuleDemoManifest<Ctx = unknown> {
+  /**
+   * One line of English prose: what this module contributes to the demo. The
+   * runner prints it per module (§3.7).
+   */
+  summary: string;
+  /** Create this module's demo rows. Idempotent by contract (§2.4). */
+  seed(context: ModuleDemoContext<Ctx>): Promise<DemoSeedResult>;
+  /**
+   * Withdraw exactly what {@link ModuleDemoManifest.seed} created, and nothing
+   * an operator created (§2.5).
+   *
+   * Separate from `seed` rather than a flag on it, because FR-007's guarantee
+   * is per module and a flag makes one function answer two questions.
+   */
+  reset(context: ModuleDemoContext<Ctx>): Promise<DemoResetResult>;
+  /**
+   * Module ids this module's demo prefers to run after — **advisory** (§4.3).
+   *
+   * `permissions[].requires`' shape under D-175, chosen for the same reason:
+   * the field carries a coupling the dependency graph cannot express and the
+   * graph must not be widened to express it. Nothing else reads it, it puts no
+   * module in `dependencies`, it creates no lifecycle edge, it does not stand
+   * in the way of an operator switching the named module off, and it changes no
+   * migration order. An entry naming a module that is not installed orders
+   * nothing and is not a finding (§4.4).
+   *
+   * It is deliberately not spelled `dependsOn`, `requires` or `dependencies`:
+   * the name has to be unmistakably not the lifecycle one.
+   */
+  after?: readonly string[] | undefined;
+}
+
+/**
+ * A function value the schema accepts by kind.
+ *
+ * `z.custom` rather than `z.function()`: Zod v4's function schema builds a
+ * validating *wrapper*, and this field must pass the author's own closure
+ * through by reference — the runner calls it, and a copy would be a second
+ * function nothing else in the tree holds.
+ */
+function demoBodySchema<T>(field: 'seed' | 'reset'): z.ZodType<T> {
+  return z.custom<T>((value) => typeof value === 'function', {
+    message:
+      `demo.${field} must be a function. The body is reached by a relative ` +
+      `\`await import()\` from the declaration (contract §1.4), never by a path ` +
+      'the platform is expected to guess.',
+  });
+}
+
+export const ModuleDemoManifestSchema = z.object({
+  summary: z.string().min(1).max(200),
+  seed: demoBodySchema<ModuleDemoManifest<never>['seed']>('seed'),
+  reset: demoBodySchema<ModuleDemoManifest<never>['reset']>('reset'),
+  after: z.array(z.string().regex(moduleIdRe)).readonly().optional(),
+});
+
+/**
+ * `demo: false` — this module has nothing to demonstrate, deliberately.
+ *
+ * **Absent and `false` are not the same state** (§1.2). It is
+ * {@link ModuleDocsDeclarationSchema}'s rule and it exists for the same reason:
+ * a universal obligation over a population where some members legitimately owe
+ * nothing is repaired by empty files whose only effect is to make a check pass.
+ * `health_checks`, `pim_connector` and `email` genuinely have nothing to show.
+ */
+export const ModuleDemoDeclarationSchema = z.union([
+  ModuleDemoManifestSchema,
+  z.literal(false),
+]);
+export type ModuleDemoDeclaration = z.infer<typeof ModuleDemoDeclarationSchema>;
+
+/**
  * Operator-activation declaration — feature 073, Constitution XVII.
  *
  * The second of the two orthogonal presence axes. Platform availability lives
@@ -71,9 +273,11 @@ export type ModuleI18nManifest = z.infer<typeof ModuleI18nManifestSchema>;
  * this block declares the *business* operator's control, which is an ordinary
  * `Setting` row reconciled from the manifest.
  *
- * It sits beside `license`, never inside it: `license` is the build-time
- * entitlement axis and is inert by design, and conflating the two would make a
- * runtime toggle look like a licensing decision.
+ * It used to sit beside a `license` tier, and the two were kept apart because
+ * conflating a build-time entitlement with a runtime toggle would make an
+ * operator's switch look like a licensing decision. That tier is gone (D-194
+ * removed the edition meta-packages it existed for), so activation is now the
+ * only presence declaration a manifest carries.
  *
  * Exactly one of the two forms is valid — enforced in `defineModuleManifest`
  * rather than by the schema, because a Zod union of two non-strict objects
@@ -223,15 +427,17 @@ export type ModuleNonBindingDependency = z.infer<
  *
  * A deployment may compose fewer modules than its manifests declare; what it may
  * not do is arrive there silently, so the omission is declared in a committed,
- * reviewed file (`backend/src/apps/<deployment>/reduced-deployment.ts`) and the
- * boot refuses an omission that is not in it — or an entry for a module the
+ * reviewed file (`backend/src/apps/<deployment>/divergence.ts`) and the boot
+ * refuses an omission that is not in it — or an entry for a module the
  * deployment does ship, which is the same ledger read the other way.
  *
- * The shape lives here rather than in `_lifecycle` because the file that carries
- * it belongs to a **deployment**, and a deployment naming a module's internals is
- * the coupling that outlives the module.
+ * This is `ReducedDeploymentDeclaration` under its own name (D-205), and it is
+ * unchanged in substance: a module id, and a reason long enough to be an
+ * argument. What changed is where it sits — inside
+ * {@link DeploymentDivergenceDeclarationSchema}'s `omittedModules`, beside the
+ * other two things a deployment declares about itself.
  */
-export const ReducedDeploymentDeclarationSchema = z.object({
+export const OmittedModuleSchema = z.object({
   /** The module this deployment does not ship. */
   moduleId: z.string().regex(moduleIdRe),
   /**
@@ -240,9 +446,244 @@ export const ReducedDeploymentDeclarationSchema = z.object({
    */
   reason: z.string().min(20).max(800),
 });
-export type ReducedDeploymentDeclaration = z.infer<
-  typeof ReducedDeploymentDeclarationSchema
+export type OmittedModule = z.infer<typeof OmittedModuleSchema>;
+
+/**
+ * Everything a deployment declares about how it means to differ from core.
+ *
+ * `backend/src/apps/<deployment>/divergence.ts`, exporting `divergence`. The
+ * file was `reduced-deployment.ts` until it grew past omissions (D-205):
+ * *reduced* encodes a direction that is wrong for an addition, wrong for a
+ * substitution and wrong for an ordering, while `divergence` is already the
+ * word the generator's own header uses for the derived artefact beside it.
+ *
+ * The shape lives here rather than in `_lifecycle` because the file carrying it
+ * belongs to a **deployment**, and a deployment naming a module's internals is
+ * the coupling that outlives the module.
+ *
+ * **It holds judgement, ordering and prose — never population.** The single test
+ * for a field is whether the platform can derive it: the deployment's module
+ * list is the overlay walk's answer and the divergences themselves are the
+ * report's, so neither belongs here
+ * (`specs/107-override-report-and-ladder/contracts/deployment-declaration.md` §5).
+ *
+ * Every field defaults to empty, so a declaration that leaves one out means
+ * "none of these" rather than "unparseable" — the reading an absent file already
+ * gets. A deployment that diverges by nothing still ships the file with all
+ * three written out, because the mechanism is easier to find than to remember.
+ */
+export const DeploymentDivergenceDeclarationSchema = z.object({
+  /** The modules this deployment does not ship. D-101, unchanged in substance. */
+  omittedModules: z.array(OmittedModuleSchema).default([]),
+  /**
+   * Wrapping order, per registration name, for a name more than one of this
+   * deployment's overlay modules decorates — innermost first.
+   *
+   * **Checked, never applied.** The composer emits modules in its own order and
+   * drains decorations once; this declares that the resulting order was the
+   * intended one, and a composition that disagrees refuses. Making the
+   * declaration authoritative would put a hand-written array in front of the
+   * composer's topological emission, which is two orderings of one thing waiting
+   * to disagree.
+   *
+   * Only a deployment's own overlay modules can appear here: a core module and
+   * an installed package may not decorate a name they do not own (D-156.4), so
+   * every ambiguity this can resolve is between two of them.
+   *
+   * Nothing reads it yet — the supply is P4 of
+   * `specs/107-override-report-and-ladder/`.
+   */
+  decorationOrder: z
+    .record(z.string().min(1), z.array(z.string().regex(moduleIdRe)).min(1))
+    .default({}),
+  /**
+   * One sentence per divergence the platform derives, keyed by the derived
+   * entry's own key — `<kind>:<module>:<subject>`, never a path and never a
+   * line.
+   *
+   * A flat map rather than a reason field on a per-kind array, and the
+   * difference is structural rather than stylistic: a map can only ever
+   * *answer*. So the declaration cannot add a divergence the derivation did not
+   * find, nor hide one it did — the population is the report's and the judgement
+   * is this.
+   *
+   * The key's grammar is checked where the population it keys into exists;
+   * nothing reads this yet — the report is P2 of
+   * `specs/107-override-report-and-ladder/`.
+   */
+  reasons: z.record(z.string().min(1), z.string().min(20).max(800)).default({}),
+})
+  // Three fields are the whole vocabulary, so a fourth is a typo — and a
+  // mistyped field name under a lenient object is silently stripped, which
+  // reads as "this deployment declares nothing" for a file whose author wrote
+  // a declaration. Refusing it names the key.
+  .strict();
+export type DeploymentDivergenceDeclaration = z.infer<
+  typeof DeploymentDivergenceDeclarationSchema
 >;
+
+/**
+ * One kind of divergence a deployment's tree can hold
+ * (`specs/107-override-report-and-ladder/data-model.md` §2.3).
+ *
+ * Nine, and every one of them is one seam of `ModuleContext` — seven read off
+ * the members themselves, plus `port-consumed` (which is `lazyPort` over the
+ * cradle rather than a member) and `omission` (which comes from the declaration
+ * and from no seam at all). `routes`, `ungatedRoutes`, `onBoot` and the manifest
+ * declarations are deliberately absent for one uniform reason: each is a module
+ * acting on its **own** surface, which is not a divergence from core. They are
+ * named in {@link DivergenceBoundary.notRecorded} so a reader can tell "not a
+ * divergence" from "not looked at".
+ */
+export type DivergenceKind =
+  | 'omission'
+  | 'registration'
+  | 'port-provided'
+  | 'port-consumed'
+  | 'subscription'
+  | 'interceptor'
+  | 'decoration'
+  | 'root-plugin'
+  | 'worker';
+
+/**
+ * `<kind>:<module>:<subject>` — the three facts that identify a divergence
+ * independently of where it is written.
+ *
+ * **Never a file path and never a line.** A path-keyed ledger goes stale on
+ * every move and a line-keyed one reds on any insertion above the site; the
+ * subject is the string the platform itself uses to identify the thing — a
+ * registration name, an endpoint identity, a module id. An interceptor's key
+ * carries `#<phase>`, because one module may register a `pre` and a `post`
+ * against one endpoint and they are two divergences with two reasons.
+ */
+export type DivergenceKey = string;
+
+/** Kind-specific facts, and only the ones the derivation actually has. */
+export type DivergenceDetail =
+  | {
+      readonly kind: 'decoration';
+      /**
+       * 1-based position in the wrapping chain, innermost first — and `null` in
+       * the committed artefact, deliberately rather than by omission.
+       *
+       * **Depth is a fact about a composition, not about a tree.** A static walk
+       * knows that two overlay modules decorate one name; it does not know which
+       * wrapped which, because that is what `decorationOrder` and the composer's
+       * emission order decide together. The runtime half of the report
+       * (`contracts/divergence-report.md` §7) fills it in from
+       * `ComposedModules.decorations`; recording a guess here would be the
+       * report asserting something it cannot know.
+       */
+      readonly depth: number | null;
+    }
+  | {
+      readonly kind: 'interceptor';
+      readonly phase: 'pre' | 'post';
+      readonly order: number;
+      readonly id: string;
+      /** Does any route registration in the composition match this identity? */
+      readonly targetMatched: boolean;
+    }
+  | { readonly kind: 'subscription' }
+  | { readonly kind: 'port-provided' }
+  | { readonly kind: 'port-consumed' }
+  | { readonly kind: 'registration' }
+  | { readonly kind: 'worker' }
+  | { readonly kind: 'root-plugin'; readonly declaredReason: string }
+  | { readonly kind: 'omission' };
+
+/** One divergence: what, who wrote it, who owns it, at what cost, and why. */
+export interface DivergenceEntry {
+  readonly key: DivergenceKey;
+  readonly kind: DivergenceKind;
+  /** The overlay module that wrote it; `'core'` for an omission. */
+  readonly module: string;
+  /** Registration name, endpoint identity, event name, queue name, module id. */
+  readonly subject: string;
+  /**
+   * The module that owns `subject`; `null` when a composition root registered
+   * it. A name nobody registers is a **finding**, not an entry, so `null` here
+   * always means "root-supplied" and never "unknown".
+   */
+  readonly owner: string | null;
+  /**
+   * Which rung of the escalation ladder this seam is
+   * (`specs/107-override-report-and-ladder/contracts/escalation-ladder.md` §2),
+   * or `null` for a kind that sits on no rung.
+   *
+   * `null` is three kinds and they are the three the ladder's own table marks
+   * `—`: `registration` and `worker` are a module contributing its **own**
+   * surface, and `omission` comes from the declaration rather than from a seam.
+   * The ladder ranks ways of changing what *core* does, so a rung number on
+   * those would be a cost this repository does not claim they have. A
+   * `ModuleContext` member that the rung table classifies **not at all** is a
+   * different state and is the `unclassified-seam` finding.
+   */
+  readonly rung: number | null;
+  /** Kind-specific facts. Never free-form. */
+  readonly detail: DivergenceDetail;
+  /** The deployment's own sentence, from its declaration's `reasons` map. */
+  readonly reason: string;
+}
+
+/**
+ * What the artefact does not cover, stated rather than implied (FR-018).
+ *
+ * A report that lists nine seams and says nothing about the rest is
+ * indistinguishable from a complete one. This is the difference between a
+ * boundary statement and a silence, and it is why the two hand-written lists
+ * below are hand-written: they carry a *reason* each, which no walk can produce.
+ */
+export interface DivergenceBoundary {
+  /** Seams this artefact records. Derived — the kinds above. */
+  readonly recorded: readonly DivergenceKind[];
+  /** Seams that exist and are a module's own business, with why. */
+  readonly notRecorded: ReadonlyArray<{ readonly seam: string; readonly why: string }>;
+  /** Facts only a running process can answer, with why. */
+  readonly runtimeOnly: ReadonlyArray<{ readonly fact: string; readonly why: string }>;
+}
+
+/**
+ * The derived record of how one deployment's tree diverges from core (D-30).
+ *
+ * Committed, per deployment, in two renderings from one derivation: a `.ts` a
+ * program reads and a `.md` a human reads. Deterministic — repo-relative paths,
+ * sorted arrays, no timestamps — so identical inputs produce byte-identical
+ * output and `overlay:check` can byte-compare both.
+ *
+ * The shape is published here rather than in `backend/src/overlay/` for the
+ * reason {@link DeploymentDivergenceDeclarationSchema} is: it is a deployment's
+ * artefact, and the runtime half of the report
+ * (`specs/107-override-report-and-ladder/contracts/divergence-report.md` §7)
+ * shares it. No Zod schema, deliberately: nothing parses this at a boundary —
+ * it is generated by one program and byte-compared by another, both of which
+ * have the type.
+ */
+export interface DivergenceReport {
+  /** Deployment name, or `'core'` for the bare-core build. */
+  readonly deployment: string;
+  /**
+   * The overlay root read, repo-relative; `null` for bare core.
+   *
+   * Still an object rather than a bare `overlayRoot`, for v2's stated reason: a
+   * deployment build has one input path and recording it is what makes the
+   * artefact reproducible.
+   */
+  readonly generatedFrom: { readonly overlayRoot: string | null };
+  /**
+   * Overlay-only module ids this deployment adds, sorted. (v2's `newModules`.)
+   *
+   * A field of its own rather than entries of kind `overlay-module`, because an
+   * overlay module is the *container* of the other divergences rather than one
+   * of them — and every entry names the overlay module it came from anyway.
+   */
+  readonly overlayModules: readonly string[];
+  /** Every divergence found, sorted by key. */
+  readonly entries: readonly DivergenceEntry[];
+  /** What this artefact does not cover, stated rather than implied. FR-018. */
+  readonly boundary: DivergenceBoundary;
+}
 
 /**
  * Refusal-token grammar for {@link ModuleErrorCodeDeclarationSchema}.
@@ -304,7 +745,6 @@ export const ModuleManifestSchema = z.object({
    * no graph and by no ordering. See {@link ModuleNonBindingDependencySchema}.
    */
   nonBindingDependencies: z.array(ModuleNonBindingDependencySchema).optional(),
-  license: ModuleLicenseTierSchema.optional(),
   /**
    * Operator-activation control (feature 073). Optional only while the
    * conversion sweep is in flight: `check-module-gating` requires it as soon
@@ -325,6 +765,30 @@ export const ModuleManifestSchema = z.object({
    */
   i18n: ModuleI18nManifestSchema.optional(),
   /**
+   * Per-module documentation declaration (feature 100 / roadmap F12).
+   *
+   * `{ dir }` — the module ships its pages at that directory under its own
+   * root; `false` — it ships none, deliberately; **absent** — nobody has
+   * decided, which is where every module stands in Phase 1 while the pages are
+   * still in the site's own tree. See {@link ModuleDocsDeclarationSchema} for
+   * why the last two are not one state.
+   */
+  docs: ModuleDocsDeclarationSchema.optional(),
+  /**
+   * Per-module demo data declaration (feature 113, D-209).
+   *
+   * `{ summary, seed, reset, after? }` — the module ships demo rows for its own
+   * tables; `false` — it has nothing to demonstrate, deliberately; **absent** —
+   * nobody has decided. See {@link ModuleDemoDeclarationSchema} for why the last
+   * two are not one state, and {@link ModuleDemoManifest} for what a body may
+   * do.
+   *
+   * Declaring it creates **no** lifecycle edge: it puts no module in
+   * `dependencies`, changes no migration order and does not stand in the way of
+   * an operator switching another module off (§2.3, FR-005).
+   */
+  demo: ModuleDemoDeclarationSchema.optional(),
+  /**
    * Per-module Admin Command Palette action declarations (feature 020).
    * Each entry becomes a row in `module_actions` at install time and is
    * surfaced in the admin's command palette under the Actions group.
@@ -343,6 +807,12 @@ export const ModuleManifestSchema = z.object({
    */
   transactionalEmails: z.array(transactionalEmailManifestEntrySchema).optional(),
   /**
+   * When `true`, the module participates in the PIM connector mutual-exclusion
+   * set (feature 089). Consumed by `pim_connector` registry discovery — not by
+   * install ordering.
+   */
+  pimConnector: z.literal(true).optional(),
+  /**
    * The operator-visible error codes this module owns (feature 090, D-182).
    *
    * The declaration is what routes the code's sentence to this module's bundle:
@@ -355,6 +825,31 @@ export const ModuleManifestSchema = z.object({
    * true of most modules and is not a finding.
    */
   errorCodes: z.array(ModuleErrorCodeDeclarationSchema).optional(),
+  /**
+   * The Page Builder blocks this module owns (feature 096, FR-001/FR-006).
+   *
+   * A block's `name` is `<this module's id>.<LocalName>` and is **persisted**:
+   * it is written into the `type` position of a Puck node in a `jsonb` column
+   * and is the only link between a stored node and the module that can render
+   * it. Which module owns a block is the domain noun its fields and data belong
+   * to — the rule `specs/082-error-code-ownership/contracts/error-code-ownership.md`
+   * §1 already applies to error codes — never the package the renderer file
+   * currently sits in.
+   *
+   * Absent means "this module owns no Page Builder block", which is true of
+   * most modules and is not a finding.
+   */
+  blocks: z.array(BlockDefinitionSchema).optional(),
+  /**
+   * The palette sections this module declares (feature 096, FR-009).
+   *
+   * Declared rather than hard-coded so that contributing a block into a section
+   * costs no edit to a shared `categories` map in a package the contributor
+   * does not own. Two modules declaring the same key for the same context is
+   * expected and merges; a category exists per context, so `layout` for `cms`
+   * and `layout` for `email` are two entries.
+   */
+  blockCategories: z.array(BlockCategorySchema).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
@@ -545,6 +1040,162 @@ function assertErrorCodeRules(m: ModuleManifest): void {
 }
 
 /**
+ * The four block-declaration rules (feature 096,
+ * `specs/096-page-builder-block-ownership/contracts/block-definition.md` §1).
+ *
+ * They live here rather than in the schema for the reason the activation rules
+ * do: each is cross-field — one reads a block's `name` against the outer `id`,
+ * one reads its `category` against the manifest's own `blockCategories`, one
+ * reads those declarations against each other — and every message has to name
+ * the module the author is looking at. They fire on
+ * import, on the author's machine, with no instance and no database, which
+ * matters more here than anywhere else in this file: a block name is written
+ * into `jsonb` and never rewritten, so a wrong one caught in CI has already
+ * been typed into a manifest, and one caught after a release is permanent.
+ *
+ * `check:block-names` re-derives rules 1–3 for a manifest built without this
+ * helper — the same belt-and-braces `check-port-dependencies.ts` applies to
+ * `nonBindingDependencies`.
+ *
+ * **What this layer cannot decide is anything about a second manifest**, and
+ * the limit is the one `assertErrorCodeRules` states for itself. Two modules
+ * declaring one block name is composition's question and the check's; two
+ * modules declaring one `(key, context)` category is neither, because it is
+ * **normal and merges** — `contracts/block-definition.md` §1.1 is the ruling,
+ * the total order the merge resolves by and the two CI signals that hold
+ * in-tree modules to agreeing. Nothing here restates it.
+ *
+ * Rule 2 is therefore enforced **within the declaring manifest**, and per
+ * **context**: a block's category must be declared beside it, for every one of
+ * the block's `contexts`. That is what FR-009 asks for — a contributor declares
+ * the section in its own manifest instead of editing a shared map — and the
+ * per-context reading is T107's correction to Phase 1, which shipped "at least
+ * one". Under the weaker reading a block declared for `cms` and `email` whose
+ * section exists only in `cms` is uninsertable in the e-mail palette with no
+ * error anywhere, which is FR-009's silent-loss shape one level down.
+ */
+function assertBlockRules(m: ModuleManifest): void {
+  // 4. One author, one section, one record. Judged first, and before any block
+  //    is read: a block is judged *against* `blockCategories`, so measuring it
+  //    against a set that contradicts itself reports the wrong defect. Unlike a
+  //    cross-module duplicate — which is normal and merges (§1.1) — this one
+  //    has a single author and is decidable where it is written.
+  const declaredSections = new Set<string>();
+  for (const category of m.blockCategories ?? []) {
+    for (const context of category.contexts) {
+      const pair = `${category.key}\u0000${context}`;
+      if (declaredSections.has(pair)) {
+        throw new Error(
+          `[contracts/modules] manifest "${m.id}" declares the palette section ` +
+            `"${category.key}" twice for context "${context}" — a section is one record, ` +
+            'resolved as one record, so a manifest that states it twice has stated a ' +
+            'title, a weight and a visibility for nobody to reconcile.',
+        );
+      }
+      declaredSections.add(pair);
+    }
+  }
+
+  for (const block of m.blocks ?? []) {
+    // 0. The grammar, before anything reads a segment of it. A name with no
+    //    separator has no owner segment to compare against `id`, so a message
+    //    about ownership would be a message about the wrong thing. The schema
+    //    refuses it too (`BlockDefinitionSchema`), and parses last; this is the
+    //    copy that names the module, exactly as `assertErrorCodeRules` re-tests
+    //    `errorCodeRe`.
+    if (!blockNameRe.test(block.name)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares block "${block.name}", which is ` +
+          `not a namespaced block name (${String(blockNameRe)}) — the name is persisted ` +
+          'into `jsonb` and its owner segment is the only link between a stored node and ' +
+          'the module that can render it.',
+      );
+    }
+
+    // 1. One block, one owner, stated once. The owner is the name's first
+    //    segment and there is no `ownerModule` field to disagree with it.
+    const owner = block.name.slice(0, block.name.indexOf('.'));
+    if (owner !== m.id) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares block "${block.name}", whose ` +
+          `owner segment "${owner}" is not this module's id — a block has exactly one ` +
+          'owner and the name is where that owner is stated, so declaring it here would ' +
+          `make "${owner}" unable to own its own block.`,
+      );
+    }
+
+    // 2. A block offered on no surface. Refused before the category, which
+    //    cannot be judged without the contexts to judge it against.
+    if (block.contexts.length === 0) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares block "${block.name}" with an ` +
+          'empty `contexts` — a block offered on no surface appears in no palette, which ' +
+          'is a declaration with no reader.',
+      );
+    }
+
+    // 3. The category is a declared key, not free text, and it is declared for
+    //    **every** one of the block's contexts (T107). The block's own order is
+    //    what the message names, so an author fixing two missing contexts is
+    //    sent to the first of them rather than to whichever the set iterated.
+    const missingContext = block.contexts.find(
+      (context) =>
+        !(m.blockCategories ?? []).some(
+          (category) =>
+            category.key === block.category && category.contexts.includes(context),
+        ),
+    );
+    if (missingContext !== undefined) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares block "${block.name}" in ` +
+          `category "${block.category}", which this manifest does not declare in ` +
+          `\`blockCategories\` for context "${missingContext}" — a block's section is ` +
+          'declared beside it for every context the block is offered in, or the block ' +
+          'is uninsertable in that palette with no error anywhere.',
+      );
+    }
+  }
+}
+
+/**
+ * The two `demo.after` refusals (feature 113,
+ * `contracts/module-demo-data-layer.md` §4.3–§4.4).
+ *
+ * They sit beside the rules above for the reason those give: both are
+ * cross-field — one reads an entry against the outer `id`, one reads the
+ * entries against each other — and the message has to name the module the
+ * author is looking at. The element regex applies per element and can see
+ * neither.
+ *
+ * What this layer deliberately does **not** refuse is an `after` naming a
+ * module that is not installed. §4.4 rules that such an entry orders nothing
+ * and is not a finding, and this layer sees one manifest, so a rule keyed on
+ * "is that module here" would be a green that means "not looking" in a client's
+ * instance and a false red in a partial one.
+ */
+function assertDemoRules(m: ModuleManifest): void {
+  if (m.demo === undefined || m.demo === false) return;
+  const seen = new Set<string>();
+  for (const after of m.demo.after ?? []) {
+    if (after === m.id) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares \`demo.after\` on itself ` +
+          `(forbidden) — the list orders this module's demo against *other* modules', ` +
+          'and a self-entry orders nothing.',
+      );
+    }
+    if (seen.has(after)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares \`demo.after\` "${after}" ` +
+          'twice — one ordering preference is stated once, so the second entry can ' +
+          'only agree with the first.',
+      );
+    }
+    seen.add(after);
+  }
+}
+
+/**
  * Identity-with-validation helper for module authors. Modules export a
  * single `manifest` constant via this helper so TypeScript inference is
  * preserved and the loader can ingest the validated payload directly.
@@ -588,6 +1239,8 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   }
   assertNonBindingRules(m);
   assertErrorCodeRules(m);
+  assertBlockRules(m);
+  assertDemoRules(m);
   return ModuleManifestSchema.parse(m);
 }
 
@@ -1137,7 +1790,6 @@ export const ModuleListItemSchema = z.object({
   state: ModuleListItemStateSchema,
   dependencies: z.array(z.string()),
   flags: z.array(ModuleListItemFlagSchema),
-  license: ModuleLicenseTierSchema.nullable(),
   installedAt: z.iso.datetime().nullable(),
   lastStateChangeAt: z.iso.datetime().nullable(),
 });

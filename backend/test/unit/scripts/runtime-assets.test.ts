@@ -7,6 +7,7 @@ import {
   auditBuiltBundles,
   bundleModulesUnder,
   builtBundlesPathOf,
+  classifyAssetFile,
   collectRuntimeAssets,
   copyRuntimeAssets,
   describeBundleFinding,
@@ -124,6 +125,53 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
     expect(assets.some((path) => path.endsWith('.gitkeep'))).toBe(false);
     for (const reason of Object.values(NON_RUNTIME_EXTENSIONS)) {
       expect(reason.length).toBeGreaterThan(20);
+    }
+  });
+
+  it("says why `.md` stays out now that something does open one (feature 100)", () => {
+    // The classification is unchanged and its **reason** was re-ruled, which is
+    // the whole of feature 100's FR-021. It used to read "no code opens one";
+    // a module can now ship its own documentation and the site generator opens
+    // exactly that. `.md` stays `ignored` because documentation is a
+    // package-root layer located by the platform — `i18n/`'s mechanism, whose
+    // files this walk has never seen either — and not because nobody reads it.
+    //
+    // Asserted rather than left to a reviewer because the exit-1 case below is
+    // "an asset kind nobody has ruled on": the reason string *is* the ruling,
+    // and a ruling that has quietly gone false is one nobody can check. This is
+    // the assertion that would have gone red on the day the old sentence
+    // stopped being true.
+    expect(classifyAssetFile('index.md')).toBe('ignored');
+    expect(classifyAssetFile('index.mdx')).toBe('unclassified');
+    const reason = NON_RUNTIME_EXTENSIONS['.md'];
+    expect(reason).toContain('package root');
+    expect(reason).not.toContain('no code opens one');
+  });
+
+  it('finds no module keeping its documentation inside a compiled source root', () => {
+    // Feature 100 Phase 2's half of FR-021, and the thing that makes the
+    // classification above *safe* rather than merely ruled. `.md` is `ignored`,
+    // so a page under a package's `rootDir` would be compiled by nothing and
+    // copied by nothing: it would exist in the repository and in no published
+    // package, silently — `copy-runtime-assets`' own failure, one layer over.
+    //
+    // Measured over the tree rather than asserted about it: every module that
+    // declares documentation keeps it at its **package root**, beside `i18n/`,
+    // where this walk has never looked and never should.
+    for (const entry of DISCOVERED_MANIFESTS) {
+      const declaration = entry.manifest.docs;
+      if (declaration === undefined || declaration === false) continue;
+      const directory = dirname(entry.manifestPath);
+      const moduleId = entry.id;
+      expect(
+        collectRuntimeAssets(join(directory, 'src')).assets.filter((path) =>
+          path.endsWith('.md'),
+        ),
+        `${moduleId} keeps a markdown file under its compiled source root`,
+      ).toEqual([]);
+      expect(existsSync(join(directory, declaration.dir)), `${moduleId} declares ${declaration.dir}`).toBe(
+        true,
+      );
     }
   });
 

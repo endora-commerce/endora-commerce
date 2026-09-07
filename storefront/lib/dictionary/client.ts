@@ -6,6 +6,7 @@ import {
   type DictionaryRegistryResponse,
 } from '@endora-commerce/contracts';
 import { apiGet, type RequestContext } from '../api/client';
+import { publicApiBaseUrl } from '../env.mjs';
 
 export type DictionaryRegistry = DictionaryRegistryResponse['data'];
 export type DictionaryByCode = DictionaryByCodeResponse['data'];
@@ -52,10 +53,7 @@ export async function fetchByCode(args: FetchByCodeArgs): Promise<DictionaryByCo
   return dictionaryByCodeResponseSchema.parse(response).data;
 }
 
-const browserBaseUrl =
-  process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ??
-  process.env['NEXT_PUBLIC_API_BASE_URL'] ??
-  'http://localhost:3001';
+const browserBaseUrl = process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] ?? publicApiBaseUrl();
 
 export async function fetchDictionaryFromBrowser(args: {
   locale?: string;

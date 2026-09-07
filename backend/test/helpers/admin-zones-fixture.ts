@@ -16,8 +16,8 @@
  */
 import {
   checkAdminZones,
+  ownedModuleIdSites,
   translationScopeSites,
-  visibilityGateSites,
   zoneContributionSites,
   zoneRenderSites,
   readZoneDeclarations,
@@ -34,14 +34,21 @@ export interface AdminZoneFixtureFile {
   readonly path: string;
   readonly source: string;
   /**
-   * Which populations this file belongs to, mirroring `main()`'s three walks.
+   * Which populations this file belongs to, mirroring `main()`'s four walks.
    *
    * `host` — a screen that may render a zone or declare a contribution;
    * `kit` — a kit source, whose `useTranslation` namespace is population 2;
-   * `admin` — an attributed admin surface file, populations 1 and 3.
+   * `admin` — an attributed admin surface file, populations 1 and 3;
+   * `admin-ui` — a source of a package declaring `endora: { type: 'admin-ui' }`
+   *   other than the kit, which is population 3's ownerless half (P5c);
+   * `module` — a module's **own** source, attributed by the layout rather than
+   *   by the route table: a module package's `src/admin/`, an overlay module's,
+   *   or an application-tree module's. Classified exactly as `admin` is,
+   *   because it is the same coupling by a file that has an owner; what differs
+   *   is only where `main()` gets that owner from.
    */
-  readonly roles?: readonly ('host' | 'kit' | 'admin')[];
-  /** The module owning the file, for an `admin` role. */
+  readonly roles?: readonly ('host' | 'kit' | 'admin' | 'admin-ui' | 'module')[];
+  /** The module owning the file, for an `admin` or a `module` role. */
   readonly owner?: string;
 }
 
@@ -82,7 +89,13 @@ export function runAdminZones(fixture: AdminZoneFixture): AdminZonesResult {
 
   for (const file of fixture.files) {
     const roles = file.roles ?? ['host'];
-    if (roles.includes('host') || roles.includes('kit') || roles.includes('admin')) {
+    if (
+      roles.includes('host') ||
+      roles.includes('kit') ||
+      roles.includes('admin') ||
+      roles.includes('admin-ui') ||
+      roles.includes('module')
+    ) {
       renders.push(...zoneRenderSites(file.source, file.path));
       contributions.push(...zoneContributionSites(file.source, file.path, file.owner ?? null));
     }
@@ -98,29 +111,37 @@ export function runAdminZones(fixture: AdminZoneFixture): AdminZonesResult {
         });
       }
     }
-    if (roles.includes('admin') && file.owner !== undefined) {
+    if (roles.includes('admin-ui')) {
+      // Owned by no module, so a registered id is foreign whichever it is and a
+      // computed namespace is a finding rather than a skip — the kit's rule,
+      // over a package that is not the kit.
       for (const site of translationScopeSites(file.source, file.path)) {
-        if (site.named === null || !registered.has(site.named) || site.named === file.owner) {
-          continue;
-        }
+        if (site.named !== null && !registered.has(site.named)) continue;
         moduleIds.push({
           file: file.path,
           line: site.line,
           named: site.named,
-          owner: file.owner,
+          owner: null,
           population: 'module-namespace',
         });
       }
-      for (const site of visibilityGateSites(file.source, file.path)) {
-        if (!registered.has(site.named) || site.named === file.owner) continue;
-        moduleIds.push({
+    }
+    // The owned half. `admin` and `module` are one classification and therefore
+    // one call into the check's own `ownedModuleIdSites` rather than a copy of
+    // it here — a driver holding its own copy of *"skip the file's own id, skip
+    // an id no module registers"* is a second answer waiting to disagree with
+    // the one CI runs. The roles differ only in where `main()` gets the owner:
+    // the route table and the nav for `admin`, the layout's module attribution
+    // for `module`.
+    if ((roles.includes('admin') || roles.includes('module')) && file.owner !== undefined) {
+      moduleIds.push(
+        ...ownedModuleIdSites({
+          source: file.source,
           file: file.path,
-          line: site.line,
-          named: site.named,
           owner: file.owner,
-          population: 'visibility-gate',
-        });
-      }
+          registered,
+        }).sites,
+      );
     }
   }
 

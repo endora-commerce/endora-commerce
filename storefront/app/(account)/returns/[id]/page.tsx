@@ -5,6 +5,14 @@ import { revalidatePath } from 'next/cache';
 import { addReturnComment, getMyReturn } from '../../../../lib/api/returns';
 import { getSessionCookie } from '../../../../lib/session';
 import { StorefrontApiError } from '../../../../lib/api/client';
+import type { Metadata } from 'next';
+
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
+ * authenticated or transactional surface, of no use to a crawler and not a
+ * page a search result should ever land a buyer on.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Return / RMA case detail + conversation (feature 046, US1/US4).

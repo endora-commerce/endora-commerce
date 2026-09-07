@@ -267,7 +267,7 @@ export class FeedTemplateIoService {
 
   async exportDocument(
     templateId: string,
-  ): Promise<{ document: FeedTemplateDocument; filename: string; body: string }> {
+  ): Promise<{ document: FeedTemplateDocument; filename: string; serialized: string }> {
     const view = await this.deps.templates.view(templateId);
     const document = buildTemplateDocument(
       view.template,
@@ -277,7 +277,11 @@ export class FeedTemplateIoService {
     return {
       document,
       filename: templateDocumentFilename(view.template.name),
-      body: serializeTemplateDocument(document),
+      // `serialized`, not `body`: this module spells an HTTP request body
+      // `body` too, and one module-scoped key of that name made
+      // `check:port-catches` read `response.body.cancel()` in three
+      // unrelated files as a call through a port.
+      serialized: serializeTemplateDocument(document),
     };
   }
 

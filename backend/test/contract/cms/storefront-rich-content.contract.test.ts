@@ -38,7 +38,7 @@ describe('storefront CMS rich content contract', () => {
       root: { props: {} },
       content: [
         {
-          type: 'RichContent',
+          type: 'cms.RichContent',
           props: {
             id: 'rich-1',
             content: richDoc,
@@ -92,7 +92,7 @@ describe('storefront CMS rich content contract', () => {
     const payload = res.json() as {
       data: { content: { data: { content: Array<{ type: string; props: Record<string, unknown> }> } } };
     };
-    const rich = payload.data.content.data.content.find((item) => item.type === 'RichContent');
+    const rich = payload.data.content.data.content.find((item) => item.type === 'cms.RichContent');
     expect(rich).toBeTruthy();
     expect(rich?.props.content).toBeTruthy();
     expect(rich?.props.html).toBeTruthy();

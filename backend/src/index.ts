@@ -1,4 +1,5 @@
 // Backend entry point.
+
 //
 // Composes every business module via `composeApp()` (see composition.ts) on
 // top of the bare HTTP server from http/server.ts. The dev script
@@ -110,3 +111,4 @@ async function main(): Promise<void> {
 }
 
 void main();
+

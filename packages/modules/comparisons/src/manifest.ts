@@ -149,6 +149,7 @@ export const manifest = defineModuleManifest({
     { code: 'PDF_GENERATION_FAILED' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [{ code: 'comparisons:read', label: 'View product comparisons' }],
   /**
    * The module's command-palette entry — feature 091, Phase 4 (the plan's

@@ -2,6 +2,14 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { getSessionCookie } from '../../../lib/session';
 import { getMe } from '../../../lib/api/account';
+import type { Metadata } from 'next';
+
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
+ * authenticated or transactional surface, of no use to a crawler and not a
+ * page a search result should ever land a buyer on.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Organization summary (T155). Read-only view of the registered org —

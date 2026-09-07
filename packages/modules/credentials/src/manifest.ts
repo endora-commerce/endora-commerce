@@ -135,6 +135,7 @@ export const manifest = defineModuleManifest({
     { code: 'CREDENTIAL_VALIDATION_FAILED' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     {
       code: CREDENTIALS_READ_PERMISSION,

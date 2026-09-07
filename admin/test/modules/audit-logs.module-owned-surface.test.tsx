@@ -7,6 +7,7 @@ import type { RenderResult } from '@testing-library/react';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
+import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
 
 /**
  * One of the admin's own source files, read as text.
@@ -60,27 +61,27 @@ let permissions = new Set<string>();
 
 
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/lib/admin-actions/AdminActionsProvider', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/AdminActionsProvider', () => ({
   AdminActionsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/components/IdleLogout', () => ({
+vi.mock('../../../packages/admin-shell/src/components/IdleLogout', () => ({
   IdleLogout: () => null,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -113,9 +114,11 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 /**
- * `App.tsx` imports every host screen statically, and one of them
- * (`cms`' Puck editor) reaches `@dnd-kit/dom`, which constructs a
- * `ResizeObserver` at module scope. jsdom has none. The stub is a
+ * `@dnd-kit/dom` constructs a `ResizeObserver` at module scope, and jsdom has
+ * none. This read *"`App.tsx` imports every host screen statically, and one of
+ * them (`cms`' Puck editor)"* until feature 091's batch 16 moved that editor
+ * into `@endora-commerce/mod-cms`; the stub stays because a lazily loaded
+ * screen reaches the same constructor, and only the reason changed. The stub is a
  * module-load accommodation and nothing this file asserts touches it — the
  * alternative would be mounting the gate in isolation, which would be a copy of
  * `ModuleRoute` proving itself.
@@ -126,7 +129,7 @@ globalThis.ResizeObserver ??= class {
   disconnect(): void {}
 } as unknown as typeof ResizeObserver;
 
-const { App } = await import('../../src/App');
+const { App } = await import('../../../packages/admin-shell/src/App');
 
 const bundle = {
   ...passthroughBundle('core', [
@@ -144,7 +147,7 @@ function renderAt(path: string): RenderResult {
   return renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={[path]}>
-        <App modulePresence={modulePresence({ present: [...presentModules] })} />
+        <App contributions={MODULE_ADMIN_CONTRIBUTIONS} modulePresence={modulePresence({ present: [...presentModules] })} />
       </MemoryRouter>,
       { session: adminSession({ permissions: [...permissions] }) },
     ),
@@ -214,6 +217,18 @@ describe('audit_logs owns its admin surface', () => {
     // the three entries this batch converts move to the end of the section —
     // and keep their relative order, which the declared weights (200, 300, 600,
     // the hand-written table's position times a hundred) are what restore.
+    //
+    // **The `/settings` half of that consequence closed in batch 10**, and this
+    // case is where it is recorded because it is where it was recorded as a
+    // regression. The paragraph above said it closes when the section empties;
+    // it did not have to empty. `/settings` was the host row this batch's three
+    // were pushed behind, and it is `@endora-commerce/mod-settings`' own
+    // declaration now at weight 1000, so the weights order the two sets against
+    // each other and the hand-written positions come back. What still floats is
+    // `/catalog/bulk-operations`, the one host row left in this section besides
+    // `/platform/modules`: it sat fourth by hand and renders second now,
+    // because `composeNav` has no weight to place it by. That is the residue,
+    // and it is one row rather than four.
     presentModules = new Set(['audit_logs', 'admin_users', 'admin_roles', 'settings']);
     permissions = new Set(['audit_log:read', 'admin_users:manage', 'settings:read']);
     renderAt('/');
@@ -224,9 +239,13 @@ describe('audit_logs owns its admin surface', () => {
     expect(converted.map((href) => hrefs.indexOf(href))).toEqual(
       [...converted.map((href) => hrefs.indexOf(href))].sort((a, b) => a - b),
     );
-    // And all three sit after `/settings`, a host-declared row that used to
-    // follow them. That is the change; it closes when the section empties.
-    expect(hrefs.indexOf('/settings')).toBeLessThan(hrefs.indexOf('/admin-users'));
+    // And all three sit **before** `/settings`, which is where the hand-written
+    // table had them and where batch 10's weights put them back.
+    expect(hrefs.indexOf('/audit-log')).toBeLessThan(hrefs.indexOf('/settings'));
+    // The residue, asserted so that a later batch which weights the host rows
+    // has something that goes red: `/platform/modules` still leads the section
+    // and `/catalog/bulk-operations` still precedes every registry row.
+    expect(hrefs.indexOf('/platform/modules')).toBeLessThan(hrefs.indexOf('/admin-users'));
   });
 
   it('restores both surfaces when the module comes back, with no rebuild', async () => {
@@ -251,8 +270,8 @@ describe('the shell no longer names audit_logs by hand', () => {
     // The evidence that the conversion converted something. `App.tsx` and
     // `AppShell.tsx` are the two registries 11 of the last 12 module additions
     // edited; neither mentions this module now, and the screen is still there.
-    const app = sourceOf('src/App.tsx');
-    const shell = sourceOf('src/components/AppShell.tsx');
+    const app = sourceOf('../packages/admin-shell/src/App.tsx');
+    const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
     expect(app).not.toContain('AuditLogViewer');
     expect(app).not.toContain('modules/audit_logs');
     expect(shell).not.toContain("to: '/audit-log'");
@@ -266,7 +285,7 @@ describe('the shell no longer names audit_logs by hand', () => {
     // is carry a second, hand-written copy in `PALETTE_ITEMS`: that one would
     // keep advertising the screen after the module was switched off, because
     // nothing on the server would have been asked.
-    expect(sourceOf('src/components/AppShell.tsx')).not.toContain("'/audit-log'");
+    expect(sourceOf('../packages/admin-shell/src/components/AppShell.tsx')).not.toContain("'/audit-log'");
   });
 
   it('resolves the screen through the module package, never through admin/src', () => {

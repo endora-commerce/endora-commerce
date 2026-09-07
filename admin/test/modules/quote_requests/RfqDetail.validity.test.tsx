@@ -7,9 +7,14 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 const getSpy = vi.fn();
 const patchSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(
-    '@/lib/api-client',
+// The **kit's** barrel, not `@/lib/api-client`. The screen is
+// `@endora-commerce/mod-quote-requests/admin`'s since feature 091's batch 12
+// and resolves `apiClient` there; the admin's own path is a re-export shim of
+// the same binding, so mocking the shim left the real client mounted and every
+// case below timed out waiting for a fetch that had gone to the network layer.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
   );
   return {
     ...actual,
@@ -24,24 +29,21 @@ vi.mock('@/lib/api-client', async () => {
 });
 
 // The Modify tab's product select and the overview's custom-field panel both
-// pull their own data chains; neither is under test here.
-vi.mock('@/modules/catalog/components/ProductPicker', () => ({
-  ProductPicker: () => null,
-}));
-// `CustomFieldValuesPanel` is `@endora-commerce/admin-kit/components`' since
-// feature 091's P4e — a published component, not `custom_fields`' fragment
-// (`admin-component-contribution.md` §9.1) — so the mock names the subpath the
-// screen now imports. `vi.mock` keys on a resolved module id; the old
-// `@/modules/custom_fields/…` spelling is a shim over this file and would leave
-// the real panel mounted here, fetching its definitions.
+// pull their own data chains; neither is under test here. Both are the kit's —
+// `CustomFieldValuesPanel` since P4e (a published component, not
+// `custom_fields`' fragment: `admin-component-contribution.md` §9.1) and
+// `ProductPicker` since P2 — so one mock over the kit's `components` barrel
+// covers the pair. It used to be two, the second naming
+// `@/modules/catalog/components/ProductPicker`, which the screen has not
+// imported since P2 and which therefore stubbed nothing.
 vi.mock('@endora-commerce/admin-kit/components', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/components')>(
     '@endora-commerce/admin-kit/components',
   );
-  return { ...actual, CustomFieldValuesPanel: () => null };
+  return { ...actual, CustomFieldValuesPanel: () => null, ProductPicker: () => null };
 });
 
-const { RfqDetail } = await import('../../../src/modules/quote_requests/RfqDetail');
+const { RfqDetail } = await import('../../../../packages/modules/quote_requests/src/admin/pages/RfqDetail');
 
 const RFQ_ID = '00000000-0000-4000-8000-0000000000r1';
 const PRODUCT_ID = '00000000-0000-4000-8000-0000000000p1';

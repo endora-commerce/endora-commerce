@@ -4,12 +4,18 @@
   // against the branch it is on (issue #255). `noEmit` is set for that reason: with
   // `paths` active an emit would land beside another package's source. The emitting
   // configuration is `tsconfig.build.json`.
+  //
+  // `include` names `test/` as well as `src/`, and there is no `rootDir` here: `rootDir`
+  // belongs to the emit configuration, and one declared beside a wider `include` is TS6059
+  // — `tsc` reports every file outside it as unrootable and exits 2. That pairing is why
+  // this package's `test/` directory sat in no type-check program at all until 2026-09-07:
+  // narrowing `include` to `src` was the only way to keep a `rootDir` that had no business
+  // being here. `packages/cli` and `packages/test-kit` are the same shape.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
     "noEmit": true,
     "types": []
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "test/**/*"]
 }

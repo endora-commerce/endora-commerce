@@ -123,6 +123,7 @@ export const manifest = defineModuleManifest({
   ],
   settings,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   /**
    * Two codes from the platform block — D-129's remaining sweep, Tier A
    * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;

@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import {
   useReorderList,
   type ReorderLabels,
-} from '../../../src/components/reorder/useReorderList';
+} from '../../../../packages/admin-shell/src/components/reorder/useReorderList';
 
 /**
  * Feature 067 / T081 — the shared reorder primitive (FR-069, SC-014).

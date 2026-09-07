@@ -29,6 +29,8 @@ export { AuthProvider, useAuth } from './auth.js';
 export type { AdminMe, AuthProviderProps } from './auth.js';
 export { formatDateTime } from './format.js';
 export { formatMoney, localeForCurrency } from './money.js';
+export { invoiceEmailNotSentReason, issueInvoiceNotice, sendInvoiceEmailMessage } from './invoice-email-outcome.js';
+export type { Translate } from './invoice-email-outcome.js';
 export { getModulePresence, ModulePresenceProvider, setModuleActivation, useModulePresence } from './module-presence/index.js';
 export type { ModulePresenceContextValue, ModulePresenceProviderProps } from './module-presence/index.js';
 export { PAGE_SIZE_OPTIONS } from './page-size-options.js';

@@ -20,6 +20,32 @@ import type { MigrationOrigin } from '../../src/db/migration-order.js';
  *
  * node:fs + regex only — no new dependency, no ORM import, no database.
  *
+ * ## What it does **not** read, and who does (feature 097)
+ *
+ * Its whole recogniser vocabulary is `ENTITY_TABLE_RE`, `STATEMENT_START_RE`
+ * (`create` / `alter table`) and `REFERENCE_RE` (`references "…"`). There is no
+ * `insert`, no `update`, no `delete` and no `select` in this file: its subject
+ * is **DDL**, which is what a foreign key is.
+ *
+ * `check-module-boundary.ts`' own header used to tell its next reader that this
+ * file "already owns" a migration naming another module's table, and that
+ * sentence is the reason 76 cross-module **DML** accesses in 28 migration files
+ * were judged by nothing in the repository until feature 097. The correction is
+ * two-way deliberately: a one-way fix leaves the reader of *this* file with the
+ * same wrong impression from the other side.
+ *
+ * So: **DML in a migration is `check:module-boundary`'s**, under R1 (a
+ * cross-module table reference requires the owner in the declaring module's
+ * transitive `dependencies` closure — the rule this file states for foreign
+ * keys, with its predicate widened) and R2 (a migration may not write another
+ * module's table at all). The regex-only commitment above is why the rule lives
+ * there rather than here: reading DML needs `sql-tables.ts`' AST reader, and a
+ * regex over source text hallucinated a dozen table names off apostrophes in
+ * English prose when it was tried. The transitive closure the two share is
+ * `scripts/lib/manifest-dependencies.ts`', extracted from this file's own
+ * `closureOf` so the DDL and DML halves of one rule cannot answer differently
+ * for one edge.
+ *
  * ## Where it looks (feature 080, T013)
  *
  * The scan used to spell `join(sourceRoot, 'modules')` in four places and to

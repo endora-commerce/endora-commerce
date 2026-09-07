@@ -177,6 +177,7 @@ export const manifest = defineModuleManifest({
     { code: 'CUSTOMER_RESTORE_WINDOW_ELAPSED' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Feature 076 (D-79) — the customer-group admin surface came here with the
   // entity, and its gate came with a correction. `price_lists` served these
   // three routes under `catalog:write`, which asks a pricing question about a

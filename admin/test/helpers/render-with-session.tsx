@@ -6,6 +6,9 @@ import {
   type AdminMe,
 } from '@endora-commerce/admin-kit/lib';
 import { AdminContributionsProvider } from '@endora-commerce/admin-kit/zones';
+import { AdminRegistryProvider } from '../../../packages/admin-shell/src/lib/module-registry/index.js';
+import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
+import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 import type {
   AdminModulePresenceResponse,
   AdminZoneContribution,
@@ -13,8 +16,8 @@ import type {
 } from '@endora-commerce/contracts';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { TranslationProvider } from '../../src/i18n/TranslationProvider';
-import type { Bundle } from '../../src/i18n/types';
+import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
+import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
 
 /**
  * Mount a subject under the **real** session and module-presence providers,
@@ -28,7 +31,7 @@ import type { Bundle } from '../../src/i18n/types';
  * screen with no way to name `useAuth` renders every control live to a
  * read-only operator, who fills the form in and gets a 403 on save — and it
  * moves the `useSurfaceVisibility` → `useAuth` seam **inside** the package,
- * where `vi.mock('@/lib/auth', …)` cannot reach it. 36 admin test files and 179
+ * where `vi.mock('../../../packages/admin-shell/src/lib/auth', …)` cannot reach it. 36 admin test files and 179
  * tests were resting on that seam.
  *
  * Replacing the modules is not available any more, and it was never the better
@@ -145,7 +148,7 @@ export function modulePresence(options: {
  */
 export function everyDeclaredModule(): readonly string[] {
   const ids = new Set<string>();
-  for (const file of ['src/components/AppShell.tsx', 'src/modules.generated.ts']) {
+  for (const file of ['../packages/admin-shell/src/components/AppShell.tsx', 'src/modules.generated.ts']) {
     const source = readFileSync(resolve(process.cwd(), file), 'utf8');
     for (const match of source.matchAll(/\bmodule(?:Id)?: '([a-z][a-z0-9_]*)'/g)) {
       ids.add(match[1] as string);
@@ -175,7 +178,7 @@ export function everyDeclaredModule(): readonly string[] {
  * every other code.
  */
 export function everyDeclaredPermission(): readonly string[] {
-  const source = readFileSync(resolve(process.cwd(), 'src/components/AppShell.tsx'), 'utf8');
+  const source = readFileSync(resolve(process.cwd(), '../packages/admin-shell/src/components/AppShell.tsx'), 'utf8');
   const codes = new Set<string>();
   for (const match of source.matchAll(/requiredPermission: '([a-z_][a-z_.:]*)'/g)) {
     codes.add(match[1] as string);
@@ -226,6 +229,25 @@ export interface SessionWrapperOptions {
     readonly moduleId: string;
     readonly contributions: { readonly zones?: readonly AdminZoneContribution[] };
   }[];
+  /**
+   * The generated contribution registry the shell's surfaces should enumerate.
+   *
+   * Defaults to **the real one** — `admin/src/modules.generated.ts` — because
+   * that is what `<App/>` is handed in a build and what every `AppShell` nav,
+   * palette and breadcrumb case here is asserting about. Feature 110's T120
+   * made it a value the admin project passes in rather than a module the shell
+   * imports (`@endora-commerce/admin-shell` cannot name a file in the project
+   * that consumes it), so a wrapper is where it now enters a test.
+   *
+   * It is a **provider and not an omission** even when a subject renders no
+   * module surface: `useAdminRegistry` refuses a read with no provider above
+   * it, on `useAdminZone`'s reasoning — an empty sidebar and a broken mount
+   * must not look the same.
+   */
+  readonly registry?: readonly {
+    readonly moduleId: string;
+    readonly contributions: AdminContributions;
+  }[];
 }
 
 /**
@@ -234,7 +256,9 @@ export interface SessionWrapperOptions {
  */
 export function withSession(ui: ReactElement, options: SessionWrapperOptions): ReactElement {
   const zoned = (
-    <AdminContributionsProvider entries={options.contributions ?? []}>{ui}</AdminContributionsProvider>
+    <AdminRegistryProvider entries={options.registry ?? MODULE_ADMIN_CONTRIBUTIONS}>
+      <AdminContributionsProvider entries={options.contributions ?? []}>{ui}</AdminContributionsProvider>
+    </AdminRegistryProvider>
   );
   const inner =
     options.presence === undefined ? (

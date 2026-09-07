@@ -18,11 +18,33 @@
  *
  * **It empties inside this feature**, which is what makes it worth its weight:
  * the four `visibility-gate` entries retire when their screens become zone
- * mounts (batches 8 and 10), the one remaining `kit-namespace` entry when the
- * kit's strings move to `core` under R-1's §9.2 ruling, and the four
- * `module-namespace` entries as their screens move into the modules that own
- * them. An entry that ever reads *"this is fine"* means the predicate has
- * outgrown its population — narrow it, never add the entry.
+ * mounts, the one `kit-namespace` entry when the kit's strings move to `core`
+ * under R-1's §9.2 ruling, and the four `module-namespace` entries as the
+ * couplings they record are repaired. An entry that ever reads *"this is
+ * fine"* means the predicate has outgrown its population — narrow it, never
+ * add the entry.
+ *
+ * **A `module-namespace` entry whose screen is about to move used to be the case
+ * to be careful with**, and batch 10 met it. This check's population was
+ * `admin/src/modules/**` and the admin-ui family, so a screen moving into its
+ * module's package took every finding about it out of the walk — the entry then
+ * read stale and the ratchet asked for it to be removed, whether or not anybody
+ * repaired anything. *"The file left the walk"* and *"the coupling went"*
+ * produced the identical diff, so the rule for a batch author was: repair the
+ * coupling **in the same merge request**, and say in the removal which of the
+ * two happened.
+ *
+ * **That hazard is closed, and it was closed because it had stopped being an
+ * incident and become a structure.** The walk now reads a module's own sources
+ * too — every root `lib/module-roots.ts` derives, which reaches a module
+ * package's `src/admin/` — so a screen moving into its package carries its
+ * findings with it under a new key instead of vanishing. The rule above survives
+ * as good practice and no longer rests on anyone remembering it. What made it
+ * urgent rather than tidy: 37 of the module packages already ship an admin
+ * layer, six batches of Story 3 will move sixteen more owners, and every one of
+ * them widened a population no instrument in this estate was reading. The first
+ * entry below is what it found — a gate added *by* batch 10, in the very merge
+ * request whose file moved, correct and unwatched from the day it landed.
  *
  * **A `module-namespace` entry has a second retiring shape, and the first one
  * took it.** P5a moved the shared page-builder chrome's 33 `pageBuilder.*` keys
@@ -70,6 +92,19 @@
  * that a ledger cannot answer. The pane's own repair is the evidence for the
  * other half of §9.3's argument: nothing in this estate reported it, because a
  * site outside the population is a site outside every instrument.
+ *
+ * **And the rule has an answer for where `_shared` is going, which P5c put in
+ * place before the move.** The exclusion above rests on ownership coming from
+ * the route table and the nav, which is a fact about the admin *application*.
+ * Once these files are `@endora-commerce/page-builder-admin`'s there is no nav
+ * to consult and no route table to be absent from: a package declaring
+ * `endora: { type: 'admin-ui' }` owns **no** module id, so every registered id
+ * its sources name is another module's and is judged rather than excluded, with
+ * a computed one refused on the kit's own reasoning. So the two answers do not
+ * conflict — `_shared` under `admin/src` is the application's and is nobody's;
+ * the same files in a package are nobody's and are therefore foreign to every
+ * module. What decides which is where the file lives, and the instrument was
+ * taught both before either was true, which is the whole of P5c.
  */
 
 /** One recorded coupling: a reason, and — where the key covers more than one site — a count. */
@@ -93,15 +128,38 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
   // permission gate and the ordering are the zone renderer's now, so a third
   // carrier needs no edit to a file its author does not own — which is the whole
   // of what FR-007 asks for.
-  'admin/src/modules/orders/OrderDetail.tsx:visibility-gate:payments':
-    "The payments tab button is rendered here, in the file's own words, so the gate is here " +
-    'too. Retires at batch 10, when `orders` renders `order.detail.tabs` and `payments` ' +
-    'contributes the tab.',
-  'admin/src/modules/orders/OrderShipmentsTab.tsx:visibility-gate:inpost':
-    'The InPost label button, and the reach `068-inpost-shipping` made by editing this file ' +
-    '— the one FR-007 cites by name. Retires at batch 10 into `order.shipment.row.actions`, ' +
-    "a repeated parameterised zone whose props carry the row's `deliveryMethodCode`, with " +
-    '`dhl_parcel` as its second contributor.',
+  // **The two `orders` entries retired the way their own reasons predicted**
+  // (P7d). `OrderDetail.tsx` renders `order.detail.payment` and shows its tab
+  // button by counting the zone (Z15), so `payments`' presence and permission
+  // are the renderer's; `OrderShipmentsTab.tsx` renders
+  // `order.shipment.row.actions` once per attempt, and `inpost`'s label button
+  // is a contribution narrowed by `match` — `match`'s first user in this
+  // repository, on the member Z13 reserves for it.
+  //
+  // One thing about that removal is worth saying rather than leaving to be
+  // inferred, because the ledger's own header asks a removal to say which of
+  // the two happened: both files were still in the walk when P7d removed the
+  // entries. Nothing left sight of them — the couplings went. (Feature 091's
+  // Phase 4 batch 15 then moved both into
+  // `packages/modules/orders/src/admin/`, where this check walks them under
+  // their new address; the entries had already gone, so there was nothing to
+  // re-key.)
+  // The third entry is the one the widened walk found, and it is a **correct**
+  // gate rather than a defect — which is why it is recorded here rather than
+  // repaired. Z12 added it in batch 10, in the same merge request that moved
+  // this file into `@endora-commerce/mod-settings`, and it left the walk in the
+  // act of being written.
+  'packages/modules/settings/src/admin/components/ConfigurationReferenceInput.tsx:visibility-gate:credentials':
+    '`settings` renders `credentials`\' `ConfigurationPreviewModal` for the `credential_ref` ' +
+    'value type, statically imported, so nothing filters it: the gate is what stops the ' +
+    'preview button appearing over an API that answers 503 while the module is off, and ' +
+    'removing it would be a fail-open. It is the gate half of the reach ' +
+    '`backend/scripts/ledgers/cross-module-imports/settings.ts` records, and **it retires ' +
+    'with that reach and not before** — Z1 refuses a zone here (a modal that resolved to two ' +
+    '`onClose`s has no honest answer), so what removes both is a single-contributor ' +
+    'contribution point for the *field editor*, `settings` naming a place and `credentials` ' +
+    'contributing picker and preview together. That needs an owner ruling; until it lands, ' +
+    'the gate is the right code and this is the record of it.',
 
   // --- population 2: the kit rendering out of a module's namespace -----------
   //
@@ -140,16 +198,38 @@ export const FOREIGN_MODULE_IDS: ForeignModuleIdLedger = {
   // naming `cms` where it stands: the copy it renders belonged to no module in
   // the first place, which is the case where the bundle moves and the screen
   // does not.
-  'admin/src/modules/orders/OrderShipmentsTab.tsx:module-namespace:inpost':
-    "The InPost label button's own labels, beside the gate above it. This file is why §9.3 " +
-    'folds the two populations into one finding rather than shipping them as two: it is in ' +
-    'both, and they are one coupling. Retires with the gate, at batch 10.',
-  'admin/src/modules/organizations/panels/CartApprovalPolicyPanel.tsx:module-namespace:carts':
-    "The cart approval policy is `carts`' concept rendered on an organization's screen, so " +
-    "the copy follows the concept. Retires when the panel becomes `carts`' own contribution " +
-    "rather than `organizations`' component.",
-  'admin/src/modules/settings/components/ConfigurationReferenceInput.tsx:module-namespace:credentials':
-    'The credential picker inside a settings field. It is the same reach that sends ' +
-    "`ConfigurationPreviewModal` to `./admin-ui` rather than to the kit — the namespace is " +
-    'the whole of its module knowledge (Z1.1, §9.2) — and it retires in batch 9 with it.',
+  // **`OrderShipmentsTab.tsx`'s `module-namespace` entry retired with the gate
+  // above it, in one merge request**, which is what its own reason said would
+  // happen and the reason §9.3 folds the two populations into one finding: the
+  // file was in both and they were one coupling. The two labels are
+  // `packages/modules/inpost/src/admin/zones/InpostLabelButton.tsx`'s now, in
+  // that module's own namespace, and the file that renders them is that
+  // module's own.
+  //
+  // **The carrier this ledger never saw left in the same merge request.**
+  // `dhl_parcel` was named in the same host file by **delivery-method code** —
+  // `'dhl_parcel_courier'`, `'dhl_parcel_pickup'` — which is not a module id,
+  // so the predicate had it in no population and never will. It is recorded
+  // here because the absence is the point: the three buttons behind those
+  // codes carried no permission gate at all, and nothing in this estate could
+  // have said so. §10.4 is where that argument is written down.
+  // **The `carts` entry retired the way its own reason predicted** (P7b). The
+  // cart-approval policy panel became `carts`' `organization.detail.after`
+  // contribution rather than `organizations`' component, so the namespace it
+  // names is its own. The file moved and the coupling went in the same merge
+  // request, which is what this header asks a removal to say: it was the
+  // repair, not the walk losing sight of the file. Worth one more sentence,
+  // because the file was imported by nothing and the copy it named was in no
+  // bundle under any spelling — the entry recorded a coupling that had never
+  // rendered a word, and the repair is the first time the operator sees the
+  // capability at all.
+  // **`settings`' `ConfigurationReferenceInput` had the fourth entry and the
+  // coupling is repaired, not relocated** (batch 10). It named `credentials`
+  // for one label, `action.preview`, on the button that opens the credential
+  // preview; the string a settings field renders belongs in the settings
+  // bundle, so it is `editor.credentialRef.preview` there in both shipped
+  // languages. Its screen moved into `@endora-commerce/mod-settings/admin` in
+  // the same merge request, which is why the note above about the two
+  // indistinguishable diffs exists: this entry would have read stale either
+  // way, and only one of the two answers is a repair.
 };

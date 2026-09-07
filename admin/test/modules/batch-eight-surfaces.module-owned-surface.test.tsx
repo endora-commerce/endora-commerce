@@ -7,6 +7,7 @@ import type { RenderResult } from '@testing-library/react';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
+import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
 
 /**
  * One of the admin's own source files, read as text.
@@ -180,27 +181,27 @@ const SUBJECTS: readonly Subject[] = [
 let presentModules = new Set<string>();
 let permissions = new Set<string>();
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/lib/admin-actions/AdminActionsProvider', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/AdminActionsProvider', () => ({
   AdminActionsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/components/IdleLogout', () => ({
+vi.mock('../../../packages/admin-shell/src/components/IdleLogout', () => ({
   IdleLogout: () => null,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -241,9 +242,11 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 /**
- * `App.tsx` imports every host screen statically, and one of them (`cms`' Puck
- * editor) reaches `@dnd-kit/dom`, which constructs a `ResizeObserver` at module
- * scope. jsdom has none. The stub is a module-load accommodation and nothing
+ * `@dnd-kit/dom` constructs a `ResizeObserver` at module scope, and jsdom has
+ * none. This read *"`App.tsx` imports every host screen statically, and one of
+ * them (`cms`' Puck editor)"* until feature 091's batch 16 moved that editor
+ * into `@endora-commerce/mod-cms`; the stub stays because a lazily loaded
+ * screen reaches the same constructor, and only the reason changed. The stub is a module-load accommodation and nothing
  * this file asserts touches it.
  */
 globalThis.ResizeObserver ??= class {
@@ -252,7 +255,7 @@ globalThis.ResizeObserver ??= class {
   disconnect(): void {}
 } as unknown as typeof ResizeObserver;
 
-const { App } = await import('../../src/App');
+const { App } = await import('../../../packages/admin-shell/src/App');
 
 const bundle = {
   ...passthroughBundle('core', [
@@ -277,7 +280,7 @@ function renderAt(path: string): RenderResult {
   return renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={[path]}>
-        <App modulePresence={modulePresence({ present: [...presentModules] })} />
+        <App contributions={MODULE_ADMIN_CONTRIBUTIONS} modulePresence={modulePresence({ present: [...presentModules] })} />
       </MemoryRouter>,
       { session: adminSession({ permissions: [...permissions] }) },
     ),
@@ -371,8 +374,8 @@ describe.each(SUBJECTS)('the shell no longer names $module by hand', (subject) =
     // edited. Leaving a `<Route>` standing beside the declaration would declare
     // the screen **twice**, with `react-router` silently taking the first
     // match, which D-23 calls the worst available failure.
-    const app = sourceOf('src/App.tsx');
-    const shell = sourceOf('src/components/AppShell.tsx');
+    const app = sourceOf('../packages/admin-shell/src/App.tsx');
+    const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
     // The import is the assertion that carries the `<Route>` with it: a route
     // element naming a component `App.tsx` no longer imports does not compile,
     // so this one line refuses both halves. The route paths themselves are
@@ -386,7 +389,7 @@ describe.each(SUBJECTS)('the shell no longer names $module by hand', (subject) =
   });
 
   it('declares every one of its routes exactly once, and nowhere in App.tsx', async () => {
-    const app = sourceOf('src/App.tsx');
+    const app = sourceOf('../packages/admin-shell/src/App.tsx');
     const { contributions } = (await import(
       /* @vite-ignore */ subject.specifier
     )) as typeof import('@endora-commerce/mod-seo/admin');

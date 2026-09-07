@@ -45,9 +45,30 @@ import { dirname, join, relative, sep } from 'node:path';
  */
 export const RUNTIME_ASSET_EXTENSIONS = ['.json', '.txt'];
 
-/** Extensions deliberately left out of the built tree, each with its reason. */
+/**
+ * Extensions deliberately left out of the built tree, each with its reason.
+ *
+ * **`.md`'s reason was re-ruled by feature 100** and the classification did not
+ * change, which is why the entry says what it now says. It read *"documentation
+ * for whoever reads the source tree; no code opens one"*, and the second clause
+ * became false the moment a module could ship its own documentation: the site
+ * generator opens one. The classification survives because documentation is a
+ * **package-root layer**, exactly as `i18n/` is — the platform joins a
+ * manifest-declared directory to `dirname(manifestPath)` and reads it from the
+ * package, so it travels in the package's `files` list and never through this
+ * walk, which mirrors `rootDir` into `outDir` for assets a module reads relative
+ * to its own emitted code. A `.md` under a compiled source root is still read by
+ * nothing.
+ *
+ * Stating it that way rather than leaving the old sentence matters because this
+ * is a **ruled** classification: the exit-1 case below is "an asset kind nobody
+ * has ruled on", so the reason is the ruling, and a reason that has quietly
+ * gone false is a ruling nobody can check.
+ */
 export const NON_RUNTIME_EXTENSIONS = {
-  '.md': 'documentation for whoever reads the source tree; no code opens one',
+  '.md':
+    "documentation, which the platform reads from the package root beside `i18n/` and never " +
+    'from the compiled tree — nothing under `rootDir` opens one (feature 100)',
   '.gitkeep': 'a placeholder that keeps an empty directory in git; not a file',
 };
 

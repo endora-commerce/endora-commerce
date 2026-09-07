@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/mod-pwa",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "description": "Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "pwa"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/pwa"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -30,7 +38,8 @@
   },
   "files": [
     "dist",
-    "i18n"
+    "i18n",
+    "docs"
   ],
   "engines": {
     "node": ">=22.17.0"
@@ -38,7 +47,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -51,9 +61,22 @@
     "bullmq": "^5",
     "fastify": "^5",
     "ioredis": "^5",
+    "lucide-react": "^1",
+    "react": "^19",
     "sharp": "^0",
     "web-push": "^3",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -64,12 +87,16 @@
     "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",
     "@types/node": "^22.9.0",
+    "@types/react": "^19.2.14",
     "@types/web-push": "^3.6.4",
     "bullmq": "^5.76.1",
     "fastify": "^5.8.5",
     "ioredis": "^5.10.1",
+    "lucide-react": "^1.11.0",
+    "react": "^19.2.5",
     "sharp": "^0.35.2",
     "typescript": "^5.9.3",
+    "vitest": "^2.1.4",
     "web-push": "^3.6.7",
     "zod": "^4.2.0"
   }

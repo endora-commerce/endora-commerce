@@ -1,0 +1,11 @@
+---
+'@endora-commerce/platform': minor
+---
+
+**`@endora-commerce/platform` gains a seventh subpath, `./migrations`, carrying `BASELINE_MIGRATIONS` — the frozen historical prefix of the migration order, as an ordered list of class names** (`specs/110-instance-repository/contracts/instance-migration-order.md`, R1.1/R1.5).
+
+The migration execution order is a frozen historical prefix, whose order is history and which the manifest dependency graph contradicts in 37 places, followed by the modules in a topological order of that graph. Membership of that prefix was `origin === 'core' && timestamp <= BASELINE_THROUGH`, which encodes *"came out of this repository's build"* and was being used to mean *"is one of the migrations whose order is history"*. Those coincide exactly while every module is compiled into the application and come apart completely when a module is installed from a package, because a package's migrations are tagged `origin: 'external'` — deliberately. Measured over the real registry: the prefix falls from **112** entries to **11**, **181 of 182** positions move, and six migrations — three of them `core`'s — land before the migration that creates a table they touch. An instance installing the same modules could not migrate a fresh database at all.
+
+So membership is now by **identity**. `orderMigrations`' `baselineThrough: string` input is replaced by `baseline: readonly string[]`, the class names whose order is history, emitted in the order the list holds them; `BASELINE_THROUGH` survives as a **generation-time** rule (`migration:new` clamps a scaffolded stamp past it, and the list is rendered from what the committed core registry contributes at or below it) and no ordering decision is taken on `origin` any more.
+
+**No module may name `./migrations`** — it is declared by the `exports` map and carried by no published barrel, which is D-160.14's third state, and `check:platform-surface` reports a module's reach into one as `host-internal-subpath`. The reader is the host's ORM configuration, the one program that composes an execution order. A module package's own `./migrations` subpath is unaffected: it publishes that module's classes, and this publishes the order the platform applies them in.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { setMobileViewport } from '../setup';
@@ -33,19 +33,19 @@ let presentModules = new Set<string>();
 
 
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -63,17 +63,15 @@ const coreBundle = passthroughBundle('core', [
   'appShell.search.shortcutSymbol',
   'appShell.section.catalog',
   'appShell.section.analyticsAds',
-  'appShell.nav.pimErgonode',
-  'appShell.nav.products',
   'appShell.nav.analytics',
   'appShell.nav.googleAnalytics',
   'appShell.nav.linkedinAds',
   'appShell.nav.metaAds',
-  'appShell.nav.credentials',
   'appShell.nav.home',
+  'appShell.palette.sub.dashboard',
 ]);
 
-const { AppShell } = await import('../../src/components/AppShell');
+const { AppShell } = await import('../../../packages/admin-shell/src/components/AppShell');
 
 /**
  * Everything the AppShell can render, minus the ids the caller switches off.
@@ -162,26 +160,46 @@ describe('AppShell — module presence drives the command palette (FR-032)', () 
     );
   }
 
-  it('offers a present module in the Navigate group', async () => {
+  it('offers the one hand-written Navigate row that is left', async () => {
+    // The positive control. It named `/orders` until feature 091's Phase 4
+    // batch 15 and `/comparisons` and `/credentials` before that; the dashboard
+    // is what the group holds now, and it is the row that cannot move — see the
+    // case below.
     renderShell();
     const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(true);
+    expect(items.some((text) => text.includes('appShell.nav.home'))).toBe(true);
   });
 
-  it('drops a switched-off module from the Navigate group', async () => {
-    // `/credentials` is one of the entries the palette advertised regardless of
-    // module state before this feature.
+  it('leaves the hand-written Navigate group unchanged by presence, there being no module row left', async () => {
+    // **The pair this replaces predicted its own end and is worth quoting**:
+    // *"this file's subject is the hand-written Navigate group, so it needs an
+    // entry that is still in it, and the pair has to move together: with the
+    // subject gone the positive control goes red and this negative goes
+    // **vacuously green**, which is the worse of the two."* Feature 091's Phase
+    // 4 batch 15 moved `/orders` — the last module-owned row — into `orders`'
+    // manifest, and the positive control went red exactly as that note said it
+    // would. There is nowhere to re-point it: `PALETTE_ITEMS` now holds one row,
+    // the dashboard, whose `module` is `null` by D-36's reasoning and which no
+    // batch can drain.
     //
-    // The subject was `/comparisons` until feature 091's Phase 4 drain moved
-    // that module's palette entry into its manifest, where the **server**
-    // resolves it against the effective enabled-set and `PALETTE_ITEMS` no
-    // longer carries a copy. This file's subject is the hand-written Navigate
-    // group, so it needs an entry that is still in it — and the pair had to
-    // move together: with `comparisons` gone the positive control went red and
-    // this negative went **vacuously green**, which is the worse of the two.
-    // `credentials` is batch 9's, so this file moves again when that lands.
-    renderShell(['credentials']);
-    const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(false);
+    // So the claim is re-derived rather than re-pointed. `isVisible` filters
+    // this group, so the honest question is whether presence can change what it
+    // yields — and with no module-owned row it cannot, which is asserted by
+    // taking the group with **everything** present and with **nothing** present
+    // and comparing. That is not a weaker statement: the day somebody adds a
+    // module-owned row back to `PALETTE_ITEMS`, the two lists differ and this
+    // case fails, which is the event that should re-instate the pair above it.
+    //
+    // FR-032's subject has moved to the server, where the Actions group is
+    // resolved against the effective enabled-set — driven per batch in
+    // `backend/test/integration/_admin_surfaces/batch-*-palette-off-state.test.ts`.
+    renderShell();
+    const withEverything = await openPaletteItems();
+    cleanup();
+    renderShell(ALL_MODULES);
+    const withNothing = await openPaletteItems();
+    expect(withNothing).toEqual(withEverything);
+    expect(withEverything.filter((text) => text.includes('appShell.nav.home'))).toHaveLength(1);
+    expect(withEverything).toHaveLength(1);
   });
 });

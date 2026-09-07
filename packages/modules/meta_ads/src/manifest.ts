@@ -74,6 +74,7 @@ export const manifest = defineModuleManifest({
   dependencies: ['audit_logs', 'sales_channels', 'settings', 'auth'],
   settings: metaAdsSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: META_ADS_READ_PERMISSION, label: 'View Meta Ads configuration' },
     {

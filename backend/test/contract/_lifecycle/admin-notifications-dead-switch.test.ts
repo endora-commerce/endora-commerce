@@ -271,11 +271,35 @@ describe('admin_notifications.enabled is a live control [contract]', () => {
     ).resolves.toBe('recorded');
     await expect(notifier().handleRegistered(TEST_ORGANIZATION_ID)).resolves.toBeUndefined();
 
-    // And every binder comes back with the operator's choice intact.
+    // And every binder comes back — one at a time, each switched off again
+    // before the next, so that at most one of them is on at any moment.
+    //
+    // This loop switched them **all** on and left them on until 2026-09-06.
+    // That asserted more than the file's subject and, since `pim_unopim`
+    // landed (feature 089, 2026-09-02), asserted something the platform
+    // refuses: `pim_ergonode` and `pim_unopim` are mutually exclusive PIM
+    // connectors (FR-003), so with `pim_ergonode` restored one iteration
+    // earlier the second flip is a correct 409 `PIM_CONNECTOR_ALREADY_ACTIVE`
+    // — a refusal raised by a `pim_unopim` interceptor, about the PIM family,
+    // asserted on its own terms in
+    // `test/integration/pim_unopim/connector-exclusion.test.ts`, and saying
+    // nothing whatever about the bell. The harness could *seed* both connectors
+    // activated (`__setEnabledForTesting` seeds every module's operator axis to
+    // `true`, whatever its manifest default) and the API will not re-create
+    // that state, which is the API being right.
+    //
+    // Restoring them one at a time is the stronger claim as well as the
+    // achievable one: it proves each binder individually is switchable again,
+    // where the old loop proved only that the set could be walked in sorted
+    // order. It names no module and encodes no other module's rules, so the
+    // next exclusive family costs this file nothing.
     for (const binder of bindersOf(OWNER)) {
-      const res = await flip(binder, true);
-      expect(res.statusCode, `switching '${binder}' back on`).toBe(200);
+      const on = await flip(binder, true);
+      expect(on.statusCode, `switching '${binder}' back on`).toBe(200);
       expect(await presenceOf(binder)).toMatchObject({ present: true, activated: true });
+
+      const off = await flip(binder, false);
+      expect(off.statusCode, `parking '${binder}' before the next binder`).toBe(200);
     }
   });
 });

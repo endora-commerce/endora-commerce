@@ -1,77 +1,56 @@
-import { z } from 'zod';
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import {
+  runInstallCommand,
+  type OperatorResources,
+  type OperatorRuntime,
+} from '@endora-commerce/platform/lifecycle';
 import { initOrm, closeOrm } from '../../db/index.js';
-import { AuditLogService } from '../../kernel/audit/audit-log-service.js';
-import { ModuleLifecycleOrchestrator, LifecycleError } from '../services/orchestrator.js';
-import { buildStaticRegistry } from '../services/static-registry.js';
 import { resolvedManifestEntries } from '../registered-manifests.js';
 import { enterSystemScope } from '../../kernel/scope.js';
 
 /**
  * `pnpm --filter backend run module:install <module-id> [--dry-run] [--json]`
  *
- * Exit codes (per `contracts/cli-commands.md` §C-1):
- *   - 0   success (or already installed — no-op)
- *   - 64  misuse: unknown id, bad argv, target module is `disabled` not absent
- *   - 65  manifest invalid (Zod fail), duplicate-id, cycle
- *   - 66  conflict: missing dependencies
- *   - 70  internal error during install (migration / settings / hook failure)
- *   - 75  lock unavailable, or stale `installing` row
+ * The **wiring**, and nothing else (`specs/115-lifecycle-container-move/`,
+ * D115-1; `contracts/operator-half.md` §2). The argv grammar, the exit-code
+ * table, the orchestrator wiring and every sentence an operator reads are
+ * `@endora-commerce/platform/lifecycle`'s since Phase 5: they are platform logic
+ * that used to ship to nobody, because this file lives in `backend/src`, which
+ * under D-207 a client instance never receives.
+ *
+ * What is left is what only this tree can answer: which ORM configuration this
+ * build has, which Redis this instance talks to, and which module set it ships.
+ * A client instance writes the same twenty lines against its own configuration,
+ * which it owns regardless.
+ *
+ * **The path does not move** (R2.3, R2.5). `backend/package.json` still runs
+ * this file, the five `test/contract/_lifecycle/cli-*.contract.test.ts` still
+ * spawn it, and `check:entry-scope`'s `package-scripts` source still counts ten
+ * declared programs. A design that re-pointed the script at a package path would
+ * take that source to 5/5 — a 50 % fall against a −10 % band — for no gain in
+ * what a client receives.
+ *
+ * **The manifest set is resolved here, first** (R2.2): the resolution reads
+ * `node_modules` and may raise the module-id collision refusal, and exit 65 is
+ * where an operator reads it. That sentence read *"before the ORM is opened"*
+ * until D115-6, and the edit is not cosmetic — under R2.6 there are invocations
+ * in which the ORM is never opened at all, so an ordering stated against it
+ * would name an event that does not happen.
+ *
+ * **This file owns *when* the handles are opened as well as *how*** (R2.6): the
+ * resources are a memoised thunk, reached only from the body's
+ * `orchestratorFor`, so a usage error, an unknown module id and `--dry-run`
+ * answer with no database and no Redis — which is `cli-commands.md` §C-1's own
+ * step order, and which makes exit 64 for misuse unconditional rather than
+ * conditional on a machine whose database is up.
  */
 
-const InstallArgsSchema = z.object({
-  id: z.string().regex(/^_?[a-z][a-z0-9_]*$/),
-  dryRun: z.boolean().default(false),
-  json: z.boolean().default(false),
-});
-
-type InstallArgs = z.infer<typeof InstallArgsSchema>;
-
-function parseArgv(argv: readonly string[]): InstallArgs | { error: string } {
-  const positional: string[] = [];
-  let dryRun = false;
-  let json = false;
-  for (const arg of argv) {
-    if (arg === '--dry-run') dryRun = true;
-    else if (arg === '--json') json = true;
-    else if (arg.startsWith('--')) return { error: `unknown flag: ${arg}` };
-    else positional.push(arg);
-  }
-  if (positional.length === 0) {
-    return { error: 'missing module id' };
-  }
-  if (positional.length > 1) {
-    return { error: `extra positional args: ${positional.slice(1).join(' ')}` };
-  }
-  const result = InstallArgsSchema.safeParse({
-    id: positional[0],
-    dryRun,
-    json,
-  });
-  if (!result.success) {
-    return {
-      error: `invalid argument: ${result.error.issues.map((i) => i.message).join('; ')}`,
-    };
-  }
-  return result.data;
-}
-
 async function main(): Promise<number> {
-  const parsed = parseArgv(process.argv.slice(2));
-  if ('error' in parsed) {
-    process.stderr.write(
-      `usage: module:install <module-id> [--dry-run] [--json]\n` +
-        `error: ${parsed.error}\n`,
-    );
-    return 64;
-  }
-  const args = parsed;
-
-  let registry;
+  let entries;
   try {
     // D-157.6(a) — the **instance-resolved** set: core, this deployment's
-    // overlay modules and every installed Endora module package. This read
+    // overlay modules and every installed Endora module package. It used to be
     // bare-core `REGISTERED_MANIFESTS`, so `module:install <package id>`
     // answered `unknown module` while `/platform/modules`, fed the resolved
     // set, installed the same module. Resolved directly rather than through a
@@ -82,123 +61,45 @@ async function main(): Promise<number> {
     // It also carries the **lifecycle participants** (T036a / D-159): the
     // reconcile that keeps `translation_bundles` and `module_actions` aligned
     // with the manifest set is declared by `_i18n` and `admin_actions` in their
-    // own `manifest.ts` and collected from this registry. It used to arrive as
-    // two services only a composition root could resolve, so this command
-    // installed no bundle and reconciled no palette action at all.
-    registry = buildStaticRegistry(await resolvedManifestEntries());
+    // own `manifest.ts` and collected from this registry.
+    entries = await resolvedManifestEntries();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(`[manifest] ${msg}\n`);
     return 65;
   }
 
-  if (!registry.modules.has(args.id)) {
-    process.stderr.write(
-      `unknown module "${args.id}". known modules: ${[...registry.modules.keys()].sort().join(', ')}\n`,
-    );
-    return 64;
-  }
-
-  if (args.dryRun) {
-    if (args.json) {
-      process.stdout.write(
-        JSON.stringify({
-          id: args.id,
-          dryRun: true,
-          dependencies: registry.modules.get(args.id)!.manifest.dependencies,
-        }) + '\n',
-      );
-    } else {
-      const m = registry.modules.get(args.id)!.manifest;
-      process.stdout.write(
-        `[install] ${args.id} ${m.version} (DRY RUN — no changes applied)\n` +
-          `  dependencies: ${m.dependencies.join(', ') || '(none)'}\n`,
-      );
-    }
-    return 0;
-  }
-
-  const orm = await initOrm();
-  const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
-  const redis = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-    lazyConnect: false,
-  });
-  const em = (): EntityManager => orm.em.fork() as EntityManager;
-  const auditLog = new AuditLogService(em);
-
-  const orchestrator = new ModuleLifecycleOrchestrator({
-    orm,
-    redis,
-    em,
-    auditLog,
-    registry,
-  });
+  // Opened on first use and memoised (R2.6). The body calls this from
+  // `orchestratorFor` and from nowhere else, at the point where the eager
+  // handle used to be read, so a resource failure lands exactly where an
+  // awaited `initOrm()` here used to land.
+  let opened: OperatorResources | undefined;
+  const runtime: OperatorRuntime = {
+    resources: async (): Promise<OperatorResources> => {
+      if (opened) return opened;
+      const orm = await initOrm();
+      const redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
+        maxRetriesPerRequest: null,
+        lazyConnect: false,
+      });
+      opened = { orm, em: (): EntityManager => orm.em.fork() as EntityManager, redis };
+      return opened;
+    },
+    entries,
+    out: (line) => void process.stdout.write(line),
+    err: (line) => void process.stderr.write(line),
+  };
 
   try {
-    const result = await orchestrator.install(args.id);
-    if (args.json) {
-      process.stdout.write(JSON.stringify(result) + '\n');
-    } else if (result.state === 'already-installed') {
-      process.stdout.write(
-        `[install] ${args.id} ${result.version} — already installed (no-op)\n`,
-      );
-    } else {
-      process.stdout.write(
-        `[install] ${args.id} ${result.version}\n` +
-          `  ✓ dependencies satisfied\n` +
-          `  ✓ migrations applied: ${result.appliedMigrations.length === 0 ? '(none)' : result.appliedMigrations.join(', ')}\n` +
-          `  ✓ settings reconciled: +${result.settings.addedGroups} groups, +${result.settings.addedSettings} settings (~${result.settings.updatedGroups + result.settings.updatedSettings} updated)\n` +
-          `  ✓ install hook completed (${result.hookDurationMs} ms)\n` +
-          `  ✓ registry updated: state=installed\n` +
-          `done in ${result.totalDurationMs} ms\n`,
-      );
-    }
-    return 0;
-  } catch (err) {
-    return mapError(err, args.json);
+    return await runInstallCommand(process.argv.slice(2), runtime);
   } finally {
-    redis.disconnect();
-    await closeOrm();
-  }
-}
-
-function mapError(err: unknown, asJson: boolean): number {
-  if (err instanceof LifecycleError) {
-    const payload = {
-      error: err.kind,
-      message: err.message,
-      ...err.details,
-    };
-    if (asJson) {
-      process.stderr.write(JSON.stringify(payload) + '\n');
-    } else {
-      process.stderr.write(`[install] ${err.message}\n`);
-      if (err.kind === 'missing-deps' && Array.isArray(err.details['missing'])) {
-        process.stderr.write(
-          `hint: run \`module:install\` for ${(err.details['missing'] as string[]).join(', ')} first\n`,
-        );
-      }
-    }
-    switch (err.kind) {
-      case 'unknown-module':
-      case 'wrong-state':
-        return 64;
-      case 'manifest-cycle':
-        return 65;
-      case 'missing-deps':
-      case 'dependents-block':
-        return 66;
-      case 'install-failed':
-      case 'uninstall-failed':
-        return 70;
-      case 'lock-busy':
-        return 75;
+    // Close only what was opened: an invocation that answered out of argv or
+    // the registry alone has nothing to close.
+    if (opened) {
+      opened.redis.disconnect();
+      await closeOrm();
     }
   }
-  const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-  process.stderr.write(`[internal] ${msg}\n`);
-  return 70;
 }
 
 void enterSystemScope('cli: install a module', main, { entryPoint: 'cli' }).then((code) => {

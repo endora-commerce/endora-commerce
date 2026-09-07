@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/mod-payment-methods",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "description": "Payment method definitions and per-channel availability.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "payment_methods"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/payment_methods"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -30,7 +38,8 @@
   },
   "files": [
     "dist",
-    "i18n"
+    "i18n",
+    "docs"
   ],
   "engines": {
     "node": ">=22.17.0"
@@ -38,7 +47,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -51,6 +61,20 @@
     "lucide-react": "^1",
     "react": "^19",
     "react-router-dom": "^7"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -65,6 +89,7 @@
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
     "react-router-dom": "^7.14.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.4"
   }
 }

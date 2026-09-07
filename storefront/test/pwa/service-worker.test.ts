@@ -11,8 +11,7 @@ import { describe, expect, it } from 'vitest';
  * regresses the offline behaviour fails CI.
  */
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const SW_PATH = resolve(__dirname, '../../public/service-worker.js');
+const SW_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../../public/service-worker.js');
 const swSource = readFileSync(SW_PATH, 'utf-8');
 
 describe('service-worker.js — caching contract', () => {

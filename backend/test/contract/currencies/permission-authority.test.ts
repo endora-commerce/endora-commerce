@@ -25,8 +25,8 @@ import { SALES_REPRESENTATIVE_PERMISSIONS } from '../../../src/seeds/seeded-role
  * because it shares a screen with them: the admin currency screen is
  * `dictionaries`' `DictionaryPage`, and it calls
  * `/api/v1/admin/dictionary/currencies/*`, a different route set gated on
- * `dictionary.write`. Nothing in this repository — no admin screen, no
- * `@endora-commerce/api-client` method, no seed, no script — calls the four
+ * `dictionary.write`. Nothing in this repository — no admin screen, no admin
+ * API client call, no seed, no script — calls the four
  * routes this file is about. And the currency **half** of `languages`' i18n
  * surface is not gone: `GET /api/v1/i18n/config` still answers with both
  * catalogues, which is composition of a public read rather than ownership of a

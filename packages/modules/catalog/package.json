@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/mod-catalog",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "description": "Products, variants, categories, attributes, attribute sets, gallery, attachments, links, and bundles.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "catalog"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/catalog"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -22,21 +30,28 @@
       "types": "./dist/migrations/index.d.ts",
       "default": "./dist/migrations/index.js"
     },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "default": "./dist/admin/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
-    "i18n"
+    "i18n",
+    "docs"
   ],
   "engines": {
     "node": ">=22.17.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json",
-    "lint": "eslint src"
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
+    "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/mod-custom-fields": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
@@ -46,9 +61,27 @@
     "bullmq": "^5",
     "fastify": "^5",
     "ioredis": "^5",
+    "lucide-react": "^1",
+    "react": "^19",
+    "react-router-dom": "^7",
     "zod": "^4"
   },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/mod-custom-fields": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
@@ -56,10 +89,15 @@
     "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",
     "@types/node": "^22.9.0",
+    "@types/react": "^19.2.14",
     "bullmq": "^5.76.1",
     "fastify": "^5.8.5",
     "ioredis": "^5.10.1",
+    "lucide-react": "^1.11.0",
+    "react": "^19.2.5",
+    "react-router-dom": "^7.14.2",
     "typescript": "^5.9.3",
+    "vitest": "^2.1.4",
     "zod": "^4.2.0"
   }
 }

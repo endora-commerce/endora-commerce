@@ -31,7 +31,12 @@
  *
  * ## What it refuses
  *
- * Eight findings, each a way the flow goes quiet rather than red. Every one is
+ * The findings below, each a way the flow goes quiet rather than red. This line
+ * read *"Eight findings"* against a list that already held eleven, and the two
+ * were never going to be corrected together — a count of a derived fact,
+ * written down (D-100), in the header of the check whose whole population is
+ * derived. `ReleaseIntentFindingKind` is the list, and it is the one that
+ * cannot go stale. Every finding is
  * derived from the tree on every run — the workspace globs, the manifests, the
  * changeset files — because a rule of the form "these four names are the
  * applications" is a derived fact written down (D-100), and the 67-package
@@ -40,13 +45,37 @@
  *
  *   * `version-disabled` — a versionable member is `"private": true` while
  *     `privatePackages.version` is not `true`. The measurement above.
- *   * `publishable-package` — a versionable member that is not `"private": true`
- *     (D-160.5: everything stays private through Wave 4). Publication is its own
- *     merge request, and this is what makes the tag question land in it: see
- *     *Tags* below.
- *   * `tag-without-publication` — `privatePackages.tag` is not `false` while
- *     every versionable member is private. A per-package tag that nothing
- *     resolves is a derived fact written into a ref.
+ *   * `unpublished-package` — a versionable member that **is**
+ *     `"private": true`. The third spelling of one question, and the direction
+ *     the question now has a subject in — see *The publication set* below.
+ *   * `incomplete-public-package` — a public versionable member that declares
+ *     no `repository` or no `publishConfig.access`. Fitness to be published,
+ *     which is the question `publishable-package` was standing in for.
+ *   * `unlicensed-package` — a public versionable member that declares no
+ *     `license`. D-203's amendment deferred this to *"the merge request that
+ *     makes a package public on npmjs"*; the owner's ruling of 2026-09-06 is
+ *     that one — open core `MIT`, a paid package `SEE LICENSE IN LICENSE.md`,
+ *     the split by **package**, entitlement contractual. Its own kind rather
+ *     than a third field on `incomplete-public-package`, because the remedy is
+ *     a decision rather than a value and because one number over three fields
+ *     cannot say which of them is missing.
+ *   * `unresolvable-license-file` — a member whose licence is the
+ *     `SEE LICENSE IN <file>` form while that file is not in the package
+ *     directory. The only licence value that makes a second claim, and the only
+ *     part of the vocabulary this check judges: an SPDX identifier list is a
+ *     derived fact written down (D-100) that moves without this repository.
+ *   * `restricted-public-package` — a public versionable member whose effective
+ *     access resolves to `restricted`. On npmjs a scoped package is private by
+ *     default and a private package needs a paid account, so this is a publish
+ *     that fails or a package that is quietly unreachable; GitLab ignores
+ *     `--access` entirely, so the rehearsal exercises no access decision and
+ *     the value has to be judged statically (feature 104, FR-012).
+ *   * `unresolvable-scope` — a public versionable member whose scope the
+ *     configured registry cannot serve (feature 104, FR-013). See *The scope*
+ *     below: the failure is **silent**, which is why it is a static finding
+ *     rather than something a failing install would reveal.
+ *   * `tag-policy-unstated` — the total replacement of
+ *     `tag-without-publication`. See *Tags* below.
  *   * `ignored-family-member` — an `ignore` pattern matching a package that a
  *     *family* workspace glob produced. This is the 67-package failure mode:
  *     `ignore` is glob-matched against package **names**, so one entry reading
@@ -122,20 +151,106 @@
  * That is the failing-safe direction: a versionable package demands a changeset,
  * and an ignored one demands nothing.
  *
- * ## Tags
+ * ## The publication set — and why it stopped being a closure
  *
- * There are none, and the two findings above are the enforcement of that answer
- * rather than a restatement of it. While every package is private, a git tag
- * naming a package version anchors nothing a reader cannot re-derive from the
- * commit that wrote the `version` field — D-100's shape, written into a ref that
- * every clone then fetches. What would make a tag *anchor* something is
- * publication: a tag is how you assert that this exact tree is what a registry
- * serves under that version, which git history alone cannot say about a
- * registry. So `privatePackages.tag` stays `false` and flips in the same merge
- * request that flips `private` — and `publishable-package` is what makes those
- * two edits arrive together instead of a year apart.
+ * This question has had three subjects, and each one was retired by the ruling
+ * that made its answer constant.
  *
- * ## Exit 2 — six ways it refuses to report on what it did not read
+ * `publishable-package` refused **every** public versionable member, which is
+ * what forced the first publication to be a merge request (D-160.5). D-203
+ * published four, so the predicate fired four times on a correct tree, forever.
+ *
+ * `unexpected-public-package` replaced it with *may this package be public*,
+ * answered by the transitive closure, over `dependencies` and
+ * `peerDependencies`, of what a client obtains directly: the reference
+ * storefront's dependencies, and every versionable member declaring a `bin`
+ * (feature 104, FR-001; D-208's second root).
+ *
+ * **The owner's publication ruling of 2026-09-05 retires that one too, and the
+ * arithmetic is the argument.** Every `@endora-commerce` package publishes,
+ * because a deployment builds its own instance (D-208) and an instance takes the
+ * platform, the admin kit and all 70 module packages as dependencies while
+ * holding a copy of none. Measured on this tree, the honest closure — the two
+ * roots above, plus the module packages an instance composes, read off the
+ * `endora.type` each package declares about itself — reaches **78 of the 79**
+ * versionable members. The 79th is `@endora-commerce/test-kit`, which
+ * `specs/109-backend-test-kit/` FR-001 independently requires to be published
+ * ("A published package MUST exist that composes a backend server for a test")
+ * and which **no** closure can reach: a test kit is a `devDependency` by
+ * construction, and excluding `devDependencies` is load-bearing — the one
+ * package that dev-depends on five siblings a consumer installs none of is
+ * `page-builder-admin`.
+ *
+ * A derivation that answers *all of them but one, and the one is mandated
+ * elsewhere* discriminates nothing. It is an expensive way to compute the whole
+ * set, with a hand-written exception waiting to be added to it — which is this
+ * estate's own retiring condition for a predicate that has outgrown its
+ * population: narrow it, never add the entry.
+ *
+ * So the population is now every versionable member, and the question inverts
+ * to the direction that has a subject: **`unpublished-package`**, a versionable
+ * member that is `"private": true`.
+ *
+ * That is not the old rule with its sign flipped for tidiness. It is a
+ * strictly better finding, because it guards a hazard the old one could not see
+ * and the generator's own default used to produce. `pnpm pack` rewrites a
+ * `workspace:*` range to the sibling's **exact** version, so one package left
+ * behind is every dependent's packed manifest pinning `0.7.0` of something the
+ * registry never receives — `ERR_PNPM_NO_MATCHING_VERSION` at the first
+ * consumer's install, from a `changeset publish` that reported success. Nothing
+ * else in the flow says so: `changeset publish` skips a private package in
+ * silence, which is the same silence `version-disabled` is about, one field
+ * over.
+ *
+ * The escape is unchanged and symmetric. A package that genuinely must not
+ * publish declares `private` and this check goes red, so *not* publishing
+ * something is its own decision made in a merge request that says so — exactly
+ * as publishing something used to be.
+ *
+ * ## The scope, and the failure that is silent
+ *
+ * `contracts/registry-and-scope.md` R2: GitLab's instance-level npm endpoint
+ * resolves a scoped package by turning its **scope** into a top-level namespace
+ * path (`lib/api/npm_instance_packages.rb` —
+ * `Namespace.top_level.by_path(::Packages::Npm.scope_of(name))`). A scope that
+ * resolves to no such namespace is **not an error**: the request is forwarded to
+ * `registry.npmjs.org` (`npm_package_requests_forwarding`, default on) and the
+ * client is told the package is not in the npm registry. Measured — 302, to
+ * npmjs, for `@endora-commerce/contracts` before the group existed.
+ *
+ * So the scope is judged here, statically, because no install will report it:
+ * a public package must be **scoped**, its scope must be spellable as a GitLab
+ * top-level namespace path, and every public package must share **one** scope —
+ * the client holds one `.npmrc` line naming one scope (R3), so a second scope is
+ * a package that silently forwards to a registry that does not have it.
+ *
+ * ## Tags — and why the old rule went quiet through its own repair
+ *
+ * `tag-without-publication` asked its question under
+ * `privateVersionable.length === versionable.length`. The first public package
+ * makes that condition false, so the finding stops firing **in both
+ * directions** — and nothing else in the repository holds `privatePackages.tag`.
+ * That is this estate's own failure, a check that quietly stops asking,
+ * arriving through the repair (feature 104, FR-011).
+ *
+ * `tag-policy-unstated` is therefore **total**: there is no tree, and no value
+ * of that field, for which no rule applies.
+ *
+ *   * **While any versionable package is private**, `tag` must be exactly
+ *     `false`. `changeset publish` would otherwise write one ref per private
+ *     package per release, naming a version no registry serves — a fact derived
+ *     from the commit that wrote it (D-100), written into a ref every clone
+ *     fetches. This is the old rule, with its guard widened from *every* to
+ *     *any*, which is the direction that keeps it alive in the mixed state.
+ *   * **Once no versionable package is private**, the field governs nothing —
+ *     `getUntaggedPrivatePackages` is where changesets consults it, and a public
+ *     package is git-tagged regardless of it (`@changesets/cli@3.0.1`,
+ *     `dist/git-tag.mjs`). An absent field is then the `@changesets/config@4`
+ *     default rather than anybody's decision, so it must be **explicitly
+ *     present and boolean**: a reader has to be able to tell a policy from a
+ *     silence.
+ *
+ * ## Exit 2 — eight ways it refuses to report on what it did not read
  *
  * A missing or unparseable `.changeset/config.json`; a `pnpm-workspace.yaml`
  * that yields no globs (`workspace-packages.ts` is a block-sequence reader, so a
@@ -146,6 +261,14 @@
  * in a grammar richer than `*` and `?`, since micromatch has one and this file
  * does not, and a pattern it cannot read must not be reported as matching
  * nothing; and a `.changeset/` directory this check could not list.
+ *
+ * Feature 104 added two more, and the owner's ruling of 2026-09-05 retires
+ * them with the closure they guarded: a checkout with no reference storefront,
+ * or with two, made *which packages may be public* undecidable. The population
+ * is now every versionable member, which the glob refusal above already covers
+ * — a workspace that produced no member, and a non-negated glob that produced
+ * none, are the two ways this check can stop seeing packages, and neither the
+ * storefront nor its dependency graph is consulted any more.
  *
  * `--since` adds four of its own, for the same reason: a versionable package
  * with no readable `tsconfig.build.json`, a build configuration with no
@@ -175,7 +298,26 @@
  * which is a measured verdict, while an empty diff from a real fork point is a
  * measurement that came back empty and stays exit 2.
  *
+ * ## A third mode that reports no verdict — `--print-publish-scope`
+ *
+ * `publish:packages` needs the npm scope *before* it publishes: it writes one
+ * `.npmrc` line per scope and pnpm reads that line to find the registry and the
+ * credential. The job derived it itself, with a `readdir('packages')` one level
+ * deep, and `packages/modules` — a directory with no `package.json` — threw into
+ * a `catch` that swallowed it, hiding 70 module packages. That is the
+ * `build:packages` single-star problem in a second place, and it is exactly the
+ * second copy of a derived answer D-100 forbids: this check already classifies
+ * every workspace member as versionable-or-not and public-or-not, and already
+ * holds the public ones to a single scope (`unresolvable-scope`, 2e). So the job
+ * asks the same program the same question instead of keeping its own answer, and
+ * {@link publishScope} is that question.
+ *
+ * It prints the scope on **stdout** and everything else on stderr, and it is a
+ * derivation rather than a judgement: no read-size line, no findings, and exit 2
+ * for every way the scope cannot be resolved.
+ *
  * Usage: `tsx scripts/check-release-intent.ts [--root <dir>] [--since <ref>]`
+ *        `tsx scripts/check-release-intent.ts --print-publish-scope`
  * Exit 0 = the flow can still go red; 1 = a finding; 2 = it did not read.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
@@ -208,6 +350,31 @@ export interface ClassifiedMember {
   readonly family: boolean;
   /** The workspace entries that matched it, for the message. */
   readonly globs: readonly string[];
+  /**
+   * Whether the manifest declares a `repository` — a string, or an object with
+   * a `url`. npm publishes without one; what is lost is the path from the
+   * package page back to the code, and provenance, which npm's own
+   * documentation makes conditional on it.
+   */
+  readonly repository: boolean;
+  /** `publishConfig.access`, verbatim, or `null` when it declares none. */
+  readonly access: string | null;
+  /**
+   * The SPDX expression the manifest declares, trimmed, or `null` when it
+   * declares none or declares an empty one. The two are one state on purpose:
+   * npm treats `""` exactly as it treats an absent field, and a package whose
+   * licence is a blank string has said nothing about its terms while looking as
+   * though it has.
+   */
+  readonly license: string | null;
+  /**
+   * For a `SEE LICENSE IN <file>` licence, whether that file is in the package
+   * directory. `null` when the licence is not of that form and there is nothing
+   * to resolve — never `false`, which would read as "the file is missing".
+   */
+  readonly licenseFileFound: boolean | null;
+  /** The path {@link licenseFileFound} answered about, for the message. */
+  readonly licenseFile: string | null;
 }
 
 /** One `<name>: <bump>` line in the front matter of a `.changeset/*.md`. */
@@ -231,8 +398,13 @@ export interface ReleaseIntentInputs {
 
 export type ReleaseIntentFindingKind =
   | 'version-disabled'
-  | 'publishable-package'
-  | 'tag-without-publication'
+  | 'unpublished-package'
+  | 'incomplete-public-package'
+  | 'unlicensed-package'
+  | 'unresolvable-license-file'
+  | 'restricted-public-package'
+  | 'unresolvable-scope'
+  | 'tag-policy-unstated'
   | 'ignored-family-member'
   | 'unignored-application'
   | 'stale-ignore-entry'
@@ -337,6 +509,59 @@ export function parseChangeset(file: string, source: string): readonly Changeset
   return releases;
 }
 
+/** Whether a manifest declares a `repository` — a string, or an object with a `url`. */
+export function declaresRepository(manifest: Readonly<Record<string, unknown>>): boolean {
+  const repository = manifest['repository'];
+  if (typeof repository === 'string') return repository.trim().length > 0;
+  if (typeof repository !== 'object' || repository === null || Array.isArray(repository)) {
+    return false;
+  }
+  const url = (repository as Record<string, unknown>)['url'];
+  return typeof url === 'string' && url.trim().length > 0;
+}
+
+/**
+ * npm's `SEE LICENSE IN <filename>` form, which is the SPDX spelling for a
+ * licence that is not one of the standard identifiers.
+ *
+ * It is the whole of what this check understands about the *vocabulary* of a
+ * licence, and deliberately so: judging the rest would mean carrying the SPDX
+ * identifier list, which is a derived fact written down (D-100) and one that
+ * moves without this repository. What the form buys is the one licence value
+ * that makes a **second** claim — that a file exists — and a claim about a file
+ * is a claim a check can settle.
+ */
+const SEE_LICENSE_IN = /^SEE LICENSE IN\s+(\S.*)$/;
+
+/** The trimmed `license` a manifest declares, or `null` for absent or empty. */
+export function declaredLicense(
+  manifest: Readonly<Record<string, unknown>>,
+): string | null {
+  const license = manifest['license'];
+  if (typeof license !== 'string') return null;
+  const trimmed = license.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+/** The file a `SEE LICENSE IN <file>` licence names, or `null` for any other form. */
+export function licenseFileNamedBy(license: string | null): string | null {
+  if (license === null) return null;
+  const match = SEE_LICENSE_IN.exec(license);
+  return match === null ? null : match[1]!.trim();
+}
+
+/** `publishConfig.access` as the manifest writes it, or `null`. */
+export function publishConfigAccess(
+  manifest: Readonly<Record<string, unknown>>,
+): string | null {
+  const publishConfig = manifest['publishConfig'];
+  if (typeof publishConfig !== 'object' || publishConfig === null || Array.isArray(publishConfig)) {
+    return null;
+  }
+  const access = (publishConfig as Record<string, unknown>)['access'];
+  return typeof access === 'string' ? access : null;
+}
+
 /**
  * Read the whole release-intent configuration off a checkout.
  *
@@ -383,13 +608,32 @@ export function readReleaseIntent(
     return { reason: 'the workspace globs matched no package at all' };
   }
 
-  const classified: ClassifiedMember[] = members.map((member) => ({
-    name: member.name,
-    dir: member.dir.startsWith(repoRoot) ? member.dir.slice(repoRoot.length + 1) : member.dir,
-    isPrivate: member.manifest['private'] === true,
-    family: member.family,
-    globs: member.globs,
-  }));
+  // The licence files this run opened, added to `files` below. Zero on a tree
+  // where every package takes an SPDX identifier, which is where this estate
+  // stands: the probe happens only for the `SEE LICENSE IN` form, so it is a
+  // count that moves when a paid package arrives and not before.
+  let licenseFilesRead = 0;
+  const classified: ClassifiedMember[] = members.map((member) => {
+    const license = declaredLicense(member.manifest);
+    const licenseFile = licenseFileNamedBy(license);
+    let licenseFileFound: boolean | null = null;
+    if (licenseFile !== null) {
+      licenseFileFound = fs.readText(join(member.dir, licenseFile)) !== null;
+      licenseFilesRead += 1;
+    }
+    return {
+      name: member.name,
+      dir: member.dir.startsWith(repoRoot) ? member.dir.slice(repoRoot.length + 1) : member.dir,
+      isPrivate: member.manifest['private'] === true,
+      family: member.family,
+      globs: member.globs,
+      repository: declaresRepository(member.manifest),
+      access: publishConfigAccess(member.manifest),
+      license,
+      licenseFileFound,
+      licenseFile,
+    };
+  });
 
   const changesetDir = join(repoRoot, '.changeset');
   const entries = listChangesets(changesetDir);
@@ -426,8 +670,192 @@ export function readReleaseIntent(
     // the next merge request to add one failed, while a release consuming them
     // would have dropped it under the −10% floor in the same week. Measured on
     // `a059e56e`: 51 with them, 17 without.
-    files: 2 + members.length,
+    //
+    // The licence files are counted, and they are not the changesets' shape:
+    // one is opened per member declaring a `SEE LICENSE IN` licence, which
+    // follows the tree rather than the release cycle, and today there are none.
+    files: 2 + members.length + licenseFilesRead,
   };
+}
+
+/**
+ * GitLab's top-level reserved routes, the ones a package scope could plausibly
+ * be. From `lib/gitlab/path_regex.rb` (`TOP_LEVEL_ROUTES`), which is GitLab's
+ * own constant and not a fact about this repository — a namespace cannot be
+ * created at any of these paths, so a scope spelling one can never resolve.
+ *
+ * It is deliberately not the whole list: the entries omitted are ones no scope
+ * would be, and a missing entry fails in the direction the tree is in already —
+ * the silent forward this finding exists to describe — rather than as a false
+ * red on a legitimate scope.
+ */
+const GITLAB_RESERVED_PATHS: ReadonlySet<string> = new Set([
+  'admin',
+  'api',
+  'assets',
+  'dashboard',
+  'explore',
+  'files',
+  'groups',
+  'health_check',
+  'help',
+  'import',
+  'jwt',
+  'login',
+  'oauth',
+  'profile',
+  'projects',
+  'public',
+  'robots.txt',
+  's',
+  'search',
+  'sitemap',
+  'snippets',
+  'unsubscribes',
+  'uploads',
+  'users',
+  'v2',
+]);
+
+/** The scope of a package name — `@fx/alpha` → `fx` — or `null` when unscoped. */
+export function scopeOf(name: string): string | null {
+  const match = /^@([^/]+)\//.exec(name);
+  return match === null ? null : match[1]!;
+}
+
+/**
+ * The one scope `publish:packages` writes an `.npmrc` line for, or why it
+ * cannot be derived.
+ *
+ * A record rather than a string, because a job that cannot resolve the scope
+ * must say which of the four ways it failed: no member at all, nothing public,
+ * a public package with no scope to authenticate for, and more than one scope.
+ */
+export interface PublishScope {
+  /** The scope, without its `@` — `endora-commerce` — or `null` on a refusal. */
+  readonly scope: string | null;
+  /** The public versionable package names, sorted. Populated on a refusal too. */
+  readonly packages: readonly string[];
+  /** Why no scope was resolved. Empty exactly when {@link scope} is not `null`. */
+  readonly refusal: string;
+}
+
+/**
+ * The scope of the packages this checkout would publish (feature 104).
+ *
+ * `publish:packages` writes one `.npmrc` line per scope and pnpm needs it before
+ * `changeset publish` runs, so the job has to know the scope *before* the
+ * publish rather than after. It derived it by walking `packages` one level deep
+ * — which is the `build:packages` single-star problem arriving a second time
+ * through a `readdir`: `packages/modules` carries no `package.json`, the read
+ * threw, the `catch` swallowed it, and every module package under it was
+ * invisible. Measured on the tree that repaired it: 9 directories walked, one of
+ * them the parent of **70** members the derivation never saw. Nothing was wrong
+ * yet only because those 70 are private; the first public one would have been
+ * published under a scope the job never authenticated for, or not published at
+ * all, while the job reported success.
+ *
+ * So the population is the **workspace members** — `pnpm-workspace.yaml` is
+ * already the one authority for which directories are packages, and it already
+ * enumerates `packages/*` and `packages/modules/*`. Nothing here names a
+ * directory, and a third workspace entry changes the answer by being written in
+ * that file and by nothing else (D-100).
+ *
+ * The predicate is *family and not private* — versionable, and public — which is
+ * the set `changeset publish` will actually publish. `family` is
+ * `lib/workspace-packages.ts`' classification rather than the `ignore` list, and
+ * the two cannot silently disagree: `ignored-family-member` and
+ * `unignored-application` are the findings this check reconciles them with.
+ */
+export function publishScope(members: readonly ClassifiedMember[]): PublishScope {
+  if (members.length === 0) {
+    return {
+      scope: null,
+      packages: [],
+      refusal:
+        'the workspace declares no member at all, so there is no manifest to read a scope off. ' +
+        'A flow-style `packages:` list in `pnpm-workspace.yaml` reads as no entry ' +
+        '(`lib/workspace-packages.ts`), and an empty population would leave the publish running ' +
+        'against whatever registry the client `.npmrc` already names',
+    };
+  }
+
+  const publishable = members
+    .filter((member) => member.family && !member.isPrivate)
+    .map((member) => member.name)
+    .sort();
+  if (publishable.length === 0) {
+    return {
+      scope: null,
+      packages: [],
+      refusal:
+        `no versionable package is public among the ${String(members.length)} workspace ` +
+        'members, so this branch would publish nothing. `changeset publish` exits 0 on an ' +
+        'empty plan, which is byte-identical to a successful publish',
+    };
+  }
+
+  const unscoped = publishable.filter((name) => scopeOf(name) === null);
+  if (unscoped.length > 0) {
+    return {
+      scope: null,
+      packages: publishable,
+      refusal:
+        `${unscoped.join(', ')} is public and unscoped, so there is no scope for an \`.npmrc\` ` +
+        'line to name and no namespace path for the endpoint to resolve. Skipping it would ' +
+        'publish it to whatever the client default registry is — the `unresolvable-scope` ' +
+        'finding this check already reports, arriving here as a refusal rather than a silence',
+    };
+  }
+
+  const scopes = [...new Set(publishable.map((name) => scopeOf(name)!))].sort();
+  if (scopes.length !== 1) {
+    return {
+      scope: null,
+      packages: publishable,
+      refusal:
+        `the public packages carry ${String(scopes.length)} scopes ` +
+        `(${scopes.map((scope) => `@${scope}`).join(', ')}). One \`.npmrc\` line covers one ` +
+        'scope, so every scope after the first resolves through the default registry, which ' +
+        'serves none of them (`contracts/registry-and-scope.md` R3)',
+    };
+  }
+
+  return { scope: scopes[0]!, packages: publishable, refusal: '' };
+}
+
+/**
+ * Why a GitLab instance-level npm endpoint cannot serve this package, or `null`.
+ *
+ * A sentence rather than a boolean, because the three ways it fails have
+ * nothing in common for the reader: no scope at all, a scope that is not a legal
+ * namespace path, and a scope at a path GitLab reserves for itself.
+ */
+export function unservableScope(name: string): string | null {
+  const scope = scopeOf(name);
+  if (scope === null) {
+    return (
+      'is unscoped, so there is no scope for the endpoint to turn into a namespace path — ' +
+      '`Packages::Npm.scope_of` answers nothing and the lookup never happens.'
+    );
+  }
+  if (!/^[a-z0-9_](?:[a-z0-9._-]*[a-z0-9_-])?$/.test(scope)) {
+    return (
+      `is scoped \`@${scope}\`, which is not spellable as a GitLab namespace path (a path ` +
+      'starts with a letter, a digit or `_`, carries only letters, digits, `_`, `-` and `.`, ' +
+      'and does not end in a dot).'
+    );
+  }
+  if (/\.(?:git|atom)$/.test(scope)) {
+    return `is scoped \`@${scope}\`, and GitLab reserves the \`.git\` and \`.atom\` suffixes.`;
+  }
+  if (GITLAB_RESERVED_PATHS.has(scope)) {
+    return (
+      `is scoped \`@${scope}\`, which is one of GitLab's reserved top-level routes ` +
+      '(`lib/gitlab/path_regex.rb`), so no namespace can exist at that path.'
+    );
+  }
+  return null;
 }
 
 // --- analysis --------------------------------------------------------------
@@ -466,29 +894,189 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
     });
   }
 
-  // 2 — D-160.5, and the merge request the tag decision belongs in.
-  for (const member of versionable.filter((candidate) => !candidate.isPrivate)) {
+  // 2 — publication, and whether each public package is fit for it (feature 104).
+  const publicVersionable = versionable.filter((member) => !member.isPrivate);
+  const configAccess = typeof inputs.config['access'] === 'string' ? inputs.config['access'] : null;
+
+  // 2a — the ruling of 2026-09-05, in the direction that now has a subject.
+  // `changeset publish` skips a private package in silence, and `pnpm pack`
+  // has already rewritten every sibling's `workspace:*` to its exact version,
+  // so one package left behind is every dependent pinning a version the
+  // registry never receives.
+  for (const member of versionable.filter((candidate) => candidate.isPrivate)) {
     findings.push({
-      kind: 'publishable-package',
+      kind: 'unpublished-package',
       subject: member.name,
       message:
-        `(${member.dir}) is not \`"private": true\`. D-160.5 keeps every package private ` +
-        'through Wave 4; publication is its own merge request, and it is the one that has to ' +
-        'decide the registry, the credential and whether a per-package tag now anchors ' +
-        'something. Make that decision there, and change this check in the same commit.',
+        `(${member.dir}) is \`"private": true\`, so \`changeset publish\` skips it without a ` +
+        "word. Every `@endora-commerce` package publishes (D-208, and the owner's publication " +
+        'ruling of 2026-09-05): a deployment builds its own instance, and an instance takes the ' +
+        'platform, the admin kit and every module package as a dependency while holding a copy ' +
+        "of none. `pnpm pack` rewrites a `workspace:*` range to the sibling's exact version, so " +
+        "a package left behind is every dependent's packed manifest pinning a version the " +
+        "registry does not have — `ERR_PNPM_NO_MATCHING_VERSION` at the first consumer's " +
+        'install, from a publish that reported success. Not publishing something is its own ' +
+        'decision — so make it in a merge request that says so, and change this check in the ' +
+        'same commit.',
     });
   }
 
-  // 3 — a tag nobody resolves.
-  if (privateVersionable.length === versionable.length && settings['tag'] !== false) {
+  for (const member of publicVersionable) {
+    // 2b — fitness. What a published package owes a consumer, and what npm's
+    // own provenance prerequisite needs.
+    const missing: string[] = [];
+    if (!member.repository) missing.push('`repository`');
+    if (member.access === null) missing.push('`publishConfig.access`');
+    if (missing.length > 0) {
+      findings.push({
+        kind: 'incomplete-public-package',
+        subject: member.name,
+        message:
+          `(${member.dir}) is public and declares no ${missing.join(' and no ')}. ` +
+          '`repository` is what gives a consumer a path from the package page back to the ' +
+          'code, and npm makes provenance conditional on it; `publishConfig.access` is a ' +
+          'property of the package rather than of where it happens to be published, and it ' +
+          'is the value that decides whether a scoped package lands public or private.',
+      });
+    }
+
+    // 2b-i — the licence, which used to sit inside 2b's list as a comment
+    // explaining why it was not judged: *"the owner deferred the licence to the
+    // merge request that makes a package public on npmjs (D-203, amended
+    // 2026-09-04)"*. This is that merge request. The owner's ruling of
+    // 2026-09-06 settles the model — the open core is `MIT`, a paid package
+    // carries `SEE LICENSE IN LICENSE.md`, the split is by **package**, and
+    // entitlement is contractual rather than a registry gate — which is what
+    // gives the question an answer a check can hold a package to.
+    //
+    // **It is a kind of its own rather than a third entry in 2b's `missing`
+    // list**, and the reason is the remedy rather than the field. `repository`
+    // and `publishConfig.access` have one correct value each and a generator
+    // writes them; a licence is a *decision*, and the finding has to be able to
+    // say which of the two the owner's model offers and where the default comes
+    // from. Folded into 2b it would also be invisible as a count — one number
+    // over three fields cannot say that seventy-nine packages are unlicensed
+    // and none is missing a repository.
+    //
+    // **No ledger, deliberately**: every finding here is one field in one file,
+    // and an entry could only license publishing a package whose terms nobody
+    // stated — which is the state this rule exists to end.
+    if (member.license === null) {
+      findings.push({
+        kind: 'unlicensed-package',
+        subject: member.name,
+        message:
+          `(${member.dir}) is public and declares no \`license\`. npm publishes it anyway and ` +
+          'the package page reads "no license", which for a consumer — and for every licence ' +
+          "scanner in their pipeline — is not a permissive default but an absence of terms. " +
+          "The owner's ruling of 2026-09-06: the open core is `MIT`, a paid package is " +
+          '`SEE LICENSE IN LICENSE.md`. A **module package** takes the workspace root\'s ' +
+          '`license` from `manifests:generate` and overrides it by exporting `packageLicense` ' +
+          'from its own `src/manifest.ts`, so the repair there is to regenerate rather than to ' +
+          'edit this file; every other package declares the field itself.',
+      });
+    }
+
+    // 2b-ii — and the one licence value that makes a second claim. `SEE LICENSE
+    // IN <file>` is SPDX's spelling for terms that are not a standard
+    // identifier, and it names a file: without that file the manifest points a
+    // consumer at nothing, and the package is *less* informative than one
+    // carrying no licence at all, because it looks answered.
+    //
+    // Only the form is judged, never the vocabulary — an SPDX identifier list
+    // is a derived fact written down (D-100) that moves without this
+    // repository, and `UNLICENSED` is a legitimate npm value this check has no
+    // business refusing. npm always packs a `LICENSE*` file whatever `files`
+    // says, so existence on disk is the whole question.
+    if (member.licenseFileFound === false) {
+      findings.push({
+        kind: 'unresolvable-license-file',
+        subject: member.name,
+        message:
+          `(${member.dir}) declares \`"license": "${member.license ?? ''}"\` and ` +
+          `\`${member.licenseFile ?? ''}\` is not in the package directory. The consumer is ` +
+          'pointed at terms that do not exist, which is worse than declaring none — a scanner ' +
+          'reads the field as answered and a human finds nothing to read. Add the file beside ' +
+          "the package's `package.json`; npm packs a `LICENSE*` file whether or not `files` " +
+          'names it.',
+      });
+    }
+
+    // 2c — the access decision the rehearsal cannot exercise. GitLab ignores
+    // `--access` and takes visibility from the project, so nothing about a
+    // private-registry publish would reveal this before the first public one.
+    const effectiveAccess = member.access ?? configAccess ?? 'restricted';
+    if (effectiveAccess === 'restricted') {
+      findings.push({
+        kind: 'restricted-public-package',
+        subject: member.name,
+        message:
+          `(${member.dir}) resolves \`access\` to \`restricted\` ` +
+          `(${member.access !== null ? 'its own `publishConfig.access`' : configAccess !== null ? '`.changeset/config.json`' : "the changesets default, since neither the package nor `.changeset/config.json` states one"}). ` +
+          'On npmjs a scoped package is private by default and a private package requires a ' +
+          'paid account, so this publishes to nobody or fails outright. GitLab ignores ' +
+          '`--access` entirely, which is why the rehearsal cannot discover it and this check ' +
+          'has to (feature 104, FR-012).',
+      });
+    }
+
+    // 2d — a scope the registry cannot serve. Silent, by R2.1: the request is
+    // forwarded to npmjs and the client is told the package does not exist.
+    const problem = unservableScope(member.name);
+    if (problem !== null) {
+      findings.push({
+        kind: 'unresolvable-scope',
+        subject: member.name,
+        message:
+          `(${member.dir}) ${problem} GitLab's instance-level npm endpoint resolves a package ` +
+          'by turning its scope into a top-level namespace path, and a scope that resolves to ' +
+          'none is **not** an error: the request is forwarded to `registry.npmjs.org` and the ' +
+          'client is told the package is not in the npm registry ' +
+          '(`contracts/registry-and-scope.md` R2/R2.1, measured).',
+      });
+    }
+  }
+
+  // 2e — one client `.npmrc`, one scope (R3). A second scope resolves through
+  // whatever the client's default registry is, which is the same silence.
+  const scopes = [...new Set(publicVersionable.map((member) => scopeOf(member.name)))].sort();
+  if (scopes.length > 1) {
     findings.push({
-      kind: 'tag-without-publication',
+      kind: 'unresolvable-scope',
+      subject: scopes.map((scope) => scope ?? '(unscoped)').join(', '),
+      message:
+        'are the scopes the public packages are published under. A consumer holds one `.npmrc` ' +
+        'line per scope (`contracts/registry-and-scope.md` R3) and the scaffolded storefront ' +
+        'writes one, so every scope after the first resolves through the client\'s default ' +
+        'registry instead — which serves none of them and says so as "not in the npm registry".',
+    });
+  }
+
+  // 3 — the tag policy, total in both states. The old rule asked only while
+  // *every* versionable package was private, so the first public one made it
+  // stop firing in either direction and nothing then held the field at all.
+  if (privateVersionable.length > 0 && settings['tag'] !== false) {
+    findings.push({
+      kind: 'tag-policy-unstated',
       subject: 'privatePackages.tag',
       message:
-        `is ${JSON.stringify(settings['tag'] ?? null)} while every versionable package is ` +
-        'private. `changeset tag` would then write one ref per package per release, naming a ' +
-        'version no registry serves — a fact derived from the commit that wrote it (D-100), ' +
-        'written into a ref every clone fetches. Set it to `false` until something publishes.',
+        `is ${JSON.stringify(settings['tag'] ?? null)} while ${privateVersionable.length} ` +
+        'versionable package(s) are private. `changeset tag` would then write one ref per ' +
+        'private package per release, naming a version no registry serves — a fact derived ' +
+        'from the commit that wrote it (D-100), written into a ref every clone fetches. Set ' +
+        'it to `false`; a public package is git-tagged regardless of this field.',
+    });
+  }
+  if (privateVersionable.length === 0 && typeof settings['tag'] !== 'boolean') {
+    findings.push({
+      kind: 'tag-policy-unstated',
+      subject: 'privatePackages.tag',
+      message:
+        'is not stated, and no versionable package is private any more. The field then governs ' +
+        'nothing — `changeset publish` tags a public package whatever it says — so its absence ' +
+        'is the `@changesets/config@4` default rather than a decision, and a reader cannot ' +
+        'tell the policy from the silence. Write it, `true` or `false`, in the merge request ' +
+        'that made the last package public.',
     });
   }
 
@@ -593,10 +1181,29 @@ export function checkReleaseIntent(
     };
   }
 
+  // Feature 104's two refusals went with the closure they guarded (the ruling
+  // of 2026-09-05): with the population every versionable member, no reference
+  // storefront is consulted and there is nothing about it left to be
+  // undecidable. What replaced them is the glob floor above — the two ways this
+  // check can stop seeing packages at all.
+  const publicVersionable = inputs.members.filter((member) => member.family && !member.isPrivate);
+
   const ignorePatterns = stringList(inputs.config['ignore']);
   // One per decision taken inside the files read: each member classified, each
   // ignore pattern resolved, each group member looked up, plus the two
-  // `privatePackages` settings.
+  // `privatePackages` settings. Feature 104 added four per public versionable
+  // member; the ruling of 2026-09-05 splits them, because the publication
+  // decision is no longer asked only of the public ones. It is asked of **every
+  // versionable member** — does this package publish — and the three fitness
+  // decisions (is it complete, what does its access resolve to, can the
+  // registry serve its scope) stay per public member, with one more for the
+  // scope agreement across the set, which is a decision about the set rather
+  // than about a member. The licensing ruling of 2026-09-06 makes them **four**
+  // per public member: is this package licensed, and — for the one licence form
+  // that names a file — is that file there. The two are one decision per member
+  // because the second is only reachable through the first, and counting the
+  // file probe separately would make this number oscillate with how many paid
+  // packages the estate happens to hold.
   //
   // **The changeset reconciliations are decisions and are deliberately not
   // counted here**, for the reason given at `files` above: their number follows
@@ -604,7 +1211,13 @@ export function checkReleaseIntent(
   // quantity jams in both directions. They are printed beside this as
   // `changesets=`, which is where a reader should look for how many there were.
   const sites =
-    inputs.members.length + ignorePatterns.length + groupMembers(inputs.config).length + 2;
+    inputs.members.length +
+    ignorePatterns.length +
+    groupMembers(inputs.config).length +
+    2 +
+    inputs.members.filter((member) => member.family).length +
+    publicVersionable.length * 4 +
+    (publicVersionable.length > 0 ? 1 : 0);
   const globs = [...inputs.globCoverage.keys()];
   // The independent derivation: `pnpm-workspace.yaml` says how many entries
   // should produce a member, and the manifests on disk say how many did. Move
@@ -1046,6 +1659,40 @@ function readBranchDiff(repoRoot: string, since: string): BranchDiff | ReleaseIn
   };
 }
 
+/**
+ * The `--print-publish-scope` half of the CLI. Returns the process exit code.
+ *
+ * **Stdout carries the scope and nothing else**, spelled as `.npmrc` spells it
+ * — `@endora-commerce`, leading `@` included — because `publish:packages`
+ * captures it in a command substitution and writes it straight into a
+ * `<scope>:registry=` line.
+ * The disclosure of what was read goes to stderr for the same reason, and the
+ * read-size line — which `reportReadSize` prints on stdout — is deliberately not
+ * printed here: this mode reports no verdict, and the check's ordinary mode is
+ * what `check-read-size.test.ts` spawns.
+ */
+function reportPublishScope(repoRoot: string): number {
+  const inputs = readReleaseIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles);
+  if ('reason' in inputs) {
+    console.error(`${PREFIX} ${inputs.reason}; refusing to name a scope it did not derive.`);
+    return 2;
+  }
+
+  const resolved = publishScope(inputs.members);
+  if (resolved.scope === null) {
+    console.error(`${PREFIX} --print-publish-scope: ${resolved.refusal}.`);
+    return 2;
+  }
+
+  console.error(
+    `${PREFIX} --print-publish-scope: @${resolved.scope} ` +
+      `(${String(resolved.packages.length)} public of ${String(inputs.members.length)} ` +
+      `workspace members: ${resolved.packages.join(', ')})`,
+  );
+  console.log(`@${resolved.scope}`);
+  return 0;
+}
+
 /** The `--since` half of the CLI. Returns the process exit code. */
 function reportPublishedSurface(repoRoot: string, since: string): number {
   const diff = readBranchDiff(repoRoot, since);
@@ -1099,6 +1746,15 @@ function main(): void {
     rootFlag >= 0 && process.argv[rootFlag + 1] !== undefined
       ? process.argv[rootFlag + 1]!
       : fileURLToPath(new URL('../../', import.meta.url)).replace(/\/$/, '');
+
+  if (process.argv.includes('--print-publish-scope')) {
+    const code = reportPublishScope(repoRoot);
+    // Not `process.exit(0)`: this mode's stdout is read through a pipe, and
+    // exiting while a pipe write is still buffered truncates it. A refusal has
+    // nothing on stdout to lose.
+    if (code !== 0) process.exit(code);
+    return;
+  }
 
   const sinceFlag = process.argv.indexOf('--since');
   if (sinceFlag >= 0) {

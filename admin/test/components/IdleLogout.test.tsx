@@ -7,7 +7,7 @@ import { act, render } from '@testing-library/react';
  */
 
 const logoutSpy = vi.fn();
-vi.mock('@/lib/auth', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
   useAuth: (): { status: string; logout: () => void } => ({
     status: 'authenticated',
     logout: logoutSpy,
@@ -19,15 +19,15 @@ vi.mock('@/lib/auth', () => ({
 // is `apiClient`, and the URL it is called with is the behavioural twin of the
 // source-level assertions in `test/modules/p6-client-exits.test.ts`.
 const getSpy = vi.fn();
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+vi.mock('../../../packages/admin-shell/src/lib/api-client', async () => {
+  const actual = await vi.importActual<typeof import('../../../packages/admin-shell/src/lib/api-client')>('../../../packages/admin-shell/src/lib/api-client');
   return {
     ...actual,
     apiClient: { ...actual.apiClient, get: (...args: unknown[]) => getSpy(...args) },
   };
 });
 
-const { IdleLogout } = await import('../../src/components/IdleLogout');
+const { IdleLogout } = await import('../../../packages/admin-shell/src/components/IdleLogout');
 
 async function flushMicrotasks(): Promise<void> {
   await act(async () => {

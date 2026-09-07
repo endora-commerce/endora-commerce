@@ -10,7 +10,7 @@ import type {
   FeedRunTrigger,
 } from '@endora-commerce/contracts';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
-import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { rethrowIfModuleDisabled, SalesChannel } from '@endora-commerce/platform/kernel';
 import { FeedRun } from '../entities/feed-run.entity.js';
 import { FeedArtefact } from '../entities/feed-artefact.entity.js';
 import { FeedTemplate } from '../entities/feed-template.entity.js';
@@ -381,6 +381,17 @@ export class FeedGenerationService {
         // Deliberately swallowed: an unreachable Redis must not turn a published
         // run into a failed one. The operator sees a feed with no delivery
         // attempt, which is the truth.
+        //
+        // **And that includes a presence answer**, which is the one place in
+        // this module where absorbing one is the right call rather than the
+        // lazy one. On a deployment with no queue this delivers inline, so
+        // `credentials` being switched off arrives here as
+        // `ModuleDisabledError` — but the artefact is published and the run is
+        // finished four lines above, so re-throwing would report a failure for
+        // work that succeeded. It is the argument the `webhooks` ledger entry
+        // makes about a delivery already attempted, and the outcome is the same
+        // as it was before `deliver()` learned to re-throw: nothing sent, no
+        // attempt row, a published feed.
         await this.deps
           .deliverArtefact?.({ feedId, runId, artefactId })
           .catch(() => undefined);
@@ -412,6 +423,22 @@ export class FeedGenerationService {
       }
       return unpublished;
     } catch (err) {
+      // Composition checklist item 7, and the first line rather than a sixth
+      // `instanceof` branch below: `ModuleDisabledError` is an `HttpError`, so
+      // a classification arm would swallow it by accident.
+      //
+      // The run body reaches four modules an operator can switch off — most
+      // sharply `inventory`, through `resolveAvailability` in the hydration
+      // batch. Classifying that as `internal_error` reports a defect in this
+      // module for a capability the operator withdrew, and the next scheduled
+      // tick reports it again. There is no honest failure code for it either:
+      // the run did not fail, the platform declined to assemble it.
+      //
+      // The claimed run row is left `running` on purpose. Writing a terminal
+      // status first would put the presence answer behind a database write, and
+      // `FeedRunReaperService` already owns exactly this case — a `running` run
+      // whose heartbeat stopped.
+      rethrowIfModuleDisabled(err);
       if (err instanceof ChannelUnavailableError) {
         failureCode = 'channel_unavailable';
         failureDetail = err.message;

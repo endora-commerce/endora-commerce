@@ -42,7 +42,7 @@ import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifest
  * consumers against the shared Redis, so the `worker` role's own boot hooks
  * (`pim_ergonode`, `product_feeds`, both guarded on `runWorkers`) are not
  * covered here. Role-independence of the module list stays with
- * `test/integration/kernel/worker-compose.test.ts`, which asserts list parity
+ * `test/unit/kernel/worker-compose.test.ts`, which asserts list parity
  * only — it does not boot the worker role either.
  */
 
@@ -120,6 +120,33 @@ describe('the production composition root boots', () => {
     // `buildServer`, and `_i18n`'s destructures a gated port. D-38b's awilix
     // lifetime assertion is upstream of this line, in `composeApp()`.
     expect(app).toBeDefined();
+  });
+
+  it('resolves actor promotion from the container, which is the only caller there is', () => {
+    // `specs/117-instance-bring-up/` FR-030. The production root used to call
+    // `promoteAdminActor` as an imported function and now reads a container
+    // name, inside the actor bridge it contributes to `mfa` — a **production
+    // only** closure, because the harness resolves an admin actor from its own
+    // `request.testActor`. So nothing else in this suite would notice the name
+    // being wrong: a missing registration is `undefined` at a call site no test
+    // reaches, and the first person to find out is an operator whose admin
+    // session rides alongside a customer one.
+    //
+    // Asserted against the **composed** container rather than against `auth`'s
+    // `registerModule` over a stub, for the reason this whole file exists: every
+    // ingredient can be individually correct and the sequence still wrong.
+    const promote = composition!.container.cradle['promoteAdminActor'] as (
+      request: unknown,
+    ) => void;
+    expect(typeof promote).toBe('function');
+
+    // And it promotes. The shape is the plugin's two decorations, which is all
+    // the function reads: an admin candidate resolved from the admin cookie,
+    // beside an ambient actor that is not an admin.
+    const adminActor = { kind: 'admin', adminUserId: 'a1', session: {} };
+    const request = { actor: { kind: 'anonymous' }, adminActor };
+    promote(request);
+    expect(request.actor).toBe(adminActor);
   });
 
   it('answers a request, which is what "the backend started" means', async () => {

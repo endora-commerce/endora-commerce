@@ -10,7 +10,7 @@ import type { SettingsService } from '../../../src/kernel/settings/settings.serv
 import { NewsletterCampaign, NewsletterSendRecord, NewsletterSubscriber, NewsletterSubscriberTag, NewsletterSuppression, NewsletterTag } from '../../helpers/package-entities.js';
 
 function textTree(text: string): Record<string, unknown> {
-  return { root: { props: {} }, content: [{ type: 'EmailText', props: { id: 't', text } }], zones: {} };
+  return { root: { props: {} }, content: [{ type: 'transactional_emails.EmailText', props: { id: 't', text } }], zones: {} };
 }
 
 describe('newsletter campaign dispatch (US2)', () => {

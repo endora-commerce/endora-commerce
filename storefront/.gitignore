@@ -3,3 +3,9 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+
+# `conformance:storefront`'s fixture manifest — written by
+# `backend/scripts/conformance/seed-storefront-fixtures.ts` on every run,
+# naming the slugs that run's seeded platform produced. Committing it would be
+# committing one run's database.
+test/conformance/fixtures.json

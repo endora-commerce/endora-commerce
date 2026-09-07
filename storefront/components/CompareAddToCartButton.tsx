@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { publicApiBaseUrl } from '../lib/env.mjs';
 
 /**
  * `<CompareAddToCartButton>` — feature 007 / US3 / T046.
@@ -17,8 +18,7 @@ import { useState, type ReactNode } from 'react';
  * this button.
  */
 
-const apiBase =
-  process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
+const apiBase = publicApiBaseUrl();
 
 export function CompareAddToCartButton(props: {
   productId: string;

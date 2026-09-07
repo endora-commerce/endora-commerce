@@ -38,7 +38,7 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   };
 });
 
-const { OrderDetail } = await import('../../../src/modules/orders/OrderDetail');
+const { OrderDetail } = await import('../../../../packages/modules/orders/src/admin/pages/OrderDetail');
 
 const CORE_EN = JSON.parse(
   readFileSync(resolve(process.cwd(), '../packages/modules/_i18n/i18n/en.json'), 'utf8'),

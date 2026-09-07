@@ -196,14 +196,17 @@ export function makeStartTaxonomyCheckCommand(args: {
   providerCode: TaxonomyProviderCode;
   /** Pre-generated so the audit row is addressable by the check it created. */
   checkId: string;
-  open: () => Promise<{ id: string }>;
+  /** Named for the call it makes: a bare `open` is too generic for a
+   * port-carrying closure, and `check:port-catches` read every `.open(` in
+   * this module as a call through it. */
+  openCheck: () => Promise<{ id: string }>;
 }): Command<StartTaxonomyCheckResult> {
   return {
     action: 'product_feeds.taxonomy_check.start',
     objectType: 'product_feed_taxonomy_check',
     objectId: args.checkId,
     run: async () => {
-      const check = await args.open();
+      const check = await args.openCheck();
       return {
         result: {
           checkId: check.id,

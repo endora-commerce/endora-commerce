@@ -1019,6 +1019,10 @@ describe('check-diacritic-folds — the exit codes', () => {
     // reporting, and it would have been 0 before this signal existed.
     const repo = fixtureRepository({ ledgered: true });
     repo.write(
+      // A **fixture** path, not a claim about the tree: this is the file the
+      // wrapper stood in until feature 091's P5b deleted it, and what the proof
+      // is about is the *shape*, which is why the path is written here rather
+      // than derived.
       'admin/src/modules/cms/components/cms-template-layout.ts',
       'export const codeFromTemplateName = (name: string): string =>\n' +
         "  name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n",
@@ -1081,7 +1085,18 @@ describe('check-diacritic-folds — the exit codes', () => {
       "import { normalize } from '@/lib/text-normalization';\nexport const n = normalize;\n",
     );
     repo.write(
-      'admin/src/modules/cms/components/cms-template-layout.ts',
+      // Feature 091, P5b — the CMS/e-mail template `code` prefill. It was
+    // `cms-template-layout`'s `codeFromTemplateName`, a one-line wrapper over
+    // this call with `maxLength: 180`;
+    // `admin-component-contribution.md` Z1.2 deletes the wrapper with the move,
+    // because `PageBuilderHeaderActions` — its only caller — went into
+    // `@endora-commerce/page-builder-admin`, which cannot name `@/modules/cms`.
+    // Re-keyed rather than dropped: the *call* is what issue #245 repaired and
+    // it is still here, at the same cut, under a new address. This list is a
+    // ledger **about** the files it names rather than one of them, so the merge
+    // request that moves a caller is structurally the one that cannot see the
+    // entry go stale — and this one did, which is why it is corrected here.
+    'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx',
       "import { slugify } from '@endora-commerce/contracts';\n" +
         'export const codeFromTemplateName = (name: string): string =>\n' +
         "  slugify(name, { maxLength: 80 });\n",
@@ -1146,14 +1161,29 @@ describe('check-diacritic-folds — the tree it guards', () => {
   // Two of them changed address in feature 091's Phase 1b — the admin's design
   // system moved into `@endora-commerce/admin-kit` — so the specifier they hold
   // is now the package's own relative one rather than the application's `@/`
-  // alias. The pairing is the point: a path and the specifier that path is
-  // expected to write, so a file that moved and stopped importing is still a
-  // failure rather than a lookup that silently found nothing.
+  // alias, and a third changed address again in that feature's batch 16, when
+  // `cms` took its admin surface into its package. The pairing is the point: a
+  // path and the specifier that path is expected to write, so a file that moved
+  // and stopped importing is still a failure rather than a lookup that silently
+  // found nothing — and it is why this list, like `slugGenerators` below, is
+  // re-keyed by the batch that moves a file rather than left to go stale in the
+  // one after it.
+  //
+  // The fourth address change is feature 110's T120: the admin shell became
+  // `@endora-commerce/admin-shell`, so `AppShell.tsx` writes the shim it always
+  // wrote as a relative specifier inside its own package rather than through
+  // the application's `@/` alias, which a package cannot resolve.
   const repaired: readonly (readonly [string, string])[] = [
-    ['admin/src/components/AppShell.tsx', "from '@/lib/text-normalization'"],
+    [
+      'packages/admin-shell/src/components/AppShell.tsx',
+      "from '../lib/text-normalization.js'",
+    ],
     ['packages/admin-kit/src/ui/combobox.tsx', "from '../lib/text-normalization.js'"],
     ['packages/admin-kit/src/ui/multi-select.tsx', "from '../lib/text-normalization.js'"],
-    ['admin/src/modules/cms/components/PageBuilderDrawer.tsx', "from '@/lib/text-normalization'"],
+    [
+      'packages/modules/cms/src/admin/components/PageBuilderDrawer.tsx',
+      "from '@endora-commerce/admin-kit/lib'",
+    ],
   ];
 
   it.each(repaired)('%s imports the shared fold instead of writing its own', (path, specifier) => {
@@ -1195,11 +1225,36 @@ describe('check-diacritic-folds — the tree it guards', () => {
     'packages/modules/product_feeds/src/backend/services/feed-template-io.service.ts',
     'packages/modules/pim_ergonode/src/backend/services/import/category-phase.ts',
     'packages/modules/catalog/src/backend/services/catalog-admin.service.ts',
-    'admin/src/modules/newsletter/pages/TagsPage.tsx',
-    'admin/src/modules/cms/components/cms-template-layout.ts',
-    'admin/src/modules/cms/editors/BlockEditor.tsx',
-    'admin/src/modules/cms/editors/PageEditor.tsx',
-    'admin/src/modules/blog/pages/BlogPostEditor.tsx',
+    // Feature 091, Phase 4 batch 11 — re-keyed, not dropped: `newsletter` took
+    // its admin surface into its package and this screen went with it. The
+    // slug it builds is the tag/field code an operator addresses a tag by, and
+    // the fold is issue #239's repair; a batch that moved the file and left
+    // this key would have read as *"the site stopped slugifying"*, which is the
+    // one claim this list exists to make.
+    'packages/modules/newsletter/src/admin/pages/TagsPage.tsx',
+    // Feature 091, P5b — the CMS/e-mail template `code` prefill. It was
+    // `cms-template-layout`'s `codeFromTemplateName`, a one-line wrapper over
+    // this call with `maxLength: 180`;
+    // `admin-component-contribution.md` Z1.2 deletes the wrapper with the move,
+    // because `PageBuilderHeaderActions` — its only caller — went into
+    // `@endora-commerce/page-builder-admin`, which cannot name `@/modules/cms`.
+    // Re-keyed rather than dropped: the *call* is what issue #245 repaired and
+    // it is still here, at the same cut, under a new address. This list is a
+    // ledger **about** the files it names rather than one of them, so the merge
+    // request that moves a caller is structurally the one that cannot see the
+    // entry go stale — and this one did, which is why it is corrected here.
+    'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx',
+    // Feature 091, Phase 4 batch 16 — re-keyed, not dropped, exactly as the two
+    // entries above were: `cms` and `blog` took their admin surfaces into their
+    // packages and these three editors went with them. The calls are unchanged
+    // and are still at the same cut (180, 180 and 160). This list is a ledger
+    // **about** the files it names rather than one of them, so the batch that
+    // moves them is structurally the one that cannot see the entries go stale;
+    // a key left behind would read as *"this site stopped slugifying"*, which is
+    // the only claim the list makes.
+    'packages/modules/cms/src/admin/editors/BlockEditor.tsx',
+    'packages/modules/cms/src/admin/editors/PageEditor.tsx',
+    'packages/modules/blog/src/admin/pages/BlogPostEditor.tsx',
     // Feature 091, Phase 4, the plan's batch 7 — the file is
     // `@endora-commerce/mod-product-feeds`' admin layer now. This list is a
     // ledger *about* the files it names rather than one of them, so the batch

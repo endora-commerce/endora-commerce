@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/platform",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "endora": {
     "type": "platform"
   },
-  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7).",
+  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). Three further subpaths are host-internal and no module may name any of them (D-160.14): ./composition, the host composition surface; ./migrations, the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5); and ./lifecycle, the operator surface that drives the platform presence axis (specs/115-lifecycle-container-move/, D115-4).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/platform"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     "./kernel": {
       "types": "./dist/kernel/index.d.ts",
@@ -28,6 +36,22 @@
     "./events": {
       "types": "./dist/events/index.d.ts",
       "default": "./dist/events/index.js"
+    },
+    "./composition": {
+      "types": "./dist/composition/index.d.ts",
+      "default": "./dist/composition/index.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/index.d.ts",
+      "default": "./dist/migrations/index.js"
+    },
+    "./lifecycle": {
+      "types": "./dist/lifecycle/index.d.ts",
+      "default": "./dist/lifecycle/index.js"
+    },
+    "./env": {
+      "types": "./dist/env/index.d.ts",
+      "default": "./dist/env/index.js"
     },
     "./package.json": "./package.json"
   },

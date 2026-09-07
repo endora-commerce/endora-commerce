@@ -2,7 +2,7 @@
 // (feature 014).
 
 import type { ComponentConfig, Config } from '@measured/puck';
-import { definePageBuilderComponent, withHideOn } from '@endora-commerce/page-builder-core';
+import { definePageBuilderComponent, ownerOf, withHideOn } from '@endora-commerce/page-builder-core';
 import { Accordion } from './components/Accordion.js';
 import { AnnouncementBar } from './components/AnnouncementBar.js';
 import { Button } from './components/Button.js';
@@ -95,66 +95,27 @@ export * from './schema/component-types.js';
 export * from './schema/catalog-types.js';
 export * from './utils/walk-asset-ids.js';
 
+/**
+ * The CMS renderer map — **the React half only**, keyed by namespaced block name
+ * (feature 096, T301; `contracts/block-definition.md` §4.3).
+ *
+ * **The `categories` block is gone and nothing in this package replaces it.**
+ * A section is declared by the module whose blocks occupy it and is served,
+ * merged across the present modules, by
+ * `GET /api/v1/admin/cms/page-builder/config` — so a module contributing a
+ * block into a section no longer has to edit a map in a package it does not
+ * own, which is FR-009 and the shape feature 091 removed from the admin. The
+ * eight CMS sections it listed are `cms`' `blockCategories`, and the five
+ * Catalog entries are `catalog`'s.
+ *
+ * `defaultExpanded` went with it and no schema field replaces it (D-11).
+ * Measured on Puck `0.20.2`: `ComponentList` reads `{ expanded = true }`, so
+ * `defaultExpanded: true` — which is what all four sections wrote — is
+ * indistinguishable from omitting the field. Deleting it is behaviour-preserving.
+ */
 export const defaultPageBuilderConfig: Config = {
-  categories: {
-    layout: {
-      title: 'Layout',
-      components: ['Row', 'Spacer'],
-      defaultExpanded: true,
-    },
-    content: {
-      title: 'Content',
-      components: [
-        'Heading',
-        'Text',
-        'RichContent',
-        'Button',
-        'Image',
-        'Icons',
-        'Social',
-        'FeatureList',
-        'Hero',
-        'LogoStrip',
-        'Testimonial',
-        'Stats',
-        'AnnouncementBar',
-        'SimpleTable',
-      ],
-      defaultExpanded: true,
-    },
-    media: {
-      title: 'Media',
-      components: ['Video', 'Map'],
-    },
-    catalog: {
-      title: 'Catalog',
-      components: ['ProductCard', 'ProductGrid', 'ProductSlider', 'CategoryList', 'CategoryGrid'],
-    },
-    interactive: {
-      title: 'Interactive',
-      components: ['ContentSlider', 'ImageSlider', 'Tabs', 'Accordion'],
-    },
-    /** Hidden drawer category — keeps internal slot-only components out of "Other". */
-    _internal: {
-      title: 'Internal',
-      components: ['Column', 'Slide'],
-      visible: false,
-    },
-    forms: {
-      title: 'Forms',
-      components: ['NewsletterSignup', 'ContactFormEmbed'],
-    },
-    advanced: {
-      title: 'Advanced',
-      components: ['RawHtml', 'RawJs'],
-    },
-    embeds: {
-      title: 'Embeds',
-      components: ['InsertBlock'],
-    },
-  },
   components: {
-    Row: definePageBuilderComponent({
+    'cms.Row': definePageBuilderComponent({
       ...(Row as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: [
@@ -170,170 +131,170 @@ export const defaultPageBuilderConfig: Config = {
         'border',
       ],
     }),
-    Column: definePageBuilderComponent({
+    'cms.Column': definePageBuilderComponent({
       ...(Column as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['span', 'margin', 'padding', 'border'],
     }),
-    Text: definePageBuilderComponent({
+    'cms.Text': definePageBuilderComponent({
       ...(Text as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['fontSize', 'fontWeight', 'textAlign', 'lineHeight', 'margin', 'padding', 'border'],
     }),
-    RichContent: definePageBuilderComponent({
+    'cms.RichContent': definePageBuilderComponent({
       ...(withHideOn(RichContent as unknown as ComponentConfig) as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Heading: definePageBuilderComponent({
+    'cms.Heading': definePageBuilderComponent({
       ...(Heading as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['fontSize', 'fontWeight', 'textAlign', 'lineHeight', 'margin', 'padding', 'border'],
     }),
-    Button: definePageBuilderComponent({
+    'cms.Button': definePageBuilderComponent({
       ...(Button as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['variant', 'margin', 'padding', 'border'],
     }),
-    Image: definePageBuilderComponent({
+    'cms.Image': definePageBuilderComponent({
       ...(Image as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['widthMode', 'widthPx', 'align', 'margin', 'padding', 'border'],
     }),
-    Icons: definePageBuilderComponent({
+    'cms.Icons': definePageBuilderComponent({
       ...(Icons as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['align', 'margin', 'padding', 'border'],
     }),
-    Social: definePageBuilderComponent({
+    'cms.Social': definePageBuilderComponent({
       ...(Social as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['align', 'margin', 'padding', 'border'],
     }),
-    Spacer: definePageBuilderComponent({
+    'cms.Spacer': definePageBuilderComponent({
       ...(Spacer as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['heightPx'],
     }),
-    FeatureList: definePageBuilderComponent({
+    'cms.FeatureList': definePageBuilderComponent({
       ...(FeatureList as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['columns', 'gap', 'margin', 'padding', 'border'],
     }),
-    Hero: definePageBuilderComponent({
+    'cms.Hero': definePageBuilderComponent({
       ...(Hero as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['minHeightPx', 'margin', 'padding', 'border'],
     }),
-    LogoStrip: definePageBuilderComponent({
+    'cms.LogoStrip': definePageBuilderComponent({
       ...(LogoStrip as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Testimonial: definePageBuilderComponent({
+    'cms.Testimonial': definePageBuilderComponent({
       ...(Testimonial as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Stats: definePageBuilderComponent({
+    'cms.Stats': definePageBuilderComponent({
       ...(Stats as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['columns', 'margin', 'padding', 'border'],
     }),
-    AnnouncementBar: definePageBuilderComponent({
+    'cms.AnnouncementBar': definePageBuilderComponent({
       ...(AnnouncementBar as unknown as ComponentConfig),
       contexts: ['cms'],
     }),
-    SimpleTable: definePageBuilderComponent({
+    'cms.SimpleTable': definePageBuilderComponent({
       ...(SimpleTable as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    NewsletterSignup: definePageBuilderComponent({
+    'cms.NewsletterSignup': definePageBuilderComponent({
       ...(NewsletterSignup as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    ContactFormEmbed: definePageBuilderComponent({
+    'cms.ContactFormEmbed': definePageBuilderComponent({
       ...(ContactFormEmbed as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Video: definePageBuilderComponent({
+    'cms.Video': definePageBuilderComponent({
       ...(Video as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['maxWidth', 'align', 'margin', 'padding', 'border'],
     }),
-    Map: definePageBuilderComponent({
+    'cms.Map': definePageBuilderComponent({
       ...(Map as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['height', 'margin', 'padding', 'border'],
     }),
-    ProductCard: definePageBuilderComponent({
+    'catalog.ProductCard': definePageBuilderComponent({
       ...(ProductCard as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['maxWidthPx', 'imageHeightPx', 'margin', 'padding', 'border'],
     }),
-    ProductGrid: definePageBuilderComponent({
+    'catalog.ProductGrid': definePageBuilderComponent({
       ...(ProductGrid as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['columns', 'gap', 'view', 'margin', 'padding', 'border'],
     }),
-    ProductSlider: definePageBuilderComponent({
+    'catalog.ProductSlider': definePageBuilderComponent({
       ...(ProductSlider as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
     }),
-    CategoryList: definePageBuilderComponent({
+    'catalog.CategoryList': definePageBuilderComponent({
       ...(CategoryList as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    CategoryGrid: definePageBuilderComponent({
+    'catalog.CategoryGrid': definePageBuilderComponent({
       ...(CategoryGrid as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['columns', 'gap', 'margin', 'padding', 'border'],
     }),
-    ContentSlider: definePageBuilderComponent({
+    'cms.ContentSlider': definePageBuilderComponent({
       ...(ContentSlider as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
     }),
-    Slide: definePageBuilderComponent({
+    'cms.Slide': definePageBuilderComponent({
       ...(Slide as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    ImageSlider: definePageBuilderComponent({
+    'cms.ImageSlider': definePageBuilderComponent({
       ...(ImageSlider as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
     }),
-    Tabs: definePageBuilderComponent({
+    'cms.Tabs': definePageBuilderComponent({
       ...(Tabs as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    Accordion: definePageBuilderComponent({
+    'cms.Accordion': definePageBuilderComponent({
       ...(Accordion as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    RawHtml: definePageBuilderComponent({
+    'cms.RawHtml': definePageBuilderComponent({
       ...(RawHtml as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    RawJs: definePageBuilderComponent({
+    'cms.RawJs': definePageBuilderComponent({
       ...(RawJs as unknown as ComponentConfig),
       contexts: ['cms'],
       responsiveFields: ['margin', 'padding', 'border'],
     }),
-    InsertBlock: definePageBuilderComponent({
+    'cms.InsertBlock': definePageBuilderComponent({
       ...(withHideOn(InsertBlock as unknown as ComponentConfig) as ComponentConfig),
       contexts: ['cms'],
     }),
-    InsertTemplate: definePageBuilderComponent({
+    'cms.InsertTemplate': definePageBuilderComponent({
       ...(withHideOn(InsertTemplate as unknown as ComponentConfig) as ComponentConfig),
       contexts: ['cms'],
     }),
@@ -342,23 +303,94 @@ export const defaultPageBuilderConfig: Config = {
 
 /**
  * Builds a per-name placeholder ComponentConfig for a Page Builder
- * component that is registered in the SPI descriptor but whose React
- * renderer is missing from this bundle. Used by the admin's editor merge
- * step (T089) and by any storefront renderer that wants the same fallback.
+ * component whose React renderer this bundle does not carry — because the
+ * descriptor declares a block no local renderer answers, because the owning
+ * module is switched off or not installed, or because the name is one the
+ * block-name migration did not recognise and left alone. FR-020 says those are
+ * one path, and this is it.
+ *
+ * `visible` is the surface's answer, not the placeholder's. On an editing
+ * surface an operator has to be told **why** a block vanished, so the
+ * placeholder renders its note; on a customer-facing one it renders an empty
+ * span, which is what `MissingComponentPlaceholder` decides for itself from the
+ * `?cms_admin=1` preview parameter when nothing says otherwise. Passing it
+ * explicitly is what makes the admin case work at all: nothing in this
+ * repository has ever set that query parameter, so every placeholder the editor
+ * merged before feature 096's T602 rendered as nothing — a block that has lost
+ * its module and a block that has been deleted looked identical on the canvas.
  */
 export function makeMissingComponentConfig(
   componentName: string,
   ownerModule: string,
+  options: { readonly visible?: boolean } = {},
 ): ComponentConfig {
+  const forced = options.visible === true ? { isAdminPreview: true } : {};
   return {
     label: `${componentName} (missing renderer)`,
     fields: MissingComponentPlaceholder.fields,
-    defaultProps: { componentName, ownerModule },
+    defaultProps: { componentName, ownerModule, ...forced },
     render: (props) =>
       MissingComponentPlaceholder.render({
         componentName,
         ownerModule,
         ...(props as Record<string, unknown>),
+        ...forced,
       } as never),
   } as ComponentConfig;
+}
+
+/**
+ * The editor's degradation merge — feature 096, T602 (FR-019, FR-020).
+ *
+ * Give every one of `storedNames` that `config` cannot render a visible,
+ * data-preserving placeholder, and change nothing else.
+ *
+ * ## Why the stored document is a source of names at all
+ *
+ * The editor already merged a placeholder for a name the *descriptor* declares
+ * with no local renderer. That population does not contain the case
+ * Constitution XVII produces: a switched-off module's blocks are filtered out
+ * of the descriptor (FR-010), so after a deactivation the name on an operator's
+ * page is in neither the renderer map nor the descriptor and the merge saw it
+ * nowhere. The document is the one place it is still written down — which is
+ * the whole point of namespacing the persisted name in the first place.
+ *
+ * ## It takes names, not the document
+ *
+ * The caller walks the document with `countBlockNames`, which is the one
+ * structural walk this repository has. That is not ceremony: a React caller
+ * needs a **stable** memo key, and the set of names a document carries changes
+ * far less often than the document does — a keystroke inside a text block moves
+ * the document and not the names, and a merge keyed on the document would
+ * rebuild the whole Puck config on every one.
+ *
+ * ## What it deliberately does not do
+ *
+ * It adds **no category entry**. A degraded block must stay visible and
+ * editable where it already is; it is not a block anyone may insert, and the
+ * palette is the surface that answers the second question.
+ *
+ * It does not decide **presence**. Which names this config keys is the caller's
+ * answer, arrived at from the descriptor; this function only says what happens
+ * to a stored name that answer does not cover — which is why one unknown name
+ * behaves identically whatever made it unknown.
+ */
+export function withMissingBlockPlaceholders(
+  config: Config,
+  storedNames: Iterable<string>,
+): Config {
+  const components = (config.components ?? {}) as Record<string, ComponentConfig>;
+  const missing = [...new Set(storedNames)].filter((name) => !(name in components));
+  if (missing.length === 0) return config;
+
+  const merged: Record<string, ComponentConfig> = { ...components };
+  for (const name of missing) {
+    // `ownerOf` answers `null` for a name that states no owner — an
+    // unrecognised one the migration left byte-identical. The placeholder then
+    // names the block and has no module to name, which is the one thing that
+    // differs between FR-020's three causes and is a property of the name
+    // rather than of the path it took.
+    merged[name] = makeMissingComponentConfig(name, ownerOf(name) ?? '', { visible: true });
+  }
+  return { ...config, components: merged } as Config;
 }

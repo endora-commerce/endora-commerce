@@ -10,6 +10,7 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  */
 export const manifest = defineModuleManifest({
   id: 'currencies',
+  docs: { dir: 'docs' },
   name: 'Currencies',
   description:
     'Currency reference data and per-channel currency configuration.',

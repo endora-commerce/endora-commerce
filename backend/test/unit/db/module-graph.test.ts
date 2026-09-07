@@ -46,7 +46,10 @@ function diagnose(
   return orderMigrations({
     entries: PROBE,
     moduleDependencies,
-    baselineThrough: '20260801T000000',
+    // The probe is stamped past the watermark and is nobody's history, so the
+    // frozen prefix is empty and every entry is in the open block — which is
+    // the block a cycle is a diagnostic about.
+    baseline: [],
   }).diagnostics;
 }
 
@@ -162,7 +165,7 @@ describe('module dependency graph — an injected cycle is reported (FR-010)', (
     const emitted = orderMigrations({
       entries: PROBE,
       moduleDependencies: cyclic,
-      baselineThrough: '20260801T000000',
+      baseline: [],
     }).migrations;
 
     expect(emitted.map((migration) => migration.name)).toEqual([PROBE[0]!.cls.name]);

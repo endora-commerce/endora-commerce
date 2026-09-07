@@ -19,6 +19,14 @@ import {
   setMfaRecoveryFlash,
   setMfaSetupCookie,
 } from '../../../lib/session';
+import type { Metadata } from 'next';
+
+/**
+ * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
+ * authenticated or transactional surface, of no use to a crawler and not a
+ * page a search result should ever land a buyer on.
+ */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Storefront account security page (feature 042, US1). Lets a customer enable

@@ -45,6 +45,7 @@ vi.mock('../../../../packages/modules/cms/src/backend/plugin.js', () => ({
       setPageBuilderBreakpointsResolver: () => undefined,
       setColorPaletteResolver: () => undefined,
       setColorPaletteWriter: () => undefined,
+      setReservedSlugSegmentsResolver: () => undefined,
       setAssetResolver: () => undefined,
     },
     plugin: async () => undefined,
@@ -73,6 +74,11 @@ async function composeCms(): Promise<Composed> {
     redis: {} as Redis,
     assetReferenceRegistry,
     languageReferenceRegistry,
+    // The composed manifest set, from which the Page Builder registry takes
+    // every block and category declaration (feature 096, T209). A host value no
+    // module defaults, so it is registered above the compose call like the
+    // other three; empty here because this file's subject is the boot hooks.
+    resolvedModuleRegistry: [],
   });
   const composed = composeModules([{ id: 'cms', version: '1.0.0', registerModule }], {
     container,

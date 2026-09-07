@@ -1,9 +1,17 @@
 {
   "name": "@endora-commerce/page-builder-core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "description": "Shared Page Builder primitives — responsive props, context filtering, and component definition helpers for CMS, email, and invoice builders.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/page-builder-core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -39,6 +47,10 @@
       "types": "./dist/types/responsive.d.ts",
       "default": "./dist/types/responsive.js"
     },
+    "./migration": {
+      "types": "./dist/migration/index.d.ts",
+      "default": "./dist/migration/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "default": "./dist/*.js"
@@ -56,6 +68,9 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@endora-commerce/contracts": "workspace:*"
   },
   "peerDependencies": {
     "@measured/puck": "*",

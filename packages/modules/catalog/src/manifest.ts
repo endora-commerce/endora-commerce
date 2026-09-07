@@ -367,6 +367,7 @@ export const manifest = defineModuleManifest({
     { code: 'VARIANT_COMBINATION_EXISTS' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   actions: [
     {
       id: 'new-product',
@@ -378,6 +379,152 @@ export const manifest = defineModuleManifest({
       keywords: ['product', 'new', 'add', 'create', 'produkt', 'nowy', 'dodaj'],
       weight: 100,
     },
+    // The three below arrive with feature 091's Phase 4 batch 15, by the route
+    // batch 10 established: `AppShell.tsx` carried a hand-written
+    // `PALETTE_ITEMS` row for each of these destinations, and a hand-written
+    // palette row is a copy the server was never asked about — it went on
+    // advertising the screen after an operator withdrew the module. Each is a
+    // manifest action now, which is the surface the effective enabled-set
+    // filters. The destinations, codes and keywords are the rows'; the labels
+    // and descriptions are the six strings they rendered, moved out of
+    // `_i18n`'s bundle into this module's own.
+    {
+      id: 'open-products',
+      labelKey: 'actions.openProducts.label',
+      descriptionKey: 'actions.openProducts.description',
+      icon: 'Package',
+      targetRoute: '/catalog/products',
+      requiredPermission: 'catalog:read',
+      keywords: ['products', 'catalog', 'items', 'produkty', 'katalog'],
+      weight: 200,
+    },
+    {
+      id: 'open-categories',
+      labelKey: 'actions.openCategories.label',
+      descriptionKey: 'actions.openCategories.description',
+      icon: 'Boxes',
+      targetRoute: '/catalog/categories',
+      requiredPermission: 'catalog:read',
+      keywords: ['category', 'categories', 'tree', 'kategorie'],
+      weight: 300,
+    },
+    {
+      id: 'open-attributes',
+      labelKey: 'actions.openAttributes.label',
+      descriptionKey: 'actions.openAttributes.description',
+      icon: 'Tag',
+      targetRoute: '/catalog/attributes',
+      requiredPermission: 'catalog:read',
+      keywords: ['attribute', 'attributes', 'atrybuty'],
+      weight: 400,
+    },
+  ],
+  /**
+   * The eight Page Builder blocks this module owns — five in the CMS palette
+   * and three in the e-mail one (feature 096, §7.1 and §7.2) — and the two
+   * palette sections they sit in.
+   *
+   * `catalog` (CMS) is this module's own section: `cms` hand-writes it today
+   * and owns no block in it. `content` (e-mail) is a **joining** declaration —
+   * `transactional_emails` names that section and its nine blocks populate it,
+   * these three have sat in it since they shipped, and they stay there. It
+   * carries **no `weight` and no `visible`** on purpose: under
+   * `contracts/block-definition.md` §1.1's total order a declaration that
+   * states neither cannot take a presentation its author did not intend, so
+   * `transactional_emails` keeps naming the section while this module is only
+   * asking to be in it. `titleKey` stays required, and is this module's own
+   * key, because the fold runs over the **present** modules: whichever
+   * declaration survives has to be able to title the section on its own.
+   *
+   * The e-mail blocks declare `contexts: ['email']` and not
+   * `['email', 'newsletter']`, which is what `emailComponent` writes into the
+   * Puck config. They keep appearing in the newsletter palette regardless:
+   * `filterConfigByContext` admits an `email` block into the `newsletter`
+   * context by construction, and there is no newsletter section for a category
+   * declaration to name.
+   */
+  blocks: [
+    {
+      name: 'catalog.ProductCard',
+      labelKey: 'blocks.productCard.label',
+      descriptionKey: 'blocks.productCard.description',
+      category: 'catalog',
+      contexts: ['cms'],
+      fields: { productSlug: { type: 'text', label: 'Product slug' } },
+      responsiveFields: ['maxWidthPx', 'imageHeightPx', 'margin', 'padding', 'border'],
+      weight: 10,
+    },
+    {
+      name: 'catalog.ProductGrid',
+      labelKey: 'blocks.productGrid.label',
+      descriptionKey: 'blocks.productGrid.description',
+      category: 'catalog',
+      contexts: ['cms'],
+      fields: {},
+      responsiveFields: ['columns', 'gap', 'view', 'margin', 'padding', 'border'],
+      weight: 20,
+    },
+    {
+      name: 'catalog.ProductSlider',
+      labelKey: 'blocks.productSlider.label',
+      descriptionKey: 'blocks.productSlider.description',
+      category: 'catalog',
+      contexts: ['cms'],
+      fields: {},
+      responsiveFields: ['slidesPerView', 'gap', 'margin', 'padding', 'border'],
+      weight: 30,
+    },
+    {
+      name: 'catalog.CategoryList',
+      labelKey: 'blocks.categoryList.label',
+      descriptionKey: 'blocks.categoryList.description',
+      category: 'catalog',
+      contexts: ['cms'],
+      fields: {},
+      responsiveFields: ['margin', 'padding', 'border'],
+      weight: 40,
+    },
+    {
+      name: 'catalog.CategoryGrid',
+      labelKey: 'blocks.categoryGrid.label',
+      descriptionKey: 'blocks.categoryGrid.description',
+      category: 'catalog',
+      contexts: ['cms'],
+      fields: {},
+      responsiveFields: ['columns', 'gap', 'margin', 'padding', 'border'],
+      weight: 50,
+    },
+    {
+      name: 'catalog.EmailProductCard',
+      labelKey: 'blocks.emailProductCard.label',
+      descriptionKey: 'blocks.emailProductCard.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 70,
+    },
+    {
+      name: 'catalog.EmailProductGrid',
+      labelKey: 'blocks.emailProductGrid.label',
+      descriptionKey: 'blocks.emailProductGrid.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 80,
+    },
+    {
+      name: 'catalog.EmailCategoryGrid',
+      labelKey: 'blocks.emailCategoryGrid.label',
+      descriptionKey: 'blocks.emailCategoryGrid.description',
+      category: 'content',
+      contexts: ['email'],
+      fields: {},
+      weight: 90,
+    },
+  ],
+  blockCategories: [
+    { key: 'catalog', titleKey: 'blocks.category.catalog', contexts: ['cms'], weight: 40 },
+    { key: 'content', titleKey: 'blocks.category.content', contexts: ['email'] },
   ],
 });
 

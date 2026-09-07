@@ -108,6 +108,7 @@ export const manifest = defineModuleManifest({
     { code: 'MEGAMENU_TARGET_OUT_OF_SCOPE' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: 'megamenu.read', label: 'View megamenu configuration' },
     { code: 'megamenu.write', label: 'Edit megamenu configuration' },

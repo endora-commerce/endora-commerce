@@ -11,6 +11,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { FeedDelivery } from '../../entities/feed-delivery.entity.js';
 import { ProductFeed } from '../../entities/product-feed.entity.js';
 import {
@@ -224,7 +225,16 @@ export class DeliveryConfigService {
     if (result.credentialCode) {
       // Tolerated: a credential already gone is the state we wanted. The delete
       // must not fail a configuration removal that has already committed.
-      await this.deps.credentials.delete(result.credentialCode).catch(() => undefined);
+      //
+      // **A presence answer is not that.** With `credentials` off nothing was
+      // deleted, so a decrypted-on-demand secret stays in the store for a
+      // configuration that no longer exists — and a retry cannot reach it,
+      // because the Command above has already taken the row that carries the
+      // code. Reporting success would make that leak unobservable; the 503
+      // names the module and leaves the operator able to act.
+      await this.deps.credentials.delete(result.credentialCode).catch((error: unknown) => {
+        rethrowIfModuleDisabled(error);
+      });
     }
   }
 

@@ -119,7 +119,15 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import ts from 'typescript';
+import {
+  analyzeSource,
+  collectSources,
+  findingKey,
+  isViolation,
+  RELATION_DECORATOR_HINT,
+  type RelationFinding,
+} from '@endora-commerce/cli/rules/kernel-boundary.js';
+
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
 import {
   loadRegisteredModuleIds,
@@ -130,7 +138,7 @@ import {
 import { reportReadSize } from './lib/read-size.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 
-const RELATION_DECORATORS = new Set(['ManyToOne', 'OneToMany', 'OneToOne', 'ManyToMany']);
+export * from '@endora-commerce/cli/rules/kernel-boundary.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 
@@ -156,137 +164,6 @@ export function platformRootOf(file: string, platformRoot: string): PlatformRoot
   return PLATFORM_ROOTS.find((root) => file.startsWith(`${join(platformRoot, root)}/`)) ?? null;
 }
 
-/**
- * Who owns the entity declared in `file`: a module id, `kernel`, or `core` for
- * the entities that predate the module split and live under `src/db`.
- */
-export function ownerOf(file: string): string | null {
-  const moduleMatch = /\/src\/modules\/([^/]+)\//.exec(file);
-  if (moduleMatch) return moduleMatch[1] ?? null;
-  if (file.includes('/src/kernel/')) return 'kernel';
-  if (file.includes('/src/db/')) return 'core';
-  return null;
-}
-
-/** `kernel` and `core` are the parts every deployment has; a module may point at them. */
-function isPlatformOwner(owner: string): boolean {
-  return owner === 'kernel' || owner === 'core';
-}
-
-/**
- * Every `.ts` under `dir` except tests and declaration files.
- *
- * Rule A used to walk `*.entity.ts` only. Nothing enforces that naming — an
- * entity declared in `entities/index.ts`, or a relation added to a class in an
- * ordinary file, was simply not scanned, and a scan that does not look is
- * indistinguishable from one that finds nothing. The file list is now the whole
- * tree and {@link RELATION_DECORATOR_HINT} decides what is worth parsing, so the
- * rule's scope is a property of the code rather than of a filename.
- */
-export function collectSources(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      if (name === 'node_modules' || name === 'dist') continue;
-      collectSources(full, out);
-    } else if (name.endsWith('.ts') && !name.endsWith('.test.ts') && !name.endsWith('.d.ts')) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
-/**
- * A cheap pre-filter: only a file that spells one of the four relation
- * decorators can produce a rule-A finding, and parsing 2 600 files to learn that
- * is wasted work. It over-matches deliberately (a mention in a comment passes
- * it) — {@link analyzeSource} is the parse that decides.
- */
-export const RELATION_DECORATOR_HINT = /@(?:ManyToOne|OneToMany|OneToOne|ManyToMany)\s*[(<]/;
-
-function decoratorName(decorator: ts.Decorator): string | undefined {
-  const expr = decorator.expression;
-  const callee = ts.isCallExpression(expr) ? expr.expression : expr;
-  return ts.isIdentifier(callee) ? callee.text : undefined;
-}
-
-/** Every capitalised identifier appearing anywhere inside the decorator's arguments. */
-function referencedTypeNames(decorator: ts.Decorator): string[] {
-  const expr = decorator.expression;
-  if (!ts.isCallExpression(expr)) return [];
-  const names: string[] = [];
-  const visit = (node: ts.Node): void => {
-    if (ts.isIdentifier(node) && /^[A-Z]/.test(node.text)) names.push(node.text);
-    node.forEachChild(visit);
-  };
-  for (const arg of expr.arguments) visit(arg);
-  return names;
-}
-
-/** Map local import name → the file it was imported from, resolved to a `.ts` path. */
-function importedFrom(sf: ts.SourceFile, file: string): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const statement of sf.statements) {
-    if (!ts.isImportDeclaration(statement)) continue;
-    const spec = statement.moduleSpecifier;
-    if (!ts.isStringLiteral(spec)) continue;
-    if (!spec.text.startsWith('.')) continue;
-    const target = resolve(dirname(file), spec.text.replace(/\.js$/, '.ts'));
-    if (!existsSync(target)) continue;
-    const bindings = statement.importClause?.namedBindings;
-    if (!bindings || !ts.isNamedImports(bindings)) continue;
-    for (const element of bindings.elements) map.set(element.name.text, target);
-  }
-  return map;
-}
-
-export interface RelationFinding {
-  readonly file: string;
-  readonly className: string;
-  readonly property: string;
-  readonly decorator: string;
-  readonly targetName: string;
-  readonly sourceOwner: string;
-  readonly targetOwner: string;
-}
-
-export function analyzeSource(source: string, file: string): RelationFinding[] {
-  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const sourceOwner = ownerOf(file);
-  if (!sourceOwner) return [];
-  const imports = importedFrom(sf, file);
-  const findings: RelationFinding[] = [];
-
-  sf.forEachChild((node) => {
-    if (!ts.isClassDeclaration(node)) return;
-    const className = node.name?.text ?? '<anonymous>';
-    for (const member of node.members) {
-      if (!ts.isPropertyDeclaration(member)) continue;
-      for (const decorator of ts.getDecorators(member) ?? []) {
-        const name = decoratorName(decorator);
-        if (!name || !RELATION_DECORATORS.has(name)) continue;
-        for (const targetName of referencedTypeNames(decorator)) {
-          // A target declared in this very file is same-owner by construction.
-          const targetFile = imports.get(targetName);
-          if (!targetFile) continue;
-          const targetOwner = ownerOf(targetFile);
-          if (!targetOwner) continue;
-          findings.push({
-            file,
-            className,
-            property: member.name.getText(sf),
-            decorator: name,
-            targetName,
-            sourceOwner,
-            targetOwner,
-          });
-        }
-      }
-    }
-  });
-
-  return findings;
-}
 
 /**
  * Relations that exist today and are waiting on a relocation, not on a
@@ -304,18 +181,6 @@ export function analyzeSource(source: string, file: string): RelationFinding[] {
  */
 export const PENDING_RELOCATION: readonly string[] = [];
 
-export function findingKey(finding: RelationFinding): string {
-  return `${finding.sourceOwner}.${finding.className}.${finding.property} -> ${finding.targetOwner}`;
-}
-
-export function isViolation(finding: RelationFinding): boolean {
-  const { sourceOwner, targetOwner } = finding;
-  if (sourceOwner === targetOwner) return false;
-  // A module may point at the platform.
-  if (!isPlatformOwner(sourceOwner) && isPlatformOwner(targetOwner)) return false;
-  // Everything else — module → other module, and platform → module — is out.
-  return true;
-}
 
 export function isPending(finding: RelationFinding): boolean {
   return PENDING_RELOCATION.includes(findingKey(finding));

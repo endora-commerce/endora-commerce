@@ -3,6 +3,7 @@ import type {
   CatalogCategoryReadPort,
   CatalogProductReadPort,
   CmsPageReadPort,
+  SeoMetaWritePort,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -91,6 +92,23 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
   });
+
+  ctx.di.providePort<SeoMetaWritePort>(
+    'seoMetaWritePort',
+    ctx
+      .asFunction(({ seoMetaResolver }: SeoCradle): SeoMetaWritePort => ({
+        async upsertProductMeta(input) {
+          await seoMetaResolver.upsertOverride({
+            entityType: 'product',
+            entityId: input.productId,
+            locale: input.locale,
+            ...(input.title !== undefined ? { title: input.title } : {}),
+            ...(input.description !== undefined ? { description: input.description } : {}),
+          });
+        },
+      }))
+      .singleton(),
+  );
 
   ctx.routes(async (app) => {
     const { seoMetaResolver, seoSitemapService, requireAdmin } = ctx.cradle<SeoCradle>();

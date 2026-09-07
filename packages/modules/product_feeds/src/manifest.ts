@@ -263,6 +263,7 @@ export const manifest = defineModuleManifest({
   // so that merging this changes no deployment's state (FR-012).
   activation: { settingCode: PRODUCT_FEED_SETTING_CODES.ACTIVATION, default: true },
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     {
       code: PRODUCT_FEEDS_READ_PERMISSION,

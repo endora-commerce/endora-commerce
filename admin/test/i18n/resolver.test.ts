@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { resolve } from '../../src/i18n/resolver';
-import type { Bundle } from '../../src/i18n/types';
+import { resolve } from '../../../packages/admin-shell/src/i18n/resolver';
+import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
 
 /**
  * T021 / T051 / FR-013 — admin-side resolver fallback chain.

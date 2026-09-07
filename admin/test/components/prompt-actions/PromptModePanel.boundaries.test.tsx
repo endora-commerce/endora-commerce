@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { ApiError } from '@endora-commerce/api-client';
+import { ApiError } from '../../../../packages/admin-shell/src/lib/api-client';
 
 /**
  * T053 — US3 interaction test: clarification candidate picker + free-text
@@ -14,7 +14,7 @@ import { ApiError } from '@endora-commerce/api-client';
 const submitSpy = vi.fn();
 const clarifySpy = vi.fn();
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'ready', bulkLimit: 500 })),
   submitPrompt: (...a: unknown[]) => submitSpy(...a),
   clarifyPrompt: (...a: unknown[]) => clarifySpy(...(a as [string, unknown])),
@@ -26,7 +26,7 @@ vi.mock('@/lib/prompt-actions/api', () => ({
 }));
 
 const { PromptModePanel } = await import(
-  '../../../src/components/prompt-actions/PromptModePanel'
+  '../../../../packages/admin-shell/src/components/prompt-actions/PromptModePanel'
 );
 
 const BUNDLE = passthroughBundle('prompt_actions', [

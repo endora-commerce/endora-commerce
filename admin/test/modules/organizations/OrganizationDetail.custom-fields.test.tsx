@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * The organization screen still renders its custom fields and still saves them,
@@ -39,37 +40,48 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 // Ten sibling panels, each with a data chain of its own; none is under test.
-vi.mock('@/modules/organizations/panels/FulfilmentStrategyPanel', () => ({
+//
+// **Every spelling is the package's own source, and that is feature 091's
+// batch 14 re-keying them rather than tidying them.** They named the `@/`
+// alias until that batch, and the screen now imports `../panels/….js` and
+// `../components/OrganizationSalesRepsTab.js` from inside
+// `@endora-commerce/mod-organizations`, where that alias resolves to nothing —
+// so the old spellings would have named files that are gone, and vitest
+// answers a mock over a deleted path by making it **inert** rather than by
+// failing. All seven panels would have mounted for real against the stubbed
+// `apiClient`. `tsc` is what found it, by the dynamic import below.
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/FulfilmentStrategyPanel', () => ({
   FulfilmentStrategyPanel: () => null,
 }));
-vi.mock('@/modules/organizations/panels/ModerationActionsPanel', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/ModerationActionsPanel', () => ({
   ModerationActionsPanel: () => null,
 }));
-vi.mock('@/modules/organizations/panels/ApplicablePriceListsPanel', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/ApplicablePriceListsPanel', () => ({
   ApplicablePriceListsPanel: () => null,
 }));
-vi.mock('@/modules/organizations/panels/HierarchyPanel', () => ({ HierarchyPanel: () => null }));
-vi.mock('@/modules/organizations/panels/VatValidationPanel', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/HierarchyPanel', () => ({ HierarchyPanel: () => null }));
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/VatValidationPanel', () => ({
   VatValidationPanel: () => null,
 }));
-vi.mock('@/modules/organizations/panels/RestrictionsPanel', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/panels/RestrictionsPanel', () => ({
   RestrictionsPanel: () => null,
 }));
-vi.mock('@/modules/organizations/OrganizationSalesRepsTab', () => ({
+vi.mock('../../../../packages/modules/organizations/src/admin/components/OrganizationSalesRepsTab', () => ({
   OrganizationSalesRepsTab: () => null,
 }));
-vi.mock('@/modules/quick_order/DefaultPreferencesPanel', () => ({
-  DefaultPreferencesPanel: () => null,
-}));
-vi.mock('@/modules/sales_channels/components/EntityChannelMembership', () => ({
-  EntityChannelMembership: () => null,
-}));
-vi.mock('@/modules/price_lists/DisplayModeOverrideRow', () => ({
-  DisplayModeOverrideRow: () => null,
-}));
+// Three more `vi.mock`s stood here until feature 091's P7b, one per module
+// panel this screen imported by path: `quick_order`'s `DefaultPreferencesPanel`,
+// `sales_channels`' `EntityChannelMembership` and `price_lists`'
+// `DisplayModeOverrideRow`. All three are `organization.detail.after`
+// contributions now and their `admin/src` copies are deleted, so the mocks
+// named modules that no longer exist — and vitest answered that by making them
+// **inert** rather than by failing, which is the trap this feature has now
+// reported three times. What replaces them is the empty registry below: the
+// zone enumerates nothing here, because this file's subject is the custom-field
+// panel and not the zone.
 
 const { OrganizationDetail } = await import(
-  '../../../src/modules/organizations/OrganizationDetail'
+  '../../../../packages/modules/organizations/src/admin/pages/OrganizationDetail'
 );
 
 const CORE_EN = JSON.parse(
@@ -122,11 +134,20 @@ function renderDetail(): void {
     return Promise.resolve({ data: [] });
   });
   renderWithI18n(
-    <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
-      <Routes>
-        <Route path="/organizations/:id" element={<OrganizationDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
+        <Routes>
+          <Route path="/organizations/:id" element={<OrganizationDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: ['*'] }),
+        presence: modulePresence({ present: ['organizations'] }),
+        // No contribution: `organization.detail.after` renders nothing here, so
+        // the four panels that used to be mocked cost this file nothing at all.
+        contributions: [],
+      },
+    ),
     bundle,
   );
 }

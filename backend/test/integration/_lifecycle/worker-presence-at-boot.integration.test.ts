@@ -12,7 +12,7 @@ import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registr
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { makeFakeModuleWorker } from '../../helpers/fake-module-worker.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
-import { coreModulesRoot } from '../../../src/overlay/overlay-roots.js';
+import { repoRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**
  * A worker's pause decision at a **fresh boot** (feature 073, Amendment A2-Q2;
@@ -72,7 +72,7 @@ function manifest(id: string): ModuleManifest {
 function entry(id: string): ShippedModuleEntry {
   return {
     manifest: manifest(id),
-    filePath: join(coreModulesRoot(), id, 'manifest.ts'),
+    filePath: join(repoRoot(), 'packages', 'modules', id, 'package.json'),
     origin: 'core',
   };
 }

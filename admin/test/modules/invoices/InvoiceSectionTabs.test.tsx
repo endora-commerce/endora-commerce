@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { setMobileViewport } from '../../setup';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
-import { InvoiceSectionTabs } from '../../../src/modules/invoices/components/InvoiceSectionTabs';
+import { InvoiceSectionTabs } from '../../../../packages/modules/invoices/src/admin/components/InvoiceSectionTabs';
 
 
 // Feature 073 — every admin surface resolves its own presence from the module
@@ -17,26 +17,38 @@ import { InvoiceSectionTabs } from '../../../src/modules/invoices/components/Inv
 // `@/lib/module-presence` cannot reach it. `withSession` supplies it through
 // the `initial` prop it has carried since feature 073.
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-const bundle = passthroughBundle('core', [
-  'invoiceTabs.invoices',
-  'invoiceTabs.templates',
-  'appShell.brand.text',
-  'appShell.section.sales',
-  'appShell.nav.invoices',
-  'appShell.nav.invoiceTemplates',
-]);
+/**
+ * Two scopes since feature 091's batch 12: the strip's own labels are `core`'s,
+ * and the sidebar row this file also asserts over is `invoices`' own —
+ * `nav.invoices.label`, resolved in the module's namespace out of
+ * `packages/modules/invoices/i18n/`, because the row arrives through
+ * `composeNav` from `modules.generated.ts` now rather than from `AppShell`'s
+ * hand-written table. `appShell.nav.invoices` no longer exists in any bundle.
+ */
+const bundle = {
+  ...passthroughBundle('core', [
+    'invoiceTabs.invoices',
+    'invoiceTabs.templates',
+    'appShell.brand.text',
+    'appShell.section.sales',
+    // The templates row left the sidebar long before this batch; the key is
+    // named here because the case below asserts its **absence**.
+    'appShell.nav.invoiceTemplates',
+  ]),
+  ...passthroughBundle('invoices', ['nav.invoices.label']),
+};
 
 /**
  * The one id the component asks about — it returns `null` when `invoices` is
@@ -94,7 +106,7 @@ describe('InvoiceSectionTabs', () => {
   });
 });
 
-const { AppShell } = await import('../../../src/components/AppShell');
+const { AppShell } = await import('../../../../packages/admin-shell/src/components/AppShell');
 
 describe('AppShell — invoice templates leave the sidebar', () => {
   it('keeps Invoices and drops Invoice templates', () => {

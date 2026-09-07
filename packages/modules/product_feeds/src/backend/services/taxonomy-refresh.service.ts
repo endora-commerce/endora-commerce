@@ -7,6 +7,7 @@ import {
   type FeedTaxonomyRevisionFlag,
   type TaxonomyProviderCode,
 } from '@endora-commerce/contracts';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { FeedTaxonomy } from '../entities/feed-taxonomy.entity.js';
 import { FeedTaxonomyCheck } from '../entities/feed-taxonomy-check.entity.js';
 import { FeedTaxonomyNode } from '../entities/feed-taxonomy-node.entity.js';
@@ -189,6 +190,13 @@ export class TaxonomyRefreshService {
     try {
       return await this.execute(check, providerCode, input.signal);
     } catch (err) {
+      // Composition checklist item 7. `execute` reaches `raiseNotFound`, which
+      // reaches `admin_notifications` — a module an operator can switch off —
+      // and it reaches `settings` for the fetch switch and the source URL.
+      // Recording either as a `transport` failure would put a third party's web
+      // server in the check row when the truth is that a capability was
+      // withdrawn here, and every scheduled tick would repeat the lie.
+      rethrowIfModuleDisabled(err);
       // The belt to the braces: every branch below already handles its own
       // failure, so reaching here means a defect. It is still recorded as a
       // failed check rather than allowed to fail the job (FR-093).
@@ -410,6 +418,18 @@ export class TaxonomyRefreshService {
     }
   }
 
+  /**
+   * The tolerance is genuinely narrow and it is stated: the check row is
+   * already closed by the time this runs, so a bell that could not be rung must
+   * not undo the record of what happened (FR-093).
+   *
+   * What it must not absorb is `admin_notifications` being switched off.
+   * `presenceAwareRecorder` already turns the ordinary case into an answer
+   * rather than a throw (D-60), so the only `ModuleDisabledError` that can
+   * arrive here is one raised in the window between that decision and the
+   * write — and "the bell is off" and "the bell is broken" are exactly the two
+   * facts D-60 exists to keep apart.
+   */
   private async raiseNotFound(check: FeedTaxonomyCheck, detail: string): Promise<void> {
     try {
       await this.deps.notifyNotFound?.({
@@ -418,6 +438,7 @@ export class TaxonomyRefreshService {
         detail,
       });
     } catch (err) {
+      rethrowIfModuleDisabled(err);
       this.deps.logWarn?.('product_feeds: taxonomy not-found notification failed', {
         providerCode: check.providerCode,
         error: String(err),

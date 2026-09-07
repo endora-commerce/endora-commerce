@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { RenderResult } from '@testing-library/react';
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
@@ -9,6 +9,7 @@ import { contributions as dhlParcelContributions } from '@endora-commerce/mod-dh
 import { contributions as inpostContributions } from '@endora-commerce/mod-inpost/admin';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
+import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
 
 /**
  * One of the admin's own source files, read as text.
@@ -29,7 +30,7 @@ function sourceOf(relativePath: string): string {
  * reaches and said so in the `inpost` entry: *"both carriers are one shipment
  * tab reaching two adapters, so the Phase 4 batch that moves this consumer
  * takes both or neither; a repair naming one is a repair that has not
- * understood the shape"*. `admin/src/modules/orders/OrderShipmentsTab.tsx`
+ * understood the shape"*. `orders`' `OrderShipmentsTab.tsx`
  * imported `dhlParcelAdminClient` for the label, the handover protocol and the
  * courier booking, and `inpostAdminClient` for the label path; it now builds
  * all four from the published `apiClient` in its own
@@ -80,27 +81,27 @@ let permissions = new Set<string>();
 
 
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/lib/admin-actions/AdminActionsProvider', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/AdminActionsProvider', () => ({
   AdminActionsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/components/IdleLogout', () => ({
+vi.mock('../../../packages/admin-shell/src/components/IdleLogout', () => ({
   IdleLogout: () => null,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -172,9 +173,11 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 /**
- * `App.tsx` imports every host screen statically, and one of them (`cms`' Puck
- * editor) reaches `@dnd-kit/dom`, which constructs a `ResizeObserver` at module
- * scope. jsdom has none. The stub is a module-load accommodation and nothing
+ * `@dnd-kit/dom` constructs a `ResizeObserver` at module scope, and jsdom has
+ * none. This read *"`App.tsx` imports every host screen statically, and one of
+ * them (`cms`' Puck editor)"* until feature 091's batch 16 moved that editor
+ * into `@endora-commerce/mod-cms`; the stub stays because a lazily loaded
+ * screen reaches the same constructor, and only the reason changed. The stub is a module-load accommodation and nothing
  * this file asserts touches it.
  */
 globalThis.ResizeObserver ??= class {
@@ -183,7 +186,7 @@ globalThis.ResizeObserver ??= class {
   disconnect(): void {}
 } as unknown as typeof ResizeObserver;
 
-const { App } = await import('../../src/App');
+const { App } = await import('../../../packages/admin-shell/src/App');
 
 const bundle = {
   ...passthroughBundle('core', [
@@ -200,7 +203,7 @@ function renderAt(path: string): RenderResult {
   return renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={[path]}>
-        <App modulePresence={modulePresence({ present: [...presentModules] })} />
+        <App contributions={MODULE_ADMIN_CONTRIBUTIONS} modulePresence={modulePresence({ present: [...presentModules] })} />
       </MemoryRouter>,
       { session: adminSession({ permissions: [...permissions] }) },
     ),
@@ -229,6 +232,15 @@ interface Carrier {
    * declaration objects and none of the screen code behind their factories.
    */
   readonly contributions: AdminContributions;
+  /**
+   * Every zone this carrier contributes to, in declaration order.
+   *
+   * Written down per carrier rather than compared to a single literal, because
+   * the two stopped agreeing at P7d: `dhl_parcel` contributes twice to the
+   * order's footer bar (its two actions split by permission code) and `inpost`
+   * once to the shipment row.
+   */
+  readonly zones: readonly string[];
   readonly page: string;
 }
 
@@ -245,6 +257,13 @@ const CARRIERS: readonly Carrier[] = [
     // would let through.
     foreignCode: 'dhl_parcel:write',
     contributions: dhlParcelContributions,
+    zones: [
+      'delivery_method.list.integrations',
+      // P7d: the label + protocol at `dhl_parcel:read`, the courier booking at
+      // `dhl_parcel:write`. Two contributions because one declares one code.
+      'order.shipments.tab.actions',
+      'order.shipments.tab.actions',
+    ],
     page: '../packages/modules/dhl_parcel/src/admin/pages/DhlParcelSettingsPage.tsx',
   },
   {
@@ -256,6 +275,8 @@ const CARRIERS: readonly Carrier[] = [
     code: 'inpost:manage',
     foreignCode: 'dhl_parcel:read',
     contributions: inpostContributions,
+    // P7d: the label button on a shipment row, narrowed by `match`.
+    zones: ['delivery_method.list.integrations', 'order.shipment.row.actions'],
     page: '../packages/modules/inpost/src/admin/pages/InpostSettingsPage.tsx',
   },
 ];
@@ -299,7 +320,7 @@ describe.each(CARRIERS)('$id owns its admin surface, and its proof is the route'
     await waitFor(() => expect(headingIsRendered()).toBe(true));
   });
 
-  it('declares one lazily-loaded route, one gate, no nav entry and one zone', async () => {
+  it('declares one lazily-loaded route, one gate, no nav entry and its zones', async () => {
     // FR-013, and the declaration this whole file is about. `nav` being absent
     // is the contribution set saying so, which is what Ruling 1 asks a nav-less
     // batch member's test to derive rather than assert by omission.
@@ -320,9 +341,19 @@ describe.each(CARRIERS)('$id owns its admin surface, and its proof is the route'
     // same code as the screen it links to so it never advertises a 403. The
     // ordering of the two carriers' cards is asserted where it is observable:
     // `admin/test/modules/delivery_methods/integrations-zone.test.tsx`.
+    //
+    // **P7d added the order-surface contributions**, so this assertion is the
+    // integrations card *plus* whatever that row gave each carrier, and it is
+    // written as a first-member check rather than as an equality: an equality
+    // here would make every future contribution of either carrier a failure in
+    // a file whose subject is the settings route. Each carrier's own zone test
+    // asserts its declaration in full —
+    // `admin/test/modules/inpost/inpost-shipment-row-zone.test.tsx` and
+    // `admin/test/modules/dhl_parcel/dhl-shipment-actions-zone.test.tsx`.
     const zones = carrier.contributions.zones ?? [];
-    expect(zones.map((zone) => zone.zone)).toEqual(['delivery_method.list.integrations']);
-    expect(zones.map((zone) => zone.requiredPermission)).toEqual([carrier.code]);
+    expect(zones[0]?.zone).toBe('delivery_method.list.integrations');
+    expect(zones[0]?.requiredPermission).toBe(carrier.code);
+    expect(zones.map((zone) => zone.zone)).toEqual(carrier.zones);
     const card = await zones[0]!.component();
     expect(typeof card.default).toBe('function');
   });
@@ -337,8 +368,8 @@ describe.each(CARRIERS)('$id owns its admin surface, and its proof is the route'
 
 describe('the shell no longer names either carrier by hand', () => {
   it('has no host route for either screen, and neither ever had a nav entry', () => {
-    const app = sourceOf('src/App.tsx');
-    const shell = sourceOf('src/components/AppShell.tsx');
+    const app = sourceOf('../packages/admin-shell/src/App.tsx');
+    const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
     expect(app).not.toContain('DhlParcelSettingsPage');
     expect(app).not.toContain('InpostSettingsPage');
     expect(app).not.toContain('modules/dhl_parcel');
@@ -354,7 +385,7 @@ describe('the shell no longer names either carrier by hand', () => {
     // directory. `check:admin-registrations` attributes it to `host` and its
     // `host-owned (routes=4 nav=3)` is unchanged by this batch, which is the
     // arithmetic this assertion pins.
-    const app = sourceOf('src/App.tsx');
+    const app = sourceOf('../packages/admin-shell/src/App.tsx');
     expect(app).toContain('path="/settings/dhl-parcel"');
     expect(app).toContain('to="/delivery-methods/dhl-parcel"');
   });
@@ -375,11 +406,39 @@ describe('the shell no longer names either carrier by hand', () => {
     // in `backend/scripts/ledgers/cross-module-imports/orders.ts` are deleted
     // rather than re-keyed. Deleting the entries without this assertion would
     // leave nothing in the tree saying the coupling is gone.
-    const tab = sourceOf('src/modules/orders/OrderShipmentsTab.tsx');
+    // Re-keyed by feature 091's Phase 4 batch 15, not re-scoped: `orders` took
+    // its admin surface into its own package and this file went with it. A
+    // batch that moved the file and left the old address here would have
+    // thrown `ENOENT` rather than reporting a coupling — this ledger is one
+    // *about* the file rather than one of them, so the merge request that
+    // moves it is structurally the one that cannot see it go stale.
+    const tab = sourceOf(
+      '../packages/modules/orders/src/admin/components/OrderShipmentsTab.tsx',
+    );
     expect(tab).not.toContain('modules/dhl_parcel');
     expect(tab).not.toContain('modules/inpost');
     expect(tab).not.toContain('@endora-commerce/mod-dhl-parcel');
     expect(tab).not.toContain('@endora-commerce/mod-inpost');
-    expect(tab).toContain("from './api/carrier-documents-client'");
+    // **This line asserted the client file until P7d**, which is the half of
+    // the drain batch five could pay: `orders` built the calls itself rather
+    // than importing a carrier's client. P7d gave both carriers a place to
+    // contribute to, so the calls went home and the file went with them — the
+    // exit its own header ruled for when it said *"both carriers are one
+    // shipment tab reaching two adapters"*.
+    // The import, not the word: the file's own header still cites the client by
+    // name to say where those calls went, which is the record this assertion
+    // exists to keep rather than something to scrub.
+    expect(tab).not.toContain("from './api/carrier-documents-client'");
+    expect(tab).not.toContain('carrierDocumentsClient');
+    expect(
+      existsSync(
+        resolve(
+          process.cwd(),
+          '../packages/modules/orders/src/admin/api/carrier-documents-client.ts',
+        ),
+      ),
+    ).toBe(false);
+    expect(tab).toContain('name="order.shipment.row.actions"');
+    expect(tab).toContain('name="order.shipments.tab.actions"');
   });
 });

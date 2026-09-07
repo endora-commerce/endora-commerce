@@ -77,6 +77,61 @@ export const PUBLISHED_SUBPATHS: readonly string[] = [
   'events',
 ];
 
+/**
+ * The subpaths the `exports` map declares and **no published barrel carries**
+ * (D-160.14), each with the reason it is on this side of the line.
+ *
+ * A subpath here is declared, so `node` and `tsc` resolve it for the host, the
+ * test kit and the composition root — and it is not public API, so
+ * {@link resolveHostSpecifier} answers a module's reach into one with
+ * `host-internal-subpath` rather than with a pass. **The reason is the member**:
+ * a set of bare names is a list somebody grows, and this whole class is a
+ * judgement about who may name a surface, which no name records.
+ *
+ * It is kept apart from {@link PUBLISHED_SUBPATHS} rather than appended to it
+ * because the two answer different questions, and `host-package.md` §2.7.5(a) is
+ * that merging them is the mistake: the published list is what a **symbol** is
+ * judged against, and an entry there would publish `composeModules` out of
+ * `kernel/compose.ts` for every reach at that file — a module's relative one
+ * included — while changing nothing `check:platform-surface` prints.
+ *
+ * It lives here rather than in a test because by the time it had two members it
+ * had two copies, in two test files, neither carrying a per-member reason. Two
+ * independently written answers to "which subpaths are host-internal" are two
+ * answers waiting to disagree, in the estate whose own rule that is (D-100).
+ */
+export const HOST_INTERNAL_SUBPATHS: Readonly<Record<string, string>> = {
+  composition:
+    'the host composition surface (D-160.14, feature 109 T010): the symbols a composition ' +
+    'root needs — build the server, open the container, register the ORM, compose the ' +
+    'sub-kernels, prime the registry cache, establish a tenant context. Reachable by a ' +
+    'package that is not a module and nameable by no module at all, because a module that ' +
+    'could name it could compose the platform that composes it.',
+  migrations:
+    'the frozen historical prefix an execution order is computed from ' +
+    '(`specs/110-instance-repository/contracts/instance-migration-order.md` R1.5). It is the ' +
+    "platform's own claim about its schema history, which a client receives by installing " +
+    'the platform and corrects by `pnpm update` — never by writing a migration into it.',
+  lifecycle:
+    "`_lifecycle`'s operator surface (D115-4, `specs/115-lifecycle-container-move/`): the " +
+    'orchestrator, the dependency and gating graphs, the lifecycle lock, the manifest loader ' +
+    "and the module plugin. Host-internal for `./composition`'s own reason — this surface " +
+    '*drives* the presence axis, so a module that could name it could install, uninstall, ' +
+    'enable or disable its siblings. D-160.11 refused to **publish** `_lifecycle`, and that ' +
+    'is an argument against publishing a surface rather than against giving it an address: ' +
+    'without one the application reaches it by relative path into ' +
+    "`packages/platform/dist/`, which resolves in this checkout and in no client's.",
+  env:
+    'the environment-input declaration (feature 117, FR-001): the inputs the host and the ' +
+    'platform read, with what each configures, whether it is required and what is lost ' +
+    'without it. Its readers are the scaffolding commands, `endora doctor` and the ' +
+    "reconciliation check \u2014 none of them a module. Host-internal for `./composition`'s own " +
+    'reason, one surface over: a module declares its **own** inputs in its manifest, so a ' +
+    'module that could name this one could read, and would eventually copy, a population it ' +
+    'does not own. The shape it is written in is public API and lives in ' +
+    '`@endora-commerce/contracts`, which is where a module takes it from.',
+};
+
 /** The file a published directory's surface is written in. */
 export function barrelKeyOf(subpath: string): string {
   return posix.join(subpath, 'index.ts');
@@ -264,16 +319,44 @@ export interface HostPackage {
   /** The npm name the host publishes under. */
   readonly name: string;
   /**
-   * Declared subpath (`kernel`) → the barrel's file key, in the caller's own
-   * namespace. A subpath that is not here is one the `exports` map refuses at
-   * resolution time; the caller reports it rather than resolving it.
+   * **Published** subpath (`kernel`) → the barrel's file key, in the caller's
+   * own namespace. This is {@link PUBLISHED_SUBPATHS}' population, not the
+   * `exports` map's: a subpath the map declares and no barrel carries is in
+   * {@link HostPackage.declaredSubpaths} and not here.
    */
   readonly subpathTargets: ReadonlyMap<string, string>;
+  /**
+   * Every subpath the host's own `exports` map declares, `./package.json`
+   * aside — read off the manifest, never written down (`lib/platform-root.ts`'s
+   * `platformSubpathsOf`).
+   *
+   * It exists because the two lists legitimately differ (D-160.14, feature 109;
+   * `host-package.md` §2.7.5a). `./composition` carries the 27 composition
+   * symbols the host's own root and the test kit need: **declared** by the map,
+   * so `node` and `tsc` resolve it, and **published** by no barrel, so no module
+   * may name it. Without both lists a reach into it is indistinguishable from a
+   * reach into a subpath that does not exist, and the remedy a consumer is
+   * handed — *"the map refuses this at resolution time"* — is false.
+   *
+   * It must not be folded into {@link PUBLISHED_SUBPATHS} either, which was
+   * measured: {@link PlatformSurface.published} is keyed by **target file** with
+   * no subpath dimension, so a sixth entry there publishes `composeModules` out
+   * of `kernel/compose.ts` for every reach at that file, a module's *relative*
+   * one included — and because this check reports `violations=0`, the widening
+   * would change nothing it prints. A blindness that arrives green.
+   */
+  readonly declaredSubpaths: ReadonlySet<string>;
 }
 
 /** What a bare specifier into the host package names, or nothing. */
 export type HostReach =
   | { readonly kind: 'published-subpath'; readonly subpath: string; readonly target: string }
+  /**
+   * Declared by the `exports` map, carried by no barrel — host composition
+   * surface. It resolves for `node` and `tsc`, which is exactly why a module
+   * naming it needs a finding of its own: nothing else would stop it.
+   */
+  | { readonly kind: 'host-internal-subpath'; readonly subpath: string }
   | { readonly kind: 'undeclared-subpath'; readonly subpath: string };
 
 /**
@@ -288,6 +371,12 @@ export type HostReach =
  * `null` for a relative specifier, for a third party's, and for every specifier
  * at all when the workspace declares no platform — a fixture workspace
  * legitimately has none, and "no host reach" is the only honest answer there.
+ *
+ * **Three answers, not two** (D-160.14). A subpath the `exports` map declares
+ * and no barrel carries is `host-internal-subpath`, between the published one
+ * and the one that does not exist. Collapsing it into either is wrong in a
+ * different way: as *published* it would license the reach, and as *undeclared*
+ * it would tell the author their specifier does not resolve, which it does.
  */
 export function resolveHostSpecifier(
   specifier: string,
@@ -297,9 +386,9 @@ export function resolveHostSpecifier(
   if (specifier !== host.name && !specifier.startsWith(`${host.name}/`)) return null;
   const subpath = specifier.slice(host.name.length).replace(/^\//, '');
   const target = host.subpathTargets.get(subpath);
-  return target === undefined
-    ? { kind: 'undeclared-subpath', subpath }
-    : { kind: 'published-subpath', subpath, target };
+  if (target !== undefined) return { kind: 'published-subpath', subpath, target };
+  if (host.declaredSubpaths.has(subpath)) return { kind: 'host-internal-subpath', subpath };
+  return { kind: 'undeclared-subpath', subpath };
 }
 
 /**
@@ -330,6 +419,19 @@ export function resolutionCandidates(joined: string): readonly string[] {
 export interface PlatformSurface {
   /** `<target file>` → the names the barrels publish out of it. */
   readonly published: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * `<target file>` → the barrels that publish it — {@link PlatformSurface.published}'s
+   * provenance, which the merge above otherwise drops.
+   *
+   * It exists for one question {@link PlatformSurface.published} cannot answer:
+   * *which subpath carries this file*. A caller holding the `exports` map knows
+   * subpath → barrel, so barrel → target closes the chain and a remedy can name
+   * the address a reach should have used. Deriving it here rather than in the
+   * caller keeps it the same parse the verdict rests on: a second walk of the
+   * barrels would be a second answer to "what does this barrel re-export", which
+   * is the duplication this file's own header exists to refuse.
+   */
+  readonly publishedBy: ReadonlyMap<string, ReadonlySet<string>>;
   /** The barrel files themselves — reaching one is reaching the published surface. */
   readonly barrels: ReadonlySet<string>;
   /** Everything the parse could not read. A caller turns a non-empty list into exit 2. */
@@ -351,6 +453,7 @@ export function publishedSurface(
   resolve: TargetResolver = firstCandidate,
 ): PlatformSurface {
   const published = new Map<string, Set<string>>();
+  const publishedBy = new Map<string, Set<string>>();
   const unreadable: BarrelUnreadable[] = [];
   let barrelsWithExports = 0;
 
@@ -362,11 +465,15 @@ export function publishedSurface(
       const names = published.get(symbol.target) ?? new Set<string>();
       names.add(symbol.name);
       published.set(symbol.target, names);
+      const carriers = publishedBy.get(symbol.target) ?? new Set<string>();
+      carriers.add(barrel);
+      publishedBy.set(symbol.target, carriers);
     }
   }
 
   return {
     published,
+    publishedBy,
     barrels: new Set(barrels.keys()),
     unreadable,
     barrelsWithExports,

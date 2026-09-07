@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { TranslationProvider } from '../../src/i18n/TranslationProvider';
-import type { Bundle } from '../../src/i18n/types';
-import { ScopeNotice } from '../../src/components/scope-notice/ScopeNotice';
+import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
+import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
+import { ScopeNotice } from '../../../packages/admin-shell/src/components/scope-notice/ScopeNotice';
 
 /**
  * The sentence is the deliverable (feature 087, owner decision of 2026-08-29),

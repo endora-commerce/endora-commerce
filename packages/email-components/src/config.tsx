@@ -6,7 +6,6 @@ import {
   createColorField,
   definePageBuilderComponent,
   type PageBuilderComponentDefinition,
-  type PageBuilderContext,
 } from '@endora-commerce/page-builder-core';
 import { useEmailEmbeds } from './components/email-embeds-context.js';
 import { useEmailBrandingPreview } from './components/email-branding-preview-context.js';
@@ -388,7 +387,7 @@ export const EmailSection = {
     content: {
       type: 'slot',
       /** Columns only belong inside EmailRow. */
-      disallow: ['EmailColumn'],
+      disallow: ['transactional_emails.EmailColumn'],
     },
   },
   defaultProps: {
@@ -440,7 +439,7 @@ export const EmailColumn = {
     },
     content: {
       type: 'slot',
-      disallow: ['EmailColumn'],
+      disallow: ['transactional_emails.EmailColumn'],
     },
   },
   defaultProps: {
@@ -481,7 +480,7 @@ export const EmailRow = {
     },
     content: {
       type: 'slot',
-      allow: ['EmailColumn'],
+      allow: ['transactional_emails.EmailColumn'],
     },
   },
   defaultProps: {
@@ -937,13 +936,13 @@ function makeOrderLabeledVarConfig(
   } as unknown as ComponentConfig<EmailOrderLabeledVarProps>;
 }
 
-export const EmailOrderId = makeOrderLabeledVarConfig('EmailOrderId');
-export const EmailBillingAddress = makeOrderLabeledVarConfig('EmailBillingAddress');
-export const EmailShippingAddress = makeOrderLabeledVarConfig('EmailShippingAddress');
-export const EmailOrderTotals = makeOrderLabeledVarConfig('EmailOrderTotals');
-export const EmailAppliedDiscounts = makeOrderLabeledVarConfig('EmailAppliedDiscounts');
-export const EmailDeliveryMethod = makeOrderLabeledVarConfig('EmailDeliveryMethod');
-export const EmailPaymentMethod = makeOrderLabeledVarConfig('EmailPaymentMethod');
+export const EmailOrderId = makeOrderLabeledVarConfig('orders.EmailOrderId');
+export const EmailBillingAddress = makeOrderLabeledVarConfig('orders.EmailBillingAddress');
+export const EmailShippingAddress = makeOrderLabeledVarConfig('orders.EmailShippingAddress');
+export const EmailOrderTotals = makeOrderLabeledVarConfig('orders.EmailOrderTotals');
+export const EmailAppliedDiscounts = makeOrderLabeledVarConfig('orders.EmailAppliedDiscounts');
+export const EmailDeliveryMethod = makeOrderLabeledVarConfig('orders.EmailDeliveryMethod');
+export const EmailPaymentMethod = makeOrderLabeledVarConfig('orders.EmailPaymentMethod');
 
 export const EmailSocial = {
   label: 'Social links',
@@ -1150,12 +1149,23 @@ export const EmailInsertBlock: ComponentConfig<EmailInsertBlockProps> = {
   },
 };
 
-const emailContexts: PageBuilderContext[] = ['email', 'newsletter'];
-
+/**
+ * Every entry in this map declares `['email']` and nothing else (feature 096,
+ * D-10).
+ *
+ * It wrote `['email', 'newsletter']` until 2026-09-03, through a constant named
+ * `emailContexts`, and that is the spelling that diverged from the manifests:
+ * **no block in this repository declares `newsletter`**, and that member of
+ * `PageBuilderContext` has never had a block of its own. `contexts` states what
+ * a block is *authored for*; which palette it appears in is derived, by
+ * `contextAdmits` — one implementation in
+ * `@endora-commerce/page-builder-core`, imported by `filterConfigByContext`,
+ * `getDisallowedComponentNames` and every other reader.
+ */
 function emailComponent(config: unknown): PageBuilderComponentDefinition {
   return definePageBuilderComponent({
     ...(config as PageBuilderComponentDefinition),
-    contexts: emailContexts,
+    contexts: ['email'],
   });
 }
 
@@ -1193,76 +1203,55 @@ export function filterEmailPaletteByVariables(
   return { ...config, components, categories };
 }
 
+/**
+ * The e-mail renderer map — **the React half only**, keyed by namespaced block
+ * name (feature 096, T302; `contracts/block-definition.md` §4.3).
+ *
+ * **The four `categories` are gone**, with `defaultExpanded` (D-11: on Puck
+ * `0.20.2` `defaultExpanded: true` is indistinguishable from omitting the
+ * field, so deleting it is behaviour-preserving). Sections are declared by the
+ * modules whose blocks occupy them — `content`, `layout`, `embeds` and the
+ * hidden `internal` by `transactional_emails`, `order` by `orders`, and
+ * `content` jointly by `catalog` — and served merged by
+ * `GET /api/v1/admin/cms/page-builder/config`.
+ *
+ * **`emailContexts` is gone too** (D-10). It wrote `['email', 'newsletter']`
+ * onto every entry, which is what diverged from the declarations: no block in
+ * this repository declares `newsletter`, that member of `PageBuilderContext`
+ * has never had a block of its own, and the newsletter palette **is** the
+ * e-mail palette. The relation that makes it so — `email` admits into
+ * `newsletter` — is `contextAdmits` in `@endora-commerce/page-builder-core`,
+ * one implementation, imported by every reader. Widening the declarations
+ * instead buys no behaviour and leaves two mechanisms answering one question.
+ */
 export const defaultEmailBuilderConfig: Config = {
-  categories: {
-    content: {
-      title: 'Content',
-      components: [
-        'EmailHeading',
-        'EmailText',
-        'EmailRichText',
-        'EmailButton',
-        'EmailImage',
-        'EmailLogo',
-        'EmailProductCard',
-        'EmailProductGrid',
-        'EmailCategoryGrid',
-        'EmailSocial',
-        'EmailCallout',
-        'EmailFooterLegal',
-      ],
-      defaultExpanded: true,
-    },
-    order: {
-      title: 'Order',
-      components: [
-        'EmailOrderId',
-        'EmailOrderSummary',
-        'EmailOrderTotals',
-        'EmailAppliedDiscounts',
-        'EmailDeliveryMethod',
-        'EmailPaymentMethod',
-        'EmailShippingAddress',
-        'EmailBillingAddress',
-      ],
-      defaultExpanded: true,
-    },
-    layout: {
-      title: 'Layout',
-      components: ['EmailSection', 'EmailRow', 'EmailTable', 'EmailDivider', 'EmailSpacer'],
-    },
-    embeds: {
-      title: 'Embeds',
-      components: ['EmailInsertBlock'],
-    },
-  },
   components: {
-    EmailHeading: emailComponent(EmailHeading),
-    EmailText: emailComponent(EmailText),
-    EmailRichText: emailComponent(EmailRichText),
-    EmailButton: emailComponent(EmailButton),
-    EmailImage: emailComponent(EmailImage),
-    EmailLogo: emailComponent(EmailLogo),
-    EmailProductCard: emailComponent(EmailProductCard),
-    EmailProductGrid: emailComponent(EmailProductGrid),
-    EmailCategoryGrid: emailComponent(EmailCategoryGrid),
-    EmailOrderSummary: emailComponent(EmailOrderSummary),
-    EmailOrderId: emailComponent(EmailOrderId),
-    EmailBillingAddress: emailComponent(EmailBillingAddress),
-    EmailShippingAddress: emailComponent(EmailShippingAddress),
-    EmailOrderTotals: emailComponent(EmailOrderTotals),
-    EmailAppliedDiscounts: emailComponent(EmailAppliedDiscounts),
-    EmailDeliveryMethod: emailComponent(EmailDeliveryMethod),
-    EmailPaymentMethod: emailComponent(EmailPaymentMethod),
-    EmailSocial: emailComponent(EmailSocial),
-    EmailCallout: emailComponent(EmailCallout),
-    EmailFooterLegal: emailComponent(EmailFooterLegal),
-    EmailSection: emailComponent(EmailSection),
-    EmailRow: emailComponent(EmailRow),
-    EmailColumn: emailComponent(EmailColumn),
-    EmailDivider: emailComponent(EmailDivider),
-    EmailSpacer: emailComponent(EmailSpacer),
-    EmailTable: emailComponent(EmailTable),
-    EmailInsertBlock: emailComponent(EmailInsertBlock),
+    'transactional_emails.EmailHeading': emailComponent(EmailHeading),
+    'transactional_emails.EmailText': emailComponent(EmailText),
+    'transactional_emails.EmailRichText': emailComponent(EmailRichText),
+    'transactional_emails.EmailButton': emailComponent(EmailButton),
+    'transactional_emails.EmailImage': emailComponent(EmailImage),
+    'transactional_emails.EmailLogo': emailComponent(EmailLogo),
+    'catalog.EmailProductCard': emailComponent(EmailProductCard),
+    'catalog.EmailProductGrid': emailComponent(EmailProductGrid),
+    'catalog.EmailCategoryGrid': emailComponent(EmailCategoryGrid),
+    'orders.EmailOrderSummary': emailComponent(EmailOrderSummary),
+    'orders.EmailOrderId': emailComponent(EmailOrderId),
+    'orders.EmailBillingAddress': emailComponent(EmailBillingAddress),
+    'orders.EmailShippingAddress': emailComponent(EmailShippingAddress),
+    'orders.EmailOrderTotals': emailComponent(EmailOrderTotals),
+    'orders.EmailAppliedDiscounts': emailComponent(EmailAppliedDiscounts),
+    'orders.EmailDeliveryMethod': emailComponent(EmailDeliveryMethod),
+    'orders.EmailPaymentMethod': emailComponent(EmailPaymentMethod),
+    'transactional_emails.EmailSocial': emailComponent(EmailSocial),
+    'transactional_emails.EmailCallout': emailComponent(EmailCallout),
+    'transactional_emails.EmailFooterLegal': emailComponent(EmailFooterLegal),
+    'transactional_emails.EmailSection': emailComponent(EmailSection),
+    'transactional_emails.EmailRow': emailComponent(EmailRow),
+    'transactional_emails.EmailColumn': emailComponent(EmailColumn),
+    'transactional_emails.EmailDivider': emailComponent(EmailDivider),
+    'transactional_emails.EmailSpacer': emailComponent(EmailSpacer),
+    'transactional_emails.EmailTable': emailComponent(EmailTable),
+    'transactional_emails.EmailInsertBlock': emailComponent(EmailInsertBlock),
   },
 };

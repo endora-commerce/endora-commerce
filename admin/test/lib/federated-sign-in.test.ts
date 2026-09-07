@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveFederatedSignIn,
   type FederatedProvider,
-} from '../../src/lib/federated-sign-in/resolve';
+} from '../../../packages/admin-shell/src/lib/federated-sign-in/resolve';
 
 /**
  * Issue #193 — the decision behind the admin login screen's federated buttons.

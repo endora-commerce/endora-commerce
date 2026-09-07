@@ -179,6 +179,10 @@ export const DEFAULTED_FIXTURE_READS: Readonly<Record<string, string>> = {
     'count(*) always yields one row; "0" is "no channel bindings", not a missing fixture',
   'integration/pim_ergonode/price-binding.test.ts:rows':
     'count(*) always yields one row; 0 is "no price-list products", not a missing fixture',
+  'integration/pim_unopim/price-binding.test.ts:rows':
+    'count(*) always yields one row; 0 is "no price-list products", not a missing fixture',
+  'integration/pim_unopim/category-backfill.test.ts:rows':
+    'count(*) always yields one row; 0 is "no product-category rows", not a missing fixture',
   // A sentinel the assertion reads, not a value the test computes with: every
   // caller compares it against an expected status, so a vanished RFQ fails the
   // comparison loudly with `"missing"` in the diff. Retire the entry if the
@@ -192,15 +196,23 @@ export const DEFAULTED_FIXTURE_READS: Readonly<Record<string, string>> = {
   'helpers/test-server.ts:(inline)':
     'harness bridge default mirroring production, not a fixture the test depends on',
   // Surfaced by issue #275's destructuring widening — `const { rowCount } =
-  // await client.query(…)` — and both are the `count(*)` family above rather
-  // than a fixture read. `pg` types `rowCount` as `number | null` (it is `null`
-  // for a command that returns no rows), the query is an existence probe over
+  // await client.query(…)` — and it is the `count(*)` family above rather than a
+  // fixture read. `pg` types `rowCount` as `number | null` (it is `null` for a
+  // command that returns no rows), the query is an existence probe over
   // `pg_database`, and `0` is that probe's honest "no such database": the value
-  // is compared with `> 0` and reaches nothing else. Retire the entries if
-  // either function ever returns the count rather than a boolean.
+  // is compared with `> 0` and reaches nothing else. Retire the entry if the
+  // function ever returns the count rather than a boolean.
+  //
+  // **There were two, and the second is gone because its file left this walk**
+  // (feature 109, T022). `test/run-isolation-provision.ts` is
+  // `packages/test-kit/src/database/provision.ts` now, and this check's
+  // population is `backend/test/` — so the entry was stale in the direction that
+  // reds a run, and the site it described is watched by nothing until
+  // `specs/109-backend-test-kit/` T075 re-derives every instrument whose
+  // population is `backend/test/**`. That is the batch that frees an entry being
+  // the batch that cannot see it go stale, which is why it is written here
+  // rather than left to be re-discovered.
   'integration/kernel/run-isolation.integration.test.ts:rowCount':
-    "`pg` types rowCount as number | null; 0 is the existence probe's \"no such database\", not a missing fixture",
-  'run-isolation-provision.ts:rowCount':
     "`pg` types rowCount as number | null; 0 is the existence probe's \"no such database\", not a missing fixture",
 };
 

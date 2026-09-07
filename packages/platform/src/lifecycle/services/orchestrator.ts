@@ -908,7 +908,6 @@ export class ModuleLifecycleOrchestrator {
         state: (row?.state ?? 'not-installed') as ModuleListItem['state'],
         dependencies: entry.manifest.dependencies,
         flags,
-        license: entry.manifest.license ?? null,
         installedAt: row?.installedAt.toISOString() ?? null,
         lastStateChangeAt: row?.lastStateChangeAt.toISOString() ?? null,
       });
@@ -928,7 +927,6 @@ export class ModuleLifecycleOrchestrator {
         state: row.state as ModuleListItem['state'],
         dependencies: [],
         flags: ['orphan'],
-        license: null,
         installedAt: row.installedAt.toISOString(),
         lastStateChangeAt: row.lastStateChangeAt.toISOString(),
       });

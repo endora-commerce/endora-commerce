@@ -7,14 +7,14 @@ import {
   templateDatabaseName,
   templateDigest,
   withDatabase,
-} from '../../run-isolation.js';
+} from '@endora-commerce/test-kit/database';
 import {
   cloneTemplateForCaller,
   dropRunDatabase,
   leaseRedisDatabase,
   provisionRunDatabase,
   sweepStaleTemplates,
-} from '../../run-isolation-provision.js';
+} from '@endora-commerce/test-kit/database';
 
 /**
  * Issues #189 and #289 — the provisioning seam itself, against a live server.

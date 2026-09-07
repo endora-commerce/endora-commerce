@@ -60,7 +60,7 @@ describe('Megamenu CMS-block embed (T042 + T044)', () => {
       payload: JSON.stringify({
         data: {
           root: { props: {} },
-          content: [{ type: 'Heading', props: { level: 'h2', text: 'Hero!' } }],
+          content: [{ type: 'cms.Heading', props: { level: 'h2', text: 'Hero!' } }],
         },
         version: block.version,
       }),
@@ -145,7 +145,7 @@ describe('Megamenu CMS-block embed (T042 + T044)', () => {
     expect(embed).toBeDefined();
     expect(embed!.embedSide).toBe('right');
     expect(embed!.block?.code).toBe(code);
-    expect(embed!.block?.content.data.content[0]?.type).toBe('Heading');
+    expect(embed!.block?.content.data.content[0]?.type).toBe('cms.Heading');
 
     // Deleting the referenced CMS Block while megamenu uses it returns
     // 409 CMS_REFERENCED via the cms ↔ megamenu external-scanner bridge.

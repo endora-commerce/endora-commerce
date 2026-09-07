@@ -386,7 +386,10 @@ describe('i18n', () => {
     // missing one renders the raw key and nothing reports it.
     const page = emit(FULL).get('src/admin/pages/DemoWidgetsPage.tsx')!;
     for (const [, key] of page.matchAll(/\bt\('([^']+)'\)/g)) {
-      expect(en, key).toHaveProperty(key);
+      // The group participates in every match this pattern can produce, so the
+      // assertion narrows the compiler's view of `matchAll` rather than a fact
+      // about the page.
+      expect(en, key).toHaveProperty(key!);
     }
   });
 

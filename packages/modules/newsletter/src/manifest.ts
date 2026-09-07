@@ -151,6 +151,7 @@ export const manifest = defineModuleManifest({
    */
   errorCodes: [{ code: 'ALREADY_SUBSCRIBED' }],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: 'newsletter:read', label: 'View newsletter' },
     {
@@ -178,6 +179,37 @@ export const manifest = defineModuleManifest({
       requiredPermission: 'newsletter:write',
       keywords: ['newsletter', 'campaign', 'new', 'create', 'send'],
       weight: 231,
+    },
+    /**
+     * The two `AppShell.tsx` `PALETTE_ITEMS` rows feature 091's batch 11
+     * deletes, arriving as declarations (Principle XVI).
+     *
+     * Same destinations, same codes and the same keywords the hand-written
+     * rows carried, English and Polish alike — the palette an operator sees is
+     * unchanged. What changes is who answers for it: a hand-written row is a
+     * copy the server was never asked about, so it went on advertising these
+     * two screens after an operator switched `newsletter` off, and this module
+     * is one that really can be switched off.
+     */
+    {
+      id: 'open-newsletter-campaigns',
+      labelKey: 'actions.openCampaigns.label',
+      descriptionKey: 'actions.openCampaigns.description',
+      icon: 'Inbox',
+      targetRoute: '/newsletter/campaigns',
+      requiredPermission: 'newsletter:read',
+      keywords: ['newsletter', 'campaigns', 'email', 'marketing', 'kampanie'],
+      weight: 232,
+    },
+    {
+      id: 'open-newsletter-automations',
+      labelKey: 'actions.openAutomations.label',
+      descriptionKey: 'actions.openAutomations.description',
+      icon: 'Inbox',
+      targetRoute: '/newsletter/automations',
+      requiredPermission: 'newsletter:read',
+      keywords: ['newsletter', 'automations', 'workflow', 'automatyzacje'],
+      weight: 233,
     },
   ],
 });

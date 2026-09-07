@@ -193,6 +193,19 @@ services:
       # `/api/revalidate` compares the backend's header against. Unset here and
       # the endpoint answers 401 to a backend that is configured correctly.
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
+      #
+      # THE PUBLIC ORIGIN IS NOT SETTABLE HERE, AND THAT IS WHY IT IS WRITTEN
+      # DOWN. The origin this shop names in every canonical link, in its sitemap
+      # and in its robots.txt is `NEXT_PUBLIC_SITE_URL`, which `build:storefront`
+      # passes as `https://${STOREFRONT_DOMAIN}` — the same variable the
+      # backend's own `STOREFRONT_BASE_URL` above is built from. Adding it to
+      # this block would change nothing and would read as though it did:
+      # measured on this tree, `next build` inlines the value and drops the
+      # variable's name from `.next/server` altogether, and `/robots.txt` is
+      # prerendered, so its `Sitemap:` line is a static file inside the image.
+      # An image built without that argument serves `http://localhost:3000` in
+      # all three places — the fallback in `storefront/lib/seo/site-url.ts` —
+      # and the repair is to rebuild, never to set a variable here.
     # Published on loopback only — the host nginx proxies ${STOREFRONT_DOMAIN} here.
     ports:
       - '${STOREFRONT_HOST_PORT:-127.0.0.1:3000}:3000'

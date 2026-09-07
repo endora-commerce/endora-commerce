@@ -57,6 +57,8 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolveModuleDocs } from './lib/module-docs.js';
+import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
@@ -73,6 +75,40 @@ const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..')
  */
 export const DOCUMENT_ROOTS: readonly string[] = ['docs/docs', 'specs'];
 
+/**
+ * The roots this run actually walks: {@link DOCUMENT_ROOTS} plus every module's
+ * own `docs/` layer (feature 100 Phase 2, FR-019).
+ *
+ * The pages **followed the modules**. 76 of the 78 pages under the site's
+ * modules category now live in the package that owns them, so a population
+ * still spelled `docs/docs` would walk the two that stayed and report on a
+ * document tree it is not reading — the header's own failure mode, arriving
+ * through a move nobody would connect to this file. The per-root floor holds
+ * over the widened list, so a module docs layer that stops resolving is exit 2
+ * rather than a quieter walk.
+ *
+ * The roots are derived: the modules from the generated manifest index, the
+ * directory each keeps its pages in from that module's own manifest. Nothing
+ * here names a package or a directory (D-100).
+ */
+export async function documentRoots(
+  repoRoot: string = REPO_ROOT,
+): Promise<{ roots: readonly string[]; copies: ReadonlySet<string> }> {
+  const layout = await requireModuleLayout('[doc-snippets]');
+  const resolved = await resolveModuleDocs(repoRoot, layout.manifestIndexPath);
+  return {
+    roots: [
+      ...DOCUMENT_ROOTS,
+      ...resolved.sources.map((source) => relative(repoRoot, source.root)).sort(),
+    ],
+    // The site's copies of those same pages. They are not committed, so a fresh
+    // checkout has none and a machine that has run the site build has all of
+    // them — a walk that counted them would be a different size on the two, and
+    // would check every module page twice under a path its author cannot edit.
+    copies: resolved.copies,
+  };
+}
+
 const MARKER = /^<!--\s*verbatim-from:\s*(\S+?)\s*-->$/;
 
 /** The substring that makes a file worth parsing — see {@link MARKER} for the shape. */
@@ -88,8 +124,10 @@ const MARKER_HINT = 'verbatim-from:';
 export function discoverCitingDocuments(
   repoRoot: string = REPO_ROOT,
   read: (p: string) => string = (p) => readFileSync(p, 'utf8'),
+  roots: readonly string[] = DOCUMENT_ROOTS,
+  copies: ReadonlySet<string> = new Set(),
 ): string[] {
-  return markdownDocuments(repoRoot)
+  return markdownDocuments(repoRoot, roots, copies)
     .filter((path) => read(join(repoRoot, path)).includes(MARKER_HINT))
     .sort();
 }
@@ -103,7 +141,11 @@ export function discoverCitingDocuments(
  * same sentence whether the walk covered 400 markdown files or four, and the
  * roots moving is exactly the failure this check's own header describes.
  */
-export function markdownDocuments(repoRoot: string = REPO_ROOT): string[] {
+export function markdownDocuments(
+  repoRoot: string = REPO_ROOT,
+  roots: readonly string[] = DOCUMENT_ROOTS,
+  copies: ReadonlySet<string> = new Set(),
+): string[] {
   const found: string[] = [];
   const walk = (dir: string): void => {
     let names: string[];
@@ -120,10 +162,11 @@ export function markdownDocuments(repoRoot: string = REPO_ROOT): string[] {
         continue;
       }
       if (!name.endsWith('.md')) continue;
+      if (copies.has(full)) continue;
       found.push(relative(repoRoot, full));
     }
   };
-  for (const root of DOCUMENT_ROOTS) walk(join(repoRoot, root));
+  for (const root of roots) walk(join(repoRoot, root));
   return found;
 }
 
@@ -268,24 +311,25 @@ export function checkDocument(docPath: string, readFile: (p: string) => string):
   return findings;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const read = (p: string): string => readFileSync(p, 'utf8');
-  const walked = markdownDocuments();
+  const { roots, copies } = await documentRoots();
+  const walked = markdownDocuments(REPO_ROOT, roots, copies);
   // The root floor comes first: a root that vanished takes its citing documents
   // with it, so the guard below would still see the ones that remain and call
   // the run clean.
-  const vacuous = vacuousDocumentPopulation(walked);
+  const vacuous = vacuousDocumentPopulation(walked, roots);
   if (vacuous !== null) {
     console.error(`[doc-snippets] ${vacuous}`);
     process.exit(2);
   }
-  const documents = discoverCitingDocuments();
+  const documents = discoverCitingDocuments(REPO_ROOT, read, roots, copies);
   if (documents.length === 0) {
     // Discovery finding nothing is indistinguishable, on the exit code, from
     // every quotation being correct. It means the walk broke or the roots
     // moved, and the guarantee is off for every document at once.
     console.error(
-      `[doc-snippets] no document under ${DOCUMENT_ROOTS.join(', ')} cites a source file — ` +
+      `[doc-snippets] no document under ${roots.join(', ')} cites a source file — ` +
         'refusing to report a vacuous pass',
     );
     process.exit(2);
@@ -315,7 +359,7 @@ function main(): void {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  main();
+  await main();
 }
 
 export { REPO_ROOT, relative };

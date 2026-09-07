@@ -24,13 +24,16 @@
 
 import { Migration20260425T162418CmsPagesInit } from './20260425T162418_cms_pages_init.js';
 import { Migration20260505T130214CmsInit } from './20260505T130214_cms_init.js';
+import { Migration20260903T101741CmsNamespaceBlockNames } from './20260903T101741_cms_namespace_block_names.js';
 
 export const migrations = [
   Migration20260425T162418CmsPagesInit,
   Migration20260505T130214CmsInit,
+  Migration20260903T101741CmsNamespaceBlockNames,
 ];
 
 export {
   Migration20260425T162418CmsPagesInit,
   Migration20260505T130214CmsInit,
+  Migration20260903T101741CmsNamespaceBlockNames,
 };

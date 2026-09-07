@@ -13,7 +13,7 @@ already treating as an error is being serialised, so Fastify cannot route it
 back through `setErrorHandler` and falls back to its own serialiser. The
 response then stops being an `ErrorEnvelope` at all — `{ statusCode, code,
 error, message }`, in which `error` is the status phrase and `error.code` is
-`undefined`, so `@endora-commerce/api-client` builds an `ApiError` reading
+`undefined`, so the admin's API client builds an `ApiError` reading
 `undefined: undefined`.
 
 Every other exit from that hook already returns the payload unchanged (no

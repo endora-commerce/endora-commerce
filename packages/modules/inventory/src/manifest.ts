@@ -242,6 +242,7 @@ export const manifest = defineModuleManifest({
   // Feature 073 (Constitution XVII) — the operator's activation control.
   activation: { settingCode: 'inventory.enabled', default: true },
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [
     {

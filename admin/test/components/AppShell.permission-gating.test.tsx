@@ -28,19 +28,19 @@ let grantedPermissions = new Set<string>();
 
 
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -61,7 +61,6 @@ const coreBundle = {
   'appShell.section.sales',
   'appShell.nav.home',
   'appShell.nav.orders',
-  'appShell.nav.credentials',
   'appShell.nav.organizations',
   'appShell.nav.priceLists',
   'appShell.nav.deliveryMethods',
@@ -73,13 +72,15 @@ const coreBundle = {
   'appShell.section.pricing',
 ]),
   // `/payment-methods` is a **registry** entry since feature 091's Phase 4
-  // batch 7, so its label resolves in the owning module's namespace rather than
-  // in `core`. The two cases below assert the href, not the copy; the scope is
-  // seeded so the row renders something rather than a raw key.
+  // batch 7 and `/credentials` since batch 10, so their labels resolve in the
+  // owning modules' namespaces rather than in `core`. The cases below assert
+  // the href, not the copy; the scopes are seeded so the rows render something
+  // rather than a raw key.
   ...passthroughBundle('payment_methods', ['nav.paymentMethods.label']),
+  ...passthroughBundle('credentials', ['nav.credentials.label']),
 };
 
-const { AppShell } = await import('../../src/components/AppShell');
+const { AppShell } = await import('../../../packages/admin-shell/src/components/AppShell');
 
 function renderShell(granted: readonly string[]): void {
   grantedPermissions = new Set(granted);
@@ -115,29 +116,40 @@ async function openPaletteItems(): Promise<string[]> {
 }
 
 describe('AppShell — permission gates the palette and the sidebar alike (issue #230)', () => {
-  it('hides both surfaces from a role without the code', async () => {
+  it('hides the sidebar entry from a role without the code', () => {
     // `credentials:read` gates `/credentials`
     // (`packages/modules/credentials/src/backend/routes.ts`). The role below
     // holds a different code entirely.
     //
     // The subject was `/comparisons` until feature 091's Phase 4 drain moved
-    // that module's sidebar row and palette entry into its own package, where
-    // `composeNav` and the server resolve them. This file's subject is the two
-    // hand-written registries, so it needs an entry that is still in both — and
-    // the pair had to move together, because with `comparisons` gone the
-    // positive control went red while this negative went **vacuously green**.
-    // `credentials` is batch 9's, so this file moves again when that lands.
+    // that module's sidebar row and palette entry into its own package, and it
+    // was moved here for a reason this pair has now met itself: with
+    // `comparisons` gone the positive control went red while the negative went
+    // **vacuously green**.
+    //
+    // **`/credentials` converted in batch 10 and the palette half is gone
+    // rather than re-pointed**, which is batch 7's decision for
+    // `/payment-methods` arriving again. The row was a hand-written
+    // `PALETTE_ITEMS` literal; the advertisement is the **server's** now, from
+    // `credentials`' `open-credentials` manifest action resolved against the
+    // effective enabled-set, which no admin-side test can see — its off-state
+    // is driven in
+    // `backend/test/integration/_admin_surfaces/batch-ten-palette-off-state.test.ts`.
+    // Asserting a Navigate row that no longer exists would be a negative
+    // passing for the wrong reason.
+    //
+    // Issue #230's palette half is still covered in this file by the `/orders`
+    // case below, whose Navigate row is still hand-written. What this pair
+    // measures now is what the `/payment-methods` pair measures: that the
+    // **registry** entry's own `requiredPermission` is applied by
+    // `isSurfaceVisible` rather than by a literal in this file.
     renderShell(['orders:read']);
     expect(sidebarHrefs()).not.toContain('/credentials');
-    const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(false);
   });
 
-  it('shows both surfaces to a role holding the code', async () => {
+  it('shows the sidebar entry to a role holding the code', () => {
     renderShell(['credentials:read']);
     expect(sidebarHrefs()).toContain('/credentials');
-    const items = await openPaletteItems();
-    expect(items.some((text) => text.includes('appShell.nav.credentials'))).toBe(true);
   });
 
   it('gates /orders, which carried no code at all before this change', async () => {
@@ -181,8 +193,9 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
    * The sidebar pair stays and now measures something it could not before: that
    * the **registry** entry's `requiredPermission` is the module's own read code,
    * applied by `isSurfaceVisible` rather than by a literal in this file. Issue
-   * #230's palette half is still covered here by the `delivery_methods` pair
-   * below, which is still hand-written and converts in batch 8.
+   * #230's palette half is covered here by the `/orders` case above, whose
+   * Navigate row is still hand-written; the `delivery_methods` pair below this
+   * paragraph once carried it and converted in batch 8.
    */
   it('hides /payment-methods from a catalogue editor', () => {
     renderShell(['catalog:read', 'catalog:write']);
@@ -275,9 +288,13 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(hrefs).not.toContain('/inventory/low-stock');
     expect(hrefs).not.toContain('/inventory/notifications');
     expect(hrefs).not.toContain('/inventory/import');
-    expect(
-      (await openPaletteItems()).some((t) => t.includes('appShell.nav.stockOverview')),
-    ).toBe(false);
+    // The palette half of this claim left the admin in feature 091's Phase 4
+    // batch 13: `inventory`'s hand-written `PALETTE_ITEMS` row was a second
+    // copy of the `open-inventory` action its manifest already declared, so it
+    // is gone and the surviving advertisement is the server's, resolved from
+    // the manifest against the effective enabled-set. It is driven in
+    // `backend/test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
+    // What stays here is the sidebar, which is this file's subject.
   });
 
   it('hides every inventory entry from a catalogue editor', () => {
@@ -288,7 +305,7 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(hrefs).not.toContain('/inventory/import');
   });
 
-  it('shows the inventory reads to a role holding inventory:read, and not the importer', async () => {
+  it('shows the inventory reads to a role holding inventory:read, and not the importer', () => {
     renderShell(['inventory:read']);
     const hrefs = sidebarHrefs();
     expect(hrefs).toContain('/inventory');
@@ -297,9 +314,6 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(hrefs).toContain('/inventory/notifications');
     // The import screen is a write and says so.
     expect(hrefs).not.toContain('/inventory/import');
-    expect(
-      (await openPaletteItems()).some((t) => t.includes('appShell.nav.stockOverview')),
-    ).toBe(true);
   });
 
   it('shows the importer to a role holding inventory:write', () => {
@@ -329,6 +343,13 @@ describe('AppShell — permission gates the palette and the sidebar alike (issue
     expect(hrefs).toContain('/orders');
     expect(hrefs).toContain('/comparisons');
     expect(hrefs).toContain('/organizations');
-    expect((await openPaletteItems()).some((t) => t.includes('appShell.nav.priceLists'))).toBe(true);
+    expect(hrefs).toContain('/price-lists');
+    // `/price-lists`' palette row went the other of batch 13's two ways:
+    // `price_lists` declared no action at all, so `open-price-lists` arrives in
+    // its manifest carrying this row's destination, code and keywords, and the
+    // advertisement is the server's. The sidebar entry above is the half this
+    // file can see; the other is
+    // `backend/test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
+    expect((await openPaletteItems()).some((t) => t.includes('appShell.nav.home'))).toBe(true);
   });
 });

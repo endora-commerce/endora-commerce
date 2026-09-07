@@ -3,12 +3,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createMovedModuleTreeFixture,
   createSplitModuleTreeFixture,
+  endoraSpecifierResolutions,
   KEPT_MODULE,
+  manifestIndexSpecifiers,
   MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE,
   modulesInTheApplicationTree,
   packagedModuleIds,
   planSplitRelocation,
   routedModuleIds,
+  runCheckInThisCheckout,
+  type EndoraSpecifierResolution,
   type MovedModuleTreeFixture,
 } from '../../helpers/moved-module-tree-fixture.js';
 import {
@@ -63,6 +67,37 @@ const CHECKS: readonly MovedTreeCheck[] = [
     args: [],
     prefix: '[action-route-permissions]',
   },
+  // `specs/094-translation-boundary/`. Its walk visits each registered module's
+  // **own directory** rather than its source files, which makes the residue
+  // shape sharper here than for a file walk: over a moved tree the index still
+  // answers for every module and the directories are simply not there, so a
+  // check that asked "did the walk read anything?" would find the one module the
+  // fixture keeps, read its bundles, and report a clean tree with 68 modules
+  // unjudged. The floor is per module and refuses instead.
+  // `specs/096-page-builder-block-ownership/`. Its module half is every module's
+  // own sources, and over a moved tree the walk comes back with the
+  // page-builder family alone — three packages, several hundred files, none of
+  // them a module's. That is issue #215's exact shape: `files.length === 0` is
+  // false, the renderer-map sites are all still there, and the check would
+  // report a clean tree with 71 modules unjudged. The floor is per module and
+  // refuses first, before a finding count can be printed.
+  { script: 'check-block-names.ts', args: [], prefix: '[block-names]' },
+  { script: 'check-bundle-pairing.ts', args: [], prefix: '[bundle-pairing]' },
+  // `specs/100-module-owned-documentation/`. Its module walk is
+  // `check:bundle-pairing`'s — each registered module's own directory — so the
+  // residue shape is the same: over a moved tree the index still registers 71
+  // modules, none of their directories is there, and the documentation tree is
+  // untouched, so a check asking "did I read any page?" would read all 77, find
+  // every one of them attributed and reachable, and print a clean line over a
+  // platform whose modules it could not see.
+  { script: 'check-module-docs.ts', args: [], prefix: '[module-docs]' },
+  // `specs/094-translation-boundary/`. An ordinary module file walk, and it is
+  // the shape #215 was written about: `backend/src` without the module tree is
+  // a few per cent of the literals, all of them the platform's own and every one
+  // of them English, so a walk that asked "did I read anything?" would classify
+  // that residue, find no Polish in it and print a clean line over 68 unjudged
+  // modules.
+  { script: 'check-default-language-prose.ts', args: [], prefix: '[default-language-prose]' },
   { script: 'check-channel-resolution.ts', args: ['--enforce'], prefix: '[channel-resolution]' },
   { script: 'check-command-coverage.ts', args: ['--strict'], prefix: '[command-coverage]' },
   { script: 'check-container-imports.ts', args: [], prefix: '[container-imports]' },
@@ -113,6 +148,15 @@ const CHECKS: readonly MovedTreeCheck[] = [
   // a `short-walk` refusal — which is #215 arriving through a door no module-id
   // floor covers, since both trees still hand it thousands of files.
   { script: 'check-singleton-identity.ts', args: [], prefix: '[singleton-identity]' },
+  // Feature 111, Phase 4. Its floor was never in doubt — it delegates to
+  // `refuseVacuousModulePopulation` before either addend of its union — and what
+  // kept it out of this list was this fixture: its first vacuous condition is
+  // *"the walk opened no test file under `backend/test/`"*, which every backend
+  // here satisfied until FR-006 staged that tree, and giving it one used to red
+  // `check-singleton-identity` for the anchor FR-001 has since corrected. Both
+  // are gone, so it joins the list rather than keeping a block of its own: what
+  // it was waiting for is exactly what the two phases added.
+  { script: 'check-test-ownership.ts', args: [], prefix: '[test-ownership]' },
 ];
 
 let moved: MovedModuleTreeFixture;
@@ -155,6 +199,92 @@ describe('a moved module tree is refused, not reported clean (issue #215)', () =
       );
     });
   }
+});
+
+/**
+ * Feature 111, Phase 1 — the fixture's first-party packages are the fixture's.
+ *
+ * The fixture used to borrow this repository's `node_modules` by symlink, and
+ * every `@endora-commerce/*` link inside that tree is **relative**
+ * (`mod-blog -> ../../../packages/modules/blog`), so following the borrowed
+ * symlink re-rooted all 76 of them in the **real checkout**. That is issue
+ * #255's failure arriving inside the one instrument whose job is to notice that
+ * a module is not where the registry says it is: a fixture that claims to have
+ * moved a module while every reader still finds a complete copy at its real
+ * address cannot refuse anything, and the check reports clean for exactly the
+ * reason the fixture exists to catch.
+ *
+ * The guard is written **before** the specifier shape changes (FR-001 is Phase
+ * 2), so today it is a green assertion over a tree in which every fixture-local
+ * package is reached by a relative path and nothing escapes. What makes it
+ * worth landing now is the third case below: it is the assertion that becomes
+ * load-bearing the moment the index starts emitting bare specifiers, and it is
+ * cheaper to have it standing than to add it in the same merge request as the
+ * change it protects.
+ */
+function expectNoFirstPartySpecifierEscapes(
+  label: string,
+  resolutions: readonly EndoraSpecifierResolution[],
+): void {
+  const named = (verdict: EndoraSpecifierResolution['verdict']): string =>
+    resolutions
+      .filter((resolution) => resolution.verdict === verdict)
+      .map(
+        (resolution) => `  ${resolution.specifier} (named by ${resolution.from}) -> ${resolution.target ?? 'nothing'}`,
+      )
+      .join('\n');
+  expect(
+    resolutions.filter((resolution) => resolution.verdict === 'escaped'),
+    `${label}: a first-party specifier left the fixture and answered another checkout:\n${named('escaped')}`,
+  ).toEqual([]);
+  expect(
+    resolutions.filter((resolution) => resolution.verdict === 'unresolvable'),
+    `${label}: the fixture holds these packages and this checkout's backend reaches them, ` +
+      `but the fixture resolves neither:\n${named('unresolvable')}`,
+  ).toEqual([]);
+  // Not a vacuous green: a walk that stopped finding specifiers, or a `held`
+  // set that came back empty, would satisfy both assertions above in silence.
+  expect(
+    resolutions.filter((resolution) => resolution.verdict === 'inside').length,
+    `${label}: no first-party specifier resolved at all, so the two assertions above ` +
+      'passed over nothing',
+  ).toBeGreaterThan(0);
+}
+
+describe('a fixture resolves its own packages, not the real checkout\'s (feature 111, FR-003)', () => {
+  it('resolves every first-party specifier the moved tree names inside itself', () => {
+    expectNoFirstPartySpecifierEscapes('moved', endoraSpecifierResolutions(moved.root));
+    expectNoFirstPartySpecifierEscapes('agreeing', endoraSpecifierResolutions(agreeing.root));
+  });
+
+  it('goes red over a fixture that borrows this repository\'s node_modules', () => {
+    // The red proof, and it has to be a **built** fixture: the escape is silent
+    // by construction — the borrowed tree resolves to a complete package and
+    // every reader is happy — so there is nothing to go red over until a
+    // fixture is standing that does it. The input enters at the top of the
+    // analysis (issue #130) rather than as a value the guard normally computes.
+    const borrowed = createMovedModuleTreeFixture({ borrowNodeModules: true });
+    try {
+      const resolutions = endoraSpecifierResolutions(borrowed.root);
+      const escaped = resolutions.filter((resolution) => resolution.verdict === 'escaped');
+      expect(escaped.length, JSON.stringify(resolutions, null, 2)).toBeGreaterThan(0);
+      // It names the escaping specifier and its target, because a guard that
+      // only said "something escaped" would send its reader to the wrong file.
+      for (const resolution of escaped) {
+        expect(resolution.specifier).toMatch(/^@endora-commerce\//);
+        expect(resolution.target).not.toBeNull();
+        expect(resolution.target).not.toContain(borrowed.root);
+      }
+      expect(escaped.map((resolution) => resolution.specifier)).toContain(
+        '@endora-commerce/contracts',
+      );
+      expect(() => expectNoFirstPartySpecifierEscapes('borrowed', resolutions)).toThrow(
+        /left the fixture and answered another checkout/,
+      );
+    } finally {
+      borrowed.cleanup();
+    }
+  });
 });
 
 /**
@@ -344,6 +474,15 @@ describe('a split module tree is read in full, not in half (feature 080, T040a)'
     halfMoved?.cleanup();
   });
 
+  it('resolves every first-party specifier both split trees name inside themselves', () => {
+    // The tree this matters most for. It holds 75 of the 76 members of this
+    // checkout's `@endora-commerce` scope, so with the borrowed tree every one
+    // of them answered the real checkout — including the module packages whose
+    // *location* is the whole subject of the proofs above.
+    expectNoFirstPartySpecifierEscapes('split', endoraSpecifierResolutions(split.root));
+    expectNoFirstPartySpecifierEscapes('half-moved', endoraSpecifierResolutions(halfMoved.root));
+  }, 120_000);
+
   for (const check of CHECKS) {
     it(`${check.script} reads both roots and passes`, () => {
       const result = split.run(check.script, check.args);
@@ -365,6 +504,238 @@ describe('a split module tree is read in full, not in half (feature 080, T040a)'
       expect(result.output).toContain(STRANDED_MODULE);
     }, 120_000);
   }
+
+  /**
+   * Feature 111, Phase 2 — the fixture names a packaged module the way the
+   * generator does (FR-001, FR-005; `contracts/split-fixture-package-naming.md`
+   * § 1 and § 4).
+   *
+   * The specifier decides the **anchor**, not the address: `resolveManifestPath`
+   * answers a bare specifier with the resolved `package.json` and a relative one
+   * with the manifest module file, and every package-root asset is found by
+   * joining a manifest declaration to `dirname(manifestPath)`. So a fixture that
+   * spells it relatively puts the anchor at `<pkg>/src` and hands the estate a
+   * layout no client instance and no generator ever produces.
+   *
+   * The four assertions below are § 4's, and each is written because an **exit
+   * code cannot carry it**: three of the four checks exited 0 over this tree
+   * while reading the wrong file, which is the shape issue #113 is about one
+   * level up. They are the observable that the anchor is the package root, so a
+   * change that quietly reverts § 1 is red here rather than merely different.
+   */
+  it('names a staged package bare and a stranded module relatively (§ 1)', () => {
+    const bare = (specifier: string): boolean => !specifier.startsWith('.');
+    const splitSpecifiers = manifestIndexSpecifiers(split.root);
+    const halfMovedSpecifiers = manifestIndexSpecifiers(halfMoved.root);
+    // The mixed result is the design, not a transitional state: the tree this
+    // fixture models was mixed for the whole of F4, and a fixture emitting one
+    // spelling for everything would be modelling a tree that never existed.
+    expect(splitSpecifiers.filter(bare).length).toBeGreaterThan(0);
+    expect(splitSpecifiers.filter((specifier) => !bare(specifier))).toContain(
+      // `_lifecycle` lives inside the platform package and is imported at that
+      // package's built file, exactly as the real index imports it (D-160.11).
+      '../../packages/platform/dist/lifecycle/manifest.js',
+    );
+    // The stranded module is the refusal, not a preference: it has no
+    // `package.json`, so `createRequire(...).resolve('<pkg>/package.json')`
+    // throws inside `resolveManifestPath` at the index's first import, and every
+    // spawned check would die at module resolution — a crash where the half-moved
+    // proof above asserts an exit 2.
+    const strandedSpecifiers = halfMovedSpecifiers.filter((specifier) =>
+      specifier.includes(`/${STRANDED_MODULE}/`),
+    );
+    expect(strandedSpecifiers, `no specifier for ${STRANDED_MODULE}`).toHaveLength(1);
+    expect(strandedSpecifiers.filter(bare)).toEqual([]);
+    // And it is the *only* difference between the two trees' spellings, so the
+    // stranding is what the half-moved proofs measure rather than a second
+    // change riding along with it.
+    expect(halfMovedSpecifiers.filter(bare).length).toBe(splitSpecifiers.filter(bare).length - 1);
+  });
+
+  it('reads every module\'s bundles, rather than one module\'s (§ 4.1)', () => {
+    // A conditional predicate — the obligation attaches to a module's *first*
+    // bundle — is vacuously clean over a tree whose packages ship nothing
+    // findable, so this check's exit code is not evidence and its counts are.
+    // Measured before Phase 2: `files=2`, 1 module shipping bundles and 70
+    // shipping none, `findings=0`, exit 0. None of its four refusals fires,
+    // because a bundle *was* read and the module walk *is* complete.
+    const counts = /modules shipping bundles=(\d+) shipping none=(\d+)/;
+    const overTheFixture = counts.exec(split.run('check-bundle-pairing.ts').output);
+    const overThisCheckout = counts.exec(
+      runCheckInThisCheckout('check-bundle-pairing.ts').output,
+    );
+    expect(overThisCheckout, 'this checkout reported no bundle counts').not.toBeNull();
+    expect(overTheFixture?.[0]).toBe(overThisCheckout?.[0]);
+    // Not a vacuous agreement: two trees that both found nothing would satisfy
+    // the equality above.
+    expect(Number(overThisCheckout?.[1])).toBeGreaterThan(1);
+  }, 120_000);
+
+  for (const script of ['check-action-route-permissions.ts', 'check-module-docs.ts']) {
+    it(`${script} has an emitted artefact to judge for staleness (§ 4.2)`, () => {
+      // `emitted-freshness.ts`' subject is *the file whose bytes the run read*,
+      // and a registry naming a package's **source** has no staleness question —
+      // correctly, and with the consequence that these two checks exercised
+      // `stale-artefact` / `unpairable-artefact` only in their own companion
+      // tests. The token is the observable that the anchor moved; an exit-code
+      // assertion would not notice it going away.
+      const token = /emitted-manifests:(\d+)\/(\d+)/.exec(split.run(script).output);
+      expect(token, `${script} printed no emitted-manifests token`).not.toBeNull();
+      expect(Number(token?.[2])).toBeGreaterThan(0);
+      expect(token?.[1]).toBe(token?.[2]);
+    }, 120_000);
+  }
+
+  /**
+   * Feature 111, Phase 3 — the two trees the fixture was missing (FR-006,
+   * FR-007).
+   *
+   * Three checks could be spawned here and none of them could reach a verdict,
+   * each refusing — correctly — for a population this fixture had never staged:
+   * `check-test-ownership` on *"the walk opened no test file under
+   * `backend/test/`"*, and both admin checks on the absence of
+   * `@endora-commerce/admin-kit`. That is the state
+   * `contracts/split-fixture-package-naming.md` § 6 is about: a check whose
+   * population **is** the module tree, recorded in the inventory as one whose
+   * population is not, because the shared fixture could not stage it.
+   *
+   * The assertions are the observables rather than the exit codes alone. A
+   * refusal is printed *before* a `read:` line, so a token that only exists on
+   * the far side of the vacuous gate is what says the population arrived; an
+   * exit code would also be satisfied by a check that started failing for some
+   * reason of its own.
+   *
+   * **Phase 4 has since taken all three answers out of this block**, and what is
+   * left below is what `CHECKS` cannot say. `check-test-ownership` is a member
+   * of that list now, so its exit codes over all three trees, its prefix and its
+   * agreeing-registry control are asserted there; the one thing the shared list
+   * does not read is the two addends of its union, which is what stays here.
+   * `check-admin-zones` gets a block of its own further down, for a reason that
+   * is stated there. `check-admin-surface` keeps this block's original
+   * assertion, because it does **not** discriminate — measured, exit 0 over the
+   * half-moved tree — and staging its population is all this feature owes it.
+   */
+  it('check-test-ownership reads both addends of its union over the split tree (§ 3.1)', () => {
+    const result = split.run('check-test-ownership.ts');
+    expect(result.status, result.output).toBe(0);
+    // Each addend is floored separately in the check, because a union whose
+    // addends are not is a half that can go to zero unnoticed — and an exit code
+    // cannot carry that. The application half is the tree Phase 3 stages; the
+    // package half was already here.
+    const counts = /application=(\d+) packages=(\d+)/.exec(result.output);
+    expect(counts, `no test-ownership counts in: ${result.output}`).not.toBeNull();
+    expect(Number(counts?.[1])).toBeGreaterThan(0);
+    expect(Number(counts?.[2])).toBeGreaterThan(0);
+  }, 120_000);
+
+  it('check-admin-surface no longer refuses for a population the fixture did not stage (§ 3.2)', () => {
+    // Its published set: the kit's own `exports` map, read once the kit is a
+    // member of this workspace. Not an assertion that the check *passes* — what
+    // this feature owes it is a population, and its findings and ledgers are its
+    // own. Exit 2 is the one answer that says the fixture is still short.
+    //
+    // It stays out of `CHECKS` on a measurement rather than on a shortfall: over
+    // the half-moved tree it exits **0**, its `manifest-index` expectation
+    // shrinking with the module the fixture strands (55/55 -> 54/54), so the
+    // shared list would assert no discrimination for it. Its source matches
+    // neither spelling of the shared guard, and its `not-a-module-walk` is
+    // correct.
+    const result = split.run('check-admin-surface.ts');
+    expect(result.status, result.output).not.toBe(2);
+    expect(result.output).not.toContain('refusing to report a vacuous pass');
+    const read = /admin-kit-exports:(\d+)\/(\d+)/.exec(result.output);
+    expect(read, `check-admin-surface printed no admin-kit-exports token: ${result.output}`).not.toBeNull();
+    expect(Number(read?.[2])).toBeGreaterThan(0);
+    expect(read?.[1]).toBe(read?.[2]);
+  }, 120_000);
+
+  /**
+   * Feature 111, Phase 4 — `check-admin-zones` discriminates, in a block of its
+   * own (FR-008).
+   *
+   * It is marked `derived-population` in `check-inventory.test.ts` on the
+   * measurement below, and it is **not** in `CHECKS` for one reason worth
+   * stating rather than working around: over a tree with no admin render at all
+   * this check's *own* vacuous refusal fires before the module floor, so its
+   * moved-tree message is the zone one — *"the enum declares zone names and the
+   * walk found neither a render nor a contribution"* — and carries no walk size,
+   * which is what every member of that list is held to. Both refusals are
+   * correct and only one of them is the floor's, so the floor is exercised where
+   * it can be: over the half-moved tree, which is the sharper case anyway, since
+   * a partial move is what a package split actually performs.
+   *
+   * Its entry read `not-a-module-walk` until this phase, on the ground that
+   * *"over the moved tree and the split tree alike it would exit 2 on the kit,
+   * which asserts no discrimination at all"*. That was true and FR-007 ended it.
+   */
+  it('check-admin-zones reads both roots and passes over the split tree', () => {
+    const result = split.run('check-admin-zones.ts');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toContain('[admin-zones]');
+    expect(result.output, 'refused a population it should have covered').not.toMatch(
+      /produced none for/,
+    );
+    // The `admin-ui` token counts the family members **other than** the kit, so
+    // it is only printed once the kit itself is one: a workspace with no kit
+    // refuses before this line, and one with a kit and no second member prints
+    // nothing rather than `0/0`. It is the observable that FR-007's staging
+    // arrived, and an exit code would not carry it.
+    const admin = /admin-ui:(\d+)\/(\d+)/.exec(result.output);
+    expect(admin, `no admin-ui token in: ${result.output}`).not.toBeNull();
+    expect(Number(admin?.[2])).toBeGreaterThan(0);
+    expect(admin?.[1]).toBe(admin?.[2]);
+    // And the module half, which is the one this block is about: both floors
+    // covered, neither short.
+    const modules = /module-admin:(\d+)\/(\d+)/.exec(result.output);
+    expect(modules, `no module-admin token in: ${result.output}`).not.toBeNull();
+    expect(modules?.[1]).toBe(modules?.[2]);
+  }, 120_000);
+
+  it('check-admin-zones refuses a moved tree, for its own reason rather than the floor\'s', () => {
+    const result = moved.run('check-admin-zones.ts');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain('[admin-zones]');
+    // Named rather than merely counted, because this is the discrimination the
+    // block above is worth nothing without — and because which refusal fires is
+    // the fact that keeps it out of `CHECKS`.
+    expect(result.output).toContain('neither a render nor a contribution');
+  }, 120_000);
+
+  it('check-admin-zones exits 2 on its module floor when one module is in neither root', () => {
+    // The floor itself, and the tree that can reach it: the half-moved tree
+    // holds every admin render the passing one holds, so the zone refusal is
+    // satisfied and the module population is what is short.
+    const result = halfMoved.run('check-admin-zones.ts');
+    expect(result.status, result.output).toBe(2);
+    expect(result.output).toContain(STRANDED_MODULE);
+    expect(result.output).toMatch(/the walk read \d+ file\(s\)/);
+  }, 120_000);
+
+  it('check-singleton-identity finds its allowances used, not stale (§ 4.3)', () => {
+    // `WHOLE_FILE_REACHES_ALLOWED`'s entries say the artefact sharing the
+    // process is the package's **root** export — the manifest the index
+    // imports. With a source-naming index no artefact is in the process,
+    // conjunct 1 of the rule is false, the reach is not found, and the entry
+    // describing it reads stale. The entries are right about this repository;
+    // the fixture was wrong about itself.
+    //
+    // **Phase 3 is what makes this assertion load-bearing rather than
+    // vacuous**, and the two halves are worth keeping apart. Staleness is
+    // judged only in the tree that holds the file (`if (!keys.has(file))
+    // continue;`), and all four allowances name a file under `backend/test` —
+    // which this fixture did not stage until FR-006. So before it, `ledger-size=4`
+    // printed over four entries none of which had been looked at, and `sites=0`
+    // said so in the run's own words. The `sites` assertion below is that
+    // reading, not a decoration: it is issue #237's shape, where a healthy file
+    // count stands beside a syntax walk that classified nothing.
+    const result = split.run('check-singleton-identity.ts');
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).toContain('violations=0');
+    expect(result.output).not.toContain('stale-allowance');
+    const sites = / sites=(\d+)/.exec(result.output);
+    expect(sites, `no read-size line in: ${result.output}`).not.toBeNull();
+    expect(Number(sites?.[1])).toBeGreaterThan(0);
+  }, 120_000);
 });
 
 describe('the split fixture selects its modules rather than naming them', () => {

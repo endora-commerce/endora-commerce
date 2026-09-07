@@ -7,9 +7,16 @@
  *   * **`node:util`'s `parseArgs`**, so the program takes no dependency to read
  *     its own arguments, and an unrecognised flag is a refusal rather than a
  *     silent ignore.
- *   * **no interactivity.** A prompt is a dependency, and a value the tool
- *     invented is a value nobody reviewed. Every input the program cannot derive
- *     is on the command line.
+ *   * **non-interactive by default, and guaranteed** (`cli-product.md` R2.5c,
+ *     amending R2.5). A value the tool invented is still a value nobody
+ *     reviewed, and nothing here invents one: a command that resolves inputs
+ *     prints a provenance line whose `defaulted=` is `0`. What the amendment
+ *     added is a *fallback* — on a terminal, a missing **required** input is
+ *     asked for rather than refused. A prompt is issued only when stdin and
+ *     stdout are both TTYs, `--non-interactive` and `--dry-run` are absent and
+ *     no CI marker is set; failing any of those, a missing required input is
+ *     exit `1` naming every one of them and the flag that supplies each, in one
+ *     refusal. No command may block on a question nobody can answer.
  *   * **one meaning per exit code.** `0` did what it was asked and found nothing
  *     to report; `1` a finding or a refusal the author can act on; `2` an input
  *     it could not read. `2` is never reported as clean and never merged into
@@ -18,16 +25,29 @@
  * It reads no configuration file. There is no `.endorarc` and no environment
  * variable that changes a verdict.
  */
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
+import { estateIds, runCheck } from '../check/index.js';
+import { NotAModulePackageError } from '../check/layout.js';
 import { runNewModule } from '../new-module/index.js';
 import { ScaffoldHostError, ScaffoldInputError } from '../new-module/spec.js';
+import { DeclarationLoadError } from '../inputs/declaration.js';
+import { inputForFlag } from '../inputs/resolve.js';
+import {
+  MissingInputsError,
+  runNewStorefront,
+  storefrontInputFlags,
+} from '../new-storefront/index.js';
+import { StorefrontHostError, StorefrontInputError } from '../new-storefront/reference.js';
 
 const USAGE = `endora — scaffolding and conformance tooling for Endora Commerce modules.
 
 Usage:
   endora new module <id> --name <text> --description <text> [options]
+  endora new storefront <dir> [--registry <url>] [--<input> <value>...] [--dry-run]
   endora --help
 
 \`endora new module\` writes a module package that is composed by the platform,
@@ -58,10 +78,67 @@ Options for \`new module\`:
   --non-deactivatable <reason>  declare that the platform cannot run without this module
   --dry-run                     report what would be written; write nothing
 
-\`endora check\` is not in this build. The rules it runs are the platform's own
-static-check estate, and until every one of them is either evaluated for a single
-package or accounted for with a written reason, a partial \`check\` would be the
-silent skip the whole design refuses.
+\`endora new storefront\` copies the reference storefront out of this repository
+into a directory you then own outright, and rewrites every declaration in it that
+names something above the storefront's own directory: each \`workspace:\` range
+into published semver, each configuration file the storefront extends into a
+vendored standalone copy, and each glob naming the workspace's package tree into
+the place a standalone application finds those packages. It keeps no channel back
+to what it wrote — a scaffold that did would be a kit wearing a different name
+(D-195). An outward declaration it cannot make standalone is a refusal, never a
+file copied out unchanged.
+
+Options for \`new storefront\`:
+  <dir>                         where to write. Required; it must be empty, or
+                                hold nothing but a \`.env\` you placed there
+  --<input> <value>             a value for one of the inputs the reference
+                                storefront declares, named after the variable in
+                                lower case with underscores as dashes —
+                                \`--next-public-api-base-url https://api.example.com\`.
+                                Inputs resolve in one fixed order: this flag,
+                                then a \`.env\` already in the target directory,
+                                then a prompt if you are on a terminal, then a
+                                refusal naming every one that is still missing.
+                                Run with \`--dry-run\` to see the list first
+  --non-interactive             refuse rather than ask, even on a terminal
+  --registry <url>              the endpoint the scaffold installs \`@endora-commerce/*\`
+                                from. It writes an \`.npmrc\` naming that endpoint for the
+                                scopes the storefront declares, with the token as
+                                \`\${ENDORA_NPM_TOKEN}\` — an environment reference pnpm
+                                expands at install time, so the file holds no secret and
+                                is committable. Omitted, it writes no \`.npmrc\` at all,
+                                which is what a consumer of the public registry holds
+  --dry-run                     report the copy, every rewrite and every omission;
+                                write nothing
+
+\`endora check\` evaluates the platform's whole static-check estate against one
+module package. Every rule in that estate gets exactly one verdict on every run —
+it ran (clean, or with findings), it is \`not-applicable\` because the package
+declares no subject for it or because its subject is the platform repository, it
+is \`unreadable\` because an input the author can supply is absent, or it is
+\`pending\` because this build has no package-scope host for it yet. A rule that
+is neither run nor explained is the silent skip the whole design refuses, which
+is why the incompleteness is **printed** rather than waived: while any rule is
+\`pending\` the run exits 2 and names the phase that lands it.
+
+Options for \`check\`:
+  [path]                        the module package to check (default: the working
+                                directory, or the nearest ancestor declaring
+                                \`endora: { "type": "module", "id": … }\`)
+  --rule <id>                   evaluate only this rule (repeatable). It can only
+                                remove; there is no flag that adds a rule, changes
+                                a verdict or relaxes a refusal
+  --as-platform                 read every acknowledged finding as a finding. The
+                                package's own ledger answers the author's question
+                                (is my module in the state I decided it should be
+                                in?) and never the platform's (does this module
+                                satisfy the rules we admit modules on?)
+  --list-rules                  print the estate and each rule's classification
+
+Exit codes: 0 the estate was completely evaluated and found nothing; 1 it was
+completely evaluated and there are findings; 2 the picture is incomplete — some
+rule could not be read, or has no host in this build. \`findings=<n>\` is on the
+arithmetic line whatever the code is.
 `;
 
 interface Parsed {
@@ -69,13 +146,30 @@ interface Parsed {
   readonly positionals: readonly string[];
 }
 
-function parse(argv: readonly string[]): Parsed {
+/**
+ * `strict: true` stays, and the option table grows instead.
+ *
+ * `endora new storefront` accepts one flag per input the reference storefront
+ * **declares** (feature 117, FR-010), and those names are the storefront's
+ * rather than this program's. Parsing that subcommand leniently was the obvious
+ * alternative and is the wrong one: it would turn a typo'd
+ * `--next-public-api-base-ur` from a loud refusal into a silently unset required
+ * input, which is the class of failure this whole feature exists to remove. So
+ * the names are resolved from the declaration first and handed in here.
+ */
+function parse(argv: readonly string[], declaredInputFlags: readonly string[] = []): Parsed {
   const { values, positionals } = parseArgs({
     args: [...argv],
     allowPositionals: true,
     strict: true,
     options: {
+      ...Object.fromEntries(
+        declaredInputFlags.map((flag) => [flag, { type: 'string' as const }]),
+      ),
       help: { type: 'boolean', short: 'h' },
+      rule: { type: 'string', multiple: true },
+      'as-platform': { type: 'boolean' },
+      'list-rules': { type: 'boolean' },
       name: { type: 'string' },
       description: { type: 'string' },
       dir: { type: 'string' },
@@ -92,6 +186,8 @@ function parse(argv: readonly string[]): Parsed {
       'tenant-scope': { type: 'string' },
       'activation-setting': { type: 'string' },
       'non-deactivatable': { type: 'string' },
+      registry: { type: 'string' },
+      'non-interactive': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
     },
   });
@@ -111,10 +207,194 @@ function asFlag(value: string | boolean | string[] | undefined): boolean {
   return value === true;
 }
 
+/**
+ * `endora check` — the argv half.
+ *
+ * It resolves nothing and decides nothing: the package comes off the working
+ * directory (or one positional), the verdicts come from the estate, and the exit
+ * code is `runCheck`'s. A flag that could change a verdict is the configuration
+ * this program does not have.
+ */
+function runCheckCommand(parsed: Parsed, positionals: readonly string[], cwd: string): number {
+  if (asFlag(parsed.values['list-rules'])) {
+    for (const id of estateIds()) process.stdout.write(`${id}\n`);
+    return 0;
+  }
+  if (positionals.length > 1) {
+    process.stderr.write(
+      `endora: \`check\` takes one package path; got ${positionals.length} ` +
+        `(${positionals.join(', ')}).\n`,
+    );
+    return 1;
+  }
+
+  const rules = asList(parsed.values['rule']);
+  const known = new Set(estateIds());
+  const unknown = rules.filter((rule) => !known.has(rule));
+  if (unknown.length > 0) {
+    process.stderr.write(
+      `endora: \`--rule\` names ${unknown.join(', ')}, which the estate does not hold. ` +
+        `Run \`endora check --list-rules\` for the ids.\n`,
+    );
+    return 1;
+  }
+
+  try {
+    const run = runCheck({
+      cwd: positionals[0] === undefined ? cwd : resolve(cwd, positionals[0]),
+      rules,
+      asPlatform: asFlag(parsed.values['as-platform']),
+    });
+    for (const line of run.lines) process.stdout.write(`${line}\n`);
+    return run.report.exitCode;
+  } catch (error: unknown) {
+    if (error instanceof NotAModulePackageError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    // Anything else is an input this run could not read, and a run that could
+    // not read its input has said nothing about the tree.
+    process.stderr.write(
+      `endora: check could not read its input: ` +
+        `${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return 2;
+  }
+}
+
+
+/**
+ * `endora new storefront` — the argv half.
+ *
+ * It decides nothing. The target comes off one positional, the population and
+ * every rewrite come from the reference storefront in this checkout, and the
+ * exit code is the refusal's class: an author-fixable refusal is 1, a checkout
+ * this command cannot read a reference storefront out of is 2.
+ */
+async function runNewStorefrontCommand(
+  parsed: Parsed,
+  rest: readonly string[],
+  cwd: string,
+  declaredInputFlags: readonly string[],
+): Promise<number> {
+  if (rest.length > 1) {
+    process.stderr.write(
+      `endora: \`new storefront\` takes one directory; got ${String(rest.length)} ` +
+        `(${rest.join(', ')}).\n`,
+    );
+    return 1;
+  }
+  // The inputs, keyed by **variable name**: the flag is derived from the name
+  // (`inputForFlag`), so a storefront declaring a variable this build has never
+  // heard of is supplied by its own flag with nothing here to update.
+  const inputs: Record<string, string> = {};
+  for (const flag of declaredInputFlags) {
+    const value = asString(parsed.values[flag]);
+    if (value !== undefined) inputs[inputForFlag(flag)] = value;
+  }
+
+  try {
+    const result = await runNewStorefront({
+      ...(rest[0] === undefined ? {} : { dir: rest[0] }),
+      ...(asString(parsed.values['registry']) === undefined
+        ? {}
+        : { registry: asString(parsed.values['registry'])! }),
+      dryRun: asFlag(parsed.values['dry-run']),
+      nonInteractive: asFlag(parsed.values['non-interactive']),
+      inputs,
+      cwd,
+    });
+    const { plan } = result;
+    process.stdout.write(
+      `endora new storefront ${result.targetDir}${result.dryRun ? ' — dry run, nothing written' : ''}\n`,
+    );
+    process.stdout.write(
+      `  ${result.dryRun ? 'would write' : 'wrote'} ${String(plan.files.length)} files, from ` +
+        `${result.reference.dir}\n`,
+    );
+    for (const range of plan.ranges) {
+      process.stdout.write(
+        `  ${range.field}.${range.name}: ${range.from} -> ${range.to}\n`,
+      );
+    }
+    for (const rewrite of plan.rewrites) {
+      process.stdout.write(`  ${rewrite.file}: ${rewrite.specifier} -> ${rewrite.to}\n`);
+    }
+    for (const file of plan.files) {
+      if (file.source === null && file.path !== 'package.json') {
+        process.stdout.write(`  ${file.path} — ${file.note ?? ''}\n`);
+      }
+    }
+    for (const omission of plan.omitted) {
+      process.stdout.write(`  omitted ${omission.path} — ${omission.reason}\n`);
+    }
+    // R2.1 — one provenance line per run, accounting for every input, with a
+    // `defaulted=` count that is contract-bound to `0`. It is printed on every
+    // run including a dry one, because the claim it makes is about the run.
+    process.stdout.write(`\n${result.provenance}\n`);
+    for (const name of result.wouldPrompt) {
+      process.stdout.write(`  would ask for ${name}\n`);
+    }
+    for (const name of result.wouldGenerate) {
+      process.stdout.write(`  would generate ${name}\n`);
+    }
+    for (const name of result.unset) {
+      process.stdout.write(`  left unset ${name} — optional\n`);
+    }
+    process.stdout.write(`\nNext steps:\n`);
+    result.nextSteps.forEach((step, index) => {
+      process.stdout.write(`  ${String(index + 1)}. ${step}\n`);
+    });
+    return 0;
+  } catch (error: unknown) {
+    // A missing required input is a ninth refusal class and it is exit `1`
+    // (R7.2): the operator has something to supply, and the message names every
+    // one at once rather than the first.
+    if (error instanceof MissingInputsError) {
+      process.stderr.write(`${error.message}\n`);
+      return 1;
+    }
+    if (error instanceof StorefrontInputError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    // A declaration this run could not read is a derivation failure, not an
+    // operator input: R7.1 — asking a human to type a value the tool failed to
+    // *read* is how a wrong value enters wearing the operator's authority.
+    if (error instanceof DeclarationLoadError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 2;
+    }
+    if (error instanceof StorefrontHostError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 2;
+    }
+    throw error;
+  }
+}
+
 export async function main(argv: readonly string[], cwd: string): Promise<number> {
+  // The one thing that has to happen **before** the parse: `new storefront`
+  // accepts a flag per input the reference storefront declares, and those names
+  // are the storefront's. Keyed on the two leading tokens rather than on a
+  // heuristic over the whole of argv, so the answer never depends on whether a
+  // flag's *value* happens to read like a subcommand.
+  let declaredInputFlags: readonly string[] = [];
+  if (argv[0] === 'new' && argv[1] === 'storefront') {
+    try {
+      declaredInputFlags = await storefrontInputFlags(cwd);
+    } catch (error: unknown) {
+      if (error instanceof StorefrontHostError || error instanceof DeclarationLoadError) {
+        process.stderr.write(`endora: ${error.message}\n`);
+        return 2;
+      }
+      throw error;
+    }
+  }
+
   let parsed: Parsed;
   try {
-    parsed = parse(argv);
+    parsed = parse(argv, declaredInputFlags);
   } catch (error: unknown) {
     process.stderr.write(`endora: ${error instanceof Error ? error.message : String(error)}\n`);
     process.stderr.write(`Run \`endora --help\` for the flags this build accepts.\n`);
@@ -128,14 +408,7 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
   }
 
   if (command === 'check') {
-    process.stderr.write(
-      `endora: \`check\` is not in this build. Its rules are the platform's own static-check ` +
-        `estate over a single module package, and it ships when every rule in that estate is ` +
-        `either evaluated or accounted for with a written reason — a partial estate would need ` +
-        `a fourth verdict class, which is the silent skip the design refuses. Inside the ` +
-        `platform repository, run the checks themselves: pnpm --filter backend run check:*.\n`,
-    );
-    return 1;
+    return runCheckCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
 
   if (command !== 'new') {
@@ -144,11 +417,14 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
     );
     return 1;
   }
+  if (subject === 'storefront') {
+    return runNewStorefrontCommand(parsed, rest, cwd, declaredInputFlags);
+  }
   if (subject !== 'module') {
     process.stderr.write(
       `endora: unknown subject "${subject ?? '<none>'}" for \`new\`. This build provides ` +
-        `\`new module\`; the other generators named in the scaffolding contract are not ` +
-        `delivered.\n`,
+        `\`new module\` and \`new storefront\`; the other generators named in the ` +
+        `scaffolding contract are not delivered.\n`,
     );
     return 1;
   }
@@ -239,7 +515,39 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
   }
 }
 
-const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+/**
+ * Is this module the program the process was started to run?
+ *
+ * The comparison is between **realpaths**, and that is the whole content of the
+ * function. A package manager does not invoke `dist/bin/endora.js` directly: it
+ * links the `bin`, so `process.argv[1]` names the link — pnpm's shim execs
+ * `node "$basedir/../@endora-commerce/cli/dist/bin/endora.js"`, a path running
+ * through the `node_modules/@endora-commerce/cli` symlink into the
+ * content-addressed store — while Node's ESM loader resolves a module URL to
+ * its real location before evaluating it, so `import.meta.url` is the store
+ * path. Comparing the two as written is therefore false for **every** consumer
+ * who installed this package and true only in the checkout that developed it,
+ * where nothing is linked. Measured on a `pnpm pack`ed tarball installed into a
+ * scratch directory: `endora --help` printed nothing at all and exited 0.
+ *
+ * Both failure directions are worth naming. Answering *no* wrongly is the
+ * silence above. Answering *yes* wrongly would run the program on `import
+ * { main }`, which is what the `./` export exists for, so the negative case is
+ * asserted as well.
+ *
+ * An `argv[1]` naming nothing on disk answers `false` rather than throwing:
+ * `realpathSync` raises `ENOENT`, and an uncaught one here would turn a wrong
+ * guess about the invocation into a crash before any command is dispatched.
+ */
+export function isDirectEntry(entry: string | undefined, moduleUrl: string): boolean {
+  if (entry === undefined) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectEntry(process.argv[1], import.meta.url)) {
   process.exitCode = await main(process.argv.slice(2), process.cwd());
 }

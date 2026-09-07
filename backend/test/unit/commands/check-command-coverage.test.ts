@@ -319,13 +319,15 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
     expect(has('/admin_users/cli/create-admin.ts')).toBe(true);
     expect(has('/product_feeds/seeds/predefined-templates.ts')).toBe(true);
     // The five `module:*` platform commands stay hand-built scripts (D-157.2/.4
-    // — a platform command must not compose), and they left this population
-    // with D-160.11's second half: `_lifecycle` merged into the host package and
-    // its host half — the manifest registry and those five scripts — stayed
-    // behind at `backend/src/lifecycle/`, which is host code like `src/db` and
-    // `src/overlay` and is in no module walk. What *is* in the population is the
-    // module's own sources, now inside the platform package.
+    // — a platform command must not compose). `scripts/` is not where their
+    // bodies are: `specs/115-lifecycle-container-move/` Phase 5 moved those to
+    // `_lifecycle/commands/`, inside the platform package and so **inside** this
+    // walk, and what stayed at `backend/src/lifecycle/scripts/` is twenty lines
+    // of ORM, Redis and system scope per verb — host code like `src/db` and
+    // `src/overlay`, in no module walk. So both halves are asserted: the entry
+    // points are outside the population and the bodies are in it.
     expect(has('/_lifecycle/scripts/install.ts')).toBe(false);
+    expect(has('/_lifecycle/commands/install.ts')).toBe(true);
     expect(has('/_lifecycle/services/orchestrator.ts')).toBe(true);
   });
 
@@ -343,7 +345,7 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
     const appsRoot = fileURLToPath(new URL('../../../src/apps', import.meta.url));
     const overlay = collectScannedFiles(appsRoot).map((f) => f.replace(appsRoot, ''));
     expect(overlay.some((f) => f.includes('/modules/example_overlay/'))).toBe(true);
-    expect(overlay.some((f) => f.endsWith('/reduced-deployment.ts'))).toBe(true);
+    expect(overlay.some((f) => f.endsWith('/divergence.ts'))).toBe(true);
   });
 });
 

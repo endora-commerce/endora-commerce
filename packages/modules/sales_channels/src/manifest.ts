@@ -166,11 +166,34 @@ export const manifest = defineModuleManifest({
     { code: 'UNKNOWN_SALES_CHANNEL' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: 'sales_channels:read', label: 'View sales channels' },
     { code: 'sales_channels:write', label: 'Manage sales channels' },
   ],
   actions: [
+    /**
+     * The module's landing surface, declared by feature 091's Phase 4 batch 14.
+     *
+     * `AppShell.tsx` carried a hand-written *Navigate* row for
+     * `/sales-channels` until that batch, and this module declared only the
+     * *create* action beside it — so the roster was advertised by a copy the
+     * server was never asked about while the create form was advertised by a
+     * declaration it served. The destination, the code and the keywords are the
+     * row's; the label and description are the two strings it rendered
+     * (`appShell.nav.salesChannels`, `appShell.palette.sub.storefrontChannels`),
+     * moved into this module's own bundle.
+     */
+    {
+      id: 'open-sales-channels',
+      labelKey: 'actions.openSalesChannels.label',
+      descriptionKey: 'actions.openSalesChannels.description',
+      icon: 'Store',
+      targetRoute: '/sales-channels',
+      requiredPermission: 'sales_channels:read',
+      keywords: ['sales', 'channel', 'channels', 'kanał', 'sprzedaży'],
+      weight: 160,
+    },
     {
       id: 'new-sales-channel',
       labelKey: 'actions.newSalesChannel.label',

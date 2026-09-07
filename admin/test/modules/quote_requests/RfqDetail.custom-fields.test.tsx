@@ -41,9 +41,19 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   };
 });
 
-vi.mock('@/modules/catalog/components/ProductPicker', () => ({ ProductPicker: () => null }));
+// The Modify tab's product select, stubbed at the barrel the screen actually
+// imports it from: `ProductPicker` is `@endora-commerce/admin-kit/components`'
+// since feature 091's P2. This mock named `@/modules/catalog/components/…`
+// until batch 12 and stubbed nothing — the screen had stopped importing that
+// path, so the real picker mounted and pulled its own data chain.
+vi.mock('@endora-commerce/admin-kit/components', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/components')>(
+    '@endora-commerce/admin-kit/components',
+  );
+  return { ...actual, ProductPicker: () => null };
+});
 
-const { RfqDetail } = await import('../../../src/modules/quote_requests/RfqDetail');
+const { RfqDetail } = await import('../../../../packages/modules/quote_requests/src/admin/pages/RfqDetail');
 
 const CORE_EN = JSON.parse(
   readFileSync(resolve(process.cwd(), '../packages/modules/_i18n/i18n/en.json'), 'utf8'),

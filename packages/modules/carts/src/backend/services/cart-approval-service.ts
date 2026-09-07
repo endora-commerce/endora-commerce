@@ -209,6 +209,29 @@ export class CartApprovalService {
   }
 
   /**
+   * The current policy, for a platform admin (feature 091, P7b;
+   * `contracts/admin-component-contribution.md` §10.5).
+   *
+   * The read half of {@link setPolicyByAdmin}, added because the admin
+   * contribution that renders the toggle has to know what to render it in.
+   * Until P7b that value crossed as a prop — `initialRequiresCartApproval`, out
+   * of `organizations`' detail payload — and a zone's props may not carry it:
+   * the other three contributors to `organization.detail.after` want neither
+   * the prop nor the request behind it.
+   *
+   * It reads through `organizations`' own port rather than this module's
+   * tables, which is the direction the write has taken since issue #175: the
+   * column belongs to that module.
+   */
+  async getPolicyByAdmin(organizationId: string): Promise<OrganizationRecord> {
+    const organization = await this.organizations.findById(organizationId);
+    if (!organization) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'organization_not_found');
+    }
+    return organization;
+  }
+
+  /**
    * Platform-admin variant of {@link setPolicyForOrganization}. Same
    * semantics (policy-off cascades a reset of every pending/approved
    * cart in the Org) but the actor is a platform admin rather than an

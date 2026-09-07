@@ -64,16 +64,37 @@ const get = vi.fn(async (url: string) =>
   url.includes('/levels') ? roster : kpis,
 );
 
-vi.mock('@/lib/api-client', () => ({
-  ApiError: class ApiError extends Error {},
-  apiClient: {
-    get: (...args: unknown[]) => get(...(args as [string])),
-    post: vi.fn(),
-    patch: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  },
-}));
+/**
+ * The mock is at the **kit's** barrel and not at `@/lib/api-client`, which is
+ * feature 091's batch 13 correction rather than a preference.
+ *
+ * That shim is itself a re-export of `@endora-commerce/admin-kit/lib`, so a
+ * mock over it never intercepted this screen's client once the screen moved
+ * into `@endora-commerce/mod-inventory/admin` and started naming the package
+ * subpath — and vitest reports nothing when a mock stops being reached. What
+ * the case would then have measured is the real `apiClient` against no server,
+ * which is a screen in its error state and passes every "denied means absent"
+ * assertion below for the wrong reason.
+ *
+ * `importActual` and a spread, because the barrel publishes the whole session
+ * cluster this file mounts for real: replacing the module wholesale would take
+ * `useAuth`, `useSurfaceVisibility` and `useModulePresence` with it.
+ */
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
+  return {
+    ...actual,
+    apiClient: {
+      get: (...args: unknown[]) => get(...(args as [string])),
+      post: vi.fn(),
+      patch: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+    },
+  };
+});
 
 /** The codes the signed-in operator holds, per case. */
 let permissions: readonly string[] = [];
@@ -92,7 +113,11 @@ const KEYS = [
 ];
 
 function mount(): Promise<void> {
-  return import('@/modules/inventory/InventoryPage').then(({ InventoryPage }) => {
+  // The package's source, by relative path: `./admin` publishes the
+  // contribution declaration and nothing else (R2), so a screen has no bare
+  // specifier of its own — which is batch 12's convention for a test that needs
+  // one particular screen rather than the whole registry.
+  return import('../../../../packages/modules/inventory/src/admin/pages/InventoryPage').then(({ InventoryPage }) => {
     renderWithI18n(
       withSession(
         <MemoryRouter initialEntries={['/inventory']}>

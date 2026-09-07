@@ -24,13 +24,16 @@
 
 import { Migration20260629T200954NewsletterInit } from './20260629T200954_newsletter_init.js';
 import { Migration20260830T212736NewsletterOrganizationAttribution } from './20260830T212736_newsletter_organization_attribution.js';
+import { Migration20260903T101752NewsletterNamespaceBlockNames } from './20260903T101752_newsletter_namespace_block_names.js';
 
 export const migrations = [
   Migration20260629T200954NewsletterInit,
   Migration20260830T212736NewsletterOrganizationAttribution,
+  Migration20260903T101752NewsletterNamespaceBlockNames,
 ];
 
 export {
   Migration20260629T200954NewsletterInit,
   Migration20260830T212736NewsletterOrganizationAttribution,
+  Migration20260903T101752NewsletterNamespaceBlockNames,
 };

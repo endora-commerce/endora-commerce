@@ -5,66 +5,51 @@ import type { CredentialsService } from '../../../packages/modules/credentials/s
 import type { AdminNotificationService } from '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { Redis } from 'ioredis';
+import type { Redis } from 'ioredis';
 
-/**
- * A subscriber-shaped object that subscribes to nothing.
- *
- * Feature 072 (T087) — `custom_fields` arms its definition-invalidation
- * channel from `onBoot`, so every composition now *asks* for a subscriber.
- * Production hands it the real one. The harness hands it this unless the test
- * opted into pub/sub, because a live subscription per composition is the leak
- * the `exercisePubSub` opt-in was measured into existence to stop — and because
- * a module that never receives an invalidation still behaves correctly, it just
- * falls back to the cache's 5 s TTL.
- */
-function inertRedisSubscriber(): Redis {
-  const inert = {
-    subscribe: async () => 0,
-    on: () => inert,
-    removeAllListeners: () => inert,
-    unsubscribe: async () => 0,
-    disconnect: () => undefined,
-  };
-  return inert as unknown as Redis;
-}
-import { buildServer, type ModulePlugin } from '../../src/http/server.js';
-import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
-import { publishStateChanged, registryCache } from '../../src/kernel/lifecycle/registry-cache.js';
-import { activationDeclarationsFrom } from '../../src/kernel/lifecycle/activation-resolver.js';
-import { effectiveState } from '../../src/kernel/lifecycle/effective-state.js';
-import { forkScopedEm } from '../../src/tenancy/scoped-em.js';
-import { type TenantContext } from '../../src/tenancy/tenant-context.js';
-import { registerRequestScopeHook } from '../../src/kernel/request-scope-hook.js';
+import { buildServer, type ModulePlugin } from '@endora-commerce/platform/composition';
+import type { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
+import { publishStateChanged, registryCache } from '@endora-commerce/platform/composition';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import { type TenantContext } from '@endora-commerce/platform/tenancy';
 // Feature 072 — the generated module list, composed in one pass exactly as
 // `src/composition.ts` composes it (D-45). Issue #52 — and contributed into
 // through the same `composedModules.contribute(…)` window, which is a method
 // rather than a convention precisely because this pair kept drifting.
 import { MODULES } from '../../src/composition.generated.js';
-// The composition machinery, by relative path since T042c: it is the host's,
-// not the `./kernel` subpath's, and this is the second composition root rather
-// than a module. `harness-parity.test.ts` holds the two roots to each other.
-import { composeModules } from '../../src/kernel/compose.js';
+// The composition machinery, through `@endora-commerce/platform/composition`
+// since feature 109's T011a (D-160.14): it is the host's surface and not the
+// `./kernel` subpath's, and this is the second composition root rather than a
+// module. `harness-parity.test.ts` holds the two roots to each other.
+//
+// It was a relative specifier into the platform's re-export shims until then —
+// a path a published package does not have, which is what stopped this file
+// from becoming the test kit. The subpath is declared by the host's `exports`
+// map, carried by no public barrel, and nameable by **no module**, production
+// source or test: a module's server-bound test composes through the kit's
+// `composeTestServer`, never through `composeModules`.
 import {
-  createRootContainer,
-  registerOrm,
-  registerValues,
-  type KernelContainer,
-} from '../../src/kernel/container.js';
-import { createRegistrationOwnership } from '../../src/kernel/module-context.js';
-import { platformLogger } from '../../src/kernel/logging.js';
-import { requiredModulesFrom } from '../../src/kernel/lifecycle/required-modules.js';
-import type { DecorationRecord } from '../../src/kernel/compose.js';
-import {
+  platformLogger,
   resolveTenantContext,
   systemTenantContext,
-} from '../../src/tenancy/resolve-tenant-context.js';
+  type DecorationRecord,
+  type KernelContainer,
+} from '@endora-commerce/platform/composition';
+// Feature 109 (T030) — the kit composes the platform-shaped half of this
+// harness. It is the same seam a module package's own server-bound test calls,
+// which is the point: there is one composer, and each caller supplies the one
+// composition only it can describe.
+import {
+  composeTestServer,
+  teardownTestServer,
+  type TestServerHandle,
+} from '@endora-commerce/test-kit/server';
 import { initOrm, closeOrm } from '../../src/db/index.js';
 import { assertServicesAvailable } from '../declared-services.js';
-import { EventBus } from '../../src/events/bus.js';
-import { CommandBus } from '../../src/commands/index.js';
+import type { EventBus } from '@endora-commerce/platform/events';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { SessionService } from '@endora-commerce/mod-auth/backend';
-import { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
+import type { AuditLogService } from '@endora-commerce/platform/composition';
 import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
 import type { PermissionCatalogueService } from '../../../packages/modules/admin_roles/src/backend/services/permission-catalogue.service.js';
 import type { AdminRoleService } from '../../../packages/modules/admin_roles/src/backend/services/admin-role-service.js';
@@ -75,6 +60,7 @@ import {
   resolvedManifestEntries,
 } from '../../src/lifecycle/registered-manifests.js';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
+import { loadDivergenceDeclaration } from '../../src/overlay/divergence-loader.js';
 import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
 import { buildStaticRegistry } from '../../src/lifecycle/services/static-registry.js';
 import type { LoadedManifestRegistry } from '../../src/lifecycle/services/manifest-loader.js';
@@ -93,7 +79,7 @@ import type {
   OrderReadPort,
   SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'node:crypto';
 import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 // D-54 — injected into the error envelope, exactly as `composition.ts` does it:
@@ -106,7 +92,7 @@ import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 import {
   buildErrorTranslationTargets,
   describeErrorCodeCollisions,
-} from '@endora-commerce/mod-i18n/backend';
+} from '../../src/kernel/i18n/error-translation.js';
 // Type-only, and off the package's **source** rather than its `./backend`
 // subpath, because the three service types below come from the same source
 // files: `dist` and `src` are two nominal declarations of one class, so a
@@ -160,13 +146,11 @@ import type { DictionariesCradle } from '../../../packages/modules/dictionaries/
 import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
 import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/index.js';
 import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
-import { composeSettingsKernel } from '../../src/kernel/settings/compose.js';
-import type { SettingsKernel } from '../../src/kernel/settings/compose.js';
+import type { SettingsKernel } from '@endora-commerce/platform/composition';
 import type { SettingsCradle } from '../../../packages/modules/settings/src/backend/index.js';
 import type { MfaActorBridge } from '../../../packages/modules/mfa/src/backend/index.js';
 import type { OAuthProviderPort } from '../../../packages/modules/mfa/src/backend/services/oauth-provider-service.js';
-import { composeSalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
-import type { SalesChannelsKernel } from '../../src/kernel/sales-channels/compose.js';
+import type { SalesChannelsKernel } from '@endora-commerce/platform/composition';
 import type { SalesChannelsCradle } from '../../../packages/modules/sales_channels/src/backend/index.js';
 import type { SearchCradle } from '../../../packages/modules/search/src/backend/index.js';
 import type { PromptActionsCradle } from '../../../packages/modules/prompt_actions/src/backend/index.js';
@@ -186,17 +170,22 @@ import type {
 import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-adapter.interface.js';
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
+import type { PimUnopimCradle } from '@endora-commerce/mod-pim-unopim/backend';
+import type { PimConnectorRegistryPort } from '@endora-commerce/contracts';
 import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
-import type { AkeneoMediaFetcherPort } from '../../src/modules/pim_akeneo/services/akeneo-media-fetcher.js';
+import type { UnopimMediaFetcherPort } from '../../../packages/modules/pim_unopim/src/backend/services/unopim-media-fetcher.js';
+import type { AkeneoMediaFetcherPort } from '../../../packages/modules/pim_akeneo/src/backend/services/akeneo-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
+import { refusingUnopimClient } from './scripted-unopim-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
-import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
+import { ScriptedUnopimMediaFetcher } from './scripted-unopim-media-fetcher.js';
 import { ScriptedAkeneoMediaFetcher } from './scripted-akeneo-media-fetcher.js';
+import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
-import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
-import { createRequestLanguageResolver } from '../../src/kernel/i18n/request-language.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { createRequestLanguageResolver } from '@endora-commerce/platform/composition';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
 // `catalog`'s two service types name the package's **`dist`**, unlike the other
 // packaged modules above, and the difference is not cosmetic: the values these
@@ -211,8 +200,8 @@ import type { CatalogQueryService } from '../../../packages/modules/catalog/dist
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-attribute-read.service.js';
 import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
-import { DefaultChannelReconciler } from '../../src/kernel/sales-channels/default-channel-reconciler.js';
-import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
+import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
+import { ManifestReconciler } from '@endora-commerce/platform/composition';
 import type { CartService } from '../../../packages/modules/carts/src/backend/services/cart-service.js';
 import type { Mailer } from '../../../packages/modules/email/src/backend/services/mailer.js';
 import { seedUs1Catalog } from './seed-catalog.js';
@@ -226,6 +215,17 @@ import {
   TEST_CUSTOMER_ID,
   TEST_ORGANIZATION_ID,
 } from './test-actors.js';
+
+/**
+ * What `composeTestServer` hands back as `composed` — the contribution window
+ * and the module sink.
+ *
+ * Named through the kit's own handle rather than by importing `ComposedModules`
+ * from the platform: `composeModules`' return type is on no barrel, this feature
+ * widens none (R3.1), and taking it from the value that carries it keeps it
+ * correct in the same compile.
+ */
+type ComposedTestModules = TestServerHandle['composed'];
 
 export async function setupTestServer(): Promise<FastifyInstance> {
   return buildServer({
@@ -284,10 +284,18 @@ export interface BackendServerOptions {
    */
   ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
   /**
-   * Feature 093 / US5 — the byte source for imported Akeneo media. Defaults to
-   * a fetcher that has nothing scripted and therefore answers `not_found`, so a
-   * test never opens a socket; the media tests pass a
-   * `ScriptedAkeneoMediaFetcher` holding their files.
+   * Feature 089 — the UnoPim source transport. Defaults to a client that throws
+   * on every stream read so no test reaches the network without scripting fixtures.
+   */
+  unopimClient?: PimUnopimCradle['pimUnopimSourceOverrides']['unopimClient'];
+  /**
+   * Feature 089 / US5 — the byte source for imported media. Defaults to a
+   * fetcher that has nothing scripted and therefore answers `not_found`.
+   */
+  unopimMediaFetcher?: UnopimMediaFetcherPort;
+  /**
+   * Feature 094 / US5 — the byte source for imported media. Defaults to a
+   * fetcher that has nothing scripted and therefore answers `not_found`.
    */
   akeneoMediaFetcher?: AkeneoMediaFetcherPort;
   /**
@@ -375,7 +383,11 @@ export interface BackendServerHandle {
   productFeeds: ProductFeedsCradle['productFeeds']['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
   pimErgonode: PimErgonodeCradle['pimErgonode']['handle'];
-  /** Feature 089 — Pimcore PIM handle (source client seam, inline import). */
+  /** Feature 089 — shared PIM connector registry port. */
+  pimConnectorRegistry: PimConnectorRegistryPort;
+  /** Feature 089 — UnoPim PIM handle (source client seam). */
+  pimUnopim: PimUnopimCradle['pimUnopim']['handle'];
+  /** Feature 092 — Pimcore PIM handle (source client seam, inline import). */
   pimPimcore: PimPimcoreCradle['pimPimcore']['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
@@ -418,6 +430,16 @@ export interface BackendServerHandle {
   };
   /** Feature 072 — the composed kernel container, disposed at teardown. */
   container: KernelContainer;
+  /**
+   * The kit's own handle for this composition (feature 109, T030).
+   *
+   * `teardownBackendServer` delegates to `teardownTestServer` with it, so the
+   * release sequence — the app, the container's disposers, both Redis clients
+   * and the ORM — has one implementation, shared with every module package's own
+   * server-bound test. A hand-written copy is frozen at the moment it was
+   * copied, which is what `check:harness-teardown` refuses one file down.
+   */
+  composition: TestServerHandle;
   /**
    * Feature 072 (T065) — the override report: every decoration this composition
    * applied, in application order, innermost first.
@@ -787,153 +809,36 @@ export async function setupBackendServer(
   // it has no services gets one sentence naming the ledger it is missing from,
   // not an ECONNREFUSED against the unreachable stand-in URL.
   assertServicesAvailable('setupBackendServer');
-  const orm = await initOrm();
-  // Feature 050 — mirror the production seam: forks stamp tenant filter params
-  // from the ambient TenantContext (established per request by the hook below).
-  const em = (): EntityManager => forkScopedEm(orm);
 
-  // Feature 072 — the kernel container, built exactly as `composition.ts` does
-  // it, including *not* installing it as the process root (see the note there).
-  // `teardownBackendServer` disposes it.
-  const container = createRootContainer();
-  registerOrm(container, orm);
-  const registrationOwnership = createRegistrationOwnership();
-
-  // Feature 060 — API interceptor registry, mirroring composition.ts wiring.
-  // Fixture registrations arrive via `options.configureInterceptors`; the
-  // registry is sealed (after boot validation) inside app.ready(). Constructed
-  // here rather than beside its admin routes because `composeModules` hands it
-  // to every module that declares an interceptor, and production builds it
-  // early for the same reason.
-  const apiInterceptors = new ApiInterceptorRegistry({
-    isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
-  });
-
-  const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
-  const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
-  // Feature 018 / 072 (T073) — the module-state pub/sub client. ioredis puts a
-  // subscribed client into a mode where it will not accept ordinary commands,
-  // so production keeps subscriptions on a second connection; a harness with
-  // one client cannot exercise that path at all, and the pub/sub channel is the
-  // platform's *only* cross-process invalidation mechanism — the EventBus is
-  // in-process and the settings cache converges by TTL.
+  // Feature 109 (T030) — everything from here down to `composeTestServer` is
+  // the half of this composition only **this repository** can answer: which
+  // modules a deployment ships, how its ORM opens, what its manifest registry
+  // resolved to, what its deployment declares about decoration order. The
+  // platform-shaped half — the container, the two Redis clients, the event and
+  // command buses, the settings and sales-channel kernels, `composeModules`,
+  // the contribution window, the request scope, the one boot phase and
+  // `buildServer` — is `@endora-commerce/test-kit/server`'s, and this function
+  // is its first caller.
   //
-  // It costs one more connection per composition. Redis tolerates that where
-  // PostgreSQL would not, and files run sequentially under `singleFork`, so at
-  // most a couple are live at once — but it is disconnected in
-  // `teardownBackendServer` alongside the main client, because 555 leaked
-  // connections is what the ceiling in `harness-parity.test.ts` is about.
-  const redisSubscriber = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-    lazyConnect: false,
-  });
-  // Each setup truncates + reseeds the DB with fresh random-id rows, so any
-  // Redis cache that keys by a STABLE business key (channel code, setting code)
-  // but stores the now-deleted row's id goes stale and causes FK violations on
-  // the next insert. CI gets an ephemeral Redis per run; a developer's local
-  // Redis persists across runs, so we must clear the cross-run-stale namespaces
-  // here. (cms/megamenu/blog/dictionaries clear their own caches further down
-  // via their module handle's `invalidateAll()`, which also drops the LRU.)
-  // `sales-channels:*` covers every cache version (feature 053 bumped it to v2).
+  // That is the same inversion the platform already applies to every other host
+  // value (AGENTS.md § Composition item 8): the composition is one more thing a
+  // root supplies rather than something a composer goes looking for. It is what
+  // lets a module package's own server-bound test compose the same platform
+  // without naming `backend/`.
   //
-  // Done **twice**, here and again after the reseed (`dropStaleCaches` below).
-  // This call is the one the seeding needs: it stops a seed insert from reading
-  // a dead id through the cache and failing on the foreign key. But a drop that
-  // happens *before* the rows it protects against are deleted leaves a window —
-  // every statement from the `truncate` to the last seed — in which a read
-  // re-pins a pre-truncate id under a code that survives the reseed. You drop a
-  // cache after invalidating its source, not before, and the second call is that
-  // drop.
-  await dropStaleCaches(redis);
-
-  const auditLogService = new AuditLogService(em);
-
-  const conn = orm.em.getConnection();
-  await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
-  // Feature 002: keep the system Default Attribute Set, drop everything
-  // else so contract tests start from a clean slate. (`attribute_sets`
-  // isn't in SEEDED_TABLES because the truncate-cascade would drop the
-  // Default seed too.)
-  await conn.execute('delete from "attribute_sets" where "is_system" = false');
-  // Feature 002 (US3): keep the 4 standard attachment_types seeded by
-  // migration 021; drop any custom ones the previous test may have
-  // added. attachment_types isn't in SEEDED_TABLES for the same reason
-  // as attribute_sets — truncate-cascade would drop the seed.
-  await conn.execute(
-    `delete from "attachment_types" where "code" not in ('certificate', 'tech_spec', 'product_card', 'pdf')`,
-  );
-
-  // Reset the i18n + dictionary config tables to a known state so
-  // parallel-running tests don't inherit each other's mutations. We don't
-  // truncate them in SEEDED_TABLES because they're configuration, not
-  // transactional state.
-  await conn.execute('delete from "dictionary_translations"');
-  await conn.execute('delete from "language_countries"');
-  await conn.execute('delete from "countries"');
-  await conn.execute('delete from "languages"');
-  await conn.execute('delete from "currencies"');
-  await conn.execute(
-    `insert into "languages" ("code", "label", "is_default", "is_active", "sort_order", "created_at", "updated_at")
-     values ('en-US', 'English (US)', true, true, 0, now(), now()),
-            ('pl-PL', 'Polski', false, true, 1, now(), now())`,
-  );
-  await conn.execute(
-    `insert into "currencies" ("code", "label", "symbol", "is_default", "is_active", "sort_order", "created_at", "updated_at")
-     values ('PLN', 'Polish zloty', U&'z\\0142', true, true, 0, now(), now()),
-            ('EUR', 'Euro', U&'\\20AC', false, true, 1, now(), now())`,
-  );
-
-  // Feature 005 — guarantee the system-default Sales Channel exists before
-  // any seed runs. Test-server uses 'en-US' / 'PLN' to match the language /
-  // currency seed above (production uses the 'en' / 'EUR' fallback).
-  await new DefaultChannelReconciler(em, undefined, {
-    bootstrapDefaults: { code: 'default', language: 'en-US', currency: 'PLN' },
-  }).run();
-
-  if ((options.seed ?? 'us1-catalog') === 'us1-catalog') {
-    await seedUs1Catalog(em());
-  }
-  await seedTestOrganizations(em());
-  await seedUs2Commerce(em());
-  await seedTestAdmins(em());
-
-  // The second drop — the one the composition below needs. Every row the caches
-  // key by now exists with the id it will have for the rest of this file, so
-  // nothing read from here on can be a pre-truncate id wearing a code that
-  // survived the reseed.
-  //
-  // That is the shape issue #154 reported: `public-ignores-bearer.test.ts`
-  // failed once in a 67-file run with the anonymous body `data: []` and the
-  // bearer body carrying three products. The two requests resolve their channel
-  // differently — anonymous by **code** through this cache, a bound api key by
-  // **id** from its binding — so a cached `pl_retail` pointing at a dead id
-  // produces exactly that asymmetry, 200 and all. It has not been reproduced,
-  // so this is not filed as the fix; the drop order was wrong on its own terms
-  // and is worth correcting whether or not it was the cause.
-  await dropStaleCaches(redis);
-
-  const eventBus = new EventBus();
-
-  // Feature 054 — mirror production: the Command Bus is the audited write path.
-  const commandBus = new CommandBus(orm, auditLogService, eventBus);
-
-  // Feature 072 (T078) — the enabled set is seeded **before** the modules
-  // compose, not at the end of this function where it used to sit.
-  //
-  // The enabled set is a precondition for every gated resolution, and a
-  // converted module's port is resolved as soon as something asks for it. While
-  // no module provided a port the late seeding was invisible; `auth` providing
-  // `requireAdmin` turned it into `ModuleDisabledError: Module 'auth' is
-  // currently disabled` on a platform where nothing was disabled. The ordering
-  // was always wrong; nothing had asked the question early enough to show it.
-  // D-104 — the deployment-resolved set, from the one implementation of it.
-  // Bare core when no deployment is selected, which is every test but the
-  // overlay ones.
+  // D-104 — the deployment-resolved manifest set, from the one implementation
+  // of it. Bare core when no deployment is selected, which is every test but
+  // the overlay ones.
   const overlayEnv = (
     options.deployment === undefined ? {} : { DEPLOYMENT: options.deployment }
   ) as NodeJS.ProcessEnv;
   const resolvedRegistry = await resolvedManifestEntries(overlayEnv);
   const overlayModuleEntries = await loadOverlayModuleEntries(overlayEnv);
+  // Feature 107 — mirrors `composition.ts`: this deployment's own declaration,
+  // read once. `harness-parity.test.ts` is why "both roots" is not optional —
+  // a decoration order production honours and the harness does not is a
+  // composition no test can reproduce.
+  const divergenceDeclaration = await loadDivergenceDeclaration(overlayEnv);
   // Feature 080 (T031) — mirrors `composition.ts`. Empty in every test run,
   // because a checkout installs no Endora module package; it is here so the two
   // roots compose the same list, which `harness-parity.test.ts` is the ledger
@@ -957,58 +862,49 @@ export async function setupBackendServer(
     );
   }
 
-  registryCache.setActivationDeclarations(
-    activationDeclarationsFrom(resolvedRegistry.map((e) => e.manifest)),
-  );
-  registryCache.__setEnabledForTesting(resolvedRegistry.map((e) => e.manifest.id));
+  // The platform values the kit builds. Bound here rather than threaded through
+  // six callbacks because every closure below — the port accessors, the request
+  // plugin, the tenant-context builder, the error envelope and the returned
+  // handle — reads one of them, and each of those runs after `prepareDatabase`,
+  // which is the first hook the kit calls and where they are assigned.
+  let container!: KernelContainer;
+  let orm!: MikroORM;
+  let em!: () => EntityManager;
+  let redis!: Redis;
+  let eventBus!: EventBus;
+  let commandBus!: CommandBus;
+  let auditLogService!: AuditLogService;
+  let apiInterceptors!: ApiInterceptorRegistry;
+  let settings!: SettingsKernel;
+  let salesChannels!: SalesChannelsKernel;
+  let composedModules!: ComposedTestModules;
+  // The module services this root resolves once, at composition, and hands back
+  // on the handle. They are `let` for the reason the platform values above are:
+  // the container that answers them does not exist until the kit has composed,
+  // and the handle is built after it has. Phase 2 (T050) replaces every one of
+  // them with a `handle.container` resolution at the reader.
+  let sessionService!: SessionService;
+  let permissionService!: PermissionService;
+  let permissionCatalogueService!: PermissionCatalogueService;
+  let adminNotificationService!: AdminNotificationService;
+  let customFieldsCradle!: CustomFieldsCradle;
+  let customFieldDefinitionService!: CustomFieldsCradle['customFieldDefinitionService'];
+  let customFieldValueService!: CustomFieldsCradle['customFieldValueService'];
+  let apiKeysCradle!: ApiKeysCradle;
+  let cmsCradle!: CmsCradle;
+  let promotionsCradle!: PromotionsCradle;
+  let adminI18nCradle!: AdminI18nCradle;
+  let credentialsService!: CredentialsService;
+  let assetsLibrary!: AssetsLibraryCradle['assetsLibrary'];
+  let pwaCradle!: PwaCradle;
+  let megamenuCradle!: MegamenuCradle;
+  let blogCradle!: BlogCradle;
+  let dictionariesCradle!: DictionariesCradle;
+  let comparisonsCradle!: ComparisonsCradle;
+  let invoicesCradle!: InvoicesCradle;
+  let ksefCradle!: KsefCradle;
+  let taxesCradle!: TaxesCradle;
 
-  // Mirrors `composition.ts`: the **host values** this root owns outright. No
-  // module registers a default for any of them, so they have no contribution
-  // window and are registered where the value comes into existence.
-  registerValues(container, {
-    redis,
-    // Feature 072 (T125) — the interceptor registry, so `_lifecycle` can serve
-    // the read-only diagnostics screen over it. It was already declared
-    // platform-owned; until this conversion nothing resolved it by name, so
-    // nothing noticed that no root registered it.
-    apiInterceptors,
-    // The module's `ctx.onBoot` schedule reconcile resolves this (T131).
-    pimErgonodeRunWorkers: false,
-    pimAkeneoRunWorkers: false,
-    pimPimcoreRunWorkers: false,
-    productFeedsRunWorkers: false,
-    pimAkeneoPublicBaseUrl: 'http://localhost',
-    productFeedsPublicBaseUrl: 'http://feeds.test.local',
-    productFeedsTokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-    // Mirrors `composition.ts` — but only when a test asks for pub/sub.
-    //
-    // A converted module arms its own subscription from `onBoot`, which is
-    // right in production and wrong here: one armed subscription per
-    // composition, across ~225 files, is how this harness accumulated ~1 GB of
-    // retention (task #32). Handing the module an inert subscriber keeps the
-    // module's code identical in both compositions and keeps the count of
-    // *real* subscriptions at "only where a test asks", which is the property
-    // `harness-parity` checks.
-    redisSubscriber: options.exercisePubSub === true ? redisSubscriber : inertRedisSubscriber(),
-    // Modules announce on it; `ctx.subscribe` receives on it. A module that
-    // publishes needs it as a registration, not just as a composer option.
-    eventBus,
-    // The audited write path (Principle XIII). A converted module resolves it
-    // like any other platform service.
-    commandBus,
-    // Mirrors `composition.ts`: the resolved registry the permission catalogue
-    // is built from, and the kernel's audit writer.
-    resolvedModuleRegistry: resolvedRegistry,
-    auditLogService,
-    // Feature 072 (T138) — mirrors `composition.ts`, reading this harness's own
-    // actor property. Soft by contract: `null` for anonymous traffic and for a
-    // Customer with no Organization.
-    customerOrganizationIdResolver: (request: FastifyRequest): string | null =>
-      request.testActor?.kind === 'customer' ? (request.testActor.organizationId ?? null) : null,
-    storefrontBaseUrl: 'http://localhost:3000',
-    // The one composition allowed to serve `/api/v1/_test/latest-verification-token`.
-    organizationsExposeTestProbe: true,
-  });
   // Feature 080 (T052) — the identity, order and asset ports, mirroring
   // `composition.ts` name for name. This harness read the same five entity
   // classes production did, so the repair is one applied twice: a module
@@ -1053,146 +949,6 @@ export async function setupBackendServer(
     };
   } => container.cradle as never;
 
-  // Mirrors `composition.ts`. Neither cache depends on where this call sits any
-  // more: the settings drop stopped being a subscription under issue #45 and
-  // the sales-channel drop under D-93, so both are part of the write and no
-  // `ctx.subscribe` handler can be ahead of either.
-  const salesChannels = composeSalesChannelsKernel({
-    emFactory: em,
-    eventBus,
-    redis,
-    auditLogService,
-  });
-  // Feature 072 (T118) — the kernel composes the settings reader; the module
-  // owns the admin surface and composes itself.
-  const settings = composeSettingsKernel({
-    emFactory: em,
-    redis,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-  });
-
-  // Feature 072 — the generated module list, composed in one pass at the same
-  // point in the boot order `composition.ts` composes it. Its boot hooks run
-  // once, at the bottom of this function, after every contribution below.
-  // D-103/D-104 — mirrors `composition.ts`: the deployment's overlay modules
-  // are appended to this one list rather than composed by a second path, which
-  // is what preserves D-45's single pass. It is not what decides a decoration:
-  // since D-176 the wraps are drained after the last module registers, so
-  // position in this array grants and refuses nothing.
-  // T031 — and the instance's installed packages after them, same list, same
-  // reason.
-  const composedModules = composeModules(
-    [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],
-    {
-      container,
-      eventBus,
-      // Issue #269 — mirrors `composition.ts`. This root used to pass a no-op
-      // while production passed the global `console`, so the two disagreed on
-      // where a module's log line went and no test could see either. Both pass
-      // the late-bound platform logger now, which `buildServer` points at the
-      // app's pino instance below.
-      log: platformLogger(),
-      interceptorRegistry: apiInterceptors,
-      ownership: registrationOwnership,
-      // Issue #258 — mirrors `composition.ts`: derived from the same resolved
-      // manifest set this harness seeded presence from, so a test that withdraws
-      // a required module meets the refusal production would meet, at the point
-      // production meets it.
-      requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
-    },
-  );
-
-  // Feature 072 (T094) — one `CustomerAuthService` for the composition.
-  // `customers` and `organizations` each built their own and the MFA argument
-  // differed between them; there is one now, and it can always reach the port.
-
-  // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
-  // their registries, eligibility services and routes now. `orders` resolves
-  // them itself, so nothing is read here.
-  //
-  // T143a — the built-in payment adapters are seeded by `payments`, from its
-  // own boot hook. Both roots ran the loop, and this copy carried the same
-  // `isRegistered` guard for a reason neither stated: the registry is a
-  // process-wide singleton, so several hundred compositions in one suite were
-  // all writing the same instance.
-
-  // Feature 072 (T078) — `auth` owns these. Resolved from the same registration
-  // production resolves, which is the whole point of converging the roots: the
-  // harness no longer builds its own SessionService.
-  const sessionService = (container.cradle as unknown as AuthCradle).sessionService;
-
-  // Feature 072 (wave 1) — `admin_roles` owns these three. Resolved from the
-  // same registration production resolves, which is how the roots stop being
-  // able to differ: T074 found the harness building AdminRoleService without
-  // its audit writer, and a registration cannot be built two ways.
-  const rolesCradle = container.cradle as unknown as {
-    permissionService: PermissionService;
-    permissionCatalogueService: PermissionCatalogueService;
-    adminRoleService: AdminRoleService;
-  };
-  const permissionService = rolesCradle.permissionService;
-  const permissionCatalogueService = rolesCradle.permissionCatalogueService;
-
-  // `currencyService` is resolved from the container where it is needed —
-  // `pim_ergonode` reads it as a port since T131, and nothing else here did.
-
-  // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
-  // cross-module write answers on its effective state rather than succeeding
-  // into a module the operator switched off.
-  const adminNotificationService = (
-    container.cradle as unknown as { adminNotificationService: AdminNotificationService }
-  ).adminNotificationService;
-
-  // The mailer this composition sends through. A test that asserts on sent mail
-  // supplies its own; otherwise it is the one the `email` module registered.
-  //
-  // Feature 072 (T120) — **registered back into the container**, not just held
-  // as a local. The comment here used to say this was "the one seam that stays,
-  // because the modules that take it are not converted yet"; every module is
-  // converted now, and each resolves `emailMailer` as a port. Holding the spy
-  // in a variable and passing it to two module factories was what kept it
-  // reachable, and as those factories disappeared the spy went blind one path
-  // at a time — silently, because the mail was still being sent, just to the
-  // container's `ConsoleMailer`.
-  //
-  // `emailMailer` is a `ctx.di.register` contribution point rather than a
-  // `providePort`, so overwriting it is the sanctioned move rather than a root
-  // shadowing a module's port. It is registered after `composeModules`, in the
-  // one contribution slot, so this overrides `email`'s default rather than being
-  // overwritten by it.
-  //
-  // D-59 — `emailMailer` is now the *recording* mailer: the driver plus the
-  // delivery record. A spy supplied here replaces both, so a test that injects
-  // one asserts on messages and writes no `email_deliveries` row. That is
-  // deliberate — the alternative is every mail-sending suite in the tree
-  // acquiring a database write it never asked for — and the composed path is
-  // covered directly by `test/integration/email/delivery-record.test.ts`, which
-  // sends through the container's own mailer.
-  const emailMailer = (container.cradle as unknown as EmailCradle).emailMailer;
-  const injectedMailer = options.organizationsMailer ?? emailMailer;
-  if (options.organizationsMailer) {
-    composedModules.contribute({ emailMailer: injectedMailer });
-  }
-
-  // CartService is exposed by the commerce module so the login handler in
-  // organizations can merge anonymous baskets after sign-in.
-  let shoppingListServiceRef:
-    | import('../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js').ShoppingListService
-    | null = null;
-  // Feature 039 — late-bound OrderService for the quick_order one-click flow.
-  let orderServiceForOneClick:
-    | import('../../../packages/modules/orders/src/backend/services/order-service.js').OrderService
-    | null = null;
-  // Feature 040 — late-bound OrderListService for the customers module.
-  // Feature 026 US4 / 056 — which organizations a sales-rep admin may see.
-  // T143a — `organizations`' port, read lazily, where this harness used to
-  // build its own `SalesRepAssignmentService` **without** the subtree deps
-  // production passed, and then not use even that: the scope resolver below ran
-  // raw SQL over `organization_sales_rep_assignments`. Two divergences from
-  // production in one seam, and between them feature 056's roll-up was
-  // exercised by nothing.
   // T143a — `customer_accounts`' social-login port, read lazily (see the note
   // on `mfaSocialAccountResolvers` below).
   const customerSocialLogin = (): {
@@ -1242,244 +998,38 @@ export async function setupBackendServer(
     };
   };
 
-  // Feature 042 / D-96 — the MFA login port is **not** contributed here any
-  // more, and that removal is the precondition for every `mfa` off-state
-  // assertion in the tree.
-  //
-  // This harness used to resolve `mfaLoginPort` off the cradle once, at
-  // composition, and hand both login consumers a getter returning the captured
-  // value. A captured gate goes on answering after an operator switches the
-  // module off, so the harness failed **open** where production failed closed:
-  // an off-state test written against it passed while measuring a module that
-  // was still running (the shape issue #141 found four times). `admin_users`
-  // and `customer_accounts` resolve the port for themselves now, through
-  // `lazyPort` behind an `effectiveState.isPresent('mfa')` probe, so both
-  // composition roots contribute nothing for this name and the harness observes
-  // exactly what production does.
+  const promptActionsCradle = (): PromptActionsCradle =>
+    container.cradle as unknown as PromptActionsCradle;
 
-  // Feature 056 — organization tree + inheritance resolution, built here for
-  // the same reason production builds it (`composition.ts`): three consumers
-  // read it, and without it all three run a shape no deployment runs.
-  //
-  // The credit-mode closure reads Settings at **call** time, so it may be
-  // written before the settings module exists further down — which is exactly
-  // how production orders it. Feature 072 (T072).
-
-  // Credit-limits module — its CreditLimitService is the driver passed into
-  // commerceModule below so OrderService.placeOrder can reserve atomically.
-  // Feature 072 (T101) — `credit_limits` owns its service and routes now, and
-  // since T143c the return-settlement top-up as well, so this harness reads
-  // nothing of the module.
-
-  // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
-  // module owns its services and its cache subscription now; the harness reads
-  // the two ports host modules consume, exactly as `composition.ts` does.
-  //
-  // The subscription is no longer conditional on `exercisePubSub`. That flag
-  // existed because a fire-and-forget `subscribe` could land after teardown and
-  // make ioredis reconnect, pinning the composition; the module arms it from an
-  // **awaited** `onBoot` during setup instead, so there is no late landing to
-  // guard against, and it adds no connection — `redisSubscriber` is one the
-  // harness already opens.
-  const customFieldsCradle = container.cradle as unknown as CustomFieldsCradle;
-  const customFieldDefinitionService = customFieldsCradle.customFieldDefinitionService;
-  const customFieldValueService = customFieldsCradle.customFieldValueService;
-
-  // Feature 061 — the composed attribute read model (mirrors composition.ts):
-  // product-host custom-field definitions + catalog extension rows, threaded
-  // into catalog, search, quick_order, and comparisons.
-
-  // US7 — API keys + webhooks. The handle exposes
-  // requireApiKey, threaded into the catalog module's by-sku route so that
-  // surface gets real bearer-token gating.
-  // Feature 072 (T100) — `api_keys` owns its service, its two gates and its
-  // routes now, and provides `apiKeyResolver` itself.
-  const apiKeysCradle = container.cradle as unknown as ApiKeysCradle;
-
-  // Analytics (Phase 10 / T237). No GA4 forwarder in tests — the env vars
-  // are unset by default so `buildForwarderFromEnv` returns a NoopForwarder.
-
-  // Import/Export (Phase 10 / T240).
-  // Feature 072 (T122) — `import_export` owns its service and routes now.
-
-  // SEO meta + sitemap (Phase 10 / T235). Stale-window dropped to zero in
-  // tests so each test that calls regenerate sees a fresh payload.
-  // Feature 072 (T117) — `seo` owns its services and routes now.
-
-  // Languages + currencies (Phase 10 / T238). Static config, bootstrapped
-  // by migration 012 with en-US + pl-PL languages and PLN + EUR currencies.
-  // Feature 072 (T105) — `languages` owns its services and routes now.
-
-  // Feature 072 (T112) — `dictionaries` owns its services, its cache
-  // invalidation listeners and its routes now.
-
-  // Registered here rather than with the other host values further down:
-  // `addresses` reads it to build the one `AddressService`, and both `orders`
-  // and `organizations` are constructed before that block runs.
-  // Feature 072 (T090) — one `AddressService` for the whole composition.
-  // `orders` and `organizations` used to build their own, and the constructor's
-  // validator and audit writer are optional, so the instances were free to
-  // disagree — and one did.
-
-  // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
-  // of `currencies` calling into it. The direction matters: declaring the call
-  // as a dependency produced a real cycle, and the cycle was the design saying
-  // a currency must not know a dictionary cache exists.
-  // Feature 072 (T105) — the language half of the same drop. `languages` used
-  // to pass a hard-coded `undefined` for its invalidator, so a deactivated
-  // language kept validating for up to the validator's 60 s TTL and kept being
-  // served from the Redis dictionary cache for up to an hour, while a currency
-  // change dropped both immediately.
-
-  // Feature 072 (T110) — the channel-resolution names. The kernel itself is
-  // composed above `composeModules`, for the subscriber ordering; what belongs
-  // here is the registration, in the one contribution slot.
-  composedModules.contribute({
-    salesChannelsCache: salesChannels.cache,
-    salesChannelMembershipPort: salesChannels.membershipService,
-    // Mirrors `composition.ts`: the real resolver, so a test can reach the
-    // channel-scoped stock read at all. Registering it only in production is
-    // what let the missing registration survive — see the note there.
-    salesChannelResolutionPort: salesChannels.resolver,
-  });
-
-  // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
-  // resolver wraps Redis as a read-through cache.
-  // Feature 072 (T093) — `cms` owns its services, resolvers, reconciliation
-  // and routes now. Notably it also owns the four late-bound resolvers this
-  // harness never wired: the colour-palette writer was absent here, so
-  // `PUT /admin/cms/page-builder/color-palette` answered 500 in every test run.
-  const cmsCradle = container.cradle as unknown as CmsCradle;
-  // Tests rely on writes being immediately visible. Wipe the namespace
-  // before each backend boot so a previous run's keys don't bleed in.
-  if (cmsCradle.cms.handle.cache) await cmsCradle.cms.handle.cache.invalidateAll();
-
-  // Pricing (T127 / FR-050).
-  // Feature 072 (T127) — `price_lists` owns its services and routes now. The
-  // harness drives the status worker through `internal/sweep`, so a wall-clock
-  // interval would only add spurious writes mid-run, and it disables the
-  // pricing LRU because a test writes a price and reads it back in the same
-  // breath. Production keeps the sweeper on and takes the module's own default
-  // TTL, which it stopped restating in T143a — so the 0 below is now the only
-  // opinion either composition holds about this cache.
-  composedModules.contribute({
-    priceListsEnableStatusSweeper: false,
-    priceListsPricingCacheTtlMs: 0,
-    priceListsAdminAuditContext: (request: FastifyRequest) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
-  });
-
-  // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
-  // Feature 072 (T119) — `taxes` owns its service and routes now.
-  const taxesCradle = container.cradle as unknown as TaxesCradle;
-  // Feature 072 (T115) — `promotions` owns its services and routes now.
-  // These three stay here: the org-status gate and the Rule Builder picker
-  // sources read `organizations`, `categories`, `payment_methods` and
-  // `delivery_methods` directly, and the catalog read port is `catalog`'s.
-  // Registered after `composeModules`, where the module declares its defaults.
-  composedModules.contribute({
-    organizationStatusResolver: async (orgId: string) => {
-      const row = (await em()
-        .getKnex()
-        .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [
-          orgId,
-        ])) as { rows: Array<{ status: string }> };
-      return row.rows[0]?.status ?? null;
-    },
-    promotionRuleTargets: {
-      salesChannels: async () => {
-        const { items } = await (
-          container.cradle as unknown as SalesChannelsCradle
-        ).salesChannelsService.list({});
-        return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
-      },
-      customerGroups: async () => {
-        const groups = await (
-          container.cradle as unknown as CustomerAccountsCradle
-        ).customerGroupService.list();
-        return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
-      },
-      organizations: async () => {
-        const res = (await em()
-          .getKnex()
-          .raw(
-            `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
-          )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
-        return res.rows.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
-      },
-      categories: async () => {
-        const res = (await em()
-          .getKnex()
-          .raw(
-            `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
-          )) as {
-          rows: Array<{
-            id: string;
-            slug: string;
-            name: unknown;
-            parent_category_id: string | null;
-          }>;
-        };
-        return res.rows.map((r) => ({
-          id: r.id,
-          slug: r.slug,
-          name: testAnyLabel(r.name),
-          parentCategoryId: r.parent_category_id ?? null,
-        }));
-      },
-      paymentMethods: async () => {
-        const res = (await em()
-          .getKnex()
-          .raw(
-            `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
-          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
-        return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
-      },
-      deliveryMethods: async () => {
-        const res = (await em()
-          .getKnex()
-          .raw(
-            `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
-          )) as { rows: Array<{ id: string; code: string; name: unknown }> };
-        return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
-      },
-    },
-  });
-  const promotionsCradle = container.cradle as unknown as PromotionsCradle;
-
-  // Feature 047 — late-bound transactional-email sender (mirrors composition).
-  // Feature 072 (T120) — `transactional_emails` owns the binding now and
-  // publishes both services as accessor ports; this root reads them like any
-  // other consumer instead of holding the variables its callbacks filled in.
-  const emailCradle = (): {
-    transactionalEmailSenderAccessor: () =>
-      | import('@endora-commerce/contracts').TransactionalEmailSender
-      | undefined;
-    emailBrandingAccessor: () => { resolve(salesChannelId: string): Promise<unknown> } | undefined;
-  } => container.cradle as never;
-
-  // Feature 062 — read-only inventory accessors backing the external catalog
-  // namespace's availability indication (mirrors composition.ts).
-
-  const modules: ModulePlugin[] = [
-    // Feature 072 — every module's route contribution, in the generated order,
-    // ahead of the root plugins for the same reason production keeps them
-    // there (D-45).
-    ...composedModules.sink.plugins,
-    // Feature 072 (T078) — `auth`'s root plugin, at the same point in the boot
-    // order `composition.ts` puts it: before everything that reads
-    // `request.actor`.
-    //
-    // It registers **before** `registerTestAuth`, so its `onRequest` hook runs
-    // first and the harness's synthetic actor still wins. That ordering is the
-    // whole compatibility story: `auth` decorates `actor` and seeds it from the
-    // real session cookies, and `registerTestAuth` then assigns the test actor
-    // over the top through the same decorator.
-    async (app) => {
-      for (const plugin of composedModules.sink.rootPlugins) await plugin(app);
-    },
+  /**
+   * This root's own request plugin (feature 109, T030).
+   *
+   * The kit mounts, in order: every module's route contribution, the modules'
+   * root plugins, the entries in this array, and last the platform's own
+   * request-scope hook. That is the same four-step order this function has
+   * always had — what changed is that the first two and the last are the kit's
+   * rather than three more entries here.
+   *
+   * `auth`'s root plugin therefore still registers **before** `registerTestAuth`,
+   * so its `onRequest` hook runs first and the harness's synthetic actor still
+   * wins: `auth` decorates `actor` and seeds it from the real session cookies,
+   * and `registerTestAuth` then assigns the test actor over the top through the
+   * same decorator.
+   *
+   * There are two arrays because the request-scope hook sits in the **middle**
+   * of the chain rather than at its end, exactly as it does in production
+   * (`authModulePlugin`, `tenantContextModulePlugin`, `salesChannels.plugin`).
+   * `registerTestAuth` has to be ahead of it, because the scope is built from
+   * the actor that hook resolves; the sales-channel resolver has to be behind
+   * it, because it writes the resolved channel into the open scope and refuses
+   * when there is none.
+   *
+   * Both are **mutable** on purpose, and the kit reads them after the
+   * contribution window closes: `salesChannels.plugin` and a caller's
+   * `extraModules` are pushed from inside `contribute`, where the values they
+   * need exist.
+   */
+  const harnessPlugins: ModulePlugin[] = [
     async (app) => {
       registerTestAuth(app, {
         sessionService,
@@ -1499,1252 +1049,1712 @@ export async function setupBackendServer(
           return apiKeysCradle.apiKeyService.authenticate(token);
         },
       });
-      // Feature 050 — establish the ambient TenantContext from the resolved test
-      // actor, after registerTestAuth sets it. Mirrors composition.ts wiring
-      // (callback-style so the AsyncLocalStorage store reaches the handler).
-      const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
-        const actor = request.testActor;
-        if (actor?.kind === 'customer') {
-          const orgId =
-            actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
-          // Feature 056 (T032) — mirror production: a roll-up-enabled customer
-          // widens to its org subtree (server-derived from the account flag).
-          // T143c — the module's one tree service, resolved per request as
-          // production resolves it. This harness built a **second** one here,
-          // per request, and being its own it walked the subtree with
-          // `organizations` switched off — the roll-up rule answering out of a
-          // module the platform was refusing to serve.
-          const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
-            actor.customerAccountId,
-            orgId,
-            (id) =>
-              (
-                container.cradle as never as {
-                  organizationTreeService: { subtreeIds(id: string): Promise<string[]> };
-                }
-              ).organizationTreeService.subtreeIds(id),
-          );
-          return resolveTenantContext({
-            kind: 'customer',
-            customerAccountId: actor.customerAccountId,
-            organizationId: orgId,
-            impersonatorAdminUserId:
-              (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ??
-              null,
-            ...(rollupSubtree && rollupSubtree.length > 0
-              ? { rollupSubtreeOrganizationIds: rollupSubtree }
-              : {}),
-          });
-        }
-        if (actor?.kind === 'admin') {
-          const scope = await resolveTestAdminOrdersScope(request);
-          return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
-        }
-        // Feature 062 — mirror production: a bound api key derives single-org
-        // scope from its binding; an unbound key keeps trusted system scope.
-        if (actor?.kind === 'api_key') {
-          return resolveTenantContext({
-            kind: 'api_key',
-            apiKeyId: actor.apiKeyId,
-            organizationId: actor.organizationId ?? null,
-            customerAccountId: actor.customerAccountId ?? null,
-          });
-        }
-        return systemTenantContext(`test-actor:${actor?.kind ?? 'anonymous'}`);
-      };
-      // Feature 072 (T027) — the harness goes through the SAME hook factory as
-      // the production composition root. Two hand-written copies is how the
-      // request seam gets a leak that no test can see.
-      await registerRequestScopeHook(app, { buildTenantContext: buildContext });
     },
   ];
 
-  // Feature 072 (T118) — the settings names. The kernel itself is composed
-  // above `composeModules`, for the subscriber ordering; what belongs here is
-  // the registration, in the one contribution slot.
-  composedModules.contribute({
-    settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
-    // Mirrors composition.ts: the effective-state reader that classifies each
-    // setting and refuses writes an absent module owns.
-    settingsModulePresence: {
-      presenceOf: (moduleId: string) => effectiveState.presenceOf(moduleId),
-      activationControlOwner: (code: string) => effectiveState.activationControlOwner(code),
-    },
-  });
-  // Feature 042 — MFA module (mirrors composition.ts). Built after `settings`
-  // so it can read MFA settings; its login port is resolved by the two login
-  // consumers themselves (D-96), so nothing is captured here.
-  // Feature 072 (T096) — `mfa` owns its services, routes and configuration.
-  // What this harness still owns is the actor shape: it authenticates through
-  // `request.testActor` where production uses `request.actor`, which is exactly
-  // why the bridge is contributed rather than built into the module.
-  composedModules.contribute({
-    // D-48 — the system-default channel, which always exists.
-    mfaDefaultChannelIdResolver: async () => (await salesChannels.resolver.getSystemDefault()).id,
-    mfaBaseUrls: {
-      backend: 'http://localhost',
-      storefront: 'http://localhost:3000',
-      admin: 'http://localhost:3002',
-    },
-    // Feature 042 US4/US5 — deterministic fake provider. `exchangeCode` derives
-    // the identity from the `code` query so tests control the resolved email;
-    // `unverified@example.com` simulates an unverified provider email.
-    mfaOauthProvider: fakeOAuthProvider,
-    // T143a — the two customer-side resolvers forward to `customer_accounts`'
-    // port, as production's do. What this harness wrote instead was the
-    // degraded copy of the pair: no system scope on the read, no
-    // `customers.allow_registration_without_organization` gate on the create
-    // (so federated sign-in auto-created an account here whatever the operator
-    // had configured), and one fixed password hash for every account it made.
-    mfaSocialAccountResolvers: {
-      resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
-      autoCreateCustomer: (email: string) => customerSocialLogin().autoCreate(email),
-      resolveAdminByEmail: async (email: string) => {
-        // T052 — the same port production reads, rather than a second copy of
-        // the read. The comment that stood here argued for the copy on the
-        // grounds that a divergence would be invisible; the divergence it
-        // guarded against is what a shared owner removes, and the fold
-        // (issue #249) is `findByEmail`'s now.
-        const a = await identityPorts().adminUserReadPort.findByEmail(email, {
-          activeOnly: true,
-        });
-        return a !== null && a.status === 'active' ? { id: a.id } : null;
-      },
-    },
-    mfaActorBridge: {
-      resolveCustomerActor: (request: FastifyRequest) => {
-        if (request.testActor?.kind !== 'customer') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-        }
-        return {
-          customerAccountId: request.testActor.customerAccountId,
-          organizationId: request.testActor.organizationId ?? null,
-        };
-      },
-      resolveAdminActor: (request: FastifyRequest) => {
-        if (request.testActor?.kind !== 'admin') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-        }
-        return { adminUserId: request.testActor.adminUserId };
-      },
-      resolveOrganizationCustomerIds: async (organizationId: string) => {
-        const rows = await identityPorts().customerAccountReadPort.listByOrganization(
-          organizationId,
-        );
-        return rows.map((r) => r.id);
-      },
-      resolveOrgAdmin: async (request: FastifyRequest) => {
-        if (request.testActor?.kind !== 'customer') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-        }
-        const c = await identityPorts().customerAccountReadPort.findById(
-          request.testActor.customerAccountId,
-        );
-        if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-          throw new HttpError(
-            403,
-            ERROR_CODES.FORBIDDEN,
-            'Organization administrator role required.',
-          );
-        }
-        return { organizationId: c.organizationId, actor: c.id };
-      },
-      // Deliberately omitted, as this harness always omitted them: with no
-      // password verifier, disabling 2FA requires a current code. Fail-closed,
-      // and the behaviour every MFA test has been written against.
-    } satisfies MfaActorBridge,
-  });
-  modules.push(salesChannels.plugin);
+  /** The half of the chain that runs with the request scope already open. */
+  const harnessScopedPlugins: ModulePlugin[] = [];
 
-  // Feature 019 — Admin UI i18n. Feature 072 (T089) — `_i18n` owns its service,
-  // reconciler and routes now. Issue #158 — and it is handed the resolved
-  // manifest registry (`harnessManifestRegistry`), so the boot-time reconciler
-  // runs here exactly as it does in production and every module's bundles are
-  // installed. This block used to say the opposite, and the emptiness it
-  // described was the reason no test in the tree exercised a translated error
-  // message.
-  const adminI18nCradle = container.cradle as unknown as AdminI18nCradle;
-
-  // Feature 020 — Admin Command Palette actions registry. Mounts the
-  // GET /api/v1/admin/admin-actions read endpoint. Tests that need
-  // module_actions rows seed them directly via `h.em()`.
-  // Feature 072 (T099) — `admin_actions` owns its service, its reconcile and
-  // its routes now. The operator presence axis stays a root's to supply:
-  // which modules a deployment ships is not this module's business.
-  composedModules.contribute({
-    // Issue #225 — the reading and its generation, contributed as one value.
-    // The palette memoises what the reading produced, so a root that handed
-    // over the reading alone would hand over a cache nothing can drop: the
-    // pub/sub message that announces a flip arrives while `refreshFromDb` is
-    // still in flight, and the snapshot rebuilt on it is built from the
-    // presence before the flip.
-    modulePresenceProbe: {
-      // Issue #187 — the platform axis, which the palette used to read by
-      // joining `module_registrations` itself. `?? false` where the operator
-      // axis defaults `true`, and the asymmetry is the tri-state rather than an
-      // oversight: `presence()` answers `undefined` only for an id neither the
-      // registry nor the manifests know, and an action row naming one is an
-      // orphan the join had no row to match either.
-      //
-      // Read this one twice if a palette test surprises you: this harness never
-      // populates `module_registrations` (see `__setEnabledForTesting`'s note in
-      // the registry cache), so the platform axis here is the **seeded** enabled
-      // set and not the table. A test that inserts a registration row for a
-      // fixture module has to seed the set too.
-      isPlatformAvailable: (moduleId: string): boolean =>
-        effectiveState.presence(moduleId)?.platformAvailable ?? false,
-      isActivated: (moduleId: string): boolean =>
-        effectiveState.presence(moduleId)?.operatorActivated ?? true,
-      version: (): number => effectiveState.presenceVersion(),
-    },
-  });
-
-  // Feature 058 — Credentials module.
-  //
-  // Feature 072 (T143a) — the four configuration-type registrations are gone
-  // from here, and with them the `isRegistered` guards each one needed. This
-  // harness mirrored `composition.ts` by hand, and the mirror was **worse than
-  // the original in two ways**: it re-registered core descriptors on a
-  // process-wide singleton once per composition, guarding each one so the
-  // duplicate did not warn, and the comments record two features (068, 070)
-  // where a type registered only in production made every write against it fail
-  // misleadingly until somebody added the mirroring line here. Each type is
-  // declared by the module that owns it now, from that module's boot hook, so
-  // there is one registration and both compositions get it.
-  //
-  // What stays is how an admin actor is resolved from a request, which the two
-  // compositions genuinely answer differently.
-  composedModules.contribute({
-    adminContextResolver: (request: FastifyRequest) => ({
-      adminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
-    credentialsSettingsPort: settings.settingsService,
-  });
-  const credentialsService = (
-    container.cradle as unknown as { credentialsService: CredentialsService }
-  ).credentialsService;
-
-  // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
-  // and /assets/file/:assetId.
-  // Feature 072 (T092) — the module owns its plugin and its registry now.
-  // T143a — and each of `catalog`, `cms` and `megamenu` pushes its own
-  // reference descriptors from its boot hook, so neither root decides which
-  // edges block an asset delete.
-  const assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
-
-  // Feature 046 — PWA module (mirrors composition.ts). runWorkers:false so no
-  // BullMQ consumer starts in tests; the delivery processor is invoked directly
-  // by integration tests.
-  // Feature 072 (T116) — `pwa` owns its services, its queue and its routes
-  // now. What stays here is every way it reaches outside itself, contributed
-  // as one bridge: a composition knows how to reach `assets_library` and
-  // `sales_channels`, or it does not.
-  composedModules.contribute({
-    // The harness has a producer and no consumer: it enqueues so the routes can
-    // assert the queued ack, and starting a delivery worker per test file would
-    // be a BullMQ consumer nothing ever closes.
-    pwaRunWorkers: false,
-    pwaBridge: {
-      assetUpload: {
-        upload: async (input) => {
-          const detail = await assetsLibrary.handle.service.upload(input);
-          return { id: detail.id };
-        },
-      },
-      resolveAssetUrl: async (assetId: string) => {
-        try {
-          return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
-        } catch {
-          return null;
-        }
-      },
-      resolveChannelIdByCode: async (code: string | undefined) => {
-        if (code) {
-          const ch = await salesChannels.resolver.getByCode(code);
-          if (ch) return ch.id;
-        }
-        return (await salesChannels.resolver.getSystemDefault()).id;
-      },
-      defaultChannelId: async () => (await salesChannels.resolver.getSystemDefault()).id,
-      channelCodeForId: async (channelId: string) => {
-        const ch = await em().findOne(SalesChannel, { id: channelId });
-        return ch?.code ?? null;
-      },
-      resolveAuditContext: (request: FastifyRequest) => ({
-        actorAdminUserId:
-          request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-      }),
-      resolveCustomerAccountId: async (request: FastifyRequest) =>
-        request.testActor?.kind === 'customer' ? request.testActor.customerAccountId : null,
-      resolveOrderTarget: async (payload: {
-        orderId: string;
-        salesChannelId: string;
-        from: string;
-        to: string;
-      }) => {
-        const order = await orderReadPort().findById(payload.orderId);
-        if (!order || !order.placedByCustomerAccountId) return null;
-        return {
-          salesChannelId: payload.salesChannelId,
-          customerAccountId: order.placedByCustomerAccountId,
-          title: 'Order update',
-          body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
-          url: `/account/orders/${order.businessId}`,
-        };
-      },
-    } satisfies PwaBridge,
-  });
-  const pwaCradle = container.cradle as unknown as PwaCradle;
-
-  // Feature 015 — Megamenu module. Wires the cross-module ports the
-  // target validator + storefront resolver delegate to. v1 uses small
-  // direct SQL lookups instead of forcing new upstream surfaces.
-  // Feature 072 (T107) — `megamenu` owns its services and routes now. These
-  // two bundles stay here: both are existence checks and URL lookups against
-  // OTHER modules' tables, so moving them into the module would give it
-  // direct reads of `catalog`, `cms` and `assets_library` storage.
-  //
-  // Registered after `composeModules`, where `megamenu` declares its own
-  // defaults — contributing earlier would let the module overwrite the root.
-  composedModules.contribute({
-    megamenuValidatorDeps: {
-      categoryExists: async (categoryId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select 1 from categories where id = ? limit 1', [categoryId])) as Array<{
-          '?column?': number;
-        }>;
-        return rows.length > 0;
-      },
-      cmsPageExists: async (pageId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select 1 from cms_pages where id = ? limit 1', [pageId])) as Array<{
-          '?column?': number;
-        }>;
-        return rows.length > 0;
-      },
-      cmsBlockExists: async (blockId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select 1 from cms_blocks where id = ? limit 1', [blockId])) as Array<{
-          '?column?': number;
-        }>;
-        return rows.length > 0;
-      },
-      assetIs: async (assetId, expected) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select 1 from assets where id = ? and kind = ? limit 1', [
-            assetId,
-            expected,
-          ])) as Array<{ '?column?': number }>;
-        return rows.length > 0;
-      },
-    } satisfies TargetValidatorDeps,
-    megamenuStorefrontDeps: {
-      resolveCategoryUrl: async (categoryId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select slug from categories where id = ? limit 1', [categoryId])) as Array<{
-          slug: string;
-        }>;
-        return rows[0]?.slug ? `/catalog/${rows[0].slug}` : null;
-      },
-      resolveCmsPageUrl: async (pageId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select slug from cms_pages where id = ? limit 1', [pageId])) as Array<{
-          slug: string;
-        }>;
-        return rows[0]?.slug ? `/${rows[0].slug}` : null;
-      },
-      resolveAsset: async (assetId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select kind, label from assets where id = ? limit 1', [assetId])) as Array<{
-          kind: string;
-          label: string | null;
-        }>;
-        const row = rows[0];
-        if (!row) return null;
-        if (row.kind !== 'image' && row.kind !== 'video') return null;
-        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-        return { url: resolved.url, label: row.label, kind: row.kind };
-      },
-      resolveCmsBlock: async (blockId, language) => {
-        const rows = (await em()
-          .getConnection()
-          .execute(
-            'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
-            [blockId],
-          )) as Array<{
-          id: string;
-          code: string;
-          content: { languages?: Record<string, unknown> };
-        }>;
-        const row = rows[0];
-        if (!row) return null;
-        const data = row.content.languages?.[language];
-        if (data === undefined) return null;
-        return {
-          id: row.id,
-          code: row.code,
-          language,
-          content: { schemaVersion: 1, data },
-        };
-      },
-    } satisfies StorefrontDeps,
-  });
-  // T143a — `megamenu` cross-registers into `cms`' reference registry from its
-  // own boot hook now, so this root only drops the cache a previous
-  // composition in the same process may have left in Redis.
-  const megamenuCradle = container.cradle as unknown as MegamenuCradle;
-  if (megamenuCradle.megamenuServices.cache) {
-    await megamenuCradle.megamenuServices.cache.invalidateAll();
-  }
-
-  // Feature 072 — the host names, mirroring `composition.ts`. They are the only
-  // thing this root knows about the modules it composes.
-  composedModules.contribute({
-    // `requireAdmin` is NOT here: `auth` provides it as a port (T078).
-    // `apiKeyResolver` is NOT here either: `api_keys` provides it as a gated
-    // port (T100), and re-registering the name replaced that gate with a plain
-    // closure — API-key authentication kept working after the module was
-    // switched off. Both roots carried the entry until the root-registration
-    // check started reading them (T118).
-    // `redis` is registered further up, where the client is created.
-    settingsReadPort: settings.settingsService,
-    // Issue #45 — the same cache, seen from the writing side. Mirrors the root.
-    settingsCache: settings.cache,
-    // Feature 072 (T093) — `composition.ts` has registered this since T086;
-    // the harness passed the same object to `searchModule` as an option but
-    // never registered it, so `cms`' colour-palette writer had nothing to
-    // resolve. Mirroring the root is the point of this block.
-    // `requireCustomer` is NOT here any more: `auth` provides it as a port
-    // (issue #43). This harness contributed `requireTestCustomer()` — a second
-    // implementation that read `request.testActor` where the root read
-    // `request.actor`, so every customer route was gated by one guard in
-    // production and a different one under test. `registerTestAuth` mirrors
-    // each resolved actor onto both properties, which is why the surviving
-    // implementation answers correctly here without reading `testActor`.
-    // Feature 072 (wave 2) — mirrors `composition.ts`.
-    customerContextResolver: customerResolver,
-    // Feature 072 (wave 3) — how this composition names the calling customer as
-    // an id. The four payment gateways read it; before their conversion this
-    // harness composed none of them, which `harness-parity` recorded as an
-    // accepted divergence.
-    customerAccountIdResolver: (req: FastifyRequest) =>
-      req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
-    // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's
-    // own actor property. The ad modules resolve one name instead of each
-    // taking its own identically-shaped `resolveAuditContext` option.
-    adminAuditActorResolver: (request: FastifyRequest) => ({
-      actorAdminUserId: request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
-    }),
-    // Feature 072 (wave 2) — **undefined on purpose.** A BullMQ queue built per
-    // `setupBackendServer()` is never closed and this harness is constructed
-    // once per test file inside a single fork, so the ad modules must get no
-    // queue here. `/collect` therefore degrades to 503 and is contract-tested
-    // against its own bare instance instead. `redis` is registered above; this
-    // is the name that says "but not for queues".
-    moduleQueueRedis: undefined,
-    // Feature 072 (wave 2) — mirrors `composition.ts`.
-    salesChannelCodeIdPort: {
-      idByCode: async (code: string) => (await salesChannels.resolver.getByCode(code))?.id ?? null,
-      codeById: async (id: string) => {
-        const { items } = await (
-          container.cradle as unknown as SalesChannelsCradle
-        ).salesChannelsService.list({});
-        return items.find((c) => c.id === id)?.code ?? null;
-      },
-    },
-    // Mirrors the production root exactly (feature 072, D-41/D-48): the
-    // system-default channel's id. Both used to fall back to `'default'`, a
-    // channel *code* that cannot address a `setting_values` row, and then to
-    // `?? null` on a branch the platform guarantees against.
-    settingsChannelResolver: async (): Promise<string | null> =>
-      (await salesChannels.resolver.getSystemDefault()).id,
-    blogStorefrontDeps: undefined,
-  });
-  // `audit_logs` registers its own empty default for `auditActorResolver`, so a
-  // value written before `composeModules` would be overwritten by it (the same
-  // trap `prompt_actions` hit).
-  composedModules.contribute({
-    // Feature 072 (T117) — composition-specific sitemap tuning: regeneration is
-    // deterministic with no staleness window, and a fixed base URL gives the
-    // assertions something stable. Production contributes nothing and takes the
-    // module's own `{}`.
-    //
-    // Registered **after `composeModules`** on purpose. `seo` registers its own
-    // `{}` default there, so contributing earlier would have the module
-    // overwrite the root — which is exactly what happened, and the sitemap
-    // silently fell through to `http://localhost:3000`.
-    sitemapOptions: { staleAfterMs: 0, baseUrl: 'http://test.local' },
-    lifecycleManifestRegistry: () => harnessManifestRegistry(),
-    // Feature 072 (T121) — the gate is the port's own now: `adminUserService`
-    // is provided by `admin_users` and raises `ModuleDisabledError` when that
-    // module is off, so no root hard-codes `isPresent('admin_users')` here.
-    // The contribution itself stays a root's: `audit_logs` owns the name and
-    // defaults it absent, and it composes after `admin_users`, so a
-    // registration from the module would be overwritten by that default.
-    auditActorResolver: async (ids: string[]) => {
-      const users = await (
-        container.cradle as unknown as AdminUsersCradle
-      ).adminUserService.listByIds(ids);
-      return users.map((u) => ({
-        id: u.id,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        email: u.email,
-      }));
-    },
-  });
-  // Feature 072 (T137) — contributed in the one slot, between `composeModules`
-  // and `runBootHooks()`. Before `composeModules` is too early (the module
-  // registers its own `{}` default when it composes, and overwrites this);
-  // after `runBootHooks()` is too late (the boot reconcile has already
-  // constructed the module and read the default).
-  //
-  // What it substitutes: `taxonomyDataRoot` is deliberately a path that does not
-  // exist, so the boot reconcile never reads the shipped ~1.5 MB taxonomy files;
-  // the fetcher and delivery adapters refuse by default, so a code path that
-  // starts reaching outward without a test opting in shows up as a failed check
-  // rather than a real request.
-  composedModules.contribute({
-    // Same window, same reason, and here it is a latent *outbound request*
-    // rather than a file read: `pim_ergonode`'s boot hook only skips
-    // constructing the module because `pimErgonodeRunWorkers` is false in this
-    // harness. The day a non-worker reconcile is added there, or one suite
-    // flips that flag, a contribution registered after boot would be silently
-    // discarded and a test would open a real socket to Ergonode.
-    pimErgonodeSourceOverrides: {
-      ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
-      mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
-    },
-    pimAkeneoSourceOverrides: {
-      mediaFetcher: options.akeneoMediaFetcher ?? new ScriptedAkeneoMediaFetcher(),
-    },
-    productFeedsTestOverrides: {
-      taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
-      taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
-      deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
-    },
-  });
-
-  // Feature 072 (T136) — `carts` owns its thirteen services and three route
-  // files now. What stays a composition's: who is asking (production reads
-  // `request.actor`, the harness `request.testActor`), and the bridge into
-  // `shopping_lists`, which points outward and so cannot be a port.
-  // Feature 072 (T120) — the harness resolves no asset URLs, which is the
-  // module's own default; naming it keeps the difference from production
-  // visible rather than implied by an omission.
-  composedModules.contribute({
-    transactionalEmailAssetUrl: async (): Promise<string | null> => null,
-  });
-
-  // Feature 072 (T142) — mirrors `composition.ts`. The harness runs no
-  // bulk-operation consumer and must not reindex Meilisearch, which is exactly
-  // what these two say; the other three are the same adapters, reading this
-  // harness's own actor property where one is involved.
-  composedModules.contribute({
-    catalogRunBulkOperationWorker: false,
-    // T143a — deliberately **not** forwarded to `searchReindexPort`, which is
-    // what production does now. A `searchable` flag flips in a good number of
-    // catalog tests, and forwarding would push every product of every channel
-    // into Meilisearch each time. The reindex itself is exercised where it
-    // belongs, against the module's own route:
-    // `test/contract/search/admin-reindex.contract.test.ts`.
-    catalogSearchReindex: async () => ({ documentCount: 0 }),
-    catalogAdminAuditContext: (request: FastifyRequest) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-      impersonatedCustomerAccountId: null,
-    }),
-    catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
-      // D-61 — the same presence probe production's contribution makes, and it
-      // has to be the same or the off-state test would assert against a
-      // composition production does not run. `catalog` declares the degrade as
-      // `degrades-without`: no `inventory`, no availability band.
-      if (!effectiveState.isPresent('inventory')) {
-        return new Map<string, ProductAvailability>();
-      }
-      return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
-        productIds,
-        salesChannelId,
+  /**
+   * Feature 050 — the ambient `TenantContext`, established from the resolved
+   * test actor after `registerTestAuth` has set it.
+   *
+   * Handed to the kit, which installs it through the **same**
+   * `registerRequestScopeHook` factory the production composition root uses. Two
+   * hand-written copies is how the request seam gets a leak no test can see, and
+   * there is no path through `composeTestServer` that leaves the hook off: a
+   * server composed without it is one under which every tenant-scope assertion
+   * passes for the wrong reason (Principle XI).
+   */
+  const buildTestTenantContext = async (
+    request: FastifyRequest,
+  ): Promise<TenantContext> => {
+    const actor = request.testActor;
+    if (actor?.kind === 'customer') {
+      const orgId =
+        actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+      // Feature 056 (T032) — mirror production: a roll-up-enabled customer
+      // widens to its org subtree (server-derived from the account flag).
+      // T143c — the module's one tree service, resolved per request as
+      // production resolves it. This harness built a **second** one here,
+      // per request, and being its own it walked the subtree with
+      // `organizations` switched off — the roll-up rule answering out of a
+      // module the platform was refusing to serve.
+      const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
+        actor.customerAccountId,
+        orgId,
+        (id) =>
+          (
+            container.cradle as never as {
+              organizationTreeService: { subtreeIds(id: string): Promise<string[]> };
+            }
+          ).organizationTreeService.subtreeIds(id),
       );
-    },
-    catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
-      try {
-        const channelId =
-          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)
-            ?.id ?? (await salesChannels.resolver.getSystemDefault()).id;
-        const url = await settings.settingsService.get(
-          'product_image_placeholder_url',
-          channelId,
-          z.string(),
-        );
-        const trimmed = url.trim();
-        return trimmed === '' ? null : trimmed;
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  // Feature 072 (T141) — mirrors `composition.ts`: the sales-rep admin scope
-  // (reading this harness's own actor property) and the late-bound sender.
-  composedModules.contribute({
-    ordersAdminScopeResolver: resolveTestAdminOrdersScope,
-  });
-
-  composedModules.contribute({
-    // The organization transact guard used to be a no-op here, named
-    // explicitly so the divergence stayed visible. T138 removed it: the guard
-    // is `organizationReadPort.assertCanTransact` now, provided by the module
-    // and resolved identically by both compositions.
-    cartActorResolver: (request: FastifyRequest) => {
-      if (request.testActor?.kind === 'customer') {
-        return {
-          customer: {
-            customerAccountId: request.testActor.customerAccountId,
-            organizationId: request.testActor.organizationId,
-          },
-        };
-      }
-      const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-      const anon = cookies?.['b2b_cart_anon'];
-      if (anon) return { anonymousToken: anon };
-      return {};
-    },
-    cartShoppingListBridge: {
-      pushLineToShoppingList: async (input) => {
-        if (!shoppingListServiceRef) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        await shoppingListServiceRef.addItem(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          {
-            productId: input.productId,
-            ...(input.variantId ? { variantId: input.variantId } : {}),
-            quantity: input.quantity,
-          },
-        );
-      },
-      appendShoppingListToCart: async (input) => {
-        if (!shoppingListServiceRef) {
-          throw new Error('shopping_lists module not initialized');
-        }
-        const res = await shoppingListServiceRef.convertToCart(
-          {
-            customerAccountId: input.customerAccountId,
-            organizationId: input.organizationId ?? '',
-          },
-          input.shoppingListId,
-          undefined,
-        );
-        return {
-          cartId: '',
-          appendedLineCount: res.added,
-          droppedLines: res.skipped.map((it) => ({
-            productId: it.productId,
-            productName: it.productId,
-            reason: 'not_purchasable',
-          })),
-        };
-      },
-    } satisfies CartShoppingListBridge,
-  });
-
-  // Feature 043 / 072 — the assistant's contribution points, mirroring
-  // `composition.ts`. They are registered **after `composeModules`** because the
-  // module registers its own empty defaults there; a value written before
-  // composition would be overwritten by them.
-  //
-  // The tools themselves are no longer here: since D-44 each contributing module
-  // pushes its own from its own boot hook, which is also how the `orders` tools
-  // — production-only until then — came to be composed in this harness at all.
-  // Nor is the bulk-progress reader, since D-72 point 4 turned the single name
-  // it was written over into a registry keyed by contributing module. What is
-  // left is three test seams, which are this harness's own.
-  composedModules.contribute({
-    ...(options.promptActionsLlmFetch === undefined
-      ? {}
-      : { promptActionsLlmFetch: options.promptActionsLlmFetch }),
-    ...(options.promptActionsNow === undefined
-      ? {}
-      : { promptActionsNow: options.promptActionsNow }),
-    ...(options.promptActionsTtlMinutes === undefined
-      ? {}
-      : { promptActionsTtlMinutes: options.promptActionsTtlMinutes }),
-  });
-  const promptActionsCradle = (): PromptActionsCradle =>
-    container.cradle as unknown as PromptActionsCradle;
-
-  const blogCradle = container.cradle as unknown as BlogCradle;
-  if (blogCradle.blogCacheService) await blogCradle.blogCacheService.invalidateAll();
-
-  const dictionariesCradle = container.cradle as unknown as DictionariesCradle;
-  if (dictionariesCradle.dictionaryCache) await dictionariesCradle.dictionaryCache.invalidateAll();
-
-  // Feature 006 — Search module. Owns the Meilisearch indexer + event
-  // subscriber lifecycle. Wires the same settings-aware path the
-  // production composition uses so contract tests can exercise the
-  // LLM-toggle wrapper end-to-end. Foundation tests don't need
-  // Meilisearch up; the subscriber's handlers swallow Meilisearch
-  // errors so a missing backend doesn't break catalog writes.
-  // Feature 072 (T123) — `search` owns its services and routes now. The
-  // harness runs no reindex sweep: it has no worker role, and a periodic
-  // Meilisearch pass per test file is exactly what `enableReindexScheduler`
-  // exists to keep out.
-  composedModules.contribute({
-    searchRunWorkers: false,
-    // T143a — the same statement for `webhooks`' delivery consumer, which the
-    // harness has never run: production built it in `composition.ts` and this
-    // file simply did not, so the difference was an omission rather than a
-    // decision. It is a decision now, and it is the same one every other
-    // `*RunWorkers` flag makes here — a BullMQ consumer per test file would
-    // hold a Redis connection ~555 times over.
-    webhooksRunWorkers: false,
-  });
-
-  // Feature 072 (T129) — mirrors `composition.ts`. The harness used to pass no
-  // event bus, channel resolver or settings reader to this module at all, so
-  // three of its behaviours were exercised by nothing; the module reads all
-  // three from the container now.
-  composedModules.contribute({
-    // Feature 072 (T138) — the admin-editable sender `organizations` sends its
-    // verification, invitation and new-registration emails through. A getter
-    // because `transactional_emails` announces the sender well after this
-    // point; same shape and owner as `inventoryTemplateEmail`.
-    inventoryAdminAuditContext: (request: FastifyRequest) => ({
-      actorAdminUserId:
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-    }),
-  });
-
-  // Feature 007 — Comparisons module. Customer-facing CRUD endpoints
-  // exercised by US1 contract + integration tests; share/PDF/admin land
-  // in subsequent stories.
-  // Feature 072 (T111) — `comparisons` owns its services and routes now.
-  const comparisonsCradle = container.cradle as unknown as ComparisonsCradle;
-
-  // Feature 008 — Quote Requests workflow.
-  // Feature 072 (T132) — `quote_requests` owns its services, routes and the
-  // four settings reads now. What stays is a composition's answer to who is
-  // asking, the organization's tax rate, and the subtree the RFQ admin scope
-  // rolls up over.
-  composedModules.contribute({
-    rfqCustomerContextResolver: async (request: FastifyRequest) => {
-      const ctx = customerResolver(request);
-      const account = await identityPorts().customerAccountReadPort.findById(
-        ctx.customerAccountId,
-      );
-      return {
-        customerAccountId: ctx.customerAccountId,
-        organizationId: ctx.organizationId,
-        isOrgAdmin: account?.role === 'organization_admin',
-      };
-    },
-    rfqAdminContextResolver: async (request: FastifyRequest) => {
-      const adminUserId =
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
-      const ports = identityPorts();
-      const adminUser = await ports.adminUserReadPort.findById(adminUserId);
-      // `getById` cannot 404 here: `admin_users_admin_role_fk` is
-      // `on delete restrict`, so a non-null `adminRoleId` names a row.
-      const role = adminUser?.adminRoleId
-        ? await ports.adminRolePort.getById(adminUser.adminRoleId)
-        : null;
-      return {
-        adminUserId,
-        isPlatformAdmin: role?.code === 'platform_admin' || true,
-        roleLabel:
-          role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
-      };
-    },
-    // No `catch`, exactly as production has none since issue #84 — a harness
-    // that swallowed what production propagates would hide the 503 the
-    // fail-closed tests exist to observe.
-    // T143c — read through `organizations`' port, as production reads it.
-    rfqTaxRateResolver: async (organizationId: string) => {
-      const org = await (
-        container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
-      ).organizationTaxProfilePort.taxProfileOf(organizationId);
-      const vatStatus = org?.vatStatus ?? 'vat_payer';
-      if (vatStatus !== 'vat_payer') return 0;
-      const country = org?.country ?? 'PL';
-      const resolved = await taxesCradle.taxService.taxRateFor({
-        country,
-        productType: 'simple',
-        vatStatus,
-      });
-      // Same narrowing production does (issue #124): `none` is "no rule and no
-      // default configured", never "no `taxes` module" — that one throws at
-      // the port gate before this line runs.
-      return resolved.source === 'none' ? 0 : resolved.rate;
-    },
-  });
-
-  // Feature 072 (T138) — the two `organizations` contributions this harness
-  // makes, registered after `composeModules` so they overwrite the module's
-  // defaults rather than being overwritten by them. Both are read lazily — the
-  // clients when the tax-ID service is first constructed, the hook at login — so
-  // this placement is safe.
-  composedModules.contribute({
-    // No test may open a socket to VIES or Ministerstwo Finansow. The fake
-    // returns `validated` for any taxId ending in `00000` and `failed` /
-    // `deferred` otherwise, giving three deterministic branches.
-    organizationsTaxIdClients: {
-      vies: new FakeVatValidator('vies'),
-      mfPl: new FakeVatValidator('mf_pl'),
-    },
-    organizationsLoginHook: async (loginCtx: {
-      customerAccountId: string;
-      organizationId: string | null;
-      anonymousCartToken?: string;
-      anonymousCompareToken?: string;
-    }) => {
-      let result: Record<string, unknown> = {};
-      if (loginCtx.anonymousCartToken && loginCtx.organizationId) {
-        const cartMerge = await (
-          container.cradle as unknown as CartsCradle
-        ).cartService.mergeAnonymousIntoCustomer(loginCtx.anonymousCartToken, {
-          customerAccountId: loginCtx.customerAccountId,
-          organizationId: loginCtx.organizationId,
-        });
-        result = { cartMerge };
-      }
-      // Feature 007 — adopt an anonymous comparison carried by the
-      // compare_token cookie. Mirrors composition.ts, D-70 included: the
-      // presence question is decided here, and the port is resolved **per
-      // login** rather than bound once at composition time. The old shape
-      // captured `adoptAnonymousComparison` off the cradle while every module
-      // was still on, so the gate this harness composed answered `yes` for the
-      // rest of the process — the one thing an off-state test of this seam has
-      // to be able to see.
-      if (loginCtx.anonymousCompareToken && effectiveState.isPresent('comparisons')) {
-        await (
-          container.cradle as unknown as ComparisonsCradle
-        ).comparisonService.adoptAnonymousComparison(
-          loginCtx.customerAccountId,
-          loginCtx.anonymousCompareToken,
-        );
-      }
-      return result;
-    },
-  });
-
-  // Feature 040 — Customers module (mirrors composition.ts wiring).
-  // Feature 072 (T140) — mirrors `composition.ts`: two names stay this
-  // composition's, both actor-shaped.
-  //
-  // Feature 076 (D-86) — `customersVatValidator` left this contribution. The
-  // fake above, contributed once over `organizationsTaxIdClients`, now reaches
-  // `customers` through `vatValidatorPort`, so there is no second name for the
-  // two roots to keep in step and no way for the two consumers to disagree
-  // about the same tax id.
-  composedModules.contribute({
-    customerActorResolver: (request: FastifyRequest) => {
-      if (request.testActor?.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      return {
-        customerAccountId: request.testActor.customerAccountId,
-        organizationId: request.testActor.organizationId ?? null,
-      };
-    },
-    customerModerationActorResolver: async (request: FastifyRequest) => {
-      const adminUserId =
-        request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
-      const ports = identityPorts();
-      const adminUser = await ports.adminUserReadPort.findById(adminUserId);
-      const role = adminUser?.adminRoleId
-        ? await ports.adminRolePort.getById(adminUser.adminRoleId)
-        : null;
-      const isPlatformAdmin = role?.code !== 'sales_representative';
-      const allowedOrganizationIds = isPlatformAdmin
-        ? []
-        : await salesRepScope().listAssignedOrganizationIds(adminUserId);
-      return { adminUserId, isPlatformAdmin, allowedOrganizationIds };
-    },
-  });
-
-  // Feature 046 — Returns & Complaints (Refunds, RMA).
-  // Feature 072 (T109) — `returns` owns its services and routes now. T143c —
-  // and the four settlement adapters belong to the modules whose money they
-  // move, so what this bridge holds is the composition's answers: who is
-  // asking, where the notification goes, and in which language.
-  const settlementCradle = (): {
-    orderReturnContextPort: ReturnsBridge['orderContext'];
-    paymentRefundPort: ReturnsBridge['paymentRefund'];
-    correctiveInvoicePort: ReturnsBridge['correctiveInvoice'];
-    creditTopupPort: ReturnsBridge['creditTopup'];
-  } => container.cradle as never;
-  composedModules.contribute({
-    returnsBridge: {
-      resolveCustomerAccountId: (req) =>
-        req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
-      resolveAdminUserId: (req) =>
-        req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
-      // T143c — the four settlement adapters are their owners' ports, forwarded
-      // per settlement exactly as the production root forwards them.
-      //
-      // The corrective-invoice one is why this ledger was worth building. This
-      // harness built its own `InvoiceNumberGenerator` over its own pattern
-      // resolver, so every correction number a test drew came out of a counter
-      // `invoices` could not see, while production drew from the module's one
-      // generator. Nothing failed; the two roots simply numbered corrections
-      // differently, and no assertion in the suite could reach the difference.
-      orderContext: {
-        getReturnContext: (orderId) =>
-          settlementCradle().orderReturnContextPort.getReturnContext(orderId),
-      },
-      paymentRefund: {
-        refund: (input) => settlementCradle().paymentRefundPort.refund(input),
-      },
-      correctiveInvoice: {
-        createCorrection: (input) =>
-          settlementCradle().correctiveInvoicePort.createCorrection(input),
-      },
-      creditTopup: {
-        creditFromReturn: (input) => settlementCradle().creditTopupPort.creditFromReturn(input),
-      },
-      // The notifier is `returns`' own class and `returns` builds it since
-      // T143c, reading `emailMailer` per send — which is the name this harness
-      // already overrides with its spy, so the injected mailer still arrives.
-      resolveCustomerEmail: async (cid) =>
-        (await identityPorts().customerAccountReadPort.findById(cid))?.email ?? null,
-      resolveChannelLanguage: async (salesChannelId) =>
-        (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
-    } satisfies ReturnsBridge,
-  });
-
-  // Feature 047 — Invoices.
-  // Feature 072 (T113) — `invoices` owns its services and routes now. What
-  // stays here is how this composition reaches outside the module,
-  // contributed as one bridge.
-  composedModules.contribute({
-    invoicesBridge: {
-      resolveAdminUserId: (req) =>
-        req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
-      resolveCustomerContext: (req) => ({
-        customerAccountId:
-          req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
-        organizationId:
-          req.testActor?.kind === 'customer'
-            ? (req.testActor.organizationId ?? TEST_ORGANIZATION_ID)
-            : TEST_ORGANIZATION_ID,
-      }),
-      getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
-      resolveRecipientEmail: async (order) =>
-        (
-          await identityPorts().customerAccountReadPort.findById(order.placedByCustomerAccountId)
-        )?.email ?? null,
-      resolveLanguage: async (salesChannelId) =>
-        (salesChannelId
-          ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
-          : null) ?? 'en-US',
-    } satisfies InvoicesBridge,
-  });
-  const invoicesCradle = container.cradle as unknown as InvoicesCradle;
-
-  // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
-  // driving `submissions.process(...)` directly); the sweep interval is off.
-  // Feature 072 (T104) — `ksef` owns its services and routes now.
-  composedModules.contribute({
-    ksefSellerNipResolver: async () => {
-      try {
-        const { z: zod } = await import('zod');
-        const raw = await settings.settingsService.get(
-          'invoices.seller.tax_id',
+      return resolveTenantContext({
+        kind: 'customer',
+        customerAccountId: actor.customerAccountId,
+        organizationId: orgId,
+        impersonatorAdminUserId:
+          (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ??
           null,
-          zod.string(),
-        );
-        const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
-        return nip.length > 0 ? nip : null;
-      } catch {
-        return null;
-      }
-    },
-    // The harness substitutes a deterministic client, drives sweeps itself and
-    // polls three times at 5 ms. Production contributes nothing and keeps the
-    // module's own cadence against the real API.
-    ksefTestOverrides: {
-      ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
-      sweepIntervalMs: 0,
-      pollAttempts: 3,
-      pollIntervalMs: 5,
-    },
-  });
-  const ksefCradle = container.cradle as unknown as KsefCradle;
+        ...(rollupSubtree && rollupSubtree.length > 0
+          ? { rollupSubtreeOrganizationIds: rollupSubtree }
+          : {}),
+      });
+    }
+    if (actor?.kind === 'admin') {
+      const scope = await resolveTestAdminOrdersScope(request);
+      return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+    }
+    // Feature 062 — mirror production: a bound api key derives single-org
+    // scope from its binding; an unbound key keeps trusted system scope.
+    if (actor?.kind === 'api_key') {
+      return resolveTenantContext({
+        kind: 'api_key',
+        apiKeyId: actor.apiKeyId,
+        organizationId: actor.organizationId ?? null,
+        customerAccountId: actor.customerAccountId ?? null,
+      });
+    }
+    return systemTenantContext(`test-actor:${actor?.kind ?? 'anonymous'}`);
+  };
 
-  // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
-  // `setupBackendServer()` runs once per test file in a single fork, and adding
-  // BullMQ connections here has previously taken ~225 files down with "too many
-  // clients" (research §R18). Tests drive `productFeeds.generation.generateNow`
-  // directly, exactly as the KSeF tests drive `submissions.process`.
-  // Feature 072 (T137) — `product_feeds` owns its services and routes now.
-  // The four adapters it reaches outside itself through stay a root's: each
-  // crosses a boundary the module must not reach through directly.
-  composedModules.contribute({
-    productFeedsBridge: {
-      storageAdapters: {
-        getActive: () => assetsLibrary.handle.adapters.getActive(),
-        getForBackend: async (backend) => {
-          const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
-          if (!('open' in adapter) || typeof adapter.open !== 'function') {
-            throw new Error(
-              `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
+  const handle = await composeTestServer({
+    // Contract R2.1 — the four things only the caller knows.
+    composition: {
+      // Feature 072 — the generated module list, composed in one pass at the
+      // same point in the boot order `composition.ts` composes it.
+      // D-103/D-104 — the deployment's overlay modules are appended to this one
+      // list rather than composed by a second path, which is what preserves
+      // D-45's single pass; T031 — and the instance's installed packages after
+      // them, same list, same reason. `harness-parity.test.ts` pins the array
+      // literal in both roots.
+      modules: [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],
+      // The application's ORM configuration, which merges installed packages'
+      // entities. A pair rather than an instance because the configuration
+      // captures `DATABASE_URL` at import, so *when* it opens is the caller's.
+      orm: { open: initOrm, close: closeOrm },
+      manifests: resolvedRegistry,
+    },
+    // Feature 107 (FR-040/FR-041) — mirrors `composition.ts`: the wrapping order
+    // this deployment declares, from `backend/src/apps/<deployment>/divergence.ts`.
+    // **Checked, never applied** — the composer emits in its own order and
+    // drains decorations once; this asserts the resulting order was the intended
+    // one and refuses when the two disagree.
+    decorationOrder: divergenceDeclaration.decorationOrder,
+    // Feature 072 (T073) — the real subscriber client only where a test asks for
+    // it. One armed subscription per composition, across ~225 files, is how this
+    // harness accumulated ~1 GB of retention (task #32); the kit registers an
+    // inert stand-in otherwise, which keeps a module's code identical in both
+    // compositions and the count of *real* subscriptions at "only where a test
+    // asks".
+    exercisePubSub: options.exercisePubSub === true,
+    // Presence, from the deployment-resolved set. The kit would default to the
+    // manifests it was handed, which is the same list; it is spelled because the
+    // resolution is this repository's and not the kit's.
+    enabledModuleIds: resolvedRegistry.map((entry) => entry.manifest.id),
+    // Host values **no module defaults**, registered before the modules do, so
+    // there is nothing to overwrite and therefore no contribution window
+    // (AGENTS.md § Composition item 8). The kit registers the platform's own —
+    // `redis`, `redisSubscriber`, `eventBus`, `commandBus`, `auditLogService`,
+    // `apiInterceptors` and `resolvedModuleRegistry`; these are this harness's.
+    values: {
+      // The module's `ctx.onBoot` schedule reconcile resolves this (T131).
+      pimErgonodeRunWorkers: false,
+      pimPimcoreRunWorkers: false,
+      pimUnopimRunWorkers: false,
+      pimAkeneoRunWorkers: false,
+      pimAkeneoPublicBaseUrl: 'http://localhost',
+      productFeedsRunWorkers: false,
+      productFeedsPublicBaseUrl: 'http://feeds.test.local',
+      productFeedsTokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+      // Feature 072 (T138) — mirrors `composition.ts`, reading this harness's own
+      // actor property. Soft by contract: `null` for anonymous traffic and for a
+      // Customer with no Organization.
+      customerOrganizationIdResolver: (request: FastifyRequest): string | null =>
+        request.testActor?.kind === 'customer' ? (request.testActor.organizationId ?? null) : null,
+      storefrontBaseUrl: 'http://localhost:3000',
+      // The one composition allowed to serve `/api/v1/_test/latest-verification-token`.
+      organizationsExposeTestProbe: true,
+    },
+    // Truncate, seed and drop the stale caches, after the ORM is open and before
+    // the first module registers — a module's registration may not observe a
+    // half-seeded database.
+    prepareDatabase: async (platform) => {
+      ({
+        container,
+        orm,
+        em,
+        redis,
+        eventBus,
+        commandBus,
+        auditLogService,
+        apiInterceptors,
+        settings,
+        salesChannels,
+      } = platform);
+
+      // Redis cache that keys by a STABLE business key (channel code, setting code)
+      // but stores the now-deleted row's id goes stale and causes FK violations on
+      // the next insert. CI gets an ephemeral Redis per run; a developer's local
+      // Redis persists across runs, so we must clear the cross-run-stale namespaces
+      // here. (cms/megamenu/blog/dictionaries clear their own caches further down
+      // via their module handle's `invalidateAll()`, which also drops the LRU.)
+      // `sales-channels:*` covers every cache version (feature 053 bumped it to v2).
+      //
+      // Done **twice**, here and again after the reseed (`dropStaleCaches` below).
+      // This call is the one the seeding needs: it stops a seed insert from reading
+      // a dead id through the cache and failing on the foreign key. But a drop that
+      // happens *before* the rows it protects against are deleted leaves a window —
+      // every statement from the `truncate` to the last seed — in which a read
+      // re-pins a pre-truncate id under a code that survives the reseed. You drop a
+      // cache after invalidating its source, not before, and the second call is that
+      // drop.
+      await dropStaleCaches(redis);
+
+      const conn = orm.em.getConnection();
+      await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
+      // Feature 002: keep the system Default Attribute Set, drop everything
+      // else so contract tests start from a clean slate. (`attribute_sets`
+      // isn't in SEEDED_TABLES because the truncate-cascade would drop the
+      // Default seed too.)
+      await conn.execute('delete from "attribute_sets" where "is_system" = false');
+      // Feature 002 (US3): keep the 4 standard attachment_types seeded by
+      // migration 021; drop any custom ones the previous test may have
+      // added. attachment_types isn't in SEEDED_TABLES for the same reason
+      // as attribute_sets — truncate-cascade would drop the seed.
+      await conn.execute(
+        `delete from "attachment_types" where "code" not in ('certificate', 'tech_spec', 'product_card', 'pdf')`,
+      );
+
+      // Reset the i18n + dictionary config tables to a known state so
+      // parallel-running tests don't inherit each other's mutations. We don't
+      // truncate them in SEEDED_TABLES because they're configuration, not
+      // transactional state.
+      await conn.execute('delete from "dictionary_translations"');
+      await conn.execute('delete from "language_countries"');
+      await conn.execute('delete from "countries"');
+      await conn.execute('delete from "languages"');
+      await conn.execute('delete from "currencies"');
+      await conn.execute(
+        `insert into "languages" ("code", "label", "is_default", "is_active", "sort_order", "created_at", "updated_at")
+         values ('en-US', 'English (US)', true, true, 0, now(), now()),
+                ('pl-PL', 'Polski', false, true, 1, now(), now())`,
+      );
+      await conn.execute(
+        `insert into "currencies" ("code", "label", "symbol", "is_default", "is_active", "sort_order", "created_at", "updated_at")
+         values ('PLN', 'Polish zloty', U&'z\\0142', true, true, 0, now(), now()),
+                ('EUR', 'Euro', U&'\\20AC', false, true, 1, now(), now())`,
+      );
+
+      // Feature 005 — guarantee the system-default Sales Channel exists before
+      // any seed runs. Test-server uses 'en-US' / 'PLN' to match the language /
+      // currency seed above (production uses the 'en' / 'EUR' fallback).
+      await new DefaultChannelReconciler(em, undefined, {
+        bootstrapDefaults: { code: 'default', language: 'en-US', currency: 'PLN' },
+      }).run();
+
+      if ((options.seed ?? 'us1-catalog') === 'us1-catalog') {
+        await seedUs1Catalog(em());
+      }
+      await seedTestOrganizations(em());
+      await seedUs2Commerce(em());
+      await seedTestAdmins(em());
+
+      // The second drop — the one the composition below needs. Every row the caches
+      // key by now exists with the id it will have for the rest of this file, so
+      // nothing read from here on can be a pre-truncate id wearing a code that
+      // survived the reseed.
+      //
+      // That is the shape issue #154 reported: `public-ignores-bearer.test.ts`
+      // failed once in a 67-file run with the anonymous body `data: []` and the
+      // bearer body carrying three products. The two requests resolve their channel
+      // differently — anonymous by **code** through this cache, a bound api key by
+      // **id** from its binding — so a cached `pl_retail` pointing at a dead id
+      // produces exactly that asymmetry, 200 and all. It has not been reproduced,
+      // so this is not filed as the fix; the drop order was wrong on its own terms
+      // and is worth correcting whether or not it was the cause.
+      await dropStaleCaches(redis);
+    },
+    // The contribution window (D-45, issue #52) — the one slot where a value a
+    // module defaults may be overwritten. Both edges are the platform's rather
+    // than this root's memory: `ComposedModules` does not exist until every
+    // module has registered, and `contribute` throws once the boot phase has
+    // started.
+    contribute: async (composed) => {
+      composedModules = composed.composed;
+
+      // Feature 072 (T094) — one `CustomerAuthService` for the composition.
+      // `customers` and `organizations` each built their own and the MFA argument
+      // differed between them; there is one now, and it can always reach the port.
+
+      // Feature 072 (T095/T097) — `payment_methods` and `delivery_methods` own
+      // their registries, eligibility services and routes now. `orders` resolves
+      // them itself, so nothing is read here.
+      //
+      // T143a — the built-in payment adapters are seeded by `payments`, from its
+      // own boot hook. Both roots ran the loop, and this copy carried the same
+      // `isRegistered` guard for a reason neither stated: the registry is a
+      // process-wide singleton, so several hundred compositions in one suite were
+      // all writing the same instance.
+
+      // Feature 072 (T078) — `auth` owns these. Resolved from the same registration
+      // production resolves, which is the whole point of converging the roots: the
+      // harness no longer builds its own SessionService.
+      sessionService = (container.cradle as unknown as AuthCradle).sessionService;
+
+      // Feature 072 (wave 1) — `admin_roles` owns these three. Resolved from the
+      // same registration production resolves, which is how the roots stop being
+      // able to differ: T074 found the harness building AdminRoleService without
+      // its audit writer, and a registration cannot be built two ways.
+      const rolesCradle = container.cradle as unknown as {
+        permissionService: PermissionService;
+        permissionCatalogueService: PermissionCatalogueService;
+        adminRoleService: AdminRoleService;
+      };
+      permissionService = rolesCradle.permissionService;
+      permissionCatalogueService = rolesCradle.permissionCatalogueService;
+
+      // `currencyService` is resolved from the container where it is needed —
+      // `pim_ergonode` reads it as a port since T131, and nothing else here did.
+
+      // Feature 072 (wave 1) — `admin_notifications` provides this as a port, so a
+      // cross-module write answers on its effective state rather than succeeding
+      // into a module the operator switched off.
+      adminNotificationService = (
+        container.cradle as unknown as { adminNotificationService: AdminNotificationService }
+      ).adminNotificationService;
+
+      // The mailer this composition sends through. A test that asserts on sent mail
+      // supplies its own; otherwise it is the one the `email` module registered.
+      //
+      // Feature 072 (T120) — **registered back into the container**, not just held
+      // as a local. The comment here used to say this was "the one seam that stays,
+      // because the modules that take it are not converted yet"; every module is
+      // converted now, and each resolves `emailMailer` as a port. Holding the spy
+      // in a variable and passing it to two module factories was what kept it
+      // reachable, and as those factories disappeared the spy went blind one path
+      // at a time — silently, because the mail was still being sent, just to the
+      // container's `ConsoleMailer`.
+      //
+      // `emailMailer` is a `ctx.di.register` contribution point rather than a
+      // `providePort`, so overwriting it is the sanctioned move rather than a root
+      // shadowing a module's port. It is registered after `composeModules`, in the
+      // one contribution slot, so this overrides `email`'s default rather than being
+      // overwritten by it.
+      //
+      // D-59 — `emailMailer` is now the *recording* mailer: the driver plus the
+      // delivery record. A spy supplied here replaces both, so a test that injects
+      // one asserts on messages and writes no `email_deliveries` row. That is
+      // deliberate — the alternative is every mail-sending suite in the tree
+      // acquiring a database write it never asked for — and the composed path is
+      // covered directly by `test/integration/email/delivery-record.test.ts`, which
+      // sends through the container's own mailer.
+      const emailMailer = (container.cradle as unknown as EmailCradle).emailMailer;
+      const injectedMailer = options.organizationsMailer ?? emailMailer;
+      if (options.organizationsMailer) {
+        composedModules.contribute({ emailMailer: injectedMailer });
+      }
+
+      // CartService is exposed by the commerce module so the login handler in
+      // organizations can merge anonymous baskets after sign-in.
+      let shoppingListServiceRef:
+        | import('../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js').ShoppingListService
+        | null = null;
+      // Feature 039 — late-bound OrderService for the quick_order one-click flow.
+      let orderServiceForOneClick:
+        | import('../../../packages/modules/orders/src/backend/services/order-service.js').OrderService
+        | null = null;
+      // Feature 040 — late-bound OrderListService for the customers module.
+      // Feature 026 US4 / 056 — which organizations a sales-rep admin may see.
+      // T143a — `organizations`' port, read lazily, where this harness used to
+      // build its own `SalesRepAssignmentService` **without** the subtree deps
+      // production passed, and then not use even that: the scope resolver below ran
+      // raw SQL over `organization_sales_rep_assignments`. Two divergences from
+      // production in one seam, and between them feature 056's roll-up was
+      // exercised by nothing.
+
+      // Feature 042 / D-96 — the MFA login port is **not** contributed here any
+      // more, and that removal is the precondition for every `mfa` off-state
+      // assertion in the tree.
+      //
+      // This harness used to resolve `mfaLoginPort` off the cradle once, at
+      // composition, and hand both login consumers a getter returning the captured
+      // value. A captured gate goes on answering after an operator switches the
+      // module off, so the harness failed **open** where production failed closed:
+      // an off-state test written against it passed while measuring a module that
+      // was still running (the shape issue #141 found four times). `admin_users`
+      // and `customer_accounts` resolve the port for themselves now, through
+      // `lazyPort` behind an `effectiveState.isPresent('mfa')` probe, so both
+      // composition roots contribute nothing for this name and the harness observes
+      // exactly what production does.
+
+      // Feature 056 — organization tree + inheritance resolution, built here for
+      // the same reason production builds it (`composition.ts`): three consumers
+      // read it, and without it all three run a shape no deployment runs.
+      //
+      // The credit-mode closure reads Settings at **call** time, so it may be
+      // written before the settings module exists further down — which is exactly
+      // how production orders it. Feature 072 (T072).
+
+      // Credit-limits module — its CreditLimitService is the driver passed into
+      // commerceModule below so OrderService.placeOrder can reserve atomically.
+      // Feature 072 (T101) — `credit_limits` owns its service and routes now, and
+      // since T143c the return-settlement top-up as well, so this harness reads
+      // nothing of the module.
+
+      // Feature 055 — Custom Fields Layer, converted in feature 072 (T087). The
+      // module owns its services and its cache subscription now; the harness reads
+      // the two ports host modules consume, exactly as `composition.ts` does.
+      //
+      // The subscription is no longer conditional on `exercisePubSub`. That flag
+      // existed because a fire-and-forget `subscribe` could land after teardown and
+      // make ioredis reconnect, pinning the composition; the module arms it from an
+      // **awaited** `onBoot` during setup instead, so there is no late landing to
+      // guard against, and it adds no connection — `redisSubscriber` is one the
+      // harness already opens.
+      customFieldsCradle = container.cradle as unknown as CustomFieldsCradle;
+      customFieldDefinitionService = customFieldsCradle.customFieldDefinitionService;
+      customFieldValueService = customFieldsCradle.customFieldValueService;
+
+      // Feature 061 — the composed attribute read model (mirrors composition.ts):
+      // product-host custom-field definitions + catalog extension rows, threaded
+      // into catalog, search, quick_order, and comparisons.
+
+      // US7 — API keys + webhooks. The handle exposes
+      // requireApiKey, threaded into the catalog module's by-sku route so that
+      // surface gets real bearer-token gating.
+      // Feature 072 (T100) — `api_keys` owns its service, its two gates and its
+      // routes now, and provides `apiKeyResolver` itself.
+      apiKeysCradle = container.cradle as unknown as ApiKeysCradle;
+
+      // Analytics (Phase 10 / T237). No GA4 forwarder in tests — the env vars
+      // are unset by default so `buildForwarderFromEnv` returns a NoopForwarder.
+
+      // Import/Export (Phase 10 / T240).
+      // Feature 072 (T122) — `import_export` owns its service and routes now.
+
+      // SEO meta + sitemap (Phase 10 / T235). Stale-window dropped to zero in
+      // tests so each test that calls regenerate sees a fresh payload.
+      // Feature 072 (T117) — `seo` owns its services and routes now.
+
+      // Languages + currencies (Phase 10 / T238). Static config, bootstrapped
+      // by migration 012 with en-US + pl-PL languages and PLN + EUR currencies.
+      // Feature 072 (T105) — `languages` owns its services and routes now.
+
+      // Feature 072 (T112) — `dictionaries` owns its services, its cache
+      // invalidation listeners and its routes now.
+
+      // Registered here rather than with the other host values further down:
+      // `addresses` reads it to build the one `AddressService`, and both `orders`
+      // and `organizations` are constructed before that block runs.
+      // Feature 072 (T090) — one `AddressService` for the whole composition.
+      // `orders` and `organizations` used to build their own, and the constructor's
+      // validator and audit writer are optional, so the instances were free to
+      // disagree — and one did.
+
+      // Feature 072 (wave 1) — `dictionaries` reacts to a currency change instead
+      // of `currencies` calling into it. The direction matters: declaring the call
+      // as a dependency produced a real cycle, and the cycle was the design saying
+      // a currency must not know a dictionary cache exists.
+      // Feature 072 (T105) — the language half of the same drop. `languages` used
+      // to pass a hard-coded `undefined` for its invalidator, so a deactivated
+      // language kept validating for up to the validator's 60 s TTL and kept being
+      // served from the Redis dictionary cache for up to an hour, while a currency
+      // change dropped both immediately.
+
+      // Feature 072 (T110) — the channel-resolution names. The kernel itself is
+      // composed above `composeModules`, for the subscriber ordering; what belongs
+      // here is the registration, in the one contribution slot.
+      composedModules.contribute({
+        salesChannelsCache: salesChannels.cache,
+        salesChannelMembershipPort: salesChannels.membershipService,
+        // Mirrors `composition.ts`: the real resolver, so a test can reach the
+        // channel-scoped stock read at all. Registering it only in production is
+        // what let the missing registration survive — see the note there.
+        salesChannelResolutionPort: salesChannels.resolver,
+      });
+
+      // Feature 014 — CMS module. Reconcile seeded Hooks once; the storefront
+      // resolver wraps Redis as a read-through cache.
+      // Feature 072 (T093) — `cms` owns its services, resolvers, reconciliation
+      // and routes now. Notably it also owns the four late-bound resolvers this
+      // harness never wired: the colour-palette writer was absent here, so
+      // `PUT /admin/cms/page-builder/color-palette` answered 500 in every test run.
+      cmsCradle = container.cradle as unknown as CmsCradle;
+      // Tests rely on writes being immediately visible. Wipe the namespace
+      // before each backend boot so a previous run's keys don't bleed in.
+      if (cmsCradle.cms.handle.cache) await cmsCradle.cms.handle.cache.invalidateAll();
+
+      // Pricing (T127 / FR-050).
+      // Feature 072 (T127) — `price_lists` owns its services and routes now. The
+      // harness drives the status worker through `internal/sweep`, so a wall-clock
+      // interval would only add spurious writes mid-run, and it disables the
+      // pricing LRU because a test writes a price and reads it back in the same
+      // breath. Production keeps the sweeper on and takes the module's own default
+      // TTL, which it stopped restating in T143a — so the 0 below is now the only
+      // opinion either composition holds about this cache.
+      composedModules.contribute({
+        priceListsEnableStatusSweeper: false,
+        priceListsPricingCacheTtlMs: 0,
+        priceListsAdminAuditContext: (request: FastifyRequest) => ({
+          actorAdminUserId:
+            request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+        }),
+      });
+
+      // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
+      // Feature 072 (T119) — `taxes` owns its service and routes now.
+      taxesCradle = container.cradle as unknown as TaxesCradle;
+      // Feature 072 (T115) — `promotions` owns its services and routes now.
+      // These three stay here: the org-status gate and the Rule Builder picker
+      // sources read `organizations`, `categories`, `payment_methods` and
+      // `delivery_methods` directly, and the catalog read port is `catalog`'s.
+      // Registered after `composeModules`, where the module declares its defaults.
+      composedModules.contribute({
+        organizationStatusResolver: async (orgId: string) => {
+          const row = (await em()
+            .getKnex()
+            .raw(`select "status" from "organizations" where "id" = ? and "deleted_at" is null`, [
+              orgId,
+            ])) as { rows: Array<{ status: string }> };
+          return row.rows[0]?.status ?? null;
+        },
+        promotionRuleTargets: {
+          salesChannels: async () => {
+            const { items } = await (
+              container.cradle as unknown as SalesChannelsCradle
+            ).salesChannelsService.list({});
+            return items.map((c) => ({ id: c.id, code: c.code, name: testAnyLabel(c.name) }));
+          },
+          customerGroups: async () => {
+            const groups = await (
+              container.cradle as unknown as CustomerAccountsCradle
+            ).customerGroupService.list();
+            return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
+          },
+          organizations: async () => {
+            const res = (await em()
+              .getKnex()
+              .raw(
+                `select "id", "name", "tax_id" from "organizations" where "deleted_at" is null order by "name" asc limit 200`,
+              )) as { rows: Array<{ id: string; name: string; tax_id: string | null }> };
+            return res.rows.map((r) => ({ id: r.id, name: r.name, taxId: r.tax_id ?? null }));
+          },
+          categories: async () => {
+            const res = (await em()
+              .getKnex()
+              .raw(
+                `select "id", "slug", "name", "parent_category_id" from "categories" where "deleted_at" is null order by "sort_order" asc`,
+              )) as {
+              rows: Array<{
+                id: string;
+                slug: string;
+                name: unknown;
+                parent_category_id: string | null;
+              }>;
+            };
+            return res.rows.map((r) => ({
+              id: r.id,
+              slug: r.slug,
+              name: testAnyLabel(r.name),
+              parentCategoryId: r.parent_category_id ?? null,
+            }));
+          },
+          paymentMethods: async () => {
+            const res = (await em()
+              .getKnex()
+              .raw(
+                `select "id", "code", "name" from "payment_methods" where "status" = 'active' order by "code" asc`,
+              )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+            return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
+          },
+          deliveryMethods: async () => {
+            const res = (await em()
+              .getKnex()
+              .raw(
+                `select "id", "code", "name" from "delivery_methods" where "status" = 'active' order by "code" asc`,
+              )) as { rows: Array<{ id: string; code: string; name: unknown }> };
+            return res.rows.map((r) => ({ id: r.id, code: r.code, name: testAnyLabel(r.name) }));
+          },
+        },
+      });
+      promotionsCradle = container.cradle as unknown as PromotionsCradle;
+
+      // Feature 047 — late-bound transactional-email sender (mirrors composition).
+      // Feature 072 (T120) — `transactional_emails` owns the binding now and
+      // publishes both services as accessor ports; this root reads them like any
+      // other consumer instead of holding the variables its callbacks filled in.
+      const emailCradle = (): {
+        transactionalEmailSenderAccessor: () =>
+          | import('@endora-commerce/contracts').TransactionalEmailSender
+          | undefined;
+        emailBrandingAccessor: () => { resolve(salesChannelId: string): Promise<unknown> } | undefined;
+      } => container.cradle as never;
+
+      // Feature 062 — read-only inventory accessors backing the external catalog
+      // namespace's availability indication (mirrors composition.ts).
+
+
+      // Feature 072 (T118) — the settings names. The kernel itself is composed
+      // above `composeModules`, for the subscriber ordering; what belongs here is
+      // the registration, in the one contribution slot.
+      composedModules.contribute({
+        settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
+        // Mirrors composition.ts: the effective-state reader that classifies each
+        // setting and refuses writes an absent module owns.
+        settingsModulePresence: {
+          presenceOf: (moduleId: string) => effectiveState.presenceOf(moduleId),
+          activationControlOwner: (code: string) => effectiveState.activationControlOwner(code),
+        },
+      });
+      // Feature 042 — MFA module (mirrors composition.ts). Built after `settings`
+      // so it can read MFA settings; its login port is resolved by the two login
+      // consumers themselves (D-96), so nothing is captured here.
+      // Feature 072 (T096) — `mfa` owns its services, routes and configuration.
+      // What this harness still owns is the actor shape: it authenticates through
+      // `request.testActor` where production uses `request.actor`, which is exactly
+      // why the bridge is contributed rather than built into the module.
+      composedModules.contribute({
+        // D-48 — the system-default channel, which always exists.
+        mfaDefaultChannelIdResolver: async () => (await salesChannels.resolver.getSystemDefault()).id,
+        mfaBaseUrls: {
+          backend: 'http://localhost',
+          storefront: 'http://localhost:3000',
+          admin: 'http://localhost:3002',
+        },
+        // Feature 042 US4/US5 — deterministic fake provider. `exchangeCode` derives
+        // the identity from the `code` query so tests control the resolved email;
+        // `unverified@example.com` simulates an unverified provider email.
+        mfaOauthProvider: fakeOAuthProvider,
+        // T143a — the two customer-side resolvers forward to `customer_accounts`'
+        // port, as production's do. What this harness wrote instead was the
+        // degraded copy of the pair: no system scope on the read, no
+        // `customers.allow_registration_without_organization` gate on the create
+        // (so federated sign-in auto-created an account here whatever the operator
+        // had configured), and one fixed password hash for every account it made.
+        mfaSocialAccountResolvers: {
+          resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
+          autoCreateCustomer: (email: string) => customerSocialLogin().autoCreate(email),
+          resolveAdminByEmail: async (email: string) => {
+            // T052 — the same port production reads, rather than a second copy of
+            // the read. The comment that stood here argued for the copy on the
+            // grounds that a divergence would be invisible; the divergence it
+            // guarded against is what a shared owner removes, and the fold
+            // (issue #249) is `findByEmail`'s now.
+            const a = await identityPorts().adminUserReadPort.findByEmail(email, {
+              activeOnly: true,
+            });
+            return a !== null && a.status === 'active' ? { id: a.id } : null;
+          },
+        },
+        mfaActorBridge: {
+          resolveCustomerActor: (request: FastifyRequest) => {
+            if (request.testActor?.kind !== 'customer') {
+              throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+            }
+            return {
+              customerAccountId: request.testActor.customerAccountId,
+              organizationId: request.testActor.organizationId ?? null,
+            };
+          },
+          resolveAdminActor: (request: FastifyRequest) => {
+            if (request.testActor?.kind !== 'admin') {
+              throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+            }
+            return { adminUserId: request.testActor.adminUserId };
+          },
+          resolveOrganizationCustomerIds: async (organizationId: string) => {
+            const rows = await identityPorts().customerAccountReadPort.listByOrganization(
+              organizationId,
+            );
+            return rows.map((r) => r.id);
+          },
+          resolveOrgAdmin: async (request: FastifyRequest) => {
+            if (request.testActor?.kind !== 'customer') {
+              throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+            }
+            const c = await identityPorts().customerAccountReadPort.findById(
+              request.testActor.customerAccountId,
+            );
+            if (!c || c.role !== 'organization_admin' || !c.organizationId) {
+              throw new HttpError(
+                403,
+                ERROR_CODES.FORBIDDEN,
+                'Organization administrator role required.',
+              );
+            }
+            return { organizationId: c.organizationId, actor: c.id };
+          },
+          // Deliberately omitted, as this harness always omitted them: with no
+          // password verifier, disabling 2FA requires a current code. Fail-closed,
+          // and the behaviour every MFA test has been written against.
+        } satisfies MfaActorBridge,
+      });
+      harnessScopedPlugins.push(salesChannels.plugin);
+
+      // Feature 019 — Admin UI i18n. Feature 072 (T089) — `_i18n` owns its service,
+      // reconciler and routes now. Issue #158 — and it is handed the resolved
+      // manifest registry (`harnessManifestRegistry`), so the boot-time reconciler
+      // runs here exactly as it does in production and every module's bundles are
+      // installed. This block used to say the opposite, and the emptiness it
+      // described was the reason no test in the tree exercised a translated error
+      // message.
+      adminI18nCradle = container.cradle as unknown as AdminI18nCradle;
+
+      // Feature 020 — Admin Command Palette actions registry. Mounts the
+      // GET /api/v1/admin/admin-actions read endpoint. Tests that need
+      // module_actions rows seed them directly via `h.em()`.
+      // Feature 072 (T099) — `admin_actions` owns its service, its reconcile and
+      // its routes now. The operator presence axis stays a root's to supply:
+      // which modules a deployment ships is not this module's business.
+      composedModules.contribute({
+        // Issue #225 — the reading and its generation, contributed as one value.
+        // The palette memoises what the reading produced, so a root that handed
+        // over the reading alone would hand over a cache nothing can drop: the
+        // pub/sub message that announces a flip arrives while `refreshFromDb` is
+        // still in flight, and the snapshot rebuilt on it is built from the
+        // presence before the flip.
+        modulePresenceProbe: {
+          // Issue #187 — the platform axis, which the palette used to read by
+          // joining `module_registrations` itself. `?? false` where the operator
+          // axis defaults `true`, and the asymmetry is the tri-state rather than an
+          // oversight: `presence()` answers `undefined` only for an id neither the
+          // registry nor the manifests know, and an action row naming one is an
+          // orphan the join had no row to match either.
+          //
+          // Read this one twice if a palette test surprises you: this harness never
+          // populates `module_registrations` (see `__setEnabledForTesting`'s note in
+          // the registry cache), so the platform axis here is the **seeded** enabled
+          // set and not the table. A test that inserts a registration row for a
+          // fixture module has to seed the set too.
+          isPlatformAvailable: (moduleId: string): boolean =>
+            effectiveState.presence(moduleId)?.platformAvailable ?? false,
+          isActivated: (moduleId: string): boolean =>
+            effectiveState.presence(moduleId)?.operatorActivated ?? true,
+          version: (): number => effectiveState.presenceVersion(),
+        },
+      });
+
+      // Feature 058 — Credentials module.
+      //
+      // Feature 072 (T143a) — the four configuration-type registrations are gone
+      // from here, and with them the `isRegistered` guards each one needed. This
+      // harness mirrored `composition.ts` by hand, and the mirror was **worse than
+      // the original in two ways**: it re-registered core descriptors on a
+      // process-wide singleton once per composition, guarding each one so the
+      // duplicate did not warn, and the comments record two features (068, 070)
+      // where a type registered only in production made every write against it fail
+      // misleadingly until somebody added the mirroring line here. Each type is
+      // declared by the module that owns it now, from that module's boot hook, so
+      // there is one registration and both compositions get it.
+      //
+      // What stays is how an admin actor is resolved from a request, which the two
+      // compositions genuinely answer differently.
+      composedModules.contribute({
+        adminContextResolver: (request: FastifyRequest) => ({
+          adminUserId:
+            request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+        }),
+        credentialsSettingsPort: settings.settingsService,
+      });
+      credentialsService = (
+        container.cradle as unknown as { credentialsService: CredentialsService }
+      ).credentialsService;
+
+      // Feature 013 — Assets Library. Routes mount under /api/v1/admin/assets/*
+      // and /assets/file/:assetId.
+      // Feature 072 (T092) — the module owns its plugin and its registry now.
+      // T143a — and each of `catalog`, `cms` and `megamenu` pushes its own
+      // reference descriptors from its boot hook, so neither root decides which
+      // edges block an asset delete.
+      assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
+
+      // Feature 046 — PWA module (mirrors composition.ts). runWorkers:false so no
+      // BullMQ consumer starts in tests; the delivery processor is invoked directly
+      // by integration tests.
+      // Feature 072 (T116) — `pwa` owns its services, its queue and its routes
+      // now. What stays here is every way it reaches outside itself, contributed
+      // as one bridge: a composition knows how to reach `assets_library` and
+      // `sales_channels`, or it does not.
+      composedModules.contribute({
+        // The harness has a producer and no consumer: it enqueues so the routes can
+        // assert the queued ack, and starting a delivery worker per test file would
+        // be a BullMQ consumer nothing ever closes.
+        pwaRunWorkers: false,
+        pwaBridge: {
+          assetUpload: {
+            upload: async (input) => {
+              const detail = await assetsLibrary.handle.service.upload(input);
+              return { id: detail.id };
+            },
+          },
+          resolveAssetUrl: async (assetId: string) => {
+            try {
+              return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+            } catch {
+              return null;
+            }
+          },
+          resolveChannelIdByCode: async (code: string | undefined) => {
+            if (code) {
+              const ch = await salesChannels.resolver.getByCode(code);
+              if (ch) return ch.id;
+            }
+            return (await salesChannels.resolver.getSystemDefault()).id;
+          },
+          defaultChannelId: async () => (await salesChannels.resolver.getSystemDefault()).id,
+          channelCodeForId: async (channelId: string) => {
+            const ch = await em().findOne(SalesChannel, { id: channelId });
+            return ch?.code ?? null;
+          },
+          resolveAuditContext: (request: FastifyRequest) => ({
+            actorAdminUserId:
+              request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+          }),
+          resolveCustomerAccountId: async (request: FastifyRequest) =>
+            request.testActor?.kind === 'customer' ? request.testActor.customerAccountId : null,
+          resolveOrderTarget: async (payload: {
+            orderId: string;
+            salesChannelId: string;
+            from: string;
+            to: string;
+          }) => {
+            const order = await orderReadPort().findById(payload.orderId);
+            if (!order || !order.placedByCustomerAccountId) return null;
+            return {
+              salesChannelId: payload.salesChannelId,
+              customerAccountId: order.placedByCustomerAccountId,
+              title: 'Order update',
+              body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
+              url: `/account/orders/${order.businessId}`,
+            };
+          },
+        } satisfies PwaBridge,
+      });
+      pwaCradle = container.cradle as unknown as PwaCradle;
+
+      // Feature 015 — Megamenu module. Wires the cross-module ports the
+      // target validator + storefront resolver delegate to. v1 uses small
+      // direct SQL lookups instead of forcing new upstream surfaces.
+      // Feature 072 (T107) — `megamenu` owns its services and routes now. These
+      // two bundles stay here: both are existence checks and URL lookups against
+      // OTHER modules' tables, so moving them into the module would give it
+      // direct reads of `catalog`, `cms` and `assets_library` storage.
+      //
+      // Registered after `composeModules`, where `megamenu` declares its own
+      // defaults — contributing earlier would let the module overwrite the root.
+      composedModules.contribute({
+        megamenuValidatorDeps: {
+          categoryExists: async (categoryId) => {
+            const rows = (await em()
+              .getConnection()
+              .execute('select 1 from categories where id = ? limit 1', [categoryId])) as Array<{
+              '?column?': number;
+            }>;
+            return rows.length > 0;
+          },
+          cmsPageExists: async (pageId) => {
+            const rows = (await em()
+              .getConnection()
+              .execute('select 1 from cms_pages where id = ? limit 1', [pageId])) as Array<{
+              '?column?': number;
+            }>;
+            return rows.length > 0;
+          },
+          cmsBlockExists: async (blockId) => {
+            const rows = (await em()
+              .getConnection()
+              .execute('select 1 from cms_blocks where id = ? limit 1', [blockId])) as Array<{
+              '?column?': number;
+            }>;
+            return rows.length > 0;
+          },
+          assetIs: async (assetId, expected) => {
+            const rows = (await em()
+              .getConnection()
+              .execute('select 1 from assets where id = ? and kind = ? limit 1', [
+                assetId,
+                expected,
+              ])) as Array<{ '?column?': number }>;
+            return rows.length > 0;
+          },
+        } satisfies TargetValidatorDeps,
+        megamenuStorefrontDeps: {
+          resolveCategoryUrl: async (categoryId) => {
+            const rows = (await em()
+              .getConnection()
+              .execute('select slug from categories where id = ? limit 1', [categoryId])) as Array<{
+              slug: string;
+            }>;
+            return rows[0]?.slug ? `/catalog/${rows[0].slug}` : null;
+          },
+          resolveCmsPageUrl: async (pageId) => {
+            const rows = (await em()
+              .getConnection()
+              .execute('select slug from cms_pages where id = ? limit 1', [pageId])) as Array<{
+              slug: string;
+            }>;
+            return rows[0]?.slug ? `/${rows[0].slug}` : null;
+          },
+          resolveAsset: async (assetId) => {
+            const rows = (await em()
+              .getConnection()
+              .execute('select kind, label from assets where id = ? limit 1', [assetId])) as Array<{
+              kind: string;
+              label: string | null;
+            }>;
+            const row = rows[0];
+            if (!row) return null;
+            if (row.kind !== 'image' && row.kind !== 'video') return null;
+            const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
+            return { url: resolved.url, label: row.label, kind: row.kind };
+          },
+          resolveCmsBlock: async (blockId, language) => {
+            const rows = (await em()
+              .getConnection()
+              .execute(
+                'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
+                [blockId],
+              )) as Array<{
+              id: string;
+              code: string;
+              content: { languages?: Record<string, unknown> };
+            }>;
+            const row = rows[0];
+            if (!row) return null;
+            const data = row.content.languages?.[language];
+            if (data === undefined) return null;
+            return {
+              id: row.id,
+              code: row.code,
+              language,
+              content: { schemaVersion: 1, data },
+            };
+          },
+        } satisfies StorefrontDeps,
+      });
+      // T143a — `megamenu` cross-registers into `cms`' reference registry from its
+      // own boot hook now, so this root only drops the cache a previous
+      // composition in the same process may have left in Redis.
+      megamenuCradle = container.cradle as unknown as MegamenuCradle;
+      if (megamenuCradle.megamenuServices.cache) {
+        await megamenuCradle.megamenuServices.cache.invalidateAll();
+      }
+
+      // Feature 072 — the host names, mirroring `composition.ts`. They are the only
+      // thing this root knows about the modules it composes.
+      composedModules.contribute({
+        // `requireAdmin` is NOT here: `auth` provides it as a port (T078).
+        // `apiKeyResolver` is NOT here either: `api_keys` provides it as a gated
+        // port (T100), and re-registering the name replaced that gate with a plain
+        // closure — API-key authentication kept working after the module was
+        // switched off. Both roots carried the entry until the root-registration
+        // check started reading them (T118).
+        // `redis` is registered further up, where the client is created.
+        settingsReadPort: settings.settingsService,
+        // Issue #45 — the same cache, seen from the writing side. Mirrors the root.
+        settingsCache: settings.cache,
+        // Feature 072 (T093) — `composition.ts` has registered this since T086;
+        // the harness passed the same object to `searchModule` as an option but
+        // never registered it, so `cms`' colour-palette writer had nothing to
+        // resolve. Mirroring the root is the point of this block.
+        // `requireCustomer` is NOT here any more: `auth` provides it as a port
+        // (issue #43). This harness contributed `requireTestCustomer()` — a second
+        // implementation that read `request.testActor` where the root read
+        // `request.actor`, so every customer route was gated by one guard in
+        // production and a different one under test. `registerTestAuth` mirrors
+        // each resolved actor onto both properties, which is why the surviving
+        // implementation answers correctly here without reading `testActor`.
+        // Feature 072 (wave 2) — mirrors `composition.ts`.
+        customerContextResolver: customerResolver,
+        // Feature 072 (wave 3) — how this composition names the calling customer as
+        // an id. The four payment gateways read it; before their conversion this
+        // harness composed none of them, which `harness-parity` recorded as an
+        // accepted divergence.
+        customerAccountIdResolver: (req: FastifyRequest) =>
+          req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
+        // Feature 072 (wave 2) — mirrors `composition.ts`, reading this harness's
+        // own actor property. The ad modules resolve one name instead of each
+        // taking its own identically-shaped `resolveAuditContext` option.
+        adminAuditActorResolver: (request: FastifyRequest) => ({
+          actorAdminUserId: request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
+        }),
+        // Feature 072 (wave 2) — **undefined on purpose.** A BullMQ queue built per
+        // `setupBackendServer()` is never closed and this harness is constructed
+        // once per test file inside a single fork, so the ad modules must get no
+        // queue here. `/collect` therefore degrades to 503 and is contract-tested
+        // against its own bare instance instead. `redis` is registered above; this
+        // is the name that says "but not for queues".
+        moduleQueueRedis: undefined,
+        // Feature 072 (wave 2) — mirrors `composition.ts`.
+        salesChannelCodeIdPort: {
+          idByCode: async (code: string) => (await salesChannels.resolver.getByCode(code))?.id ?? null,
+          codeById: async (id: string) => {
+            const { items } = await (
+              container.cradle as unknown as SalesChannelsCradle
+            ).salesChannelsService.list({});
+            return items.find((c) => c.id === id)?.code ?? null;
+          },
+        },
+        // Mirrors the production root exactly (feature 072, D-41/D-48): the
+        // system-default channel's id. Both used to fall back to `'default'`, a
+        // channel *code* that cannot address a `setting_values` row, and then to
+        // `?? null` on a branch the platform guarantees against.
+        settingsChannelResolver: async (): Promise<string | null> =>
+          (await salesChannels.resolver.getSystemDefault()).id,
+        blogStorefrontDeps: undefined,
+      });
+      // `audit_logs` registers its own empty default for `auditActorResolver`, so a
+      // value written before `composeModules` would be overwritten by it (the same
+      // trap `prompt_actions` hit).
+      composedModules.contribute({
+        // Feature 072 (T117) — composition-specific sitemap tuning: regeneration is
+        // deterministic with no staleness window, and a fixed base URL gives the
+        // assertions something stable. Production contributes nothing and takes the
+        // module's own `{}`.
+        //
+        // Registered **after `composeModules`** on purpose. `seo` registers its own
+        // `{}` default there, so contributing earlier would have the module
+        // overwrite the root — which is exactly what happened, and the sitemap
+        // silently fell through to `http://localhost:3000`.
+        sitemapOptions: { staleAfterMs: 0, baseUrl: 'http://test.local' },
+        lifecycleManifestRegistry: () => harnessManifestRegistry(),
+        // Feature 072 (T121) — the gate is the port's own now: `adminUserService`
+        // is provided by `admin_users` and raises `ModuleDisabledError` when that
+        // module is off, so no root hard-codes `isPresent('admin_users')` here.
+        // The contribution itself stays a root's: `audit_logs` owns the name and
+        // defaults it absent, and it composes after `admin_users`, so a
+        // registration from the module would be overwritten by that default.
+        auditActorResolver: async (ids: string[]) => {
+          const users = await (
+            container.cradle as unknown as AdminUsersCradle
+          ).adminUserService.listByIds(ids);
+          return users.map((u) => ({
+            id: u.id,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            email: u.email,
+          }));
+        },
+      });
+      // Feature 072 (T137) — contributed in the one slot, between `composeModules`
+      // and `runBootHooks()`. Before `composeModules` is too early (the module
+      // registers its own `{}` default when it composes, and overwrites this);
+      // after `runBootHooks()` is too late (the boot reconcile has already
+      // constructed the module and read the default).
+      //
+      // What it substitutes: `taxonomyDataRoot` is deliberately a path that does not
+      // exist, so the boot reconcile never reads the shipped ~1.5 MB taxonomy files;
+      // the fetcher and delivery adapters refuse by default, so a code path that
+      // starts reaching outward without a test opting in shows up as a failed check
+      // rather than a real request.
+      composedModules.contribute({
+        // Same window, same reason, and here it is a latent *outbound request*
+        // rather than a file read: `pim_ergonode`'s boot hook only skips
+        // constructing the module because `pimErgonodeRunWorkers` is false in this
+        // harness. The day a non-worker reconcile is added there, or one suite
+        // flips that flag, a contribution registered after boot would be silently
+        // discarded and a test would open a real socket to Ergonode.
+        pimErgonodeSourceOverrides: {
+          ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
+          mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
+        },
+        pimUnopimSourceOverrides: {
+          unopimClient: options.unopimClient ?? refusingUnopimClient(),
+          mediaFetcher: options.unopimMediaFetcher ?? new ScriptedUnopimMediaFetcher(),
+        },
+        pimAkeneoSourceOverrides: {
+          mediaFetcher: options.akeneoMediaFetcher ?? new ScriptedAkeneoMediaFetcher(),
+        },
+        productFeedsTestOverrides: {
+          taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
+          taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
+          deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
+        },
+      });
+
+      // Feature 072 (T136) — `carts` owns its thirteen services and three route
+      // files now. What stays a composition's: who is asking (production reads
+      // `request.actor`, the harness `request.testActor`), and the bridge into
+      // `shopping_lists`, which points outward and so cannot be a port.
+      // Feature 072 (T120) — the harness resolves no asset URLs, which is the
+      // module's own default; naming it keeps the difference from production
+      // visible rather than implied by an omission.
+      composedModules.contribute({
+        transactionalEmailAssetUrl: async (): Promise<string | null> => null,
+      });
+
+      // Feature 072 (T142) — mirrors `composition.ts`. The harness runs no
+      // bulk-operation consumer and must not reindex Meilisearch, which is exactly
+      // what these two say; the other three are the same adapters, reading this
+      // harness's own actor property where one is involved.
+      composedModules.contribute({
+        catalogRunBulkOperationWorker: false,
+        // T143a — deliberately **not** forwarded to `searchReindexPort`, which is
+        // what production does now. A `searchable` flag flips in a good number of
+        // catalog tests, and forwarding would push every product of every channel
+        // into Meilisearch each time. The reindex itself is exercised where it
+        // belongs, against the module's own route:
+        // `test/contract/search/admin-reindex.contract.test.ts`.
+        catalogSearchReindex: async () => ({ documentCount: 0 }),
+        catalogAdminAuditContext: (request: FastifyRequest) => ({
+          actorAdminUserId:
+            request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+          impersonatedCustomerAccountId: null,
+        }),
+        catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
+          // D-61 — the same presence probe production's contribution makes, and it
+          // has to be the same or the off-state test would assert against a
+          // composition production does not run. `catalog` declares the degrade as
+          // `degrades-without`: no `inventory`, no availability band.
+          if (!effectiveState.isPresent('inventory')) {
+            return new Map<string, ProductAvailability>();
+          }
+          return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
+            productIds,
+            salesChannelId,
+          );
+        },
+        catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
+          try {
+            const channelId =
+              (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)
+                ?.id ?? (await salesChannels.resolver.getSystemDefault()).id;
+            const url = await settings.settingsService.get(
+              'product_image_placeholder_url',
+              channelId,
+              z.string(),
+            );
+            const trimmed = url.trim();
+            return trimmed === '' ? null : trimmed;
+          } catch {
+            return null;
+          }
+        },
+      });
+
+      // Feature 072 (T141) — mirrors `composition.ts`: the sales-rep admin scope
+      // (reading this harness's own actor property) and the late-bound sender.
+      composedModules.contribute({
+        ordersAdminScopeResolver: resolveTestAdminOrdersScope,
+      });
+
+      composedModules.contribute({
+        // The organization transact guard used to be a no-op here, named
+        // explicitly so the divergence stayed visible. T138 removed it: the guard
+        // is `organizationReadPort.assertCanTransact` now, provided by the module
+        // and resolved identically by both compositions.
+        cartActorResolver: (request: FastifyRequest) => {
+          if (request.testActor?.kind === 'customer') {
+            return {
+              customer: {
+                customerAccountId: request.testActor.customerAccountId,
+                organizationId: request.testActor.organizationId,
+              },
+            };
+          }
+          const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+          const anon = cookies?.['b2b_cart_anon'];
+          if (anon) return { anonymousToken: anon };
+          return {};
+        },
+        cartShoppingListBridge: {
+          pushLineToShoppingList: async (input) => {
+            if (!shoppingListServiceRef) {
+              throw new Error('shopping_lists module not initialized');
+            }
+            await shoppingListServiceRef.addItem(
+              {
+                customerAccountId: input.customerAccountId,
+                organizationId: input.organizationId ?? '',
+              },
+              input.shoppingListId,
+              {
+                productId: input.productId,
+                ...(input.variantId ? { variantId: input.variantId } : {}),
+                quantity: input.quantity,
+              },
+            );
+          },
+          appendShoppingListToCart: async (input) => {
+            if (!shoppingListServiceRef) {
+              throw new Error('shopping_lists module not initialized');
+            }
+            const res = await shoppingListServiceRef.convertToCart(
+              {
+                customerAccountId: input.customerAccountId,
+                organizationId: input.organizationId ?? '',
+              },
+              input.shoppingListId,
+              undefined,
+            );
+            return {
+              cartId: '',
+              appendedLineCount: res.added,
+              droppedLines: res.skipped.map((it) => ({
+                productId: it.productId,
+                productName: it.productId,
+                reason: 'not_purchasable',
+              })),
+            };
+          },
+        } satisfies CartShoppingListBridge,
+      });
+
+      // Feature 043 / 072 — the assistant's contribution points, mirroring
+      // `composition.ts`. They are registered **after `composeModules`** because the
+      // module registers its own empty defaults there; a value written before
+      // composition would be overwritten by them.
+      //
+      // The tools themselves are no longer here: since D-44 each contributing module
+      // pushes its own from its own boot hook, which is also how the `orders` tools
+      // — production-only until then — came to be composed in this harness at all.
+      // Nor is the bulk-progress reader, since D-72 point 4 turned the single name
+      // it was written over into a registry keyed by contributing module. What is
+      // left is three test seams, which are this harness's own.
+      composedModules.contribute({
+        ...(options.promptActionsLlmFetch === undefined
+          ? {}
+          : { promptActionsLlmFetch: options.promptActionsLlmFetch }),
+        ...(options.promptActionsNow === undefined
+          ? {}
+          : { promptActionsNow: options.promptActionsNow }),
+        ...(options.promptActionsTtlMinutes === undefined
+          ? {}
+          : { promptActionsTtlMinutes: options.promptActionsTtlMinutes }),
+      });
+
+      blogCradle = container.cradle as unknown as BlogCradle;
+      if (blogCradle.blogCacheService) await blogCradle.blogCacheService.invalidateAll();
+
+      dictionariesCradle = container.cradle as unknown as DictionariesCradle;
+      if (dictionariesCradle.dictionaryCache) await dictionariesCradle.dictionaryCache.invalidateAll();
+
+      // Feature 006 — Search module. Owns the Meilisearch indexer + event
+      // subscriber lifecycle. Wires the same settings-aware path the
+      // production composition uses so contract tests can exercise the
+      // LLM-toggle wrapper end-to-end. Foundation tests don't need
+      // Meilisearch up; the subscriber's handlers swallow Meilisearch
+      // errors so a missing backend doesn't break catalog writes.
+      // Feature 072 (T123) — `search` owns its services and routes now. The
+      // harness runs no reindex sweep: it has no worker role, and a periodic
+      // Meilisearch pass per test file is exactly what `enableReindexScheduler`
+      // exists to keep out.
+      composedModules.contribute({
+        searchRunWorkers: false,
+        // T143a — the same statement for `webhooks`' delivery consumer, which the
+        // harness has never run: production built it in `composition.ts` and this
+        // file simply did not, so the difference was an omission rather than a
+        // decision. It is a decision now, and it is the same one every other
+        // `*RunWorkers` flag makes here — a BullMQ consumer per test file would
+        // hold a Redis connection ~555 times over.
+        webhooksRunWorkers: false,
+      });
+
+      // Feature 072 (T129) — mirrors `composition.ts`. The harness used to pass no
+      // event bus, channel resolver or settings reader to this module at all, so
+      // three of its behaviours were exercised by nothing; the module reads all
+      // three from the container now.
+      composedModules.contribute({
+        // Feature 072 (T138) — the admin-editable sender `organizations` sends its
+        // verification, invitation and new-registration emails through. A getter
+        // because `transactional_emails` announces the sender well after this
+        // point; same shape and owner as `inventoryTemplateEmail`.
+        inventoryAdminAuditContext: (request: FastifyRequest) => ({
+          actorAdminUserId:
+            request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
+        }),
+      });
+
+      // Feature 007 — Comparisons module. Customer-facing CRUD endpoints
+      // exercised by US1 contract + integration tests; share/PDF/admin land
+      // in subsequent stories.
+      // Feature 072 (T111) — `comparisons` owns its services and routes now.
+      comparisonsCradle = container.cradle as unknown as ComparisonsCradle;
+
+      // Feature 008 — Quote Requests workflow.
+      // Feature 072 (T132) — `quote_requests` owns its services, routes and the
+      // four settings reads now. What stays is a composition's answer to who is
+      // asking, the organization's tax rate, and the subtree the RFQ admin scope
+      // rolls up over.
+      composedModules.contribute({
+        rfqCustomerContextResolver: async (request: FastifyRequest) => {
+          const ctx = customerResolver(request);
+          const account = await identityPorts().customerAccountReadPort.findById(
+            ctx.customerAccountId,
+          );
+          return {
+            customerAccountId: ctx.customerAccountId,
+            organizationId: ctx.organizationId,
+            isOrgAdmin: account?.role === 'organization_admin',
+          };
+        },
+        rfqAdminContextResolver: async (request: FastifyRequest) => {
+          const adminUserId =
+            request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
+          const ports = identityPorts();
+          const adminUser = await ports.adminUserReadPort.findById(adminUserId);
+          // `getById` cannot 404 here: `admin_users_admin_role_fk` is
+          // `on delete restrict`, so a non-null `adminRoleId` names a row.
+          const role = adminUser?.adminRoleId
+            ? await ports.adminRolePort.getById(adminUser.adminRoleId)
+            : null;
+          return {
+            adminUserId,
+            isPlatformAdmin: role?.code === 'platform_admin' || true,
+            roleLabel:
+              role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
+          };
+        },
+        // No `catch`, exactly as production has none since issue #84 — a harness
+        // that swallowed what production propagates would hide the 503 the
+        // fail-closed tests exist to observe.
+        // T143c — read through `organizations`' port, as production reads it.
+        rfqTaxRateResolver: async (organizationId: string) => {
+          const org = await (
+            container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
+          ).organizationTaxProfilePort.taxProfileOf(organizationId);
+          const vatStatus = org?.vatStatus ?? 'vat_payer';
+          if (vatStatus !== 'vat_payer') return 0;
+          const country = org?.country ?? 'PL';
+          const resolved = await taxesCradle.taxService.taxRateFor({
+            country,
+            productType: 'simple',
+            vatStatus,
+          });
+          // Same narrowing production does (issue #124): `none` is "no rule and no
+          // default configured", never "no `taxes` module" — that one throws at
+          // the port gate before this line runs.
+          return resolved.source === 'none' ? 0 : resolved.rate;
+        },
+      });
+
+      // Feature 072 (T138) — the two `organizations` contributions this harness
+      // makes, registered after `composeModules` so they overwrite the module's
+      // defaults rather than being overwritten by them. Both are read lazily — the
+      // clients when the tax-ID service is first constructed, the hook at login — so
+      // this placement is safe.
+      composedModules.contribute({
+        // No test may open a socket to VIES or Ministerstwo Finansow. The fake
+        // returns `validated` for any taxId ending in `00000` and `failed` /
+        // `deferred` otherwise, giving three deterministic branches.
+        organizationsTaxIdClients: {
+          vies: new FakeVatValidator('vies'),
+          mfPl: new FakeVatValidator('mf_pl'),
+        },
+        organizationsLoginHook: async (loginCtx: {
+          customerAccountId: string;
+          organizationId: string | null;
+          anonymousCartToken?: string;
+          anonymousCompareToken?: string;
+        }) => {
+          let result: Record<string, unknown> = {};
+          if (loginCtx.anonymousCartToken && loginCtx.organizationId) {
+            const cartMerge = await (
+              container.cradle as unknown as CartsCradle
+            ).cartService.mergeAnonymousIntoCustomer(loginCtx.anonymousCartToken, {
+              customerAccountId: loginCtx.customerAccountId,
+              organizationId: loginCtx.organizationId,
+            });
+            result = { cartMerge };
+          }
+          // Feature 007 — adopt an anonymous comparison carried by the
+          // compare_token cookie. Mirrors composition.ts, D-70 included: the
+          // presence question is decided here, and the port is resolved **per
+          // login** rather than bound once at composition time. The old shape
+          // captured `adoptAnonymousComparison` off the cradle while every module
+          // was still on, so the gate this harness composed answered `yes` for the
+          // rest of the process — the one thing an off-state test of this seam has
+          // to be able to see.
+          if (loginCtx.anonymousCompareToken && effectiveState.isPresent('comparisons')) {
+            await (
+              container.cradle as unknown as ComparisonsCradle
+            ).comparisonService.adoptAnonymousComparison(
+              loginCtx.customerAccountId,
+              loginCtx.anonymousCompareToken,
             );
           }
-          return adapter;
+          return result;
+        },
+      });
+
+      // Feature 040 — Customers module (mirrors composition.ts wiring).
+      // Feature 072 (T140) — mirrors `composition.ts`: two names stay this
+      // composition's, both actor-shaped.
+      //
+      // Feature 076 (D-86) — `customersVatValidator` left this contribution. The
+      // fake above, contributed once over `organizationsTaxIdClients`, now reaches
+      // `customers` through `vatValidatorPort`, so there is no second name for the
+      // two roots to keep in step and no way for the two consumers to disagree
+      // about the same tax id.
+      composedModules.contribute({
+        customerActorResolver: (request: FastifyRequest) => {
+          if (request.testActor?.kind !== 'customer') {
+            throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+          }
+          return {
+            customerAccountId: request.testActor.customerAccountId,
+            organizationId: request.testActor.organizationId ?? null,
+          };
+        },
+        customerModerationActorResolver: async (request: FastifyRequest) => {
+          const adminUserId =
+            request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID;
+          const ports = identityPorts();
+          const adminUser = await ports.adminUserReadPort.findById(adminUserId);
+          const role = adminUser?.adminRoleId
+            ? await ports.adminRolePort.getById(adminUser.adminRoleId)
+            : null;
+          const isPlatformAdmin = role?.code !== 'sales_representative';
+          const allowedOrganizationIds = isPlatformAdmin
+            ? []
+            : await salesRepScope().listAssignedOrganizationIds(adminUserId);
+          return { adminUserId, isPlatformAdmin, allowedOrganizationIds };
+        },
+      });
+
+      // Feature 046 — Returns & Complaints (Refunds, RMA).
+      // Feature 072 (T109) — `returns` owns its services and routes now. T143c —
+      // and the four settlement adapters belong to the modules whose money they
+      // move, so what this bridge holds is the composition's answers: who is
+      // asking, where the notification goes, and in which language.
+      const settlementCradle = (): {
+        orderReturnContextPort: ReturnsBridge['orderContext'];
+        paymentRefundPort: ReturnsBridge['paymentRefund'];
+        correctiveInvoicePort: ReturnsBridge['correctiveInvoice'];
+        creditTopupPort: ReturnsBridge['creditTopup'];
+      } => container.cradle as never;
+      composedModules.contribute({
+        returnsBridge: {
+          resolveCustomerAccountId: (req) =>
+            req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
+          resolveAdminUserId: (req) =>
+            req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
+          // T143c — the four settlement adapters are their owners' ports, forwarded
+          // per settlement exactly as the production root forwards them.
+          //
+          // The corrective-invoice one is why this ledger was worth building. This
+          // harness built its own `InvoiceNumberGenerator` over its own pattern
+          // resolver, so every correction number a test drew came out of a counter
+          // `invoices` could not see, while production drew from the module's one
+          // generator. Nothing failed; the two roots simply numbered corrections
+          // differently, and no assertion in the suite could reach the difference.
+          orderContext: {
+            getReturnContext: (orderId) =>
+              settlementCradle().orderReturnContextPort.getReturnContext(orderId),
+          },
+          paymentRefund: {
+            refund: (input) => settlementCradle().paymentRefundPort.refund(input),
+          },
+          correctiveInvoice: {
+            createCorrection: (input) =>
+              settlementCradle().correctiveInvoicePort.createCorrection(input),
+          },
+          creditTopup: {
+            creditFromReturn: (input) => settlementCradle().creditTopupPort.creditFromReturn(input),
+          },
+          // The notifier is `returns`' own class and `returns` builds it since
+          // T143c, reading `emailMailer` per send — which is the name this harness
+          // already overrides with its spy, so the injected mailer still arrives.
+          resolveCustomerEmail: async (cid) =>
+            (await identityPorts().customerAccountReadPort.findById(cid))?.email ?? null,
+          resolveChannelLanguage: async (salesChannelId) =>
+            (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
+        } satisfies ReturnsBridge,
+      });
+
+      // Feature 047 — Invoices.
+      // Feature 072 (T113) — `invoices` owns its services and routes now. What
+      // stays here is how this composition reaches outside the module,
+      // contributed as one bridge.
+      composedModules.contribute({
+        invoicesBridge: {
+          resolveAdminUserId: (req) =>
+            req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
+          resolveCustomerContext: (req) => ({
+            customerAccountId:
+              req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
+            organizationId:
+              req.testActor?.kind === 'customer'
+                ? (req.testActor.organizationId ?? TEST_ORGANIZATION_ID)
+                : TEST_ORGANIZATION_ID,
+          }),
+          getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+          resolveRecipientEmail: async (order) =>
+            (
+              await identityPorts().customerAccountReadPort.findById(order.placedByCustomerAccountId)
+            )?.email ?? null,
+          resolveLanguage: async (salesChannelId) =>
+            (salesChannelId
+              ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
+              : null) ?? 'en-US',
+        } satisfies InvoicesBridge,
+      });
+      invoicesCradle = container.cradle as unknown as InvoicesCradle;
+
+      // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
+      // driving `submissions.process(...)` directly); the sweep interval is off.
+      // Feature 072 (T104) — `ksef` owns its services and routes now.
+      composedModules.contribute({
+        ksefSellerNipResolver: async () => {
+          try {
+            const { z: zod } = await import('zod');
+            const raw = await settings.settingsService.get(
+              'invoices.seller.tax_id',
+              null,
+              zod.string(),
+            );
+            const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
+            return nip.length > 0 ? nip : null;
+          } catch {
+            return null;
+          }
+        },
+        // The harness substitutes a deterministic client, drives sweeps itself and
+        // polls three times at 5 ms. Production contributes nothing and keeps the
+        // module's own cadence against the real API.
+        ksefTestOverrides: {
+          ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
+          sweepIntervalMs: 0,
+          pollAttempts: 3,
+          pollIntervalMs: 5,
+        },
+      });
+      ksefCradle = container.cradle as unknown as KsefCradle;
+
+      // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
+      // `setupBackendServer()` runs once per test file in a single fork, and adding
+      // BullMQ connections here has previously taken ~225 files down with "too many
+      // clients" (research §R18). Tests drive `productFeeds.generation.generateNow`
+      // directly, exactly as the KSeF tests drive `submissions.process`.
+      // Feature 072 (T137) — `product_feeds` owns its services and routes now.
+      // The four adapters it reaches outside itself through stay a root's: each
+      // crosses a boundary the module must not reach through directly.
+      composedModules.contribute({
+        productFeedsBridge: {
+          storageAdapters: {
+            getActive: () => assetsLibrary.handle.adapters.getActive(),
+            getForBackend: async (backend) => {
+              const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
+              if (!('open' in adapter) || typeof adapter.open !== 'function') {
+                throw new Error(
+                  `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
+                );
+              }
+              return adapter;
+            },
+          },
+          resolveAvailability: async (productIds: string[], salesChannelId: string) =>
+            // T143a — `inventory`'s port. This built a fresh `WarehouseChannelService`
+            // *and* `StockLevelService` on every call, each with only `em` where the
+            // module passes the event bus and audit writer too.
+            inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
+              productIds,
+              salesChannelId,
+            ),
+          expandCategoryProductIds: (categoryIds: string[]) =>
+            // T143a — `catalog`'s port, mirroring `composition.ts`. This built a
+            // throwaway `CatalogQueryService` per call.
+            (
+              container.cradle as never as { catalogQueryPort: CatalogQueryService }
+            ).catalogQueryPort.expandCategoryProductIds(categoryIds),
+          resolvePublicImageUrls: async (assetIds: string[]) => {
+            const out = new Map<string, string>();
+            if (assetIds.length === 0) return out;
+            const assets = (await assetReadPort().findByIds(assetIds, { liveOnly: true })).filter(
+              (asset) => asset.visibility === 'public',
+            );
+            for (const asset of assets) {
+              try {
+                const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
+                // Signed ⇒ not stable ⇒ not publishable (FR-043).
+                if (resolved.expiresAt === null && /^https?:\/\//i.test(resolved.url)) {
+                  out.set(asset.id, resolved.url);
+                }
+              } catch {
+                // Unresolvable ⇒ simply not an image for this feed.
+              }
+            }
+            return out;
+          },
+        } satisfies ProductFeedsBridge,
+      });
+      // Feature 072 (T137) — the template reconcile moved into the module's own
+      // `ctx.onBoot`, which runs for both compositions.
+
+      // Feature 068 — Ergonode PIM. Deliberately NO `redis` and NO `runWorkers`,
+      // for the same reason product_feeds above has neither: one fork per test file
+      // cannot afford a BullMQ connection per module. Integration tests drive the
+      // import pipeline directly rather than through a job.
+      //
+      // The catalogue write surface is constructed here exactly as production
+      // composition builds it, so what a test exercises is the path a real import
+      // takes — Command Bus, channel binding and all.
+      // Feature 072 (T131) — the eight services `pim_ergonode` reads across a
+      // module boundary. Seven are `catalog`'s and were constructed here a
+      // second time, purely for this module, while `catalog` built its own;
+      // registering them means one instance each per composition. They go when
+      // `catalog` and `assets_library` convert.
+      composedModules.contribute({
+        // Mirrors `composition.ts`: the seven `catalog` services this block built a
+        // second time are that module's ports since T142. Only `assets_library`'s
+        // is left, and it drains when that module converts.
+        assetsLibraryService: assetsLibrary.handle.service,
+      });
+
+      // Feature 047 — Transactional Emails.
+      // Feature 072 (T126) — `payments` owns the payment-status notifier now and
+      // subscribes through `ctx.subscribe`, so it stops when the module does. The
+      // sender stays a contribution: `transactional_emails` announces it through a
+      // callback this root holds, later than the module composes.
+      composedModules.contribute({
+        paymentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+      });
+      // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
+      // subscribes through `ctx.subscribe`, so it stops when the module does. The
+      // sender stays a contribution: `transactional_emails` announces it through a
+      // callback this root holds, later than the module composes.
+      composedModules.contribute({
+        shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
+      });
+
+
+      // Feature 072 (T114) — `newsletter` owns its services and routes now.
+      // These stay here because they are pinned per composition rather than
+      // derived: the token secret and base URLs decide what an unsubscribe link
+      // looks like, and the harness needs that predictable.
+      composedModules.contribute({
+        newsletterBridge: {
+          tokenSecret: 'test-newsletter-secret',
+          defaultChannelId: (await salesChannels.resolver.getSystemDefault()).id,
+          resolveChannelIdByCode: async (code) =>
+            (await salesChannels.resolver.getByCode(code))?.id ?? null,
+          publicBaseUrl: 'http://localhost',
+          storefrontBaseUrl: 'http://localhost',
+          resolveCustomerAccountId: (req) =>
+            req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : '',
+          loadCustomerEmail: async (customerAccountId) =>
+            (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
+          mailer: injectedMailer,
+          emitEvent: (name, payload) =>
+            eventBus.emit(name, {
+              eventId: randomUUID(),
+              occurredAt: new Date().toISOString(),
+              ...payload,
+            }),
+        } satisfies NewsletterBridge,
+      });
+
+      // Feature 049 — Google Analytics. No redis wired here, so /collect degrades
+      // to 503 (queue producer absent); config + admin CRUD are fully exercised.
+
+      // Feature 063 — LinkedIn Ads. Config + mapping CRUD are fully exercised.
+
+      // Feature 064 — Meta Ads. Config + custom-event CRUD are fully exercised.
+
+      // Feature 066 — Google Tag Manager. No redis wired here: a BullMQ queue built
+      // per `setupBackendServer()` is never closed, and this harness is constructed
+      // once per test file inside a single fork. /collect therefore degrades to 503
+      // here (queue producer absent) and is contract-tested against its own bare
+      // instance in test/contract/google_tag_manager/collect.test.ts.
+
+      // Feature 072 (T133) — mirrors `composition.ts`. The harness passed no
+      // `settingsService` here, so the quick-order import cap fell back to its
+      // manifest default in every test while production read it per channel.
+      composedModules.contribute({
+        oneClickOrderServiceGetter: () => orderServiceForOneClick,
+        shoppingListServiceSink: (svc: ShoppingListService) => {
+          shoppingListServiceRef = svc;
+        },
+      });
+
+      if (options.extraModules) harnessScopedPlugins.push(...options.extraModules);
+
+      // Feature 072 (T125) — `_lifecycle` registers these routes itself now,
+      // through `ctx.ungatedRoutes`. What stays here is the one thing that
+      // genuinely differs: local refresh goes through the *cache seam* rather than
+      // a database read, because this harness never populates
+      // `module_registrations` and refreshing from the database would blank the
+      // seeded enabled-set and take every gated route down mid-run. No
+      // `lifecycleOrchestrator` is contributed, so the module list is not served —
+      // which is exactly the composition this harness has always been.
+      composedModules.contribute({
+        lifecycleActivationPropagation: {
+          commandBus,
+          propagation: {
+            refreshLocalState: () => registryCache.__refreshActivationForTesting(em),
+            publishStateChanged: (payload: Parameters<typeof publishStateChanged>[1]) =>
+              publishStateChanged(redis, payload),
+            revalidateStorefront: async () => undefined,
+          },
+        },
+      });
+      options.configureInterceptors?.(apiInterceptors);
+    },
+    plugins: harnessPlugins,
+    scopedPlugins: harnessScopedPlugins,
+    buildTenantContext: buildTestTenantContext,
+    beforeBoot: async () => {
+      options.configureInterceptors?.(apiInterceptors);
+
+      // Feature 004 — boot-time manifest reconciliation. Runs before
+      // app.ready() so contract tests start from a consistent settings
+      // catalog.
+      //   - settingsModuleManifest: built-in `general` group.
+      //   - searchManifest:         feature-006 search group + 6 settings.
+      // Same derivation the production composition uses, so the harness cannot
+      // drift from it — it previously carried its own hand-maintained copy, which
+      // is why tests saw KSeF/MFA settings that production never created.
+      //
+      // Feature 080 (T046) — and the same **population**, which is the half that had
+      // drifted: `deploymentShippedEntries(resolvedRegistry)` is core plus this
+      // deployment's overlay and never an installed package. Both roots passed
+      // bare-core `REGISTERED_MANIFESTS`, so an overlay module's activation Setting
+      // was created by nothing, here or in production.
+      await new ManifestReconciler(em()).apply(
+        settingsManifestCollectionPort().collect(deploymentShippedEntries(resolvedRegistry)),
+      );
+    },
+    afterReady: async () => {
+      // `_i18n` reconciles from its `ctx.routes` callback, so the bundles are on
+      // disk-truth by the line above. Prove it before any test observes anything —
+      // see the note on `assertErrorTranslationsInstalled`.
+      await assertErrorTranslationsInstalled(adminI18nCradle.adminI18nService);
+    },
+    server: {
+      openApi: {
+        title: 'B2B Platform API (test)',
+        version: 'test',
+        serverUrl: 'http://localhost',
+      },
+      errorEnvelope: {
+        errorTranslationTargets: errorTranslation.targets,
+        // The same call production makes, from the same kernel function (D-137).
+        // The `request.testActor` read this replaces was the residual drift
+        // between the two roots: `registerTestAuth` mirrors every resolved actor
+        // onto `request.actor` too (`test-actors.ts`), so the shared resolver
+        // answers correctly here, and `harness-parity.test.ts` pins that neither
+        // root grows a second spelling of the ladder.
+        resolvePreferredLanguage: createRequestLanguageResolver({
+          adminPreferredLanguage: async (adminUserId) =>
+            (await identityPorts().adminUserReadPort.findById(adminUserId))?.preferredLanguage ??
+            null,
+        }),
+        translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
+          const translated = await adminI18nCradle.adminI18nService.translate(
+            moduleId,
+            key,
+            language,
+            params,
+          );
+          return translated === `${moduleId}.${key}` ? originalMessage : translated;
         },
       },
-      resolveAvailability: async (productIds: string[], salesChannelId: string) =>
-        // T143a — `inventory`'s port. This built a fresh `WarehouseChannelService`
-        // *and* `StockLevelService` on every call, each with only `em` where the
-        // module passes the event bus and audit writer too.
-        inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
-          productIds,
-          salesChannelId,
-        ),
-      expandCategoryProductIds: (categoryIds: string[]) =>
-        // T143a — `catalog`'s port, mirroring `composition.ts`. This built a
-        // throwaway `CatalogQueryService` per call.
-        (
-          container.cradle as never as { catalogQueryPort: CatalogQueryService }
-        ).catalogQueryPort.expandCategoryProductIds(categoryIds),
-      resolvePublicImageUrls: async (assetIds: string[]) => {
-        const out = new Map<string, string>();
-        if (assetIds.length === 0) return out;
-        const assets = (await assetReadPort().findByIds(assetIds, { liveOnly: true })).filter(
-          (asset) => asset.visibility === 'public',
-        );
-        for (const asset of assets) {
-          try {
-            const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
-            // Signed ⇒ not stable ⇒ not publishable (FR-043).
-            if (resolved.expiresAt === null && /^https?:\/\//i.test(resolved.url)) {
-              out.set(asset.id, resolved.url);
-            }
-          } catch {
-            // Unresolvable ⇒ simply not an image for this feed.
-          }
-        }
-        return out;
-      },
-    } satisfies ProductFeedsBridge,
-  });
-  // Feature 072 (T137) — the template reconcile moved into the module's own
-  // `ctx.onBoot`, which runs for both compositions.
-
-  // Feature 068 — Ergonode PIM. Deliberately NO `redis` and NO `runWorkers`,
-  // for the same reason product_feeds above has neither: one fork per test file
-  // cannot afford a BullMQ connection per module. Integration tests drive the
-  // import pipeline directly rather than through a job.
-  //
-  // The catalogue write surface is constructed here exactly as production
-  // composition builds it, so what a test exercises is the path a real import
-  // takes — Command Bus, channel binding and all.
-  // Feature 072 (T131) — the eight services `pim_ergonode` reads across a
-  // module boundary. Seven are `catalog`'s and were constructed here a
-  // second time, purely for this module, while `catalog` built its own;
-  // registering them means one instance each per composition. They go when
-  // `catalog` and `assets_library` convert.
-  composedModules.contribute({
-    // Mirrors `composition.ts`: the seven `catalog` services this block built a
-    // second time are that module's ports since T142. Only `assets_library`'s
-    // is left, and it drains when that module converts.
-    assetsLibraryService: assetsLibrary.handle.service,
-  });
-
-  // Feature 047 — Transactional Emails.
-  // Feature 072 (T126) — `payments` owns the payment-status notifier now and
-  // subscribes through `ctx.subscribe`, so it stops when the module does. The
-  // sender stays a contribution: `transactional_emails` announces it through a
-  // callback this root holds, later than the module composes.
-  composedModules.contribute({
-    paymentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
-  });
-  // Feature 072 (T124) — `shipments` owns the shipment-created notifier now and
-  // subscribes through `ctx.subscribe`, so it stops when the module does. The
-  // sender stays a contribution: `transactional_emails` announces it through a
-  // callback this root holds, later than the module composes.
-  composedModules.contribute({
-    shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
-  });
-  modules.push();
-
-  // Feature 072 (T114) — `newsletter` owns its services and routes now.
-  // These stay here because they are pinned per composition rather than
-  // derived: the token secret and base URLs decide what an unsubscribe link
-  // looks like, and the harness needs that predictable.
-  composedModules.contribute({
-    newsletterBridge: {
-      tokenSecret: 'test-newsletter-secret',
-      defaultChannelId: (await salesChannels.resolver.getSystemDefault()).id,
-      resolveChannelIdByCode: async (code) =>
-        (await salesChannels.resolver.getByCode(code))?.id ?? null,
-      publicBaseUrl: 'http://localhost',
-      storefrontBaseUrl: 'http://localhost',
-      resolveCustomerAccountId: (req) =>
-        req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : '',
-      loadCustomerEmail: async (customerAccountId) =>
-        (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
-      mailer: injectedMailer,
-      emitEvent: (name, payload) =>
-        eventBus.emit(name, {
-          eventId: randomUUID(),
-          occurredAt: new Date().toISOString(),
-          ...payload,
-        }),
-    } satisfies NewsletterBridge,
-  });
-
-  // Feature 049 — Google Analytics. No redis wired here, so /collect degrades
-  // to 503 (queue producer absent); config + admin CRUD are fully exercised.
-
-  // Feature 063 — LinkedIn Ads. Config + mapping CRUD are fully exercised.
-
-  // Feature 064 — Meta Ads. Config + custom-event CRUD are fully exercised.
-
-  // Feature 066 — Google Tag Manager. No redis wired here: a BullMQ queue built
-  // per `setupBackendServer()` is never closed, and this harness is constructed
-  // once per test file inside a single fork. /collect therefore degrades to 503
-  // here (queue producer absent) and is contract-tested against its own bare
-  // instance in test/contract/google_tag_manager/collect.test.ts.
-
-  // Feature 072 (T133) — mirrors `composition.ts`. The harness passed no
-  // `settingsService` here, so the quick-order import cap fell back to its
-  // manifest default in every test while production read it per channel.
-  composedModules.contribute({
-    oneClickOrderServiceGetter: () => orderServiceForOneClick,
-    shoppingListServiceSink: (svc: ShoppingListService) => {
-      shoppingListServiceRef = svc;
     },
   });
 
-  if (options.extraModules) modules.push(...options.extraModules);
-
-  // Feature 072 (T125) — `_lifecycle` registers these routes itself now,
-  // through `ctx.ungatedRoutes`. What stays here is the one thing that
-  // genuinely differs: local refresh goes through the *cache seam* rather than
-  // a database read, because this harness never populates
-  // `module_registrations` and refreshing from the database would blank the
-  // seeded enabled-set and take every gated route down mid-run. No
-  // `lifecycleOrchestrator` is contributed, so the module list is not served —
-  // which is exactly the composition this harness has always been.
-  composedModules.contribute({
-    lifecycleActivationPropagation: {
-      commandBus,
-      propagation: {
-        refreshLocalState: () => registryCache.__refreshActivationForTesting(em),
-        publishStateChanged: (payload: Parameters<typeof publishStateChanged>[1]) =>
-          publishStateChanged(redis, payload),
-        revalidateStorefront: async () => undefined,
-      },
-    },
-  });
-  options.configureInterceptors?.(apiInterceptors);
-
-  // Feature 004 — boot-time manifest reconciliation. Runs before
-  // app.ready() so contract tests start from a consistent settings
-  // catalog.
-  //   - settingsModuleManifest: built-in `general` group.
-  //   - searchManifest:         feature-006 search group + 6 settings.
-  // Same derivation the production composition uses, so the harness cannot
-  // drift from it — it previously carried its own hand-maintained copy, which
-  // is why tests saw KSeF/MFA settings that production never created.
-  //
-  // Feature 080 (T046) — and the same **population**, which is the half that had
-  // drifted: `deploymentShippedEntries(resolvedRegistry)` is core plus this
-  // deployment's overlay and never an installed package. Both roots passed
-  // bare-core `REGISTERED_MANIFESTS`, so an overlay module's activation Setting
-  // was created by nothing, here or in production.
-  await new ManifestReconciler(em()).apply(
-    settingsManifestCollectionPort().collect(deploymentShippedEntries(resolvedRegistry)),
-  );
-
-  // The explicit boot phase (FR-021), run **once**, after every registration
-  // and every contribution above and immediately before the app is built —
-  // exactly where `composition.ts` runs it (D-45). A boot hook may therefore
-  // resolve anything this composition registers. It is also what closes the
-  // contribution window: a `composedModules.contribute(…)` below this line
-  // throws instead of writing a value no hook will read (issue #52).
-  await composedModules.runBootHooks();
-
-  const app = await buildServer({
-    sessionCookieSecret: 'test-secret-do-not-use-in-production',
-    openApi: {
-      title: 'B2B Platform API (test)',
-      version: 'test',
-      serverUrl: 'http://localhost',
-    },
-    disableRateLimit: true,
-    modules,
-    apiInterceptors,
-    errorEnvelope: {
-      errorTranslationTargets: errorTranslation.targets,
-      // The same call production makes, from the same kernel function (D-137).
-      // The `request.testActor` read this replaces was the residual drift
-      // between the two roots: `registerTestAuth` mirrors every resolved actor
-      // onto `request.actor` too (`test-actors.ts`), so the shared resolver
-      // answers correctly here, and `harness-parity.test.ts` pins that neither
-      // root grows a second spelling of the ladder.
-      resolvePreferredLanguage: createRequestLanguageResolver({
-        adminPreferredLanguage: async (adminUserId) =>
-          (await identityPorts().adminUserReadPort.findById(adminUserId))?.preferredLanguage ??
-          null,
-      }),
-      translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
-        const translated = await adminI18nCradle.adminI18nService.translate(
-          moduleId,
-          key,
-          language,
-          params,
-        );
-        return translated === `${moduleId}.${key}` ? originalMessage : translated;
-      },
-    },
-  });
-  // Seed the in-process module registry as "all modules enabled". Production
-  // loads it from `module_registrations` in `loadModulePresence()`, a
-  // composition step in `composeApp()`, but the test harness never boots the
-  // lifecycle orchestrator and never populates that table. Without this, every
-  // route wrapped in `defineModuleRoutes` (e.g. the entire `blog` surface) 503s
-  // with MODULE_DISABLED, and the permission catalogue would report zero
-  // enabled modules. Lifecycle tests that need a specific module disabled
-  // override this within their own setup.
-  // Feature 073 — install the activation declarations the manifests carry.
-  // Production does this inside the same load; without it the operator axis has
-  // nothing to resolve, the settings write guards never fire and the activation
-  // endpoint reports every module as having no control.
-  // Feature 072 (D-38) — the seeding above happens before the first module
-  // registers, which is the same order production now runs in: presence is a
-  // composition input, and `__setEnabledForTesting` is the load without a
-  // database.
-  // Issue #213 — the module-state subscription this harness used to arm is gone,
-  // and so is the one in `composition.ts` it mirrored. Both existed to drop the
-  // permission catalogue's memo on a state change; the memo is gone, because the
-  // catalogue now tracks a Setting an operator flips at runtime and a per-process
-  // cache over that can only ever be stale between the flip and the message. A
-  // read that recomputes has nothing to invalidate and no listener to order.
-  //
-  // `exercisePubSub` still decides whether the real subscriber client or an inert
-  // stand-in is registered, so the one remaining cross-process path
-  // (`custom_fields`, armed from its own boot hook) is live only where a test
-  // asks for it.
-  await app.ready();
-  // `_i18n` reconciles from its `ctx.routes` callback, so the bundles are on
-  // disk-truth by the line above. Prove it before any test observes anything —
-  // see the note on `assertErrorTranslationsInstalled`.
-  await assertErrorTranslationsInstalled(adminI18nCradle.adminI18nService);
+  const app = handle.app;
 
   return {
     app,
@@ -2753,8 +2763,9 @@ export async function setupBackendServer(
     eventBus,
     apiInterceptors,
     redis,
-    redisSubscriber,
-    pubSubArmed: options.exercisePubSub === true,
+    redisSubscriber: handle.redisSubscriber,
+    pubSubArmed: handle.pubSubArmed,
+    composition: handle,
     sessionService,
     auditLogService,
     promptActions: {
@@ -2778,6 +2789,10 @@ export async function setupBackendServer(
     ksef: ksefCradle.ksef.handle,
     productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,
     pimErgonode: (container.cradle as unknown as PimErgonodeCradle).pimErgonode.handle,
+    pimConnectorRegistry: (
+      container.cradle as unknown as { pimConnectorRegistryPort: PimConnectorRegistryPort }
+    ).pimConnectorRegistryPort,
+    pimUnopim: (container.cradle as unknown as PimUnopimCradle).pimUnopim.handle,
     pimPimcore: (container.cradle as unknown as PimPimcoreCradle).pimPimcore.handle,
     pwa: pwaCradle.pwa.handle,
     permissionService,
@@ -2869,6 +2884,7 @@ export async function setupBackendServer(
   };
 }
 
+
 function customerResolver(request: FastifyRequest): {
   customerAccountId: string;
   organizationId: string;
@@ -2892,29 +2908,15 @@ function customerResolver(request: FastifyRequest): {
 }
 
 export async function teardownBackendServer(h: BackendServerHandle): Promise<void> {
-  await h.app.close();
-  // Feature 072 — runs every registration's disposer and drops the resolution
-  // cache, so a file's composed services do not outlive its server.
-  await h.container.dispose();
-  h.redis.disconnect();
-  // Unsubscribe and drop listeners **before** disconnecting. A subscribed
-  // client that is merely disconnected keeps its subscription set, and ioredis
-  // re-establishes it on any reconnect — which is how one armed subscription
-  // per composition became ~1 GB of retention across a run.
-  h.redisSubscriber.removeAllListeners('message');
-  // Only when something actually subscribed. `unsubscribe()` on a client that
-  // never entered subscriber mode rejects asynchronously from ioredis's socket
-  // close handler — a rejection no `try` around this call can catch, which
-  // surfaced as an unhandled rejection failing otherwise-green runs.
-  if (h.pubSubArmed) {
-    try {
-      await h.redisSubscriber.unsubscribe();
-    } catch {
-      // Already closed — nothing left to unsubscribe from.
-    }
-  }
-  h.redisSubscriber.disconnect();
-  await closeOrm();
+  // Feature 109 (T030) — one release sequence, the kit's. It closes the app,
+  // runs every registration's disposer and drops the resolution cache, then
+  // unsubscribes and drops listeners **before** disconnecting either client — a
+  // subscribed client that is merely disconnected keeps its subscription set and
+  // ioredis re-establishes it on any reconnect, which is how one armed
+  // subscription per composition became ~1 GB of retention — and finally closes
+  // the ORM. Every step is now shared with a module package's own test rather
+  // than being a second copy that cannot learn about a new resource.
+  await teardownTestServer(h.composition);
 }
 
 /**

@@ -29,7 +29,14 @@
  */
 
 import { Migration20260506T081055BlogInit } from './20260506T081055_blog_init.js';
+import { Migration20260903T101744BlogNamespaceBlockNames } from './20260903T101744_blog_namespace_block_names.js';
 
-export const migrations = [Migration20260506T081055BlogInit];
+export const migrations = [
+  Migration20260506T081055BlogInit,
+  Migration20260903T101744BlogNamespaceBlockNames,
+];
 
-export { Migration20260506T081055BlogInit };
+export {
+  Migration20260506T081055BlogInit,
+  Migration20260903T101744BlogNamespaceBlockNames,
+};

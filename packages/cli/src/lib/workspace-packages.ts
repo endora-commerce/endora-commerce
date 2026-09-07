@@ -350,3 +350,89 @@ export function modulePackages(members: readonly WorkspaceMember[]): readonly Mo
   }
   return packages.sort((left, right) => left.dir.localeCompare(right.dir));
 }
+
+/** A workspace member that declares itself a package of admin UI. */
+export interface AdminUiPackage {
+  /** Absolute directory of the member. */
+  readonly dir: string;
+  /** The npm name it publishes under. */
+  readonly name: string;
+}
+
+/**
+ * Does a member declare itself a package whose sources are **admin UI**?
+ *
+ * The third value of the `endora.type` block, beside `'platform'` (the host)
+ * and `'module'` (a module package), and read the same way: the package's own
+ * statement about itself, over the members `pnpm-workspace.yaml` globs. Nothing
+ * here reads a directory or a name — `packages/admin-kit` and
+ * `@endora-commerce/admin-kit` appear in no predicate, which is what lets a
+ * second admin-ui package arrive under any name and be judged from its first
+ * commit (feature 091, P5c).
+ *
+ * ## Why this is not D-171's refused self-certification
+ *
+ * D-171 refused an `endora`-block field that would have **exempted** a package
+ * from `check:module-boundary`'s ledger: an exemption from a rule, issued by
+ * the party the rule measures. This declaration is the opposite direction. It
+ * puts the package *into* two populations — `i18n:hardcoded`'s walk and
+ * `check:admin-zones`' third `foreign-module-id` population — so declaring it
+ * buys obligations and nothing else, and the only thing an author gains by
+ * omitting it is that their hard-coded strings and their foreign module ids go
+ * unread.
+ *
+ * Forgetting it therefore has to fail loudly, and it does: `i18n:hardcoded`'s
+ * baseline is keyed by path and two-way, so a file that arrives in an
+ * undeclared package is a ledger entry naming a path the walk never opened —
+ * `drained`, exit 1 — in the same run. That is the property that makes a
+ * declaration safe here and an exemption unsafe there.
+ */
+export function declaresAdminUi(member: WorkspaceMember): boolean {
+  const endora = member.manifest['endora'];
+  if (typeof endora !== 'object' || endora === null || Array.isArray(endora)) return false;
+  return (endora as Record<string, unknown>)['type'] === 'admin-ui';
+}
+
+/**
+ * Every workspace member that declares itself admin UI, sorted by directory.
+ *
+ * The shape {@link modulePackages} has, for the same reason: one derivation of
+ * "which packages ship admin code", so the two instruments that walk them
+ * cannot come to disagree about the population.
+ */
+export function adminUiPackages(
+  members: readonly WorkspaceMember[],
+): readonly AdminUiPackage[] {
+  return members
+    .filter((member) => declaresAdminUi(member))
+    .map((member) => ({ dir: member.dir, name: member.name }))
+    .sort((left, right) => left.dir.localeCompare(right.dir));
+}
+
+/**
+ * Is this manifest a Next application — the shape the reference storefront has?
+ *
+ * A member qualifies by declaring `next` as a dependency **and** a `build`
+ * script that runs it. Both halves are needed: a package that merely depends on
+ * `next` may be a component library that peers on it, and a `build` script
+ * naming `next build` in a manifest that does not depend on `next` is a
+ * misconfiguration rather than an application.
+ *
+ * It lives here, beside the derivation of *which directories are members*,
+ * because two consumers ask the same question of the same population and a
+ * second copy of the predicate is two answers waiting to disagree about which
+ * application they are talking about: `new-storefront/reference.ts` resolves the
+ * storefront it copies, and `check-release-intent.ts` resolves the one whose
+ * dependency closure is the publication set (feature 104, FR-001).
+ */
+export function isNextApplication(manifest: Readonly<Record<string, unknown>>): boolean {
+  const dependencies = manifest['dependencies'];
+  const scripts = manifest['scripts'];
+  const declaresNext =
+    typeof dependencies === 'object' && dependencies !== null && 'next' in dependencies;
+  const build =
+    typeof scripts === 'object' && scripts !== null
+      ? (scripts as Record<string, unknown>)['build']
+      : undefined;
+  return declaresNext && typeof build === 'string' && /\bnext build\b/.test(build);
+}

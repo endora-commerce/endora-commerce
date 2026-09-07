@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { listProducts, getCategoryTree } from '../lib/api/catalog';
@@ -9,6 +10,17 @@ import { ProductCard } from '../components/ProductCard';
 import { CmsPageRenderer } from '../components/CmsPageRenderer';
 import { HomeMobileStrip } from '../components/mobile/HomeMobileStrip';
 import { Hook } from '../components/Hook';
+import { OrganizationJsonLd } from '../components/seo/OrganizationJsonLd';
+import { seo } from './seo';
+
+/**
+ * Indexable (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010/FR-012). The
+ * canonical is the route pattern itself; `metadataBase` in the root layout
+ * turns it into an absolute URL.
+ */
+export const metadata: Metadata = {
+  alternates: { canonical: seo.route },
+};
 
 interface CatTile {
   href: string;
@@ -33,7 +45,15 @@ export default async function HomePage(): Promise<ReactNode> {
   if (cmsPageSlug) {
     const cmsPage = await getCmsPageBySlug(cmsPageSlug, ctx).catch(() => null);
     if (cmsPage) {
-      return <CmsPageRenderer page={cmsPage} />;
+      // The `Organization` block rides on both render paths: a crawler that
+      // fetched `/` while an operator had a CMS home page selected would
+      // otherwise receive no structured data at all.
+      return (
+        <>
+          <OrganizationJsonLd ctx={ctx} />
+          <CmsPageRenderer page={cmsPage} />
+        </>
+      );
     }
   }
 
@@ -76,6 +96,7 @@ export default async function HomePage(): Promise<ReactNode> {
 
   return (
     <>
+      <OrganizationJsonLd ctx={ctx} />
       <Hook code="homepage.top" />
       {/* Feature 044 / US1 — mobile-only benefit strip + category chips. */}
       <HomeMobileStrip

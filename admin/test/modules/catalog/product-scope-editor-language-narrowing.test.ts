@@ -3,7 +3,7 @@ import {
   computeLanguageFallback,
   computeLanguagePool,
   type ScopeContext,
-} from '../../../src/modules/catalog/components/ProductScopeEditor';
+} from '../../../../packages/modules/catalog/src/admin/components/ProductScopeEditor';
 
 /**
  * Feature 022 — T056 (US3). The product edit page's Language switcher

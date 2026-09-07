@@ -347,8 +347,7 @@ describe('a scoped administrator is shown these lists, and told nothing about th
 
   it('leaves a refusal a refusal', async () => {
     // A 404 already says why. A notice about emptiness on top of it would be
-    // noise, and `@endora-commerce/api-client` reads the error envelope by
-    // shape.
+    // noise, and the admin's API client reads the error envelope by shape.
     const res = await asRep('/api/v1/admin/comparisons/00000000-0000-4000-8000-0000000000ff');
     expect(res.statusCode).toBe(404);
     expect(res.json()).not.toHaveProperty('meta');

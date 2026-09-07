@@ -29,8 +29,6 @@ import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
  * manifests; and the **uniqueness** of that derivation, read out of the tree.
  */
 
-const BASELINE_THROUGH = '20260801T000000';
-
 /** Builds a class whose `.name` is exactly the supplied migration name. */
 function migrationClass(name: string): MigrationClass {
   const holder = { [name]: class {} };
@@ -74,7 +72,10 @@ function emitted(manifests: readonly ModuleManifest[]): string[] {
   return orderMigrations({
     entries: ENTRIES,
     moduleDependencies: orderingGraph(manifests),
-    baselineThrough: BASELINE_THROUGH,
+    // Both entries are past the watermark and neither is history, so the frozen
+    // prefix is empty: what orders them is the manifest graph, which is this
+    // file's subject.
+    baseline: [],
   }).migrations.map((migration) => migration.name);
 }
 

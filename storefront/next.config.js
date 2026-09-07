@@ -6,7 +6,63 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { PUBLIC_API_BASE_URL_VAR, absoluteHttpUrlProblem, environmentRefusal } from './lib/env.mjs';
+
 const dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * The build refuses a storefront that does not know where its backend is.
+ *
+ * **This is the earliest moment the answer is decidable, and it is the only
+ * moment at which it is still fixable.** Next inlines a `NEXT_PUBLIC_*` value
+ * into the browser bundle: measured on this tree, `NEXT_PUBLIC_API_BASE_URL`
+ * appears as a string literal in eleven client chunks. So the value is decided
+ * here, at `next build`, and nothing downstream — not `next start`, not the
+ * container's environment, not an operator — can change it afterwards. A
+ * runtime throw would be a 500 a *visitor* discovers; this is a failed build the
+ * person who caused it reads.
+ *
+ * Twelve reads of this variable answered an unset one with
+ * `http://localhost:3001` until the owner's decision of 2026-09-06, and under
+ * D-195 that default reached every client instance copied from this tree. The
+ * whole shape of the defect was that the build **succeeded**.
+ *
+ * ## Why it is safe to ask here
+ *
+ * Next calls `loadEnvConfig(dir, …)` before it looks for a config file at all
+ * (`next/dist/server/config.js`), so `storefront/.env` — the file
+ * `README.md` § *Local development* tells a developer to create, and which
+ * `.env.example` carries with the right value — is already loaded when this
+ * runs. A developer who followed the documented setup never sees this.
+ *
+ * `process.exit` rather than a throw: a throw out of a config module is
+ * reported wrapped in Next's own config-loading frames, and the sentence an
+ * operator has to act on should not arrive inside a stack trace.
+ *
+ * The rule and the sentence are `./lib/env.mjs`', imported rather than restated:
+ * one predicate, one message, for a variable whose build-time and run-time
+ * consumers would otherwise be free to disagree about what "configured" means.
+ *
+ * **That file is `.mjs` rather than `.ts`, and it is this line that decides it.**
+ * Next 15 does support `next.config.ts` — but its loader transpiles the config
+ * through `next/dist/build/next-config-ts/require-hook`, which resolves
+ * `typescript` from the *instance* and, failing that, tries to install it.
+ * Measured on the `endora new storefront` acceptance criterion: a scaffolded
+ * client instance has no `typescript` to resolve, so A5 (`next build` succeeds
+ * outside the checkout) failed with `MODULE_NOT_FOUND` and A6 had no build to
+ * boot. A configuration file that cannot be read by the tree it is copied into
+ * is not a configuration file. JSDoc gives `./lib/env.mjs` its types, so the
+ * twenty-four TypeScript call sites lose nothing.
+ */
+function requireBuildEnvironment() {
+  const value = process.env[PUBLIC_API_BASE_URL_VAR];
+  const problem = absoluteHttpUrlProblem(value);
+  if (problem === null) return;
+  process.stderr.write(`${environmentRefusal(PUBLIC_API_BASE_URL_VAR, problem, value)}\n`);
+  process.exit(1);
+}
+
+requireBuildEnvironment();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -59,12 +115,28 @@ const nextConfig = {
       '.jsx': ['.tsx', '.jsx'],
     };
     // CMS Page Builder client chunk is large (Puck + shared components). Dev HMR
-    // otherwise times out with ChunkLoadError when navigating to /cms/*.
+    // otherwise times out with ChunkLoadError when navigating to a CMS page.
     config.output = {
       ...config.output,
       chunkLoadTimeout: 120_000,
     };
     return config;
+  },
+  /**
+   * A CMS page has one address and it is `/{slug}`
+   * (`specs/105-cms-root-page-urls/contracts/cms-page-url.md` §1). `/cms/*` is
+   * the address it was served at until then, so it answers a **permanent**
+   * redirect (§2.3 — a temporary one tells a crawler to keep the old URL
+   * indexed, which is the duplicate this feature removes).
+   *
+   * Static configuration rather than `middleware.ts` or a surviving route file
+   * (§2.1): the mapping needs no request state, so Next answers it without
+   * invoking the application, the middleware keeps its single job on a path
+   * that runs on every request, and there is no second route file serving one
+   * row.
+   */
+  async redirects() {
+    return [{ source: '/cms/:path*', destination: '/:path*', permanent: true }];
   },
   async headers() {
     return [

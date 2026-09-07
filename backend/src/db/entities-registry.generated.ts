@@ -33,19 +33,11 @@ import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
 import { SettingValue } from '../kernel/settings/setting-value.entity.js';
 import { Setting } from '../kernel/settings/setting.entity.js';
-import { AkeneoCatalogueDelivery } from '../modules/pim_akeneo/entities/akeneo-catalogue-delivery.entity.js';
-import { AkeneoConnection } from '../modules/pim_akeneo/entities/akeneo-connection.entity.js';
-import { AkeneoDeliveredRecord } from '../modules/pim_akeneo/entities/akeneo-delivered-record.entity.js';
-import { AkeneoFieldProtection } from '../modules/pim_akeneo/entities/akeneo-field-protection.entity.js';
-import { AkeneoHmacReplay } from '../modules/pim_akeneo/entities/akeneo-hmac-replay.entity.js';
-import { AkeneoImportIssue } from '../modules/pim_akeneo/entities/akeneo-import-issue.entity.js';
-import { AkeneoImportRun } from '../modules/pim_akeneo/entities/akeneo-import-run.entity.js';
-import { AkeneoMediaLink } from '../modules/pim_akeneo/entities/akeneo-media-link.entity.js';
-import { AkeneoSourceLink } from '../modules/pim_akeneo/entities/akeneo-source-link.entity.js';
 import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
 import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
+import { entities as pimAkeneoEntities } from '@endora-commerce/mod-pim-akeneo/backend';
 import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
 import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
@@ -87,6 +79,7 @@ import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment
 import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import { entities as paypalEntities } from '@endora-commerce/mod-paypal/backend';
 import { entities as payuEntities } from '@endora-commerce/mod-payu/backend';
+import { entities as pimConnectorEntities } from '@endora-commerce/mod-pim-connector/backend';
 import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
 import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
 import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
@@ -103,6 +96,7 @@ import { entities as stripeEntities } from '@endora-commerce/mod-stripe/backend'
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as tpayEntities } from '@endora-commerce/mod-tpay/backend';
 import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
+import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
 
 export const ALL_ENTITIES = [
@@ -112,19 +106,11 @@ export const ALL_ENTITIES = [
   SettingGroup,
   SettingValue,
   Setting,
-  AkeneoCatalogueDelivery,
-  AkeneoConnection,
-  AkeneoDeliveredRecord,
-  AkeneoFieldProtection,
-  AkeneoHmacReplay,
-  AkeneoImportIssue,
-  AkeneoImportRun,
-  AkeneoMediaLink,
-  AkeneoSourceLink,
   ...(addressesEntities as readonly EntityClassLike[]),
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
   ...(adminRolesEntities as readonly EntityClassLike[]),
   ...(adminUsersEntities as readonly EntityClassLike[]),
+  ...(pimAkeneoEntities as readonly EntityClassLike[]),
   ...(analyticsEntities as readonly EntityClassLike[]),
   ...(apiKeysEntities as readonly EntityClassLike[]),
   ...(assetsLibraryEntities as readonly EntityClassLike[]),
@@ -166,6 +152,7 @@ export const ALL_ENTITIES = [
   ...(paymentsEntities as readonly EntityClassLike[]),
   ...(paypalEntities as readonly EntityClassLike[]),
   ...(payuEntities as readonly EntityClassLike[]),
+  ...(pimConnectorEntities as readonly EntityClassLike[]),
   ...(pimPimcoreEntities as readonly EntityClassLike[]),
   ...(priceListsEntities as readonly EntityClassLike[]),
   ...(promptActionsEntities as readonly EntityClassLike[]),
@@ -182,5 +169,6 @@ export const ALL_ENTITIES = [
   ...(taxesEntities as readonly EntityClassLike[]),
   ...(tpayEntities as readonly EntityClassLike[]),
   ...(i18nEntities as readonly EntityClassLike[]),
+  ...(pimUnopimEntities as readonly EntityClassLike[]),
   ...(webhooksEntities as readonly EntityClassLike[]),
 ] as const;

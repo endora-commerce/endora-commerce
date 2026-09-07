@@ -24,8 +24,11 @@
  * `foreign-module-id` is one predicate — **a module id written as a string
  * literal, in a file the module does not own** — over three populations, and
  * the tree is what says they are one thing:
- * `admin/src/modules/orders/OrderShipmentsTab.tsx` carries
+ * `orders`' `OrderShipmentsTab.tsx` carried
  * `useSurfaceVisibility()({ module: 'inpost' })` *and* `useTranslation('inpost')`.
+ * (P7d retired both couplings and feature 091's batch 15 moved the file into
+ * `packages/modules/orders/src/admin/components/`; the example is kept in the
+ * past tense because it is what the finding was written from.)
  * Nothing in this estate reads either. `check:module-boundary` reads import
  * specifiers and a string names none; `check:admin-surface`'s subject is kit
  * symbols; `i18n:hardcoded` reads literals and not scopes. So a coupling
@@ -42,7 +45,46 @@
  *      translation namespace is module knowledge: the bundle behind it is
  *      shipped by a package the kit does not and may not depend on, resolved at
  *      runtime by string, with nothing holding the two together;
- *   3. a **module admin file**'s `useTranslation('<id>')` naming another module.
+ *   3. a **module admin file**'s `useTranslation('<id>')` naming another module,
+ *      **and an admin-ui package's**, which is the same predicate over a file
+ *      that owns no module id at all (feature 091, P5c).
+ *
+ * That third population's roots are declarations, never paths: `admin/src` for
+ * the application, every module walk root the layout derives — which reaches a
+ * module package's own admin layer — plus every workspace member declaring
+ * `endora: { type: 'admin-ui' }` other than the kit, which has population 2 and
+ * its own R6 reasoning.
+ *
+ * **The module walk roots are here because the tree moved and this half did
+ * not.** Renders and contributions came off `layout.moduleWalkRoots` from the
+ * day P4a landed; the `foreign-module-id` walk read `admin/src` and the
+ * admin-ui family and nothing else, which was one population when every admin
+ * screen was the application's. Story 3 moves screens into their modules one
+ * directory per merge request — 37 of the module packages ship an admin layer —
+ * so a *packaged* module gating on another module's id, or rendering out of
+ * another module's namespace, was seen by nothing in this estate. That is issue
+ * #215's shape one surface over: the check was right when it was written, and
+ * the population shrank out from under it, monotonically, with every batch. The
+ * floor moved with it — see `module-admin` in `reportReadSize` below.
+ *
+ * **The admin-ui half of the same population was widened the other way round,
+ * and the contrast is worth keeping.** P5c added it *before* P5b moved the
+ * shared page-builder chrome and the e-mail builder into
+ * `@endora-commerce/page-builder-admin`, because widening afterwards adds the
+ * population that would have caught the move in the merge request that no
+ * longer needs it. The module half is the case where nobody did that, and where
+ * every batch since has widened what nothing was reading. The ledger's own
+ * header records the exclusion P5c replaces:
+ * `_shared`'s `useTranslation('cms')` was out of the population because
+ * ownership comes from the route table and the nav and `_shared` is claimed by
+ * neither — correct while the directory was the admin application's, and the
+ * wrong answer once it is a package. A file in an admin-ui package is owned by
+ * **no module**, so every registered module id it names is another module's,
+ * and it is judged rather than excluded.
+ *
+ * Why a manifest field decides a check's population: `declaresAdminUi` in
+ * `lib/workspace-packages.ts` carries the reasoning, D-171 included — the short
+ * of it is that this declaration adds obligations and exempts nothing.
  *
  * `core` is not a module id and is therefore in none of them, which is not an
  * exemption written here but a consequence of the ids coming from the generated
@@ -87,14 +129,27 @@ import {
   FOREIGN_MODULE_IDS,
   type ForeignModuleIdLedger,
 } from './ledgers/foreign-module-ids.js';
-import type { AdminSurfaceLayout } from './lib/admin-surfaces.js';
+import {
+  adminApplicationPresent,
+  adminRegistryPathOf,
+  type AdminSurfaceLayout,
+} from './lib/admin-surfaces.js';
+import {
+  adminRegistryPresent,
+  moduleAdminLayers,
+  packageSubpathSource,
+} from './lib/module-admin-layers.js';
 import {
   modulePopulationCoverage,
   vacuousModulePopulation,
 } from './lib/module-population.js';
 import { requireModuleLayout, type ModuleTreeLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
-import { workspaceMembers, nodeWorkspaceFs } from './lib/workspace-packages.js';
+import {
+  adminUiPackages,
+  workspaceMembers,
+  nodeWorkspaceFs,
+} from './lib/workspace-packages.js';
 
 /** The package whose sources are population 2, and the one file in it that is exempt. */
 const KIT_PACKAGE = '@endora-commerce/admin-kit';
@@ -374,9 +429,10 @@ function foreignModuleIdMessage(site: ModuleIdSite): string {
   if (site.named === null) {
     return (
       `${where} names its translation namespace with something other than a string literal, ` +
-      'inside the admin kit. A namespace this walk cannot read is a namespace it cannot ' +
-      'clear, and reporting it as clean is exactly the "green that means not looking" this ' +
-      'estate refuses (issue #113). Write it as a literal.'
+      'in a file that owns no module id — the admin kit, or an admin-ui package. No ' +
+      "namespace here can be the file's own, so a namespace this walk cannot read is a " +
+      'namespace it cannot clear, and reporting it as clean is exactly the "green that ' +
+      'means not looking" this estate refuses (issue #113). Write it as a literal.'
     );
   }
   switch (site.population) {
@@ -470,7 +526,24 @@ function enumMembers(initializer: ts.Node): string[] {
 // Reading the sites
 // ---------------------------------------------------------------------------
 
-/** Every `<AdminZone name=…>` and `useAdminZone(…)` in one source. */
+/**
+ * The JSX components that render a **place**, each taking the zone as a `name`
+ * prop.
+ *
+ * Enumerated for the reason the two contribution spellings are enumerated: a
+ * renderer this walk does not know reads as *no render at all*, so the member
+ * it mounts is reported `unrendered-zone` while a host is mounting it. Both are
+ * the kit's `./zones` subpath — `<AdminZone>` renders the contributions as a
+ * stack, `<RouteTabsZone>` (feature 091, P4d) renders them as a tab strip and
+ * decides from `useAdminZone(...).length` whether the strip is a choice at all.
+ * A third renderer belongs here in the merge request that publishes it.
+ */
+const ZONE_RENDERER_TAGS = new Set(['AdminZone', 'RouteTabsZone']);
+
+/**
+ * Every `<AdminZone name=…>`, `<RouteTabsZone name=…>` and `useAdminZone(…)` in
+ * one source.
+ */
 export function zoneRenderSites(source: string, file: string): ZoneRenderSite[] {
   const parsed = parse(source, file);
   const found: ZoneRenderSite[] = [];
@@ -481,7 +554,9 @@ export function zoneRenderSites(source: string, file: string): ZoneRenderSite[] 
 
   const visit = (node: ts.Node): void => {
     if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) {
-      if (jsxTagName(node.tagName) === 'AdminZone') {
+      const tag = jsxTagName(node.tagName);
+      if (ZONE_RENDERER_TAGS.has(tag)) {
+        const via = `<${tag}>`;
         const attribute = node.attributes.properties.find(
           (property): property is ts.JsxAttribute =>
             ts.isJsxAttribute(property) &&
@@ -489,15 +564,15 @@ export function zoneRenderSites(source: string, file: string): ZoneRenderSite[] 
             property.name.text === 'name',
         );
         const value = attribute?.initializer;
-        if (value !== undefined && ts.isStringLiteral(value)) record(node, value.text, '<AdminZone>');
+        if (value !== undefined && ts.isStringLiteral(value)) record(node, value.text, via);
         else if (
           value !== undefined &&
           ts.isJsxExpression(value) &&
           value.expression !== undefined &&
           ts.isStringLiteral(value.expression)
         ) {
-          record(node, value.expression.text, '<AdminZone>');
-        } else record(node, null, '<AdminZone>');
+          record(node, value.expression.text, via);
+        } else record(node, null, via);
       }
     }
     if (
@@ -653,6 +728,80 @@ export function translationScopeSites(
   return found;
 }
 
+/** What one owned source contributed: its foreign ids, and every namespace read. */
+export interface OwnedModuleIdScan {
+  readonly sites: readonly ModuleIdSite[];
+  /**
+   * Every `useTranslation` call read, foreign or not.
+   *
+   * Separate from {@link OwnedModuleIdScan.sites} because it answers a different
+   * question: `vacuousReason`'s `translationSites` floor asks whether this walk
+   * can still *see* a namespace at all, and a tree with no foreign one left is
+   * the success state rather than the blind one.
+   */
+  readonly translationSites: number;
+}
+
+/**
+ * Both owned populations of one source — the namespace and the visibility gate.
+ *
+ * **One classifier, three call sites.** `main()` asks it about an admin
+ * application surface file and about a module's own source, and
+ * `test/helpers/admin-zones-fixture.ts` asks it about the fixture text a red
+ * proof hands in. It is exported for the reason that driver exists at all: a
+ * second copy of *"skip the file's own id, skip an id no module registers"* is a
+ * second answer waiting to disagree with the one CI runs.
+ *
+ * `owner` is a module id and never `null`. A file no module owns has no *own*
+ * namespace for a name to be compared against, which is a different
+ * classification and belongs to the kit and to the admin-ui family; a caller
+ * that cannot attribute its file decides what that means before it gets here.
+ */
+export function ownedModuleIdSites(input: {
+  readonly source: string;
+  readonly file: string;
+  readonly owner: string;
+  readonly registered: ReadonlySet<string>;
+}): OwnedModuleIdScan {
+  const sites: ModuleIdSite[] = [];
+  let translationSites = 0;
+
+  if (input.source.includes('useTranslation')) {
+    for (const site of translationScopeSites(input.source, input.file)) {
+      translationSites += 1;
+      // A computed namespace in an **owned** file is not a finding, unlike the
+      // kit's and the family's: the file has an id of its own, so a namespace
+      // this walk could not read may perfectly well be that id. Refusing it
+      // would report a module for rendering out of its own bundle.
+      if (site.named === null || !input.registered.has(site.named) || site.named === input.owner) {
+        continue;
+      }
+      sites.push({
+        file: input.file,
+        line: site.line,
+        named: site.named,
+        owner: input.owner,
+        population: 'module-namespace',
+      });
+    }
+  }
+
+  if (input.source.includes('module:')) {
+    for (const site of visibilityGateSites(input.source, input.file)) {
+      if (!input.registered.has(site.named) || site.named === input.owner) continue;
+      sites.push({
+        file: input.file,
+        line: site.line,
+        named: site.named,
+        owner: input.owner,
+        population: 'visibility-gate',
+      });
+    }
+  }
+
+  return { sites, translationSites };
+}
+
 function parse(source: string, file: string): ts.SourceFile {
   return ts.createSourceFile(
     file,
@@ -690,6 +839,36 @@ export function vacuousReason(input: {
   readonly kitFiles: number;
   readonly translationSites: number;
   readonly moduleIdCount: number;
+  /**
+   * Admin layers the generated contribution registry names, or `null` where
+   * that registry is not on disk.
+   *
+   * `null` and `0` are deliberately different answers. A checkout with no
+   * generated registry has nothing to be short of; one that *has* the artefact
+   * and reads no module package out of it has lost the independent author of
+   * the module-admin floor, and the widened walk would then report clean over a
+   * population nothing corroborates — which is the way this widening could have
+   * created a new silent green.
+   *
+   * **The discriminator is the file, never the admin layout** (T4). It was the
+   * layout, and the layout went `null` for an unrelated reason; see the comment
+   * on the call site.
+   */
+  readonly moduleAdminLayers: number | null;
+  /**
+   * Whether a workspace member declares the admin source alias — *"this
+   * repository has a frontend"* — with the admin layout `null` (feature 110,
+   * T122).
+   *
+   * The discriminator between a workspace with no admin at all, which is the
+   * behaviour that shipped, and one whose route table the layout has stopped
+   * finding. T120 put `App.tsx` and the nav inside
+   * `@endora-commerce/admin-shell`; with that package unbuilt or renamed the
+   * host walk contributes nothing, and `hostFiles` above stays comfortably
+   * non-empty on the module and kit files alone, so no other floor here sees
+   * it. `null` is a caller that did not ask.
+   */
+  readonly adminApplicationLost?: string | null;
 }): string | null {
   if (input.zoneNames === 0) {
     return (
@@ -739,6 +918,21 @@ export function vacuousReason(input: {
       'ever be foreign; refusing to report a vacuous pass'
     );
   }
+  if (input.adminApplicationLost !== undefined && input.adminApplicationLost !== null) {
+    return (
+      'a workspace member declares the admin source alias and the admin layout resolved to ' +
+      `nothing — ${input.adminApplicationLost}. The host walk would then contribute no file ` +
+      'while the module and kit walks keep `hostFiles` non-empty, so every floor above stays ' +
+      'satisfied; refusing to report a vacuous pass'
+    );
+  }
+  if (input.moduleAdminLayers === 0) {
+    return (
+      'the generated admin contribution registry is on disk and names no module package, so ' +
+      'the module-admin floor has no independent author and the widened foreign-id walk is ' +
+      'corroborated by nothing; refusing to report a vacuous pass'
+    );
+  }
   return null;
 }
 
@@ -775,24 +969,6 @@ function isUnder(child: string, parent: string): boolean {
   return child === parent || child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
 }
 
-/**
- * The source directory behind {@link ZONE_SUBPATH}, from the kit's own manifest.
- *
- * `./zones` declares `./dist/zones/index.js`; the sources that emit it are
- * `src/zones`. Reading the map rather than spelling the directory is what makes
- * the exemption follow a renamed subpath, and what makes a kit that declares no
- * such subpath exempt nothing at all.
- */
-function zoneSubpathSource(kitDir: string): string | null {
-  const manifestPath = join(kitDir, 'package.json');
-  if (!existsSync(manifestPath)) return null;
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-    exports?: Record<string, unknown>;
-  };
-  const entry = manifest.exports?.[ZONE_SUBPATH];
-  if (entry === undefined) return null;
-  return join(kitDir, 'src', ZONE_SUBPATH.slice('./'.length));
-}
 
 function memberDirectory(repoRoot: string, name: string): string | null {
   for (const member of workspaceMembers(repoRoot, nodeWorkspaceFs())) {
@@ -818,10 +994,29 @@ async function main(): Promise<void> {
   const kitDir = memberDirectory(layout.repoRoot, KIT_PACKAGE);
   const kitFiles = kitDir === null ? [] : walk(join(kitDir, 'src'));
   const kitExemptPath = kitDir === null ? null : join(kitDir, KIT_TRANSLATION_HOOK);
-  const zoneImplementationDir = kitDir === null ? null : zoneSubpathSource(kitDir);
+  const zoneImplementationDir =
+    kitDir === null ? null : packageSubpathSource(kitDir, ZONE_SUBPATH);
 
   const moduleFiles = layout.moduleWalkRoots.flatMap((root) => walk(root));
-  const adminFiles = admin === null ? [] : walk(admin.sourceRoot);
+  // Every source root the admin application owns — the project's and
+  // `@endora-commerce/admin-shell`'s (feature 110, T122). It was `sourceRoot`
+  // alone, which was the whole application until T120 moved `App.tsx`,
+  // `AppShell.tsx` and every host screen into the shell package; a walk left on
+  // the alias target would have opened four files and reported `renders=0`
+  // over a mounting point it could no longer see. On a tree whose route table
+  // is still in the alias member the two are one directory and this reads
+  // exactly what it read before.
+  const adminFiles = admin === null ? [] : admin.hostRoots.flatMap((root) => walk(root));
+  // Every admin-ui package **other than the kit**: the kit is population 2,
+  // whose message is R6 of `admin-kit-surface.md` and whose subject is the kit
+  // specifically, so leaving it here as well would report one site twice under
+  // two keys. `KIT_PACKAGE` therefore stays a name — it is the subject of that
+  // rule rather than a derived fact written down.
+  const members = workspaceMembers(layout.repoRoot, nodeWorkspaceFs());
+  const familyPackages = adminUiPackages(members).filter(
+    (pkg) => kitDir === null || resolve(pkg.dir) !== resolve(kitDir),
+  );
+  const familyFiles = familyPackages.flatMap((pkg) => walk(join(pkg.dir, 'src')));
 
   const registered = new Set(layout.registeredIds);
   const key = (file: string): string => relative(layout.repoRoot, file).split(sep).join('/');
@@ -833,12 +1028,18 @@ async function main(): Promise<void> {
 
   // Host files — a zone may be rendered by a module's screen, by an installed
   // package's screen or by the admin application's own.
-  const hostFiles = [...moduleFiles, ...adminFiles, ...kitFiles];
+  const hostFiles = [...moduleFiles, ...adminFiles, ...kitFiles, ...familyFiles];
   for (const file of hostFiles) {
     const source = readFileSync(file, 'utf8');
     const isMechanism =
       zoneImplementationDir !== null && isUnder(resolve(file), zoneImplementationDir);
-    if (!isMechanism && (source.includes('AdminZone') || source.includes('useAdminZone'))) {
+    // The prefilter is derived from the renderer set, not written twice:
+    // `RouteTabsZone` does not contain the substring `AdminZone`, so a spelled
+    // pair would have skipped every file that mounts a strip.
+    const mentionsRenderer =
+      source.includes('useAdminZone') ||
+      [...ZONE_RENDERER_TAGS].some((tag) => source.includes(tag));
+    if (!isMechanism && mentionsRenderer) {
       renders.push(...zoneRenderSites(source, key(file)));
     }
     if (source.includes('zoneComponent') || (source.includes('zone:') && source.includes('component'))) {
@@ -868,6 +1069,31 @@ async function main(): Promise<void> {
     }
   }
 
+  // Population 3, the half that owns no module id — an admin-ui package's own
+  // sources (feature 091, P5c). No namespace here can be the file's own, so
+  // every registered id it names is foreign and a **computed** one is a finding
+  // rather than a skip, on the kit's own reasoning: a namespace this walk
+  // cannot read is one it cannot clear (issue #113). It is `module-namespace`
+  // rather than a fourth population because it is the same coupling with the
+  // same remedy — the strings a screen shows ship in the bundle of whoever owns
+  // the screen — and the finding's message already answers for an owner of
+  // `null`.
+  for (const file of familyFiles) {
+    const source = readFileSync(file, 'utf8');
+    if (!source.includes('useTranslation')) continue;
+    for (const site of translationScopeSites(source, key(file))) {
+      translationSites += 1;
+      if (site.named !== null && !registered.has(site.named)) continue;
+      moduleIds.push({
+        file: key(file),
+        line: site.line,
+        named: site.named,
+        owner: null,
+        population: 'module-namespace',
+      });
+    }
+  }
+
   // Populations 1 and 3 — the admin's module surfaces, attributed by the route
   // table and the nav rather than by directory name.
   if (admin !== null) {
@@ -875,32 +1101,74 @@ async function main(): Promise<void> {
       const owner = adminOwnerOf(admin, file);
       if (owner === null) continue;
       const source = readFileSync(file, 'utf8');
-      if (source.includes('useTranslation')) {
-        for (const site of translationScopeSites(source, key(file))) {
-          translationSites += 1;
-          if (site.named === null || !registered.has(site.named) || site.named === owner) continue;
-          moduleIds.push({
-            file: key(file),
-            line: site.line,
-            named: site.named,
-            owner,
-            population: 'module-namespace',
-          });
-        }
-      }
-      if (!source.includes('module:')) continue;
-      for (const site of visibilityGateSites(source, key(file))) {
-        if (!registered.has(site.named) || site.named === owner) continue;
-        moduleIds.push({
-          file: key(file),
-          line: site.line,
-          named: site.named,
-          owner,
-          population: 'visibility-gate',
-        });
-      }
+      const scan = ownedModuleIdSites({ source, file: key(file), owner, registered });
+      translationSites += scan.translationSites;
+      moduleIds.push(...scan.sites);
     }
   }
+
+  // Populations 1 and 3 again, over a module's **own** sources — the half that
+  // moved out from under the walk (feature 091).
+  //
+  // The two halves of this check read two populations: renders and
+  // contributions come off `layout.moduleWalkRoots`, which reaches a module
+  // package's `src/admin/`, while the foreign-id walk above reads `admin/src`
+  // and the admin-ui family and reached none of it. That was one population when
+  // P4a wrote it — every admin screen was the application's — and Story 3 moves
+  // screens into their modules one directory per merge request, so a packaged
+  // module gating on another module's id, or rendering out of another module's
+  // namespace, was seen by nothing at all. The ledger's own header calls the
+  // file-leaves-the-walk hazard an incident; with 37 of the module packages
+  // shipping an admin layer it is a structure, and every batch widens it. This
+  // is issue #215's shape one surface over: the check was right when it was
+  // written and the tree moved underneath it.
+  //
+  // **Attribution is the layout's, never a directory name.** For a package it is
+  // the `endora.id` the package declares about itself — the same statement the
+  // runtime discovery reads — and for the application trees it is the
+  // `modules/<id>/` segment. A file in a module walk root that the layout
+  // attributes to **no** module is skipped rather than judged, which is the
+  // fail-closed direction with respect to attribution: it is what keeps a
+  // coupling from being filed under a module that does not own the file, and it
+  // is the same answer `adminOwnerOf` gives for `_shared`. On this tree that is
+  // four files, all of them a deployment's own under `src/apps` — a shell whose
+  // job is to name modules, exactly as `App.tsx` is.
+  for (const file of moduleFiles) {
+    const owner = layout.moduleIdOfPath(file);
+    if (owner === null) continue;
+    const source = readFileSync(file, 'utf8');
+    const scan = ownedModuleIdSites({ source, file: key(file), owner, registered });
+    translationSites += scan.translationSites;
+    moduleIds.push(...scan.sites);
+  }
+
+  // The floor over the population the walk above just acquired. `covered` is
+  // the layers the walk actually opened a file from, so pruning a module
+  // package's admin sources out of `moduleWalkRoots` — the one regression this
+  // widening can suffer in silence, because `manifest-index` stays satisfied by
+  // the same module's backend files — is a `short-walk` refusal rather than a
+  // clean line.
+  // **T4 — the gate is the registry file's presence, never the layout.**
+  // It was `admin === null`, and on the merge of batches 15 and 16 that became
+  // true for a reason having nothing to do with the registry: `admin/src/modules`
+  // held no registered module id, so the layout refused and this token — the
+  // floor added specifically to catch a module package's admin layer dropping
+  // out of the walk — was omitted over 54 layers while the check printed
+  // `findings=0`. The comment defending the old gate said the omission "cannot
+  // become the silent path"; it became one, in exactly the way it excluded.
+  // `admin-kit-surface.md` §7.5 is the measurement.
+  const registryFile = adminRegistryPathOf(members);
+  const adminLayers = adminRegistryPresent(registryFile)
+    ? moduleAdminLayers(layout, registryFile!)
+    : null;
+  const walkedModuleFiles = moduleFiles.map((file) => resolve(file));
+  const coveredAdminLayers =
+    adminLayers === null
+      ? 0
+      : adminLayers.filter((layer) => {
+          const directory = resolve(layer.directory);
+          return walkedModuleFiles.some((file) => isUnder(file, directory));
+        }).length;
 
   const vacuous = vacuousReason({
     zoneNames: zoneNames.length,
@@ -911,6 +1179,9 @@ async function main(): Promise<void> {
     kitFiles: kitFiles.length,
     translationSites,
     moduleIdCount: registered.size,
+    moduleAdminLayers: adminLayers === null ? null : adminLayers.length,
+    adminApplicationLost:
+      admin === null && adminApplicationPresent(members) ? await layout.adminSurfacesRefusal() : null,
   });
   if (vacuous !== null) {
     console.error(`[admin-zones] ${vacuous}`);
@@ -958,6 +1229,40 @@ async function main(): Promise<void> {
     // sources, the admin's own and the kit's.
     files: hostFiles.length,
     sites: result.sites,
+    // **The `admin-ui` token, added by P5b when the second admin-ui member
+    // arrived** — `@endora-commerce/page-builder-admin`, the shared page-builder
+    // chrome and the e-mail builder.
+    //
+    // P5c left it out for a reason that was correct then: the family half of
+    // population 3 was empty, the kit being the only admin-ui member and being
+    // population 2, so a coverage entry would have declared `expected=0` —
+    // which `read-size.ts` refuses as `no-expectation`, exit 2, on every run.
+    // It named two conditions for adding one, *"a second admin-ui member
+    // exists"* and *"and carries a ledger key"*, and P5b satisfies the first
+    // and not the second: the package's three `useTranslation` calls all name
+    // `core`, which is no module id, so it has no `foreign-module-id` key and
+    // is not going to grow one by being right.
+    //
+    // The second condition is dropped rather than waited on, because it was the
+    // *alternative* floor and not a qualification of this one. A ledger keyed
+    // by path is two-way, so an entry naming a file the walk stopped reaching
+    // goes stale in the same run — that is what would have floored the family
+    // packages. A package with no entry has no such floor, so with neither the
+    // key nor the token this check would walk 23 fewer files, find nothing
+    // wrong in them, and report clean: a `files` fall well inside the -10%/+50%
+    // band, which is issue #215 exactly. `i18n:hardcoded`'s six re-keyed
+    // baseline entries would catch the same omission, and a floor that lives in
+    // another check is not this check's floor.
+    //
+    // It fails loudly in both directions. `expected` is the admin-ui members
+    // other than the kit — a package that stopped declaring the block, or left
+    // the workspace, takes it to zero and `no-expectation` refuses the run.
+    // `covered` is those the walk actually opened a file in, so a member
+    // declaring the block over an empty or unreachable `src` is `short-walk`.
+    // The kit stays floored where it already was, by `vacuousReason`'s
+    // `kitFiles` refusal, and is deliberately not counted here for the same
+    // reason it is not in `familyFiles`: it is population 2, and counting it
+    // twice would let one member's coverage stand in for the other's.
     coverage: [
       {
         // The enum declares the names and this check computes none of them.
@@ -979,11 +1284,41 @@ async function main(): Promise<void> {
         expected: propsMapKeys.length,
         covered: propsMapKeys.filter((key) => zoneNames.includes(key)).length,
       },
+      {
+        source: 'admin-ui',
+        expected: familyPackages.length,
+        covered: familyPackages.filter((pkg) =>
+          familyFiles.some((file) => isUnder(resolve(file), resolve(pkg.dir))),
+        ).length,
+      },
       modulePopulationCoverage({
         registered: layout.registeredIds,
         files: moduleFiles,
         moduleIdOf: layout.moduleIdOfPath,
       }),
+      // The floor that moves with the widened population.
+      //
+      // `manifest-index` above is satisfied by any file a registered module
+      // contributes, which for a module package is its backend sources — so it
+      // cannot see the case this token exists for: a module package's admin
+      // layer dropping out of the walk while the module keeps contributing.
+      // The expectation is the generated contribution registry's, which is a
+      // second program's answer to *"which packages ship admin code, and
+      // under which subpath"*; the coverage is what this walk opened. Omitted
+      // rather than printed `0/0` where that artefact is **not on disk**, which
+      // `read-size.ts` refuses as `no-expectation`; a registry that is there and
+      // names none is `vacuousReason`'s refusal above. The gate is the file and
+      // nothing else — it used to be the admin layout, and that is how the token
+      // vanished over 54 layers with `findings=0` printed beside it.
+      ...(adminLayers === null
+        ? []
+        : [
+            {
+              source: 'module-admin',
+              expected: adminLayers.length,
+              covered: coveredAdminLayers,
+            },
+          ]),
     ],
   });
 
@@ -1021,6 +1356,10 @@ async function main(): Promise<void> {
  * a host file's `{ module: 'x' }` is the admin shell doing its job.
  */
 function adminOwnerOf(admin: AdminSurfaceLayout, file: string): string | null {
+  // No module root is the terminal state (R16), and `null` is the right answer
+  // for every file under it: the admin application owns them all, and a host
+  // file's `{ module: 'x' }` is the shell doing its job.
+  if (admin.moduleRoot === null) return null;
   const relativePath = relative(admin.moduleRoot, file);
   if (relativePath.startsWith('..') || relativePath === '') return null;
   const directory = relativePath.split(sep)[0];

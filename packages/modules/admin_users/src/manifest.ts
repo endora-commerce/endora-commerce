@@ -135,6 +135,7 @@ export const manifest = defineModuleManifest({
    * modules are locked.
    */
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   actions: [
     {
       id: 'open-admin-users',

@@ -16,12 +16,20 @@
  * alias, of `App.tsx` or of `AppShell.tsx` fails here rather than turning a
  * check silently green.
  */
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   ADMIN_SOURCE_ALIAS,
   AdminLayoutUnresolvableError,
+  adminApplicationPresent,
+  adminHostRootsOf,
   adminModuleDirectories,
+  findAdminModuleRoot,
+  findAdminShellRoot,
   adminNavEntries,
   adminRoutes,
   aliasTargetOf,
@@ -124,6 +132,68 @@ describe('reading the two host registries', () => {
   });
 });
 
+/**
+ * The admin module root — **absence is a measurement, ambiguity is blindness**
+ * (feature 091, Phase 5 T1; `contracts/admin-kit-surface.md` §7.2 R16).
+ *
+ * The predicate's two inputs are proved present before it is evaluated: the
+ * source root is refused by {@link resolveAdminSurfaces} when the alias member
+ * is missing, ambiguous or points at nothing, and the registered id set is
+ * refused by `requireModuleLayout` when there is no manifest index. So *"no
+ * directory under the source root is named after a registered module"* is an
+ * answer three artefacts with three authors give together — the tsconfig alias,
+ * the generated manifest index and the filesystem — and it flips back by itself
+ * the day a module directory reappears.
+ *
+ * **Two** roots is still a throw, and for the reason it always was: picking one
+ * narrows every walk to it without saying so.
+ *
+ * Each case is a real directory tree, because the derivation reads the
+ * filesystem; a fixture handed a half-computed root could not prove which
+ * directories it opens (issue #130).
+ */
+describe('the admin module root', () => {
+  const trees: string[] = [];
+
+  afterEach(() => {
+    while (trees.length > 0) rmSync(trees.pop()!, { recursive: true, force: true });
+  });
+
+  function sourceTree(directories: readonly string[]): string {
+    const root = mkdtempSync(join(tmpdir(), 'admin-surfaces-'));
+    trees.push(root);
+    for (const directory of directories) mkdirSync(join(root, directory), { recursive: true });
+    return root;
+  }
+
+  it('answers the one directory holding a child named after a registered module', () => {
+    const root = sourceTree(['modules/blog', 'components']);
+    expect(findAdminModuleRoot(root, new Set(['blog']))).toBe(join(root, 'modules'));
+  });
+
+  it('answers null when no directory is named after a registered module', () => {
+    // The terminal state this feature exists to reach: `admin/src/modules/`
+    // holds `cms_pages`, `home`, `platform` and `profile`, none of them a
+    // registered id. A refusal here would send a reader to repair a tree that
+    // is finished.
+    const root = sourceTree(['modules/cms_pages', 'modules/home', 'modules/platform', 'components']);
+    expect(findAdminModuleRoot(root, new Set(['blog', 'cms']))).toBeNull();
+  });
+
+  it('answers again the day a module directory reappears', () => {
+    // The property a written-down "drain complete" flag would not have.
+    const root = sourceTree(['modules/home', 'screens/blog']);
+    expect(findAdminModuleRoot(root, new Set(['blog']))).toBe(join(root, 'screens'));
+  });
+
+  it('still refuses two, because ambiguity is blindness rather than a measurement', () => {
+    const root = sourceTree(['modules/blog', 'screens/cms']);
+    expect(() => findAdminModuleRoot(root, new Set(['blog', 'cms']))).toThrow(
+      AdminLayoutUnresolvableError,
+    );
+  });
+});
+
 describe('which module owns a surface directory', () => {
   const routes = [
     { path: '/warehouses', component: 'WarehousesList', line: 1 },
@@ -198,6 +268,146 @@ describe('which module owns a surface directory', () => {
   });
 });
 
+/**
+ * Where the route table and the nav are (feature 110, T122).
+ *
+ * The fixtures enter as a **file map**, which is the top of this analysis: the
+ * derivation's whole job is to decide which of several source roots holds the
+ * pair, so a proof handed a resolved root would leave the search unrun (issue
+ * #130).
+ */
+describe('finding the admin shell', () => {
+  const APP = 'export function App() { return null; }';
+
+  function withFiles(files: Readonly<Record<string, string>>) {
+    return (path: string): string | null => files[path] ?? null;
+  }
+
+  it('answers the alias member on a tree whose route table has not moved', () => {
+    // The pre-extraction shape, and it must answer exactly what it answered
+    // before this function existed — that is what makes T120 a measurable move
+    // rather than a rewritten instrument.
+    const members = [member('backend', '/w/backend'), member('admin', '/w/admin')];
+    const root = findAdminShellRoot(
+      members,
+      withFiles({
+        '/w/admin/tsconfig.json': ALIASED,
+        '/w/admin/src/App.tsx': APP,
+        '/w/admin/src/components/AppShell.tsx': APP,
+      }),
+    );
+    expect(root).toBe(join('/w/admin', 'src'));
+  });
+
+  it('follows the pair into a package the alias member does not name', () => {
+    const members = [
+      member('admin', '/w/admin'),
+      member('@endora-commerce/admin-shell', '/w/packages/admin-shell'),
+    ];
+    const root = findAdminShellRoot(
+      members,
+      withFiles({
+        '/w/admin/tsconfig.json': ALIASED,
+        '/w/packages/admin-shell/src/App.tsx': APP,
+        '/w/packages/admin-shell/src/components/AppShell.tsx': APP,
+      }),
+    );
+    expect(root).toBe(join('/w/packages/admin-shell', 'src'));
+  });
+
+  it('refuses a workspace where the pair is nowhere — never a scan over what is left', () => {
+    // The shell package unbuilt, uninstalled or renamed. The alias member is
+    // still there and still holds files, so a walk that carried on would report
+    // `violations=0` over an admin population that had silently emptied.
+    const members = [member('admin', '/w/admin')];
+    expect(() =>
+      findAdminShellRoot(members, withFiles({ '/w/admin/tsconfig.json': ALIASED })),
+    ).toThrow(AdminLayoutUnresolvableError);
+  });
+
+  it('refuses two, because picking one narrows every walk without saying so', () => {
+    const members = [
+      member('admin', '/w/admin'),
+      member('@endora-commerce/admin-shell', '/w/packages/admin-shell'),
+    ];
+    expect(() =>
+      findAdminShellRoot(
+        members,
+        withFiles({
+          '/w/admin/tsconfig.json': ALIASED,
+          '/w/admin/src/App.tsx': APP,
+          '/w/admin/src/components/AppShell.tsx': APP,
+          '/w/packages/admin-shell/src/App.tsx': APP,
+          '/w/packages/admin-shell/src/components/AppShell.tsx': APP,
+        }),
+      ),
+    ).toThrow(AdminLayoutUnresolvableError);
+  });
+
+  it('refuses a root holding only one of the two', () => {
+    // Half the pair is not the shell: attribution is read from the route table
+    // **and** the nav, and a root with one of them would answer every surface
+    // directory to nobody.
+    const members = [member('admin', '/w/admin')];
+    expect(() =>
+      findAdminShellRoot(
+        members,
+        withFiles({ '/w/admin/tsconfig.json': ALIASED, '/w/admin/src/App.tsx': APP }),
+      ),
+    ).toThrow(AdminLayoutUnresolvableError);
+  });
+});
+
+describe('the admin host roots', () => {
+  const APP = 'export function App() { return null; }';
+
+  it('are the alias member\'s and the shell\'s, sorted', () => {
+    const members = [
+      member('admin', '/w/admin'),
+      member('@endora-commerce/admin-shell', '/w/packages/admin-shell'),
+    ];
+    const roots = adminHostRootsOf(members, (path) =>
+      ({
+        '/w/admin/tsconfig.json': ALIASED,
+        '/w/packages/admin-shell/src/App.tsx': APP,
+        '/w/packages/admin-shell/src/components/AppShell.tsx': APP,
+      })[path] ?? null,
+    );
+    expect(roots).toEqual([join('/w/admin', 'src'), join('/w/packages/admin-shell', 'src')]);
+  });
+
+  it('are one root, not two, when the shell has not moved', () => {
+    // The deduplication is what keeps a walk from opening every file twice and
+    // reporting a doubled `files=` on an unmoved tree.
+    const members = [member('admin', '/w/admin')];
+    const roots = adminHostRootsOf(members, (path) =>
+      ({
+        '/w/admin/tsconfig.json': ALIASED,
+        '/w/admin/src/App.tsx': APP,
+        '/w/admin/src/components/AppShell.tsx': APP,
+      })[path] ?? null,
+    );
+    expect(roots).toEqual([join('/w/admin', 'src')]);
+  });
+});
+
+describe('whether this workspace has a frontend at all', () => {
+  it('answers true for a member declaring the alias, whatever else is missing', () => {
+    // The discriminator between "no admin" and "an admin whose route table the
+    // walk stopped finding". It must not consult the shell: that is exactly the
+    // thing it is asked about.
+    expect(
+      adminApplicationPresent([member('admin', '/w/admin')], (path) =>
+        path === '/w/admin/tsconfig.json' ? ALIASED : null,
+      ),
+    ).toBe(true);
+  });
+
+  it('answers false for a workspace with no member declaring it', () => {
+    expect(adminApplicationPresent([member('backend', '/w/backend')], () => null)).toBe(false);
+  });
+});
+
 describe('this repository', () => {
   it('resolves the admin surfaces where the tree keeps them', async () => {
     const layout = await requireModuleLayout('[admin-surfaces-test]');
@@ -205,31 +415,75 @@ describe('this repository', () => {
     const admin = resolveAdminSurfaces(members, new Set(layout.registeredIds));
 
     expect(admin.sourceRoot.endsWith('/admin/src')).toBe(true);
-    expect(admin.moduleRoot.endsWith('/admin/src/modules')).toBe(true);
     expect(admin.aliasPrefix).toBe('@/');
-    // The floors, so a walk that stopped reading either file cannot leave the
-    // attribution silently empty.
-    expect(admin.directories.length).toBeGreaterThan(0);
+    // Feature 110's T120: the route table and the nav are the shell package's,
+    // and both roots are the admin application's own. Asserted rather than
+    // inferred, because every host walk in the estate takes `hostRoots` and a
+    // silent reduction to one is a hundred files nobody reads.
+    expect(admin.shellRoot.endsWith('/packages/admin-shell/src')).toBe(true);
+    expect(admin.hostRoots).toEqual([admin.sourceRoot, admin.shellRoot].sort());
+    for (const file of admin.registryFiles) {
+      expect(file.startsWith(`${admin.shellRoot}/`)).toBe(true);
+    }
+    // The generated registry stays the admin project's whatever else moves
+    // (`contracts/instance-repository.md` R3.2), so it is under the **alias**
+    // root and never under the shell's.
+    expect(admin.generatedRegistryFile.startsWith(`${admin.sourceRoot}/`)).toBe(true);
+    // The floors that survive the drain, and they are the ones a check rests
+    // on: `sourceRoot` classifies a reach, `aliasPrefix` is what makes an
+    // `aliased-reach` recognisable, and the route table and the nav are what
+    // the host-route assertion reads. `moduleRoot` is deliberately **not**
+    // among them — it is `null` in the terminal state (R16), which is the
+    // measurement the block below asserts.
     expect(admin.routes.length).toBeGreaterThan(0);
     expect(admin.nav.length).toBeGreaterThan(0);
-    expect(admin.componentDirectories.size).toBeGreaterThan(0);
+    expect(admin.registryFiles).toHaveLength(2);
   });
 
-  it('attributes `warehouses` to `inventory`, which is the case a name cannot answer', async () => {
+  it('answers null for the module root, an empty attribution, and no orphan', async () => {
+    // SC-007's terminal state, asserted rather than inferred. The three
+    // fields move together — a module root that is `null` has no directories
+    // to list and no components to attribute — and each of them is a
+    // measurement, not a failure: the alias resolved, `App.tsx` and
+    // `AppShell.tsx` were read, and the manifest index yielded its ids.
+    //
+    // **This is a two-way assertion.** A module surface directory reappearing
+    // under `admin/src` fails here, which is the moment somebody has to decide
+    // whether it belongs to the admin application or to a module's package.
     const layout = await requireModuleLayout('[admin-surfaces-test]');
     const admin = await layout.adminSurfaces();
-    expect(admin?.moduleOfDirectory.get('warehouses')).toBe('inventory');
+    expect(admin).not.toBeNull();
+    expect(admin!.moduleRoot).toBeNull();
+    expect(admin!.directories).toEqual([]);
+    expect([...admin!.moduleOfDirectory]).toEqual([]);
+    expect([...admin!.componentDirectories]).toEqual([]);
+  });
+
+  it('carries no refusal reason while the layout resolves', async () => {
+    // R17's other direction: the reason is non-null **exactly** when the
+    // layout is `null`, so a caller that prints it can never print a stale
+    // sentence over a resolved layout.
+    const layout = await requireModuleLayout('[admin-surfaces-test]');
+    expect(await layout.adminSurfaces()).not.toBeNull();
+    expect(await layout.adminSurfacesRefusal()).toBeNull();
   });
 
   it('leaves the admin application\'s own directories unattributed', async () => {
+    // The four directories `admin/src/modules/` still holds. None is a
+    // registered module id, which is why the module root is `null`; each is
+    // therefore host-owned by the derivation rather than by a list, and
+    // `moduleOfDirectory` — empty — claims none of them.
     const layout = await requireModuleLayout('[admin-surfaces-test]');
     const admin = await layout.adminSurfaces();
-    for (const directory of ['_shared', 'home', 'platform', 'profile']) {
+    for (const directory of ['cms_pages', 'home', 'platform', 'profile']) {
       expect(admin?.moduleOfDirectory.has(directory)).toBe(false);
     }
   });
 
-  it('attributes every other surface directory to a registered module', async () => {
+  it('attributes no directory to anything that is not a registered module', async () => {
+    // Vacuous today and deliberately kept: it is the assertion that catches a
+    // surface directory reappearing under an owner the manifest index does not
+    // know, which is the one way `moduleOfDirectory` can grow a wrong entry.
     const layout = await requireModuleLayout('[admin-surfaces-test]');
     const admin = await layout.adminSurfaces();
     const registered = new Set(layout.registeredIds);

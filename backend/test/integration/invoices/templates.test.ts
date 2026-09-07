@@ -54,7 +54,7 @@ describe('invoices — templates (US6)', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { data: { components: Array<{ name: string }> } };
-    expect(body.data.components.some((c) => c.name === 'InvoiceLineItems')).toBe(true);
+    expect(body.data.components.some((c) => c.name === 'invoices.InvoiceLineItems')).toBe(true);
   });
 
   it('creates a per-channel template, saves content with optimistic version, and previews', async () => {
@@ -74,7 +74,7 @@ describe('invoices — templates (US6)', () => {
       cookies: ADMIN_COOKIE,
       payload: {
         version: tpl.version,
-        data: { content: [{ type: 'InvoiceHeader', props: {} }, { type: 'InvoiceTotals', props: {} }] },
+        data: { content: [{ type: 'invoices.InvoiceHeader', props: {} }, { type: 'invoices.InvoiceTotals', props: {} }] },
       },
     });
     expect(save.statusCode).toBe(200);
@@ -105,8 +105,8 @@ describe('invoices — templates (US6)', () => {
       payload: {
         data: {
           content: [
-            { type: 'InvoiceHeader', props: { showSaleDate: false } },
-            { type: 'InvoiceNotes', props: { text: 'Draft {{var invoice.number}}' } },
+            { type: 'invoices.InvoiceHeader', props: { showSaleDate: false } },
+            { type: 'invoices.InvoiceNotes', props: { text: 'Draft {{var invoice.number}}' } },
           ],
         },
       },
@@ -120,7 +120,7 @@ describe('invoices — templates (US6)', () => {
     const svc = new InvoiceTemplateService(h.em);
     const channelTree = (await svc.resolveTree(CH, 'pl-PL')) as { content: Array<{ type: string }> };
     // The channel template was saved with header + totals only.
-    expect(channelTree.content.map((c) => c.type)).toEqual(['InvoiceHeader', 'InvoiceTotals']);
+    expect(channelTree.content.map((c) => c.type)).toEqual(['invoices.InvoiceHeader', 'invoices.InvoiceTotals']);
 
     const otherTree = (await svc.resolveTree('00000000-0000-4000-8000-0000000000ff', 'pl-PL')) as {
       content: Array<{ type: string }>;

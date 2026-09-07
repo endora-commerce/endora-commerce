@@ -200,11 +200,14 @@
  * absence of a block". `:root` keeps them too, for a document rendered with no
  * `data-theme` at all.
  *
- * Adding a theme is two edits and both are checked: a block here, and its code
- * in `STOREFRONT_THEME_CODES` (`packages/contracts/src/sales-channels.ts`).
- * `storefront/test/channel-theme.test.tsx` fails when either side is missing —
- * a declared theme with no block would be an admin dropdown entry that does
- * nothing, which is the defect this feature repairs.
+ * **Adding one of this storefront's own themes is one edit and a generator
+ * run** (feature 102): write the block here, then
+ * `pnpm --filter storefront run themes:generate`. The platform holds no list of
+ * theme codes any more — a theme is a token set anyone may publish as an npm
+ * package, so this instance derives its own registry from these blocks plus the
+ * `endora.themes` declarations of the packages it has installed.
+ * `scripts/check-themes.mjs` fails the build when the registry and the
+ * **emitted** stylesheet disagree in either direction.
  */
 
 /* Industria — graphite/ink with an indigo accent. The reference palette. */
@@ -266,6 +269,24 @@
   --shadow-md: 0 6px 16px rgba(15,23,42,0.08);
   --shadow-lg: 0 16px 40px rgba(15,23,42,0.12);
 }
+
+/*
+ * Theme packages this instance has installed — feature 102.
+ *
+ * Generated: `pnpm --filter storefront run themes:generate` writes
+ * `themes.generated.css` from the `endora.themes` declarations of the packages
+ * in this storefront's `node_modules`, so installing a theme is `npm install`
+ * and nothing else. Never add an `@import` here by hand; `check:themes` refuses
+ * one as `unregistered-theme`.
+ *
+ * **The position is load-bearing.** It sits after this instance's own
+ * `[data-theme]` blocks and above `:root.is-dark`, because both selectors have
+ * specificity (0,2,0) and document order is what decides: a theme block below
+ * the dark scope silently disables dark mode for every channel on that theme.
+ * `check:themes` refuses that as `dark-scope-shadowed`, over the **emitted**
+ * stylesheet, so the placement is checked rather than remembered.
+ */
+@import './themes.generated.css';
 
 :root.is-dark {
   --bg: #0b0b0d;
@@ -976,6 +997,22 @@ select:focus-visible {
     scroll-behavior: auto !important;
   }
   .b2b-route-fade { animation: none !important; }
+
+  /* The blanket reset above freezes every animation after one 0.01 ms
+     iteration. For decoration that is right; for an *indicator* it removes the
+     information and keeps the ornament. Measured on the built stylesheet with
+     `reducedMotion: 'reduce'`: `.b2b-progress::after` computes to
+     `transform: none` with `getAnimations()` empty, identical at 0.3 s and at
+     3.0 s — a static 2 px rule 40% of the viewport wide, indistinguishable
+     from a border. Motion is not what the bar has to carry; presence is. So
+     drop the travelling segment and let the bar be a full-width state that
+     appears and disappears. `NavigationFeedback`'s live region carries the
+     same fact to a screen reader. */
+  .b2b-progress::after {
+    width: 100%;
+    background: var(--brand-600);
+    opacity: 0.85;
+  }
 }
 
 /* Breadcrumbs already styled via .b2b-breadcrumbs above */

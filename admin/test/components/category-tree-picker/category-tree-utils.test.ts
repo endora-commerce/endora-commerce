@@ -7,7 +7,7 @@ import {
   flattenCategoryTree,
   pickCategoryDisplayName,
   type CategoryTreePickerCategory,
-} from '../../../src/components/category-tree-picker/category-tree-utils';
+} from '../../../../packages/admin-shell/src/components/category-tree-picker/category-tree-utils';
 
 const SAMPLE: CategoryTreePickerCategory[] = [
   {

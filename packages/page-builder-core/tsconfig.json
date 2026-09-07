@@ -1,10 +1,18 @@
 {
   // Type-check configuration; `tsconfig.build.json` is the emitting one. See the header
   // there for why the two are separate.
+  //
+  // **No `rootDir` here**, which is the shape `page-builder-admin` and every other
+  // sibling-importing package already uses. `tsconfig.base.json`'s `paths` block is active
+  // in this file, so `@endora-commerce/contracts` resolves at its *source* — and `rootDir`
+  // with an active `paths` block is TS6059 ("file is not under rootDir"), which this package
+  // avoided only for as long as it imported no sibling. It imports one since feature 096,
+  // where `block-name.ts` takes `blockNameRe` from the package that authors the grammar
+  // instead of restating it. `rootDir` belongs to the emitting configuration and is set
+  // there.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
     "noEmit": true,
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],

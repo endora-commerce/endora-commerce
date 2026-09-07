@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  firstSlugSegment,
   type CmsPageDetail,
   type CmsPageSummary,
   type CreateCmsPageRequest,
@@ -32,13 +33,102 @@ type PageRow = {
 
 const emptyContent = { languages: {} };
 
+/**
+ * Answers the deployment's reserved first path segments
+ * (`specs/105-cms-root-page-urls/` FR-032).
+ *
+ * A function rather than a value because the answer is a Setting an operator
+ * may edit while the platform runs, and because reading it is the *module's*
+ * job: the resolver is installed in `backend/index.ts`, which is where every
+ * other settings-backed value of this module is wired, so no composition root
+ * owns a knob on this module's behalf (composition checklist item 6).
+ *
+ * It answers `unknown` rather than `string[]`, and that is the design: the value
+ * is free-form JSON an operator edits, so judging an entry belongs in
+ * `normalizeReservedSegments` below — one entry at a time, dropping what it
+ * cannot use — and not in a schema whose failure would take every page save down
+ * because somebody typed a number into a list.
+ */
+export type ReservedSlugSegmentsResolver = () => Promise<unknown>;
+
+/**
+ * The reserved set as the refusal reads it, from the value an operator typed.
+ *
+ * The Setting is free-form JSON, so this is forgiving in the three ways an
+ * operator's list is likely to be wrong and in no other: `"/cart"` and
+ * `"Cart"` and `"checkout/pay"` all mean the segment `cart`, `cart` and
+ * `checkout`. A non-string entry is dropped rather than stringified — an
+ * operator who typed `["cart", 7]` reserved one segment, not two, and
+ * `"7"` reserving a path is a rule nobody wrote.
+ */
+export function normalizeReservedSegments(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry !== 'string') continue;
+    const segment = firstSlugSegment(entry.trim());
+    if (segment.length > 0) out.add(segment);
+  }
+  return [...out];
+}
+
 export class CmsPageService {
+  /**
+   * Absent until `registerModule` installs it, and absent means "nothing is
+   * reserved". That is the manifest's own default (`defaultValue: []`), so an
+   * unwired service and a deployment that reserves nothing answer alike — and
+   * a *failing* read is not this state: it propagates, see `reservedSegments`.
+   */
+  private reservedSegmentsResolver: ReservedSlugSegmentsResolver | null = null;
+
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly knownComponentNames: () => Iterable<string>,
     private readonly cache?: CmsCache,
     private readonly references?: CmsReferenceRegistry,
   ) {}
+
+  setReservedSegmentsResolver(resolver: ReservedSlugSegmentsResolver | null): void {
+    this.reservedSegmentsResolver = resolver;
+  }
+
+  /**
+   * The deployment's reserved first path segments — the **one** value the
+   * save-time refusal below and the editor's inline warning both read
+   * (FR-033). Two lists would be two answers waiting to disagree, and a warning
+   * that disagrees with a refusal is worse than no warning.
+   */
+  async reservedSegments(): Promise<string[]> {
+    if (!this.reservedSegmentsResolver) return [];
+    return normalizeReservedSegments(await this.reservedSegmentsResolver());
+  }
+
+  /**
+   * FR-031 — refuse a slug whose first segment the deployment reserves.
+   *
+   * Nothing here creates precedence and nothing may (`contracts/cms-page-url.md`
+   * §5.0): the storefront's route already wins, measured, with no mechanism.
+   * What this removes is the **silence** — a page that saves, publishes and is
+   * never served while the operator is told nothing, which is a defect
+   * indistinguishable from a legitimate state because the URL answers 200 with
+   * somebody else's content.
+   *
+   * The offending segment travels in `details` so the envelope can fill the
+   * `{segment}` placeholder in the operator's own language (§5.4): the code for
+   * a consumer to branch on, the sentence for the operator to read.
+   */
+  private async assertSlugNotReserved(slug: string): Promise<void> {
+    const segment = firstSlugSegment(slug);
+    if (segment.length === 0) return;
+    const reserved = await this.reservedSegments();
+    if (!reserved.includes(segment)) return;
+    throw new HttpError(
+      409,
+      ERROR_CODES.CMS_SLUG_RESERVED,
+      `The first path segment "${segment}" is reserved by this storefront.`,
+      { segment },
+    );
+  }
 
   private async invalidateForPageId(pageId: string): Promise<void> {
     if (!this.cache) return;
@@ -98,6 +188,11 @@ export class CmsPageService {
   }
 
   async create(input: CreateCmsPageRequest): Promise<CmsPageDetail> {
+    // Before the transaction, deliberately: this is a judgement on the input
+    // against the deployment's configuration and touches no row, so opening a
+    // transaction to refuse it would hold a connection for the length of a
+    // settings read.
+    await this.assertSlugNotReserved(input.slug);
     const em = this.emFactory();
     const id = randomUUID();
     const now = new Date();
@@ -152,6 +247,12 @@ export class CmsPageService {
   }
 
   async patch(id: string, input: PatchCmsPageRequest): Promise<CmsPageDetail> {
+    // Only when the request **writes** a slug. A patch that renames a page or
+    // edits its meta description is not choosing an address, and refusing it
+    // would make every page whose slug predates the deployment's reserved set
+    // uneditable — a rule that punishes the operator for a decision somebody
+    // else made later.
+    if (input.slug !== undefined) await this.assertSlugNotReserved(input.slug);
     const em = this.emFactory();
     const slugsToInvalidate = new Set<string>();
     await em.transactional(async (tx) => {

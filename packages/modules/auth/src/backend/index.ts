@@ -4,7 +4,7 @@ import type { AuthSessionPort, AuthSessionReadPort } from '@endora-commerce/cont
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { AdminPermissionChecker } from '@endora-commerce/platform/kernel';
-import { authPlugin } from './plugin.js';
+import { authPlugin, promoteAdminActor } from './plugin.js';
 import { createRequireAdmin, createRequireAdminAny } from './require-admin.js';
 import { createRequireCustomer } from './require-customer.js';
 import { AuthSessionReadService, createAuthSessionPort } from './services/session-port.js';
@@ -121,6 +121,31 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  // The promotion the two admin guards above already perform, published under
+  // its own name (`specs/117-instance-bring-up/` FR-030). It is not a third
+  // guard: it decides nothing and refuses nobody, it moves `request.adminActor`
+  // into `request.actor` so that an admin route works on a request that also
+  // carries a customer session.
+  //
+  // It is a port for one consumer — the production composition root, which
+  // calls it inside the actor bridge it contributes to `mfa`. That root is
+  // moving into `@endora-commerce/platform` (`specs/110-instance-repository/`
+  // T118), and a platform file may not import a module (D-52, D-53), so the
+  // function's *exported* spelling stops being available to it while the
+  // container name survives the move. This is the drain condition the barrel
+  // below and `test/contract/kernel/harness-parity.test.ts` both named.
+  //
+  // `providePort` like its four neighbours, on the same reasoning: the gate can
+  // never close, because `auth` is non-deactivatable, and a second answer
+  // inside one module would be worse than either answer. No type argument, for
+  // symmetry with the two guards above — the shape is
+  // `AdminActorPromotion` in the platform's `kernel/ports/require-admin.ts`,
+  // deliberately off the `./kernel` barrel because no module resolves it.
+  ctx.di.providePort(
+    'promoteAdminActor',
+    ctx.asFunction(() => promoteAdminActor).singleton(),
+  );
+
   // The customer-side twin, and the last guard either composition root still
   // declared for itself (issue #43). Both roots had one — reading different
   // request properties and disagreeing on every request shape — while 16 route
@@ -175,33 +200,34 @@ export function registerModule(ctx: ModuleContext): void {
  */
 export const entities = [Session];
 
-/**
- * Actor promotion, on the `./backend` subpath because the **composition root**
- * calls it — the MFA actor bridge promotes a partially-authenticated session to
- * an admin actor before asserting it is one.
+/*
+ * **Actor promotion is no longer on this subpath**, and the deletion is the
+ * point rather than a tidy-up (`specs/117-instance-bring-up/` FR-030).
  *
- * It is published rather than relocated, and the distinction is the whole
- * reason this export exists. `absolutizePublicUrl` moved out of `email` into
- * the platform under the same pressure (T040b, criterion 8) because it had **no
- * consumer inside its own module** — it was a deployment-origin helper filed
- * under the module that first needed it. This one is the opposite: `auth` reads
- * it itself, from `require-admin.ts`, and `@endora-commerce/platform`'s own
- * `kernel/ports/require-admin.ts` states in as many words why the
- * implementation lives here — *"promoting an admin actor needs the auth
- * plugin's per-request decorations"*. A platform copy would reason about
- * `request.actor` and `request.adminActor`, two decorations this module owns
- * and declares.
+ * `promoteAdminActor` was exported here for exactly one consumer, the
+ * production composition root, which calls it inside the actor bridge it
+ * contributes to `mfa`. The export said in its own words that it was published
+ * *"rather than relocated"* — correctly, because `auth` reads the function
+ * itself from `require-admin.ts` and promotion is about `request.actor` and
+ * `request.adminActor`, two decorations this module owns; `absolutizePublicUrl`
+ * could move to the platform (T040b, criterion 8) precisely because it had no
+ * consumer inside `email` and this one does. That reasoning is unchanged.
  *
- * **The root resolving it as a port is a further step this does not take**, and
- * it is written down rather than left implicit: the `auth:promoteAdminActor`
- * entry in `test/contract/kernel/harness-parity.test.ts` records the divergence
- * and names its own drain condition — *"it drains when `auth` provides actor
- * promotion as a port"*. That entry still stands after this change. What the
- * bare specifier buys is only what packaging requires: the root no longer names
- * a file inside this module, so there is one copy of this module in the process
- * (D-160.6.1) instead of two.
+ * What changed is the consumer. `specs/110-instance-repository/` T118 moves
+ * that root into `@endora-commerce/platform`, where importing a module is
+ * D-52/D-53's refusal — so the root's spelling had to stop being an import, and
+ * a value import does not retire by moving a type. It resolves the container
+ * name `promoteAdminActor` instead, which is the **further step** the old block
+ * here recorded as open and which `test/contract/kernel/harness-parity.test.ts`
+ * named as its drain condition: *"actor promotion published as a port, resolved
+ * from the container"*.
+ *
+ * The export is removed rather than left beside the registration, because two
+ * spellings of one seam is how a root comes to take the one that does not
+ * survive the move — and this file is where a future author would look for
+ * permission. The registration is above, in `registerModule`; the shape is
+ * `AdminActorPromotion` in the platform's `kernel/ports/require-admin.ts`.
  */
-export { promoteAdminActor } from './plugin.js';
 
 /**
  * The module's own implementation classes and guard factories, on the
@@ -220,6 +246,35 @@ export { promoteAdminActor } from './plugin.js';
  * which is why they are not on a `./ports` subpath — that one is contract
  * surface (D-171) and these are implementations.
  */
+/**
+ * What `request.actor` **is**, and the Fastify augmentation that puts it there.
+ *
+ * Published by `specs/117-instance-bring-up/` FR-030, and the reason is worth
+ * stating because it is not "somebody wanted the type". `plugin.ts` carries a
+ * `declare module 'fastify'` block adding `actor` and `adminActor` to
+ * `FastifyRequest`; an ambient augmentation reaches a consumer's program only if
+ * the file declaring it is *in* that program, and until now the only thing that
+ * put it there for the production composition root was the root's **value**
+ * import of `promoteAdminActor`. Retiring that import (FR-030) took the
+ * augmentation with it and 30 reads of `request.actor` stopped compiling —
+ * silently coupled, in the way a `declare module` block always is.
+ *
+ * So the carrier is named rather than incidental: a consumer that reads
+ * `request.actor` writes a **type-only** import from this subpath, which is
+ * erased at build time and is a boundary reach a platform-bound file may not
+ * keep for ever. Relocating the augmentation itself is not this feature's — it
+ * would take `Session` with it — and it is `specs/110-instance-repository/`
+ * T118's real precondition rather than the type-to-contract rewrite FR-031
+ * describes.
+ */
+export type {
+  Actor,
+  ActorAdmin,
+  ActorAnonymous,
+  ActorApiKey,
+  ActorCustomer,
+} from './plugin.js';
+
 export { SessionService } from './services/session-service.js';
 export { AuthSessionReadService, createAuthSessionPort } from './services/session-port.js';
 export { createRequireAdmin, createRequireAdminAny } from './require-admin.js';

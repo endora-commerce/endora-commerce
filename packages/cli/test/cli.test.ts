@@ -7,12 +7,13 @@
  * the dispatch and the error classification all run.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { main } from '../src/bin/endora.js';
+import { ESTATE } from '../src/check/index.js';
+import { isDirectEntry, main } from '../src/bin/endora.js';
 import { runNewModule } from '../src/new-module/index.js';
 import { ScaffoldHostError } from '../src/new-module/spec.js';
 
@@ -92,11 +93,33 @@ describe('the program', () => {
     expect(unknown.stderr).toContain('system');
   });
 
-  it('says why `check` is not in this build rather than pretending it ran', async () => {
-    const result = await run(['check']);
+  it('refuses `check` over a directory that is not a module package, naming what it looked for', async () => {
+    // Feature 101, Phase 1: `check` is in this build. What replaced the old
+    // refusal is not a weaker one — the incompleteness is now *printed* per
+    // rule and the run exits 2 while any rule is `pending` — so this is the
+    // refusal that is left: a subject the command cannot identify. It names the
+    // declaration, because a clean verdict over nothing is the failure the
+    // paragraph this replaced was written against.
+    const result = await run(['check'], tmpdir());
 
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain('not in this build');
+    expect(result.stderr).toContain('endora: { "type": "module"');
+  });
+
+  it('lists the whole estate, so nothing it does not run is invisible', async () => {
+    const result = await run(['check', '--list-rules']);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('check:nul-bytes');
+    expect(result.stdout).toContain('check:doc-snippets');
+    expect(result.stdout.trim().split('\n')).toHaveLength(ESTATE.length);
+  });
+
+  it('refuses a --rule the estate does not hold', async () => {
+    const result = await run(['check', '--rule', 'check:invented']);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('--list-rules');
   });
 
   it('refuses a subject `new` does not generate', async () => {
@@ -235,6 +258,74 @@ describe('the host it refuses to guess about', () => {
       ).rejects.toThrow(ScaffoldHostError);
     } finally {
       rmSync(elsewhere, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the entry guard, and the install shape that made it silent', () => {
+  /**
+   * **The defect this covers produced no output and exit 0.** `endora --help`,
+   * run from a registry install, printed nothing at all — the shape the brief
+   * for feature 104 calls *"a published package that silently half-works"*, and
+   * worse than a refusal because there is nothing for the reader to act on.
+   *
+   * The cause is entirely in how the entry is recognised. A package manager
+   * does not invoke `dist/bin/endora.js` directly: pnpm writes a shim that
+   * execs `node "$basedir/../@endora-commerce/cli/dist/bin/endora.js"`, a path
+   * that runs through the `node_modules/@endora-commerce/cli` **symlink** into
+   * the content-addressed store, and npm links the bin itself. Either way
+   * `process.argv[1]` is the *linked* path, while Node's ESM loader realpaths a
+   * module URL before it evaluates it — so `import.meta.url` is the store path,
+   * and a comparison of the two strings is false for every installed consumer
+   * and true only in the checkout that developed it.
+   *
+   * So the predicate compares the paths **after** resolving links, and both
+   * directions are proven: the entry recognised through a link, and an
+   * unrelated `argv[1]` still not recognised, which is what keeps `import
+   * { main }` from running the program as a side effect.
+   */
+  const linkFixture = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'endora-entry-'));
+    const target = join(dir, 'endora.js');
+    const link = join(dir, 'endora-link.js');
+    writeFileSync(target, 'export {};\n');
+    symlinkSync(target, link);
+    return { dir, target, link };
+  };
+
+  it('recognises the entry when the package manager invoked it through a link', () => {
+    const { dir, target, link } = linkFixture();
+    try {
+      expect(isDirectEntry(link, pathToFileURL(target).href)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not recognise an unrelated entry, so importing `main` runs nothing', () => {
+    const { dir, target } = linkFixture();
+    try {
+      expect(isDirectEntry(join(dir, 'some-other-program.js'), pathToFileURL(target).href)).toBe(
+        false,
+      );
+      expect(isDirectEntry(undefined, pathToFileURL(target).href)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * An `argv[1]` naming nothing on disk is not the entry, and it must not be a
+   * throw either: `realpath` raises `ENOENT` and an uncaught one at module load
+   * would turn a wrong guess about the invocation into a crash before any
+   * command has been dispatched.
+   */
+  it('answers no for an entry that is not on disk', () => {
+    const { dir, target } = linkFixture();
+    try {
+      expect(isDirectEntry(join(dir, 'gone.js'), pathToFileURL(target).href)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

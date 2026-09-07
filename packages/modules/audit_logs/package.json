@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/mod-audit-logs",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "description": "Append-only audit log for sensitive admin and customer actions.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "audit_logs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/audit_logs"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -26,7 +34,8 @@
   },
   "files": [
     "dist",
-    "i18n"
+    "i18n",
+    "docs"
   ],
   "engines": {
     "node": ">=22.17.0"
@@ -34,7 +43,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -45,6 +55,17 @@
     "react": "^19",
     "react-router-dom": "^7",
     "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -57,6 +78,7 @@
     "react": "^19.2.5",
     "react-router-dom": "^7.14.2",
     "typescript": "^5.9.3",
+    "vitest": "^2.1.4",
     "zod": "^4.2.0"
   }
 }

@@ -16,8 +16,17 @@ const postSpy = vi.fn();
  */
 
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>('@/lib/api-client');
+// **Re-keyed by feature 091's Phase 4 batch 15, and this is the trap batch 14
+// found by sweeping rather than by running.** The mock named the admin's own
+// path while the subject was under `admin/src`; the subject is inside a module
+// package now and resolves `@endora-commerce/admin-kit/lib`, of which the old
+// path is only a re-export shim — so the old spelling intercepts nothing and
+// vitest reports that by making the mock **inert** rather than by failing.
+// `tsc` cannot see it: both specifiers compile.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
   return {
     ...actual,
     apiClient: {
@@ -30,7 +39,7 @@ vi.mock('@/lib/api-client', async () => {
   };
 });
 
-const { OrderDetail } = await import('../../../src/modules/orders/OrderDetail');
+const { OrderDetail } = await import('../../../../packages/modules/orders/src/admin/pages/OrderDetail');
 
 const ORDER = {
   id: 'o1',

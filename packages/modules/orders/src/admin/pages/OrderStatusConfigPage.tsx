@@ -1,0 +1,430 @@
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
+import type { DictionaryLanguagesPageResponse } from '@endora-commerce/contracts';
+import { ApiError, apiClient, statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { StatusTransitionGraph } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ORDER_STATUS_DEFAULT_COLOR } from '@endora-commerce/contracts';
+import { StatusColorPicker } from '../components/StatusColorPicker.js';
+
+/**
+ * List dictionary entries (feature 091, P6).
+ *
+ * The requests are built here rather than through `dictionaries`' own admin
+ * API client: that client is another module's **code**, which is what the
+ * cross-module ledger recorded, while `/api/v1/admin/dictionary/*` and the
+ * `Dictionary*PageResponse` types are an HTTP path and
+ * `@endora-commerce/contracts` types that both sides already compile. That is
+ * the exit P2 established and `admin-kit-surface.md` R6 records.
+ */
+function listDictionaryLanguages(pageSize: number): Promise<DictionaryLanguagesPageResponse> {
+  return apiClient.get<DictionaryLanguagesPageResponse>(
+    `/api/v1/admin/dictionary/languages?pageSize=${pageSize}`,
+  );
+}
+
+interface StatusDef {
+  code: string;
+  name: Record<string, string>;
+  defaultName: string;
+  isInitial: boolean;
+  isTerminal: boolean;
+  isSystem: boolean;
+  weight: number;
+  color: string;
+  inUseCount: number;
+}
+interface TransitionDef {
+  fromStatusCode: string;
+  toStatusCode: string;
+  isSystem: boolean;
+}
+interface StatusGraph {
+  statuses: StatusDef[];
+  transitions: TransitionDef[];
+}
+interface ActiveLanguage {
+  code: string;
+  label: string;
+}
+
+/** Resolve the admin-facing label: default name → English → first → code. */
+function statusLabel(s: StatusDef): string {
+  return s.defaultName || s.name['en'] || Object.values(s.name)[0] || s.code;
+}
+
+export function OrderStatusConfigPage(): ReactNode {
+  const t = useTranslation('core');
+  const [graph, setGraph] = useState<StatusGraph | null>(null);
+  const [languages, setLanguages] = useState<ActiveLanguage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Add-status form.
+  const [newCode, setNewCode] = useState('');
+  const [newDefaultName, setNewDefaultName] = useState('');
+  const [newNames, setNewNames] = useState<Record<string, string>>({});
+  const [newTerminal, setNewTerminal] = useState(false);
+  const [newColor, setNewColor] = useState(ORDER_STATUS_DEFAULT_COLOR);
+
+  // Inline edit of an existing status's names.
+  const [editCode, setEditCode] = useState<string | null>(null);
+  const [editDefaultName, setEditDefaultName] = useState('');
+  const [editNames, setEditNames] = useState<Record<string, string>>({});
+  const [editColor, setEditColor] = useState(ORDER_STATUS_DEFAULT_COLOR);
+
+  // Status pending deletion — drives the confirmation dialog.
+  const [pendingDelete, setPendingDelete] = useState<StatusDef | null>(null);
+
+  const load = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [graphRes, langRes] = await Promise.all([
+        apiClient.get<{ data: StatusGraph }>('/api/v1/admin/orders/statuses'),
+        listDictionaryLanguages(100).catch(() => ({ data: [] })),
+      ]);
+      setGraph(graphRes.data);
+      setLanguages(
+        (langRes.data as Array<{ code: string; label: string; isActive: boolean }>)
+          .filter((l) => l.isActive)
+          .map((l) => ({ code: l.code, label: l.label })),
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const run = useCallback(
+    async (fn: () => Promise<unknown>): Promise<void> => {
+      setError(null);
+      try {
+        await fn();
+        await load();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Operation failed.');
+      }
+    },
+    [load],
+  );
+
+  /** Drop empty per-language entries before sending. */
+  const cleanNames = (names: Record<string, string>): Record<string, string> =>
+    Object.fromEntries(Object.entries(names).filter(([, v]) => v.trim().length > 0));
+
+  const addStatus = (): void => {
+    if (!newCode.trim()) return;
+    const defaultName = newDefaultName.trim() || newCode.trim();
+    void run(async () => {
+      await apiClient.post('/api/v1/admin/orders/statuses', {
+        code: newCode.trim(),
+        name: cleanNames(newNames),
+        defaultName,
+        isTerminal: newTerminal,
+        color: newColor,
+      });
+      setNewCode('');
+      setNewDefaultName('');
+      setNewNames({});
+      setNewTerminal(false);
+      setNewColor(ORDER_STATUS_DEFAULT_COLOR);
+    });
+  };
+
+  const startEdit = (s: StatusDef): void => {
+    setEditCode(s.code);
+    setEditDefaultName(s.defaultName);
+    setEditNames({ ...s.name });
+    setEditColor(s.color || ORDER_STATUS_DEFAULT_COLOR);
+  };
+
+  const saveEdit = (code: string): void => {
+    const defaultName = editDefaultName.trim();
+    if (!defaultName) return;
+    void run(async () => {
+      await apiClient.patch(`/api/v1/admin/orders/statuses/${code}`, {
+        name: cleanNames(editNames),
+        defaultName,
+        color: editColor,
+      });
+      setEditCode(null);
+    });
+  };
+
+  const confirmDelete = (): void => {
+    const code = pendingDelete?.code;
+    if (!code) return;
+    setPendingDelete(null);
+    void run(() => apiClient.delete(`/api/v1/admin/orders/statuses/${code}`));
+  };
+
+  const addTransition = (from: string, to: string): void => {
+    if (!from || !to || from === to) return;
+    void run(() =>
+      apiClient.put('/api/v1/admin/orders/transitions', {
+        add: [{ fromStatusCode: from, toStatusCode: to }],
+      }),
+    );
+  };
+
+  const removeTransition = (from: string, to: string): void => {
+    void run(() =>
+      apiClient.put('/api/v1/admin/orders/transitions', {
+        remove: [{ fromStatusCode: from, toStatusCode: to }],
+      }),
+    );
+  };
+
+  // Only blank the page on the very first load; subsequent refetches (after a
+  // mutation) keep the page mounted and update the table + graph in place.
+  if (loading && !graph)
+    return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
+
+  const statuses = graph?.statuses ?? [];
+
+  return (
+    <>
+      <PageHeader
+        title={t('orderStatusConfig.title')}
+        description={t('orderStatusConfig.description')}
+        actions={
+          <Button asChild variant="outline">
+            <Link to="/orders">
+              <ArrowLeft />
+              {t('common.action.back')}
+            </Link>
+          </Button>
+        }
+      />
+
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>{t('orderStatusConfig.statuses')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('orderStatusConfig.col.code')}</TableHead>
+                <TableHead>{t('orderStatusConfig.col.name')}</TableHead>
+                <TableHead>{t('orderStatusConfig.col.flags')}</TableHead>
+                <TableHead>{t('orderStatusConfig.col.inUse')}</TableHead>
+                <TableHead aria-label="actions" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {statuses.map((s) => {
+                const locked = s.isSystem || s.isInitial || s.inUseCount > 0;
+                const isEditing = editCode === s.code;
+                return (
+                  <TableRow key={s.code}>
+                    <TableCell className="font-mono text-xs align-top">{s.code}</TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <div className="space-y-1">
+                            <Label htmlFor={`dn-${s.code}`}>
+                              {t('orderStatusConfig.field.defaultName')}
+                            </Label>
+                            <input
+                              id={`dn-${s.code}`}
+                              className="h-8 w-full rounded-md border px-2 text-sm"
+                              value={editDefaultName}
+                              onChange={(e): void => setEditDefaultName(e.target.value)}
+                            />
+                          </div>
+                          {languages.map((lang) => (
+                            <div key={lang.code} className="space-y-1">
+                              <Label htmlFor={`n-${s.code}-${lang.code}`}>{lang.label}</Label>
+                              <input
+                                id={`n-${s.code}-${lang.code}`}
+                                className="h-8 w-full rounded-md border px-2 text-sm"
+                                value={editNames[lang.code] ?? ''}
+                                placeholder={s.defaultName}
+                                onChange={(e): void =>
+                                  setEditNames((prev) => ({ ...prev, [lang.code]: e.target.value }))
+                                }
+                              />
+                            </div>
+                          ))}
+                          <div className="space-y-1">
+                            <Label>{t('orderStatusConfig.field.color')}</Label>
+                            <StatusColorPicker
+                              value={editColor}
+                              onChange={setEditColor}
+                              label={t('orderStatusConfig.field.color')}
+                              customLabel={t('orderStatusConfig.color.custom')}
+                            />
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <Button size="sm" onClick={(): void => saveEdit(s.code)}>
+                              {t('common.action.save')}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={(): void => setEditCode(null)}>
+                              {t('common.action.cancel')}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Badge className="font-medium" style={statusBadgeStyle(s.color)}>
+                          {statusLabel(s)}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground align-top">
+                      {[
+                        s.isInitial ? t('orderStatusConfig.flag.initial') : null,
+                        s.isTerminal ? t('orderStatusConfig.flag.terminal') : null,
+                        s.isSystem ? t('orderStatusConfig.flag.system') : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </TableCell>
+                    <TableCell className="tabular-nums align-top">{s.inUseCount}</TableCell>
+                    <TableCell className="text-right align-top">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`edit-${s.code}`}
+                        onClick={(): void => startEdit(s)}
+                      >
+                        <Pencil />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={locked}
+                        aria-label={`delete-${s.code}`}
+                        onClick={(): void => setPendingDelete(s)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+
+          <div className="mt-4 flex flex-wrap items-end gap-3 border-t pt-4">
+            <div className="space-y-1">
+              <Label htmlFor="newCode">{t('orderStatusConfig.col.code')}</Label>
+              <input
+                id="newCode"
+                className="h-9 rounded-md border px-3 text-sm"
+                value={newCode}
+                onChange={(e): void => setNewCode(e.target.value)}
+                placeholder="awaiting_stock"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="newDefaultName">{t('orderStatusConfig.field.defaultName')}</Label>
+              <input
+                id="newDefaultName"
+                className="h-9 rounded-md border px-3 text-sm"
+                value={newDefaultName}
+                onChange={(e): void => setNewDefaultName(e.target.value)}
+              />
+            </div>
+            {languages.map((lang) => (
+              <div key={lang.code} className="space-y-1">
+                <Label htmlFor={`newName-${lang.code}`}>{lang.label}</Label>
+                <input
+                  id={`newName-${lang.code}`}
+                  className="h-9 rounded-md border px-3 text-sm"
+                  value={newNames[lang.code] ?? ''}
+                  onChange={(e): void =>
+                    setNewNames((prev) => ({ ...prev, [lang.code]: e.target.value }))
+                  }
+                />
+              </div>
+            ))}
+            <div className="space-y-1">
+              <Label>{t('orderStatusConfig.field.color')}</Label>
+              <StatusColorPicker
+                value={newColor}
+                onChange={setNewColor}
+                label={t('orderStatusConfig.field.color')}
+                customLabel={t('orderStatusConfig.color.custom')}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={newTerminal}
+                onChange={(e): void => setNewTerminal(e.target.checked)}
+              />
+              {t('orderStatusConfig.flag.terminal')}
+            </label>
+            <Button onClick={addStatus} disabled={!newCode.trim()}>
+              <Plus />
+              {t('orderStatusConfig.addStatus')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('orderStatusConfig.transitions')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StatusTransitionGraph
+            statuses={statuses}
+            transitions={graph?.transitions ?? []}
+            statusLabel={statusLabel}
+            onAdd={addTransition}
+            onRemove={removeTransition}
+          />
+        </CardContent>
+      </Card>
+
+      {pendingDelete ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
+            <h2 className="mb-2 text-lg font-semibold">
+              {t('orderStatusConfig.deleteConfirm.title')}
+            </h2>
+            <p className="mb-6 text-sm text-muted-foreground">
+              {t('orderStatusConfig.deleteConfirm.body', { name: statusLabel(pendingDelete) })}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={(): void => setPendingDelete(null)}>
+                {t('common.action.cancel')}
+              </Button>
+              <Button variant="destructive" aria-label="confirm-delete" onClick={confirmDelete}>
+                <Trash2 />
+                {t('common.action.delete')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The default export a route declaration's dynamic-import factory resolves
+ * (feature 091, R6). The named export stays: it is the spelling this module's
+ * own siblings and tests use.
+ */
+export default OrderStatusConfigPage;

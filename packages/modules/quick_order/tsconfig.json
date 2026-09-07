@@ -41,5 +41,12 @@
   // does not read these files. Measured 2026-08-28, they compile clean when it
   // does, so moving the patterns down into `tsconfig.build.json` is available
   // and is deliberately not part of that Phase.
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  //
+  // `src/admin/` is compiled by `tsconfig.ui.json` and by nothing else
+  // (feature 091, R12). It is excluded here rather than merged in because this
+  // configuration — and `tsconfig.build.json`, which extends it — is the one
+  // that must **not** carry `jsx` or the `DOM` lib: a service file that
+  // referenced `document` would otherwise compile clean, in the layer that runs
+  // in Node.
+  "exclude": ["src/admin/**/*", "src/**/*.test.ts", "src/**/*.spec.ts"]
 }

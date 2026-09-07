@@ -170,7 +170,7 @@ describe('a file answers per site (issue #237)', () => {
   it('reports the unscoped site and leaves the scoped one alone', () => {
     const sites = findEntrySites('/repo/backend/src/kernel/lifecycle/registry-cache.ts', MIXED);
     expect(sites.map((s) => `${s.kind}:${s.scoped}`)).toEqual(['message:false', 'interval:true']);
-    const violations = violationsOf(sites);
+    const violations = violationsOf(sites, NO_SCOPE_NEEDED);
     expect(violations).toHaveLength(1);
     expect(violations[0]?.kind).toBe('message');
   });
@@ -360,7 +360,7 @@ describe('the real tree', () => {
 
     const regressed = findEntrySites(absoluteOf(path), before235, declared, displayOf);
     expect(regressed.map((s) => `${s.kind}:${s.scoped}`)).toEqual(['message:false', 'interval:true']);
-    expect(violationsOf(regressed).map((s) => s.kind)).toEqual(['message']);
+    expect(violationsOf(regressed, NO_SCOPE_NEEDED).map((s) => s.kind)).toEqual(['message']);
   });
 
   it('sees the shutdown handler in container.ts, which no file-level class contained', () => {
@@ -424,15 +424,15 @@ describe('the ledger ratchet', () => {
     site(LEDGERED, scoped, LEDGERED_SCHEDULER, 'interval', LEDGERED_CONSTRUCT as EntryConstruct);
 
   it('reports an unscoped site that is not ledgered', () => {
-    expect(violationsOf([site('src/modules/search/scripts/reindex.ts', false)])).toHaveLength(1);
+    expect(violationsOf([site('src/modules/search/scripts/reindex.ts', false)], NO_SCOPE_NEEDED)).toHaveLength(1);
   });
 
   it('does not report a ledgered one', () => {
-    expect(violationsOf([ledgeredSite(false)])).toEqual([]);
+    expect(violationsOf([ledgeredSite(false)], NO_SCOPE_NEEDED)).toEqual([]);
   });
 
   it('reports a ledger entry whose site has since been scoped', () => {
-    expect(staleAllowances([ledgeredSite(true)])).toContain(LEDGER_KEY);
+    expect(staleAllowances([ledgeredSite(true)], NO_SCOPE_NEEDED)).toContain(LEDGER_KEY);
   });
 
   it('keys a ledger entry by file, scheduler and construct — never by line', () => {

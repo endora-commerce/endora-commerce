@@ -1,9 +1,17 @@
 {
   "name": "@endora-commerce/contracts",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "description": "Source-of-truth Zod schemas shared across backend, storefront, admin (Principle V). The backend regenerates its live OpenAPI document from these at startup.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/contracts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

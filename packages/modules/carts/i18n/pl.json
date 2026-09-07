@@ -82,5 +82,15 @@
   "reject.email.body": "Administrator odrzucił Twój koszyk. Powód: {reason}",
 
   "upsells.heading": "Możesz też potrzebować",
-  "upsells.empty": "Brak sugestii dla tego koszyka."
+  "upsells.empty": "Brak sugestii dla tego koszyka.",
+  "policy.title": "Zatwierdzanie koszyka",
+  "policy.description": "Gdy opcja jest włączona, zwykli członkowie tej organizacji muszą przekazać koszyk do zatwierdzenia przez Administratora Organizacji, zanim będą mogli złożyć zamówienie.",
+  "policy.on": "Zatwierdzenie wymagane przed złożeniem zamówienia",
+  "policy.off": "Zatwierdzenie niewymagane",
+  "policy.hint": "Wyłączenie zasady przywraca każdy oczekujący lub zatwierdzony koszyk w tej organizacji do stanu „niewymagane”, a każda zmiana trafia do dziennika audytu.",
+  "policy.saving": "Zapisywanie…",
+  "policy.turnedOn": "Zatwierdzanie koszyka jest teraz wymagane w tej organizacji.",
+  "policy.turnedOff": "Zatwierdzanie koszyka nie jest już wymagane; oczekujące koszyki zostały zwolnione.",
+  "policy.loadError": "Nie udało się wczytać zasady zatwierdzania koszyka.",
+  "policy.saveError": "Nie udało się zaktualizować zasady."
 }

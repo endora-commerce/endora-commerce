@@ -98,7 +98,7 @@ RUN pnpm --filter "backend^..." run build
 # registered manifests and fails the build.
 #
 # **It compiles the committed tree; it does not re-derive it.** `build` used to run
-# `overlay:manifest` and `composer:generate` first, from the day feature 018 wrote the first
+# `overlay:divergence` and `composer:generate` first, from the day feature 018 wrote the first
 # generator — and both of them read the *whole* workspace, while this stage holds a strict
 # subset of it. That went unnoticed for four months and then stopped the image dead: feature
 # 091's fifth artefact is `admin/src/modules.generated.ts`, whose path is derived from the
@@ -123,6 +123,17 @@ RUN pnpm --filter "backend^..." run build
 # container that is the limit rather than the host. Inline rather than `ENV`, so the cap
 # belongs to the compile and does not follow the application into production.
 RUN NODE_OPTIONS=--max-old-space-size=2048 pnpm --filter backend run build
+
+# The one per-instance build input the backend image takes (feature 110, FR-009).
+# It names the deployment whose overlay modules and `divergence.ts` this image
+# composes, and it is baked rather than left to runtime so that an image *is* the
+# deployment it was built for. Unset is bare core and stays byte-for-byte bare
+# core: `selectedDeployment` reads a blank value as no deployment at all, which is
+# what an unpassed `--build-arg` leaves behind. Compose may still override it at
+# runtime — an operator moving one image between deployments is their decision,
+# not something this line takes away.
+ARG DEPLOYMENT
+ENV DEPLOYMENT=$DEPLOYMENT
 
 ENV NODE_ENV=production
 ENV PORT=3001

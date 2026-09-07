@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/mod-admin-notifications",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "description": "In-app notification feed surfaced in the admin top-nav bell. Generic so any module can write entries.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "admin_notifications"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/admin_notifications"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

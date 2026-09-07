@@ -8,7 +8,7 @@ import {
   deriveDisplayValue,
   effectiveSource,
   parseValue,
-} from '../../../src/modules/settings/components/SettingRowEditor';
+} from '../../../../packages/modules/settings/src/admin/components/SettingRowEditor';
 
 /**
  * T013 — masked editor for the `secret` value type (feature 043, FR-021).

@@ -36,7 +36,7 @@ describe('Newsletter admin routes (feature 048)', () => {
         name: 'Contract campaign',
         language: 'en-US',
         subject: 'Hello',
-        content: { root: { props: {} }, content: [{ type: 'EmailText', props: { id: 'b', text: 'Hi' } }], zones: {} },
+        content: { root: { props: {} }, content: [{ type: 'transactional_emails.EmailText', props: { id: 'b', text: 'Hi' } }], zones: {} },
         targetType: 'all',
       },
     });

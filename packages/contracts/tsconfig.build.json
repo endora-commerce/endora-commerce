@@ -21,8 +21,21 @@
     // diagnostic is not a stop — the artefacts are written before the exit code is.
     "noEmitOnError": true
   },
-  // Test files still type-check — they are in `tsconfig.json`'s `include` — but they are
-  // never published. A compiled `*.test.js` under `dist` imports `vitest`, a
-  // devDependency, so it would be an unresolvable specifier in every consumer's install.
-  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+  // Test files are excluded from the emit and from nothing else. A compiled `*.test.js`
+  // under `dist` imports `vitest`, a devDependency, so it would be an unresolvable
+  // specifier in every consumer's install. The exclusion lives here rather than in
+  // `tsconfig.json` for the reason that whole split exists: `tsconfig.json` is the
+  // type-check half, and a test excluded there is a test no `tsc` invocation reads.
+  //
+  // This comment used to assert the opposite — that test files "still type-check, they are
+  // in `tsconfig.json`'s `include`" — and it had never been true: that `include` named
+  // `src` alone, so `test/` was in no type-check program and the guard below was guarding
+  // against something that could not happen.
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+  // `include` is narrowed back to `src` rather than inherited, which is what
+  // `packages/cli` and `packages/test-kit` already do. Inheriting the wider
+  // list works only for as long as `test/` holds nothing but test files: a
+  // helper beside them survives the `exclude` above, lands in the program, and
+  // is TS6059 against the `rootDir` this file declares. Measured.
+  "include": ["src/**/*"]
 }

@@ -2,11 +2,13 @@
  * `@endora-commerce/admin-kit/zones` — the **host's** side of a zone (feature
  * 091, P4a; Z6).
  *
- * Three exports and one rule. `AdminContributionsProvider` is mounted once by
+ * `AdminContributionsProvider` is mounted once by
  * the admin application with its generated registry; `useAdminZone(name, props)`
  * is the primitive — the visible, matched, ordered contributions for one mount;
  * `<AdminZone name props />` is the common case, rendering them all with an
- * error boundary and a `Suspense` each.
+ * error boundary and a `Suspense` each; `<RouteTabsZone name props />` is the
+ * one place a zone is a **tab strip**, where the count decides whether the
+ * strip exists at all (feature 091, P4d).
  *
  * **A separate subpath from `./contributions`, and the split is deliberate.**
  * `./contributions` is the contributor's side and is data-only — a module's
@@ -19,6 +21,8 @@
  */
 export { AdminZone } from './AdminZone.js';
 export type { AdminZoneRenderProps } from './AdminZone.js';
+export { RouteTabsZone } from './RouteTabsZone.js';
+export type { RouteTabsZoneProps } from './RouteTabsZone.js';
 export {
   AdminContributionsProvider,
   AdminContributionsUnavailableError,

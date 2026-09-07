@@ -4,7 +4,7 @@ import {
   DuplicateAdminRouteError,
   registryNavFor,
   registryRoutes,
-} from '../../src/lib/module-registry';
+} from '../../../packages/admin-shell/src/lib/module-registry';
 import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated';
 
 /**
@@ -147,7 +147,7 @@ describe('the committed artefact', () => {
   });
 
   it('declares `/import-export` with the code its own API routes enforce', () => {
-    const route = registryRoutes().find((item) => item.path === '/import-export');
+    const route = registryRoutes(MODULE_ADMIN_CONTRIBUTIONS).find((item) => item.path === '/import-export');
     expect(route, 'no /import-export route in the registry').toBeDefined();
     expect(route!.module).toBe('import_export');
     expect(route!.requiredPermission).toBe('catalog:write');

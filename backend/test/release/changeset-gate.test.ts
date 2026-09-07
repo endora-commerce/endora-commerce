@@ -46,9 +46,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
 const CHANGESET_BIN = join(REPO_ROOT, 'node_modules/.bin/changeset');
 
+// The library packages this file stands a fixture workspace up from. It is a
+// list rather than a derivation because the fixture is a *reduced* workspace —
+// five manifests and two applications, not 78 packages — and the reduction is
+// what keeps `changeset status` measurable here. `api-client` was among them
+// until D-202 deleted the package; the entry outlived it, and every test in
+// this file failed on `ENOENT` for a manifest that is not there. Nothing saw
+// it: this file runs under `vitest.release.config.ts`, which `test:unit:fast`
+// does not read, so the only instrument was the `release:changeset` job.
 const LIBRARIES = [
   'contracts',
-  'api-client',
   'page-builder-core',
   'cms-components',
   'email-components',
@@ -65,6 +72,21 @@ afterEach(() => {
 interface FixtureOptions {
   /** Applied to a copy of the real `.changeset/config.json`. */
   readonly mutateConfig?: (config: Record<string, unknown>) => void;
+  /**
+   * Libraries to mark `"private": true` in the fixture.
+   *
+   * `privatePackages.version` governs **private** packages, so the two
+   * measurements below that need one are only available over a private
+   * package — and since the owner's publication ruling of 2026-09-05 there is
+   * none left in this repository to borrow. The precondition therefore belongs
+   * in the fixture rather than in the tree, which is also the more honest place
+   * for it: those tests measure what changesets does to a private package, and
+   * a fixture that got that state by accident of the day it ran is a test
+   * measuring the calendar. `changeset-flow.test.ts` took this shape in the
+   * publication branch itself; this file was not repaired with it, because
+   * nothing on a merge request runs it.
+   */
+  readonly privateLibraries?: readonly string[];
   /** Extra files, repository-relative. */
   readonly files?: Readonly<Record<string, string>>;
 }
@@ -82,10 +104,11 @@ function fixture(options: FixtureOptions = {}): string {
   write('pnpm-workspace.yaml', readFileSync(join(REPO_ROOT, 'pnpm-workspace.yaml'), 'utf8'));
   write('package.json', '{ "name": "b2b-platform", "version": "0.0.0", "private": true }');
   for (const name of LIBRARIES) {
-    write(
-      `packages/${name}/package.json`,
+    const manifest = JSON.parse(
       readFileSync(join(REPO_ROOT, 'packages', name, 'package.json'), 'utf8'),
-    );
+    ) as Record<string, unknown>;
+    if (options.privateLibraries?.includes(name) === true) manifest['private'] = true;
+    write(`packages/${name}/package.json`, JSON.stringify(manifest, null, 2));
     // The real emit configuration, because `--since` derives what a package
     // publishes from it. Copied rather than invented: the property under test
     // is that these five publish only their own directories today, which is
@@ -183,11 +206,44 @@ describe('`changeset status --since` — the merge-request gate', () => {
 
   /**
    * The failure `check-release-intent` exists for, seen through the gate itself:
-   * the *same* branch that fails above passes with `privatePackages.version` at
-   * the config default, and the output is a cheerful "Packages to be bumped:"
-   * with nothing under it.
+   * a branch that changes a **private** versionable package passes with
+   * `privatePackages.version` at the config default, and the output is a
+   * cheerful "Packages to be bumped:" with nothing under it.
+   *
+   * It used to edit `packages/contracts` and is now `email-components` made
+   * private **by the fixture**: feature 104 published every package in the
+   * tree, and `privatePackages` governs private packages only — which is the
+   * discrimination below, and the reason this pair is worth two tests rather
+   * than one. Borrowing the state from whichever package happened to be
+   * private was what made this case go stale; declaring it here is what stops
+   * it going stale again.
    */
-  it('passes that same branch when `privatePackages.version` is `false`', () => {
+  it('passes a branch changing a private package when `privatePackages.version` is `false`', () => {
+    const dir = fixture({
+      privateLibraries: ['email-components'],
+      mutateConfig: (config) => {
+        config['privatePackages'] = { version: false, tag: false };
+      },
+    });
+    const run = branchWith((root) => {
+      writeFileSync(
+        join(root, 'packages/email-components/src/index.ts'),
+        'export const marker = 2;\n',
+      );
+    }, dir);
+
+    expect(run.status).toBe(0);
+  });
+
+  /**
+   * …and the half that is only true since three packages became public: the
+   * same configuration silences nothing for a package that is not private.
+   * `privatePackages.version` is `getVersionableChangedPackages`' switch for
+   * *private* members alone, so the gate keeps asking for the ones a consumer
+   * can actually install — which is what makes `version-disabled` a rule about
+   * the private remainder rather than about the repository.
+   */
+  it('still fails that branch when the package is public', () => {
     const dir = fixture({
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
@@ -197,7 +253,8 @@ describe('`changeset status --since` — the merge-request gate', () => {
       writeFileSync(join(root, 'packages/contracts/src/index.ts'), 'export const marker = 2;\n');
     }, dir);
 
-    expect(run.status).toBe(0);
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('no changesets were found');
   });
 });
 
@@ -303,11 +360,19 @@ describe('a release branch is the one branch the gate would refuse for doing its
       /^\+\s*"version"\s*:/m,
     );
 
+    // The changeset names a **private** package: `privatePackages.version:
+    // false` is what makes this run vacuous, and it governs private packages
+    // only, so naming a public one would produce a real release rather than the
+    // no-op under test — which is exactly what it did once feature 104 made
+    // `contracts` public, and again once it published `email-components` too.
+    // The fixture declares the privacy rather than borrowing it, so the case
+    // states its own precondition instead of resting on the day's tree.
     const vacuous = fixture({
+      privateLibraries: ['email-components'],
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
-      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+      files: { '.changeset/a.md': changeset('@endora-commerce/email-components', 'minor') },
     });
     initialCommit(vacuous);
     git(vacuous, 'checkout', '-q', '-b', 'release/version');

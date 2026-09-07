@@ -19,7 +19,7 @@ import {
   templateDigest,
   templateDrift,
   withDatabase,
-} from '../../run-isolation.js';
+} from '@endora-commerce/test-kit/database';
 import { TEST_DATABASE_NAME_PATTERN as SEED_GUARD_PATTERN } from '../../../src/seeds/dev-seed-guard.js';
 
 /**
@@ -200,16 +200,21 @@ describe('run-isolation — keeping the run database', () => {
 });
 
 describe('the test-database convention', () => {
-  it('is spelled once, and `global-setup.ts` reads it from here', () => {
+  it('is spelled once, and `global-setup.ts` reads it from the kit', () => {
     // `test/unit/seeds/dev-seed-guard.test.ts` pins the seed guard's copy to
     // this module's. This half pins the harness's: `global-setup.ts` must
     // import the predicate rather than re-spell the regex, which is what it
     // used to do.
+    //
+    // The specifier is the **package's** since feature 109's T022 moved the
+    // mechanism into `@endora-commerce/test-kit/database`. What is being pinned
+    // is unchanged and is not the specifier: it is that there is one spelling of
+    // the judgement and the harness reads it rather than writing a second.
     const globalSetup = readFileSync(
       fileURLToPath(new URL('../../global-setup.ts', import.meta.url)),
       'utf8',
     );
-    expect(globalSetup).toMatch(/from '\.\/run-isolation\.js'/);
+    expect(globalSetup).toMatch(/from '@endora-commerce\/test-kit\/database'/);
     expect(globalSetup).not.toMatch(/\/\(\^\|_\)test\(_\|\$\)\//);
   });
 });

@@ -1,13 +1,21 @@
 {
   "name": "@endora-commerce/mod-prompt-actions",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
   "type": "module",
   "sideEffects": false,
   "description": "Natural-language prompt mode for the admin command palette: interpret an operator instruction with an LLM, preview the plan, execute it through existing module services after explicit confirmation.",
+  "license": "MIT",
   "endora": {
     "type": "module",
     "id": "prompt_actions"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/modules/prompt_actions"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -26,7 +34,8 @@
   },
   "files": [
     "dist",
-    "i18n"
+    "i18n",
+    "docs"
   ],
   "engines": {
     "node": ">=22.17.0"
@@ -44,7 +53,6 @@
     "@mikro-orm/migrations": "^6",
     "@mikro-orm/postgresql": "^6",
     "fastify": "^5",
-    "vitest": "^2",
     "zod": "^4"
   },
   "devDependencies": {

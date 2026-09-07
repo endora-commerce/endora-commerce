@@ -1,4 +1,8 @@
 {
+  "nav.organizations.label": "Organizations",
+  "actions.openOrganizations.label": "Organizations",
+  "actions.openOrganizations.description": "Customer accounts",
+
   "errors.CANNOT_REVOKE_LAST_ADMIN_INVITE": "This is the last pending administrator invitation and the organization has no active administrator, so it cannot be revoked. Send another administrator invitation first.",
   "errors.EMAIL_ALREADY_IN_ORGANIZATION": "That email address is already in your organization, either as a member or as a pending invitation.",
   "errors.EMAIL_BELONGS_TO_ANOTHER_ORGANIZATION": "That email address belongs to a member of another organization, so it cannot be invited here.",

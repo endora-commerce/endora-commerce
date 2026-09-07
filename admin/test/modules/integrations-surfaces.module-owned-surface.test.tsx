@@ -7,6 +7,7 @@ import type { RenderResult } from '@testing-library/react';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
+import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
 
 /**
  * One of the admin's own source files, read as text.
@@ -53,27 +54,27 @@ let permissions = new Set<string>(['integrations:manage']);
 
 
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/lib/admin-actions/AdminActionsProvider', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/AdminActionsProvider', () => ({
   AdminActionsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/components/IdleLogout', () => ({
+vi.mock('../../../packages/admin-shell/src/components/IdleLogout', () => ({
   IdleLogout: () => null,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -104,9 +105,11 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 /**
- * `App.tsx` imports every host screen statically, and one of them (`cms`' Puck
- * editor) reaches `@dnd-kit/dom`, which constructs a `ResizeObserver` at module
- * scope. jsdom has none. The stub is a module-load accommodation and nothing
+ * `@dnd-kit/dom` constructs a `ResizeObserver` at module scope, and jsdom has
+ * none. This read *"`App.tsx` imports every host screen statically, and one of
+ * them (`cms`' Puck editor)"* until feature 091's batch 16 moved that editor
+ * into `@endora-commerce/mod-cms`; the stub stays because a lazily loaded
+ * screen reaches the same constructor, and only the reason changed. The stub is a module-load accommodation and nothing
  * this file asserts touches it.
  */
 globalThis.ResizeObserver ??= class {
@@ -115,7 +118,7 @@ globalThis.ResizeObserver ??= class {
   disconnect(): void {}
 } as unknown as typeof ResizeObserver;
 
-const { App } = await import('../../src/App');
+const { App } = await import('../../../packages/admin-shell/src/App');
 
 const bundle = {
   ...passthroughBundle('core', [
@@ -138,7 +141,7 @@ function renderAt(path: string): RenderResult {
   return renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={[path]}>
-        <App modulePresence={modulePresence({ present: [...presentModules] })} />
+        <App contributions={MODULE_ADMIN_CONTRIBUTIONS} modulePresence={modulePresence({ present: [...presentModules] })} />
       </MemoryRouter>,
       { session: adminSession({ permissions: [...permissions] }) },
     ),
@@ -262,9 +265,17 @@ describe('api_keys and webhooks own their admin surfaces', () => {
     renderAt('/');
     const hrefs = sidebarHrefs();
     expect(hrefs.indexOf('/api-keys')).toBeLessThan(hrefs.indexOf('/webhooks'));
-    // `/credentials` is a host row that used to follow both. It precedes them
-    // now; that is the change, and it closes when *System* empties.
-    expect(hrefs.indexOf('/credentials')).toBeLessThan(hrefs.indexOf('/api-keys'));
+    // **`/credentials` closed in batch 10**, and this is where that is recorded
+    // because it is where it was recorded as a regression. The sentence here
+    // said the change closes when *System* empties; it did not have to empty.
+    // `/credentials` was a host row that used to follow both and preceded them
+    // after this batch; it is `@endora-commerce/mod-credentials`' own
+    // declaration now at weight 900, so the weights order it against these two
+    // and the hand-written position comes back.
+    expect(hrefs.indexOf('/api-keys')).toBeLessThan(hrefs.indexOf('/credentials'));
+    // The residue, asserted so a later batch that weights the host rows has
+    // something that goes red: `/platform/modules` still leads the section.
+    expect(hrefs.indexOf('/platform/modules')).toBeLessThan(hrefs.indexOf('/api-keys'));
   });
 });
 
@@ -275,8 +286,8 @@ describe('the shell no longer names api_keys or webhooks by hand', () => {
     // edited; neither declares either screen now, and both screens are still
     // there. Leaving one standing would declare it twice, with `react-router`
     // silently taking the first match.
-    const app = sourceOf('src/App.tsx');
-    const shell = sourceOf('src/components/AppShell.tsx');
+    const app = sourceOf('../packages/admin-shell/src/App.tsx');
+    const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
     expect(app).not.toContain('<ApiKeysPage');
     expect(app).not.toContain('<WebhooksPage');
     expect(app).not.toContain('modules/api_keys');
@@ -295,7 +306,7 @@ describe('the shell no longer names api_keys or webhooks by hand', () => {
     // `PALETTE_ITEMS`: that one would keep advertising the screen after an
     // operator switched the module off, because nothing on the server would
     // have been asked.
-    const shell = sourceOf('src/components/AppShell.tsx');
+    const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
     expect(shell).not.toContain("'/api-keys'");
     expect(shell).not.toContain("'/webhooks'");
   });

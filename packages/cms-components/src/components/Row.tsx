@@ -107,7 +107,7 @@ function slotContentItems(value: unknown): Array<{ type: string; props: Record<s
 }
 
 function rowHasNestedContent(content: unknown): boolean {
-  const columns = slotContentItems(content).filter((item) => item.type === 'Column');
+  const columns = slotContentItems(content).filter((item) => item.type === 'cms.Column');
   if (columns.length === 0) return false;
   return columns.some((column) => slotContentItems(column.props.content).length > 0);
 }
@@ -309,7 +309,7 @@ const RowPublishedRender: PuckComponent<RowProps> = (props) => {
 const ROW_FIELDS = {
   content: {
     type: 'slot' as const,
-    allow: ['Column'],
+    allow: ['cms.Column'],
   },
   sectionLayout: {
     type: 'select' as const,
@@ -400,12 +400,12 @@ function migrateRowContent(props: RowProps): RowProps['content'] {
   const existing = slotContentItems(props.content);
 
   if (existing.length > 0) {
-    if (existing.every((item) => item.type === 'Column')) {
+    if (existing.every((item) => item.type === 'cms.Column')) {
       return props.content;
     }
     return [
       {
-        type: 'Column' as const,
+        type: 'cms.Column' as const,
         props: {
           id: `col-legacy-${crypto.randomUUID()}`,
           span: 12,
@@ -419,7 +419,7 @@ function migrateRowContent(props: RowProps): RowProps['content'] {
   const legacyItems = props.columnItems ?? [];
   if (legacyItems.length > 0) {
     return legacyItems.map((item, index) => ({
-      type: 'Column' as const,
+      type: 'cms.Column' as const,
       props: {
         id: `col-migrated-${index}`,
         span: item.span ?? 12,

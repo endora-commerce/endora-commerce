@@ -295,6 +295,41 @@ export const manifest = defineModuleManifest({
     { code: 'customers:manage', label: 'Manage customer organizations' },
   ],
   settings,
+  /**
+   * The module's landing surface in the command palette (Principle XVI) — its
+   * first action, declared by feature 091's Phase 4 batch 14.
+   *
+   * `AppShell.tsx` carried a hand-written *Navigate* row for `/organizations`
+   * until that batch. A hand-written palette row is a copy the server was never
+   * asked about, so it went on advertising the screen whatever the effective
+   * enabled-set said; a manifest action is the one surface that set filters.
+   * The destination and the keywords are the row's, and the label and
+   * description are the two strings it rendered
+   * (`appShell.nav.organizations`, `appShell.palette.sub.customerAccounts`),
+   * moved into this module's own bundle.
+   *
+   * **`customers:read` and not the row's any-of pair.**
+   * `ModuleActionSchema.requiredPermission` is a single string, and either code
+   * alone opens `/organizations` — the gate is
+   * `requireAdminAny(['customers:read', 'customers:manage'])`, which is the
+   * sufficiency `check:action-route-permissions` reads. The narrowing is real
+   * for a role holding only `customers:manage` and is recorded where the row
+   * used to stand; the sidebar entry keeps the pair, because
+   * `AdminNavDeclaration.requiredPermission` takes the whole
+   * `PermissionRequirement`.
+   */
+  actions: [
+    {
+      id: 'open-organizations',
+      labelKey: 'actions.openOrganizations.label',
+      descriptionKey: 'actions.openOrganizations.description',
+      icon: 'Building2',
+      targetRoute: '/organizations',
+      requiredPermission: 'customers:read',
+      keywords: ['org', 'orgs', 'customer', 'organization', 'organizacja', 'klient'],
+      weight: 220,
+    },
+  ],
   // Feature 047 — admin-editable transactional emails owned by this module.
   transactionalEmails: [
     {
@@ -329,6 +364,28 @@ export const manifest = defineModuleManifest({
         { key: 'linkPath', label: 'Admin link', sampleValue: '/organizations/…' },
       ],
     },
+    // The two moderation outcomes a buyer is told about. Both reached the
+    // transport as hard-coded Polish prose with no code and no language until
+    // the seam-B carve-out in `specs/093-backend-delivered-prose/`; declaring
+    // them here is what gives them a language at all, and an operator a place
+    // to edit them.
+    {
+      code: 'organization_approved',
+      name: 'Organization verified (customer)',
+      group: 'organizations',
+      variables: [
+        { key: 'organizationName', label: 'Organization name', sampleValue: 'Acme Sp. z o.o.' },
+      ],
+    },
+    {
+      code: 'organization_rejected',
+      name: 'Organization registration rejected (customer)',
+      group: 'organizations',
+      variables: [
+        { key: 'organizationName', label: 'Organization name', sampleValue: 'Acme Sp. z o.o.' },
+        { key: 'reason', label: 'Rejection reason', sampleValue: 'Tax ID could not be verified.' },
+      ],
+    },
   ],
   /**
    * This module's first i18n bundle — D-129's remaining sweep, MR 7.
@@ -344,6 +401,7 @@ export const manifest = defineModuleManifest({
    * and skips it — silently.
    */
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   /**
    * The eight codes whose noun is an organization — D-129's remaining sweep,
    * **Tier C** (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2,

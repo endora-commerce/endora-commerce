@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
   "baseBranch": "master",
-  "access": "restricted",
+  "access": "public",
   "format": "auto",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
@@ -16,7 +16,8 @@
     [
       "@endora-commerce/page-builder-core",
       "@endora-commerce/cms-components",
-      "@endora-commerce/email-components"
+      "@endora-commerce/email-components",
+      "@endora-commerce/page-builder-admin"
     ]
   ],
   "updateInternalDependencies": "patch",

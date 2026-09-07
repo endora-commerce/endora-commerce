@@ -154,6 +154,7 @@ export const manifest = defineModuleManifest({
   ],
   settings: invoicesSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   // Feature 047 — admin-editable transactional email owned by this module.
   transactionalEmails: [
     {
@@ -265,4 +266,114 @@ export const manifest = defineModuleManifest({
     },
   ],
   activation: { settingCode: 'invoices.enabled', default: true },
+  /**
+   * The 10 invoice-template blocks this module owns, and the Invoice sections
+   * section they populate (feature 096, §7.3 and §2.1).
+   *
+   * The eleventh block in that palette, `InvoiceKsef`, is **`ksef`'s** —
+   * `ksef.InvoiceSection`, by the owner ruling of 2026-09-02 — which is why
+   * weight 70 is left unused here.
+   *
+   * The category declaration carries a **`weight`** deliberately. `ksef`
+   * declares the same section, joining it with no `weight` and no `visible`, so
+   * under `contracts/block-definition.md` §1.1's total order this declaration
+   * wins on weight and names the section. Leaving the weight off would put the
+   * pair on the module-id tie-break, which happens to give the same answer
+   * today and gives it for no stated reason.
+   */
+  blocks: [
+    {
+      name: 'invoices.InvoiceHeader',
+      labelKey: 'blocks.invoiceHeader.label',
+      descriptionKey: 'blocks.invoiceHeader.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 10,
+    },
+    {
+      name: 'invoices.InvoiceParties',
+      labelKey: 'blocks.invoiceParties.label',
+      descriptionKey: 'blocks.invoiceParties.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 20,
+    },
+    {
+      name: 'invoices.InvoiceLineItems',
+      labelKey: 'blocks.invoiceLineItems.label',
+      descriptionKey: 'blocks.invoiceLineItems.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 30,
+    },
+    {
+      name: 'invoices.InvoiceVatSummary',
+      labelKey: 'blocks.invoiceVatSummary.label',
+      descriptionKey: 'blocks.invoiceVatSummary.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 40,
+    },
+    {
+      name: 'invoices.InvoiceTotals',
+      labelKey: 'blocks.invoiceTotals.label',
+      descriptionKey: 'blocks.invoiceTotals.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 50,
+    },
+    {
+      name: 'invoices.InvoiceNotes',
+      labelKey: 'blocks.invoiceNotes.label',
+      descriptionKey: 'blocks.invoiceNotes.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 60,
+    },
+    {
+      name: 'invoices.InvoiceSpacer',
+      labelKey: 'blocks.invoiceSpacer.label',
+      descriptionKey: 'blocks.invoiceSpacer.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 80,
+    },
+    {
+      name: 'invoices.InvoiceDivider',
+      labelKey: 'blocks.invoiceDivider.label',
+      descriptionKey: 'blocks.invoiceDivider.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 90,
+    },
+    {
+      name: 'invoices.InvoiceLogo',
+      labelKey: 'blocks.invoiceLogo.label',
+      descriptionKey: 'blocks.invoiceLogo.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 100,
+    },
+    {
+      name: 'invoices.InvoiceFooter',
+      labelKey: 'blocks.invoiceFooter.label',
+      descriptionKey: 'blocks.invoiceFooter.description',
+      category: 'invoice',
+      contexts: ['invoice'],
+      fields: {},
+      weight: 110,
+    },
+  ],
+  blockCategories: [
+    { key: 'invoice', titleKey: 'blocks.category.invoice', contexts: ['invoice'], weight: 10 },
+  ],
 });

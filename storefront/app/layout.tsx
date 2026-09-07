@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Viewport } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { MobileTabBar } from '../components/mobile/MobileTabBar';
@@ -10,11 +10,13 @@ import { InstallPrompt } from '../components/pwa/InstallPrompt';
 import { PushOptIn } from '../components/pwa/PushOptIn';
 import { SpeculationRules } from '../components/SpeculationRules';
 import { RouteTransition } from '../components/RouteTransition';
+import { NavigationFeedback } from '../components/NavigationFeedback';
 import { CartMergeToast } from '../components/CartMergeToast';
 import { CheckoutHeader } from '../components/checkout/CheckoutHeader';
 import { HeaderSwitch } from '../components/HeaderSwitch';
 import { getActiveMegamenu } from '../lib/api/megamenu';
 import { getServerContext } from '../lib/server-context';
+import { siteUrl } from '../lib/seo/site-url';
 import { StorefrontDocument } from '../lib/theme/StorefrontDocument';
 import { fetchDictionary } from '../lib/dictionary/client';
 import { DictionaryProvider } from '../lib/dictionary/DictionaryProvider';
@@ -34,9 +36,32 @@ import { AnalyticsProvider } from '../components/analytics/AnalyticsProvider';
 import { ConsentBanner } from '../components/analytics/ConsentBanner';
 import { CookieConsentMessage } from '../components/analytics/CookieConsentMessage';
 import { getAnonCartCookie, getSessionCookie } from '../lib/session';
+import { headers } from 'next/headers';
+import { DEFAULT_STOREFRONT_THEME_CODE } from '../lib/theme/instance-themes';
+import { UNAVAILABLE_HEADER } from '../lib/service-unavailable';
+import { outageLocale } from './service-unavailable/page';
 import './globals.css';
+import { publicApiBaseUrl } from '../lib/env.mjs';
 
-export const metadata = {
+/**
+ * Did the reachability gate rewrite this request to the unavailable notice?
+ *
+ * A request header rather than the pathname: the rewrite deliberately leaves
+ * the buyer's own URL in place, so `x-pathname` still names the page they asked
+ * for and there is nothing in the path to branch on.
+ */
+async function isUnreachableBackendRender(): Promise<boolean> {
+  return (await headers()).get(UNAVAILABLE_HEADER) === '1';
+}
+
+/**
+ * `metadataBase` is what makes every route's `alternates.canonical` a **path**
+ * (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-012). The deployment's origin
+ * is declared once, here; a route that spelled its own absolute URL would go on
+ * naming the old origin after a move, with nothing to notice.
+ */
+export const metadata: Metadata = {
+  metadataBase: siteUrl(),
   title: 'B2B Platform',
   description:
     'A B2B commerce platform supporting Quote Requests and direct purchase for business customers.',
@@ -74,6 +99,31 @@ export default async function RootLayout({
 }: {
   children: ReactNode;
 }): Promise<ReactNode> {
+  // The reachability gate in `middleware.ts` rewrote this request to the
+  // service-unavailable notice because the backend cannot be reached. Every
+  // read below would fail — `getServerContext()` first, on `getI18nConfig()`,
+  // which is the throw this whole feature exists to replace — so the layout
+  // returns the document shell and nothing else.
+  //
+  // It is not only a necessity. The header's megamenu, cart badge and user pill
+  // have no data during an outage, and the footer's links point at pages that
+  // are equally unreachable; chrome rendered from defaults would be chrome that
+  // lies. See `app/service-unavailable/page.tsx`.
+  if (await isUnreachableBackendRender()) {
+    return (
+      <StorefrontDocument
+        lang={await outageLocale()}
+        theme={{ code: DEFAULT_STOREFRONT_THEME_CODE, unknownRequest: null }}
+      >
+        <div className="flex min-h-screen flex-col bg-bg">
+          <main id="main-content" tabIndex={-1} className="flex-1">
+            {children}
+          </main>
+        </div>
+      </StorefrontDocument>
+    );
+  }
+
   const { config, locale, currency, ctx, theme } = await getServerContext();
   const t = tForLocale(locale);
   // Handed to the <MobileTabBar> client component, which fetches the mini-cart
@@ -81,8 +131,7 @@ export default async function RootLayout({
   // `NEXT_PUBLIC_API_BASE_URL` — never the server-only `BACKEND_BASE_URL`
   // (internal `http://backend:3001`) that triggers a Mixed Content block over
   // HTTPS.
-  const apiBaseUrl =
-    process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001';
+  const apiBaseUrl = publicApiBaseUrl();
   // Feature 036 US5 — checkout uses a minimal, logo-only header. The full vs
   // minimal switch is decided per-route by the <HeaderSwitch> client component
   // (`usePathname`), because this Server-Component layout is NOT re-run on
@@ -132,6 +181,11 @@ export default async function RootLayout({
     // crawlers, the theme because the channel's token set has to be in the
     // first byte of HTML or the buyer sees the reference brand and then the
     // channel's (feature 005-sales-channels).
+    //
+    // `theme` is the whole decision, not the code alone: the document also
+    // carries `data-theme-requested` when the channel named a theme this
+    // storefront does not have, and deriving that inside the component is what
+    // stops a caller from forgetting it (feature 102).
     <StorefrontDocument lang={locale} theme={theme}>
       <DictionaryProvider
         initialDictionary={dictionary}
@@ -139,6 +193,27 @@ export default async function RootLayout({
         channel={ctx.salesChannelCode}
       >
         <div className="flex min-h-screen flex-col bg-bg">
+          {/* Bypass Blocks (WCAG 2.4.1). The first tab stop on every page,
+              visible only while focused, so a keyboard reader is not made to
+              traverse the header and the megamenu on every navigation. It is
+              the first child of the layout deliberately: the tab order is the
+              document order, and a skip link that is not first skips nothing.
+              `conformance:storefront` asserts both halves — that it is there,
+              and that one Tab reaches it. */}
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-[16px] focus:top-[16px] focus:z-50 focus:rounded-[4px] focus:bg-bg focus:px-[16px] focus:py-[10px] focus:text-fg focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {t('a11y.skipToContent')}
+          </a>
+          {/* Client-side navigation feedback. It replaces the route-level
+              `loading.tsx` skeleton and adds no Suspense boundary, so every
+              page keeps setting its own response status. Silent below 200 ms;
+              see the component for the timings and their reasons. */}
+          <NavigationFeedback
+            label={t('a11y.navigating')}
+            slowLabel={t('a11y.navigatingSlow')}
+          />
           <HeaderSwitch
             minimal={<CheckoutHeader />}
             full={
@@ -159,7 +234,7 @@ export default async function RootLayout({
               </>
             }
           />
-          <main className="flex-1">
+          <main id="main-content" tabIndex={-1} className="flex-1">
             {/* Feature 037 — post-login cart-merge confirmation. The
                 component reads-and-clears its own flash cookie, so it
                 renders to `null` on every page except the one that

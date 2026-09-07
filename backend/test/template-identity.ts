@@ -34,7 +34,7 @@ import { MIGRATION_FILE_RE } from '../scripts/new-migration.js';
 import { discoverModulePackages } from '../scripts/lib/module-packages.js';
 import type { RegisteredMigration } from '../src/db/configured-migrations.js';
 import type { MigrationOrigin } from '../src/db/migration-order.js';
-import { templateDigest, type TemplateInputs, type TemplateSource } from './run-isolation.js';
+import { templateDigest, type TemplateInputs, type TemplateSource } from '@endora-commerce/test-kit/database';
 
 /** `backend/`, the root every recorded path is relative to. */
 const BACKEND_ROOT = fileURLToPath(new URL('..', import.meta.url));

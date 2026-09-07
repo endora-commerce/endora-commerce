@@ -213,43 +213,43 @@ export const EMAIL_ORDER_BLOCK_MARGIN_DEFAULT = 12;
  * Palette-gated via {@link EMAIL_COMPONENT_REQUIRED_VARIABLES}.
  */
 export const EMAIL_ORDER_LABELED_FIELDS = {
-  EmailOrderId: {
+  'orders.EmailOrderId': {
     label: 'Order ID',
     defaultTitle: 'Order',
     varKey: 'order.businessId',
     previewHint: 'ORD-1042',
   },
-  EmailBillingAddress: {
+  'orders.EmailBillingAddress': {
     label: 'Billing address',
     defaultTitle: 'Billing address',
     varKey: 'order.billingAddressText',
     previewHint: 'Acme Sp. z o.o.\nul. Główna 1',
   },
-  EmailShippingAddress: {
+  'orders.EmailShippingAddress': {
     label: 'Shipping address',
     defaultTitle: 'Shipping address',
     varKey: 'order.shippingAddressText',
     previewHint: 'Anna Nowak\nul. Główna 1',
   },
-  EmailOrderTotals: {
+  'orders.EmailOrderTotals': {
     label: 'Summary',
     defaultTitle: 'Summary',
     varKey: 'order.summaryText',
     previewHint: 'Suma częściowa: …\nVAT: …\nRazem: …',
   },
-  EmailAppliedDiscounts: {
+  'orders.EmailAppliedDiscounts': {
     label: 'Applied discounts',
     defaultTitle: 'Applied discounts',
     varKey: 'order.discountsText',
     previewHint: 'SUMMER10: -50,00 PLN',
   },
-  EmailDeliveryMethod: {
+  'orders.EmailDeliveryMethod': {
     label: 'Delivery method',
     defaultTitle: 'Delivery method',
     varKey: 'order.shippingLine',
     previewHint: 'Courier — 15,00 PLN',
   },
-  EmailPaymentMethod: {
+  'orders.EmailPaymentMethod': {
     label: 'Payment method',
     defaultTitle: 'Payment method',
     varKey: 'order.paymentLine',
@@ -305,33 +305,33 @@ export interface EmailFooterLegalProps {
  * understands. Used by the admin palette and by backend save-time validation.
  */
 export const EMAIL_SAFE_COMPONENT_NAMES = [
-  'EmailHeading',
-  'EmailText',
-  'EmailButton',
-  'EmailImage',
-  'EmailDivider',
-  'EmailSpacer',
-  'EmailTable',
-  'EmailInsertBlock',
-  'EmailSection',
-  'EmailRow',
-  'EmailColumn',
-  'EmailLogo',
-  'EmailRichText',
-  'EmailProductCard',
-  'EmailProductGrid',
-  'EmailCategoryGrid',
-  'EmailOrderSummary',
-  'EmailOrderId',
-  'EmailBillingAddress',
-  'EmailShippingAddress',
-  'EmailOrderTotals',
-  'EmailAppliedDiscounts',
-  'EmailDeliveryMethod',
-  'EmailPaymentMethod',
-  'EmailSocial',
-  'EmailCallout',
-  'EmailFooterLegal',
+  'transactional_emails.EmailHeading',
+  'transactional_emails.EmailText',
+  'transactional_emails.EmailButton',
+  'transactional_emails.EmailImage',
+  'transactional_emails.EmailDivider',
+  'transactional_emails.EmailSpacer',
+  'transactional_emails.EmailTable',
+  'transactional_emails.EmailInsertBlock',
+  'transactional_emails.EmailSection',
+  'transactional_emails.EmailRow',
+  'transactional_emails.EmailColumn',
+  'transactional_emails.EmailLogo',
+  'transactional_emails.EmailRichText',
+  'catalog.EmailProductCard',
+  'catalog.EmailProductGrid',
+  'catalog.EmailCategoryGrid',
+  'orders.EmailOrderSummary',
+  'orders.EmailOrderId',
+  'orders.EmailBillingAddress',
+  'orders.EmailShippingAddress',
+  'orders.EmailOrderTotals',
+  'orders.EmailAppliedDiscounts',
+  'orders.EmailDeliveryMethod',
+  'orders.EmailPaymentMethod',
+  'transactional_emails.EmailSocial',
+  'transactional_emails.EmailCallout',
+  'transactional_emails.EmailFooterLegal',
 ] as const;
 
 /**
@@ -339,14 +339,14 @@ export const EMAIL_SAFE_COMPONENT_NAMES = [
  * Used by the admin editor to hide commerce blocks outside their owning templates.
  */
 export const EMAIL_COMPONENT_REQUIRED_VARIABLES: Readonly<Record<string, readonly string[]>> = {
-  EmailOrderSummary: ['order.items'],
-  EmailOrderId: ['order.businessId'],
-  EmailBillingAddress: ['order.billingAddressText'],
-  EmailShippingAddress: ['order.shippingAddressText'],
-  EmailOrderTotals: ['order.summaryText'],
-  EmailAppliedDiscounts: ['order.discountsText'],
-  EmailDeliveryMethod: ['order.shippingLine'],
-  EmailPaymentMethod: ['order.paymentLine'],
+  'orders.EmailOrderSummary': ['order.items'],
+  'orders.EmailOrderId': ['order.businessId'],
+  'orders.EmailBillingAddress': ['order.billingAddressText'],
+  'orders.EmailShippingAddress': ['order.shippingAddressText'],
+  'orders.EmailOrderTotals': ['order.summaryText'],
+  'orders.EmailAppliedDiscounts': ['order.discountsText'],
+  'orders.EmailDeliveryMethod': ['order.shippingLine'],
+  'orders.EmailPaymentMethod': ['order.paymentLine'],
 };
 
 export type EmailComponentName = (typeof EMAIL_SAFE_COMPONENT_NAMES)[number];

@@ -191,6 +191,7 @@ export const manifest = defineModuleManifest({
     { code: 'ASSET_UPLOAD_TYPE_NOT_ALLOWED' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: 'assets.read', label: 'Browse assets library' },
     { code: 'assets.write', label: 'Upload and manage assets' },

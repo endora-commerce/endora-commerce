@@ -268,16 +268,30 @@ describe('bareKitSubpath', () => {
   });
 });
 
-describe('check:admin-surface — the seven vacuous refusals', () => {
-  const ok = {
-    adminResolved: true,
-    kitFound: true,
-    implementationSubpaths: 4,
-    barrelsRead: 4,
-    barrelWithStar: null,
-    walkedFiles: 300,
-    shims: 53,
-  };
+/**
+ * A run that read every input `vacuousReason` asks about, **in the terminal
+ * state** (feature 091, Phase 5; `admin-kit-surface.md` §7.4 R18).
+ *
+ * The application half is `0` and the package half carries the walk, which is
+ * what this repository is: every module's admin surfaces live in that module's
+ * package, and `admin/src/modules/` holds four directories none of which is a
+ * registered module id.
+ */
+const VACUOUS_INPUT = {
+  adminResolved: true,
+  adminRefusal: null as string | null,
+  kitFound: true,
+  implementationSubpaths: 4,
+  barrelsRead: 4,
+  barrelWithStar: null as string | null,
+  walkedFiles: 373,
+  applicationFiles: 0,
+  registryLayers: 54 as number | null,
+  shims: 53,
+};
+
+describe('check:admin-surface — the vacuous refusals', () => {
+  const ok = VACUOUS_INPUT;
 
   it('reports no reason for a run that read everything', () => {
     expect(vacuousReason(ok)).toBeNull();
@@ -290,16 +304,110 @@ describe('check:admin-surface — the seven vacuous refusals', () => {
     ['a barrel that could not be read', { barrelsRead: 3 }],
     ['a barrel holding an `export *`', { barrelWithStar: 'ui' }],
     ['a walk that opened no module file', { walkedFiles: 0 }],
-    ['a tree with no shim at all', { shims: 0 }],
+    ['a registry on disk that names no module package', { registryLayers: 0 }],
+    ['a tree with an application half and no shim at all', { applicationFiles: 3, shims: 0 }],
   ])('refuses %s', (_label, override) => {
     expect(vacuousReason({ ...ok, ...override })).not.toBeNull();
+  });
+
+  it('prints the layout\'s own refusal rather than a guess of its own', () => {
+    // R17. The sentence used to be written here and said *"no workspace member
+    // declares the admin source alias"*; measured on the merge of batches 15
+    // and 16 the alias was declared and the cause was the module root, so a
+    // correct file was sent for repair.
+    const reason = vacuousReason({
+      ...ok,
+      adminResolved: false,
+      adminRefusal: 'admin has no App.tsx under /w/admin/src',
+    });
+    expect(reason).toBe('admin has no App.tsx under /w/admin/src');
+  });
+
+  it('words itself only for a workspace with no admin application at all', () => {
+    // The `??` branch, and the only case R17 leaves to the caller.
+    expect(vacuousReason({ ...ok, adminResolved: false, adminRefusal: null })).toContain(
+      'no admin application',
+    );
+  });
+
+  it('does not refuse a shimless tree whose application half is empty', () => {
+    // The other half of R18(6), and it is the claim the terminal state rests
+    // on: with no module surface directory left, no packaged file can reach a
+    // shim by any specifier shape — a bare one resolves `external`, a relative
+    // one from `packages/modules/**` never lands under `admin/src`, and a `@/`
+    // one is recorded as `aliased-reach` before `resolveAdmin` is consulted.
+    // The shim set has no reader, so a refusal over it has no subject.
+    expect(vacuousReason({ ...ok, applicationFiles: 0, shims: 0 })).toBeNull();
+    // And it is still live for as long as one surface directory remains.
+    expect(vacuousReason({ ...ok, applicationFiles: 1, shims: 0 })).not.toBeNull();
+  });
+
+  it('says nothing about a checkout with no generated registry', () => {
+    // `null` and `0` are different answers: a checkout that never ran
+    // `composer:generate` has no expectation to be short of, and the token is
+    // omitted rather than printed `0/0`.
+    expect(vacuousReason({ ...ok, registryLayers: null })).toBeNull();
+  });
+});
+
+/**
+ * The ledger emptied in feature 091's P4d, and an emptied two-way ledger is a
+ * state to prove rather than to assume.
+ *
+ * This block asserted `keys.length > 0` until then — the honest assertion while
+ * the ledger held debt, and one that would have gone red on the merge request
+ * whose whole point was to drain it. What replaces it is the property that
+ * actually matters: with **no** entries at all, the check still refuses an
+ * unledgered reach, still reports it under the same key, and still does not
+ * treat the empty ledger as a reason to stop looking. The population is the
+ * walk; `vacuousReason` refuses an empty *walk*, an unreadable barrel and a
+ * tree with no shim, and holds no opinion about the ledger's size.
+ */
+describe('check:admin-surface — an empty ledger is not a vacuous pass', () => {
+  it('still refuses an unledgered reach when the ledger holds nothing', () => {
+    const result = checkAdminSurface(
+      input({ sites: [site({ specifier: '@/components/organization-picker' })] }),
+      {},
+    );
+    expect(result.ledgered).toEqual([]);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.kind).toBe('unpublished-symbol');
+    expect(result.findings[0]?.key).toBe(
+      reachKey(
+        'admin/src/modules/orders/OrdersList.tsx',
+        'admin/src/components/organization-picker.tsx',
+      ),
+    );
+  });
+
+  it('has nothing to report stale, rather than skipping the stale sweep', () => {
+    // The stale direction is vacuous with no keys, not absent: the first entry
+    // added brings its own stale check with it, which the block above proves
+    // over a one-entry ledger.
+    const result = checkAdminSurface(input({ sites: [site()] }), {});
+    expect(result.stale).toEqual([]);
+    expect(result.staleSymbols).toEqual([]);
+  });
+
+  it('refuses a run for a reason that is never the ledger', () => {
+    // Every input `vacuousReason` names is something the run *read*. An empty
+    // ledger is not one of them, and a check that refused on one could never
+    // reach zero debt.
+    expect(vacuousReason(VACUOUS_INPUT)).toBeNull();
+    expect(vacuousReason({ ...VACUOUS_INPUT, walkedFiles: 0 })).toContain('vacuous pass');
+    expect(
+      vacuousReason({ ...VACUOUS_INPUT, applicationFiles: 3, shims: 0 }),
+    ).toContain('not wired');
   });
 });
 
 describe('the ledger this repository ships', () => {
-  it('is not empty, and every key is `<file>::<target>` in one namespace', () => {
+  it('is empty, and every key it ever holds is `<file>::<target>` in one namespace', () => {
     const keys = Object.keys(UNPUBLISHED_ADMIN_REACHES);
-    expect(keys.length).toBeGreaterThan(0);
+    // P4d drained the last two. The grammar below is kept for the entry
+    // somebody adds next: an entry written in a shape the check cannot match
+    // is caught here rather than as a stale entry six merges later.
+    expect(keys).toEqual([]);
     for (const key of keys) {
       const parts = key.split('::');
       expect(parts).toHaveLength(2);

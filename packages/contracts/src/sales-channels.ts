@@ -275,54 +275,31 @@ export const PublicSalesChannelResponseSchema = z.object({
 export type PublicSalesChannelResponse = z.infer<typeof PublicSalesChannelResponseSchema>;
 
 /**
- * The storefront themes that actually exist.
+ * **The platform no longer holds a list of storefront themes** — owner ruling
+ * D-199, implemented by `specs/102-storefront-theme-discovery/`.
  *
- * `theme_code` shipped on 2026-04-30 and, until this list existed, nothing
- * read it: the admin rendered a free-text input because there was no list to
- * render, and the storefront never picked the field up at all. A field an
- * operator edits that changes nothing is worse than a missing field — so the
- * catalogue is declared here, where both the admin (which offers it) and the
- * reference storefront (which implements it) name the same values.
+ * `STOREFRONT_THEME_CODES`, `StorefrontThemeCodeSchema`, `StorefrontThemeCode`,
+ * `DEFAULT_STOREFRONT_THEME_CODE` and `isStorefrontThemeCode` used to live here
+ * and are gone. A theme is a token set a **third party** may publish as an
+ * ordinary npm package, so no set this repository can compile is the whole set:
+ * the answer belongs to the storefront instance that has the packages
+ * installed, and it is generated in that instance's own tree
+ * (`storefront/lib/theme/`).
  *
- * **A code in this list is a token set in `storefront/app/globals.css`** — a
- * `:root[data-theme='<code>']` block overriding the Tier-1 primitives that the
- * `@theme inline` tier maps every Tailwind utility onto.
- * `storefront/test/channel-theme.test.tsx` fails when a code here has no such
- * block, so the list cannot come to offer a value nothing implements.
+ * The **write** schemas above are unchanged and must stay so. They have never
+ * used the enum: `themeCodeRe` is the whole validation, and a backend that
+ * refused a code it has never heard of would make the field unusable for
+ * exactly the deployments it exists for. `PublicSalesChannelSchema.themeCode`
+ * is likewise unchanged — the wire shape gains and loses nothing.
  *
- * **It is the *reference* storefront's catalogue, and that is a real limit.**
- * A deployment that forks `storefront/` and ships its own token sets cannot
- * extend this list without editing the platform, so its themes are unofferable
- * in the admin today. That is a consequence of the storefront not being a
- * package with an `exports` map — measured in
- * `specs/storefront-composability-measure.md` — and it is recorded rather than
- * worked around, because the workaround is the free-text input this list
- * replaces.
- *
- * The **write** schemas above deliberately stay on the `themeCodeRe` regex
- * rather than on this enum. `specs/005-sales-channels/data-model.md` ruled theme
- * rendering "owned by the storefront app", and a fork owns its own codes; a
- * backend that refused them would make the field unusable for exactly the
- * deployments a fork exists for. The storefront is where an unknown code is
- * answered — see `storefront/lib/theme/theme.ts`.
+ * What an unknown code does is the storefront's answer and is unchanged too:
+ * it renders the instance's default rather than blank, reports the code once
+ * per process, marks the document with `data-theme-requested`, never writes the
+ * value back and never guesses at a near match. See
+ * `specs/102-storefront-theme-discovery/contracts/theme-package.md` for what a
+ * theme author ships, and `contracts/instance-theme-registry.md` for how an
+ * instance discovers its own.
  */
-export const STOREFRONT_THEME_CODES = ['industria', 'nordic'] as const;
-export const StorefrontThemeCodeSchema = z.enum(STOREFRONT_THEME_CODES);
-export type StorefrontThemeCode = (typeof STOREFRONT_THEME_CODES)[number];
-
-/**
- * The token set a channel gets when it names no theme, and the one it falls
- * back to when it names a theme this storefront does not implement.
- */
-export const DEFAULT_STOREFRONT_THEME_CODE: StorefrontThemeCode = 'industria';
-
-/** Narrowing predicate over {@link STOREFRONT_THEME_CODES}. */
-export function isStorefrontThemeCode(value: unknown): value is StorefrontThemeCode {
-  return (
-    typeof value === 'string' &&
-    (STOREFRONT_THEME_CODES as readonly string[]).includes(value)
-  );
-}
 
 // ---------------------------------------------------------------------------
 // (6) Audit-action constants

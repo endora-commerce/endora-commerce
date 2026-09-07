@@ -8,11 +8,11 @@ export function defaultHeaderTree(): PuckDataTree {
     root: { props: {} },
     content: [
       {
-        type: 'EmailSpacer',
+        type: 'transactional_emails.EmailSpacer',
         props: { id: 'default-header-spacer-top', height: 24 },
       },
       {
-        type: 'EmailLogo',
+        type: 'transactional_emails.EmailLogo',
         props: {
           id: 'default-header-logo',
           src: '{{var branding.logoUrl}}',
@@ -23,11 +23,11 @@ export function defaultHeaderTree(): PuckDataTree {
         },
       },
       {
-        type: 'EmailSpacer',
+        type: 'transactional_emails.EmailSpacer',
         props: { id: 'default-header-spacer-mid', height: 12 },
       },
       {
-        type: 'EmailDivider',
+        type: 'transactional_emails.EmailDivider',
         props: { id: 'default-header-divider', thickness: 1, color: '#e5e7eb' },
       },
     ],

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { ApiError } from '@endora-commerce/api-client';
+import { ApiError } from '../../../../packages/admin-shell/src/lib/api-client';
 import { passthroughBundle } from '../../helpers/render-with-i18n';
 import {
   adminSession,
@@ -15,9 +15,16 @@ const getSpy = vi.fn();
 const deleteSpy = vi.fn();
 const navigateSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/lib/api-client')>(
-    '@/lib/api-client',
+// **Re-keyed by feature 091's Phase 4 batch 15, and this is the trap batch 14
+// found by sweeping rather than by running.** The mock named `@/lib/api-client`
+// while the subject was under `admin/src`; the subject is inside a module
+// package now and resolves `@endora-commerce/admin-kit/lib`, of which
+// `@/lib/api-client` is only a re-export shim — so the old spelling intercepts
+// nothing and vitest reports that by making the mock **inert** rather than by
+// failing. `tsc` cannot see it: both specifiers compile.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
   );
   return {
     ...actual,
@@ -39,11 +46,11 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-vi.mock('@/modules/catalog/components/ProductScopeEditor', () => ({
+vi.mock('../../../../packages/modules/catalog/src/admin/components/ProductScopeEditor', () => ({
   ProductScopeEditor: vi.fn(() => null),
 }));
 
-const { ProductEditor } = await import('../../../src/modules/catalog/ProductEditor');
+const { ProductEditor } = await import('../../../../packages/modules/catalog/src/admin/pages/ProductEditor');
 
 const PRODUCT_ID = '11111111-1111-4111-8111-111111111101';
 

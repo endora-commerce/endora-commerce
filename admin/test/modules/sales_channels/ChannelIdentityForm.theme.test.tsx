@@ -1,20 +1,30 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
-import { STOREFRONT_THEME_CODES, type SalesChannelDetail } from '@endora-commerce/contracts';
+import { fireEvent } from '@testing-library/react';
+import type { SalesChannelDetail } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 
 /**
- * Feature `005-sales-channels` — the theme field offers the themes that exist.
+ * Feature `specs/102-storefront-theme-discovery/` — the theme field is free
+ * text, and it is free text on purpose.
  *
- * It was a free-text input, because when it shipped there was no list of themes
- * to offer: `theme_code` was validated against a shape regex and read by
- * nothing. An operator could type `industria-pro` and save it, and the shop
- * looked exactly the same afterwards. Now the storefront implements a fixed set
- * of token blocks and `STOREFRONT_THEME_CODES` names them, so the control is a
- * list — a text box here would still be able to store a value nothing renders,
- * which is the defect rather than a cosmetic detail.
+ * It was a `<select>` over `STOREFRONT_THEME_CODES` for one release. D-199
+ * removed that list from `@endora-commerce/contracts`: a theme is a token set a
+ * **third party** may publish as an ordinary npm package, so no set this
+ * repository can compile is the whole set, and a control offering one would be
+ * offering the wrong one.
+ *
+ * The admin and the storefront are separate deployments, so whatever a list
+ * here showed could only ever be advisory — the storefront is the only thing
+ * that knows which themes it has installed, and it already answers a wrong
+ * value correctly (it renders its own default, marks the document
+ * `data-theme-requested`, and never writes the value back). A control that
+ * refused would be refusing on worse information than the thing that decides.
+ *
+ * So the two claims this file makes are: **any well-formed code is accepted**,
+ * including one nothing in this repository has heard of, and **a stored value
+ * is never rewritten** by opening the form.
  */
 
 // The form builds its two dictionary requests itself since feature 091's P6 —
@@ -22,8 +32,18 @@ import { renderWithI18n } from '../../helpers/render-with-i18n';
 // isolate is `apiClient`. The stub answers **by URL**, which makes the mock a
 // behavioural check on the rebuilt paths: a caller that names the wrong one
 // throws rather than quietly rendering an empty list.
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+// **Re-keyed by feature 091's Phase 4 batch 14, and this is the trap that has
+// now met seven merge requests in a row.** The mock named `@/lib/api-client`
+// while the subject was under `admin/src`; the subject is inside a module
+// package now and resolves `@endora-commerce/admin-kit/lib`, of which
+// `@/lib/api-client` is only a re-export shim — so the old spelling intercepted
+// nothing and vitest reported that by making the mock **inert** rather than by
+// failing. `tsc` cannot see it: both specifiers compile. A programmatic sweep
+// of every mock against the file's own imports is what found it.
+vi.mock('@endora-commerce/admin-kit/lib', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+    '@endora-commerce/admin-kit/lib',
+  );
   return {
     ...actual,
     apiClient: {
@@ -38,7 +58,7 @@ vi.mock('@/lib/api-client', async () => {
 });
 
 const { ChannelIdentityForm } = await import(
-  '../../../src/modules/sales_channels/components/ChannelIdentityForm'
+  '../../../../packages/modules/sales_channels/src/admin/components/ChannelIdentityForm'
 );
 
 // `process.cwd()` rather than `import.meta.url`: this suite runs under jsdom,
@@ -74,70 +94,103 @@ function channel(themeCode: string | null): SalesChannelDetail {
   };
 }
 
-function themeSelect(): HTMLSelectElement {
+function themeInput(): HTMLInputElement {
   const el = document.getElementById('sc-theme');
   expect(el).not.toBeNull();
-  return el as HTMLSelectElement;
+  return el as HTMLInputElement;
 }
 
 describe('the sales-channel theme control', () => {
-  it('is a list, not a free-text box', () => {
+  it('is a free-text box, not a closed list', () => {
     renderWithI18n(
       <ChannelIdentityForm mode="create" onSubmit={() => undefined} />,
       bundle,
     );
-    expect(themeSelect().tagName).toBe('SELECT');
+    expect(themeInput().tagName).toBe('INPUT');
   });
 
-  it('offers exactly the themes the storefront implements, plus "no theme"', () => {
+  it('accepts a code this repository has never heard of', () => {
+    // The whole point of D-199: a theme published by a stranger and installed
+    // into the operator's own storefront. Nothing here enumerates it, and the
+    // field neither refuses it nor decorates it as unknown — this screen has no
+    // standing to say so.
+    let submitted: { themeCode: string } | null = null;
+    renderWithI18n(
+      <ChannelIdentityForm
+        mode="create"
+        onSubmit={(value) => {
+          submitted = value;
+        }}
+      />,
+      bundle,
+    );
+    const input = themeInput();
+    fireEvent.change(input, { target: { value: '  vendor-theme-x  ' } });
+    expect(input.value).toBe('  vendor-theme-x  ');
+    fireEvent.submit(input.closest('form')!);
+    expect(submitted).not.toBeNull();
+    expect(submitted!.themeCode).toBe('vendor-theme-x');
+  });
+
+  it('holds the field to the same shape the backend validates, and no more', () => {
     renderWithI18n(
       <ChannelIdentityForm mode="create" onSubmit={() => undefined} />,
       bundle,
     );
-    const values = [...themeSelect().options].map((o) => o.value);
-    expect(values).toEqual(['', ...STOREFRONT_THEME_CODES]);
+    // `themeCodeRe` in `packages/contracts/src/sales-channels.ts`, which the
+    // write schemas still use and which this feature deliberately did not
+    // tighten. The control refuses a malformed code and accepts every
+    // well-formed one.
+    const pattern = new RegExp(`^(?:${themeInput().getAttribute('pattern')})$`);
+    for (const good of ['nordic', 'theme-x', 'a', 'a_b-9']) expect(pattern.test(good)).toBe(true);
+    for (const bad of ['Nordic', '9lives', '-x', 'thème']) expect(pattern.test(bad)).toBe(false);
   });
 
-  it('keeps a stored code the storefront no longer ships, and labels it as such', () => {
-    renderWithI18n(
-      <ChannelIdentityForm mode="edit" initial={channel('industria-pro')} onSubmit={() => undefined} />,
-      bundle,
-    );
-    const select = themeSelect();
-    // Selected — opening the form must not quietly re-point the channel at a
-    // different theme — and visibly not one of the shipped sets.
-    expect(select.value).toBe('industria-pro');
-    expect([...select.options].map((o) => o.value)).toContain('industria-pro');
-    expect(screen.getByText(/industria-pro/)).toBeInTheDocument();
+  it('never rewrites a stored code, whatever it is', () => {
+    // Opening the form must not re-point the channel at a different theme, and
+    // there is now no list against which it could think one is "wrong".
+    for (const stored of ['industria-pro', 'nordic', 'vendor-theme-x']) {
+      const { unmount } = renderWithI18n(
+        <ChannelIdentityForm mode="edit" initial={channel(stored)} onSubmit={() => undefined} />,
+        bundle,
+      );
+      expect(themeInput().value).toBe(stored);
+      unmount();
+    }
   });
 
-  it('does not duplicate a stored code that the storefront does ship', () => {
+  it('renders an empty field for a channel that names no theme', () => {
     renderWithI18n(
-      <ChannelIdentityForm mode="edit" initial={channel('nordic')} onSubmit={() => undefined} />,
+      <ChannelIdentityForm mode="edit" initial={channel(null)} onSubmit={() => undefined} />,
       bundle,
     );
-    const values = [...themeSelect().options].map((o) => o.value);
-    expect(values.filter((v) => v === 'nordic')).toHaveLength(1);
+    expect(themeInput().value).toBe('');
   });
 });
 
 describe('the theme control ships both shipped languages', () => {
   it('has an en and a pl string for every key the control renders', () => {
-    const keys = [
+    for (const key of [
       'identity.theme.label',
-      'identity.theme.none',
+      'identity.theme.placeholder',
+      'identity.theme.pattern',
       'identity.theme.help',
-      'identity.theme.unknown',
-      ...STOREFRONT_THEME_CODES.map((code) => `identity.theme.option.${code}`),
-    ];
-    for (const key of keys) {
+    ]) {
       expect(en[key], `missing en: ${key}`).toBeTruthy();
       expect(pl[key], `missing pl: ${key}`).toBeTruthy();
     }
   });
 
-  it('no longer ships the placeholder key of the free-text box', () => {
-    expect(en['identity.theme.placeholder']).toBeUndefined();
-    expect(pl['identity.theme.placeholder']).toBeUndefined();
+  it('no longer ships the keys of the closed list', () => {
+    // A label per code was a second copy of a closed set. There is no set.
+    for (const key of [
+      'identity.theme.none',
+      'identity.theme.unknown',
+      'identity.theme.option.industria',
+      'identity.theme.option.nordic',
+    ]) {
+      expect(en[key], `en still ships ${key}`).toBeUndefined();
+      expect(pl[key], `pl still ships ${key}`).toBeUndefined();
+    }
   });
 });
