@@ -1475,7 +1475,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // T114a design merge, which is spec-only and whose author had no reason to look here.
     // Re-recorded by the T115 branch, which reads the census and inherits the drift; every
     // file *this* branch changes under `specs/` already existed, and an edit moves no count.
-    files: 1268,
+    // **+2, and only one of them is this branch's** (`specs/113-module-owned-demo-data/`
+    // `tasks.md`). The other +1 was already standing on `master` when this branch forked at
+    // `ad0fe0876`: a docs-only merge moved this walk and re-recorded nothing, measured by the
+    // baseline census run before this file was written (`3 drifted, 39 agree, 0 not measured, of
+    // 42 recorded`, +1 on exactly these three entries). !1512 carries the same repair; whichever
+    // lands second is a no-op, because the recorded value here is the observed one either way.
+    files: 1269,
     sites: 12,
     sources: [],
     //
@@ -3583,7 +3589,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (`hmac-canonical-vectors.{json,test.ts}` into the package), which is net zero. A whole-tree
     // walk therefore moves by exactly the two additions. The value is a fresh census of the
     // combined tree, not a sum.
-    files: 7893,
+    // **+2, and only one of them is this branch's** (`specs/113-module-owned-demo-data/`
+    // `tasks.md`). The other +1 was already standing on `master` when this branch forked at
+    // `ad0fe0876`: a docs-only merge moved this walk and re-recorded nothing, measured by the
+    // baseline census run before this file was written (`3 drifted, 39 agree, 0 not measured, of
+    // 42 recorded`, +1 on exactly these three entries). !1512 carries the same repair; whichever
+    // lands second is a no-op, because the recorded value here is the observed one either way.
+    files: 7890,
     sites: null,
     sources: [],
     //
@@ -5351,7 +5363,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // T114a design merge on `master`; the second is T115's one empty changeset.
     // **+2, re-measured on the union after rebasing onto `b32f37b7d`.** The same two added
     // files as `check-nul-bytes.ts` above; this scan is repo-wide and the two renames cancel.
-    files: 7953,
+    // **+2, and only one of them is this branch's** (`specs/113-module-owned-demo-data/`
+    // `tasks.md`). The other +1 was already standing on `master` when this branch forked at
+    // `ad0fe0876`: a docs-only merge moved this walk and re-recorded nothing, measured by the
+    // baseline census run before this file was written (`3 drifted, 39 agree, 0 not measured, of
+    // 42 recorded`, +1 on exactly these three entries). !1512 carries the same repair; whichever
+    // lands second is a no-op, because the recorded value here is the observed one either way.
+    files: 7950,
     sites: null,
     sources: ['manifest-index'],
     //
