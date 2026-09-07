@@ -1846,7 +1846,13 @@ build:docs:
 # measured on a 16-core developer machine, of which the `next build` is most.
 # The runner host is shared — see the Memory block above `test:backend` — and
 # `storefront/next.config.js` already caps that build at two workers because it
-# was OOM-killed on this box twice. The class of defect it catches is not
+# was OOM-killed on this box twice. **That cap was necessary and not sufficient,
+# and this job is where it showed**: pipeline 13121 (job 43732) printed `Killed`
+# and exited 137 inside `next build`, with no other job of ours running beside
+# it. Capping static generation had moved the peak into the compile phase, which
+# `next build` was silently running in its own parent process; both halves of the
+# repair, and the numbers, are in `storefront/next.config.js` and in the build
+# invocation in `scripts/lib/storefront-stack.sh`. The class of defect it catches is not
 # introduced quickly (the JSON-LD gap stood from April), so the merge request
 # pays `test:frontend` and `quality`, and this catches the rest afterwards.
 #
