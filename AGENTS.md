@@ -67,7 +67,15 @@ is already in the stack.
 
 | Path | Contents |
 | --- | --- |
-| `packages/modules/<id>/src/` | A domain module, and **this is where every one of them lives** since T040b closed on 2026-08-28: `manifest.ts`, `backend/` (composition in `index.ts`, plus `entities/`, `services/`, `routes.ts`, optional `plugin.ts`, `actions/`, `workers/`), `migrations/` and optional `ports/`. **`i18n/` and `docs/` are the module's own, and they sit at the *package root* beside `src/`, not under it** — `bundlesDir` and `docs.dir` are joined to `dirname(manifestPath)`, which for a bare specifier is the directory holding the `package.json`. Measured: 63 packages carry `i18n/` and 64 carry `docs/` at the root, none under `src/`, against 59 `src/migrations/`, 8 `src/ports/` and 70 `src/backend/`. There is **no `test/` directory at all** — the 15 co-located tests sit beside their subjects as `*.test.ts`. `backend/src/modules/` holds nothing but a `README.md` — a specifier pointing into it resolves to nothing, which is why an old branch cannot be merged without being packaged (measured on !1103: no intermediate state of it compiles) |
+| `packages/modules/<id>/src/` | A domain module, and **this is where every one of them lives** since T040b closed on 2026-08-28: `manifest.ts`, `backend/` (composition in `index.ts`, plus `entities/`, `services/`, `routes.ts`, optional `plugin.ts`, `actions/`, `workers/`), `migrations/` and optional `ports/`. **`i18n/` and `docs/` are the module's own, and they sit at the *package root* beside `src/`, not under it** — `bundlesDir` and `docs.dir` are joined to `dirname(manifestPath)`, which for a bare specifier is the directory holding the `package.json`. Measured: 63 packages carry `i18n/` and 64 carry `docs/` at the root, none under `src/`, against 59 `src/migrations/`, 8 `src/ports/` and 70 `src/backend/`. There is **no `test/` directory at all** — the co-located tests sit beside their subjects as
+`*.test.ts`, and **how many there are is not written here**: this sentence said *15* against a tree
+holding **211**, a count of a derived fact going stale by an order of magnitude in the row whose
+whole subject is what a module package contains (D-100).
+`find packages/modules -path '*/src/*' -name '*.test.ts' | wc -l` answers it, and
+`ls -d packages/modules/*/test` answering nothing is the other half of the claim.
+That the directory does not exist is normative rather than incidental —
+`specs/106-module-owned-tests/contracts/module-test-ownership.md` §2: *"A `test/` directory in the
+package is **not** the convention."* `backend/src/modules/` holds nothing but a `README.md` — a specifier pointing into it resolves to nothing, which is why an old branch cannot be merged without being packaged (measured on !1103: no intermediate state of it compiles) |
 | `backend/src/apps/<deployment>/modules/<id>/` | Per-deployment overlay modules (feature 057) |
 | `backend/test/{unit,contract,integration,perf}/` | Backend tests, mirroring module names |
 | `specs/NNN-slug/` | Feature artifacts: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/`, `tasks.md` |
