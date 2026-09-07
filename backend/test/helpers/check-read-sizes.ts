@@ -1346,7 +1346,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the three merges added; the other two new files are changesets, which this walk
     // does not read. Re-recorded after the merge rather than in the branch that moved it,
     // because a spec-only branch moves this entry and its author has no reason to look.
-    files: 1266,
+    // **+1: `contracts/admin-stylesheet-composition.md`.** The one document this branch
+    // adds; the other five files it changes already existed, and an edit moves no count
+    // here. Measured with `backend/.env` absent and no untracked `docs/docs/modules/`
+    // copies.
+    files: 1267,
     sites: 12,
     sources: [],
   },
@@ -3223,7 +3227,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
     // branch each recorded this entry on `e3dd43635` and neither could see the other;
     // the value below is a fresh census of the combined tree, not the sum of the two.
-    files: 7812,
+    // **+1: `contracts/admin-stylesheet-composition.md`.** The one document this branch
+    // adds; the other five files it changes already existed, and an edit moves no count
+    // here. Measured with `backend/.env` absent and no untracked `docs/docs/modules/`
+    // copies.
+    files: 7813,
     sites: null,
     sources: [],
   },
@@ -4757,7 +4765,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
     // branch each recorded this entry on `e3dd43635` and neither could see the other;
     // the value below is a fresh census of the combined tree, not the sum of the two.
-    files: 7872,
+    // **+1: `contracts/admin-stylesheet-composition.md`.** The one document this branch
+    // adds; the other five files it changes already existed, and an edit moves no count
+    // here. Measured with `backend/.env` absent and no untracked `docs/docs/modules/`
+    // copies.
+    files: 7873,
     sites: null,
     sources: ['manifest-index'],
   },
