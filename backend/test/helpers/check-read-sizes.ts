@@ -1451,7 +1451,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds; the other five files it changes already existed, and an edit moves no count
     // here. Measured with `backend/.env` absent and no untracked `docs/docs/modules/`
     // copies.
-    files: 1267,
+    // **+1 on `master`, not this branch's**:
+    // `specs/110-instance-repository/contracts/application-root-supplier.md`, added by the
+    // T114a design merge, which is spec-only and whose author had no reason to look here.
+    // Re-recorded by the T115 branch, which reads the census and inherits the drift; every
+    // file *this* branch changes under `specs/` already existed, and an edit moves no count.
+    files: 1268,
     sites: 12,
     sources: [],
   },
@@ -3522,7 +3527,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 7888,
+    // **+2 on the T115 branch, and only one of them is its own.** `master` gained
+    // `specs/110-instance-repository/contracts/application-root-supplier.md` from the T114a
+    // design merge, which is spec-only; T115 adds one empty changeset, this branch's whole
+    // contribution to any whole-repository walk. Every other file it touches already existed,
+    // and no file moved into or out of `backend/src/lifecycle/` — the measurement T115 is
+    // about is that the movable population there is already 0.
+    files: 7890,
     sites: null,
     sources: [],
   },
@@ -5255,7 +5266,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 7948,
+    // **+2 on the T115 branch, as the byte scan above and for the same population.**
+    // `specs/110-instance-repository/contracts/application-root-supplier.md` came from the
+    // T114a design merge on `master`; the second is T115's one empty changeset.
+    files: 7950,
     sites: null,
     sources: ['manifest-index'],
   },
