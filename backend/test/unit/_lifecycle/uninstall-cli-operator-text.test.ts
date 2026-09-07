@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { platformSourceRootOf } from '../../../scripts/lib/platform-root.js';
+import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
 
 /**
  * What `module:uninstall` tells the operator — D-69 (issue #145).
@@ -9,7 +12,7 @@ import { describe, expect, it } from 'vitest';
  * running it is the thing this suite must not do: `module:uninstall` writes to
  * whatever database `DATABASE_URL` names, and issue #69 already removed the
  * contract cases that drove real state changes through these scripts. The
- * subject is therefore the script's own source.
+ * subject is therefore the command's own source.
  *
  * 1. The soft-uninstall banner used to promise "re-installing this module will
  *    restore configuration", printed immediately before the sweep in
@@ -20,16 +23,31 @@ import { describe, expect, it } from 'vitest';
  * 2. `mapError` had no `non-deactivatable` case, so the refusal D-69 adds would
  *    have fallen through to the generic exit 70 and read as an internal error
  *    rather than a decision.
+ *
+ * **Which file that source is moved in `specs/115-lifecycle-container-move/`
+ * Phase 5, and re-pointing it is this file's own obligation.** The command
+ * bodies — argv grammar, exit-code table, `mapError` and every sentence an
+ * operator reads — are `@endora-commerce/platform/lifecycle`'s now (D115-1);
+ * `backend/src/lifecycle/scripts/uninstall.ts` is twenty lines of ORM, Redis and
+ * system scope and carries neither subject. A test that kept reading it would
+ * have passed — `not.toMatch` over a file that no longer contains the sentence
+ * is green for the wrong reason — which is why the vacuous-pass guards below
+ * assert the positives as well, and why the platform root is derived from the
+ * workspace rather than spelled.
  */
 
-const uninstallSource = readFileSync(
-  fileURLToPath(new URL('../../../src/lifecycle/scripts/uninstall.ts', import.meta.url)),
-  'utf8',
+const platformRoot = platformSourceRootOf(
+  workspaceMembers(fileURLToPath(new URL('../../../../', import.meta.url)), nodeWorkspaceFs()),
 );
-const disableSource = readFileSync(
-  fileURLToPath(new URL('../../../src/lifecycle/scripts/disable.ts', import.meta.url)),
-  'utf8',
-);
+if (platformRoot === null) {
+  throw new Error('no workspace member declares itself the platform — nothing to read');
+}
+
+const commandSource = (verb: string): string =>
+  readFileSync(join(platformRoot, 'lifecycle', 'commands', `${verb}.ts`), 'utf8');
+
+const uninstallSource = commandSource('uninstall');
+const disableSource = commandSource('disable');
 
 describe('module:uninstall — the soft-uninstall banner', () => {
   it('does not promise that a re-install brings the configuration back', () => {
@@ -51,7 +69,7 @@ describe('module:uninstall — the non-deactivatable refusal', () => {
     const disableCase = /case 'non-deactivatable':[\s\S]{0,200}?return (\d+);/.exec(disableSource);
 
     expect(uninstallCase?.[1]).toBe('77');
-    // Two-way: the two scripts report one refusal, so a change to either code
+    // Two-way: the two commands report one refusal, so a change to either code
     // has to move both.
     expect(uninstallCase?.[1]).toBe(disableCase?.[1]);
   });

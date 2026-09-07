@@ -6,6 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ModuleIdCollisionError } from '../../../src/packages/module-id-claims.js';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import { buildStaticRegistry } from '../../../src/lifecycle/services/static-registry.js';
+import { platformSourceRootOf } from '../../../scripts/lib/platform-root.js';
+import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
 
 /**
  * T036 / D-157.6(a) — the five `module:*` commands answer over the same module
@@ -34,7 +36,20 @@ import { buildStaticRegistry } from '../../../src/lifecycle/services/static-regi
 
 const SCRIPTS = ['install', 'uninstall', 'enable', 'disable', 'status'] as const;
 
-const sourceOf = (name: string): string =>
+/**
+ * The expression moved in `specs/115-lifecycle-container-move/` Phase 5, and
+ * with it the file this half has to read.
+ *
+ * `buildStaticRegistry(await resolvedManifestEntries())` used to be one
+ * expression in one file. D115-1 splits it across the seam it belongs to: the
+ * entry point resolves the set, because the resolution reads `node_modules` and
+ * is the instance's own question, and the command body builds the registry from
+ * `rt.entries`, because that is platform logic that used to ship to nobody. Both
+ * halves are asserted, in the same two-way shape as before — an entry point that
+ * stopped resolving and a body that stopped building are both the defect this
+ * file exists for, and one assertion over one file could only see one of them.
+ */
+const entryPointOf = (name: string): string =>
   readFileSync(
     fileURLToPath(
       new URL(`../../../src/lifecycle/scripts/${name}.ts`, import.meta.url),
@@ -42,33 +57,53 @@ const sourceOf = (name: string): string =>
     'utf8',
   );
 
+const platformRoot = platformSourceRootOf(
+  workspaceMembers(fileURLToPath(new URL('../../../../', import.meta.url)), nodeWorkspaceFs()),
+);
+if (platformRoot === null) {
+  throw new Error('no workspace member declares itself the platform — nothing to read');
+}
+
+const commandBodyOf = (name: string): string =>
+  readFileSync(join(platformRoot, 'lifecycle', 'commands', `${name}.ts`), 'utf8');
+
 describe('the five module: commands read the instance-resolved manifest set', () => {
-  it.each(SCRIPTS)('%s builds its registry from resolvedManifestEntries()', (name) => {
-    const source = sourceOf(name);
+  it.each(SCRIPTS)('%s resolves the instance set in its entry point', (name) => {
+    const source = entryPointOf(name);
+
+    expect(source.length).toBeGreaterThan(0);
+    expect(source).toMatch(/await resolvedManifestEntries\(\)/);
+  });
+
+  it.each(SCRIPTS)('%s builds its registry from the entries it was handed', (name) => {
+    const source = commandBodyOf(name);
 
     expect(source.length).toBeGreaterThan(0);
     // The entries go in whole. T036a removed the per-field re-map that used to
     // sit between these two calls: it was one identity function copied seven
     // times, and the field it would have dropped is the lifecycle participant.
-    expect(source).toMatch(/buildStaticRegistry\(await resolvedManifestEntries\(\)\)/);
+    expect(source).toMatch(/buildStaticRegistry\(rt\.entries\)/);
   });
 
   it.each(SCRIPTS)('%s neither imports nor reads bare-core REGISTERED_MANIFESTS', (name) => {
     // Two answers to one question is the defect, and an import left standing is
     // how a later edit reinstates it. The **import** and the **read**, not the
-    // spelling: each script's comment cites the name it used to read, and a
+    // spelling: each file's comment cites the name it used to read, and a
     // regex over the bare identifier would forbid saying so.
-    const source = sourceOf(name);
-
-    expect(source).not.toMatch(/import\s*\{[^}]*REGISTERED_MANIFESTS/);
-    expect(source).not.toMatch(/REGISTERED_MANIFESTS\s*\./);
+    for (const source of [entryPointOf(name), commandBodyOf(name)]) {
+      expect(source).not.toMatch(/import\s*\{[^}]*REGISTERED_MANIFESTS/);
+      expect(source).not.toMatch(/REGISTERED_MANIFESTS\s*\./);
+    }
   });
 
   it.each(SCRIPTS)('%s does not compose the platform it operates on', (name) => {
-    const source = sourceOf(name);
-
-    expect(source).not.toMatch(/composeApp/);
-    expect(source).not.toMatch(/from '\.\.\/\.\.\/\.\.\/composition\.js'/);
+    // D-157.2/.4, and the body is where it now matters most: the runtime it
+    // takes carries no container, so there is nothing to compose *with* — but
+    // an import is how that would come back.
+    for (const source of [entryPointOf(name), commandBodyOf(name)]) {
+      expect(source).not.toMatch(/composeApp/);
+      expect(source).not.toMatch(/from '\.\.\/\.\.\/\.\.\/composition\.js'/);
+    }
   });
 });
 
@@ -120,18 +155,18 @@ function writePackage(options: FixtureOptions): void {
 const envFor = (instance: string): NodeJS.ProcessEnv =>
   ({ ENDORA_INSTANCE_ROOT: join(root, instance) }) as NodeJS.ProcessEnv;
 
-/** Exactly the mapping the five scripts hand `buildStaticRegistry`. */
+/**
+ * Exactly what the five command bodies hand `buildStaticRegistry`: the resolved
+ * entries, whole.
+ *
+ * This used to re-map them field by field — which is the very shape T036a
+ * removed from the commands, and it had already outlived the code it claimed to
+ * mirror: the field it drops is the lifecycle participant, so a fixture built
+ * this way could not have seen the participant go missing.
+ */
 const registryFrom = (
   entries: Awaited<ReturnType<typeof resolvedManifestEntries>>,
-): ReturnType<typeof buildStaticRegistry> =>
-  buildStaticRegistry(
-    entries.map((e) => ({
-      manifest: e.manifest,
-      filePath: e.filePath,
-      ...(e.installHook ? { installHook: e.installHook } : {}),
-      ...(e.uninstallHook ? { uninstallHook: e.uninstallHook } : {}),
-    })),
-  );
+): ReturnType<typeof buildStaticRegistry> => buildStaticRegistry(entries);
 
 beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), 'endora-module-cli-registry-'));

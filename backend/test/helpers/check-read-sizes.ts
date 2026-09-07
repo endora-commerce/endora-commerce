@@ -715,7 +715,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 1952,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 1952 -> 1958 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 1958,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -806,7 +811,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 2076,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2076 -> 2082 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2082,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -853,7 +863,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // derivation left `packages/modules/_i18n/src/backend/services/` for the
     // platform's `kernel/i18n/`, so this walk — whose population is the module
     // tree — reads one file fewer. Nothing else about the module tree moved.
-    files: 1607,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 1607 -> 1613 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 1613,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -903,7 +918,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // derivation left `packages/modules/_i18n/src/backend/services/` for the
     // platform's `kernel/i18n/`, so this walk — whose population is the module
     // tree — reads one file fewer. Nothing else about the module tree moved.
-    files: 2060,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2060 -> 2066 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2066,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1060,7 +1080,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 5305,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 5305 -> 5311 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 5311,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1212,7 +1237,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is the sum of the two contributions rather than either one's — the
     // state the drift census exists to surface, and the reason it is re-measured
     // after a rebase rather than carried across it.
-    files: 2160,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2160 -> 2166 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2166,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1383,7 +1413,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 2076,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2076 -> 2082 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2082,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1458,7 +1493,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 2076,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2076 -> 2082 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2082,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1533,7 +1573,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 2076,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2076 -> 2082 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2082,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1589,7 +1634,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 685,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 685 -> 691 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 691,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -1860,7 +1910,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 2076,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2076 -> 2082 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2082,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -2056,7 +2111,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // derivation left `packages/modules/_i18n/src/backend/services/` for the
     // platform's `kernel/i18n/`, so this walk — whose population is the module
     // tree — reads one file fewer. Nothing else about the module tree moved.
-    files: 2580,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2580 -> 2586 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2586,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -2110,7 +2170,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // derivation left `packages/modules/_i18n/src/backend/services/` for the
     // platform's `kernel/i18n/`, so this walk — whose population is the module
     // tree — reads one file fewer. Nothing else about the module tree moved.
-    files: 1992,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 1992 -> 1998 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 1998,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -2268,7 +2333,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this walk's population is a module's own sources. The six sites are that
     // one file's classified literals, which left with it — the file is not gone,
     // it is outside this rule's subject, which is prose a **module** ships.
-    files: 1619,
+    // **`specs/115-lifecycle-container-move/` Phase 5: files 1619 -> 1625, sites 32647 ->
+    // 32854.** The six files D115-1 moves into `packages/platform/src/lifecycle/commands/`, and
+    // with them every sentence the five `module:*` commands print. `sites` moves by two hundred
+    // where `files` moves by six because this walk's population is a **module's** own sources:
+    // `backend/src/lifecycle/scripts/` is host code and was never in it, so the operator text
+    // entered this walk by moving into `_lifecycle`'s.
+    files: 1625,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -2304,7 +2375,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which relocated with the rule, and the manifest registry's own refusal. Every
     // one of them is English and none is a finding; the population grew, the debt
     // did not.
-    sites: 32647,
+    sites: 32854,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -2684,7 +2755,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 4669,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 4669 -> 4681 (+12 files).** The six
+    // files D115-1 adds under `packages/platform/src/lifecycle/commands/` — the five `module:*`
+    // command bodies and their `OperatorRuntime` seam — counted once by the specifier walk and
+    // once by the schema walk, this check's `files` being the sum of the two.
+    files: 4681,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -3085,7 +3160,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // variables.md` is already inside the 7796 above, leaving +2. Each of the three
     // branches read 0 drift on its own base and the union drifted: the merge-pair blind
     // spot, not an author's oversight. Measured with `backend/.env` absent, as above.
-    files: 7798,
+    // **`specs/115-lifecycle-container-move/` Phase 5, rebased: 7798 -> 7805 (+7 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    // Both sides of a rebase conflict moved this entry, so the value below is a fresh
+    // measurement of the combined tree rather than either side's arithmetic. The seventh
+    // file is `.changeset/lifecycle-operator-commands.md`: this walk's population is the
+    // whole repository, so a changeset is a file it opens, and the arithmetic that stopped
+    // at +6 was the one the census caught. Measured with `backend/.env` absent, as the
+    // block above.
+    files: 7805,
     sites: null,
     sources: [],
   },
@@ -3321,7 +3407,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 2076,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2076 -> 2082 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2082,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -3368,7 +3459,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // derivation left `packages/modules/_i18n/src/backend/services/` for the
     // platform's `kernel/i18n/`, so this walk — whose population is the module
     // tree — reads one file fewer. Nothing else about the module tree moved.
-    files: 1849,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 1849 -> 1855 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 1855,
     sites: 1471,
     sources: ['manifest-index'],
   },
@@ -3443,7 +3539,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 2392,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2392 -> 2398 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2398,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -3569,7 +3670,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 1946,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 1946 -> 1952 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 1952,
     sites: 692,
     sources: ['manifest-index', 'ports-subpaths'],
   },
@@ -3907,7 +4013,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 2076,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2076 -> 2082 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2082,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4050,7 +4161,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 2076,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 2076 -> 2082 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 2082,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4156,7 +4272,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 4333,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 4333 -> 4339 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 4339,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -4560,7 +4681,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.changeset/contracts-cli-test-kit-typecheck-programs.md` — the third already being
     // counted. This entry reads git's file list rather than the directory tree, so
     // `backend/.env` moves it in neither direction.
-    files: 7858,
+    // **`specs/115-lifecycle-container-move/` Phase 5, rebased: 7858 -> 7865 (+7 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    // Both sides of a rebase conflict moved this entry, so the value below is a fresh
+    // measurement of the combined tree rather than either side's arithmetic. The seventh
+    // file is this branch's changeset, which
+    // `git ls-files --cached --others --exclude-standard` lists like any other;
+    // `backend/.env` moves this walk in neither direction, git's list not being a
+    // directory tree.
+    files: 7865,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4734,7 +4866,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 5851,
+    // **`specs/115-lifecycle-container-move/` Phase 5: 5851 -> 5857 (+6 files).** The five
+    // `module:*` command bodies and the `OperatorRuntime` seam they take, moved out of
+    // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
+    // (D115-1). Six files added and none removed: the five entry points keep their paths,
+    // shrunk to the ORM handle, the Redis connection and the system scope.
+    files: 5857,
     sites: null,
     sources: ['manifest-index'],
   },
