@@ -56,9 +56,24 @@ import {
   workspaceMembers,
   type WorkspaceFs,
 } from '../backend/scripts/lib/workspace-packages.js';
+import {
+  nodeFileLister,
+  tailwindScannablePackages,
+  type FileLister,
+} from '../backend/scripts/lib/tailwind-sources.js';
 
 /** Extensions a module package's UI can be written in, both of which must be scanned. */
 export const PROBE_EXTENSIONS: readonly string[] = ['ts', 'tsx'];
+
+/**
+ * The extension a **published** package's build directory holds.
+ *
+ * `dist` carries `.js`, which is what a client's instance actually scans
+ * (`specs/110-instance-repository/contracts/admin-stylesheet-composition.md`
+ * §1.1). Probing it with a `.ts` would assert that a directory is reachable
+ * while saying nothing about the files that are really in it.
+ */
+export const EMITTED_PROBE_EXTENSIONS: readonly string[] = ['js'];
 
 /**
  * The filename stem every probe uses.
@@ -115,37 +130,162 @@ function probeDirectoryOf(packageDir: string): string {
   return existsSync(source) ? source : packageDir;
 }
 
+/** One directory a probe is planted in, and how. */
+export interface TailwindProbeDirectory {
+  /** Absolute. */
+  readonly path: string;
+  readonly extensions: readonly string[];
+  /**
+   * May this run **create** the directory?
+   *
+   * `false` for a directory a package's own `@source` names
+   * (`admin-stylesheet-composition.md` R1.2), and that is the load-bearing
+   * half: creating it would make *"the `@source` names a directory that is not
+   * there"* — the silent failure M12 describes and the one this whole contract
+   * exists to remove — into a state the probe repairs before measuring it.
+   */
+  readonly create: boolean;
+}
+
+/** One package this run asserts is scanned, and the directories it is scanned at. */
+export interface TailwindProbeTarget {
+  /** The package name, which is what a failing verdict prints. */
+  readonly subject: string;
+  readonly directories: readonly TailwindProbeDirectory[];
+}
+
+/**
+ * The storefront's population: every module package, probed at its source root
+ * (feature 080, T044).
+ *
+ * Unchanged, and it stays until `storefront/app/globals.css` takes its own
+ * static import (`admin-stylesheet-composition.md` R5.2, T127). Its stylesheet
+ * still carries the `packages/**` glob, so the question it asks is still
+ * *"does the glob reach every module package"*.
+ */
+export function modulePackageProbeTargets(
+  repoRoot: string,
+  fs: WorkspaceFs = nodeWorkspaceFs(),
+): readonly TailwindProbeTarget[] {
+  return modulePackages(workspaceMembers(repoRoot, fs)).map((modulePackage) => ({
+    subject: modulePackage.name,
+    directories: [
+      { path: probeDirectoryOf(modulePackage.dir), extensions: PROBE_EXTENSIONS, create: true },
+    ],
+  }));
+}
+
+/**
+ * The admin's population: every package that declares its own sources, probed
+ * at each directory it declares (R2.2; feature 110, T125).
+ *
+ * ## Why the population changed
+ *
+ * It was *"every module package, probed at `src/`"*, which asserted a property
+ * of the **glob** the admin no longer carries. Three things it could not see,
+ * and all three are now what this guard is for: the shell and the kit family,
+ * which ship the admin's own screens and are module packages of nothing; the
+ * distinction between a package's *declared* layer and its whole `src`, since a
+ * declaration narrowed to `src/admin` leaves a probe at the source root
+ * unscanned; and `dist`, which is what a published tarball actually ships and
+ * what a client's instance scans.
+ *
+ * The derivation is the generator's own
+ * (`backend/scripts/lib/tailwind-sources.ts`), so the directories probed here
+ * and the directories written into each package's `tailwind.css` are one answer
+ * rather than two — which matters because a second answer would fail in the
+ * invisible direction: a guard probing a directory nothing declares reports a
+ * defect that is not there, and one that misses a declared directory reports a
+ * pass over a layer nothing scans.
+ *
+ * ## What each directory's `create` flag decides
+ *
+ * The source directory is the layer inventory's, so it exists by construction
+ * and the probe may create the file in it. The **emitted** directory may not be
+ * created: a `@source` naming a directory that is not there is skipped in
+ * silence (M12), and a probe that made the directory first would be measuring a
+ * tree it had just repaired. An unbuilt package therefore contributes no
+ * emitted probe, and {@link planTailwindSourceProbes} refuses a run in which
+ * *none* of them did — which is a cold `dist`, not a passing tree.
+ */
+export function declaredSourceProbeTargets(
+  repoRoot: string,
+  fs: WorkspaceFs = nodeWorkspaceFs(),
+  listFiles: FileLister = nodeFileLister(),
+): readonly TailwindProbeTarget[] {
+  return tailwindScannablePackages(repoRoot, fs, listFiles).map((pkg) => ({
+    subject: pkg.name,
+    directories: pkg.layers.flatMap((layer) => [
+      {
+        path: join(pkg.dir, layer.emitted),
+        extensions: EMITTED_PROBE_EXTENSIONS,
+        create: false,
+      },
+      { path: join(pkg.dir, layer.source), extensions: PROBE_EXTENSIONS, create: true },
+    ]),
+  }));
+}
+
 /**
  * Every probe this run will write, for a given seed.
  *
- * @throws NoModulePackagesError when the workspace declares none — the guard
- * would otherwise assert over an empty list and report a pass.
+ * @throws NoModulePackagesError when the population is empty, or when no
+ * emitted directory was found in it — the guard would otherwise assert over an
+ * empty list, or over source alone, and report a pass either way.
  */
 export function planTailwindSourceProbes(
   repoRoot: string,
   seed: number = process.pid,
   fs: WorkspaceFs = nodeWorkspaceFs(),
+  targets: readonly TailwindProbeTarget[] = modulePackageProbeTargets(repoRoot, fs),
 ): readonly TailwindSourceProbe[] {
-  const packages = modulePackages(workspaceMembers(repoRoot, fs));
-  if (packages.length === 0) {
+  if (targets.length === 0) {
     throw new NoModulePackagesError(
-      `no workspace member of ${repoRoot} declares \`endora.type: "module"\` — this guard ` +
-        'asserts that each of them is scanned, and over an empty list it would assert nothing',
+      `no package in ${repoRoot} is in this guard's population — it asserts that each of ` +
+        'them is scanned, and over an empty list it would assert nothing',
     );
   }
   const probes: TailwindSourceProbe[] = [];
   let index = 0;
-  for (const modulePackage of packages) {
-    for (const extension of PROBE_EXTENSIONS) {
-      const { utility, needle } = utilityFor(seed, index++);
-      probes.push({
-        subject: `${modulePackage.name} (.${extension})`,
-        file: join(probeDirectoryOf(modulePackage.dir), `${PROBE_STEM}${seed}.${extension}`),
-        utility,
-        needle,
-        expected: true,
-      });
+  /** Directories this run may not create, and how many of them were there. */
+  let declaredEmitted = 0;
+  let plantedEmitted = 0;
+  for (const target of targets) {
+    for (const directory of target.directories) {
+      if (!directory.create) {
+        declaredEmitted += 1;
+        // A directory this run may not create and that is not there is a
+        // package nobody has built. It contributes no probe rather than a
+        // failing one; the floor below is what refuses a tree where that is
+        // true of every one of them.
+        if (!existsSync(directory.path)) continue;
+        plantedEmitted += 1;
+      }
+      for (const extension of directory.extensions) {
+        const { utility, needle } = utilityFor(seed, index++);
+        probes.push({
+          subject: `${target.subject} (${directory.path}, .${extension})`,
+          file: join(directory.path, `${PROBE_STEM}${seed}.${extension}`),
+          utility,
+          needle,
+          expected: true,
+        });
+      }
     }
+  }
+  if (probes.length === 0) {
+    throw new NoModulePackagesError(
+      `every directory this guard would probe under ${repoRoot} is absent, so it would ` +
+        'assert nothing at all',
+    );
+  }
+  if (declaredEmitted > 0 && plantedEmitted === 0) {
+    throw new NoModulePackagesError(
+      `${declaredEmitted} build directory/directories are declared under ${repoRoot} and none ` +
+        "is on disk. This guard's subject is what a published package ships, so a run over " +
+        'source alone asserts nothing about the thing a client installs. Run ' +
+        '`pnpm run build:packages`.',
+    );
   }
   const control = utilityFor(seed, index);
   probes.push({

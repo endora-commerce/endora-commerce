@@ -72,8 +72,8 @@ export interface RegisteredMigration {
  * committed core registry with whatever packages this instance installed — is
  * built here, where the discovery is. One name for it either way.
  */
-export type { MigrationOwnership } from '../lifecycle/services/migration-ownership.js';
-import type { MigrationOwnership } from '../lifecycle/services/migration-ownership.js';
+export type { MigrationOwnership } from '@endora-commerce/platform/lifecycle';
+import type { MigrationOwnership } from '@endora-commerce/platform/lifecycle';
 
 /** The result of merging every producer's migrations into one execution order. */
 export interface ConfiguredMigrations {

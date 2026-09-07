@@ -107,15 +107,24 @@ export { runDisableCommand } from './commands/disable.js';
 export { runStatusCommand } from './commands/status.js';
 
 // --- the module itself, as the generated artefacts name it ----------------
-export { registerModule, type LifecycleCradle } from './backend.js';
+// Phase 6 made this comment literally true: `composition.generated.ts` and
+// `manifest-index.generated.ts` name **this specifier** for `_lifecycle`, so
+// `backend.ts`, `manifest.ts` and `plugin.ts` are reached by nothing relative
+// any more and are held by the barrel's *second* direction alone — a name here
+// is one a first-party source outside the platform actually imports.
+//
+// Which is why five names left in that same merge request. `LifecycleCradle`,
+// `lifecycleModule`, `LifecycleModule`, `LifecycleModuleDeps` and
+// `LifecycleModuleHandle` were here because direction 1 demands **every** name
+// a ledger-reached file exports, and with the reach gone nobody asks for them:
+// the generated composition reads `registerModule` off its namespace import and
+// `composition.ts` takes `lifecycleModuleFromStaticEntries`, and that is the
+// whole of it. Parking them against a future need is what R5.4 refuses, and
+// `published-surface.test.ts` is what said so — in the phase that changed the
+// specifier, not in the one that would later have wondered why they were here.
+export { registerModule } from './backend.js';
 export { manifest } from './manifest.js';
-export {
-  lifecycleModule,
-  lifecycleModuleFromStaticEntries,
-  type LifecycleModule,
-  type LifecycleModuleDeps,
-  type LifecycleModuleHandle,
-} from './plugin.js';
+export { lifecycleModuleFromStaticEntries } from './plugin.js';
 export {
   registerApiInterceptorAdminRoutes,
   registerLifecycleAdminRoutes,
@@ -190,10 +199,13 @@ export {
   type LoadedManifestRegistry,
   type LoadedModuleEntry,
 } from './services/manifest-loader.js';
+// `module-origin.ts`'s shim had no importer left once Phase 6 re-pointed the
+// application, so this file too is now held by the second direction alone —
+// which cost it `OriginatedManifestEntry`, a name nothing outside the platform
+// asks for.
 export {
   deploymentShippedEntries,
   type ModuleIdClaimOrigin,
-  type OriginatedManifestEntry,
 } from './services/module-origin.js';
 export {
   assertNoModuleIdCollisions,

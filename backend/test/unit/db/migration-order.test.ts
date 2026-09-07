@@ -146,7 +146,7 @@ describe('migration-order module purity', () => {
     // owns (D-52/D-53). One implementation is what makes the member list an
     // operator reads in a refused install the member list this order reports;
     // two would be free to disagree.
-    expect(imports).toEqual(['@mikro-orm/core', '../lifecycle/services/dep-graph.js']);
+    expect(imports).toEqual(['@mikro-orm/core', '@endora-commerce/platform/lifecycle']);
     expect(source).not.toContain("from '../modules/");
     expect(source).not.toContain('mikro-orm.config');
   });

@@ -6,7 +6,7 @@ import {
   moduleDependencyCycles,
   sortComponentsTopologically,
   stronglyConnectedComponents,
-} from '../lifecycle/services/dep-graph.js';
+} from '@endora-commerce/platform/lifecycle';
 
 /**
  * Computes the order in which migrations are handed to the migrator.

@@ -134,7 +134,19 @@ quality:
     # in the units this variable is written in.
     #
     # **The ceiling is the container, not the host.** The job container's limit
-    # is 3072 MB, and the cgroup's own `memory.peak` says ~130 MB of the
+    # is **4096 MB** — measured 2026-09-07 from inside a running job container,
+    # `cat /sys/fs/cgroup/memory.max` -> `4294967296`, and set by the runner's
+    # own `[runners.docker] memory = "4g"`. This paragraph read *3072 MB* until
+    # then; the number was right when it was written and the runner
+    # configuration has since been made explicit. The arithmetic below is left
+    # as it was derived, so what the correction changes is the **margin** and
+    # not the choice: the usable ceiling it computes as ~2816 is really ~3840,
+    # which leaves 2560 with roughly 1280 MB of headroom rather than the ~330 MB
+    # the last sentence claims. 2560 stays — it is above the measured
+    # requirement and more conservative than it needs to be, which is the right
+    # direction for a shared box.
+    #
+    # The cgroup's own `memory.peak` says ~130 MB of the
     # process sits outside the old space: the run that died with its heap full
     # at 2080 MB peaked at 2210 MB. A cap at or near 3072 would therefore turn
     # a genuine exhaustion into a cgroup SIGKILL (137) instead of the named V8
@@ -1023,8 +1035,24 @@ test:backend:deployment:
 # 40-file shard reaches the same peak — and the per-file leak !915 left unplugged
 # is not measurable across a full shard.
 #
-# **What kills it is the host, and the host is shared.** The job container has no
-# memory limit of its own (`memory.max: max`), and after a failure its cgroup
+# **What kills it is the host, and the host is shared.** The container's own
+# limit is not what this section's failure hit — but the parenthetical that
+# stood here, *"the job container has no memory limit of its own
+# (`memory.max: max`)"*, is no longer true of this runner and is corrected
+# rather than deleted, because the argument it supports survives it. Measured
+# 2026-09-07: `[runners.docker]` sets `memory = "4g"`, `memory_swap = "4g"`
+# (equal to `memory`, so the container has **no swap**), `memory_reservation =
+# "3g"`, and `service_memory = "2g"`; `concurrent = 2` on a **single**
+# registration, which also retires this block's later remark about
+# `endora-commerce-runner-1` and `-2` being two registrations. `memory.max: max`
+# described the configuration before those caps were written. What does not
+# change is the finding: a shard costs ~2.5 GB, two of them plus the neighbour
+# exceed what the host has, and each is comfortably inside its own 4 GB cap
+# while the host runs out underneath them. That is why the evidence below reads
+# `oom 0, oom_kill 1` — a process of this cgroup killed by an OOM killer that
+# was not this cgroup's own limit.
+#
+# After a failure its cgroup
 # reports `oom 0, oom_kill 1` — a process of this cgroup killed by an OOM killer
 # that was not this cgroup's own limit. Run ALONE the same shard completes all
 # 269 files with `oom_kill 0` and leaves the host 3.7 GB free; run as a
@@ -1846,7 +1874,13 @@ build:docs:
 # measured on a 16-core developer machine, of which the `next build` is most.
 # The runner host is shared — see the Memory block above `test:backend` — and
 # `storefront/next.config.js` already caps that build at two workers because it
-# was OOM-killed on this box twice. The class of defect it catches is not
+# was OOM-killed on this box twice. **That cap was necessary and not sufficient,
+# and this job is where it showed**: pipeline 13121 (job 43732) printed `Killed`
+# and exited 137 inside `next build`, with no other job of ours running beside
+# it. Capping static generation had moved the peak into the compile phase, which
+# `next build` was silently running in its own parent process; both halves of the
+# repair, and the numbers, are in `storefront/next.config.js` and in the build
+# invocation in `scripts/lib/storefront-stack.sh`. The class of defect it catches is not
 # introduced quickly (the JSON-LD gap stood from April), so the merge request
 # pays `test:frontend` and `quality`, and this catches the rest afterwards.
 #

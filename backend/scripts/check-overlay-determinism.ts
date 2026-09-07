@@ -445,8 +445,25 @@ export function docEntries(content: string): string[] {
 const SPECIFIER_LINE = /^\s*(?:import|export)\b[^;]*?\bfrom\s*'([^']+)'/;
 const BARE_IMPORT_LINE = /^\s*import\s*'([^']+)'/;
 
+/**
+ * CSS's own import, which the eighth artefact writes (feature 110, T124).
+ *
+ * A second recogniser rather than a widened one: the two grammars agree on
+ * nothing but the word — CSS spells the at-rule `@import` and quotes with `"`,
+ * where every JavaScript artefact here writes bare `import` with `'`. Widening
+ * `SPECIFIER_LINE` to accept both would make the *unreadable-line* half below
+ * report every JavaScript artefact's `@` -prefixed nothing, and would make a
+ * mistyped `@import` in a CSS artefact read as a JavaScript line nobody
+ * parsed.
+ */
+const CSS_IMPORT_LINE = /^\s*@import\s+["']([^"']+)["']/;
+
 function specifierOf(line: string): string | null {
   return (SPECIFIER_LINE.exec(line) ?? BARE_IMPORT_LINE.exec(line))?.[1] ?? null;
+}
+
+function cssSpecifierOf(line: string): string | null {
+  return CSS_IMPORT_LINE.exec(line)?.[1] ?? null;
 }
 
 /**
@@ -466,6 +483,13 @@ export function unreadableEntryLines(content: string): string[] {
   });
 }
 
+/** The same question for a CSS artefact: an `@import` line yielding no specifier. */
+export function unreadableCssEntryLines(content: string): string[] {
+  return content
+    .split('\n')
+    .filter((line) => cssSpecifierOf(line) === null && /^\s*@import\b/.test(line));
+}
+
 /** Where every entry in one rendered artefact lands. */
 export function containmentSites(
   outputPath: string,
@@ -479,6 +503,18 @@ export function containmentSites(
       classifyDocEntry(outputPath, entry, entries.root, roots, entries.sources),
     );
   }
+  if (entries.kind === 'css-specifier') {
+    // The same classifier, deliberately: a CSS `@import` of `<pkg>/tailwind.css`
+    // and a JavaScript `import` of `<pkg>/admin` are one question — *where does
+    // the file this entry names really live* — and answering it twice is two
+    // answers waiting to disagree about what `foreign` means (R2.3 of
+    // `contracts/docs-registry.md`, applied one artefact over).
+    return content
+      .split('\n')
+      .map(cssSpecifierOf)
+      .filter((specifier): specifier is string => specifier !== null)
+      .map((specifier) => classifySpecifier(outputPath, specifier, roots));
+  }
   return content
     .split('\n')
     .map(specifierOf)
@@ -489,6 +525,12 @@ export function containmentSites(
 /** How one artefact names its entries, and what a bare one resolves against. */
 export type ArtifactEntrySource =
   | { readonly kind: 'specifier' }
+  /**
+   * The artefact is a **stylesheet** and names its entries with CSS's own
+   * `@import` (feature 110, T124). The containment question is identical and
+   * the recogniser is not — see {@link CSS_IMPORT_LINE}.
+   */
+  | { readonly kind: 'css-specifier' }
   /**
    * The artefact names **no** entries at all — a rendering that is prose.
    *
@@ -511,13 +553,14 @@ export type ArtifactEntrySource =
 
 /** The entry source an artefact declares, defaulting to the pre-feature-100 one. */
 export function entrySourceOf(artefact: {
-  entryKind?: 'specifier' | 'doc-id' | 'none';
+  entryKind?: 'specifier' | 'doc-id' | 'none' | 'css-specifier';
   entryRoot?: string;
   entrySources?: ReadonlyMap<string, string>;
 }): ArtifactEntrySource {
   if (artefact.entryKind === 'doc-id' && artefact.entryRoot !== undefined) {
     return { kind: 'doc-id', root: artefact.entryRoot, sources: artefact.entrySources ?? new Map() };
   }
+  if (artefact.entryKind === 'css-specifier') return { kind: 'css-specifier' };
   // An artefact whose entries are not files — the published baseline list names
   // migration classes — declares that here rather than being skipped, which is
   // the same statement the divergence report's markdown rendering makes below.
@@ -548,7 +591,11 @@ export function examineArtifact(
   // anyway would report every prose line that begins with the word `import` as
   // an entry this run cannot answer for, which is a refusal about the parser.
   const unreadable =
-    entries.kind === 'doc-id' || entries.kind === 'none' ? [] : unreadableEntryLines(expected);
+    entries.kind === 'doc-id' || entries.kind === 'none'
+      ? []
+      : entries.kind === 'css-specifier'
+        ? unreadableCssEntryLines(expected)
+        : unreadableEntryLines(expected);
   const foreign = sites.filter((site) => site.verdict === 'foreign');
   const emptyRender = !bytes.ok && bytes.reason === 'empty';
   const verdict: ArtifactVerdict =

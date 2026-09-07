@@ -144,6 +144,16 @@ import {
   PUBLISHED_COMPONENT_LAYER_DIRECTORY,
   UI_LAYER_DIRECTORIES,
 } from './ui-layer.js';
+import {
+  renderTailwindStylesheet,
+  scannableLayersFrom,
+  tailwindScannablePackages,
+  tailwindStylesheetPathOf,
+  TAILWIND_SOURCE_FILE,
+  TAILWIND_SOURCE_SUBPATH,
+  type TailwindScannableLayer,
+  type TailwindScannablePackage,
+} from './tailwind-sources.js';
 import { platformPackageNameOf } from './platform-root.js';
 import {
   classifyWorkspaceMembers,
@@ -872,6 +882,21 @@ const GENERATED_FIELDS: readonly string[] = [
   'devDependencies',
 ];
 
+/**
+ * One package's rendered `./tailwind.css` (R1.1/R1.4).
+ *
+ * A second artefact kind rather than a second `RenderedPackageManifest`,
+ * because it is not a manifest: the CLI writes and `--check`s both by the same
+ * loop, and every floor and coverage number on the manifest arrays is a
+ * statement about manifests.
+ */
+export interface RenderedTailwindStylesheet {
+  readonly packageName: string;
+  /** Absolute path of the `tailwind.css` this content belongs at. */
+  readonly outputPath: string;
+  readonly content: string;
+}
+
 /** One package's rendered manifest. */
 export interface RenderedPackageManifest {
   readonly packageName: string;
@@ -902,6 +927,24 @@ export interface ManifestRenderRun {
    * knows about.
    */
   readonly applicationRendered: readonly RenderedPackageManifest[];
+  /**
+   * The **library family** manifests this run reconciles rather than renders:
+   * the UI packages whose whole build is scannable (R1.3) — the shell and the
+   * kit family.
+   *
+   * Kept apart from {@link ManifestRenderRun.rendered} for the reason the
+   * application half is: every floor on that array counts *module packages*,
+   * and these are not. The edit is deliberately as narrow as the admin's — the
+   * `./tailwind.css` subpath and its `files` entry, and nothing else — because
+   * their `exports` maps and dependency ranges are a human's, with
+   * Constitution IV's justification behind them.
+   */
+  readonly familyRendered: readonly RenderedPackageManifest[];
+  /**
+   * Every `./tailwind.css` this run renders (R1.4): the module packages that
+   * ship a UI layer, plus the family members above.
+   */
+  readonly stylesheets: readonly RenderedTailwindStylesheet[];
   /**
    * Files opened — sources, manifests and build configurations alike, plus the
    * owner manifests and emitted modules the D-171 surfaces predicate reads. A
@@ -1013,14 +1056,39 @@ function sourceFilesUnder(
   return out;
 }
 
-/** The npm names the generated manifest index registers by bare specifier. */
-export function registeredPackageNamesIn(indexSource: string): readonly string[] {
+/**
+ * The npm names the generated manifest index registers by bare specifier.
+ *
+ * **The host is not one of them**, and since feature 115 Phase 6 it is in the
+ * index by a bare specifier too: `_lifecycle`'s sources are inside
+ * `@endora-commerce/platform`, so the artefact names
+ * `@endora-commerce/platform/lifecycle` where it used to name that package's
+ * `dist` by relative path. It is a registered module and it is **not a module
+ * package** — `manifests:generate` renders none of it — so counting it here
+ * would make this floor demand a render that must never happen.
+ *
+ * The exclusion is the host's own **name**, off the manifest of the member
+ * declaring `endora.type: "platform"`, and never the shape of the specifier: a
+ * subpath test would read "a module package whose manifest sits behind a
+ * narrower `exports` subpath" as not registered at all, which is the fail-open
+ * direction for the one floor that exists to notice a short walk. Anything else
+ * bare still counts, so a package this run failed to render is still a
+ * shortfall.
+ */
+export function registeredPackageNamesIn(
+  indexSource: string,
+  hostPackageName: string | null,
+): readonly string[] {
   const names = new Set<string>();
   for (const match of indexSource.matchAll(
     /resolveManifestPath\(\s*import\.meta\.url\s*,\s*'([^']+)'\s*\)/g,
   )) {
     const specifier = match[1]!;
     if (specifier.startsWith('.')) continue;
+    const packageName = specifier.startsWith('@')
+      ? specifier.split('/').slice(0, 2).join('/')
+      : specifier.split('/')[0]!;
+    if (hostPackageName !== null && packageName === hostPackageName) continue;
     names.add(specifier);
   }
   return [...names].sort();
@@ -1145,6 +1213,18 @@ export function renderModulePackageManifests(
   // make. Adding it here would put a dependency in `admin/package.json` that
   // no file under `admin/src` names.
   const contributingPackageNames = new Set<string>();
+  /**
+   * The module packages that ship a UI layer, and the layers they declare
+   * (R1.2).
+   *
+   * Collected from the render loop rather than re-derived from the workspace,
+   * so a module whose `package.json` this run is writing for the **first** time
+   * still gets its stylesheet — `workspaceMembers` cannot see a directory with
+   * no manifest, which is exactly the state the first run after a `git mv`
+   * leaves. It is the same inventory the `exports` entry above came from, so
+   * the two halves of one declaration cannot disagree.
+   */
+  const moduleStylesheets: TailwindScannablePackage[] = [];
   const rendered = identities.map((identity) => {
     const layers = layerInventoryOf(identity.dir, countingFs);
     if (layers.layers.some((layer) => layer.directory === ADMIN_LAYER_DIRECTORY)) {
@@ -1213,6 +1293,20 @@ export function renderModulePackageManifests(
       repositoryUrl,
       packageDirFromRoot: relative(repoRoot, identity.dir).split(sep).join('/'),
     });
+    const uiLayers = scannableLayersFrom(
+      layers.layers
+        .filter((layer) => UI_LAYER_DIRECTORIES.includes(layer.directory))
+        .map((layer) => `${emit.rootDir === '' ? '' : `${emit.rootDir}/`}${layer.directory}`),
+      emit,
+    );
+    if (uiLayers.length > 0) {
+      moduleStylesheets.push({
+        name: identity.name,
+        dir: identity.dir,
+        isModule: true,
+        layers: uiLayers,
+      });
+    }
     return {
       packageName: identity.name,
       moduleId: identity.moduleId,
@@ -1222,6 +1316,25 @@ export function renderModulePackageManifests(
   });
 
   refuseModulePackageDevDependencyCycle(rendered);
+
+  // The library family's half of R1 — the shell and the kit family, whose
+  // whole build is UI (R1.3). Their manifests are hand-written, so this
+  // reconciles two keys and renders their stylesheet; the module half above
+  // came out of the render loop. The population is one derivation shared with
+  // the guard (`scripts/tailwind-source-scan.ts`), so a package the artefact
+  // imports and a package the guard probes are the same set by construction.
+  const familyScannable = tailwindScannablePackages(repoRoot, countingFs, countingFs.listFiles)
+    .filter((pkg) => !pkg.isModule);
+  const familyRendered = familyScannable.map((pkg) =>
+    renderFamilyStylesheetManifest(pkg, countingFs),
+  );
+  const stylesheets = [...moduleStylesheets, ...familyScannable]
+    .sort((left, right) => byAscii(left.name, right.name))
+    .map((pkg) => ({
+      packageName: pkg.name,
+      outputPath: tailwindStylesheetPathOf(pkg),
+      content: renderTailwindStylesheet(pkg),
+    }));
 
   const indexSource =
     manifestIndexPath === undefined ? null : readText(manifestIndexPath);
@@ -1249,10 +1362,14 @@ export function renderModulePackageManifests(
   return {
     rendered,
     applicationRendered,
+    familyRendered,
+    stylesheets,
     filesRead: filesRead + surfaces.filesRead(),
     specifierSites,
     registeredPackageNames:
-      indexSource === null ? [] : registeredPackageNamesIn(indexSource),
+      indexSource === null
+        ? []
+        : registeredPackageNamesIn(indexSource, platformPackageNameOf(workspaceMembers(repoRoot, countingFs))),
     unbuiltPackages: [...unbuilt].sort(byAscii),
     newPackages: [...firstRender].sort(byAscii),
   };
@@ -1633,6 +1750,22 @@ function conditionsFor(emit: EmitLayout, entry: string): Record<string, string> 
   };
 }
 
+/**
+ * The scannable layers this module package declares (R1.2).
+ *
+ * Derived from the layer inventory the `exports` map is already rendered from
+ * and the build layout its targets already take, so a module that grows
+ * `src/admin/` grows its `./tailwind.css` in the same regeneration that gives
+ * it `./admin` — which is R1.4's whole reason for generating the file: a
+ * mistyped `@source` is silent (M12), so no human types one.
+ */
+function tailwindLayersOf(input: RenderInput): readonly TailwindScannableLayer[] {
+  const ui = input.layers.layers
+    .filter((layer) => UI_LAYER_DIRECTORIES.includes(layer.directory))
+    .map((layer) => `${input.emit.rootDir === '' ? '' : `${input.emit.rootDir}/`}${layer.directory}`);
+  return scannableLayersFrom(ui, input.emit);
+}
+
 /** The whole file, as text. */
 export function renderManifest(input: RenderInput): string {
   const exportsMap: Record<string, unknown> = {
@@ -1640,6 +1773,20 @@ export function renderManifest(input: RenderInput): string {
   };
   for (const layer of input.layers.layers) {
     exportsMap[layer.subpath] = conditionsFor(input.emit, layer.entry);
+  }
+  // The package's own `@source` declarations
+  // (`specs/110-instance-repository/contracts/admin-stylesheet-composition.md`
+  // R1.1), emitted for a package that ships a UI layer and for no other. It is
+  // the subpath the instance's generated stylesheet imports by name, so a
+  // package that ships screens and does not declare it is a screen an instance
+  // renders unstyled — and an undeclared subpath is
+  // ERR_PACKAGE_PATH_NOT_EXPORTED, which is the loud failure R1 trades the
+  // silent one for.
+  //
+  // A CSS file, so it carries **no conditions**: `types` and `default` are for
+  // a module a consumer imports, and this one is imported by a stylesheet.
+  if (tailwindLayersOf(input).length > 0) {
+    exportsMap[TAILWIND_SOURCE_SUBPATH] = `./${TAILWIND_SOURCE_FILE}`;
   }
   // R1 — discovery reads `<pkg>/package.json` for the `endora` field; omitting
   // it is ERR_PACKAGE_PATH_NOT_EXPORTED at runtime and TS2307 at compile time.
@@ -1896,6 +2043,11 @@ export function renderManifest(input: RenderInput): string {
   const files = [input.emit.outDir === '' ? 'dist' : input.emit.outDir];
   if (input.layers.hasI18n) files.push('i18n');
   if (input.layers.hasDocs) files.push('docs');
+  // The stylesheet sits at the package root beside `package.json`, outside
+  // `dist`, so `files` has to name it: a subpath declared over a file the
+  // tarball omits is M9 — ERR_PACKAGE_PATH_NOT_EXPORTED at the first consumer,
+  // which `pack-gate` refuses as `unresolvable-export`.
+  if (tailwindLayersOf(input).length > 0) files.push(TAILWIND_SOURCE_FILE);
 
   const manifest = {
     name: input.packageName,
@@ -2137,6 +2289,91 @@ export function renderAdminApplicationManifest(input: {
   manifest['dependencies'] = Object.fromEntries(reconciled);
   return {
     packageName: typeof manifest['name'] === 'string' ? manifest['name'] : member.name,
+    moduleId: null,
+    outputPath: manifestPath,
+    content: `${JSON.stringify(manifest, null, 2)}\n`,
+  };
+}
+
+// --- the library family's own source declarations (R1.3) --------------------
+
+/**
+ * A UI family member's `package.json`, with its `./tailwind.css` subpath and
+ * `files` entry reconciled against what it ships
+ * (`admin-stylesheet-composition.md` R1.3/R1.4).
+ *
+ * ## Why a reconciliation and not a render
+ *
+ * These five manifests are hand-written and must stay so. Their `exports` maps
+ * carve out subpath families nothing in this repository derives
+ * (`page-builder-core` publishes nine plus a wildcard), and their dependency
+ * ranges are a human's with Constitution IV's justification behind them. A
+ * generator that owned the whole file would be asserting an authority it does
+ * not have — which is the argument {@link renderAdminApplicationManifest}
+ * already makes, one artefact over.
+ *
+ * So this touches exactly two keys and moves nothing else. The alternative was
+ * a refusal telling the author to add the entry by hand, and it is rejected for
+ * R1.4's reason: the file the entry points at is generated precisely because a
+ * mistyped `@source` is silent, and an entry a human maintains beside a file
+ * they do not is the same defect one level up.
+ *
+ * ## Where the subpath goes, and what happens to `files`
+ *
+ * Immediately before `./package.json` when the map declares one, at the end
+ * otherwise — one rule, deterministic, and it keeps the specific-then-wildcard
+ * reading order these maps are written in. Node resolves an exact subpath ahead
+ * of a `./*` pattern regardless, so position is presentation and not
+ * behaviour.
+ *
+ * `files` is touched **only when the manifest declares one**. A package that
+ * declares none packs everything, and adding a one-element list there would
+ * silently drop its `dist` from the tarball — a narrow edit that is not narrow
+ * at all.
+ */
+export function renderFamilyStylesheetManifest(
+  pkg: TailwindScannablePackage,
+  fs: ManifestFs,
+): RenderedPackageManifest {
+  const manifestPath = join(pkg.dir, 'package.json');
+  const text = fs.readText(manifestPath);
+  if (text === null) {
+    throw new ModulePackageManifestError(
+      `${manifestPath} could not be read. It is where the '${TAILWIND_SOURCE_SUBPATH}' subpath ` +
+        `is declared, and a package that ships UI and declares none is a package the ` +
+        `instance's generated stylesheet cannot import — every utility it contributes is ` +
+        `dropped from the host's bundle with no error anywhere.`,
+    );
+  }
+  const manifest = JSON.parse(text) as Record<string, unknown>;
+  const declared = manifest['exports'];
+  if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) {
+    throw new ModulePackageManifestError(
+      `${manifestPath} declares no \`exports\` object, so there is nowhere to publish ` +
+        `'${TAILWIND_SOURCE_SUBPATH}'. A package with no exports map publishes nothing a ` +
+        `consumer can name, which is a state this reconciliation must not paper over by ` +
+        `inventing one.`,
+    );
+  }
+  const entries = Object.entries(declared as Record<string, unknown>).filter(
+    ([subpath]) => subpath !== TAILWIND_SOURCE_SUBPATH,
+  );
+  const declaration: [string, unknown] = [
+    TAILWIND_SOURCE_SUBPATH,
+    `./${TAILWIND_SOURCE_FILE}`,
+  ];
+  const before = entries.findIndex(([subpath]) => subpath === './package.json');
+  const reconciled = before === -1
+    ? [...entries, declaration]
+    : [...entries.slice(0, before), declaration, ...entries.slice(before)];
+  manifest['exports'] = Object.fromEntries(reconciled);
+
+  const files = manifest['files'];
+  if (Array.isArray(files) && !files.includes(TAILWIND_SOURCE_FILE)) {
+    manifest['files'] = [...files, TAILWIND_SOURCE_FILE];
+  }
+  return {
+    packageName: pkg.name,
     moduleId: null,
     outputPath: manifestPath,
     content: `${JSON.stringify(manifest, null, 2)}\n`,

@@ -151,9 +151,48 @@ storefront_stack_boot() {
   # Measured three times: identical trees, the only difference being this
   # variable. The backend keeps `development`, because a production composition
   # refuses to default values these jobs have no business supplying.
+  #
+  # `--max-old-space-size=1024`, on this invocation and on nothing else. It is
+  # the second half of the repair `storefront/next.config.js`'
+  # `webpackBuildWorker: true` is the first half of, and it only became
+  # available with it: until the compile moved into a worker there was nothing
+  # for a heap cap to reach, measured — with the compile in the parent, a 1024
+  # cap took the parent from 1959 MB to 1905 MB, which is noise, because that
+  # process's footprint is webpack's native memory and not V8's old space.
+  # Inside the build worker the same cap is real. Peak summed RSS of the whole
+  # process group, `webpackBuildWorker: true` throughout:
+  #
+  #   uncapped .................. 2153 MB    98 s
+  #   `--max-old-space-size=768`  1631 MB   100 s
+  #   ... 1024 .................. 1788 MB   102 s
+  #   ... 512 ................... FAILS
+  #
+  # So the requirement sits between 512 and 768, and 1024 is chosen above it
+  # with the same margin `.gitlab-ci.yml`'s `quality` block chose 2560 over a
+  # 2048–2080 requirement.
+  #
+  # **What it buys beyond the 365 MB is the failure mode**, which is the reason
+  # to keep it even on a machine where the memory is not tight. Uncapped, Node
+  # sizes the old space from `os.totalmem()` — the *host's*, since a docker
+  # executor's container does not change `/proc/meminfo` — so this build's
+  # demand is a function of whichever machine runs it: 4192 MB of default heap
+  # on a 64 GB developer box against roughly 2 GB on the 7.9 GB runner, where
+  # the compile worker's measured 1922 MB is already at the ceiling. Pinning it
+  # makes the demand a constant. And the 512 run above did not print `Killed`:
+  # it printed `FATAL ERROR: Ineffective mark-compacts near heap limit -
+  # JavaScript heap out of memory`, which says which process ran out of what.
+  # `Killed` and exit 137 — pipeline 13121, job 43732 — says neither.
+  #
+  # It is **here** and not in the job's `variables:` because a job-level
+  # `NODE_OPTIONS` reaches every node this script starts: the backend under
+  # `tsx`, the seed, and the standalone storefront server the conformance sweep
+  # then measures. Capping those is a different decision with no measurement
+  # behind it. It is not in `next.config.js` either — a client's build has its
+  # own machine and its own budget, and this number is ours.
   storefront_stack_say 'building the storefront…'
   if ! (cd "$REPO_ROOT" && \
         NODE_ENV=production \
+        NODE_OPTIONS=--max-old-space-size=1024 \
         NEXT_PUBLIC_API_BASE_URL="$PUBLIC_API_BASE_URL" \
         NEXT_PUBLIC_SITE_URL="$STOREFRONT_URL" \
         BACKEND_BASE_URL="$PUBLIC_API_BASE_URL" \

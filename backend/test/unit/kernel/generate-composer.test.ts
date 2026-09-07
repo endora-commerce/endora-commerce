@@ -117,18 +117,29 @@ describe('F2 — a single generated manifest registry', () => {
       'utf8',
     );
     expect(registry).not.toMatch(/from '\.[^']*\/manifest\.js'/);
-    // The control: the index really does import manifests, so the assertion
-    // above is about `registered-manifests.ts` and not about an empty file.
+    // And not by a **bare** one either, which is the spelling the whole tree has
+    // arrived at: every module is a package and, since
+    // `specs/115-lifecycle-container-move/` Phase 6, so is the address of the one
+    // module the platform holds. A relative-only assertion would have gone quiet
+    // in exactly the direction it exists to watch.
+    expect(registry).not.toMatch(/from '@endora-commerce\/mod-[^']*'/);
+    // The control: the index really does import manifests, so the assertions
+    // above are about `registered-manifests.ts` and not about an empty file.
     // Neither the module nor the *shape* of the specifier is named — it read
     // `blog` until that module became a package (feature 080, T040b) and the
     // index started naming it `@endora-commerce/mod-blog`, then `../<id>/` until
     // the index moved to the source root (D-160.3) and every relative specifier
-    // it emits gained a directory. Both are expiry dates; "a relative manifest
-    // import, of any depth" is the property the assertion above is about.
+    // it emits gained a directory, then a relative path into the platform's
+    // `dist` until Phase 6 gave `_lifecycle` a declared address and the index
+    // stopped emitting a relative specifier at all. Four expiry dates on one
+    // control, each of them a fact about the layout rather than about the
+    // property being asserted. So the control is now the property itself: the
+    // index imports manifests, in whatever spelling the generator chose.
     const index = renderManifestIndex().content;
-    expect(index, 'the index imports no manifest by relative path').toMatch(
-      /from '\.[^']*\/manifest\.js'/,
-    );
+    const manifestImports = [
+      ...index.matchAll(/^import \{ manifest as manifest\d+.*? \} from '[^']+';$/gm),
+    ];
+    expect(manifestImports.length, 'the index imports no manifest at all').toBeGreaterThan(0);
   });
 
   it('carries the install hooks the registry used to import a second time', () => {
