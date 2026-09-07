@@ -316,6 +316,61 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       + 'when a field protection names a path the importer does not write. The noun is the '
       + 'UnoPim ingress, which `pim_unopim` owns.',
   },
+
+  // The Akeneo connector, minted by feature 094. The module did not exist when
+  // the prefix chain was deleted, so the frozen capture holds none of its seven
+  // codes. `PIM_CONNECTOR_ALREADY_ACTIVE` is not among them and is not a second
+  // entry here: `pim_akeneo` raises it, `pim_connector` owns it, and it is
+  // already ledgered above under that owner.
+  PIM_AKENEO_NOT_CONFIGURED: {
+    to: 'pim_akeneo',
+    reason:
+      'Minted with the Akeneo connector (feature 094) for the refusal an operator meets when no '
+      + 'Akeneo connection row exists yet, which is the first-run state every admin route '
+      + 'answers with. The noun is the Akeneo ingress, which `pim_akeneo` owns.',
+  },
+  PIM_AKENEO_CONNECTION_DISABLED: {
+    to: 'pim_akeneo',
+    reason:
+      'Minted with the Akeneo connector (feature 094) for the refusal a delivery meets when '
+      + 'ingress is switched off at the connection, which is the operator’s own control. The '
+      + 'noun is the Akeneo ingress, which `pim_akeneo` owns.',
+  },
+  PIM_AKENEO_BOOTSTRAP_INCOMPLETE: {
+    to: 'pim_akeneo',
+    reason:
+      'Minted with the Akeneo connector (feature 094) for the refusal live records meet while '
+      + 'bootstrap is still required and has been neither completed nor skipped. The noun is the '
+      + 'Akeneo ingress, which `pim_akeneo` owns.',
+  },
+  PIM_AKENEO_DELIVERY_ID_CONFLICT: {
+    to: 'pim_akeneo',
+    reason:
+      'Minted with the Akeneo connector (feature 094) for the refusal a delivery meets when the '
+      + 'same delivery id is reused with a different start body, so the second is not the '
+      + 'retry it claims to be. The noun is the Akeneo ingress, which `pim_akeneo` owns.',
+  },
+  PIM_AKENEO_CHANNEL_REQUIRED: {
+    to: 'pim_akeneo',
+    reason:
+      'Minted with the Akeneo connector (feature 094) for the refusal an operator meets when '
+      + 'they enable the connection with no resolvable active default sales channel to apply '
+      + 'records to. The noun is the Akeneo ingress, which `pim_akeneo` owns.',
+  },
+  PIM_AKENEO_SECRET_REQUIRED: {
+    to: 'pim_akeneo',
+    reason:
+      'Minted with the Akeneo connector (feature 094) for the refusal an operator meets when '
+      + 'they enable the connection with no stored HMAC secret, which is what authenticates '
+      + 'every delivery. The noun is the Akeneo ingress, which `pim_akeneo` owns.',
+  },
+  PIM_AKENEO_FIELD_KEY_INVALID: {
+    to: 'pim_akeneo',
+    reason:
+      'Minted with the Akeneo connector (feature 094) for the refusal an operator meets when a '
+      + 'field protection names a key that does not match the grammar the apply path writes. '
+      + 'The noun is the Akeneo ingress, which `pim_akeneo` owns.',
+  },
 };
 
 /**
