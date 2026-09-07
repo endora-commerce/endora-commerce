@@ -85,12 +85,12 @@ import {
   type CrossModuleRead,
   type DeactivationLedger,
   type UnassignedEdge,
-} from '../src/lifecycle/services/deactivation-ledger.js';
+} from '@endora-commerce/platform/lifecycle';
 import {
   acknowledgedPortEdgesFrom,
   nonBindingPortEdgesFrom,
   type NonBindingPortEdge,
-} from '../src/lifecycle/services/gating-graph.js';
+} from '@endora-commerce/platform/lifecycle';
 import {
   refuseVacuousModulePopulation,
   NO_HOST_RESIDENT_MODULES,

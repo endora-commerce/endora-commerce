@@ -67,11 +67,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   absolutePathInPackage,
+  declaredExports,
   discoverModulePackages,
   installedModulePackages,
   isDeclaredEntryPoint,
   ModulePackageError,
+  packageRelativePathOf,
   packageSpecifierFor,
+  readEmitLayout,
   type ModulePackage,
 } from './lib/module-packages.js';
 import {
@@ -285,8 +288,8 @@ interface HostResidentModule {
   /**
    * How a generated artefact at the source root names a file in this module's
    * directory — `./lifecycle/manifest.js` for a module the application's own
-   * tree holds, `../../packages/platform/dist/lifecycle/manifest.js` for one
-   * inside the platform package. See {@link residentModules}.
+   * tree holds, `@endora-commerce/platform/lifecycle` for one inside the
+   * platform package. See {@link residentModules}.
    */
   readonly specifierFor: (absolutePath: string) => string;
 }
@@ -308,16 +311,34 @@ const MANIFEST_ID_RE = /defineModuleManifest\(\{[\s\S]*?\bid:\s*'([^']+)'/;
  * after a registered id as a module directory and a `src/_lifecycle/` would make
  * the whole source root one.
  *
- * **The platform half's specifier names the package's `dist`, not its `src`.**
- * The host publishes five subpaths and no more (D-160.7), so there is no bare
- * specifier that reaches inside it, and naming the *source* would evaluate the
+ * **The platform half's specifier is the bare one its `exports` map declares**
+ * (`specs/115-lifecycle-container-move/`, Phase 6). It was
+ * `../../packages/platform/dist/lifecycle/manifest.js` until then — a relative
+ * path into a sibling package's build output, which resolves in this checkout
+ * and in **no** client instance, so the artefact whose whole job is to register
+ * the modules a build ships could not register `_lifecycle` anywhere else. That
+ * spelling was not a design: at the time the host published five subpaths and
+ * none of them reached the operator half, so there was no bare specifier to
+ * emit. D115-4 added `./lifecycle` — declared, host-internal, carried by no
+ * published barrel — and this is what it was added for.
+ *
+ * It still names the **built** file rather than the source, because that is
+ * what the `exports` map resolves to: naming the source would evaluate the
  * platform a second time — 59 runtime values, none shared, `instanceof
  * HttpError` false across the boundary (host-package.md §3.5), which is exactly
- * what `check:singleton-identity` refuses. So it names the built file, as the
- * re-export shims in `backend/src/{kernel,http,tenancy,commands,events}` and
- * `backend/src/lifecycle/` already do. `src` and `dist` sit at the same depth
- * under `backend/`, so the emitted specifier is correct from `backend/src` under
- * `tsx` and from `backend/dist` in production without being rewritten.
+ * what `check:singleton-identity` refuses. And a bare specifier is correct from
+ * `backend/src` under `tsx` and from `backend/dist` in production without being
+ * rewritten, which the relative one was only because `src` and `dist` happened
+ * to sit at the same depth.
+ *
+ * **Which** subpath is derived, never written down (D-100): it is the most
+ * specific one the platform's own `exports` map declares whose target covers the
+ * file, by `packageSpecifierFor` — the same rule that names a module package's
+ * files, so a platform directory that gains an address, or renames one, is
+ * followed rather than refused. A file no declared subpath covers is a
+ * **refusal**, because a committed registry importing it would get
+ * `ERR_PACKAGE_PATH_NOT_EXPORTED` and skipping it is how a module drops out of
+ * an artefact with no error anywhere.
  */
 export function residentModules(): HostResidentModule[] {
   const found: HostResidentModule[] = [];
@@ -338,7 +359,7 @@ export function residentModules(): HostResidentModule[] {
   };
   collect(srcRoot, srcSpecifier);
   const platformRoot = platformSourceRootAt(repoRoot);
-  if (platformRoot !== null) collect(platformRoot, platformDistSpecifier(platformRoot));
+  if (platformRoot !== null) collect(platformRoot, platformSubpathSpecifier(platformRoot));
   return found;
 }
 
@@ -414,20 +435,46 @@ export function instancePopulation(instanceRoot: string): ArtefactPopulation {
 }
 
 /**
- * `<platform>/src/lifecycle/manifest.ts` -> `../../packages/platform/dist/lifecycle/manifest.js`,
- * relative to the directory the generated artefacts sit in.
+ * `<platform>/src/lifecycle/manifest.ts` -> `@endora-commerce/platform/lifecycle`.
+ *
+ * The platform is not a module package — it declares `endora.type: "platform"`
+ * and claims no module id — but the question asked of it here is a module
+ * package's exactly: *which declared subpath does a committed artefact name this
+ * file by?* So it is answered by the same function, over a record built from the
+ * platform's own manifest, rather than by a second derivation that could come to
+ * disagree with it (D-100). `packageSpecifierFor` maps the source through the
+ * package's emit layout and picks the longest covering `exports` target, which
+ * for `src/lifecycle/manifest.ts` is `dist/lifecycle/manifest.js` under
+ * `./lifecycle`'s barrel.
+ *
+ * Both files this is asked about — the manifest and `backend.ts` — therefore
+ * answer with the **same** specifier, which is right: one subpath for one
+ * surface (D115-4), and a consumer that wants one symbol imports one symbol.
  */
-function platformDistSpecifier(platformRoot: string): (absolutePath: string) => string {
-  const distRoot = join(dirname(platformRoot), 'dist');
-  return (absolutePath: string): string => {
-    const within = relative(platformRoot, absolutePath).split('\\').join('/');
-    const target = join(distRoot, within);
-    const specifier = relative(dirname(manifestIndexOutputPath), target)
-      .split('\\')
-      .join('/')
-      .replace(/\.ts$/, '.js');
-    return specifier.startsWith('.') ? specifier : `./${specifier}`;
+function platformSubpathSpecifier(platformRoot: string): (absolutePath: string) => string {
+  const packageDir = dirname(platformRoot);
+  const fs = nodeWorkspaceFs();
+  const member = workspaceMembers(repoRoot, fs).find((candidate) => candidate.dir === packageDir);
+  if (member === undefined) {
+    throw new PlatformRootUnresolvableError(
+      `${packageDir} holds the platform's sources and is not a workspace member. Its ` +
+        '`exports` map is what a generated artefact names its files by, and a package no ' +
+        'workspace glob reaches has no manifest to read it from.',
+    );
+  }
+  const platformAsPackage: ModulePackage = {
+    // Never read on this path: `packageSpecifierFor` and `emittedPathOf` take
+    // `name`, `exports` and `emit` only. The platform makes no module claim of
+    // its own, and the ids of the modules whose sources it holds come out of
+    // their own manifests in `residentModules` above.
+    moduleId: `${member.name} (not a module package)`,
+    name: member.name,
+    dir: member.dir,
+    exports: declaredExports(member.manifest),
+    emit: readEmitLayout(member.dir, member.name, fs),
   };
+  return (absolutePath: string): string =>
+    packageSpecifierFor(platformAsPackage, packageRelativePathOf(platformAsPackage, absolutePath));
 }
 
 /** How the emitted index, which sits at the source root, names a file under it. */

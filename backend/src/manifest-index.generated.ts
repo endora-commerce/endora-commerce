@@ -35,7 +35,7 @@ import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/con
 import { resolveManifestPath } from './manifest-locations.js';
 
 import { manifest as manifest0, lifecycleParticipant as lifecycleParticipant0, cliCommands as cliCommands0 } from '@endora-commerce/mod-i18n';
-import { manifest as manifest1 } from '../../packages/platform/dist/lifecycle/manifest.js';
+import { manifest as manifest1 } from '@endora-commerce/platform/lifecycle';
 import { manifest as manifest2 } from '@endora-commerce/mod-addresses';
 import { manifest as manifest3, lifecycleParticipant as lifecycleParticipant3 } from '@endora-commerce/mod-admin-actions';
 import { manifest as manifest4 } from '@endora-commerce/mod-admin-notifications';
@@ -124,7 +124,7 @@ export interface DiscoveredManifestEntry {
 
 export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: '_i18n', manifest: manifest0, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-i18n'), lifecycleParticipant: lifecycleParticipant0, cliCommands: cliCommands0 },
-  { id: '_lifecycle', manifest: manifest1, manifestPath: resolveManifestPath(import.meta.url, '../../packages/platform/dist/lifecycle/manifest.js') },
+  { id: '_lifecycle', manifest: manifest1, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/platform/lifecycle') },
   { id: 'addresses', manifest: manifest2, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-addresses') },
   { id: 'admin_actions', manifest: manifest3, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-admin-actions'), lifecycleParticipant: lifecycleParticipant3 },
   { id: 'admin_notifications', manifest: manifest4, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-admin-notifications') },

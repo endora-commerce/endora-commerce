@@ -221,6 +221,37 @@ const KEPT_MODULE_MANIFEST_RELATIVE = relative(REPO_ROOT, keptModuleManifestPath
   .split(sep)
   .join('/');
 
+/**
+ * How the **real** generated index names the kept module's manifest.
+ *
+ * Read out of the committed artefact rather than composed here, because the
+ * spelling has now changed twice and this fixture's whole claim (feature 111,
+ * FR-001) is that it names a module the way the generator does. It was a
+ * relative path into `packages/platform/dist/` for as long as the host published
+ * no subpath reaching inside it; `specs/115-lifecycle-container-move/` Phase 6
+ * gave it `@endora-commerce/platform/lifecycle` and re-emitted both artefacts,
+ * at which point a fixture still spelling it relatively would be modelling an
+ * index no generator produces — and, worse, one whose anchor is a *different*
+ * file from the real one's.
+ *
+ * The refusal is the fixture's own #113: an index that names no specifier for
+ * the one module this fixture keeps is not a fixture to build on.
+ */
+export function keptModuleSpecifier(): string {
+  const source = readFileSync(join(REPO_ROOT, 'backend', 'src', MANIFEST_INDEX_FILENAME), 'utf8');
+  const entry = new RegExp(
+    String.raw`\{ id: '${KEPT_MODULE}',[^}]*?resolveManifestPath\(import\.meta\.url, '([^']+)'\)`,
+  ).exec(source);
+  if (entry === null) {
+    throw new Error(
+      `[moved-module-tree-fixture] the committed manifest index carries no specifier for ` +
+        `'${KEPT_MODULE}'. The fixture names that module the way the generator does, and it ` +
+        'reads the generator\'s answer rather than composing one, so there is nothing to copy.',
+    );
+  }
+  return entry[1]!;
+}
+
 const KEPT_BUNDLE = routedModuleShippingABundle();
 
 // ---------------------------------------------------------------------------
@@ -1143,11 +1174,14 @@ function splitManifestIndex(root: string): string {
   const specifierOf = (id: string): string => {
     const bare = stagedPackageSpecifier(root, id);
     if (bare !== null) return bare;
-    // The kept module is neither: it lives inside the platform package and its
-    // manifest is imported at that package's built file, exactly as the real
-    // index imports it (D-160.11). The address is the real one, rebased on the
-    // fixture root by being repository-relative already.
-    if (id === KEPT_MODULE) return relativeTo(KEPT_MODULE_MANIFEST_RELATIVE);
+    // The kept module is neither: it lives inside the platform package, and how
+    // the index names it is the **generator's** answer, copied rather than
+    // composed — a bare `@endora-commerce/platform/lifecycle` since feature 115
+    // Phase 6, a relative path into that package's `dist` before it. The fixture
+    // stages the platform package and re-roots the `@endora-commerce` scope at
+    // its own copy, so either spelling resolves inside the fixture and lands on
+    // the same anchor, `<pkg>/dist/lifecycle`.
+    if (id === KEPT_MODULE) return keptModuleSpecifier();
     const packageAddress = packagedModulePath(id).split(sep).join('/');
     // Sources at a package address that the test above did not name: a
     // relocated module, or a stranded one whose `package.json` was withheld.

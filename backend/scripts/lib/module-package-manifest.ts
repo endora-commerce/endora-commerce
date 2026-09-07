@@ -1056,14 +1056,39 @@ function sourceFilesUnder(
   return out;
 }
 
-/** The npm names the generated manifest index registers by bare specifier. */
-export function registeredPackageNamesIn(indexSource: string): readonly string[] {
+/**
+ * The npm names the generated manifest index registers by bare specifier.
+ *
+ * **The host is not one of them**, and since feature 115 Phase 6 it is in the
+ * index by a bare specifier too: `_lifecycle`'s sources are inside
+ * `@endora-commerce/platform`, so the artefact names
+ * `@endora-commerce/platform/lifecycle` where it used to name that package's
+ * `dist` by relative path. It is a registered module and it is **not a module
+ * package** — `manifests:generate` renders none of it — so counting it here
+ * would make this floor demand a render that must never happen.
+ *
+ * The exclusion is the host's own **name**, off the manifest of the member
+ * declaring `endora.type: "platform"`, and never the shape of the specifier: a
+ * subpath test would read "a module package whose manifest sits behind a
+ * narrower `exports` subpath" as not registered at all, which is the fail-open
+ * direction for the one floor that exists to notice a short walk. Anything else
+ * bare still counts, so a package this run failed to render is still a
+ * shortfall.
+ */
+export function registeredPackageNamesIn(
+  indexSource: string,
+  hostPackageName: string | null,
+): readonly string[] {
   const names = new Set<string>();
   for (const match of indexSource.matchAll(
     /resolveManifestPath\(\s*import\.meta\.url\s*,\s*'([^']+)'\s*\)/g,
   )) {
     const specifier = match[1]!;
     if (specifier.startsWith('.')) continue;
+    const packageName = specifier.startsWith('@')
+      ? specifier.split('/').slice(0, 2).join('/')
+      : specifier.split('/')[0]!;
+    if (hostPackageName !== null && packageName === hostPackageName) continue;
     names.add(specifier);
   }
   return [...names].sort();
@@ -1342,7 +1367,9 @@ export function renderModulePackageManifests(
     filesRead: filesRead + surfaces.filesRead(),
     specifierSites,
     registeredPackageNames:
-      indexSource === null ? [] : registeredPackageNamesIn(indexSource),
+      indexSource === null
+        ? []
+        : registeredPackageNamesIn(indexSource, platformPackageNameOf(workspaceMembers(repoRoot, countingFs))),
     unbuiltPackages: [...unbuilt].sort(byAscii),
     newPackages: [...firstRender].sort(byAscii),
   };

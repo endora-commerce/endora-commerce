@@ -720,7 +720,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 1958,
+    // **Feature 115 Phase 6: 1958 -> 1955.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 1955,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -816,7 +822,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2082,
+    // **Feature 115 Phase 6: 2082 -> 2079.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 2079,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1098,7 +1110,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // of this population by declaration, so `scripts/lib/tailwind-sources.ts` is
     // not counted, and the 60 generated stylesheets are `.css` — this walk reads
     // source, and a `@source` directive is not a diacritic fold.
-    files: 5314,
+
+    // **Feature 115 Phase 6: 5314 -> 5311, re-measured on the union.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 5311,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1435,7 +1454,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2082,
+    // **Feature 115 Phase 6: 2082 -> 2079.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 2079,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1515,7 +1540,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2082,
+    // **Feature 115 Phase 6: 2082 -> 2079.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 2079,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1595,7 +1626,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2082,
+    // **Feature 115 Phase 6: 2082 -> 2079.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 2079,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1665,7 +1702,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
     // branch each recorded this entry on `e3dd43635` and neither could see the other;
     // the value below is a fresh census of the combined tree, not the sum of the two.
-    files: 693,
+    // **Feature 115 Phase 6: 693 -> 690.** Re-measured on the union after rebasing
+    // onto `79a1befe6`: `specs/110-instance-repository/` T123 moved this entry not at all,
+    // so the value below is a census of the combined tree and not an arithmetic. 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 690,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -1947,7 +1992,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2082,
+    // **Feature 115 Phase 6: 2082 -> 2079.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 2079,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -3259,7 +3310,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1: the branch's changeset.** This walk's population is the whole
     // repository, so `.changeset/package-owned-tailwind-sources.md` is a file it
     // opens; 64 files plus one changeset is 65.
-    files: 7878,
+
+    // **Feature 115 Phase 6: 7878 -> 7876, re-measured on the union.** 2 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`. The walk is repository-wide, so the changeset
+    // this phase adds offsets one of the three.
+    files: 7876,
     sites: null,
     sources: [],
   },
@@ -3513,7 +3572,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2082,
+    // **Feature 115 Phase 6: 2082 -> 2079.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 2079,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -3649,7 +3714,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // application file, `scripts/lib/tailwind-sources.ts` — the derivation the
     // manifest generator, the composer and the guard share. It reaches no platform
     // file, so the ledger and the reach count do not move with it.
-    files: 2399,
+
+    // **Feature 115 Phase 6: 2399 -> 2396, re-measured on the union.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 2396,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -3689,7 +3761,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and not a tree that grew, so it moves once and then drains — each of the
     // 84 is a `RELATIVE_HOST_REACHES` key with a retiring phase, and this number
     // falls as they go. The module half's 1744 is untouched.
-    sites: 1829,
+    //
+    // **Feature 115 Phase 6: 2399 -> 2396, re-measured on the union.** −6, and this is that drain
+    // beginning: the phase deletes three `_lifecycle` shims whose only content
+    // was one relative reach each, and re-points the two generated artefacts and
+    // five application files onto `@endora-commerce/platform/lifecycle`. Six
+    // `RELATIVE_HOST_REACHES` keys retire with them and `host-reaches` falls
+    // 84 -> 79 files, which is a derived floor and not a band.
+    sites: 1823,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -3700,9 +3779,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     //
     // The fourth is feature 115's, and it is derived from the ledger rather than
     // from a count: `expected` is the still-on-disk files
-    // `RELATIVE_HOST_REACHES` names — 83 files over 84 keys, one file reaching
-    // two platform files — and `covered` is what the application walk opened of
-    // them. It disappears entirely when that ledger empties, which is what R4.2
+    // `RELATIVE_HOST_REACHES` names — 79 of them since Phase 6, one file having
+    // reached two platform files until the generated artefacts stopped — and
+    // `covered` is what the application walk opened of them. It disappears entirely when that ledger empties, which is what R4.2
     // expects, and `expected: 0` is a refusal rather than a silent floor of
     // nothing.
     sources: ['manifest-index', 'platform-barrels', 'host-dependents', 'host-reaches'],
@@ -4131,7 +4210,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2082,
+    // **Feature 115 Phase 6: 2082 -> 2079.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 2079,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4281,7 +4366,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2082,
+    // **Feature 115 Phase 6: 2082 -> 2079.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 2079,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4395,7 +4486,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` Phase 3 (T123): 4339 -> 4341 (+2).** The
     // branch's two TypeScript files — `scripts/lib/tailwind-sources.ts` and its
     // test. Neither reaches a module package's source, so `sites` does not move.
-    files: 4341,
+
+    // **Feature 115 Phase 6: 4341 -> 4338, re-measured on the union.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 4338,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -4832,7 +4930,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-nul-bytes` — a changeset is a file this walk opens. `check:language`
     // does **not** move with it: its subject is comments and `/docs/` pages, and a
     // changeset is neither.
-    files: 7938,
+
+    // **Feature 115 Phase 6: 7938 -> 7936, re-measured on the union.** 2 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`. The walk is repository-wide, so the changeset
+    // this phase adds offsets one of the three.
+    files: 7936,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5025,7 +5131,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `tailwind.css`, the generated enumeration, the fixture's and two TypeScript
     // files. A `@source` directive carries no comment, so none of them can carry a
     // finding; they are population, which is exactly what this number records.
-    files: 5924,
+
+    // **Feature 115 Phase 6: 5924 -> 5921, re-measured on the union.** 3 fewer files under
+    // `backend/src`: the phase re-points the application's own reaches onto
+    // `@endora-commerce/platform/lifecycle` and deletes the three `_lifecycle`
+    // re-export shims that then had no importer left anywhere —
+    // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
+    // `services/module-origin.ts`.
+    files: 5921,
     sites: null,
     sources: ['manifest-index'],
   },

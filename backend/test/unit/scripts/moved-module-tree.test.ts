@@ -5,6 +5,7 @@ import {
   createSplitModuleTreeFixture,
   endoraSpecifierResolutions,
   KEPT_MODULE,
+  keptModuleSpecifier,
   manifestIndexSpecifiers,
   MINIMUM_MODULES_OUTSIDE_THE_APPLICATION_TREE,
   modulesInTheApplicationTree,
@@ -523,19 +524,28 @@ describe('a split module tree is read in full, not in half (feature 080, T040a)'
    * level up. They are the observable that the anchor is the package root, so a
    * change that quietly reverts § 1 is red here rather than merely different.
    */
-  it('names a staged package bare and a stranded module relatively (§ 1)', () => {
+  it('names every staged package bare and a stranded module relatively (§ 1)', () => {
     const bare = (specifier: string): boolean => !specifier.startsWith('.');
     const splitSpecifiers = manifestIndexSpecifiers(split.root);
     const halfMovedSpecifiers = manifestIndexSpecifiers(halfMoved.root);
-    // The mixed result is the design, not a transitional state: the tree this
-    // fixture models was mixed for the whole of F4, and a fixture emitting one
-    // spelling for everything would be modelling a tree that never existed.
+    // **Every specifier in the split tree is bare, and the last one to become so
+    // is the kept module's.** This assertion read *"the mixed result is the
+    // design, not a transitional state"* and named
+    // `../../packages/platform/dist/lifecycle/manifest.js` as the relative half,
+    // which was true for as long as the host published no subpath reaching
+    // inside it: `specs/115-lifecycle-container-move/` Phase 6 gave `_lifecycle`
+    // `@endora-commerce/platform/lifecycle` and the real committed index now
+    // holds 71 specifiers and not one relative. The fixture is uniform because
+    // the tree is, which is the claim FR-001 makes; a literal here was a derived
+    // fact written down (D-100), in the test whose subject is a derivation, and
+    // it went stale in the merge request that changed the generator.
     expect(splitSpecifiers.filter(bare).length).toBeGreaterThan(0);
-    expect(splitSpecifiers.filter((specifier) => !bare(specifier))).toContain(
-      // `_lifecycle` lives inside the platform package and is imported at that
-      // package's built file, exactly as the real index imports it (D-160.11).
-      '../../packages/platform/dist/lifecycle/manifest.js',
-    );
+    expect(splitSpecifiers.filter((specifier) => !bare(specifier))).toEqual([]);
+    // The kept module is named exactly as the **real** index names it, read off
+    // the committed artefact rather than composed here, so the next change of
+    // spelling moves this assertion with it instead of stranding it.
+    expect(splitSpecifiers).toContain(keptModuleSpecifier());
+    expect(bare(keptModuleSpecifier()), keptModuleSpecifier()).toBe(true);
     // The stranded module is the refusal, not a preference: it has no
     // `package.json`, so `createRequire(...).resolve('<pkg>/package.json')`
     // throws inside `resolveManifestPath` at the index's first import, and every
