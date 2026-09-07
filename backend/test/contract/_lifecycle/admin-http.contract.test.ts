@@ -9,8 +9,10 @@ import {
   type ModuleListItem,
 } from '@endora-commerce/contracts';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
-import { registerLifecycleAdminRoutes } from '../../../src/lifecycle/routes.admin.js';
-import type { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
+import {
+  type ModuleLifecycleOrchestrator,
+  registerLifecycleAdminRoutes,
+} from '@endora-commerce/platform/lifecycle';
 
 /**
  * Contract test for `GET /api/v1/admin/modules` (feature 018 / E-1).

@@ -726,7 +726,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 1955,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 1955 -> 1946.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 1946,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -828,7 +834,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 2079,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2070,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1127,7 +1139,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
     // deleted three re-export shims, so the base moved under it — this value is a fresh census
     // of the combined tree rather than the sum of the two.
-    files: 5312,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 5312 -> 5303.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 5303,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1470,7 +1488,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 2079,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2070,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1556,7 +1580,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 2079,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2070,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1642,7 +1672,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 2079,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2070,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1720,7 +1756,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 690,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 690 -> 681.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 681,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2008,7 +2050,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 2079,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2070,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -3343,7 +3391,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
     // deleted three re-export shims, so the base moved under it — this value is a fresh census
     // of the combined tree rather than the sum of the two.
-    files: 7880,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 7880 -> 7871.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files. This walk is the whole repository, so it
+    // also gains the phase's own changeset file: -9 +1.
+    files: 7872,
     sites: null,
     sources: [],
   },
@@ -3603,7 +3658,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 2079,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2070,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -3746,7 +3807,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 2396,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2396 -> 2387 and sites 1823 -> 1814.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2387,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -3793,7 +3860,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five application files onto `@endora-commerce/platform/lifecycle`. Six
     // `RELATIVE_HOST_REACHES` keys retire with them and `host-reaches` falls
     // 84 -> 79 files, which is a derived floor and not a band.
-    sites: 1823,
+    sites: 1814,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -4241,7 +4308,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 2079,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2070,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4397,7 +4470,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 2079,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 2079 -> 2070.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 2070,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4518,7 +4597,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-export shims that then had no importer left anywhere —
     // `src/lifecycle/plugin.ts`, `services/migration-ownership.ts` and
     // `services/module-origin.ts`.
-    files: 4338,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 4338 -> 4329.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 4329,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -4975,7 +5060,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
     // deleted three re-export shims, so the base moved under it — this value is a fresh census
     // of the combined tree rather than the sum of the two.
-    files: 7940,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 7940 -> 7931.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files. This walk is the whole repository, so it
+    // also gains the phase's own changeset file: -9 +1.
+    files: 7932,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5187,7 +5279,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // compile helper. The branch first recorded against `79a1befe6`, and Phase 6 has since
     // deleted three re-export shims, so the base moved under it — this value is a fresh census
     // of the combined tree rather than the sum of the two.
-    files: 5924,
+    // **`specs/115-lifecycle-container-move/` Phase 7: files 5924 -> 5915.** The nine
+    // `_lifecycle` re-export shims left in `backend/src/lifecycle/` — `routes.admin.ts`
+    // and eight under `services/` — were held open by `backend/test/**` alone; the phase
+    // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
+    // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
+    // `backend/src` loses the same nine files.
+    files: 5915,
     sites: null,
     sources: ['manifest-index'],
   },

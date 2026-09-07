@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ModuleIdCollisionError } from '../../../src/packages/module-id-claims.js';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
-import { buildStaticRegistry } from '../../../src/lifecycle/services/static-registry.js';
+import { buildStaticRegistry } from '@endora-commerce/platform/lifecycle';
 import { platformSourceRootOf } from '../../../scripts/lib/platform-root.js';
 import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
 

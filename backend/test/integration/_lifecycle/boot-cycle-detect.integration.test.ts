@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  discoverManifests,
-  ManifestLoadError,
-} from '../../../src/lifecycle/services/manifest-loader.js';
+import { discoverManifests, ManifestLoadError } from '@endora-commerce/platform/lifecycle';
 
 /**
  * Integration test for FR-017 — boot refuses on cycle (US4).

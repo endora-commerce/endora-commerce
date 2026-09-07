@@ -152,11 +152,22 @@ let simulatingAbsence = false;
  * real load still runs; this re-applies the two axes on top of it, exactly as
  * an operator who had flipped four activation Settings and disabled one module
  * would have left them.
+ *
+ * **It mocks the specifier `composition.ts` imports, and that is not a detail.**
+ * A `vi.mock` key is a resolved module, so mocking
+ * `../../../src/lifecycle/services/presence-load.js` intercepted this only while
+ * the composition root reached that shim. `specs/115-lifecycle-container-move/`
+ * Phase 6 re-pointed the root onto `@endora-commerce/platform/lifecycle` — a
+ * different module record — and left this mock naming a file nothing under test
+ * imports: the override stopped applying, silently, and three of this file's
+ * nineteen cases went red on `master` (measured on this branch by restoring the shim
+ * and the old key). Phase 7's rewrite is
+ * the repair. If the root's specifier changes again, this key changes with it.
  */
-vi.mock('../../../src/lifecycle/services/presence-load.js', async (importOriginal) => {
+vi.mock('@endora-commerce/platform/lifecycle', async (importOriginal) => {
   const actual =
     await importOriginal<
-      typeof import('../../../src/lifecycle/services/presence-load.js')
+      typeof import('@endora-commerce/platform/lifecycle')
     >();
   return {
     ...actual,

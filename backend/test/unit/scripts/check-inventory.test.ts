@@ -264,8 +264,10 @@ import {
   type PortViolation,
   type RootRegistrationIssue,
 } from '../../../scripts/check-port-dependencies.js';
-import { buildDeactivationLedger } from '../../../src/lifecycle/services/deactivation-ledger.js';
-import { nonBindingPortEdgesFrom } from '../../../src/lifecycle/services/gating-graph.js';
+import {
+  buildDeactivationLedger,
+  nonBindingPortEdgesFrom,
+} from '@endora-commerce/platform/lifecycle';
 import {
   applicationReachRefusal,
   checkApplicationReaches,

@@ -13,9 +13,9 @@ import {
 } from '../../../src/overlay/overlay-roots.js';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import {
-  ReducedDeploymentError,
   assertLockedModulesPresent,
-} from '../../../src/lifecycle/services/presence-load.js';
+  ReducedDeploymentError,
+} from '@endora-commerce/platform/lifecycle';
 
 /**
  * The deployment's own statement of how it means to differ from core — the half

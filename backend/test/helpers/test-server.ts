@@ -62,8 +62,10 @@ import {
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
 import { loadDivergenceDeclaration } from '../../src/overlay/divergence-loader.js';
 import { loadPackageModuleEntries } from '../../src/packages/package-runtime.js';
-import { buildStaticRegistry } from '../../src/lifecycle/services/static-registry.js';
-import type { LoadedManifestRegistry } from '../../src/lifecycle/services/manifest-loader.js';
+import {
+  buildStaticRegistry,
+  type LoadedManifestRegistry,
+} from '@endora-commerce/platform/lifecycle';
 import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
 // Feature 080 (T052) — the contract types for the seven ports that replaced
 // this root's five entity-class reads, spelled exactly as `composition.ts`

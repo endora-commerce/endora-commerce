@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import {
-  ReducedDeploymentError,
   assertLockedModulesPresent,
-} from '../../../src/lifecycle/services/presence-load.js';
+  ReducedDeploymentError,
+} from '@endora-commerce/platform/lifecycle';
 
 /**
  * D-101 — a deployment that does not ship what it composes refuses to boot.
