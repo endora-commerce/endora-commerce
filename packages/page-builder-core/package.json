@@ -54,10 +54,12 @@
     "./*": {
       "types": "./dist/*.d.ts",
       "default": "./dist/*.js"
-    }
+    },
+    "./tailwind.css": "./tailwind.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "tailwind.css"
   ],
   "sideEffects": false,
   "engines": {

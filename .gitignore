@@ -32,13 +32,24 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Tailwind module-package source guard (feature 080, T044). The admin and
+# Tailwind source guard (feature 080 T044; feature 110 T125). The admin and
 # storefront suites write a probe carrying an arbitrary-value utility into each
-# module package, compile the app's stylesheet and assert it survived. The files
-# are removed in a `finally`; this rule is what keeps a killed run from leaving
-# one where `git status` — or a later `git add` — would find it.
-**/__tailwind-source-probe__*.ts
-**/__tailwind-source-probe__*.tsx
+# package they compose, compile the app's stylesheet and assert it survived.
+#
+# There were two rules here ignoring `**/__tailwind-source-probe__*.{ts,tsx}`,
+# and they are **deleted rather than moved**: Tailwind consults `.gitignore` for
+# the descendants of an `@source` base, so a probe this repository ignores is a
+# probe the scanner never reads. That was harmless only while the admin reached
+# packages through one glob pattern; the moment a package declared its own
+# directory sources (`admin-stylesheet-composition.md` R1.2) every source-side
+# probe read as unscanned. Measured on this tree: an identical file under a
+# non-ignored name is emitted, the ignored one is not — so the rule that existed
+# to keep a killed run tidy was, under the new spelling, the thing that would
+# have made this guard assert nothing at all.
+#
+# The probes are removed in a `finally`, and a leftover is now something
+# `git status` shows. That is the better failure: a file a reviewer can see
+# beats a guard nobody can trust.
 
 # Runtime / caches
 .cache/

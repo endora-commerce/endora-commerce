@@ -104,6 +104,7 @@ import {
   nodeWorkspaceFs,
 } from '../../../scripts/lib/workspace-packages.js';
 import { findCheckoutRoot } from '../../../../scripts/workspace-resolution.js';
+import { TAILWIND_SOURCE_SUBPATH } from '../../../scripts/lib/tailwind-sources.js';
 
 const ROOT = findCheckoutRoot(dirname(fileURLToPath(import.meta.url)));
 
@@ -199,10 +200,24 @@ export function distShapeFindings(manifest: PackageManifest): Finding[] {
   }
 
   for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
-    // The one subpath whose target is *not* under `dist` and cannot be: it is the manifest
-    // itself. A consumer resolving `<pkg>/package.json` — a version read, a tool locating
-    // the install — needs it exported, and it has no declarations to condition on.
-    if (subpath === './package.json') continue;
+    // Two subpaths whose targets are *not* under `dist` and cannot be, and both are
+    // published files that no compiler produces.
+    //
+    // `./package.json` is the manifest itself: a consumer resolving it — a version read,
+    // a tool locating the install — needs it exported, and it has no declarations to
+    // condition on.
+    //
+    // `./tailwind.css` is the package's own `@source` declarations (feature 110, T123;
+    // `specs/110-instance-repository/contracts/admin-stylesheet-composition.md` R1.1),
+    // and it belongs at the package root for two reasons that are the same reason: a
+    // `@source` resolves **relative to the stylesheet that declares it** (M7), so a copy
+    // under `dist` would have to name `../dist/admin` and `../src/admin`, and the file is
+    // *generated from the layer inventory and committed* — `manifests:generate` writes it
+    // and `manifests:check` byte-compares it — so putting it under a git-ignored build
+    // directory would be the committed-build-output shape §4(a) argues against. It is
+    // `i18n/` and `docs/`' position, which this rule has never seen only because those
+    // two layers are located by joining a manifest declaration and carry no subpath.
+    if (subpath === './package.json' || subpath === TAILWIND_SOURCE_SUBPATH) continue;
     if (typeof target === 'string') {
       if (!inDist(target)) {
         findings.push({ kind: 'export-target-outside-dist', detail: `${subpath} -> ${target}` });

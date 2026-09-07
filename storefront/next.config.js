@@ -89,8 +89,58 @@ const nextConfig = {
    * not — 6334 MB without them against 6144 MB with, which is noise. The
    * duplication is real and is `build:admin`'s recorded reason for not running
    * `tsc`, but it is not what makes this build large.
+   *
+   * ## `webpackBuildWorker: true` — where the remaining peak actually was
+   *
+   * `conformance:storefront` was OOM-killed anyway (pipeline 13121, job 43732:
+   * `Killed`, exit 137), with `cpus: 2` in force and, measured, no other job of
+   * ours running beside it. So the cap above was necessary and not sufficient
+   * here either, and the reason is that **static generation is no longer the
+   * expensive phase — capping it moved the peak somewhere else and nobody
+   * re-measured where.** Sampling the whole process group every 500 ms through
+   * a build, on this machine, with `cpus: 2`:
+   *
+   *   t=2..33s   compile ......... parent alone, climbing to 1964 MB
+   *   t=33..38s  type-check+lint . parent 1964 + two workers 602 + 586  <- PEAK
+   *   t=52..58s  static gen ...... parent 1390 + three workers ~250 each
+   *   t=63..91s  tracing/output .. parent alone, 2297 MB
+   *
+   * The peak is the parent **retaining the whole webpack compilation** while
+   * Next's type-check and lint workers run beside it. `next build` normally
+   * runs the compile in a worker that then exits, and it silently does not
+   * here: `useBuildWorker` is `config.experimental.webpackBuildWorker ||
+   * (config.experimental.webpackBuildWorker === undefined && !config.webpack)`
+   * (`next/dist/build/index.js`), and this file defines `webpack()` below — so
+   * the opt-out written for configs with non-serialisable plugin state took a
+   * config whose whole `webpack()` sets `resolve.extensionAlias` and
+   * `output.chunkLoadTimeout`. Asking for it explicitly is the whole fix.
+   *
+   * Measured on this machine, peak summed RSS of the process group, `cpus: 2`
+   * throughout, warm cache, `next build` producing an identical standalone tree
+   * and the same 64-entry `app-path-routes-manifest.json`:
+   *
+   *   as committed ....................... 3333 MB   97 s
+   *   `webpackBuildWorker: true` ......... 2153 MB   98 s
+   *
+   * — a third of the demand for no wall clock, because the work did not change,
+   * only which process holds it and for how long. Every phase now peaks in a
+   * child that exits: compile 2153, type-check 1531, lint 1470, static gen
+   * 1311, tracing 1117.
+   *
+   * It is in this file rather than in the CI job deliberately: `next build` is
+   * also what `build:storefront`, `acceptance:storefront-scaffold` and a
+   * client's own instance build run, and a third off the peak at no wall-clock
+   * cost is worth having in all four. The scaffold copies this file verbatim
+   * (`packages/cli/src/new-storefront/reference.ts` copies the reference
+   * storefront's tracked files), so a client gets it by construction.
+   *
+   * **Two neighbouring knobs measured and not taken.** `cpus: 1` is 3232 MB
+   * against `cpus: 2`'s 3333 — the earlier note above says two workers cost
+   * what one does, and that still holds. `webpackMemoryOptimizations: true`
+   * (string interning in the compiler) measured 2255 MB against 2153 on top of
+   * the build worker, which is noise in the wrong direction.
    */
-  experimental: { cpus: 2 },
+  experimental: { cpus: 2, webpackBuildWorker: true },
   reactStrictMode: true,
   poweredByHeader: false,
   // Self-contained production server (`.next/standalone/storefront/server.js`)
