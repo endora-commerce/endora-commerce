@@ -1,0 +1,299 @@
+/**
+ * `endora new instance <dir>` — the command.
+ *
+ * It writes a repository that **composes** this platform for one deployment:
+ * one workspace, one module list, and a copy of nothing
+ * (`contracts/instance-repository.md` §5, `contracts/instance-tree.md`).
+ *
+ * ## The order is `new storefront`'s, and so is the discipline
+ *
+ * **Validate completely, then write** (R5.2). Every refusal — the target
+ * directory, the deployment name, the registry, the CLI's own version, the
+ * packages, the module set and its closure — is decided before the first
+ * `mkdirSync`, because *"a half-written instance installs against ranges
+ * nothing resolves and its next command is a manual clean-up"*. There is one
+ * `for (const file of plan.files)` loop in this file and it is the last thing
+ * that happens.
+ *
+ * ## What is different from `new storefront`, and it is one thing
+ *
+ * That command **copies** a reference tree and rewrites every declaration in it
+ * that names something above the storefront's own directory. This one copies
+ * nothing (D-207), so there is no rewriter beside it and R5.5's *"no outward
+ * reference"* is a property of the template rather than a step in the command.
+ * A rewriting step appearing here would be evidence that something was copied
+ * that should not have been (NFR-002).
+ *
+ * ## Exit codes
+ *
+ * `cli-surface.md` §2, unchanged and shared with every other command: **0** it
+ * did what it was asked, **1** a refusal the operator can act on, **2** an input
+ * it could not read. `instance-tree.md` §4's table maps the eight classes onto
+ * those, and F5–F8 are `2` rather than `1` for the estate's own reason — a run
+ * that could not read its input has said nothing, and a scaffold written from
+ * values it could not read is worse than no scaffold.
+ *
+ * ## It never prompts, and that is why it can never hang
+ *
+ * `cli-product.md` R2.5c. Every input this command needs is a flag or the
+ * positional; the values a *running* instance needs are the client's and are
+ * listed in the `.env.example` it writes, which is the tier-2 file the four-tier
+ * resolution reads on the next command rather than a value this one invents. So
+ * the provenance line R2.5a requires is printed on every run and its
+ * `defaulted=` is `0` by arithmetic, over a resolution with nothing in it.
+ * `packages/cli/test/new-instance-command.test.ts` proves the guarantee the only
+ * way it can be proved — by spawning, with pipes on both descriptors.
+ */
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+
+import { provenanceLine, type ResolvedInput } from '../inputs/resolve.js';
+import { npmrcContent, normalizeRegistry } from '../new-storefront/npmrc.js';
+import {
+  ADMIN_SHELL_PACKAGE,
+  InstanceHostError,
+  InstanceInputError,
+  resolveInstanceHost,
+  type InstanceHost,
+} from './host.js';
+import { loadModuleCandidates, resolveModuleSet, type ModuleSetResolution } from './modules.js';
+import {
+  assertDeploymentName,
+  assertWorkspaceName,
+  planInstance,
+  wiringLineCount,
+  type InstancePlan,
+} from './template.js';
+
+export interface NewInstanceOptions {
+  /** Where to write. Required: this command has no default target (R5.1). */
+  readonly dir?: string | undefined;
+  /** Module ids, repeatable and comma-splittable — `new module`'s grammar (§3.1). */
+  readonly modules?: readonly string[] | undefined;
+  /** The deployment directory's name. Defaults to the workspace name (§2.2). */
+  readonly deployment?: string | undefined;
+  /** The endpoint the instance installs from. Absent writes no `.npmrc` (R5.7). */
+  readonly registry?: string | undefined;
+  /** Report every file it would write, and write nothing (R5.3). */
+  readonly dryRun?: boolean | undefined;
+  readonly cwd?: string | undefined;
+  /** Injected so a test drives the manifest lookup without a fixture install. */
+  readonly moduleUrl?: string | undefined;
+}
+
+export interface NewInstanceResult {
+  readonly targetDir: string;
+  readonly host: InstanceHost;
+  readonly plan: InstancePlan;
+  readonly modules: ModuleSetResolution;
+  readonly deployment: string;
+  readonly dryRun: boolean;
+  /** R1.4's bound, measured on the plan this run built. */
+  readonly wiringLines: number;
+  /** R2.5a's one line. `defaulted=` is `0` by arithmetic, over an empty set. */
+  readonly provenance: string;
+  readonly nextSteps: readonly string[];
+}
+
+/**
+ * The target must be empty — or hold nothing but a `.env`.
+ *
+ * F1. The exception is `new storefront`'s and is the operator's own second
+ * input tier (`input-resolution.md` R1.2): a `.env` the client placed there
+ * before running is an **input**, and a command whose only acceptable target
+ * holds no file at all would leave that tier unreachable.
+ *
+ * Completion — a re-run that writes an absent member and touches nothing else —
+ * is `specs/118-instance-member-selection/` §3.4's R3.6 and narrows this
+ * refusal. It is not implemented here, so a non-empty directory is refused
+ * whether or not it holds an instance, which is the fail-closed direction: a
+ * command that guessed at completion would merge into files it does not own.
+ */
+function refuseOccupiedDirectory(targetDir: string): void {
+  if (!existsSync(targetDir)) return;
+  const entries = readdirSync(targetDir);
+  if (entries.length === 0) return;
+  if (entries.length === 1 && entries[0] === '.env') return;
+  throw new InstanceInputError(
+    'F1',
+    `${targetDir} exists and is not empty (${entries.slice(0, 5).join(', ')}). This command ` +
+      `never merges into a directory: an instance's files are yours — the deployment ` +
+      `declaration, the entry points, the manifest that is the module list — and writing over ` +
+      `them would silently discard whatever you had put there. Scaffold into an empty ` +
+      `directory. A directory holding nothing but a \`.env\` is the one exception: that file ` +
+      `is where you may place values this command and the next would otherwise ask you for.`,
+  );
+}
+
+export async function runNewInstance(
+  options: NewInstanceOptions,
+): Promise<NewInstanceResult> {
+  const cwd = options.cwd ?? process.cwd();
+  if (options.dir === undefined || options.dir.trim().length === 0) {
+    // R5.1 — no default target. A default would either overwrite something or
+    // invent a name nobody chose, and the name is the workspace's own.
+    throw new InstanceInputError(
+      'F1',
+      `\`new instance\` takes the directory to write, and has no default. The directory's ` +
+        `basename becomes the workspace name, so a default would invent a name nobody chose.`,
+    );
+  }
+  const targetDir = isAbsolute(options.dir) ? options.dir : resolve(cwd, options.dir);
+
+  // --- validate, in the order the operator can act on -----------------------
+  refuseOccupiedDirectory(targetDir);
+  const name = basename(targetDir);
+  assertWorkspaceName(name);
+  const deployment = options.deployment ?? name;
+  assertDeploymentName(deployment);
+
+  // F5 — `--registry` is not a URL, or the configuration cannot be read. The
+  // writer is `new-storefront/npmrc.ts` verbatim (R5.7); what changes is the
+  // class its refusal is reported under, because `instance-tree.md` §4 puts a
+  // registry this run could not read among the inputs it could not read.
+  let registry: string | null = null;
+  let npmrc: string | null = null;
+  if (options.registry !== undefined) {
+    try {
+      registry = normalizeRegistry(options.registry);
+    } catch (error: unknown) {
+      throw new InstanceHostError(
+        'F5',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  const host = resolveInstanceHost({
+    cwd,
+    targetDir,
+    ...(options.moduleUrl === undefined ? {} : { moduleUrl: options.moduleUrl }),
+  });
+  const platform = host.packages.get(`${host.scope}platform`)!;
+  const candidates = await loadModuleCandidates(host.packages, platform);
+  const modules = resolveModuleSet(options.modules ?? [], candidates);
+
+  if (registry !== null) {
+    try {
+      npmrc = npmrcContent(registry, [host.scope.slice(0, -1)]);
+    } catch (error: unknown) {
+      throw new InstanceHostError(
+        'F5',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  const declaredRanges = new Map<string, string>();
+  for (const field of ['peerDependencies', 'dependencies'] as const) {
+    const block = platform.manifest[field];
+    if (block === null || typeof block !== 'object') continue;
+    for (const [dependency, range] of Object.entries(block as Record<string, unknown>)) {
+      if (typeof range === 'string' && !declaredRanges.has(dependency)) {
+        declaredRanges.set(dependency, range);
+      }
+    }
+  }
+  // R2.3's first named source, for the one range no platform manifest carries.
+  const typescriptRange = typescriptRangeOf(host);
+  if (typescriptRange !== undefined) declaredRanges.set('typescript', typescriptRange);
+
+  const adminShell = host.packages.get(`${host.scope}${ADMIN_SHELL_PACKAGE}`);
+  const plan = planInstance({
+    name,
+    deployment,
+    scope: host.scope,
+    platformVersion: host.platformVersion,
+    enginesNode: host.enginesNode,
+    packageManager: host.packageManager,
+    // A module the host carries is in the set and contributes no dependency
+    // entry: an instance naming it would be asking a registry for a package
+    // nobody publishes (`modules.ts`' `carriedByHost`).
+    modules: modules.ids
+      .filter((id) => !candidates.get(id)!.carriedByHost)
+      .map((id) => ({ id, packageName: candidates.get(id)!.packageName })),
+    adminShellVersion: adminShell?.version ?? null,
+    declaredRanges,
+    registry,
+    npmrc,
+  });
+
+  // R2.5a — the provenance line, printed on every run including a dry one. This
+  // command resolves no environment input of its own, so the set is empty and
+  // the residue is `0` by the same subtraction that makes it unfakeable
+  // anywhere else. It is printed rather than skipped: a run that said nothing
+  // about its inputs is indistinguishable from one that invented them.
+  const resolved: readonly ResolvedInput[] = [];
+
+  const result: NewInstanceResult = {
+    targetDir,
+    host,
+    plan,
+    modules,
+    deployment,
+    dryRun: options.dryRun === true,
+    wiringLines: wiringLineCount(plan),
+    provenance: provenanceLine(resolved),
+    nextSteps: nextSteps(targetDir, deployment),
+  };
+  if (result.dryRun) return result;
+
+  // --- write. Everything above has already decided (R5.2) -------------------
+  for (const file of plan.files) {
+    const target = join(targetDir, file.path);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, file.content, 'utf8');
+  }
+  return result;
+}
+
+/**
+ * The range for the one build tool no platform manifest declares.
+ *
+ * The CLI's own — R2.3 names *"the CLI's own manifest"* first among the three
+ * things a command may derive from, and this build compiles the same TypeScript
+ * an instance will. `undefined` when it declares none, in which case the entry
+ * is simply not written (see `devDependenciesFor`).
+ */
+function typescriptRangeOf(host: InstanceHost): string | undefined {
+  for (const field of ['dependencies', 'devDependencies'] as const) {
+    const block = host.ownManifest[field];
+    if (block === null || typeof block !== 'object') continue;
+    const range = (block as Record<string, unknown>)['typescript'];
+    if (typeof range === 'string') return range;
+  }
+  return undefined;
+}
+
+/**
+ * The steps that are the operator's, and the second command they have not met.
+ *
+ * R3.4: `endora new instance` prints `endora new storefront` as a next step,
+ * *"in the shape `endora new module` prints its next steps today. Discoverability
+ * is what makes two commands one product; a client who has to read documentation
+ * to learn the second command exists has been handed three commands sharing a
+ * prefix."*
+ *
+ * The demo step is here rather than in the tree, and that is D-216's own shape:
+ * a scaffold writes no demo artefact unasked and the capability is discoverable
+ * through this block, because *"a capability announced as a deficiency is not
+ * optional"*.
+ */
+function nextSteps(targetDir: string, deployment: string): readonly string[] {
+  return [
+    `cd ${targetDir} && pnpm install — every range in the manifest is published semver. ` +
+      `Nothing in this tree is a copy of ours, so \`pnpm update\` is how a platform fix ` +
+      `reaches you, with no file here edited.`,
+    `cp .env.example .env and fill it in. Every entry names what it decides and gives an ` +
+      `example; an entry with no value on the right of the \`=\` is one the platform has no ` +
+      `honest default for.`,
+    `pnpm run migrate — the schema, in the order the installed manifests compute.`,
+    `pnpm run start — the API. \`apps/${deployment}/modules/\` is where your own overlay ` +
+      `module goes when you want to change something; \`divergence.ts\` beside it is where ` +
+      `you declare what you changed.`,
+    `endora new storefront <dir> — the customer-facing storefront, which is its own ` +
+      `repository. It shares two \`.env\` values with this one and nothing else.`,
+  ];
+}
+
+export { InstanceHostError, InstanceInputError };
