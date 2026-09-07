@@ -1090,7 +1090,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/admin-shell/src` are a wash and the two are the new package's
     // own: its barrel and its `src/types/env.d.ts`. The two tsconfigs and the
     // manifest are not `.ts` sources and are outside this population.
-    files: 5311,
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 5313,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1650,7 +1653,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // admin's `import.meta.env` reads into the shell and this check exits 2 on
     // a consumer that contributed none. The 106 files are read at their new
     // paths, so the +2 is the shell's barrel and its `src/types/env.d.ts`.
-    files: 691,
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 693,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2136,7 +2142,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // all, which is the property T122 exists to produce: the same renders, the
     // same contributions and the same one foreign id, read at different
     // addresses.
-    files: 2586,
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 2588,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -2784,7 +2793,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // at `packages/admin-shell/src` instead and cancel. The one is the shell's
     // barrel; its `src/types/env.d.ts` is not counted, this walk taking `.ts`
     // and `.tsx` and excluding declaration files.
-    files: 4681,
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 4682,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -3208,7 +3220,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // extraction *adds*: `packages/admin-shell`'s manifest, its two tsconfigs,
     // its own `eslint.config.js`, its barrel, its `src/types/env.d.ts` and this
     // merge request's changeset. Measured with `backend/.env` absent, as above.
-    files: 7805,
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 7812,
     sites: null,
     sources: [],
   },
@@ -4739,7 +4754,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // tsconfigs, its `eslint.config.js`, its barrel, its `src/types/env.d.ts`
     // and this merge request's changeset; the 106 moved ones cancel. git's own
     // list again, so `backend/.env` moves it in neither direction.
-    files: 7865,
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 7872,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4924,7 +4942,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/types/env.d.ts` and its `eslint.config.js`; the manifest, the two
     // tsconfigs and the changeset are not in this scan's extension set, which
     // is why it moves by three where the two whole-tree walks move by seven.
-    files: 5857,
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 5860,
     sites: null,
     sources: ['manifest-index'],
   },
