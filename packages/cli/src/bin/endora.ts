@@ -42,11 +42,17 @@ import {
   storefrontInputFlags,
 } from '../new-storefront/index.js';
 import { StorefrontHostError, StorefrontInputError } from '../new-storefront/reference.js';
+import {
+  InstanceHostError,
+  InstanceInputError,
+  runNewInstance,
+} from '../new-instance/index.js';
 
 const USAGE = `endora — scaffolding and conformance tooling for Endora Commerce modules.
 
 Usage:
   endora new module <id> --name <text> --description <text> [options]
+  endora new instance <dir> [--module <id>...] [--deployment <name>] [--registry <url>] [--dry-run]
   endora new storefront <dir> [--registry <url>] [--<input> <value>...] [--dry-run]
   endora --help
 
@@ -77,6 +83,32 @@ Options for \`new module\`:
                                 (default: <id>.enabled)
   --non-deactivatable <reason>  declare that the platform cannot run without this module
   --dry-run                     report what would be written; write nothing
+
+\`endora new instance\` writes the repository that composes this platform for one
+deployment: one workspace, one module list, and a copy of nothing. It is not a
+fork of the platform and holds no file of it — the platform, the admin shell and
+every module arrive as dependencies, so a fix in any of them reaches you through
+\`pnpm update\` with no file in your tree edited.
+
+Options for \`new instance\`:
+  <dir>                         where to write. Required; it must be empty, or
+                                hold nothing but a \`.env\` you placed there. Its
+                                basename becomes the workspace name
+  --module <id>[,<id>...]       a module to install (repeatable). The set is
+                                closed over the manifests' own dependencies.
+                                Given none, it writes the smallest set that
+                                composes — the modules the platform cannot run
+                                without, closed the same way
+  --deployment <name>           the directory under \`apps/\` holding your overlay
+                                modules and your divergence declaration, and the
+                                value of \`DEPLOYMENT\` (default: the workspace name)
+  --registry <url>              the endpoint the instance installs
+                                \`@endora-commerce/*\` from. It writes an \`.npmrc\`
+                                naming that endpoint, with the token as an
+                                environment reference and never as a value
+  --dry-run                     report every file it would write, the resolved
+                                module set with its closure, and every omission;
+                                write nothing
 
 \`endora new storefront\` copies the reference storefront out of this repository
 into a directory you then own outright, and rewrites every declaration in it that
@@ -186,6 +218,8 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       'tenant-scope': { type: 'string' },
       'activation-setting': { type: 'string' },
       'non-deactivatable': { type: 'string' },
+      module: { type: 'string', multiple: true },
+      deployment: { type: 'string' },
       registry: { type: 'string' },
       'non-interactive': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
@@ -373,6 +407,87 @@ async function runNewStorefrontCommand(
   }
 }
 
+/**
+ * `endora new instance` — the argv half.
+ *
+ * It decides nothing. The target comes off one positional, the module set and
+ * every range come from the packages the command resolved, and the exit code is
+ * the refusal's class: an operator-fixable refusal is 1, an input the run could
+ * not read is 2 (`instance-tree.md` §4).
+ */
+async function runNewInstanceCommand(
+  parsed: Parsed,
+  rest: readonly string[],
+  cwd: string,
+): Promise<number> {
+  if (rest.length > 1) {
+    process.stderr.write(
+      `endora: \`new instance\` takes one directory; got ${String(rest.length)} ` +
+        `(${rest.join(', ')}).\n`,
+    );
+    return 1;
+  }
+  try {
+    const result = await runNewInstance({
+      ...(rest[0] === undefined ? {} : { dir: rest[0] }),
+      modules: asList(parsed.values['module']),
+      ...(asString(parsed.values['deployment']) === undefined
+        ? {}
+        : { deployment: asString(parsed.values['deployment'])! }),
+      ...(asString(parsed.values['registry']) === undefined
+        ? {}
+        : { registry: asString(parsed.values['registry'])! }),
+      dryRun: asFlag(parsed.values['dry-run']),
+      cwd,
+    });
+    const { plan, modules } = result;
+    process.stdout.write(
+      `endora new instance ${result.targetDir}` +
+        `${result.dryRun ? ' — dry run, nothing written' : ''}\n`,
+    );
+    process.stdout.write(
+      `  ${result.dryRun ? 'would write' : 'wrote'} ${String(plan.files.length)} files ` +
+        `across ${plan.members.join(', ')}\n`,
+    );
+    for (const file of plan.files) {
+      process.stdout.write(`  ${result.dryRun ? 'would write' : 'wrote'} ${file.path} — ${file.kind}\n`);
+    }
+    // §3 — the set, its closure and where the default came from, because a
+    // module list nobody can see the derivation of is a list.
+    process.stdout.write(
+      `\n[modules] ${String(modules.ids.length)} in the set` +
+        `${modules.defaulted ? ' (no --module given: the modules the platform cannot run without)' : ''}` +
+        `: ${modules.ids.join(', ')}\n`,
+    );
+    if (modules.closure.length > 0) {
+      process.stdout.write(`  added by closure: ${modules.closure.join(', ')}\n`);
+    }
+    if (plan.registry !== null) {
+      process.stdout.write(`  installs from ${plan.registry}\n`);
+    }
+    for (const omission of plan.omitted) {
+      process.stdout.write(`  omitted ${omission.path} — ${omission.reason}\n`);
+    }
+    process.stdout.write(`  wiring: ${String(result.wiringLines)} lines\n`);
+    process.stdout.write(`\n${result.provenance}\n`);
+    process.stdout.write(`\nNext steps:\n`);
+    result.nextSteps.forEach((step, index) => {
+      process.stdout.write(`  ${String(index + 1)}. ${step}\n`);
+    });
+    return 0;
+  } catch (error: unknown) {
+    if (error instanceof InstanceInputError) {
+      process.stderr.write(`endora: [${error.refusal}] ${error.message}\n`);
+      return 1;
+    }
+    if (error instanceof InstanceHostError) {
+      process.stderr.write(`endora: [${error.refusal}] ${error.message}\n`);
+      return 2;
+    }
+    throw error;
+  }
+}
+
 export async function main(argv: readonly string[], cwd: string): Promise<number> {
   // The one thing that has to happen **before** the parse: `new storefront`
   // accepts a flag per input the reference storefront declares, and those names
@@ -420,10 +535,14 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
   if (subject === 'storefront') {
     return runNewStorefrontCommand(parsed, rest, cwd, declaredInputFlags);
   }
+  if (subject === 'instance') {
+    return runNewInstanceCommand(parsed, rest, cwd);
+  }
   if (subject !== 'module') {
     process.stderr.write(
       `endora: unknown subject "${subject ?? '<none>'}" for \`new\`. This build provides ` +
-        `\`new module\` and \`new storefront\`; the other generators named in the ` +
+        `\`new module\`, \`new instance\` and \`new storefront\`; the other generators named ` +
+        `in the ` +
         `scaffolding contract are not delivered.\n`,
     );
     return 1;

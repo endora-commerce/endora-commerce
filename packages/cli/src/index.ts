@@ -54,6 +54,41 @@ export {
   type ScaffoldHost,
 } from './new-module/host.js';
 export {
+  runNewInstance,
+  type NewInstanceOptions,
+  type NewInstanceResult,
+} from './new-instance/index.js';
+export {
+  InstanceHostError,
+  InstanceInputError,
+  resolveInstanceHost,
+  scopeOfPackageName,
+  type InstanceHost,
+  type ResolvedPackage,
+} from './new-instance/host.js';
+export {
+  loadModuleCandidates,
+  requiredModuleIds,
+  resolveModuleSet,
+  type ModuleCandidate,
+  type ModuleSetResolution,
+} from './new-instance/modules.js';
+export {
+  assertDeploymentName,
+  assertWorkspaceName,
+  devDependenciesFor,
+  envExample,
+  GENERATED_ARTEFACTS,
+  planInstance,
+  wiringLineCount,
+  type FileKind,
+  type InstancePlan,
+  type MemberName,
+  type PlanInput,
+  type PlannedFile as PlannedInstanceFile,
+  type PlannedOmission,
+} from './new-instance/template.js';
+export {
   runNewStorefront,
   storefrontDeclaredInputs,
   type NewStorefrontOptions,

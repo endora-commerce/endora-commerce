@@ -1145,7 +1145,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 5303,
+    // **`specs/110-instance-repository/` T132/T133: 5312 -> 5316 (+4).** `endora new
+    // instance`'s four source files under `packages/cli/src/new-instance/`. The two
+    // test files this branch adds are outside this walk — `packages/cli/test` joined
+    // `EXCLUDED_SUBTREES` in feature 101 Phase 2 — which is why the delta is four and
+    // not six, and it is the discrimination worth keeping: the other three whole-tree
+    // entries below move by six or seven in the same merge request.
+    // **+4, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    files: 5307,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3398,7 +3408,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files. This walk is the whole repository, so it
     // also gains the phase's own changeset file: -9 +1.
-    files: 7872,
+    // **`specs/110-instance-repository/` T132/T133: 7880 -> 7887 (+7).** The whole-repository
+    // byte scan, so it counts everything the merge request adds: four sources, two test
+    // files and the changeset. Nothing was excluded and nothing was renamed.
+    // **+7, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    files: 7879,
     sites: null,
     sources: [],
   },
@@ -5067,7 +5084,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files. This walk is the whole repository, so it
     // also gains the phase's own changeset file: -9 +1.
-    files: 7932,
+    // **`specs/110-instance-repository/` T132/T133: 7940 -> 7947 (+7).** As the byte scan
+    // above, and for the same population: `endora new instance`'s four sources, its two
+    // test files and the changeset.
+    // **+7, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    files: 7939,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5285,7 +5309,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-points those 112 reaches onto `@endora-commerce/platform/lifecycle` and deletes
     // the shims, which empties `src/lifecycle/services/` entirely. Every walk that reads
     // `backend/src` loses the same nine files.
-    files: 5915,
+    // **`specs/110-instance-repository/` T132/T133: 5924 -> 5930 (+6).** The comment scan
+    // over the tree's own sources: four under `packages/cli/src/new-instance/` and the two
+    // test files. The changeset is markdown outside `docs/docs/**` and is not in this walk.
+    // **+6, re-measured on the union after rebasing onto Phase 7.** This branch adds four
+    // sources, two tests and a changeset; `specs/115-lifecycle-container-move/` Phase 7 has
+    // since deleted nine lifecycle shims, so every base below is lower than this branch first
+    // measured. The delta is unchanged; the total is a fresh census of the combined tree.
+    files: 5921,
     sites: null,
     sources: ['manifest-index'],
   },
