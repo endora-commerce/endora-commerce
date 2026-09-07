@@ -3052,7 +3052,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 7794,
+    // **The `addressOf` fixture repair: 7794 -> 7795 (+1), and the whole of it is this
+    // merge request's own changeset.** The branch edits one existing test file and
+    // creates one file — `.changeset/environment-input-fixtures-answer-address-of.md` —
+    // which this walk opens like any other, its subject being the whole repository.
+    // Measured both ways in this tree rather than inferred: with that file off disk this
+    // check reads 7794, which is what was recorded, so its base carried no inherited
+    // staleness. Measured with `backend/.env` parked, that being a worktree's file and
+    // not CI's.
+    files: 7795,
     sites: null,
     sources: [],
   },
@@ -4505,7 +4513,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // assumed, in this entry's own idiom: `git ls-tree -r --name-only HEAD | wc -l` is
     // **7854** at `1d906d15a`, against which this walk reads 7853 with the changeset
     // taken out — so `master` had moved by one before the branch existed.
-    files: 7854,
+    // **The `addressOf` fixture repair: 7854 -> 7855 (+1), all of it this merge request's
+    // own changeset.** Same single file as `check-nul-bytes` one entry over, seen through
+    // a different listing: this walk's population is
+    // `git ls-files --cached --others --exclude-standard`, which lists a committed
+    // changeset like any other file. Parking it on disk therefore measures nothing here,
+    // because `--cached` still lists it — so it was measured by taking it out of the index
+    // as well, which reads **7854**, the recorded value. Nothing was inherited stale, and
+    // `git ls-tree -r --name-only` is 7855 at this branch's base against 7856 at its head:
+    // the same +1, from a second listing.
+    files: 7855,
     sites: null,
     sources: ['manifest-index'],
   },
