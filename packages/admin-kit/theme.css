@@ -1,13 +1,345 @@
-/* ============================================================
-   Admin design system — component classes (feature 008)
-   ============================================================
-   BEM-style component classes co-existing with shadcn/ui Tailwind
-   primitives. Used directly by the in-scope pages (Home, Products,
-   Product editor, Inventory, Price Lists). Out-of-scope pages keep
-   their existing shadcn markup; the tokens in design-tokens.css
-   are what make them look unified.
-   ============================================================ */
+/*
+ * **The admin's design system** — its custom-property vocabulary and its class
+ * vocabulary, published by the package every renderer already declares (feature
+ * 110, T129; owner ruling **D-219**;
+ * `specs/110-instance-repository/contracts/admin-stylesheet-composition.md`
+ * R3–R4). An instance imports this file and holds none of it.
+ *
+ * ## Why the kit, and not the shell where T126 put the first third of it
+ *
+ * 55 module packages declare `@endora-commerce/admin-kit` in their manifest and
+ * **none** declares `@endora-commerce/admin-shell`, while the shell peer-depends
+ * on the kit and the kit declares no `dependencies` at all. Published from the
+ * shell, 11 module packages would render classes defined by a package they
+ * cannot name and cannot put a version range on — a coupling with nowhere to be
+ * declared. Published from here, every renderer's edge already exists and the
+ * shell reaches the vocabulary through one it already has.
+ *
+ * It is *the package every renderer already declares* rather than the name
+ * `admin-kit`: if the open structure question folds the kit family into
+ * `packages/admin-shell`, the derivation answers `admin-shell` in the same run
+ * and the rule needs no edit (D-100).
+ *
+ * ## Why it is not the client's, even though it is their look
+ *
+ * Every consumer is a package. 70 files under `packages/` render a class this
+ * file defines and 30 read a custom property it declares through `var()`; **no
+ * file under `admin/src` does either**. A client holding these declarations
+ * holds a fork frozen on their scaffolding day, so a module release adding one
+ * class renders unstyled in every existing instance, silently, and the client
+ * cannot fix it.
+ *
+ * The half of that objection which is right is already delivered: the values are
+ * the client's, the **names** are not, and a value is one line in the override
+ * slot rather than a 5 036 B fork.
+ *
+ * ## How a client changes it — by redeclaring after the import, never by editing
+ *
+ *     @import "tailwindcss";
+ *     @import "@endora-commerce/admin-kit/theme.css";
+ *     @import "./tailwind.generated.css";
+ *
+ *     :root { --accent-h: 262; }
+ *     .b2b-btn { border-radius: 2px; }
+ *
+ * The token half works because every semantic token in the mapping block below
+ * is an indirection — `--color-primary: hsl(var(--primary))` — so a utility this
+ * package built without ever seeing that instance still resolves against the
+ * client's `:root` (R3.2). The class half works by cascade order: their rule is
+ * later. What a redeclaration cannot change is a value baked as a literal — the
+ * palette here is overridable, Tailwind's own spacing scale is not. A client who
+ * needs a different spacing scale is asking for a different design system, and
+ * the answer to that is the escalation ladder rather than this seam.
+ *
+ * ## Two kinds in one subpath, and the name is under-descriptive on purpose
+ *
+ * R4.3 (**host tokens**) and R4.4 (**host class vocabulary**) are two kinds and
+ * they ship together, at the one subpath T126 published. Nothing a client
+ * legitimately does requires reaching the vocabulary separately — an override is
+ * a later rule in the slot they already have — so a second subpath would be a
+ * seam with no user and a second import to forget (R3.4). The name stayed
+ * `./theme.css` rather than being changed in the merge request that doubled its
+ * content; R4.3a is where that trade is written down.
+ *
+ * It is a **separate** subpath from `./tailwind.css` beside it for the reason
+ * R3.3 gives: `@source` order is irrelevant, while `@theme` and `:root` order
+ * decides which declaration wins, so merging the two would put a client\'s
+ * override before or after these tokens depending on where the generated
+ * enumeration happened to sort this package.
+ *
+ * ## What was reconciled, and what a scaffolded client now sees
+ *
+ * Three files became this one. The shell\'s `theme.css` declared 42 custom
+ * properties, `admin/src/styles/design-tokens.css` **redeclared 20 of them**,
+ * and `admin/src/styles/components.css` is the 200-token class vocabulary those
+ * 70 files render. So the merge is a **reconciliation, not a concatenation**
+ * (R3.5): the old arrangement had the package declaring a shadcn slate palette
+ * that every instance overwrote in full, on every load, in every deployment. One
+ * palette is declared here, and it is the one that has actually rendered since
+ * feature 010\'s rebrand — D-219\'s first consequence, accepted by the owner in
+ * those terms. A client who wants slate redeclares it; a client who wants their
+ * own always had to.
+ *
+ * ## Hand-written, unlike the `./tailwind.css` beside it
+ *
+ * That file\'s content is derived from the layer inventory and is generated
+ * precisely because a mistyped `@source` is silent (R1.4). These are
+ * declarations, and there is nothing to derive them from. What holds *them*
+ * honest is `check:class-vocabulary`, in both directions: a class a package
+ * renders that no published design system defines, and a class defined here that
+ * no file renders.
+ */
 
+/* Feature 029 — prevent accidental horizontal page scroll on narrow viewports */
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/*
+ * Tailwind's own namespace: the `@theme inline` mapping that binds the utility
+ * names (`bg-primary`, `rounded-lg`, …) to the semantic tokens below. Every one
+ * is an indirection, and that is R3.2's whole mechanism — these 22 properties
+ * are read by no package through `var()` and are not part of the palette a
+ * client overrides.
+ */
+@theme inline {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+/*
+ * The palette — 79 custom properties, one declaration each (R3.5).
+ *
+ * The first group is the design system's own vocabulary; the second re-tones the
+ * shadcn semantic tokens onto it, so every shadcn primitive in the admin
+ * inherits the accent and the neutrals through a single hop. Before T129 those
+ * 20 shadcn declarations sat in the instance and overwrote this package's own
+ * copy of them on every load, in every deployment; now there is one copy and it
+ * is this one.
+ */
+:root {
+  /* ---------- Layout breakpoints (feature 029 — mobile admin shell) ---------- */
+  --breakpoint-lg: 1024px;
+
+  /* ---------- Brand / accent (#6754e2 — feature 010 rebrand) ---------- */
+  --accent-h: 248;
+  --accent-s: 71%;
+  --accent-l: 61%;
+
+  --primary-color: hsl(var(--accent-h) var(--accent-s) var(--accent-l));
+  --primary-hover: hsl(var(--accent-h) var(--accent-s) calc(var(--accent-l) - 4%));
+  --primary-active: hsl(var(--accent-h) var(--accent-s) calc(var(--accent-l) - 8%));
+  --primary-fg: #ffffff;
+  --primary-soft: hsl(var(--accent-h) calc(var(--accent-s) - 10%) 96%);
+  --primary-soft-fg: hsl(var(--accent-h) calc(var(--accent-s) + 4%) 22%);
+  --ring-color: hsla(var(--accent-h), 70%, 38%, 0.35);
+
+  /* ---------- Neutrals (warm-ish gray, Shopify-leaning) ---------- */
+  --bg: #f6f6f7;
+  --bg-elevated: #ffffff;
+  --bg-sidebar: #1a1c1e;
+  --bg-sidebar-hover: #25282b;
+  --bg-sidebar-active: #2f3337;
+  --sidebar-fg: #d7d9dc;
+  --sidebar-fg-muted: #8b9097;
+  --sidebar-fg-active: #ffffff;
+
+  --surface: #ffffff;
+  --surface-muted: #fafbfb;
+  --surface-sunken: #f1f2f4;
+
+  --fg: #1a1c1e;
+  --fg-muted: #5b636d;
+  --fg-subtle: #8a9099;
+  --fg-disabled: #b5bac1;
+
+  --border-color: #e3e5e8;
+  --border-strong: #d3d6da;
+  --border-subtle: #ecedef;
+
+  /* ---------- Status colors (cards, badges, alerts) ---------- */
+  --success: #008060;
+  --success-soft: #e3f1df;
+  --success-soft-fg: #0c5132;
+
+  --warn: #b54708;
+  --warn-soft: #fff1e6;
+  --warn-soft-fg: #8a4a06;
+
+  --danger: #d72c0d;
+  --danger-soft: #fee9e7;
+  --danger-soft-fg: #8e1f0b;
+
+  --info: #1f6feb;
+  --info-soft: #e7f0ff;
+  --info-soft-fg: #134397;
+
+  --neutral-soft: #ebedef;
+  --neutral-soft-fg: #4a525c;
+
+  /* ---------- Radii ---------- */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 14px;
+  --r-pill: 999px;
+
+  /* ---------- Shadows ---------- */
+  --sh-1: 0 1px 0 rgba(0, 0, 0, 0.05);
+  --sh-2: 0 1px 2px rgba(13, 16, 19, 0.08), 0 0 0 1px rgba(13, 16, 19, 0.04);
+  --sh-3: 0 4px 12px rgba(13, 16, 19, 0.10), 0 0 0 1px rgba(13, 16, 19, 0.04);
+  --sh-pop: 0 12px 32px rgba(13, 16, 19, 0.18), 0 0 0 1px rgba(13, 16, 19, 0.08);
+
+  /* ---------- Density (regular default) ---------- */
+  --row-h: 44px;
+  --row-pad: 12px;
+  --field-h: 36px;
+  --field-pad: 10px;
+
+  /* ---------- Typography ---------- */
+  --ff: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ff-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ---------- shadcn semantic tokens, re-toned onto the palette above ---------- */
+  --background: 220 9% 97%;          /* matches --bg */
+  --foreground: 220 7% 11%;           /* matches --fg */
+  --card: 0 0% 100%;                  /* matches --surface */
+  --card-foreground: 220 7% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 7% 11%;
+
+  --primary: var(--accent-h) var(--accent-s) var(--accent-l);
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 7% 95%;            /* matches --surface-sunken */
+  --secondary-foreground: 220 7% 11%;
+  --muted: 220 7% 97%;                /* matches --surface-muted */
+  --muted-foreground: 218 8% 39%;     /* matches --fg-muted */
+  --accent: 220 7% 95%;
+  --accent-foreground: 220 7% 11%;
+
+  --destructive: 8 89% 45%;           /* matches --danger */
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 7% 90%;               /* matches --border-color */
+  --input: 220 7% 90%;
+  --ring: var(--accent-h) 70% 38%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 222.2 47.4% 11.2%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 47.4% 11.2%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 47.4% 11.2%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+}
+
+[data-density="compact"] {
+  --row-h: 36px;
+  --row-pad: 8px;
+  --field-h: 32px;
+  --field-pad: 8px;
+}
+
+/*
+ * `@layer base` — and `design-tokens.css`' unlayered `body` and scrollbar rules
+ * are merged into it, after the rules they used to win against (R3.5).
+ *
+ * They used to win by being **unlayered**, which is why this package's own
+ * `@layer base` `body` never rendered. Inside one layer they win by being last,
+ * so the cascade result is unchanged and the layering is now honest.
+ */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  html,
+  body,
+  #root {
+    margin: 0;
+    height: 100%;
+  }
+
+  /* The design background, font stack and text rendering (feature 008). */
+
+  body {
+    font-family: var(--ff);
+    background: var(--bg);
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Custom scrollbars across the app — small, matches Shopify-style admin. */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: #c8ccd1; border-radius: 999px;
+    border: 2px solid transparent; background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #a9aeb5; background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  ::-webkit-scrollbar-track { background: transparent; }
+}
+
+/* ============================================================
+   The class vocabulary (R4.4) — feature 008, moved here by T129
+   ============================================================
+   BEM-style component classes co-existing with the shadcn/Tailwind
+   primitives `@endora-commerce/admin-kit/ui` publishes. 70 files in
+   `packages/` render them by name; a client overrides one by writing a
+   later rule in their own stylesheet, never by editing this file.
+
+   Whether this vocabulary is eventually retired in favour of the `ui/`
+   primitives is an open question and is the owner's — D-219 says so in
+   those words, and notes that whoever owns the vocabulary owns the
+   retirement. It is orthogonal to where the vocabulary lives.
+   ============================================================ */
 /* ============================================================
    Sidebar (dark, grouped, collapsible)
    ============================================================ */

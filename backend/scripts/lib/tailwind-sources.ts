@@ -93,8 +93,16 @@ export const TAILWIND_REGISTRY_ARTEFACT = 'tailwind.generated.css';
 export const TAILWIND_SOURCE_FILE = 'tailwind.css';
 
 /**
- * The subpath the admin shell publishes its design tokens and base rules at
- * (R3.1).
+ * The subpath the admin's **design system** is published at — its custom-property
+ * vocabulary and its class vocabulary, in one file (R3.1/R3.4, and R4.3 + R4.4
+ * for the two kinds it carries).
+ *
+ * Which package publishes it is derived and never written down: it is the one
+ * every renderer already declares, which is `@endora-commerce/admin-kit` today
+ * and would be `@endora-commerce/admin-shell` if the kit family folded into it
+ * (owner ruling D-219). T126 published it from the shell, where 11 module
+ * packages would have rendered classes defined by a package they cannot name;
+ * T129 moved it.
  *
  * A *different kind of file* from the two around it, which is why it is a
  * different subpath and not a second entry in either (R3.3). `./tailwind.css` is
