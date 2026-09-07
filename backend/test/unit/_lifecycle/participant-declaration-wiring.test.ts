@@ -8,7 +8,7 @@ import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspac
 import { describe, expect, it } from 'vitest';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
-import { buildStaticRegistry } from '../../../src/lifecycle/services/static-registry.js';
+import { buildStaticRegistry } from '@endora-commerce/platform/lifecycle';
 
 /**
  * Feature 080, T036a / D-159 — the participants reach the **terminal**, not
@@ -50,6 +50,10 @@ if (platformRoot === null) {
 
 const commandBodyOf = (verb: string): string =>
   readFileSync(join(platformRoot, 'lifecycle', 'commands', `${verb}.ts`), 'utf8');
+
+/** Any other platform-owned lifecycle source, off the same derived root. */
+const platformSourceOf = (...segments: readonly string[]): string =>
+  readFileSync(join(platformRoot, 'lifecycle', ...segments), 'utf8');
 
 /**
  * The **source** of a module's manifest, wherever the module lives.
@@ -152,7 +156,16 @@ describe('a registry built the way a module: command builds one carries them', (
 
 describe('the orchestrator takes no reconciler from a composition root any more', () => {
   it('OrchestratorDeps declares neither i18nReconciler nor adminActionsReconciler', () => {
-    const source = sourceOf('lifecycle/services/orchestrator.ts');
+    // **Read at the platform's source, and it was not until Phase 7.** This
+    // named `src/lifecycle/services/orchestrator.ts`, which had been a 20-line
+    // re-export shim since D-160.11's second half — a file in which
+    // `OrchestratorDeps` does not appear at all, so both negatives below were
+    // true of a `export * from` line and of nothing else. The assertion passed
+    // and asserted nothing; deleting the shim is what turned a vacuous green
+    // into an ENOENT loud enough to find. A path built from segments is
+    // invisible to a relocation, which is why this one is joined to the root
+    // the workspace derives rather than spelled.
+    const source = platformSourceOf('services', 'orchestrator.ts');
 
     expect(source).not.toMatch(/i18nReconciler\??:/);
     expect(source).not.toMatch(/adminActionsReconciler\??:/);

@@ -48,54 +48,49 @@
  *
  * ## What is on it, and why exactly this
  *
- * Every symbol of the platform's lifecycle half that a first-party source
- * outside the platform reaches **today** — which is the fourteen files
- * `RELATIVE_HOST_REACHES` records the application reaching: the twelve shims,
- * plus `backend.ts` and `manifest.ts`, which the two generated artefacts name.
- * Nothing else. `routes.storefront.ts` and `commands/activation.commands.ts` are
- * reached by no application file and are absent for that reason.
- *
- * So the barrel is derived from the ledger rather than curated, and
- * `test/unit/kernel/published-surface.test.ts` holds the two to each other in
- * both directions: a name here whose file no ledgered reach names is surface
- * parked against a future need, and a ledgered reach whose file contributes no
- * name is an entry that cannot retire — because retiring it means writing this
- * specifier instead, and there would be nothing here to write.
+ * Exactly the names a first-party source outside the platform imports through
+ * `@endora-commerce/platform/lifecycle`, and nothing else. It is a
+ * **consequence** rather than a ruling — unlike `./composition`, whose 27
+ * symbols D-160.14 names one by one — so writing the set down anywhere would be
+ * a derived fact copied into a second place (D-100).
+ * `test/unit/kernel/published-surface.test.ts` derives it from the consumers on
+ * every run and holds the two to each other in both directions: a name here
+ * that nobody imports is surface parked against a future need, and a name
+ * imported that is not here is a consumer that cannot compile.
  *
  * A symbol **graduates** to a public barrel in the merge request that first
  * gives it a module-package production consumer, and leaves this one in the same
  * merge request (§5, R5.5). Two homes would be two answers to "is this public
  * API?". There is no such consumer today and none is anticipated.
  *
- * ## The second population, from Phase 3 on
+ * ## The population it was derived from until Phase 7, and why that ended
  *
- * That derivation was the whole of it for exactly as long as the host reached
- * this surface only by relative path. Phase 3 moves the manifest registry's
- * derivation here (`manifest-registry.ts`, D115-2) and the module-id collision
- * rule with it (`services/module-id-claims.ts`), and the host names both through
- * **this specifier** — so their files are on the barrel and are named by no
- * ledgered reach, correctly. `published-surface.test.ts` therefore asks two
- * questions rather than one: every name a ledger-reached file exports is here,
- * so a shim can still retire onto it; and every other name here is one a
- * first-party source outside the platform actually imports from
- * `@endora-commerce/platform/lifecycle`, so the subpath is still not a place to
- * park surface against a future need. The second question is `./composition`'s
- * own ratchet, and it became non-vacuous in the same merge request that gave
- * this subpath its first consumer.
+ * The consumer rule could not be the rule while the application reached this
+ * surface through fifteen re-export shims: nothing outside the platform named
+ * the specifier, so the ratchet would have been green over nothing — issue
+ * #113's shape. What stood in its place was a *ledger*-derived rule. Each shim
+ * spells `export * from '<target>'`, so the application holds that file's whole
+ * namespace, and a reach could retire onto this barrel only if every name it
+ * yielded were here; the expected set was therefore a function of
+ * `RELATIVE_HOST_REACHES` and the fourteen files it named.
  *
- * Phase 5 adds the five `module:*` command bodies to that second population for
- * the same reason: their entry points stayed at their application paths and name
- * them through this specifier, so they are reached by nothing relative and are
- * held by the *"a name here is one a consumer imports"* direction alone.
+ * Phase 3 gave the subpath its first consumers, Phase 5 and Phase 6 added the
+ * five command bodies and the two generated artefacts, and Phase 7 re-pointed
+ * the 112 reaches in `backend/test/**` and deleted the last nine shims. So the
+ * ledger derivation has no population left — no ledgered reach names a platform
+ * lifecycle file, and none will again, because the address exists — and 28
+ * names left with it: symbols that were here only because some shim's
+ * `export *` yielded them and that nobody had ever asked for by name.
+ * `routes.storefront.ts` and `commands/activation.commands.ts` were absent for
+ * that same reason all along.
  */
 
 // --- the five `module:*` command bodies, and the seam they take -----------
 // D115-1: the argv grammar, the exit-code table, the orchestrator wiring and
 // the operator's output moved here in Phase 5; five ~20-line entry points stay
-// at their application paths and build the runtime. Their files are named by no
-// ledgered relative reach — correctly, because the host names them through this
-// specifier — so they are held by the barrel's *second* direction: a name here
-// is one a first-party source outside the platform actually imports.
+// at their application paths and build the runtime. They were the first names
+// here that no shim ever yielded — the host names them through this specifier —
+// and since Phase 7 that is the only way any name earns its place.
 export {
   type OperatorResources,
   type OperatorRuntime,
@@ -110,54 +105,41 @@ export { runStatusCommand } from './commands/status.js';
 // Phase 6 made this comment literally true: `composition.generated.ts` and
 // `manifest-index.generated.ts` name **this specifier** for `_lifecycle`, so
 // `backend.ts`, `manifest.ts` and `plugin.ts` are reached by nothing relative
-// any more and are held by the barrel's *second* direction alone — a name here
-// is one a first-party source outside the platform actually imports.
+// any more and are here because a consumer asks for these three names.
 //
 // Which is why five names left in that same merge request. `LifecycleCradle`,
 // `lifecycleModule`, `LifecycleModule`, `LifecycleModuleDeps` and
-// `LifecycleModuleHandle` were here because direction 1 demands **every** name
-// a ledger-reached file exports, and with the reach gone nobody asks for them:
-// the generated composition reads `registerModule` off its namespace import and
-// `composition.ts` takes `lifecycleModuleFromStaticEntries`, and that is the
-// whole of it. Parking them against a future need is what R5.4 refuses, and
+// `LifecycleModuleHandle` were here only because the ledger rule then in force
+// demanded **every** name a reached file exports, and with the reach gone
+// nobody asks for them: the generated composition reads `registerModule` off
+// its namespace import and `composition.ts` takes
+// `lifecycleModuleFromStaticEntries`, and that is the whole of it. Parking a
+// name against a future need is what R5.4 refuses, and
 // `published-surface.test.ts` is what said so — in the phase that changed the
 // specifier, not in the one that would later have wondered why they were here.
+// Phase 7 repeated the exercise across the whole barrel, for 28 more.
 export { registerModule } from './backend.js';
 export { manifest } from './manifest.js';
 export { lifecycleModuleFromStaticEntries } from './plugin.js';
 export {
-  registerApiInterceptorAdminRoutes,
   registerLifecycleAdminRoutes,
-  registerModulePresenceRoutes,
-  type ApiInterceptorAdminDeps,
-  type LifecycleAdminDeps,
-  type ModulePresenceAdminDeps,
 } from './routes.admin.js';
 
 // --- the orchestrator, and the lock every write takes ---------------------
 export {
   LifecycleError,
   ModuleLifecycleOrchestrator,
-  type DisableResult,
-  type EnableResult,
-  type InstallResult,
-  type OrchestratorDeps,
-  type UninstallResult,
 } from './services/orchestrator.js';
 export {
   acquireLifecycleLock,
   LifecycleLockError,
   LOCK_KEY,
-  LOCK_REFRESH_INTERVAL_MS,
-  LOCK_TTL_SECONDS,
-  type LifecycleLeaseHandle,
 } from './services/lock.js';
 
 // --- the two graphs a presence decision is computed over ------------------
 export {
   ModuleDepGraph,
   moduleDependencyCycles,
-  orderModulesByDependencies,
   sortComponentsTopologically,
   stronglyConnectedComponents,
 } from './services/dep-graph.js';
@@ -168,41 +150,29 @@ export {
   ModuleGatingGraph,
   nonBindingPortEdgesFrom,
   provideDefaultGatingManifests,
-  type AcknowledgedPortEdge,
   type NonBindingPortEdge,
-  type PresencePredicate,
 } from './services/gating-graph.js';
 export {
   buildDeactivationLedger,
   deactivationConsequencesFor,
-  type ConsequenceRow,
   type CrossModuleRead,
   type DeactivationLedger,
-  type DeactivationOutcome,
   type LedgerEntry,
   type LedgerInput,
   type UnassignedEdge,
-  type UnassignedShape,
 } from './services/deactivation-ledger.js';
 
 // --- discovering manifests, and what a build ships ------------------------
 export {
-  collectLifecycleParticipants,
   discoverManifests,
   folderNameFromPath,
-  isLoadError,
-  loadProjectManifests,
   ManifestLoadError,
-  resolveFromFile,
-  type DiscoverOptions,
   type LoadedLifecycleParticipant,
   type LoadedManifestRegistry,
-  type LoadedModuleEntry,
 } from './services/manifest-loader.js';
 // `module-origin.ts`'s shim had no importer left once Phase 6 re-pointed the
-// application, so this file too is now held by the second direction alone —
-// which cost it `OriginatedManifestEntry`, a name nothing outside the platform
-// asks for.
+// application, which cost it `OriginatedManifestEntry` — a name nothing outside
+// the platform asks for.
 export {
   deploymentShippedEntries,
   type ModuleIdClaimOrigin,
@@ -224,7 +194,7 @@ export {
   type PackageModuleFound,
   type RegisteredManifestEntry,
 } from './manifest-registry.js';
-export { buildStaticRegistry, type StaticRegistryEntry } from './services/static-registry.js';
+export { buildStaticRegistry } from './services/static-registry.js';
 export { type MigrationOwnership } from './services/migration-ownership.js';
 
 // --- what a deployment declares about differing from core -----------------
@@ -243,7 +213,5 @@ export {
   firstBootInsertPopulation,
   loadModulePresence,
   ReducedDeploymentError,
-  type NeededBy,
-  type ReducedDeploymentFinding,
   type ShippedModuleEntry,
 } from './services/presence-load.js';

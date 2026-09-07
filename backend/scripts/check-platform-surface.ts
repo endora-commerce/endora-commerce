@@ -123,110 +123,23 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
  * `ledger-size` is printed by the run and is written down nowhere (D-100).
  */
 export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> = {
-  // === LIFECYCLE_SHIM (9) ===
+  // === the `_lifecycle` shims, and why there is no section for them ===
   //
-  // `_lifecycle`'s remaining 20-line re-export shims, each forwarding one platform
-  // file the host half still names at its old application path. They are the half
-  // this feature drains: Phase 2 gave the operator surface a declared address
-  // (`./lifecycle`, host-internal — D115-4), Phases 3–5 moved the manifest
-  // registry, the divergence parser and the five command bodies behind it, and
-  // Phase 6 re-pointed the application's own reaches onto the subpath — at which
-  // point three shims had no importer left anywhere and went with their entries.
+  // There were fifteen when this ledger landed in Phase 1: `_lifecycle`'s
+  // 20-line re-export shims, each forwarding one platform file the application
+  // still named at its old path, plus the two generated artefacts. Phase 2 gave
+  // the operator surface a declared address (`./lifecycle`, host-internal —
+  // D115-4), Phases 3–5 moved the manifest registry, the divergence parser and
+  // the five command bodies behind it, Phase 6 re-pointed the application's own
+  // reaches and the generated specifiers, and Phase 7 re-pointed
+  // `backend/test/**` — 112 reaches over 50 files — which was the only thing
+  // still holding the last nine shims open.
   //
-  // The nine here are held open by `backend/test/**` alone, which Phase 7 drains.
-  // Their **production** consumers name the subpath already, so what an entry
-  // records now is a test-tree rewrite and not a missing address.
-  'backend/src/lifecycle/routes.admin.ts|packages/platform/src/lifecycle/routes.admin.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/routes.admin.ts` at its old application path. ' +
-      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
-      'production consumer names it; what holds this shim open is `backend/test/**`',
-    retiredBy:
-      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
-      'deleted',
-  },
-  'backend/src/lifecycle/services/deactivation-ledger.ts|packages/platform/src/lifecycle/services/deactivation-ledger.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/deactivation-ledger.ts` at its old application path. ' +
-      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
-      'production consumer names it; what holds this shim open is `backend/test/**`',
-    retiredBy:
-      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
-      'deleted',
-  },
-  'backend/src/lifecycle/services/dep-graph.ts|packages/platform/src/lifecycle/services/dep-graph.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/dep-graph.ts` at its old application path. ' +
-      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
-      'production consumer names it; what holds this shim open is `backend/test/**`',
-    retiredBy:
-      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
-      'deleted',
-  },
-  'backend/src/lifecycle/services/gating-graph.ts|packages/platform/src/lifecycle/services/gating-graph.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/gating-graph.ts` at its old application path. ' +
-      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
-      'production consumer names it; what holds this shim open is `backend/test/**`',
-    retiredBy:
-      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
-      'deleted',
-  },
-  'backend/src/lifecycle/services/lock.ts|packages/platform/src/lifecycle/services/lock.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/lock.ts` at its old application path. ' +
-      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
-      'production consumer names it; what holds this shim open is `backend/test/**`',
-    retiredBy:
-      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
-      'deleted',
-  },
-  'backend/src/lifecycle/services/manifest-loader.ts|packages/platform/src/lifecycle/services/manifest-loader.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/manifest-loader.ts` at its old application path. ' +
-      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
-      'production consumer names it; what holds this shim open is `backend/test/**`',
-    retiredBy:
-      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
-      'deleted',
-  },
-  'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/lifecycle/services/orchestrator.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/orchestrator.ts` at its old application path. ' +
-      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
-      'production consumer names it; what holds this shim open is `backend/test/**`',
-    retiredBy:
-      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
-      'deleted',
-  },
-  'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/lifecycle/services/presence-load.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/presence-load.ts` at its old application path. ' +
-      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
-      'production consumer names it; what holds this shim open is `backend/test/**`',
-    retiredBy:
-      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
-      'deleted',
-  },
-  'backend/src/lifecycle/services/static-registry.ts|packages/platform/src/lifecycle/services/static-registry.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/static-registry.ts` at its old application path. ' +
-      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
-      'production consumer names it; what holds this shim open is `backend/test/**`',
-    retiredBy:
-      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
-      'deleted',
-  },
-
+  // They are **absent** rather than emptied, and the absence is the record: the
+  // application no longer names a single platform lifecycle file by relative
+  // path. `backend/src/lifecycle/` still holds the host half D-160.11 names,
+  // and every file in it reaches the platform through the subpath.
+  //
   // === PUBLISHED_SHIM (41) ===
   //
   // A re-export shim at `backend/src/<subpath>/…` whose target a published barrel

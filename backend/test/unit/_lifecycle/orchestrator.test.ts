@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { defineModuleManifest, type ModuleActivation } from '@endora-commerce/contracts';
-import { ModuleLifecycleOrchestrator, LifecycleError } from '../../../src/lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
-import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
+import {
+  LifecycleError,
+  type LoadedManifestRegistry,
+  ModuleDepGraph,
+  ModuleLifecycleOrchestrator,
+} from '@endora-commerce/platform/lifecycle';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import {
   migrationOwnershipOf,

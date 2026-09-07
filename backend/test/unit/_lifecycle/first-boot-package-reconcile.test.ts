@@ -8,11 +8,11 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import {
   firstBootInsertPopulation,
+  installGatingGraph,
   loadModulePresence,
   type ShippedModuleEntry,
-} from '../../../src/lifecycle/services/presence-load.js';
+} from '@endora-commerce/platform/lifecycle';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
-import { installGatingGraph } from '../../../src/lifecycle/services/gating-graph.js';
 import { overlayModulesRootFor, repoRoot } from '../../../src/overlay/overlay-roots.js';
 
 /**

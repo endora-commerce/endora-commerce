@@ -10,8 +10,10 @@ import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registr
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { TranslationBundle } from '../../helpers/package-entities.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
-import { buildStaticRegistry } from '../../../src/lifecycle/services/static-registry.js';
-import { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
+import {
+  buildStaticRegistry,
+  ModuleLifecycleOrchestrator,
+} from '@endora-commerce/platform/lifecycle';
 import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
 
 /**

@@ -2,11 +2,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { Redis } from 'ioredis';
 import { defineModuleManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
+import {
+  type LoadedManifestRegistry,
+  ModuleDepGraph,
+  ModuleLifecycleOrchestrator,
+} from '@endora-commerce/platform/lifecycle';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 
 /**
  * Integration test for FR-007 — install is idempotent (US1).

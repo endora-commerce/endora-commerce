@@ -4,10 +4,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import { defineModuleWorker } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import {
-  loadModulePresence,
-  type ShippedModuleEntry,
-} from '../../../src/lifecycle/services/presence-load.js';
+import { loadModulePresence, type ShippedModuleEntry } from '@endora-commerce/platform/lifecycle';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { makeFakeModuleWorker } from '../../helpers/fake-module-worker.js';

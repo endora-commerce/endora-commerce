@@ -6,11 +6,13 @@ import { fileURLToPath } from 'node:url';
 import { defineModuleManifest } from '@endora-commerce/contracts';
 import type { IMigrator } from '@mikro-orm/core';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ModuleLifecycleOrchestrator } from '../../../src/lifecycle/services/orchestrator.js';
-import { ModuleDepGraph } from '../../../src/lifecycle/services/dep-graph.js';
+import {
+  type LoadedManifestRegistry,
+  ModuleDepGraph,
+  ModuleLifecycleOrchestrator,
+} from '@endora-commerce/platform/lifecycle';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import type { LoadedManifestRegistry } from '../../../src/lifecycle/services/manifest-loader.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import {
   coreMigrationOwnership,

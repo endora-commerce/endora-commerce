@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildDeactivationLedger,
+  type CrossModuleRead,
   deactivationConsequencesFor,
   type LedgerInput,
-  type CrossModuleRead,
-} from '../../../src/lifecycle/services/deactivation-ledger.js';
+} from '@endora-commerce/platform/lifecycle';
 
 /**
  * The deactivation-consequence ledger (feature 074, FR-017 … FR-023).
