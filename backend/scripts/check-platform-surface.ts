@@ -123,164 +123,108 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
  * `ledger-size` is printed by the run and is written down nowhere (D-100).
  */
 export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> = {
-  // === GENERATED (3) ===
+  // === LIFECYCLE_SHIM (9) ===
   //
-  // The generator's reaches, not an author's (R4.4), and the sharpest thing in
-  // this ledger. `manifest-index.generated.ts` names `_lifecycle`'s manifest at
-  // `../../packages/platform/dist/lifecycle/manifest.js`, which resolves in this
-  // checkout and in **no** client instance — so the artefact whose whole job is to
-  // register the modules a build ships cannot register `_lifecycle` anywhere else,
-  // and that is precisely what stops an instance built from published packages
-  // from working. `composition.generated.ts` carries the same two reaches for the
-  // same reason. Neither is repaired by editing the file: `generate-composer.ts`
-  // has to emit the bare specifier for the one entry whose manifest the platform
-  // owns.
-  'backend/src/composition.generated.ts|packages/platform/src/lifecycle/backend.ts': {
-    reason:
-      'the generated composition imports `_lifecycle`\'s `registerModule` through the ' +
-      'platform\'s build output by relative path, for the same reason and with the same ' +
-      'consequence as the manifest index\'s',
-    retiredBy:
-      'feature 115 Phase 6 — `generate-composer.ts` emits ' +
-      '`@endora-commerce/platform/lifecycle` for the one entry whose manifest the platform ' +
-      'owns',
-  },
-  'backend/src/composition.generated.ts|packages/platform/src/lifecycle/manifest.ts': {
-    reason:
-      'the generated composition imports `_lifecycle`\'s manifest through the platform\'s build ' +
-      'output by relative path — the second half of the same emission',
-    retiredBy:
-      'feature 115 Phase 6 — `generate-composer.ts` emits ' +
-      '`@endora-commerce/platform/lifecycle` for the one entry whose manifest the platform ' +
-      'owns',
-  },
-  'backend/src/manifest-index.generated.ts|packages/platform/src/lifecycle/manifest.ts': {
-    reason:
-      'the generated manifest index reaches `_lifecycle`\'s manifest through the platform\'s ' +
-      'build output by relative path, so the index cannot register `_lifecycle` in any tree ' +
-      'that is not this checkout — the one entry in this ledger that is a live product defect ' +
-      'rather than a layout debt',
-    retiredBy:
-      'feature 115 Phase 6 — `generate-composer.ts` emits ' +
-      '`@endora-commerce/platform/lifecycle` for the one entry whose manifest the platform ' +
-      'owns',
-  },
-
-  // === LIFECYCLE_SHIM (12) ===
-  //
-  // `_lifecycle`'s twelve 20-line re-export shims, each forwarding one platform
+  // `_lifecycle`'s remaining 20-line re-export shims, each forwarding one platform
   // file the host half still names at its old application path. They are the half
-  // this feature drains: Phase 2 gives the operator surface a declared address
-  // (`./lifecycle`, host-internal — D115-4), and Phases 3–5 move the manifest
-  // registry, the divergence parser and the five command bodies behind it, at
-  // which point each shim's consumers name the subpath and the shim is deleted.
-  'backend/src/lifecycle/plugin.ts|packages/platform/src/lifecycle/plugin.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/plugin.ts` at its own path, and the platform ' +
-      'publishes no address for the operator half',
-    retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
-  },
+  // this feature drains: Phase 2 gave the operator surface a declared address
+  // (`./lifecycle`, host-internal — D115-4), Phases 3–5 moved the manifest
+  // registry, the divergence parser and the five command bodies behind it, and
+  // Phase 6 re-pointed the application's own reaches onto the subpath — at which
+  // point three shims had no importer left anywhere and went with their entries.
+  //
+  // The nine here are held open by `backend/test/**` alone, which Phase 7 drains.
+  // Their **production** consumers name the subpath already, so what an entry
+  // records now is a test-tree rewrite and not a missing address.
   'backend/src/lifecycle/routes.admin.ts|packages/platform/src/lifecycle/routes.admin.ts': {
     reason:
       'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/routes.admin.ts` at its own path, and the platform ' +
-      'publishes no address for the operator half',
+      '`packages/platform/src/lifecycle/routes.admin.ts` at its old application path. ' +
+      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
+      'production consumer names it; what holds this shim open is `backend/test/**`',
     retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
+      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
+      'deleted',
   },
   'backend/src/lifecycle/services/deactivation-ledger.ts|packages/platform/src/lifecycle/services/deactivation-ledger.ts': {
     reason:
       'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/deactivation-ledger.ts` at its own path, and ' +
-      'the platform publishes no address for the operator half',
+      '`packages/platform/src/lifecycle/services/deactivation-ledger.ts` at its old application path. ' +
+      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
+      'production consumer names it; what holds this shim open is `backend/test/**`',
     retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
+      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
+      'deleted',
   },
   'backend/src/lifecycle/services/dep-graph.ts|packages/platform/src/lifecycle/services/dep-graph.ts': {
     reason:
       'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/dep-graph.ts` at its own path, and the ' +
-      'platform publishes no address for the operator half',
+      '`packages/platform/src/lifecycle/services/dep-graph.ts` at its old application path. ' +
+      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
+      'production consumer names it; what holds this shim open is `backend/test/**`',
     retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
+      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
+      'deleted',
   },
   'backend/src/lifecycle/services/gating-graph.ts|packages/platform/src/lifecycle/services/gating-graph.ts': {
     reason:
       'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/gating-graph.ts` at its own path, and the ' +
-      'platform publishes no address for the operator half',
+      '`packages/platform/src/lifecycle/services/gating-graph.ts` at its old application path. ' +
+      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
+      'production consumer names it; what holds this shim open is `backend/test/**`',
     retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
+      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
+      'deleted',
   },
   'backend/src/lifecycle/services/lock.ts|packages/platform/src/lifecycle/services/lock.ts': {
     reason:
       'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/lock.ts` at its own path, and the platform ' +
-      'publishes no address for the operator half',
+      '`packages/platform/src/lifecycle/services/lock.ts` at its old application path. ' +
+      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
+      'production consumer names it; what holds this shim open is `backend/test/**`',
     retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
+      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
+      'deleted',
   },
   'backend/src/lifecycle/services/manifest-loader.ts|packages/platform/src/lifecycle/services/manifest-loader.ts': {
     reason:
       'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/manifest-loader.ts` at its own path, and the ' +
-      'platform publishes no address for the operator half',
+      '`packages/platform/src/lifecycle/services/manifest-loader.ts` at its old application path. ' +
+      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
+      'production consumer names it; what holds this shim open is `backend/test/**`',
     retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
-  },
-  'backend/src/lifecycle/services/migration-ownership.ts|packages/platform/src/lifecycle/services/migration-ownership.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/migration-ownership.ts` at its own path, and ' +
-      'the platform publishes no address for the operator half',
-    retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
-  },
-  'backend/src/lifecycle/services/module-origin.ts|packages/platform/src/lifecycle/services/module-origin.ts': {
-    reason:
-      'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/module-origin.ts` at its own path, and the ' +
-      'platform publishes no address for the operator half',
-    retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
+      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
+      'deleted',
   },
   'backend/src/lifecycle/services/orchestrator.ts|packages/platform/src/lifecycle/services/orchestrator.ts': {
     reason:
       'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/orchestrator.ts` at its own path, and the ' +
-      'platform publishes no address for the operator half',
+      '`packages/platform/src/lifecycle/services/orchestrator.ts` at its old application path. ' +
+      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
+      'production consumer names it; what holds this shim open is `backend/test/**`',
     retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
+      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
+      'deleted',
   },
   'backend/src/lifecycle/services/presence-load.ts|packages/platform/src/lifecycle/services/presence-load.ts': {
     reason:
       'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/presence-load.ts` at its own path, and the ' +
-      'platform publishes no address for the operator half',
+      '`packages/platform/src/lifecycle/services/presence-load.ts` at its old application path. ' +
+      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
+      'production consumer names it; what holds this shim open is `backend/test/**`',
     retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
+      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
+      'deleted',
   },
   'backend/src/lifecycle/services/static-registry.ts|packages/platform/src/lifecycle/services/static-registry.ts': {
     reason:
       'a `_lifecycle` re-export shim: the application still names ' +
-      '`packages/platform/src/lifecycle/services/static-registry.ts` at its own path, and the ' +
-      'platform publishes no address for the operator half',
+      '`packages/platform/src/lifecycle/services/static-registry.ts` at its old application path. ' +
+      '`@endora-commerce/platform/lifecycle` has carried it since Phase 2 and every ' +
+      'production consumer names it; what holds this shim open is `backend/test/**`',
     retiredBy:
-      'feature 115 Phases 2–5 — the `./lifecycle` subpath, then the derivation, the parser ' +
-      'and the command bodies behind it',
+      'feature 115 Phase 7 — the test tree names the `./lifecycle` subpath and the shim is ' +
+      'deleted',
   },
 
   // === PUBLISHED_SHIM (41) ===

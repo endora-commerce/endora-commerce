@@ -414,11 +414,8 @@ async function phaseBoot(): Promise<AssertionResult[]> {
 async function phaseInstall(): Promise<AssertionResult[]> {
   const { initOrm, closeOrm } = await import('../../src/db/index.js');
   const { AuditLogService } = await import('../../src/kernel/audit/audit-log-service.js');
-  const { ModuleLifecycleOrchestrator } = await import(
-    '../../src/lifecycle/services/orchestrator.js'
-  );
-  const { buildStaticRegistry } = await import(
-    '../../src/lifecycle/services/static-registry.js'
+  const { ModuleLifecycleOrchestrator, buildStaticRegistry } = await import(
+    '@endora-commerce/platform/lifecycle'
   );
   const { resolvedManifestEntries } = await import(
     '../../src/lifecycle/registered-manifests.js'
@@ -593,11 +590,8 @@ async function phaseGate(active: boolean): Promise<AssertionResult[]> {
 async function phaseUninstall(): Promise<AssertionResult[]> {
   const { initOrm, closeOrm } = await import('../../src/db/index.js');
   const { AuditLogService } = await import('../../src/kernel/audit/audit-log-service.js');
-  const { ModuleLifecycleOrchestrator } = await import(
-    '../../src/lifecycle/services/orchestrator.js'
-  );
-  const { buildStaticRegistry } = await import(
-    '../../src/lifecycle/services/static-registry.js'
+  const { ModuleLifecycleOrchestrator, buildStaticRegistry } = await import(
+    '@endora-commerce/platform/lifecycle'
   );
   const { resolvedManifestEntries } = await import(
     '../../src/lifecycle/registered-manifests.js'

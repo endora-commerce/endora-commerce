@@ -594,6 +594,21 @@ function firstPartySourcesOutsideThePlatform(): ReadonlyMap<string, string> {
  * shape would report a consumer that forwards a symbol under its own path as
  * naming nothing, which is exactly what a host-internal subpath's first
  * consumers do.
+ *
+ * **And a namespace import, through the members it reads** (Phase 6). The
+ * generated composition writes `import * as module0 from '…/lifecycle'` and then
+ * `module0.registerModule` — one specifier per module, uniform across all
+ * seventy, and a shape the generator writes rather than one an author chose. It
+ * names no symbol in its import clause, so this reader saw it as naming
+ * *nothing*, and `registerModule` read as parked in the merge request that first
+ * made the generated artefact a consumer of this subpath.
+ *
+ * The alternative — treating a namespace import as naming the whole barrel — was
+ * refused: it excuses every symbol on it for one `import *` anywhere, which is
+ * this ratchet made vacuous. So the alias is bound and its **member reads** are
+ * collected, which is exactly what the file consumes. A member reached any other
+ * way than a direct `alias.name` is not seen, and that blindness is in the safe
+ * direction: it reports a name as parked, never as used.
  */
 function subpathNamesIn(text: string, subpath: string): string[] {
   const names: string[] = [];
@@ -609,6 +624,18 @@ function subpathNamesIn(text: string, subpath: string): string[] {
         .split(/\s+as\s+/)[0]
         ?.trim();
       if (name !== undefined && name !== '') names.push(name);
+    }
+  }
+  const namespaced = new RegExp(
+    String.raw`import\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s*'@endora-commerce/platform/${subpath}'`,
+    'g',
+  );
+  for (const match of text.matchAll(namespaced)) {
+    const alias = match[1];
+    if (alias === undefined) continue;
+    for (const read of text.matchAll(new RegExp(String.raw`\b${alias}\.([A-Za-z_$][\w$]*)`, 'g'))) {
+      const name = read[1];
+      if (name !== undefined) names.push(name);
     }
   }
   return names;
