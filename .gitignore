@@ -110,3 +110,15 @@ backend/var/assets/
 # `git add` a new page that really belongs to the site rather than to a module.
 /docs/docs/modules/**
 /docs/.module-docs-copies.json
+
+# The fixture instances `admin/test/unit/shell-theme-override.test.ts` builds
+# (feature 110, T126).
+#
+# Ignored rather than merely removed afterwards, and the reason is Tailwind's:
+# the fixture sits under `admin/`, which is the admin's own automatic-detection
+# base, so a tracked one would compile its classes into this repository's admin
+# bundle. An ignored path is skipped by that walk and is still scanned in full by
+# the fixture's *own* build, whose base is the fixture directory — the ignore
+# rules apply to a base's descendants relative to that base
+# (`admin-stylesheet-composition.md` §1).
+/admin/.instance-theme-fixture/

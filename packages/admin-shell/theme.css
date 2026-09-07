@@ -1,0 +1,260 @@
+/*
+ * The admin's design tokens and base rules — everything an instance imports and
+ * nothing it holds (feature 110, T126;
+ * `specs/110-instance-repository/contracts/admin-stylesheet-composition.md` R3).
+ *
+ * ## Why this is a package's file and not the instance's
+ *
+ * Under D-207 a client depends on this shell, it does not fork it. Their
+ * `src/index.css` is three imports and their own overrides; this file is what
+ * the second of those imports names. Before T126 every line below sat in
+ * `admin/src/index.css`, which is a file an instance holds — so a client held
+ * the *definition* of what an installed package renders, and every one of these
+ * declarations was frozen at the moment their instance was scaffolded.
+ *
+ * ## How a client changes it
+ *
+ * By **redeclaring after the import**, never by editing this file:
+ *
+ *   @import "tailwindcss";
+ *   @import "@endora-commerce/admin-shell/theme.css";
+ *   @import "./tailwind.generated.css";
+ *
+ *   :root { --primary: 262 83% 58%; }
+ *
+ * That works because every semantic token in the `@theme inline` block is an
+ * indirection — `--color-primary: hsl(var(--primary))` — so a utility this
+ * package's build never saw still resolves against the *client's* `:root`
+ * (R3.2). What a redeclaration cannot change is a value baked as a literal: the
+ * default palette below is overridable, the spacing scale is Tailwind's own. A
+ * client who needs a different spacing scale is asking for a different design
+ * system, and the answer to that is the escalation ladder rather than this seam.
+ *
+ * ## Why it is a second subpath and not part of `./tailwind.css`
+ *
+ * `@source` order is irrelevant; `@theme` and `:root` order decides which
+ * declaration wins. Merged into the generated enumeration, a client's override
+ * would land before or after these tokens depending on where that enumeration
+ * happened to sort this package (R3.3).
+ *
+ * Hand-written, unlike the `./tailwind.css` beside it: that file's content is
+ * derived from the layer inventory and is generated precisely because a mistyped
+ * `@source` is silent. These are declarations, and there is nothing to derive
+ * them from.
+ */
+
+/* Feature 029 — prevent accidental horizontal page scroll on narrow viewports */
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/*
+ * shadcn/ui design tokens — light + dark mode. The semantic palette below
+ * follows the conventional shadcn naming so any component copied from the
+ * registry "just works".
+ */
+
+@theme inline {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 47.4% 11.2%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 222.2 47.4% 11.2%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 47.4% 11.2%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 47.4% 11.2%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  html,
+  body,
+  #root {
+    margin: 0;
+    height: 100%;
+  }
+}
+
+/*
+ * Legacy class compatibility shim. Pages that haven't yet been ported to the
+ * `@endora-commerce/admin-kit` primitives still render correctly via these
+ * Tailwind compositions over the same shadcn design tokens. New code SHOULD use
+ * the kit's components directly.
+ *
+ * **Whether this block is retired in favour of those primitives is an open
+ * question and is the owner's**; T126 moved it and did not answer it. What T126
+ * settles is only *where it lives*: module packages installed in a client's
+ * instance render these classes, so their definition belongs to a package the
+ * client upgrades and not to a file the client holds. Left in `admin/src`, a
+ * module release adding `.badge--info` would have rendered unstyled in every
+ * existing instance, silently — §0's failure one blast radius down.
+ */
+@layer components {
+  .page-header {
+    @apply mb-6 flex flex-wrap items-start justify-between gap-4;
+  }
+  .page-header h1 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+  .page-header p {
+    @apply mt-1 text-sm text-muted-foreground;
+  }
+  .card {
+    @apply mb-4 rounded-lg border bg-card p-6 text-card-foreground shadow-sm;
+  }
+  .card h2 {
+    @apply mb-4 text-base font-semibold leading-none tracking-tight;
+  }
+  .card h3 {
+    @apply mb-2 text-sm font-semibold;
+  }
+  .field {
+    @apply mb-4 space-y-2;
+  }
+  .field label {
+    @apply text-sm font-medium leading-none;
+  }
+  .field__hint {
+    @apply mt-1 block text-xs text-muted-foreground;
+  }
+  .input,
+  .select,
+  .textarea {
+    @apply flex w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .input,
+  .select {
+    @apply h-9;
+  }
+  .textarea {
+    @apply min-h-[60px] py-2;
+  }
+  .btn {
+    @apply inline-flex h-9 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn--primary {
+    @apply border-transparent bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground;
+  }
+  .btn--danger {
+    @apply border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground;
+  }
+  .alert {
+    @apply mb-4 rounded-lg border p-4 text-sm;
+  }
+  .alert--error {
+    @apply border-destructive/50 bg-destructive/10 text-destructive;
+  }
+  .alert--success {
+    @apply border-emerald-500/40 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100;
+  }
+  .alert--warning {
+    @apply border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium;
+  }
+  .badge--success {
+    @apply border-transparent bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100;
+  }
+  .badge--warning {
+    @apply border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100;
+  }
+  .badge--danger {
+    @apply border-transparent bg-destructive text-destructive-foreground;
+  }
+  .muted {
+    @apply text-muted-foreground;
+  }
+  .code {
+    @apply rounded bg-muted px-1 py-0.5 font-mono text-xs;
+  }
+  .table {
+    @apply w-full caption-bottom text-sm;
+  }
+  .table thead {
+    @apply [&_tr]:border-b;
+  }
+  .table tbody tr {
+    @apply border-b transition-colors hover:bg-muted/50;
+  }
+  .table th {
+    @apply h-10 px-2 text-left align-middle font-medium text-muted-foreground;
+  }
+  .table td {
+    @apply p-2 align-middle;
+  }
+  .toolbar {
+    @apply mb-4 flex flex-wrap items-center gap-2;
+  }
+  .row-actions {
+    @apply flex flex-wrap gap-2;
+  }
+}
